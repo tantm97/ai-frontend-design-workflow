@@ -1,0 +1,17 @@
+<dfw-component name="tabs" group="Navigation" props="label"
+  description="Tab list. Children: <button role=tab aria-selected=true|false>.">
+<style>
+.tabs { display: flex; gap: var(--space-5); border-bottom: var(--border-width) solid var(--color-rule); }
+.tabs [role="tab"] { position: relative; padding: var(--space-3) 0; border: 0; background: none; color: var(--color-muted); font: var(--font-weight-medium) var(--font-size-sm) / 1 var(--font-family-body); cursor: pointer; white-space: nowrap; }
+.tabs [role="tab"]:hover { color: var(--color-ink); }
+.tabs [role="tab"][aria-selected="true"] { color: var(--color-ink); }
+.tabs [role="tab"][aria-selected="true"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: calc(var(--border-width) * -1); height: var(--border-width-strong); background: var(--color-accent); border-radius: var(--radius-pill); }
+.tabs [role="tab"]:focus-visible { outline: var(--focus-width) solid var(--color-focus); outline-offset: var(--focus-offset); }
+</style>
+<template>
+<div class="tabs" role="tablist" aria-label="{{label}}"><dfw-slot></dfw-slot></div>
+</template>
+<dfw-examples>
+<dfw-use c="tabs" label="Comments"><button role="tab" aria-selected="true">Open</button><button role="tab" aria-selected="false">To verify</button><button role="tab" aria-selected="false">Closed</button></dfw-use>
+</dfw-examples>
+</dfw-component>

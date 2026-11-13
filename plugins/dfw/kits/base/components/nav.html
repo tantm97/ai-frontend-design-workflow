@@ -1,0 +1,17 @@
+<dfw-component name="nav" group="Navigation" variants="sidebar rail" props="label"
+  description="App navigation. Children: nav-item instances (+ optional <hr>). sidebar = labels beside icons (240px); rail = icons over short labels (80px).">
+<style>
+.nav { display: flex; flex-direction: column; gap: var(--space-half); padding: var(--space-3); background: var(--color-surface); border-right: var(--border-width) solid var(--color-rule); min-height: 100%; }
+.nav--sidebar { width: var(--size-sidebar); }
+.nav--rail { width: var(--size-rail); align-items: stretch; padding: var(--space-2); }
+.nav hr { border: 0; border-top: var(--border-width) solid var(--color-rule); margin: var(--space-2) 0; width: 100%; }
+.nav__spacer { flex: 1; }
+</style>
+<template>
+<nav class="nav nav--{{variant}}" aria-label="{{label}}"><dfw-slot></dfw-slot></nav>
+</template>
+<dfw-examples>
+<div style="height: 280px; display: flex"><dfw-use c="nav" label="Main"><dfw-use c="nav-item" icon="house" current="page">Overview</dfw-use><dfw-use c="nav-item" icon="package">Equipment</dfw-use><dfw-use c="nav-item" icon="file-clock" count="3">History</dfw-use></dfw-use></div>
+<div style="height: 280px; display: flex"><dfw-use c="nav" variant="rail" label="Modes"><dfw-use c="nav-item" variant="rail" icon="log-out" current="page" hint="F1">Borrow</dfw-use><dfw-use c="nav-item" variant="rail" icon="log-in" hint="F2">Return</dfw-use></dfw-use></div>
+</dfw-examples>
+</dfw-component>

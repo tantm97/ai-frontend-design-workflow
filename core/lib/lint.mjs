@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { readJson, listFiles, projectPaths, toPosix } from './util.mjs';
+import { composeHtml, loadComponents, designBaseFor } from './compose.mjs';
 
 const STRUCTURAL = ['button', 'a', 'input', 'select', 'textarea', 'nav', 'header', 'main', 'footer', 'section', 'form', 'table', 'dialog', 'aside', 'img', 'h1', 'h2', 'h3', 'ul', 'ol', 'label'];
 const COLOR_RE = /#(?:[0-9a-fA-F]{3,4}){1,2}\b|\b(?:rgba?|hsla?|oklch|oklab|lab|lch|color)\(/g;
@@ -18,7 +19,7 @@ export function lintHtml(rel, text) {
   const add = (level, rule, index, message) => out.push({ level, rule, file: rel, line: index == null ? 1 : lineOf(text, index), message, source: 'dfw' });
 
   if (!/<html[^>]*\blang=/i.test(text) && /<html/i.test(text)) add('warn', 'html-lang', text.search(/<html/i), '<html> has no lang attribute.');
-  if (!/tokens\.css/.test(text)) add('warn', 'tokens-link', null, 'Screen does not load design/tokens/tokens.css; values may not come from tokens.');
+  if (!/tokens\.css|<dfw-head\b/.test(text)) add('warn', 'tokens-link', null, 'Screen does not load design/tokens/tokens.css; values may not come from tokens.');
 
   // Stable ids.
   const ids = new Map();
@@ -50,6 +51,74 @@ export function lintHtml(rel, text) {
       const before = sm[1].slice(Math.max(0, cm.index - 80), cm.index);
       if (/--[\w-]+\s*:\s*[^;]*$/.test(before)) continue; // custom property definition
       add('warn', 'hardcoded-color', sm.index + sm[0].indexOf(sm[1]) + cm.index, `Hard-coded color "${cm[0]}" in <style>; use a token (var(--...)).`);
+    }
+  }
+  return out;
+}
+
+// Visual properties belong to the design system (tokens + component masters);
+// screens may only arrange components (layout).
+const VISUAL_PROPS = /^(color|background(-color|-image)?|border(-(top|right|bottom|left))?(-color)?|outline-color|font(-family|-size|-weight|-style)?|line-height|letter-spacing|text-transform|box-shadow|border-radius|text-decoration(-color)?|fill|stroke)$/;
+
+/** Screen-only rules: compose issues, visual styling outside the design system, raw elements that have a component. */
+export function lintScreen(root, rel, text, lib = loadComponents(root)) {
+  const out = [];
+  const add = (level, rule, line, message) => out.push({ level, rule, file: rel, line: line || 1, message, source: 'dfw' });
+  const r = composeHtml(root, text, { lib, designBase: designBaseFor(rel) });
+  for (const i of r.issues) add(i.level, i.rule, i.line, i.message);
+  if (lib.size) {
+    for (const sm of text.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)) {
+      const css = sm[1].replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '));
+      const offset = sm.index + sm[0].indexOf(sm[1]);
+      for (const dm of css.matchAll(/(^|[;{\s])([a-z-]+)\s*:\s*([^;{}]+)/g)) {
+        const prop = dm[2];
+        if (prop.startsWith('--') || !VISUAL_PROPS.test(prop)) continue;
+        add('error', 'screen-visual-style', lineOf(text, offset + dm.index), `"${prop}" set in a screen. Visual styling lives in the design system: use or extend a component variant (design/system/components/) or a token; screens only handle layout.`);
+      }
+    }
+    for (const m of text.matchAll(/\sstyle\s*=\s*"([^"]*)"/g)) {
+      for (const d of m[1].split(';')) {
+        const prop = d.split(':')[0].trim().toLowerCase();
+        if (prop && !prop.startsWith('--') && VISUAL_PROPS.test(prop)) add('error', 'screen-visual-style', lineOf(text, m.index), `Inline "${prop}" in a screen; visual styling belongs to the design system.`);
+      }
+    }
+    const replaced = new Map();
+    for (const d of lib.values()) for (const t of d.replaces) replaced.set(t, d.name);
+    const body = Math.max(0, text.search(/<body/i));
+    const counts = new Map();
+    for (const [tag, comp] of replaced) {
+      const re = new RegExp(`<${tag}\\b`, 'gi');
+      for (const m of text.matchAll(re)) {
+        if (m.index < body) continue;
+        if (!counts.has(tag)) counts.set(tag, { n: 0, line: lineOf(text, m.index), comp });
+        counts.get(tag).n++;
+      }
+    }
+    for (const [tag, c] of counts) add('warn', 'use-component', c.line, `${c.n} raw <${tag}> element(s); the design system has component "${c.comp}" for this. Use <dfw-use c="${c.comp}">.`);
+    if (!r.instances.length && /<body/i.test(text)) add('warn', 'no-components', body ? lineOf(text, body) : 1, 'Screen uses no design-system components; build screens from design/system/components.');
+  }
+  return out;
+}
+
+/** Lint a component master file. */
+export function lintComponentFile(rel, text) {
+  const out = [];
+  const add = (level, rule, index, message) => out.push({ level, rule, file: rel, line: index == null ? 1 : lineOf(text, index), message, source: 'dfw' });
+  if (!/<dfw-component\b/.test(text)) add('error', 'component-missing', null, 'Component file has no <dfw-component name="..."> element.');
+  for (const m of text.matchAll(/<dfw-component\b([^>]*)>/g)) {
+    if (!/\bname\s*=\s*"[a-z][a-z0-9-]*"/.test(m[1])) add('error', 'component-name', m.index, 'Component needs name="kebab-case".');
+  }
+  if (!/<template\b/.test(text)) add('error', 'component-template', null, 'Component has no <template>.');
+  for (const sm of text.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)) {
+    for (const cm of sm[1].matchAll(COLOR_RE)) {
+      const before = sm[1].slice(Math.max(0, cm.index - 80), cm.index);
+      if (/--[\w-]+\s*:\s*[^;]*$/.test(before)) continue;
+      add('error', 'hardcoded-color', sm.index + sm[0].indexOf(sm[1]) + cm.index, `Hard-coded color "${cm[0]}" in a component; use a color token.`);
+    }
+    for (const pm of sm[1].matchAll(/(?:padding|margin|gap|font-size|border-radius)[\w-]*\s*:\s*([^;}]*)/g)) {
+      const raw = pm[1].replace(/var\([^)]*\)/g, '').match(/\b(\d+(?:\.\d+)?)px\b/g) || [];
+      if (!raw.some((v) => parseFloat(v) > 2)) continue;
+      add('warn', 'raw-dimension', sm.index + sm[0].indexOf(sm[1]) + pm.index, `Raw length "${pm[0].trim()}" in a component; use space/font/radius tokens.`);
     }
   }
   return out;
@@ -114,7 +183,11 @@ export function lintManifest(root) {
     return [{ level: 'error', rule: 'manifest-json', file: rel, line: 1, message: e.message, source: 'dfw' }];
   }
   if (!m) return [{ level: 'error', rule: 'manifest-missing', file: rel, line: 1, message: 'design/design.json is missing.', source: 'dfw' }];
-  if (!Array.isArray(m.screens) || !m.screens.length) out.push({ level: 'error', rule: 'manifest-screens', file: rel, line: 1, message: 'Manifest has no screens.', source: 'dfw' });
+  if (!Array.isArray(m.screens) || !m.screens.length) out.push({ level: 'warn', rule: 'manifest-screens', file: rel, line: 1, message: 'Manifest has no screens yet (fine during the system phase).', source: 'dfw' });
+  const screenIds = new Set((m.screens || []).map((x) => x.id));
+  for (const pg of m.pages || []) {
+    for (const sid of pg.screens || []) if (!screenIds.has(sid)) out.push({ level: 'error', rule: 'manifest-page-screen', file: rel, line: 1, message: `Page "${pg.id}" lists unknown screen "${sid}".`, source: 'dfw' });
+  }
   const seen = new Set();
   for (const s of m.screens || []) {
     if (!s.id) out.push({ level: 'error', rule: 'manifest-screen-id', file: rel, line: 1, message: 'A screen has no id.', source: 'dfw' });
@@ -140,12 +213,17 @@ export function lintDesign(root, files = null) {
     ? files.map((f) => toPosix(path.relative(root, path.resolve(root, f))))
     : listFiles(p.design, { exclude: ['approved'] }).map((r) => `design/${r}`);
   if (!files || targets.includes('design/design.json')) out.push(...lintManifest(root));
+  const lib = loadComponents(root);
   for (const rel of targets) {
     if (rel.startsWith('design/approved/')) continue;
     const abs = path.join(root, rel);
     if (!fs.existsSync(abs)) continue;
     const text = fs.readFileSync(abs, 'utf8');
-    if (rel.endsWith('.html')) out.push(...lintHtml(rel, text));
+    if (rel.startsWith('design/system/components/') && rel.endsWith('.html')) out.push(...lintComponentFile(rel, text));
+    else if (rel.endsWith('.html')) {
+      out.push(...lintHtml(rel, text));
+      if (rel.startsWith('design/screens/')) out.push(...lintScreen(root, rel, text, lib));
+    } else if (rel === 'design/system/components.css') continue;
     else if (rel.endsWith('.css')) out.push(...lintCss(rel, text));
     else if (/tokens\/.*\.json$/.test(rel) || rel.endsWith('.tokens.json')) {
       try {

@@ -6,65 +6,90 @@
   <title>dfw Studio</title>
   <link rel="stylesheet" href="/__dfw/static/app.css">
 </head>
-<body>
+<body data-mode="select">
   <header class="topbar">
     <div class="brand">
       <span class="brand-mark" aria-hidden="true"></span>
-      <div class="brand-text">
-        <strong id="product">Design Studio</strong>
-        <span id="meta" class="muted">loading…</span>
-      </div>
+      <strong id="product">Design Studio</strong>
+      <span id="meta" class="muted">loading…</span>
     </div>
 
-    <div class="toolbar" role="toolbar" aria-label="Canvas controls">
-      <div class="segmented" role="radiogroup" aria-label="Interaction mode">
-        <button type="button" role="radio" aria-checked="true" data-mode="view" title="View (V)">View</button>
-        <button type="button" role="radio" aria-checked="false" data-mode="comment" title="Comment (C)">Comment</button>
+    <div class="tools" role="toolbar" aria-label="Tools">
+      <div class="seg" role="radiogroup" aria-label="Tool">
+        <button type="button" role="radio" data-mode="select" aria-checked="true" title="Select (V)" aria-label="Select">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2l9.5 6.2-4.3.9 2.6 4.6-1.6.9-2.6-4.6L3.4 13z" fill="currentColor"/></svg>
+        </button>
+        <button type="button" role="radio" data-mode="hand" aria-checked="false" title="Hand (H, or hold Space)" aria-label="Hand">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 8V3.5a1 1 0 0 1 2 0V7m0-4.5v-.5a1 1 0 0 1 2 0V7m0-4a1 1 0 0 1 2 0v4m0-2.5a1 1 0 0 1 2 0V10a5 5 0 0 1-5 5H7.6a4 4 0 0 1-3-1.4L2.3 11a1 1 0 0 1 1.5-1.3L5 11" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button type="button" role="radio" data-mode="comment" aria-checked="false" title="Comment (C)" aria-label="Comment">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.2c3.4 0 6 2.3 6 5.2s-2.6 5.2-6 5.2c-.8 0-1.6-.1-2.3-.4L2.5 13.6l.9-2.8C2.5 9.9 2 8.7 2 7.4 2 4.5 4.6 2.2 8 2.2z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+        </button>
+        <button type="button" role="radio" data-mode="interact" aria-checked="false" title="Interact: use the prototype on the canvas (I)" aria-label="Interact">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 2.5v6l-1.6-1.4a1 1 0 0 0-1.5 1.3l2.8 3.9A3.5 3.5 0 0 0 9 13.8h1a3.5 3.5 0 0 0 3.5-3.5V7.6a1 1 0 0 0-2 0M11.5 7.6V6.8a1 1 0 0 0-2 0v.8m0-.3V6.2a1 1 0 0 0-2 0V7M8.5 7V2.5a1 1 0 0 0-2 0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
       </div>
+      <button type="button" id="present-btn" class="icon-btn present-btn" title="Present (P) · full-screen prototype" aria-label="Present">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7.5-4.5z" fill="currentColor"/></svg>
+      </button>
+      <span class="sep" aria-hidden="true"></span>
       <div id="breakpoints" class="chips" role="group" aria-label="Breakpoints"></div>
-      <label class="select" id="theme-wrap" hidden>
-        <span>Theme</span>
-        <select id="theme"></select>
-      </label>
-      <label class="select" id="state-wrap" hidden>
-        <span>State</span>
-        <select id="state"></select>
-      </label>
+      <button type="button" id="states-toggle" class="chip" aria-pressed="false" title="Show one frame per declared state">States</button>
+      <button type="button" id="full-toggle" class="chip" aria-pressed="false" title="Grow frames to their full content height">Full height</button>
+      <label class="select" id="theme-wrap" hidden><span>Theme</span><select id="theme"></select></label>
+    </div>
+
+    <div class="right">
       <div class="zoom" role="group" aria-label="Zoom">
         <button type="button" id="zoom-out" title="Zoom out (-)" aria-label="Zoom out">−</button>
-        <button type="button" id="zoom-label" title="Reset zoom (0)">50%</button>
+        <button type="button" id="zoom-label" title="Zoom to fit (Shift+1)">100%</button>
         <button type="button" id="zoom-in" title="Zoom in (+)" aria-label="Zoom in">+</button>
       </div>
+      <button type="button" id="help" class="icon-btn" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">?</button>
     </div>
-
-    <button type="button" id="panel-toggle" class="ghost" aria-expanded="true" aria-controls="panel">
-      Comments <span id="open-count" class="count">0</span>
-    </button>
   </header>
 
   <div class="layout">
-    <nav class="sidebar" aria-label="Screens">
-      <h2 class="eyebrowless">Screens</h2>
-      <ol id="screen-list"></ol>
+    <nav class="left" aria-label="Pages and layers">
+      <section class="pane pages-pane">
+        <h2 class="pane-title">Pages</h2>
+        <ol id="page-list" class="page-list"></ol>
+      </section>
+      <section class="pane layers-pane">
+        <h2 class="pane-title">Layers <span id="layers-for" class="muted"></span></h2>
+        <div id="layers" class="layers" role="tree" aria-label="Layers"><p class="hint muted">Select a frame to see its layers.</p></div>
+      </section>
     </nav>
 
-    <main id="canvas" class="canvas" tabindex="-1">
-      <div id="canvas-inner"></div>
-      <p id="empty" class="empty" hidden>No screens yet. Claude adds screens to <code>design/screens/</code> and lists them in <code>design/design.json</code>.</p>
+    <main id="viewport" class="viewport" tabindex="-1" aria-label="Canvas">
+      <div id="world" class="world"></div>
+      <div id="hud" class="hud" aria-hidden="true">
+        <div id="hover-box" class="box hover" hidden></div>
+        <div id="sel-box" class="box sel" hidden><span class="tag"></span><span class="dims"></span></div>
+        <div id="pins"></div>
+      </div>
+      <p id="empty" class="empty" hidden>No screens on this page yet. Claude adds screens to <code>design/screens/</code> and lists them in <code>design/design.json</code>.</p>
     </main>
 
-    <aside id="panel" class="panel" aria-label="Review comments">
-      <div class="panel-head">
-        <div class="tabs" role="tablist">
-          <button type="button" role="tab" data-filter="active" aria-selected="true">Open</button>
-          <button type="button" role="tab" data-filter="fixed" aria-selected="false">To verify</button>
-          <button type="button" role="tab" data-filter="closed" aria-selected="false">Closed</button>
-          <button type="button" role="tab" data-filter="all" aria-selected="false">All</button>
-        </div>
-        <button type="button" id="new-session" class="link" title="Close this review round and start a new one">New round</button>
+    <aside id="panel" class="right-panel" aria-label="Inspector and comments">
+      <div class="ptabs" role="tablist">
+        <button type="button" role="tab" data-tab="inspect" aria-selected="true">Inspect</button>
+        <button type="button" role="tab" data-tab="comments" aria-selected="false">Comments <span id="open-count" class="count">0</span></button>
       </div>
-      <ol id="comment-list" class="comment-list"></ol>
-      <p class="hint muted">Press <kbd>C</kbd>, click an element in any frame, write what should change. Hold <kbd>Alt</kbd> to pick the exact element instead of its component.</p>
+      <div id="tab-inspect" class="tabpane" role="tabpanel"><div id="inspector"></div></div>
+      <div id="tab-comments" class="tabpane" role="tabpanel" hidden>
+        <div class="panel-head">
+          <div class="tabs" role="tablist">
+            <button type="button" role="tab" data-filter="active" aria-selected="true">Open</button>
+            <button type="button" role="tab" data-filter="fixed" aria-selected="false">To verify</button>
+            <button type="button" role="tab" data-filter="closed" aria-selected="false">Closed</button>
+            <button type="button" role="tab" data-filter="all" aria-selected="false">All</button>
+          </div>
+          <button type="button" id="new-session" class="link" title="Close this review round and start a new one">New round</button>
+        </div>
+        <ol id="comment-list" class="comment-list"></ol>
+        <p class="hint muted">Press <kbd>C</kbd>, click an element in any frame, write what should change. Hold <kbd>Alt</kbd> to pick the exact element instead of its component.</p>
+      </div>
     </aside>
   </div>
 
@@ -76,6 +101,55 @@
       <button type="button" id="composer-cancel" class="ghost">Cancel</button>
       <button type="button" id="composer-save" class="primary">Add comment</button>
     </div>
+  </div>
+
+  <div id="shortcuts" class="sheet" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title" hidden>
+    <div class="sheet-card">
+      <h2 id="shortcuts-title">Keyboard shortcuts</h2>
+      <dl>
+        <dt><kbd>V</kbd></dt><dd>Select tool</dd>
+        <dt><kbd>H</kbd> / hold <kbd>Space</kbd></dt><dd>Hand tool (pan)</dd>
+        <dt><kbd>C</kbd></dt><dd>Comment tool (also in Present)</dd>
+        <dt><kbd>I</kbd></dt><dd>Interact tool: click through the prototype on the canvas</dd>
+        <dt><kbd>P</kbd> / double-click frame title</dt><dd>Present the selected frame full-window</dd>
+        <dt><kbd>←</kbd> <kbd>→</kbd> (Present)</dt><dd>Previous / next frame of the page</dd>
+        <dt><kbd>F</kbd></dt><dd>Browser fullscreen</dd>
+        <dt><kbd>Esc</kbd></dt><dd>Deselect / cancel</dd>
+        <dt>Scroll, middle-drag</dt><dd>Pan</dd>
+        <dt><kbd>⌘</kbd>/<kbd>Ctrl</kbd> + scroll, pinch</dt><dd>Zoom at pointer</dd>
+        <dt><kbd>+</kbd> <kbd>-</kbd></dt><dd>Zoom in / out</dd>
+        <dt><kbd>0</kbd></dt><dd>Zoom to 100%</dd>
+        <dt><kbd>Shift</kbd><kbd>1</kbd></dt><dd>Zoom to fit</dd>
+        <dt><kbd>Shift</kbd><kbd>2</kbd></dt><dd>Zoom to selection</dd>
+        <dt>Click / <kbd>⌘</kbd>-click</dt><dd>Select element / exact element</dd>
+        <dt>Double-click text</dt><dd>Edit text (Enter saves, Esc cancels)</dd>
+        <dt><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd></dt><dd>Parent / first child / previous / next layer</dd>
+        <dt><kbd>⌘</kbd>/<kbd>Ctrl</kbd> <kbd>Z</kbd></dt><dd>Undo last Studio edit</dd>
+        <dt><kbd>?</kbd></dt><dd>This sheet</dd>
+      </dl>
+      <button type="button" id="shortcuts-close" class="ghost">Close</button>
+    </div>
+  </div>
+
+  <div id="present" class="present" role="dialog" aria-modal="true" aria-label="Prototype preview" hidden>
+    <div class="p-bar">
+      <strong id="p-title" class="p-title"></strong>
+      <span id="p-count" class="p-count"></span>
+      <div class="p-nav">
+        <button type="button" id="p-prev" title="Previous frame (←)" aria-label="Previous frame">←</button>
+        <button type="button" id="p-next" title="Next frame (→)" aria-label="Next frame">→</button>
+      </div>
+      <label class="p-sel"><span>Breakpoint</span><select id="p-bp"></select></label>
+      <label class="p-sel"><span>State</span><select id="p-state"></select></label>
+      <label class="p-sel" id="p-theme-wrap" hidden><span>Theme</span><select id="p-theme"></select></label>
+      <span class="p-spacer"></span>
+      <button type="button" id="p-comment" class="p-btn" aria-pressed="false" title="Comment (C)">Comment</button>
+      <button type="button" id="p-fit" class="p-btn" aria-pressed="true" title="Toggle fit width / 100%">Fit width</button>
+      <button type="button" id="p-full" class="p-btn" title="Browser fullscreen (F)">Fullscreen</button>
+      <a id="p-open" class="p-btn" href="#" target="_blank" rel="noopener">Open in new tab ↗</a>
+      <button type="button" id="p-close" class="p-btn" title="Close (Esc)" aria-label="Close preview">✕</button>
+    </div>
+    <div id="p-stage" class="p-stage"><div id="p-wrap" class="p-wrap"></div></div>
   </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>

@@ -1,0 +1,339 @@
+{
+  "id": "ledger-finance",
+  "seeds": {
+    "brand": {
+      "hue": 160,
+      "chroma": 0.09
+    },
+    "neutral": {
+      "hue": 100,
+      "tint": 0.008
+    },
+    "signature": {
+      "hue": 85,
+      "chroma": 0.11
+    },
+    "accentFrom": "neutral",
+    "brandStep": 800
+  },
+  "names": {
+    "brand": "xanh-ngan-hang",
+    "neutral": "so-cai",
+    "signature": "vang"
+  },
+  "type": {
+    "base": 15,
+    "ratio": 1.2,
+    "displayRatio": 1.333,
+    "displayFrom": 28,
+    "eyebrow": {
+      "size": 11,
+      "weight": 700,
+      "tracking": "0.12em",
+      "upper": true
+    },
+    "ui": {
+      "2xs": 11,
+      "xs": 12,
+      "sm": 13,
+      "md": 15,
+      "lg": 18,
+      "xl": 22,
+      "2xl": 26,
+      "3xl": 28,
+      "4xl": 37
+    },
+    "display": [
+      66,
+      50,
+      37,
+      28
+    ]
+  },
+  "axes": {
+    "formality": 5,
+    "energy": 1,
+    "era": 2,
+    "warmth": 3,
+    "density": 4,
+    "richness": 2,
+    "seriousness": 5
+  },
+  "rationale": [
+    "Buttons are ink, not green: in finance green means 'positive amount' and success; an action must not look like a gain.",
+    "Paper neutrals slightly warm (hue 100) so the ledger feels like paper, not a spreadsheet.",
+    "Numbers carry the hierarchy: tabular mono, 1.333 display ratio for balances."
+  ],
+  "name": "Ledger",
+  "tags": [
+    "finance",
+    "accounting",
+    "fintech",
+    "banking",
+    "ledger",
+    "numbers",
+    "trust",
+    "serious",
+    "b2b"
+  ],
+  "concept": "A bound ledger: cream pages, deep bank green, gold double rules under totals, and numbers that line up perfectly.",
+  "fits": [
+    "accounting and invoicing",
+    "banking and payments",
+    "investment reports"
+  ],
+  "avoid": [
+    "playful consumer apps"
+  ],
+  "base": "crisp",
+  "fonts": {
+    "display": "Newsreader",
+    "body": "Manrope",
+    "mono": "JetBrains Mono",
+    "displayWeights": "500;600",
+    "note": "Numbers in JetBrains Mono or Manrope tabular; serif only for headings."
+  },
+  "fontsLatin": {
+    "display": "Newsreader",
+    "body": "Figtree",
+    "mono": "JetBrains Mono",
+    "displayWeights": "500;600"
+  },
+  "radius": {
+    "sm": 2,
+    "md": 4,
+    "lg": 6,
+    "xl": 8
+  },
+  "density": "compact",
+  "motifs": [
+    {
+      "name": "double-rule",
+      "use": "Totals and closing balances: double gold rule above the figure.",
+      "css": ".motif--double-rule { border-top: 3px double var(--color-signature); padding-top: var(--space-2); }"
+    }
+  ],
+  "layout": "Right-aligned numeric columns, decimal alignment, sticky totals row; 12 columns.",
+  "components": [
+    "Amounts tabular mono, negatives in parentheses + err text.",
+    "Tables zebra-free, ledger lines only.",
+    "Buttons 36px, radius 4."
+  ],
+  "do": [
+    "Align every number on the decimal.",
+    "Green is brand (bands, headers); positive amounts use the ok colour with a sign, actions are ink.",
+    "Show currency once per column."
+  ],
+  "dont": [
+    "Charts without numbers.",
+    "Neon success colours.",
+    "Rounded card soup."
+  ],
+  "palette": {
+    "xanh-ngan-hang-50": {
+      "hex": "#f2faf5",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xanh-ngan-hang-100": {
+      "hex": "#e3f4ea",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xanh-ngan-hang-200": {
+      "hex": "#cae7d6",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xanh-ngan-hang-300": {
+      "hex": "#abd5bd",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xanh-ngan-hang-400": {
+      "hex": "#84bc9d",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xanh-ngan-hang-500": {
+      "hex": "#5fa17e",
+      "usage": "Bank green: header bands, brand moments; not for actions (green means positive/success in finance)."
+    },
+    "xanh-ngan-hang-600": {
+      "hex": "#408664",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xanh-ngan-hang-700": {
+      "hex": "#2c6d4e",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xanh-ngan-hang-800": {
+      "hex": "#1d553b",
+      "usage": "Used for: large brand surfaces."
+    },
+    "xanh-ngan-hang-900": {
+      "hex": "#143f2b",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xanh-ngan-hang-950": {
+      "hex": "#0b291b",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "so-cai-50": {
+      "hex": "#f8f8f4",
+      "usage": "Used for: page background, text on brand surfaces."
+    },
+    "so-cai-100": {
+      "hex": "#efefeb",
+      "usage": "Used for: table headers, wells, hover, selected backgrounds."
+    },
+    "so-cai-200": {
+      "hex": "#e0dfdb",
+      "usage": "Used for: dividers."
+    },
+    "so-cai-300": {
+      "hex": "#cac9c4",
+      "usage": "Used for: focus halo."
+    },
+    "so-cai-400": {
+      "hex": "#aeada8",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "so-cai-500": {
+      "hex": "#92918b",
+      "usage": "Ledger paper to ink: neutrals and the ink primary buttons. Used for: control borders."
+    },
+    "so-cai-600": {
+      "hex": "#777671",
+      "usage": "Used for: emphasised borders, placeholders."
+    },
+    "so-cai-700": {
+      "hex": "#605f5a",
+      "usage": "Used for: secondary text."
+    },
+    "so-cai-800": {
+      "hex": "#4a4945",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "so-cai-900": {
+      "hex": "#363531",
+      "usage": "Used for: primary actions, links, selected text, focus ring."
+    },
+    "so-cai-950": {
+      "hex": "#23231f",
+      "usage": "Used for: body text, hover/pressed."
+    },
+    "vang-50": {
+      "hex": "#fcf7ee",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "vang-100": {
+      "hex": "#f7eedb",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "vang-200": {
+      "hex": "#edddbd",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "vang-300": {
+      "hex": "#dec697",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "vang-400": {
+      "hex": "#c8a969",
+      "usage": "Used for: signature motif."
+    },
+    "vang-500": {
+      "hex": "#ae8b3c",
+      "usage": "Gold: double rules under totals, seals."
+    },
+    "vang-600": {
+      "hex": "#947013",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "vang-700": {
+      "hex": "#785900",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "vang-800": {
+      "hex": "#5e4500",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "vang-900": {
+      "hex": "#453200",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "vang-950": {
+      "hex": "#2f2000",
+      "usage": "Reserve step (hover/pressed/charts)."
+    }
+  },
+  "roles": {
+    "canvas": "so-cai-50",
+    "surface": "#ffffff",
+    "surface-sunken": "so-cai-100",
+    "surface-hover": "so-cai-100",
+    "rule": "so-cai-200",
+    "border": "so-cai-500",
+    "border-strong": "so-cai-600",
+    "subtle": "so-cai-600",
+    "muted": "so-cai-700",
+    "ink": "so-cai-950",
+    "accent": "so-cai-900",
+    "accent-hover": "so-cai-950",
+    "accent-soft": "so-cai-100",
+    "accent-text": "so-cai-900",
+    "focus-ring": "so-cai-300",
+    "on-accent": "#ffffff",
+    "focus": "so-cai-900",
+    "brand": "xanh-ngan-hang-800",
+    "on-brand": "so-cai-50",
+    "signature": "vang-400"
+  },
+  "status": {
+    "ok": "#1f7134",
+    "ok-tint": "#f1fbf2",
+    "ok-text": "#115825",
+    "info": "#00649d",
+    "info-tint": "#f1f9ff",
+    "info-text": "#004d7b",
+    "warn": "#efc17e",
+    "warn-tint": "#fff6ea",
+    "warn-text": "#7f5500",
+    "err": "#b65446",
+    "err-tint": "#fff5f3",
+    "err-text": "#983f33"
+  },
+  "onFill": "#ffffff",
+  "shadowTint": "#23231f",
+  "paletteNotes": [],
+  "contrasts": [
+    {
+      "fg": "ink",
+      "bg": "surface",
+      "ratio": 15.77
+    },
+    {
+      "fg": "muted",
+      "bg": "surface",
+      "ratio": 6.4
+    },
+    {
+      "fg": "accent",
+      "bg": "surface",
+      "ratio": 12.28
+    },
+    {
+      "fg": "on-accent",
+      "bg": "accent",
+      "ratio": 12.28
+    },
+    {
+      "fg": "on-brand",
+      "bg": "brand",
+      "ratio": 8.17
+    },
+    {
+      "fg": "border",
+      "bg": "surface",
+      "ratio": 3.16
+    }
+  ],
+  "audit": [],
+  "dark": false
+}

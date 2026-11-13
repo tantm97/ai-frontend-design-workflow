@@ -18,6 +18,14 @@ import { languageStatus, setLanguage } from './lang.mjs';
 import { HANDLERS } from './hooks.mjs';
 import { impeccableLauncher, pluginRoot, sloplintScript, tasteCopyLintScript } from './locate.mjs';
 import { playwrightStatus, installPlaywright, screenshot } from './runtime.mjs';
+import { buildSystem, loadComponents } from './compose.mjs';
+import { systemInit, systemOptions, systemChoose, systemSummary, listPresets } from './system.mjs';
+import { searchIcons, addIcons } from './icons.mjs';
+import { fontSubsets } from './fonts.mjs';
+import { listStyles, searchStyles, getStyle, formatStyle, applyStyle, matchStyles, AXES } from './style.mjs';
+import { auditDesignSystem } from './dsaudit.mjs';
+import { buildPalette, typeScale } from './color.mjs';
+import { waitForComments, formatForClaude, undelivered, markDelivered } from './inbox.mjs';
 
 const HELP = `dfw - design-first workflow CLI
 
@@ -26,19 +34,36 @@ Workflow
   dfw status [--json]                           Phase, gates, design version, comments
   dfw mode <mode>                               Change workflow mode (${Object.keys(MODES).join(', ')})
   dfw phase <phase> [--force --reason <r>]      Move to a phase (${PHASES.join(', ')})
-  dfw approve <G1|G2|G3|G4> --note <text>       Record the user's approval (G2 freezes the design)
+  dfw approve <G1|DS|G2|G3|G4> --note <text>    Record the user's approval (DS = design system, G2 freezes the design)
         [--accept-findings]                     G2 only: approve despite MUST findings (recorded)
   dfw reopen --reason <text>                    Re-open an approved design as a new version
   dfw decide --level <1-5> --topic <t> <text>   Record a decision (1=user ... 5=external skill)
   dfw decisions [--json]                        List recorded decisions
   dfw pause | resume                            Disable/enable gates and hooks for this project
 
+Design system (built before any screen)
+  dfw system init [--style <id> | --preset crisp|soft|industrial] [--only a,b] [--force]   Starter kit components + style tokens
+  dfw system presets                            List presets
+  dfw style list | search <words> | show <id>   Curated style guides (concept, named palette + rules, type, motifs)
+  dfw style apply <id> [--fonts latin]          Turn a guide into tokens + fonts + motif master (latin = English-only fonts)
+  dfw style match [--brief design/system/brief.json]   Rank guides against the brief's personality axes, with reasons
+  dfw system audit [--json]                     Senior review: contrast, accent vs status hues, neutrals, type rhythm, rationale
+  dfw palette build --brand <hex|hue> ...       OKLCH ramps + roles picked by contrast + harmonised status colours
+  dfw type scale --base 16 --ratio 1.2 --display-ratio 1.333 [--write]   Modular type scale
+  dfw system options <a> <b> [<c>]               Compare 2-3 style guides/presets as themes (opt-<name>) on the same screens
+  dfw system choose <preset>                    Promote one option to design/tokens/tokens.json
+  dfw system list [--json]                      Components, variants, sizes, props
+  dfw build                                     tokens.css + system/components.css (the hook does this on edit)
+  dfw icons search <words> | add <names...> | list   Curated Lucide icons -> design/system/icons/
+  dfw fonts check <family...>                   Subsets a Google Font ships (e.g. vietnamese)
+
 Design workspace
-  dfw tokens build                              DTCG tokens.json -> tokens.css
+  dfw tokens build                              DTCG tokens.json -> tokens.css (+ components.css)
   dfw lint [files...] [--json]                  dfw design lint only (fast)
   dfw check [files...|--url <u>] [--json] [--setup]   dfw lint + Impeccable + sloplint (+ Taste copy-lint)
   dfw studio start|stop|status [--port <n>]     Local Design Studio (canvas + click-to-comment)
-  dfw shoot [--screen <id>] [--variant <id>] [--bp <ids>] [--url <u> --out <file>]   Screenshots (Playwright)
+  dfw shoot [--screen <id>|--page <id>] [--variant <id>] [--bp <ids>] [--state <s>|--states] [--theme <t>|--themes] [--system]
+                                                Screenshots in one browser run (Playwright); --url <u> --out <file> for any URL
   dfw verify-snapshot [<version>]               Check an approved snapshot was not modified
   dfw handoff                                   Generate design/handoff/v<N>.md skeleton
 
@@ -52,6 +77,8 @@ Feedback (contract: schemas/feedback.schema.json)
   dfw comments resolve <id> --by user           (only when the user confirmed)
   dfw comments add --json '<comment>'           (providers/adapters)
   dfw comments new-round
+  dfw comments wait [--timeout <s>]             Block until the user posts a Studio comment (run in the background)
+  dfw comments inbox [--peek]                   Undelivered comments (what the hooks inject)
 
 Stack and settings
   dfw stack detect [--write]                    Inspect the existing stack (.dfw/stack.json draft)
@@ -128,6 +155,7 @@ function cmdStatus(root, a) {
     lines.push(`comments: ${data.comments.active} active, ${data.comments.fixed} awaiting user verification, ${data.comments.resolved} resolved`);
     lines.push(`studio: ${data.studio ? data.studio.url : 'not running'}`);
     lines.push(`stack: ${data.stack ? `${data.stack.framework?.name || '?'}${state.gates.G3 ? ' (approved)' : ' (proposed)'}` : 'not set'}`);
+    data.components = loadComponents(root).size;
     const next = nextStep(state, data);
     if (next) lines.push(`next: ${next}`);
   }
@@ -140,7 +168,10 @@ function nextStep(state, data) {
     case 'discovery':
       return 'finish discovery (PRODUCT.md), then "dfw phase direction"';
     case 'direction':
-      return state.gates.G1 ? '"dfw phase concepts"' : 'present directions; record the choice with "dfw approve G1 --note ..."';
+      return state.gates.G1 ? '"dfw phase system"' : 'present directions; record the choice with "dfw approve G1 --note ..."';
+    case 'system':
+      if (state.gates.DS) return '"dfw phase concepts"';
+      return data.components ? 'review the Design System page in the studio; when the user approves: "dfw approve DS --note ..."' : 'build the design system: "dfw system init --preset <p>", then adapt tokens and components';
     case 'concepts':
       if (data.comments.active) return `apply ${data.comments.active} open review comment(s)`;
       if (data.comments.fixed) return 'ask the user to verify fixed comments in the studio';
@@ -162,6 +193,19 @@ function cmdApprove(root, a) {
   const gate = (a._[1] || '').toUpperCase();
   const state = requireState(root);
   if (!a.note) throw new DfwError('Approvals record what the user approved: pass --note "<summary of what was approved>".');
+  if (gate === 'DS') {
+    const lib = loadComponents(root);
+    if (!lib.size) throw new DfwError('DS needs a design system: components in design/system/components/ (start with "dfw system init").');
+    buildSystem(root);
+    const config = loadConfig(root);
+    const sysFiles = fs.readdirSync(path.join(projectPaths(root).design, 'system', 'components')).map((f) => `design/system/components/${f}`);
+    const results = runChecks(root, ['design/tokens/tokens.json', ...sysFiles], config, { timeoutMs: 30000, tools: ['dfw'] });
+    results.push({ tool: 'dfw-ds-audit', status: 'ran', findings: auditDesignSystem(root).map((f) => (f.rule === 'rationale' ? { ...f, level: 'error' } : f)) });
+    const rep = formatReport(results, { max: 30 });
+    if (rep.tally.error && !a['accept-findings']) throw new DfwError(`DS blocked: ${rep.tally.error} MUST finding(s) in the design system.\n${rep.text}`);
+    const opts = fs.existsSync(path.join(projectPaths(root).tokens, 'themes')) && fs.readdirSync(path.join(projectPaths(root).tokens, 'themes')).some((f) => f.startsWith('opt-'));
+    if (opts && !a.force) throw new DfwError('Preset options are still active (opt-* themes). Promote the chosen one first: dfw system choose <preset>.');
+  }
   if (gate === 'G2') {
     const config = loadConfig(root);
     const results = runChecks(root, null, config, { timeoutMs: 60000 });
@@ -269,22 +313,36 @@ async function cmdShoot(root, a) {
     if (!m) throw new DfwError('design/design.json not found.');
     const state = loadState(root);
     const version = state ? `v${state.design.version}` : 'v1';
-    for (const s of m.screens || []) {
+    const pageScreens = a.page ? new Set(((m.pages || []).find((pg) => pg.id === a.page) || { screens: [] }).screens.concat((m.screens || []).filter((x) => x.page === a.page).map((x) => x.id))) : null;
+    const shotsDir = path.join(p.dfw, 'shots', version);
+    const name = (...parts) => parts.filter(Boolean).join('__');
+    if (a.system) {
+      for (const bp of bps.slice(0, 1)) jobs.push({ url: `${info.url}__dfw/system.html`, width: bp.width, height: bp.height, out: path.join(shotsDir, name('_system', bp.id) + '.png'), fullPage: true });
+    }
+    const screens = a.system && !a.screen && !a.page ? [] : m.screens || [];
+    for (const s of screens) {
       if (a.screen && s.id !== a.screen) continue;
+      if (pageScreens && !pageScreens.has(s.id)) continue;
+      const states = a.states ? [null, ...(s.states || m.states || [])] : [a.state || null];
+      const themes = a.themes ? (m.themes || []).length ? m.themes : [null] : [a.theme || null];
       for (const v of s.variants || []) {
         if (a.variant && v.id !== a.variant) continue;
         for (const bp of bps) {
-          const q = new URLSearchParams();
-          if (a.theme) q.set('theme', a.theme);
-          if (a.state) q.set('state', a.state);
-          jobs.push({
-            url: `${info.url}design/${v.file}${q.toString() ? `?${q}` : ''}`,
-            width: bp.width,
-            height: bp.height,
-            out: path.join(p.dfw, 'shots', version, `${s.id.replace(/\//g, '__')}__${v.id}__${bp.id}${a.theme ? `__${a.theme}` : ''}${a.state ? `__${a.state}` : ''}${a.selector ? `__el-${String(a.selector).replace(/[^\w.-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60)}` : ''}.png`),
-            selector: a.selector,
-            fullPage: !a.viewport,
-          });
+          for (const st of states) {
+            for (const th of themes) {
+              const q = new URLSearchParams();
+              if (th) q.set('theme', th);
+              if (st) q.set('state', st);
+              jobs.push({
+                url: `${info.url}design/${v.file}${q.toString() ? `?${q}` : ''}`,
+                width: bp.width,
+                height: bp.height,
+                out: path.join(shotsDir, name(s.id.replace(/\//g, '__'), v.id, bp.id, th, st, a.selector ? `el-${String(a.selector).replace(/[^\w.-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60)}` : '') + '.png'),
+                selector: a.selector,
+                fullPage: !a.viewport,
+              });
+            }
+          }
         }
       }
     }
@@ -292,6 +350,12 @@ async function cmdShoot(root, a) {
   if (!jobs.length) throw new DfwError('Nothing to screenshot (check --screen/--variant/--bp).');
   const res = await screenshot(jobs);
   return out(res.map((r) => `${r.ok ? 'ok  ' : 'FAIL'} ${path.relative(root, r.out)}${r.error ? ` (${r.error})` : ''}`).join('\n'));
+}
+
+async function cmdCommentsWait(root, a) {
+  const list = await waitForComments(root, { timeoutMs: (Number(a.timeout) || 3600) * 1000 });
+  if (!list.length) return out('No new comments before the timeout. Re-run "dfw comments wait" in the background to keep listening.');
+  return out(formatForClaude(list) + '\nAfter fixing, start "dfw comments wait" in the background again to keep listening.');
 }
 
 function cmdComments(root, a) {
@@ -334,6 +398,11 @@ function cmdComments(root, a) {
       return out(addComment(root, JSON.parse(a.json)), true);
     case 'new-round':
       return out(newSession(root).session, true);
+    case 'inbox': {
+      const list = undelivered(root);
+      if (!a.peek) markDelivered(root, list);
+      return out(list.length ? formatForClaude(list) : 'No new comments.');
+    }
     default:
       throw new DfwError(`Unknown comments subcommand "${sub}".`);
   }
@@ -469,10 +538,106 @@ export async function main(argv) {
       if (a.json) return out(list, true);
       return out(list.map((d) => `${d.at.slice(0, 16)} L${d.level} [${d.topic}] ${d.decision}`).join('\n') || 'No decisions recorded.');
     }
+    case 'build':
     case 'tokens': {
-      if (a._[1] !== 'build') throw new DfwError('Usage: dfw tokens build');
+      if (cmd === 'tokens' && a._[1] !== 'build') throw new DfwError('Usage: dfw tokens build');
       const r = buildTokens(root);
-      return out(`Wrote ${path.relative(root, r.out)}${r.themes.length ? ` (themes: ${r.themes.join(', ')})` : ''}`);
+      const sys = buildSystem(root);
+      return out(`Wrote ${path.relative(root, r.out)}${r.themes.length ? ` (themes: ${r.themes.join(', ')})` : ''}${sys.components ? `; ${sys.components} component(s) -> design/system/components.css` : ''}`);
+    }
+    case 'system': {
+      const sub = a._[1] || 'list';
+      if (sub === 'presets') return out(listPresets().map((p) => `${p.name.padEnd(12)} ${p.description.replace(/^dfw starter preset "[^"]+"\. /, '').replace(/ Generated by[\s\S]*$/, '')}`).join('\n'));
+      if (sub === 'init') {
+        const r = systemInit(root, { preset: a.preset || 'crisp', style: a.style || null, fonts: a.fonts === 'latin' ? 'latin' : 'vi', force: Boolean(a.force), components: a.only ? String(a.only).split(',') : null });
+        return out(`Design system from preset "${r.preset}": ${r.copied.length} component(s) copied${r.kept.length ? `, ${r.kept.length} kept` : ''}; tokens ${r.tokensWritten ? 'written' : 'kept (pass --force to replace)'}; ${r.icons.length} icon(s). Open the Design System page in the studio.`);
+      }
+      if (sub === 'options') return out(`Option themes: ${systemOptions(root, a._.slice(2), { fonts: a.fonts === 'latin' ? 'latin' : 'vi' }).themes.join(', ')}. Compare them in the studio (theme menu / "Themes" toggle), then: dfw system choose <preset>.`);
+      if (sub === 'choose') return out(`Tokens now come from "${systemChoose(root, a._[2], { fonts: a.fonts === 'latin' ? 'latin' : 'vi' }).chosen}". Adapt design/tokens/tokens.json to the direction, then review the Design System page.`);
+      if (sub === 'audit') {
+        const f = auditDesignSystem(root);
+        if (a.json) return out(f, true);
+        const label = { error: 'MUST', warn: 'SHOULD', info: 'NOTE' };
+        if (f.some((x) => x.level === 'error')) process.exitCode = 2;
+        return out(f.length ? f.map((x) => `- [${label[x.level]}] (${x.rule}) ${x.message}`).join('\n') : 'Design system audit: no findings.');
+      }
+      if (sub === 'list') {
+        const sm = systemSummary(root);
+        if (a.json) return out(sm, true);
+        return out(sm.components.map((c) => `${c.name.padEnd(14)} ${[c.variants.length ? `variants: ${c.variants.join('|')}` : '', c.sizes.length ? `sizes: ${c.sizes.join('|')}` : '', c.props.length ? `props: ${c.props.join(', ')}` : ''].filter(Boolean).join('  ')}`).join('\n') || 'No components yet (dfw system init).');
+      }
+      throw new DfwError('Usage: dfw system init|presets|options|choose|list');
+    }
+    case 'style': {
+      const sub = a._[1] || 'list';
+      if (sub === 'list') return out(listStyles().map((g) => `${g.id.padEnd(20)} ${g.concept}`).join('\n'));
+      if (sub === 'search') return out(searchStyles(a._.slice(2).join(' ')).slice(0, Number(a.limit) || 5).map((g) => `${g.id.padEnd(20)} score ${g.score}  ${g.concept}`).join('\n') || 'No match.');
+      if (sub === 'show') return a.json ? out(getStyle(a._[2]), true) : out(formatStyle(getStyle(a._[2])));
+      if (sub === 'match') {
+        const bf = path.resolve(root, a.brief || 'design/system/brief.json');
+        const brief = readJson(bf, null);
+        if (!brief) throw new DfwError(`Brief not found: ${path.relative(root, bf)} (template: dfw init creates design/system/brief.json).`);
+        const res = matchStyles(brief).slice(0, Number(a.limit) || 5);
+        if (a.json) return out(res, true);
+        return out(['Personality wanted: ' + Object.entries(brief.personality || {}).map(([k, v]) => `${k} ${v} (${AXES[k]?.[0]}→${AXES[k]?.[1]})`).join(', '), ...res.map((r) => `${String(r.fit).padStart(3)}%  ${r.id.padEnd(20)} ${r.mismatches.length ? `differs: ${r.mismatches.join('; ')}` : 'close on every axis'}${r.matches.length ? ` · keywords: ${r.matches.join(', ')}` : ''}${r.notes.length ? ` · ${r.notes.join(', ')}` : ''}`)].join('\n'));
+      }
+      if (sub === 'apply') {
+        const r = applyStyle(root, a._[2], { fonts: a.fonts === 'latin' ? 'latin' : 'vi' });
+        buildTokens(root);
+        buildSystem(root);
+        return out(`Applied style "${r.id}" (fonts: ${r.fonts.display} / ${r.fonts.body} / ${r.fonts.mono}). Wrote design/tokens/tokens.json, design/system/head.html, design/system/style.json${getStyle(r.id).motifs.length ? ', design/system/components/motif.html' : ''}.`);
+      }
+      throw new DfwError('Usage: dfw style list | search <words> | match [--brief f] | show <id> [--json] | apply <id|file.json> [--fonts latin]');
+    }
+    case 'type': {
+      if (a._[1] !== 'scale') throw new DfwError('Usage: dfw type scale --base 16 --ratio 1.2 --display-ratio 1.333 [--from 28] [--write]');
+      const ts = typeScale({ base: Number(a.base) || 16, ratio: Number(a.ratio) || 1.2, displayRatio: Number(a['display-ratio']) || 1.333, displayFrom: a.from ? Number(a.from) : undefined });
+      if (a.write) {
+        const f = path.join(projectPaths(root).tokens, 'tokens.json');
+        const t = readJson(f);
+        t.font = t.font || {};
+        t.font.size = { $type: 'dimension', ...(t.font.size || {}) };
+        for (const [k, v] of Object.entries({ ...ts.ui, ...ts.display })) t.font.size[k] = { $value: { value: v, unit: 'px' } };
+        t.font.size.md.$description = `Body. Scale: base ${ts.base}, UI ratio ${ts.ratio}, display ratio ${ts.displayRatio}.`;
+        writeJson(f, t);
+        buildTokens(root);
+      }
+      return out(`UI: ${Object.entries(ts.ui).map(([k, v]) => `${k} ${v}`).join(' · ')}\nDisplay: ${Object.entries(ts.display).map(([k, v]) => `${k} ${v}`).join(' · ')}${a.write ? '\nWritten to design/tokens/tokens.json.' : ''}`);
+    }
+    case 'palette': {
+      if (a._[1] !== 'build') throw new DfwError('Usage: dfw palette build --brand <hex|hue> [--chroma 0.14] --neutral-hue <h> --tint 0.01 [--signature <hue>|--harmony analogous|complementary|split-complementary|triadic] [--accent brand|signature|neutral] [--names brand,neutral,signature] [--dark] [--json]');
+      const num = (v) => (v == null ? undefined : Number(v));
+      const brand = String(a.brand || '').startsWith('#') ? { hex: a.brand, chroma: num(a.chroma) } : { hue: num(a.brand), chroma: num(a.chroma) ?? 0.14 };
+      if (brand.hex == null && Number.isNaN(brand.hue ?? NaN)) throw new DfwError('--brand needs a hex colour or an OKLCH hue (0-360).');
+      const sig = a.signature != null ? { hue: num(a.signature), chroma: num(a['signature-chroma']) } : a.harmony ? { harmony: a.harmony, chroma: num(a['signature-chroma']) } : undefined;
+      const [nb, nn, ns] = String(a.names || 'brand,neutral,signature').split(',');
+      const pal = buildPalette({ brand, neutral: { hue: num(a['neutral-hue']), tint: num(a.tint) ?? 0.01 }, signature: sig, accentFrom: a.accent, dark: Boolean(a.dark), warmSurface: Boolean(a['warm-surface']) }, { brand: nb, neutral: nn, signature: ns });
+      if (a.json) return out(pal, true);
+      const lines = Object.entries(pal.ramps).map(([n, r]) => `${n.padEnd(14)} ${Object.entries(r).map(([k, v]) => `${k} ${v}`).join('  ')}`);
+      lines.push('Roles:', ...Object.entries(pal.roles).map(([k, v]) => `  ${k.padEnd(14)} ${v}`), 'Status:', `  ${Object.entries(pal.status).map(([k, v]) => `${k} ${v}`).join('  ')}`, ...pal.notes.map((n) => `Note: ${n}`));
+      lines.push('Next: put the ramps in color.palette.* with usage rules, roles as aliases, then "dfw system audit".');
+      return out(lines.join('\n'));
+    }
+    case 'icons': {
+      const sub = a._[1] || 'list';
+      if (sub === 'search') return out(searchIcons(a._.slice(2).join(' '), Number(a.limit) || 20).map((i) => `${i.name.padEnd(24)} ${i.tags.join(', ')}`).join('\n') || 'No match.');
+      if (sub === 'add') {
+        const r = addIcons(root, a._.slice(2));
+        const miss = r.missing.map((m) => `  ${m}: not found${r.suggestions[m].length ? ` (try: ${r.suggestions[m].join(', ')})` : ''}`);
+        if (r.missing.length) process.exitCode = 2;
+        return out([`Added ${r.added.length} icon(s) to design/system/icons/.`, ...miss].join('\n'));
+      }
+      if (sub === 'list') {
+        const dir = path.join(projectPaths(root).design, 'system', 'icons');
+        return out(fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.svg')).map((f) => f.slice(0, -4)).join(' ') || '(none)' : '(none)');
+      }
+      throw new DfwError('Usage: dfw icons search <words> | add <names...> | list');
+    }
+    case 'fonts': {
+      if (a._[1] !== 'check' || a._.length < 3) throw new DfwError('Usage: dfw fonts check <family...>  (quote names with spaces)');
+      const res = await Promise.all(a._.slice(2).map((f) => fontSubsets(f).catch((e) => ({ family: f, ok: false, error: e.message, subsets: [] }))));
+      if (a.json) return out(res, true);
+      return out(res.map((r) => (r.ok ? `${r.family}: ${r.subsets.join(', ')}${r.subsets.includes('vietnamese') ? '' : '  (NO vietnamese subset)'}` : `${r.family}: not found on Google Fonts${r.error ? ` (${r.error})` : ''}`)).join('\n'));
     }
     case 'lint':
     case 'check': {
@@ -509,7 +674,7 @@ export async function main(argv) {
     case 'handoff':
       return cmdHandoff(root);
     case 'comments':
-      return cmdComments(root, a);
+      return a._[1] === 'wait' ? cmdCommentsWait(root, a) : cmdComments(root, a);
     case 'stack': {
       const sub = a._[1];
       if (sub === 'detect') {

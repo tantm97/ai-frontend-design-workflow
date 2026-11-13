@@ -1,0 +1,339 @@
+{
+  "id": "clinical-calm",
+  "seeds": {
+    "brand": {
+      "hue": 200,
+      "chroma": 0.1
+    },
+    "neutral": {
+      "hue": 210,
+      "tint": 0.006
+    },
+    "signature": {
+      "hue": 35,
+      "chroma": 0.07
+    },
+    "signatureStep": 200
+  },
+  "names": {
+    "brand": "xanh-ngoc",
+    "neutral": "may",
+    "signature": "hong"
+  },
+  "type": {
+    "base": 17,
+    "ratio": 1.2,
+    "displayRatio": 1.25,
+    "displayFrom": 28,
+    "eyebrow": {
+      "size": 12,
+      "weight": 600,
+      "tracking": "0.08em",
+      "upper": true
+    },
+    "ui": {
+      "2xs": 11,
+      "xs": 12,
+      "sm": 14,
+      "md": 17,
+      "lg": 20,
+      "xl": 24,
+      "2xl": 29,
+      "3xl": 31,
+      "4xl": 39
+    },
+    "display": [
+      61,
+      48,
+      39,
+      31
+    ]
+  },
+  "axes": {
+    "formality": 3,
+    "energy": 1,
+    "era": 4,
+    "warmth": 3,
+    "density": 2,
+    "richness": 2,
+    "seriousness": 4
+  },
+  "rationale": [
+    "Teal is 50° from both the success green and the info blue, so actions never read as status.",
+    "17px base: patients and older users read forms; the display ratio is modest (1.25) to stay calm.",
+    "A warm coral signature balances the clinical teal (complementary temperature) for human moments only."
+  ],
+  "name": "Clinical calm",
+  "tags": [
+    "health",
+    "medical",
+    "clinic",
+    "calm",
+    "trust",
+    "accessible",
+    "public-service",
+    "booking",
+    "forms"
+  ],
+  "concept": "A quiet clinic: clean white rooms, a calm teal, humanist type and very clear forms; reassurance through clarity.",
+  "fits": [
+    "healthcare and pharmacy",
+    "insurance",
+    "appointments and forms-heavy services"
+  ],
+  "avoid": [
+    "entertainment",
+    "brands needing drama"
+  ],
+  "base": "soft",
+  "fonts": {
+    "display": "Source Serif 4",
+    "body": "Source Sans 3",
+    "mono": "Source Code Pro",
+    "displayWeights": "500;600",
+    "note": "Body 16-17 for readability; serif display only for page titles."
+  },
+  "fontsLatin": {
+    "display": "Source Serif 4",
+    "body": "Figtree",
+    "mono": "Source Code Pro",
+    "displayWeights": "500;600"
+  },
+  "radius": {
+    "sm": 6,
+    "md": 8,
+    "lg": 12,
+    "xl": 16
+  },
+  "density": "regular",
+  "motifs": [
+    {
+      "name": "calm-panel",
+      "use": "Reassurance panels (what happens next, privacy): soft teal background, no border.",
+      "css": ".motif--calm-panel { background: var(--color-accent-soft); border-radius: var(--radius-lg); padding: var(--space-5) var(--space-6); }"
+    }
+  ],
+  "layout": "Single-column forms max 640; steps on top; help text beside on desktop.",
+  "components": [
+    "Inputs 44-48px, labels always visible, errors in words.",
+    "One primary per step.",
+    "Large readable body 16-17."
+  ],
+  "do": [
+    "Explain next steps.",
+    "Use plain language.",
+    "Show progress."
+  ],
+  "dont": [
+    "Red for anything that is not an error.",
+    "Dense tables for patients.",
+    "Stock photos of smiling doctors."
+  ],
+  "palette": {
+    "xanh-ngoc-50": {
+      "hex": "#effafb",
+      "usage": "Used for: selected backgrounds."
+    },
+    "xanh-ngoc-100": {
+      "hex": "#ddf4f5",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xanh-ngoc-200": {
+      "hex": "#c0e8ea",
+      "usage": "Used for: focus halo."
+    },
+    "xanh-ngoc-300": {
+      "hex": "#99d6d9",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xanh-ngoc-400": {
+      "hex": "#69bdc2",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xanh-ngoc-500": {
+      "hex": "#36a2a8",
+      "usage": "Calm teal: actions, links, progress."
+    },
+    "xanh-ngoc-600": {
+      "hex": "#00878d",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xanh-ngoc-700": {
+      "hex": "#006c71",
+      "usage": "Used for: primary actions, links, selected text, focus ring."
+    },
+    "xanh-ngoc-800": {
+      "hex": "#005458",
+      "usage": "Used for: hover/pressed, large brand surfaces."
+    },
+    "xanh-ngoc-900": {
+      "hex": "#003e41",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xanh-ngoc-950": {
+      "hex": "#00292b",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "may-50": {
+      "hex": "#f5f8f9",
+      "usage": "Used for: page background, text on brand surfaces."
+    },
+    "may-100": {
+      "hex": "#ecf0f0",
+      "usage": "Used for: table headers, wells, hover."
+    },
+    "may-200": {
+      "hex": "#dce0e1",
+      "usage": "Used for: dividers."
+    },
+    "may-300": {
+      "hex": "#c6cacb",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "may-400": {
+      "hex": "#a9aeaf",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "may-500": {
+      "hex": "#8d9293",
+      "usage": "Cloud greys with a hint of teal: surfaces and text. Used for: control borders."
+    },
+    "may-600": {
+      "hex": "#727778",
+      "usage": "Used for: emphasised borders, placeholders."
+    },
+    "may-700": {
+      "hex": "#5b6060",
+      "usage": "Used for: secondary text."
+    },
+    "may-800": {
+      "hex": "#464a4b",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "may-900": {
+      "hex": "#323637",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "may-950": {
+      "hex": "#202324",
+      "usage": "Used for: body text."
+    },
+    "hong-50": {
+      "hex": "#fdf6f4",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "hong-100": {
+      "hex": "#faebe7",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "hong-200": {
+      "hex": "#f2d9d2",
+      "usage": "Used for: signature motif."
+    },
+    "hong-300": {
+      "hex": "#e4c0b7",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "hong-400": {
+      "hex": "#cfa195",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "hong-500": {
+      "hex": "#b68275",
+      "usage": "Soft coral: human moments (avatars, empty states, care notes); never status."
+    },
+    "hong-600": {
+      "hex": "#9b675a",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "hong-700": {
+      "hex": "#7f5145",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "hong-800": {
+      "hex": "#643d34",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "hong-900": {
+      "hex": "#4a2d25",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "hong-950": {
+      "hex": "#321d17",
+      "usage": "Reserve step (hover/pressed/charts)."
+    }
+  },
+  "roles": {
+    "canvas": "may-50",
+    "surface": "#ffffff",
+    "surface-sunken": "may-100",
+    "surface-hover": "may-100",
+    "rule": "may-200",
+    "border": "may-500",
+    "border-strong": "may-600",
+    "subtle": "may-600",
+    "muted": "may-700",
+    "ink": "may-950",
+    "accent": "xanh-ngoc-700",
+    "accent-hover": "xanh-ngoc-800",
+    "accent-soft": "xanh-ngoc-50",
+    "accent-text": "xanh-ngoc-700",
+    "focus-ring": "xanh-ngoc-200",
+    "on-accent": "#ffffff",
+    "focus": "xanh-ngoc-700",
+    "brand": "xanh-ngoc-800",
+    "on-brand": "may-50",
+    "signature": "hong-200"
+  },
+  "status": {
+    "ok": "#0f713a",
+    "ok-tint": "#f0fbf2",
+    "ok-text": "#01592a",
+    "info": "#1562a0",
+    "info-tint": "#f2f8ff",
+    "info-text": "#074b7f",
+    "warn": "#ecc27d",
+    "warn-tint": "#fff6e9",
+    "warn-text": "#7d5700",
+    "err": "#b65253",
+    "err-tint": "#fff5f4",
+    "err-text": "#983d3f"
+  },
+  "onFill": "#ffffff",
+  "shadowTint": "#202324",
+  "paletteNotes": [],
+  "contrasts": [
+    {
+      "fg": "ink",
+      "bg": "surface",
+      "ratio": 15.82
+    },
+    {
+      "fg": "muted",
+      "bg": "surface",
+      "ratio": 6.39
+    },
+    {
+      "fg": "accent",
+      "bg": "surface",
+      "ratio": 6.21
+    },
+    {
+      "fg": "on-accent",
+      "bg": "accent",
+      "ratio": 6.21
+    },
+    {
+      "fg": "on-brand",
+      "bg": "brand",
+      "ratio": 8.17
+    },
+    {
+      "fg": "border",
+      "bg": "surface",
+      "ratio": 3.15
+    }
+  ],
+  "audit": [],
+  "dark": false
+}

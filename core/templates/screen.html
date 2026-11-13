@@ -1,31 +1,30 @@
 <!doctype html>
 <!--
   dfw screen skeleton. Copy to design/screens/<screen-id>/<variant-id>.html.
-  Rules:
-  - Plain HTML + CSS. No framework, no build step, no external CDN scripts.
-  - Every value comes from tokens: var(--color-...), var(--space-...). No hard-coded colors.
-  - Every meaningful element gets a stable, unique data-dfw-id ("area.element", lowercase).
-  - States: style alternate states with html[data-state="empty"] ... selectors (studio State menu).
-  - Themes: tokens.css defines [data-theme="dark"] overrides when themes exist.
-  - Shared components: copy markup from design/components/<name>.html and keep its data-dfw-id prefix.
+  - Compose from the design system: <dfw-use c="component" variant="..." id="area.element">...</dfw-use>, icons with <dfw-icon name="...">.
+  - This file's <style> does LAYOUT only (grid, flex, gap, padding, width, position). No colors, fonts, borders, shadows, radii.
+  - Every meaningful element/instance gets a stable, unique id / data-dfw-id ("area.element", lowercase).
+  - States: wrap alternatives in <div class="when-empty">...</div> / <div class="unless-empty">...</div>.
 -->
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Screen title - Product</title>
-  <link rel="stylesheet" href="../../tokens/tokens.css">
-  <link rel="stylesheet" href="../../styles/base.css">
+  <meta name="description" content="One sentence: what this screen is for.">
+  <dfw-head></dfw-head>
   <style>
-    /* Screen-specific layout only; shared rules belong in design/styles/. */
+    body { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); min-height: 100vh; }
+    .page { display: grid; gap: var(--space-6); padding: var(--space-6) var(--space-8); align-content: start; }
   </style>
 </head>
 <body>
-  <header data-dfw-id="app-header">
-    <nav data-dfw-id="app-header.nav" aria-label="Primary"></nav>
-  </header>
-  <main data-dfw-id="screen.main">
-    <h1 data-dfw-id="screen.title">Screen title</h1>
+  <dfw-use c="nav" variant="sidebar" label="Main" id="nav">
+    <dfw-use c="nav-item" icon="house" current="page" id="nav.home">Home</dfw-use>
+  </dfw-use>
+  <main data-dfw-id="screen">
+    <dfw-use c="page-header" title="Screen title" id="screen.header"></dfw-use>
+    <div class="page" data-dfw-id="screen.body"></div>
   </main>
 </body>
 </html>

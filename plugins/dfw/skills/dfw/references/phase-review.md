@@ -4,9 +4,14 @@
 
 The user reviews in the Studio (`dfw studio start`). Comments are stored in `.dfw/reviews/rv_*.json` using the feedback contract (`schemas/feedback.schema.json`): screen, variant, breakpoint, state, theme, target (`dfwId`, CSS selector, bounding box, accessible role/name, text, computed style summary, source file:line), comment text, status, thread.
 
+### Live comments (the user comments, you fix, no relaying)
+- As soon as the Studio is shown to the user, start listening: run `dfw comments wait --timeout 3600` **in the background** (Bash `run_in_background`). It exits the moment the user posts a comment (after a short pause for bursts) and prints the comments; you are re-invoked with that output. Apply them (below), then start `dfw comments wait` in the background again. Stop listening only when the user says review is over or the phase moves on.
+- The hooks are the safety net: new comments are also injected with the user's next message (UserPromptSubmit) and before you stop (Stop hook). Each comment is delivered once; `dfw comments inbox --peek` shows undelivered ones.
+- The Studio shows live status per comment: Open → Claude is working (ack) → Fixed, please verify → Resolved by the user.
+
 ### Applying comments
-1. `dfw comments list --status active` (or `--json`). Read each comment fully, including `target.source` and `target.styles`.
-2. Group comments that touch the same component; a change to a shared component must be applied in `design/components/` and every screen using it.
+1. Read the delivered comments (or `dfw comments list --status active --json`), including `target.source`, `target.component` and `target.styles`.
+2. Group comments that touch the same component or token: fix the master in `design/system/components/` (or the token) so every screen gets it; fix the screen only for layout/content.
 3. For each comment: `dfw comments ack <id>`; apply the change in the referenced file; if the request conflicts with a higher-precedence rule (accessibility, business rule, approved system), do not silently apply or ignore it: explain, propose the closest compliant option, `dfw comments reply <id> --message "<question>"` and ask the user in chat.
 4. Verify each change actually happened: re-render (`dfw shoot --screen <id> --variant <v> --bp <bp>` or `--selector '<selector>'` for an element shot) and inspect the image; run `dfw check <file>`.
 5. `dfw comments fixed <id> --message "<what changed, where>" [--evidence .dfw/shots/...png]`. Never mark `resolved` yourself; the user resolves in the Studio ("Looks right") or tells you in chat (then `dfw comments resolve <id> --by user`).

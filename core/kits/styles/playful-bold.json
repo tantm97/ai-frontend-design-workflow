@@ -1,0 +1,344 @@
+{
+  "id": "playful-bold",
+  "seeds": {
+    "brand": {
+      "hue": 290,
+      "chroma": 0.2
+    },
+    "neutral": {
+      "hue": 290,
+      "tint": 0.01
+    },
+    "signature": {
+      "hue": 90,
+      "chroma": 0.17
+    },
+    "signatureStep": 300
+  },
+  "names": {
+    "brand": "tim",
+    "neutral": "muc",
+    "signature": "nang"
+  },
+  "type": {
+    "base": 16,
+    "ratio": 1.25,
+    "displayRatio": 1.414,
+    "displayFrom": 32,
+    "eyebrow": {
+      "size": 13,
+      "weight": 700,
+      "tracking": "0.02em",
+      "upper": false
+    },
+    "ui": {
+      "2xs": 11,
+      "xs": 12,
+      "sm": 13,
+      "md": 16,
+      "lg": 20,
+      "xl": 25,
+      "2xl": 31,
+      "3xl": 33,
+      "4xl": 47
+    },
+    "display": [
+      93,
+      66,
+      47,
+      33
+    ]
+  },
+  "axes": {
+    "formality": 1,
+    "energy": 5,
+    "era": 5,
+    "warmth": 4,
+    "density": 2,
+    "richness": 4,
+    "seriousness": 1
+  },
+  "rationale": [
+    "Violet + yellow are near-complementary: maximum energy with only two hues.",
+    "Neutrals tinted violet so the hard ink shadows belong to the brand.",
+    "Bigger UI ratio (1.25) and display from 32: playful products need bold hierarchy."
+  ],
+  "name": "Playful bold",
+  "tags": [
+    "playful",
+    "consumer",
+    "education",
+    "kids",
+    "social",
+    "bold",
+    "colorful",
+    "app",
+    "gamified"
+  ],
+  "concept": "A sticker book: chunky shapes with hard offset shadows, a confident violet, sunshine yellow highlights and a characterful grotesque.",
+  "fits": [
+    "learning apps",
+    "community and social",
+    "consumer onboarding"
+  ],
+  "avoid": [
+    "finance back-office",
+    "medical"
+  ],
+  "base": "soft",
+  "fonts": {
+    "display": "Bricolage Grotesque",
+    "body": "Hanken Grotesk",
+    "mono": "JetBrains Mono",
+    "displayWeights": "600;700;800",
+    "note": "Bricolage 700-800 tight for display; body Hanken 16."
+  },
+  "fontsLatin": {
+    "display": "Bricolage Grotesque",
+    "body": "Outfit",
+    "mono": "JetBrains Mono",
+    "displayWeights": "600;700;800"
+  },
+  "radius": {
+    "sm": 8,
+    "md": 12,
+    "lg": 20,
+    "xl": 28
+  },
+  "hardShadow": true,
+  "density": "regular",
+  "motifs": [
+    {
+      "name": "sticker",
+      "use": "Rotated badge sticker with hard shadow for new/rewards. Max two per view.",
+      "css": ".motif--sticker { display: inline-block; padding: var(--space-1) var(--space-3); background: var(--color-signature); color: var(--color-ink); border: var(--border-width-strong) solid var(--color-ink); border-radius: var(--radius-pill); box-shadow: 3px 3px 0 var(--color-ink); transform: rotate(-4deg); font-weight: var(--font-weight-bold); }"
+    },
+    {
+      "name": "hard-card",
+      "use": "Feature cards with 2px ink border and hard offset shadow.",
+      "css": ".motif--hard-card { border: var(--border-width-strong) solid var(--color-ink); border-radius: var(--radius-lg); box-shadow: 6px 6px 0 var(--color-ink); background: var(--color-surface); padding: var(--space-6); }"
+    }
+  ],
+  "layout": "Big rounded sections, asymmetric illustration slots, 8px grid, mobile-first.",
+  "components": [
+    "Buttons 44px, radius 12, 2px ink border on secondary.",
+    "Progress as chunky bars.",
+    "Empty states with a sticker + one line."
+  ],
+  "do": [
+    "Commit to the hard shadow style everywhere or nowhere.",
+    "Use yellow for delight moments only."
+  ],
+  "dont": [
+    "Soft blurry shadows mixed with hard ones.",
+    "Gradient blobs.",
+    "More than 3 accent colours per view."
+  ],
+  "palette": {
+    "tim-50": {
+      "hex": "#f7f6ff",
+      "usage": "Used for: selected backgrounds."
+    },
+    "tim-100": {
+      "hex": "#eeecff",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "tim-200": {
+      "hex": "#dedaff",
+      "usage": "Used for: focus halo."
+    },
+    "tim-300": {
+      "hex": "#c8c0ff",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "tim-400": {
+      "hex": "#ad9dff",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "tim-500": {
+      "hex": "#9275fc",
+      "usage": "Violet: actions and highlights."
+    },
+    "tim-600": {
+      "hex": "#7957e1",
+      "usage": "Used for: primary actions, links, focus ring."
+    },
+    "tim-700": {
+      "hex": "#6240bf",
+      "usage": "Used for: hover/pressed, selected text."
+    },
+    "tim-800": {
+      "hex": "#4c2e99",
+      "usage": "Used for: large brand surfaces."
+    },
+    "tim-900": {
+      "hex": "#382173",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "tim-950": {
+      "hex": "#24154e",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "muc-50": {
+      "hex": "#f7f7fc",
+      "usage": "Used for: page background, text on brand surfaces."
+    },
+    "muc-100": {
+      "hex": "#eeeef3",
+      "usage": "Used for: table headers, wells, hover."
+    },
+    "muc-200": {
+      "hex": "#dfdee4",
+      "usage": "Used for: dividers."
+    },
+    "muc-300": {
+      "hex": "#c9c8ce",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "muc-400": {
+      "hex": "#adacb3",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "muc-500": {
+      "hex": "#909096",
+      "usage": "Violet-tinted neutrals and the ink used for hard shadows. Used for: control borders."
+    },
+    "muc-600": {
+      "hex": "#76757c",
+      "usage": "Used for: emphasised borders, placeholders."
+    },
+    "muc-700": {
+      "hex": "#5e5e64",
+      "usage": "Used for: secondary text."
+    },
+    "muc-800": {
+      "hex": "#49484e",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "muc-900": {
+      "hex": "#35353a",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "muc-950": {
+      "hex": "#232226",
+      "usage": "Used for: body text."
+    },
+    "nang-50": {
+      "hex": "#fdf7e8",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "nang-100": {
+      "hex": "#f9eed0",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "nang-200": {
+      "hex": "#f1dea9",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "nang-300": {
+      "hex": "#e4c776",
+      "usage": "Used for: signature motif."
+    },
+    "nang-400": {
+      "hex": "#cfa82e",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "nang-500": {
+      "hex": "#b08c00",
+      "usage": "Sunshine: stickers, rewards, delight; never text."
+    },
+    "nang-600": {
+      "hex": "#917200",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "nang-700": {
+      "hex": "#755b00",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "nang-800": {
+      "hex": "#5b4600",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "nang-900": {
+      "hex": "#433300",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "nang-950": {
+      "hex": "#2d2100",
+      "usage": "Reserve step (hover/pressed/charts)."
+    }
+  },
+  "roles": {
+    "canvas": "muc-50",
+    "surface": "#ffffff",
+    "surface-sunken": "muc-100",
+    "surface-hover": "muc-100",
+    "rule": "muc-200",
+    "border": "muc-500",
+    "border-strong": "muc-600",
+    "subtle": "muc-600",
+    "muted": "muc-700",
+    "ink": "muc-950",
+    "accent": "tim-600",
+    "accent-hover": "tim-700",
+    "accent-soft": "tim-50",
+    "accent-text": "tim-700",
+    "focus-ring": "tim-200",
+    "on-accent": "#ffffff",
+    "focus": "tim-600",
+    "brand": "tim-800",
+    "on-brand": "muc-50",
+    "signature": "nang-300"
+  },
+  "status": {
+    "ok": "#007241",
+    "ok-tint": "#ecfcf1",
+    "ok-text": "#005831",
+    "info": "#005fad",
+    "info-tint": "#f2f8ff",
+    "info-text": "#005fad",
+    "warn": "#f4be81",
+    "warn-tint": "#fff6ec",
+    "warn-text": "#855200",
+    "err": "#ce343f",
+    "err-tint": "#fff5f4",
+    "err-text": "#ad1b2c"
+  },
+  "onFill": "#ffffff",
+  "shadowTint": "#232226",
+  "paletteNotes": [],
+  "contrasts": [
+    {
+      "fg": "ink",
+      "bg": "surface",
+      "ratio": 15.81
+    },
+    {
+      "fg": "muted",
+      "bg": "surface",
+      "ratio": 6.44
+    },
+    {
+      "fg": "accent",
+      "bg": "surface",
+      "ratio": 4.93
+    },
+    {
+      "fg": "on-accent",
+      "bg": "accent",
+      "ratio": 4.93
+    },
+    {
+      "fg": "on-brand",
+      "bg": "brand",
+      "ratio": 9.11
+    },
+    {
+      "fg": "border",
+      "bg": "surface",
+      "ratio": 3.17
+    }
+  ],
+  "audit": [],
+  "dark": false
+}

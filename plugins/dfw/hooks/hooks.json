@@ -1,10 +1,14 @@
 {
-  "description": "dfw: session context, write gate (no implementation before design + stack approval; frozen designs are immutable), and fast design checks after edits. All handlers fail open on internal errors.",
+  "description": "dfw: session context, write gate (no implementation before design + stack approval; frozen designs are immutable), fast design checks after edits, and delivery of new Studio review comments (with the next prompt, or before Claude stops). All handlers fail open on internal errors.",
   "hooks": {
     "SessionStart": [
       {
         "hooks": [
-          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/dfw\" hook session-start", "timeout": 10 }
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/dfw\" hook session-start",
+            "timeout": 10
+          }
         ]
       }
     ],
@@ -12,7 +16,11 @@
       {
         "matcher": "Edit|Write|MultiEdit|NotebookEdit",
         "hooks": [
-          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/dfw\" hook pre-tool-use", "timeout": 10 }
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/dfw\" hook pre-tool-use",
+            "timeout": 10
+          }
         ]
       }
     ],
@@ -20,7 +28,33 @@
       {
         "matcher": "Edit|Write|MultiEdit",
         "hooks": [
-          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/dfw\" hook post-tool-use", "timeout": 20 }
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/dfw\" hook post-tool-use",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/dfw\" hook user-prompt-submit",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/dfw\" hook stop",
+            "timeout": 10
+          }
         ]
       }
     ]

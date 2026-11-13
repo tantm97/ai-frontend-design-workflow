@@ -1,0 +1,31 @@
+<dfw-component name="data-table" group="Data" variants="default dense" props="label"
+  description="Tabular data. Slot: <thead>/<tbody> rows. Helpers: td.num (right, tabular), .cell-sub (second line), tr.is-selected, tr.is-alert, tr.is-group + tr.is-child (grouped rows), th[aria-sort].">
+<style>
+.dtable { width: 100%; overflow: auto; background: var(--color-surface); border: var(--border-width) solid var(--color-rule); border-radius: var(--radius-lg); }
+.dtable table { width: 100%; border-collapse: collapse; font: var(--font-weight-regular) var(--font-size-sm) / var(--font-leading-snug) var(--font-family-body); font-variant-numeric: tabular-nums; color: var(--color-ink); }
+.dtable th { position: sticky; top: 0; z-index: 1; padding: var(--space-2) var(--space-4); background: var(--color-surface-sunken); border-bottom: var(--border-width) solid var(--color-rule); color: var(--color-muted); font: var(--font-weight-medium) var(--font-size-xs) / var(--font-leading-snug) var(--font-family-body); text-align: left; white-space: nowrap; }
+.dtable th[aria-sort] { color: var(--color-ink); }
+.dtable td { padding: var(--space-3) var(--space-4); border-bottom: var(--border-width) solid var(--color-rule); vertical-align: top; }
+.dtable tr:last-child td { border-bottom: 0; }
+.dtable tbody tr:hover td { background: var(--color-surface-hover); }
+.dtable td.num, .dtable th.num { text-align: right; }
+.dtable .cell-sub { display: block; margin-top: var(--space-half); font-size: var(--font-size-xs); color: var(--color-muted); }
+.dtable .cell-id { font-family: var(--font-family-mono); font-size: var(--font-size-xs); letter-spacing: var(--font-tracking-wide); white-space: nowrap; }
+.dtable tr.is-selected td { background: var(--color-accent-soft); }
+.dtable tr.is-alert td { background: var(--color-status-err-tint); }
+.dtable tr.is-alert:hover td { background: var(--color-status-err-tint); }
+.dtable tr.is-group td { background: var(--color-surface-sunken); font-weight: var(--font-weight-medium); }
+.dtable tr.is-child td:nth-child(2) { padding-left: var(--space-10); }
+.dtable tr.is-child td { color: var(--color-muted); }
+.dtable--dense td { padding: var(--space-2) var(--space-3); }
+.dtable--dense th { padding: var(--space-2) var(--space-3); }
+.dtable a { color: var(--color-accent-text); font-weight: var(--font-weight-medium); text-decoration: none; }
+.dtable a:hover { text-decoration: underline; }
+</style>
+<template>
+<div class="dtable dtable--{{variant}}" role="region" aria-label="{{label}}" tabindex="0"><table><dfw-slot></dfw-slot></table></div>
+</template>
+<dfw-examples>
+<div style="width: 640px"><dfw-use c="data-table" label="Equipment"><thead><tr><th aria-sort="ascending">Asset</th><th>Location</th><th>Status</th></tr></thead><tbody><tr><td>Makita DDF485 drill<span class="cell-sub cell-id">TP-TOOL-00421</span></td><td>Cabinet A2</td><td><dfw-use c="badge" variant="info" dot="1">On loan</dfw-use></td></tr><tr class="is-alert"><td>Bosch GWS 060 grinder<span class="cell-sub cell-id">TP-TOOL-00312</span></td><td>Cabinet A3</td><td><dfw-use c="badge" variant="err" icon="triangle-alert">Overdue 2 days</dfw-use></td></tr></tbody></dfw-use></div>
+</dfw-examples>
+</dfw-component>

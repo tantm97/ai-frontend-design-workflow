@@ -12,14 +12,15 @@ Inputs: scope (screens/variants or URLs/routes), the approved design version if 
 
 Process:
 1. Evidence first. Screenshots:
-   - design: `dfw studio start` (if not running) then `dfw shoot --screen <id> [--variant <v>] [--bp desktop,tablet,mobile]`;
+   - design: `dfw studio start` (if not running) then `dfw shoot --page <id> --states` or `dfw shoot --screen <id> [--variant <v>] [--bp ...]`; the design system: `dfw shoot --system`;
    - implementation: `dfw shoot --url <url> --out .dfw/shots/impl/<screen>__{bp}.png`;
    - element detail: add `--selector '<css>'`.
    Read every screenshot you cite. If Playwright is missing, say so and continue with code-level review; never claim visual results you did not see.
 2. Automated checks: `dfw check [files...]` or `dfw check --url <url>`; include tool statuses (ran/unavailable/timeout).
 3. Expert critique (budget: at most two skills): `impeccable:impeccable` with `critique` (design) or `audit` (implementation); `emil-design-eng:review-animations` only if motion changed; Hallmark's finish review only for marketing pages Hallmark led. Apply the dfw precedence: an external skill's taste rule never overrides recorded user decisions, the approved design system, or business constraints.
-4. Accessibility floor (WCAG 2.2 AA): contrast, focus visible/not obscured, keyboard path, target size 24x24, labels/errors, reflow at 320px, reduced motion, no color-only meaning.
-5. Verification against an approved design: per screen and breakpoint classify match / acceptable variance / deviation, with the two screenshot paths.
+4. Score the dfw quality rubric (`references/quality-rubric.md`: 10 criteria, 0-2) and list every "AI look" tell you see.
+5. Accessibility floor (WCAG 2.2 AA): contrast, focus visible/not obscured, keyboard path, target size 24x24, labels/errors, reflow at 320px, reduced motion, no color-only meaning.
+6. Verification against an approved design: per screen and breakpoint classify match / acceptable variance / deviation, with the two screenshot paths.
 
 Report format:
 - Summary (3 lines).

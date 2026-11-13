@@ -1,0 +1,25 @@
+<dfw-component name="badge" group="Display" variants="neutral ok info warn err accent" sizes="md sm" props="icon dot"
+  description="Status label: always text (+ optional icon or dot), never colour alone.">
+<style>
+.badge { display: inline-flex; align-items: center; gap: var(--space-1); padding: var(--space-half) var(--space-2); border-radius: var(--radius-sm); font: var(--font-weight-medium) var(--font-size-xs) / var(--font-leading-snug) var(--font-family-body); white-space: nowrap; }
+.badge .icon { width: var(--size-icon-xs); height: var(--size-icon-xs); }
+.badge__dot { width: var(--space-1-5); height: var(--space-1-5); border-radius: var(--radius-pill); background: currentColor; }
+.badge--neutral { background: var(--color-surface-sunken); color: var(--color-muted); }
+.badge--ok { background: var(--color-status-ok-tint); color: var(--color-status-ok-text); }
+.badge--info { background: var(--color-status-info-tint); color: var(--color-status-info-text); }
+.badge--warn { background: var(--color-status-warn-tint); color: var(--color-status-warn-text); }
+.badge--err { background: var(--color-status-err-tint); color: var(--color-status-err-text); }
+.badge--accent { background: var(--color-accent-soft); color: var(--color-accent-text); }
+.badge--sm { padding: 0 var(--space-1-5); font-size: var(--font-size-2xs); }
+</style>
+<template>
+<span class="badge badge--{{variant}} badge--{{size}}"><span class="badge__dot" data-dfw-if="dot"></span><dfw-icon data-dfw-if="icon" name="{{icon}}"></dfw-icon><dfw-slot>Label</dfw-slot></span>
+</template>
+<dfw-examples>
+<dfw-use c="badge" variant="ok" dot="1">Available</dfw-use>
+<dfw-use c="badge" variant="info" dot="1">On loan</dfw-use>
+<dfw-use c="badge" variant="err" icon="triangle-alert">Overdue 2 days</dfw-use>
+<dfw-use c="badge" variant="warn" icon="wrench">Maintenance</dfw-use>
+<dfw-use c="badge" variant="neutral">Retired</dfw-use>
+</dfw-examples>
+</dfw-component>

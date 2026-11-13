@@ -1,0 +1,19 @@
+<dfw-component name="select" group="Inputs" sizes="md sm" props="label value input-id" replaces="select"
+  description="Single choice from a list (native select styled). For filters use filter-chip.">
+<style>
+.select { display: grid; gap: var(--space-1); min-width: 0; }
+.select__label { font: var(--font-weight-medium) var(--font-size-sm) / var(--font-leading-snug) var(--font-family-body); color: var(--color-ink); }
+.select__box { position: relative; display: flex; align-items: center; }
+.select__control { appearance: none; width: 100%; min-height: var(--size-control); padding: 0 var(--space-8) 0 var(--space-3); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-ink); font: var(--font-weight-regular) var(--font-size-sm) / 1 var(--font-family-body); cursor: pointer; }
+.select__control:hover { border-color: var(--color-border-strong); }
+.select__control:focus-visible { outline: none; border-color: var(--color-focus); box-shadow: 0 0 0 var(--focus-width) var(--color-focus-ring); }
+.select__box .icon { position: absolute; right: var(--space-3); width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--color-muted); pointer-events: none; }
+.select--sm .select__control { min-height: var(--size-control-sm); font-size: var(--font-size-xs); }
+</style>
+<template>
+<div class="select select--{{size}}"><label class="select__label" for="{{input-id}}" data-dfw-if="label">{{label}}</label><div class="select__box"><select class="select__control" id="{{input-id}}"><option>{{value}}</option></select><dfw-icon name="chevron-down"></dfw-icon></div></div>
+</template>
+<dfw-examples>
+<dfw-use c="select" label="Category" input-id="ex-s1" value="Power tools"></dfw-use>
+</dfw-examples>
+</dfw-component>

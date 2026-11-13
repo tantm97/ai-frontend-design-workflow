@@ -1,0 +1,297 @@
+{
+  "id": "swiss-grid",
+  "seeds": {
+    "brand": {
+      "hue": 265,
+      "chroma": 0.2
+    },
+    "neutral": {
+      "hue": 265,
+      "tint": 0.003
+    }
+  },
+  "names": {
+    "brand": "coban",
+    "neutral": "xam"
+  },
+  "type": {
+    "base": 15,
+    "ratio": 1.2,
+    "displayRatio": 1.414,
+    "displayFrom": 28,
+    "eyebrow": {
+      "size": 11,
+      "weight": 600,
+      "tracking": "0.08em",
+      "upper": true
+    },
+    "ui": {
+      "2xs": 11,
+      "xs": 12,
+      "sm": 13,
+      "md": 15,
+      "lg": 18,
+      "xl": 22,
+      "2xl": 26,
+      "3xl": 28,
+      "4xl": 40
+    },
+    "display": [
+      79,
+      56,
+      40,
+      28
+    ]
+  },
+  "axes": {
+    "formality": 4,
+    "energy": 2,
+    "era": 5,
+    "warmth": 2,
+    "density": 4,
+    "richness": 1,
+    "seriousness": 4
+  },
+  "rationale": [
+    "One accent hue only; everything else is grey and type. Swiss style gets its character from grid and scale, not colour.",
+    "Greys carry 0.003 chroma of the accent hue: pure greys look dirty next to a saturated blue.",
+    "15px base for dense productivity screens; display jumps at √2 for oversized numerals."
+  ],
+  "name": "Swiss grid",
+  "tags": [
+    "minimal",
+    "swiss",
+    "grid",
+    "saas",
+    "admin",
+    "precise",
+    "neutral",
+    "productivity",
+    "b2b",
+    "dashboard"
+  ],
+  "concept": "International typographic style: strict grid, hairline rules, black type on white, one cobalt accent, oversized numerals and flush-left everything.",
+  "fits": [
+    "SaaS and admin",
+    "analytics",
+    "developer and design tools"
+  ],
+  "avoid": [
+    "warm consumer brands",
+    "playful products"
+  ],
+  "base": "crisp",
+  "fonts": {
+    "display": "Inter",
+    "body": "Inter",
+    "mono": "JetBrains Mono",
+    "displayWeights": "500;600",
+    "note": "Display = Inter 600 with -0.03em tracking at 40+."
+  },
+  "fontsLatin": {
+    "display": "Instrument Sans",
+    "body": "Instrument Sans",
+    "mono": "JetBrains Mono",
+    "displayWeights": "500;600"
+  },
+  "radius": {
+    "sm": 2,
+    "md": 4,
+    "lg": 6,
+    "xl": 8
+  },
+  "density": "compact",
+  "motifs": [
+    {
+      "name": "hairline-grid",
+      "use": "Section headers aligned to a visible 1px rule; numbers in tabular display.",
+      "css": ".motif--hairline-grid { border-top: 1px solid var(--color-ink); padding-top: var(--space-3); }"
+    },
+    {
+      "name": "index-number",
+      "use": "Oversized section index (01, 02) in display weight, muted.",
+      "css": ".motif--index-number { font: var(--font-weight-semibold) var(--font-size-display-md) / 1 var(--font-family-display); letter-spacing: -0.03em; color: var(--color-rule); }"
+    }
+  ],
+  "layout": "12 columns, 24 gutters, everything flush-left on column lines; whitespace instead of boxes; rules instead of cards.",
+  "components": [
+    "Tables without vertical lines, 1px rules, 13-14 text.",
+    "Cards rare: prefer rules and spacing.",
+    "Buttons 36px, radius 4."
+  ],
+  "do": [
+    "Replace boxes with alignment and rules.",
+    "Use one accent only.",
+    "Big tabular numbers for key metrics."
+  ],
+  "dont": [
+    "Shadows on everything.",
+    "Coloured icon tiles.",
+    "Centred layouts."
+  ],
+  "palette": {
+    "coban-50": {
+      "hex": "#f4f7ff",
+      "usage": "Used for: selected backgrounds."
+    },
+    "coban-100": {
+      "hex": "#e7efff",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "coban-200": {
+      "hex": "#d0dfff",
+      "usage": "Used for: focus halo."
+    },
+    "coban-300": {
+      "hex": "#b0c9ff",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "coban-400": {
+      "hex": "#85abff",
+      "usage": "Used for: signature motif."
+    },
+    "coban-500": {
+      "hex": "#5989ff",
+      "usage": "Cobalt: the single accent (actions, links, selection, info)."
+    },
+    "coban-600": {
+      "hex": "#3a6aea",
+      "usage": "Used for: primary actions, links, focus ring."
+    },
+    "coban-700": {
+      "hex": "#2852c7",
+      "usage": "Used for: hover/pressed, selected text."
+    },
+    "coban-800": {
+      "hex": "#1c3ea0",
+      "usage": "Used for: large brand surfaces."
+    },
+    "coban-900": {
+      "hex": "#132d78",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "coban-950": {
+      "hex": "#0a1d52",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xam-50": {
+      "hex": "#f7f7f9",
+      "usage": "Used for: page background, text on brand surfaces."
+    },
+    "xam-100": {
+      "hex": "#eeeff0",
+      "usage": "Used for: table headers, wells, hover."
+    },
+    "xam-200": {
+      "hex": "#dedfe0",
+      "usage": "Used for: dividers."
+    },
+    "xam-300": {
+      "hex": "#c8c9cb",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xam-400": {
+      "hex": "#acadaf",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xam-500": {
+      "hex": "#909192",
+      "usage": "Near-neutral greys (a hint of cobalt so they do not look dirty next to it). Used for: control borders."
+    },
+    "xam-600": {
+      "hex": "#757678",
+      "usage": "Used for: emphasised borders, placeholders."
+    },
+    "xam-700": {
+      "hex": "#5e5f60",
+      "usage": "Used for: secondary text."
+    },
+    "xam-800": {
+      "hex": "#48494b",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xam-900": {
+      "hex": "#353537",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xam-950": {
+      "hex": "#222324",
+      "usage": "Used for: body text."
+    }
+  },
+  "roles": {
+    "canvas": "xam-50",
+    "surface": "#ffffff",
+    "surface-sunken": "xam-100",
+    "surface-hover": "xam-100",
+    "rule": "xam-200",
+    "border": "xam-500",
+    "border-strong": "xam-600",
+    "subtle": "xam-600",
+    "muted": "xam-700",
+    "ink": "xam-950",
+    "accent": "coban-600",
+    "accent-hover": "coban-700",
+    "accent-soft": "coban-50",
+    "accent-text": "coban-700",
+    "focus-ring": "coban-200",
+    "on-accent": "#ffffff",
+    "focus": "coban-600",
+    "brand": "coban-800",
+    "on-brand": "xam-50",
+    "signature": "coban-400"
+  },
+  "status": {
+    "ok": "#007237",
+    "ok-tint": "#edfcf0",
+    "ok-text": "#005929",
+    "info": "#3a6aea",
+    "info-tint": "#f4f7ff",
+    "info-text": "#2852c7",
+    "warn": "#f1bf7f",
+    "warn-tint": "#fff6eb",
+    "warn-text": "#825300",
+    "err": "#ce3537",
+    "err-tint": "#fff5f4",
+    "err-text": "#ad1c24"
+  },
+  "onFill": "#ffffff",
+  "shadowTint": "#222324",
+  "paletteNotes": [
+    "info uses the accent ramp (the accent is blue; a second blue would compete)."
+  ],
+  "contrasts": [
+    {
+      "fg": "ink",
+      "bg": "surface",
+      "ratio": 15.74
+    },
+    {
+      "fg": "muted",
+      "bg": "surface",
+      "ratio": 6.4
+    },
+    {
+      "fg": "accent",
+      "bg": "surface",
+      "ratio": 4.74
+    },
+    {
+      "fg": "on-accent",
+      "bg": "accent",
+      "ratio": 4.74
+    },
+    {
+      "fg": "on-brand",
+      "bg": "brand",
+      "ratio": 8.74
+    },
+    {
+      "fg": "border",
+      "bg": "surface",
+      "ratio": 3.16
+    }
+  ],
+  "audit": [],
+  "dark": false
+}

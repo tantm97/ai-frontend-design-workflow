@@ -20,7 +20,7 @@ export const DEFAULTS = {
     immutable: ['design/approved/**'],
   },
   checks: {
-    onEdit: true, // dfw's own PostToolUse check hook
+    onEdit: 'fast', // PostToolUse checks: 'fast' (dfw lint), 'full' (all tools) or false
     timeoutMs: 8000,
     impeccable: true,
     sloplint: true,

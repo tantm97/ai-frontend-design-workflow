@@ -1,0 +1,340 @@
+{
+  "id": "nature-organic",
+  "seeds": {
+    "brand": {
+      "hue": 135,
+      "chroma": 0.07
+    },
+    "neutral": {
+      "hue": 90,
+      "tint": 0.014
+    },
+    "signature": {
+      "hue": 50,
+      "chroma": 0.1
+    },
+    "accentFrom": "neutral",
+    "warmSurface": true,
+    "brandStep": 700
+  },
+  "names": {
+    "brand": "xo-thom",
+    "neutral": "yen",
+    "signature": "dat-set"
+  },
+  "type": {
+    "base": 16,
+    "ratio": 1.2,
+    "displayRatio": 1.414,
+    "displayFrom": 28,
+    "eyebrow": {
+      "size": 12,
+      "weight": 700,
+      "tracking": "0.12em",
+      "upper": true
+    },
+    "ui": {
+      "2xs": 11,
+      "xs": 12,
+      "sm": 13,
+      "md": 16,
+      "lg": 19,
+      "xl": 23,
+      "2xl": 28,
+      "3xl": 30,
+      "4xl": 42
+    },
+    "display": [
+      85,
+      60,
+      42,
+      30
+    ]
+  },
+  "axes": {
+    "formality": 3,
+    "energy": 1,
+    "era": 2,
+    "warmth": 4,
+    "density": 2,
+    "richness": 3,
+    "seriousness": 3
+  },
+  "rationale": [
+    "Sage is the identity but not the action colour: green buttons would be confused with success states.",
+    "Oat neutrals (hue 90) and clay signature are analogous earth tones; low chroma everywhere keeps it calm.",
+    "Serif display at √2 jumps for an editorial, notebook voice."
+  ],
+  "name": "Nature organic",
+  "tags": [
+    "nature",
+    "wellness",
+    "agriculture",
+    "sustainability",
+    "organic",
+    "calm",
+    "serif",
+    "earthy",
+    "consumer"
+  ],
+  "concept": "A field notebook: oat paper, sage and clay pigments, a literary serif and pressed-leaf line drawings.",
+  "fits": [
+    "wellness and spa",
+    "agriculture and food origin",
+    "sustainability reporting"
+  ],
+  "avoid": [
+    "technical consoles"
+  ],
+  "base": "soft",
+  "fonts": {
+    "display": "Newsreader",
+    "body": "Nunito Sans",
+    "mono": "JetBrains Mono",
+    "displayWeights": "400;500;600",
+    "note": "Newsreader 500, italic for quotes; body Nunito Sans 16."
+  },
+  "fontsLatin": {
+    "display": "Newsreader",
+    "body": "DM Sans",
+    "mono": "JetBrains Mono",
+    "displayWeights": "400;500;600"
+  },
+  "radius": {
+    "sm": 4,
+    "md": 8,
+    "lg": 14,
+    "xl": 20
+  },
+  "density": "regular",
+  "motifs": [
+    {
+      "name": "field-note",
+      "use": "Quoted notes and origin stories: italic serif with a clay left margin mark.",
+      "css": ".motif--field-note { font: italic var(--font-weight-regular) var(--font-size-lg) / 1.5 var(--font-family-display); color: var(--color-ink); padding-left: var(--space-5); border-left: var(--border-width) solid var(--color-signature); }"
+    }
+  ],
+  "layout": "Editorial 12 columns, wide margins, images with natural crops, text measure 60-70ch.",
+  "components": [
+    "Buttons 40px radius 8.",
+    "Cards flat on paper with hairline.",
+    "Data with small sage charts."
+  ],
+  "do": [
+    "Natural photography.",
+    "Generous leading.",
+    "Muted pigments."
+  ],
+  "dont": [
+    "Neon greens.",
+    "Leaf emoji.",
+    "Organic blob shapes."
+  ],
+  "palette": {
+    "xo-thom-50": {
+      "hex": "#f5f9f3",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xo-thom-100": {
+      "hex": "#eaf2e6",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xo-thom-200": {
+      "hex": "#d7e4d0",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xo-thom-300": {
+      "hex": "#bdd0b4",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xo-thom-400": {
+      "hex": "#9eb692",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xo-thom-500": {
+      "hex": "#7f9a71",
+      "usage": "Sage: brand bands, illustrations, charts; not actions (reads as success)."
+    },
+    "xo-thom-600": {
+      "hex": "#648056",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xo-thom-700": {
+      "hex": "#4e6741",
+      "usage": "Used for: large brand surfaces."
+    },
+    "xo-thom-800": {
+      "hex": "#3b5030",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xo-thom-900": {
+      "hex": "#2b3b22",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xo-thom-950": {
+      "hex": "#1b2715",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "yen-50": {
+      "hex": "#faf7f1",
+      "usage": "Used for: cards, tables, inputs, text on brand surfaces."
+    },
+    "yen-100": {
+      "hex": "#f1efe8",
+      "usage": "Used for: page background, table headers, wells, hover."
+    },
+    "yen-200": {
+      "hex": "#e2dfd7",
+      "usage": "Used for: dividers, selected backgrounds."
+    },
+    "yen-300": {
+      "hex": "#ccc9c1",
+      "usage": "Used for: focus halo."
+    },
+    "yen-400": {
+      "hex": "#b0ada4",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "yen-500": {
+      "hex": "#949087",
+      "usage": "Oat paper to bark: neutrals and the bark-ink buttons."
+    },
+    "yen-600": {
+      "hex": "#79766d",
+      "usage": "Used for: control borders."
+    },
+    "yen-700": {
+      "hex": "#625f56",
+      "usage": "Used for: emphasised borders, placeholders."
+    },
+    "yen-800": {
+      "hex": "#4c4941",
+      "usage": "Used for: secondary text."
+    },
+    "yen-900": {
+      "hex": "#38352e",
+      "usage": "Used for: primary actions, links, selected text, focus ring."
+    },
+    "yen-950": {
+      "hex": "#25231d",
+      "usage": "Used for: body text, hover/pressed."
+    },
+    "dat-set-50": {
+      "hex": "#fff5f0",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "dat-set-100": {
+      "hex": "#fdebe1",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "dat-set-200": {
+      "hex": "#f7d8c7",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "dat-set-300": {
+      "hex": "#ebbea6",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "dat-set-400": {
+      "hex": "#d89e7f",
+      "usage": "Used for: signature motif."
+    },
+    "dat-set-500": {
+      "hex": "#c07f5a",
+      "usage": "Clay: tags and field-note marks."
+    },
+    "dat-set-600": {
+      "hex": "#a5633d",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "dat-set-700": {
+      "hex": "#884d2a",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "dat-set-800": {
+      "hex": "#6c3a1c",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "dat-set-900": {
+      "hex": "#502a13",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "dat-set-950": {
+      "hex": "#361b0b",
+      "usage": "Reserve step (hover/pressed/charts)."
+    }
+  },
+  "roles": {
+    "canvas": "yen-100",
+    "surface": "yen-50",
+    "surface-sunken": "yen-100",
+    "surface-hover": "yen-100",
+    "rule": "yen-200",
+    "border": "yen-600",
+    "border-strong": "yen-700",
+    "subtle": "yen-700",
+    "muted": "yen-800",
+    "ink": "yen-950",
+    "accent": "yen-900",
+    "accent-hover": "yen-950",
+    "accent-soft": "yen-200",
+    "accent-text": "yen-900",
+    "focus-ring": "yen-300",
+    "on-accent": "#ffffff",
+    "focus": "yen-900",
+    "brand": "xo-thom-700",
+    "on-brand": "yen-50",
+    "signature": "dat-set-400"
+  },
+  "status": {
+    "ok": "#267030",
+    "ok-tint": "#f1faf1",
+    "ok-text": "#185722",
+    "info": "#00649d",
+    "info-tint": "#f1f9ff",
+    "info-text": "#004d7b",
+    "warn": "#efc17e",
+    "warn-tint": "#fff6ea",
+    "warn-text": "#7f5500",
+    "err": "#b65544",
+    "err-tint": "#fff5f3",
+    "err-text": "#973f30"
+  },
+  "onFill": "#ffffff",
+  "shadowTint": "#25231d",
+  "paletteNotes": [],
+  "contrasts": [
+    {
+      "fg": "ink",
+      "bg": "surface",
+      "ratio": 14.69
+    },
+    {
+      "fg": "muted",
+      "bg": "surface",
+      "ratio": 8.4
+    },
+    {
+      "fg": "accent",
+      "bg": "surface",
+      "ratio": 11.44
+    },
+    {
+      "fg": "on-accent",
+      "bg": "accent",
+      "ratio": 12.23
+    },
+    {
+      "fg": "on-brand",
+      "bg": "brand",
+      "ratio": 5.88
+    },
+    {
+      "fg": "border",
+      "bg": "surface",
+      "ratio": 4.25
+    }
+  ],
+  "audit": [],
+  "dark": false
+}
