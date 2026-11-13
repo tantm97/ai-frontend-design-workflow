@@ -1,0 +1,358 @@
+{
+  "id": "heritage-signboard",
+  "seeds": {
+    "brand": {
+      "hue": 30,
+      "chroma": 0.15
+    },
+    "neutral": {
+      "hue": 80,
+      "tint": 0.014
+    },
+    "signature": {
+      "hue": 82,
+      "chroma": 0.12
+    },
+    "accentFrom": "neutral",
+    "warmSurface": true,
+    "brandStep": 800,
+    "onBrandSignature": true,
+    "signatureStep": 500
+  },
+  "names": {
+    "brand": "son",
+    "neutral": "giay",
+    "signature": "kim"
+  },
+  "type": {
+    "base": 16,
+    "ratio": 1.2,
+    "displayRatio": 1.414,
+    "displayFrom": 30,
+    "eyebrow": {
+      "size": 12,
+      "weight": 600,
+      "tracking": "0.16em",
+      "upper": true
+    },
+    "ui": {
+      "2xs": 11,
+      "xs": 12,
+      "sm": 13,
+      "md": 16,
+      "lg": 19,
+      "xl": 23,
+      "2xl": 28,
+      "3xl": 30,
+      "4xl": 42
+    },
+    "display": [
+      85,
+      60,
+      42,
+      30
+    ]
+  },
+  "axes": {
+    "formality": 4,
+    "energy": 2,
+    "era": 1,
+    "warmth": 5,
+    "density": 2,
+    "richness": 5,
+    "seriousness": 4
+  },
+  "rationale": [
+    "Accent = ink (giay-900), not lacquer red: red is the error hue; an ink button keeps the primary action calm and lets red mean 'signboard' (brand surfaces) instead of 'danger'.",
+    "Neutrals are tinted toward paper (hue 80) at the same temperature as the gold, so paper, ink and gold read as one material family.",
+    "Display scale 30/42/60/85 at √2 ratio: carved-signboard titles need big jumps; UI text stays at a calm 1.2 ratio.",
+    "Gold is the signature (ornament and text on lacquer) because gold on paper cannot reach 4.5:1 for small text."
+  ],
+  "name": "Heritage signboard",
+  "tags": [
+    "heritage",
+    "culture",
+    "vietnam",
+    "retail",
+    "luxury",
+    "craft",
+    "editorial",
+    "serif",
+    "warm",
+    "storefront"
+  ],
+  "concept": "Old-quarter shop signboards: lacquer-red boards with gold-leaf lettering on aged paper; ink-black text; serif display set large like carved characters.",
+  "fits": [
+    "heritage retail",
+    "jewellery, tea, crafts",
+    "culture and tourism",
+    "premium F&B"
+  ],
+  "avoid": [
+    "dense back-office tools",
+    "products that must feel neutral"
+  ],
+  "base": "soft",
+  "fonts": {
+    "display": "Noto Serif Display",
+    "body": "Be Vietnam Pro",
+    "mono": "JetBrains Mono",
+    "displayWeights": "400;500",
+    "note": "Noto Serif Display at 400-500; never bold."
+  },
+  "fontsLatin": {
+    "display": "Cormorant Garamond",
+    "body": "DM Sans",
+    "mono": "JetBrains Mono",
+    "displayWeights": "500;600"
+  },
+  "radius": {
+    "sm": 2,
+    "md": 4,
+    "lg": 6,
+    "xl": 8
+  },
+  "density": "regular",
+  "motifs": [
+    {
+      "name": "signboard-frame",
+      "use": "Hero blocks and brand panels: double frame (gold inner rule inside a lacquer board). One per screen.",
+      "css": ".motif--signboard-frame { background: var(--color-brand); color: var(--color-on-brand); padding: var(--space-8); outline: var(--border-width-strong) solid var(--color-signature); outline-offset: calc(var(--space-2) * -1); }"
+    },
+    {
+      "name": "gold-rule",
+      "use": "Section dividers: short gold rule with a centred diamond. Never under every heading.",
+      "css": ".motif--gold-rule { display: flex; align-items: center; gap: var(--space-2); color: var(--color-signature); } .motif--gold-rule::before, .motif--gold-rule::after { content: \"\"; height: 1px; width: var(--space-12); background: currentColor; } .motif--gold-rule > span { width: var(--space-1-5); height: var(--space-1-5); background: currentColor; transform: rotate(45deg); }"
+    }
+  ],
+  "layout": "Desktop 12 columns, content 1200, gutters 24, generous top whitespace above display titles; mobile 2-column product grid, margins 16.",
+  "components": [
+    "Buttons 14/600, radius 2-4: ink primary, outline secondary; lacquer only on brand bands with gold text.",
+    "Eyebrow caps 12/600 tracking 0.16em above display titles (ink on paper; gold only on lacquer).",
+    "Product names in display serif 22, exactly two lines.",
+    "Price in display serif, never \"0 ₫\" (show \"Liên hệ\")."
+  ],
+  "do": [
+    "Set display titles big (42-85) and let them breathe.",
+    "Use gold only as ornament and thin rules.",
+    "Use real product photography on paper backgrounds."
+  ],
+  "dont": [
+    "Gold text on paper below 18px.",
+    "Gradients, glass, glows.",
+    "More than one framed signboard block per view."
+  ],
+  "palette": {
+    "son-50": {
+      "hex": "#fff5f3",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "son-100": {
+      "hex": "#ffe9e5",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "son-200": {
+      "hex": "#ffd3cb",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "son-300": {
+      "hex": "#ffb3a6",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "son-400": {
+      "hex": "#f18e7e",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "son-500": {
+      "hex": "#da6a5a",
+      "usage": "Lacquer red: signboard surfaces and brand moments only (never small text, never next to errors)."
+    },
+    "son-600": {
+      "hex": "#be4c3d",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "son-700": {
+      "hex": "#9f372a",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "son-800": {
+      "hex": "#7e271c",
+      "usage": "Used for: large brand surfaces."
+    },
+    "son-900": {
+      "hex": "#5e1b13",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "son-950": {
+      "hex": "#40110b",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "giay-50": {
+      "hex": "#fbf7f1",
+      "usage": "Used for: cards, tables, inputs."
+    },
+    "giay-100": {
+      "hex": "#f2eee8",
+      "usage": "Used for: page background, table headers, wells, hover."
+    },
+    "giay-200": {
+      "hex": "#e3ded7",
+      "usage": "Used for: dividers, selected backgrounds."
+    },
+    "giay-300": {
+      "hex": "#cdc9c1",
+      "usage": "Used for: focus halo."
+    },
+    "giay-400": {
+      "hex": "#b2ada4",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "giay-500": {
+      "hex": "#959087",
+      "usage": "Aged paper to ink: every neutral, tinted warm so the paper and the ink belong together."
+    },
+    "giay-600": {
+      "hex": "#7b756d",
+      "usage": "Used for: control borders."
+    },
+    "giay-700": {
+      "hex": "#635e56",
+      "usage": "Used for: emphasised borders, placeholders."
+    },
+    "giay-800": {
+      "hex": "#4d4841",
+      "usage": "Used for: secondary text."
+    },
+    "giay-900": {
+      "hex": "#39352f",
+      "usage": "Used for: primary actions, links, selected text, focus ring."
+    },
+    "giay-950": {
+      "hex": "#26221d",
+      "usage": "Used for: body text, hover/pressed."
+    },
+    "kim-50": {
+      "hex": "#fcf7ed",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "kim-100": {
+      "hex": "#f9edda",
+      "usage": "Used for: text on brand surfaces."
+    },
+    "kim-200": {
+      "hex": "#f0dcba",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "kim-300": {
+      "hex": "#e2c592",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "kim-400": {
+      "hex": "#cca762",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "kim-500": {
+      "hex": "#b48931",
+      "usage": "Gold leaf: ornament, rules and text on lacquer; never body text on paper. Used for: signature motif."
+    },
+    "kim-600": {
+      "hex": "#986e00",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "kim-700": {
+      "hex": "#7b5800",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "kim-800": {
+      "hex": "#5f4400",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "kim-900": {
+      "hex": "#473100",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "kim-950": {
+      "hex": "#302000",
+      "usage": "Reserve step (hover/pressed/charts)."
+    }
+  },
+  "roles": {
+    "canvas": "giay-100",
+    "surface": "giay-50",
+    "surface-sunken": "giay-100",
+    "surface-hover": "giay-100",
+    "rule": "giay-200",
+    "border": "giay-600",
+    "border-strong": "giay-700",
+    "subtle": "giay-700",
+    "muted": "giay-800",
+    "ink": "giay-950",
+    "accent": "giay-900",
+    "accent-hover": "giay-950",
+    "accent-soft": "giay-200",
+    "accent-text": "giay-900",
+    "focus-ring": "giay-300",
+    "on-accent": "#ffffff",
+    "focus": "giay-900",
+    "brand": "son-800",
+    "on-brand": "kim-100",
+    "signature": "kim-500"
+  },
+  "status": {
+    "ok": "#157224",
+    "ok-tint": "#f0fbf0",
+    "ok-text": "#065917",
+    "info": "#00649d",
+    "info-tint": "#f1f9ff",
+    "info-text": "#004d7b",
+    "warn": "#efc07e",
+    "warn-tint": "#fff6ea",
+    "warn-text": "#805500",
+    "err": "#be4d3c",
+    "err-tint": "#fff5f3",
+    "err-text": "#9f3728"
+  },
+  "onFill": "#ffffff",
+  "shadowTint": "#26221d",
+  "paletteNotes": [],
+  "contrasts": [
+    {
+      "fg": "ink",
+      "bg": "surface",
+      "ratio": 14.81
+    },
+    {
+      "fg": "muted",
+      "bg": "surface",
+      "ratio": 8.49
+    },
+    {
+      "fg": "accent",
+      "bg": "surface",
+      "ratio": 11.41
+    },
+    {
+      "fg": "on-accent",
+      "bg": "accent",
+      "ratio": 12.18
+    },
+    {
+      "fg": "on-brand",
+      "bg": "brand",
+      "ratio": 8.27
+    },
+    {
+      "fg": "border",
+      "bg": "surface",
+      "ratio": 4.27
+    }
+  ],
+  "audit": [
+    {
+      "level": "info",
+      "rule": "brand-vs-error",
+      "message": "The brand hue shares the error hue: never place error messages on brand surfaces, and keep errors iconified with words."
+    }
+  ],
+  "dark": false
+}

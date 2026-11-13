@@ -1,0 +1,16 @@
+<dfw-component name="empty-state" group="Feedback" props="icon title"
+  description="Shown when a list/table has no data. Say why it is empty and the next action (actions slot).">
+<style>
+.empty { display: grid; justify-items: center; gap: var(--space-2); padding: var(--space-12) var(--space-6); text-align: center; color: var(--color-muted); font-size: var(--font-size-sm); }
+.empty .icon { width: var(--size-icon-lg); height: var(--size-icon-lg); color: var(--color-subtle); margin-bottom: var(--space-2); }
+.empty__title { margin: 0; font: var(--font-weight-semibold) var(--font-size-md) / var(--font-leading-snug) var(--font-family-body); color: var(--color-ink); }
+.empty__actions { display: flex; gap: var(--space-2); margin-top: var(--space-3); }
+.empty__actions:empty { display: none; }
+</style>
+<template>
+<div class="empty"><dfw-icon name="{{icon}}"></dfw-icon><p class="empty__title">{{title}}</p><p style="margin:0"><dfw-slot></dfw-slot></p><div class="empty__actions"><dfw-slot name="actions"></dfw-slot></div></div>
+</template>
+<dfw-examples>
+<dfw-use c="empty-state" icon="package-open" title="No equipment yet">Add items one by one or import a spreadsheet.<dfw-fill slot="actions"><dfw-use c="button" variant="primary">Add equipment</dfw-use></dfw-fill></dfw-use>
+</dfw-examples>
+</dfw-component>

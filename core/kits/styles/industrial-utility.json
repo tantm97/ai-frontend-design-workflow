@@ -1,0 +1,349 @@
+{
+  "id": "industrial-utility",
+  "seeds": {
+    "brand": {
+      "hue": 250,
+      "chroma": 0.12
+    },
+    "neutral": {
+      "hue": 240,
+      "tint": 0.008
+    },
+    "signature": {
+      "hue": 95,
+      "chroma": 0.17
+    },
+    "signatureStep": 300
+  },
+  "names": {
+    "brand": "xanh-thep",
+    "neutral": "thep",
+    "signature": "vang"
+  },
+  "type": {
+    "base": 16,
+    "ratio": 1.2,
+    "displayRatio": 1.333,
+    "displayFrom": 28,
+    "eyebrow": {
+      "size": 12,
+      "weight": 600,
+      "tracking": "0.12em",
+      "upper": true
+    },
+    "ui": {
+      "2xs": 11,
+      "xs": 12,
+      "sm": 13,
+      "md": 16,
+      "lg": 19,
+      "xl": 23,
+      "2xl": 28,
+      "3xl": 30,
+      "4xl": 40
+    },
+    "display": [
+      71,
+      53,
+      40,
+      30
+    ]
+  },
+  "axes": {
+    "formality": 3,
+    "energy": 3,
+    "era": 3,
+    "warmth": 2,
+    "density": 4,
+    "richness": 2,
+    "seriousness": 5
+  },
+  "rationale": [
+    "Accent = signal blue: the only hue that is not already a safety/status meaning on a shop floor (red stop, green go, yellow caution).",
+    "Info merges into the accent (both blue) so the screen has one blue, not two competing ones.",
+    "Yellow is a signature, not a status: tape and edges carry it; text on it is always ink (9:1).",
+    "Large density and a 1.333 display ratio: read from a metre away with gloves on, big feedback beats subtle hierarchy."
+  ],
+  "name": "Industrial utility",
+  "tags": [
+    "industrial",
+    "factory",
+    "warehouse",
+    "operations",
+    "counter",
+    "logistics",
+    "safety",
+    "condensed",
+    "utility",
+    "b2b",
+    "internal"
+  ],
+  "concept": "Tool-crib and shop-floor signage: steel greys, safety-yellow hazard tape, stencilled numbers and condensed labels you can read from a metre away.",
+  "fits": [
+    "counters, kiosks, factory floors",
+    "warehouse and asset tracking",
+    "maintenance and field ops"
+  ],
+  "avoid": [
+    "consumer lifestyle brands",
+    "luxury"
+  ],
+  "base": "industrial",
+  "fonts": {
+    "display": "Barlow Condensed",
+    "body": "IBM Plex Sans",
+    "mono": "IBM Plex Mono",
+    "displayWeights": "500;600;700",
+    "note": "Barlow Condensed 600 for titles and big numbers, uppercase only for short labels."
+  },
+  "fontsLatin": {
+    "display": "Barlow Condensed",
+    "body": "IBM Plex Sans",
+    "mono": "IBM Plex Mono",
+    "displayWeights": "600;700"
+  },
+  "radius": {
+    "sm": 2,
+    "md": 3,
+    "lg": 4,
+    "xl": 6
+  },
+  "density": "large",
+  "motifs": [
+    {
+      "name": "hazard-tape",
+      "use": "Thin top/bottom edge of attention zones (scan area, warnings). Max one per view.",
+      "css": ".motif--hazard-tape { height: var(--space-2); background: repeating-linear-gradient(-45deg, var(--color-signature) 0 var(--space-3), var(--color-brand) var(--space-3) var(--space-6)); }"
+    },
+    {
+      "name": "label-tape",
+      "use": "Asset IDs and bin locations as printed label tape: yellow band, ink mono text.",
+      "css": ".motif--label-tape { display: inline-flex; align-items: center; padding: var(--space-half) var(--space-2); background: var(--color-signature); color: var(--color-brand); font: var(--font-weight-medium) var(--font-size-sm) / 1.2 var(--font-family-mono); letter-spacing: var(--font-tracking-wide); }"
+    }
+  ],
+  "layout": "Fixed mode rail + work area; one centred work object; feedback band at the bottom; 8px grid; big numbers in condensed display.",
+  "components": [
+    "Primary actions 56px at the counter, 44px elsewhere.",
+    "Status = symbol + word + colour; big feedback band 88-96px.",
+    "IDs always mono or label-tape."
+  ],
+  "do": [
+    "Use condensed display for numbers and screen titles.",
+    "Keep surfaces flat; one raised object.",
+    "Use yellow only as tape/edges."
+  ],
+  "dont": [
+    "Rounded pill everything.",
+    "Yellow text.",
+    "Thin light-grey text on steel."
+  ],
+  "palette": {
+    "xanh-thep-50": {
+      "hex": "#f2f8ff",
+      "usage": "Used for: selected backgrounds."
+    },
+    "xanh-thep-100": {
+      "hex": "#e3f1ff",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xanh-thep-200": {
+      "hex": "#c7e2ff",
+      "usage": "Used for: focus halo."
+    },
+    "xanh-thep-300": {
+      "hex": "#a5cef9",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xanh-thep-400": {
+      "hex": "#7cb2ea",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xanh-thep-500": {
+      "hex": "#5695d4",
+      "usage": "Signal blue: primary actions, current step, selection (also the info colour)."
+    },
+    "xanh-thep-600": {
+      "hex": "#377aba",
+      "usage": "Used for: primary actions, links, focus ring."
+    },
+    "xanh-thep-700": {
+      "hex": "#23619b",
+      "usage": "Used for: hover/pressed, selected text."
+    },
+    "xanh-thep-800": {
+      "hex": "#164b7c",
+      "usage": "Used for: large brand surfaces."
+    },
+    "xanh-thep-900": {
+      "hex": "#0e375c",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xanh-thep-950": {
+      "hex": "#08243e",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "thep-50": {
+      "hex": "#f4f8fb",
+      "usage": "Used for: page background, text on brand surfaces."
+    },
+    "thep-100": {
+      "hex": "#eceff2",
+      "usage": "Used for: table headers, wells, hover."
+    },
+    "thep-200": {
+      "hex": "#dbe0e3",
+      "usage": "Used for: dividers."
+    },
+    "thep-300": {
+      "hex": "#c5cacd",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "thep-400": {
+      "hex": "#a9aeb2",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "thep-500": {
+      "hex": "#8d9195",
+      "usage": "Steel greys, slightly cool: surfaces, borders, text. Used for: control borders."
+    },
+    "thep-600": {
+      "hex": "#72777a",
+      "usage": "Used for: emphasised borders, placeholders."
+    },
+    "thep-700": {
+      "hex": "#5b5f63",
+      "usage": "Used for: secondary text."
+    },
+    "thep-800": {
+      "hex": "#464a4d",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "thep-900": {
+      "hex": "#323639",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "thep-950": {
+      "hex": "#202326",
+      "usage": "Used for: body text."
+    },
+    "vang-50": {
+      "hex": "#fcf8e8",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "vang-100": {
+      "hex": "#f7efd1",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "vang-200": {
+      "hex": "#eedfa9",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "vang-300": {
+      "hex": "#dfc977",
+      "usage": "Used for: signature motif."
+    },
+    "vang-400": {
+      "hex": "#c9ac2f",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "vang-500": {
+      "hex": "#ab8f00",
+      "usage": "Safety yellow: hazard tape, attention edges, label tape; always with ink text, never as text."
+    },
+    "vang-600": {
+      "hex": "#8c7400",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "vang-700": {
+      "hex": "#715d00",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "vang-800": {
+      "hex": "#574800",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "vang-900": {
+      "hex": "#413400",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "vang-950": {
+      "hex": "#2b2200",
+      "usage": "Reserve step (hover/pressed/charts)."
+    }
+  },
+  "roles": {
+    "canvas": "thep-50",
+    "surface": "#ffffff",
+    "surface-sunken": "thep-100",
+    "surface-hover": "thep-100",
+    "rule": "thep-200",
+    "border": "thep-500",
+    "border-strong": "thep-600",
+    "subtle": "thep-600",
+    "muted": "thep-700",
+    "ink": "thep-950",
+    "accent": "xanh-thep-600",
+    "accent-hover": "xanh-thep-700",
+    "accent-soft": "xanh-thep-50",
+    "accent-text": "xanh-thep-700",
+    "focus-ring": "xanh-thep-200",
+    "on-accent": "#ffffff",
+    "focus": "xanh-thep-600",
+    "brand": "xanh-thep-800",
+    "on-brand": "thep-50",
+    "signature": "vang-300"
+  },
+  "status": {
+    "ok": "#02723c",
+    "ok-tint": "#f0fbf3",
+    "ok-text": "#00582d",
+    "info": "#23619b",
+    "info-tint": "#f2f8ff",
+    "info-text": "#23619b",
+    "warn": "#eac37d",
+    "warn-tint": "#fef6e9",
+    "warn-text": "#7b5700",
+    "err": "#b65254",
+    "err-tint": "#fff5f4",
+    "err-text": "#983d3f"
+  },
+  "onFill": "#ffffff",
+  "shadowTint": "#202326",
+  "paletteNotes": [
+    "info uses the accent ramp (the accent is blue; a second blue would compete)."
+  ],
+  "contrasts": [
+    {
+      "fg": "ink",
+      "bg": "surface",
+      "ratio": 15.79
+    },
+    {
+      "fg": "muted",
+      "bg": "surface",
+      "ratio": 6.44
+    },
+    {
+      "fg": "accent",
+      "bg": "surface",
+      "ratio": 4.51
+    },
+    {
+      "fg": "on-accent",
+      "bg": "accent",
+      "ratio": 4.51
+    },
+    {
+      "fg": "on-brand",
+      "bg": "brand",
+      "ratio": 8.43
+    },
+    {
+      "fg": "border",
+      "bg": "surface",
+      "ratio": 3.17
+    }
+  ],
+  "audit": [],
+  "dark": false
+}

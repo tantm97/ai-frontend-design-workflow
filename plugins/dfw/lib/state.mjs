@@ -2,10 +2,11 @@
 import fs from 'node:fs';
 import { readJson, writeJson, nowIso, projectPaths, appendJsonl, DfwError } from './util.mjs';
 
-export const PHASES = ['discovery', 'direction', 'concepts', 'stack', 'implement', 'verify', 'audit', 'done'];
+export const PHASES = ['discovery', 'direction', 'system', 'concepts', 'stack', 'implement', 'verify', 'audit', 'done'];
 
 export const GATES = {
   G1: 'Design direction approved',
+  DS: 'Design system (foundations + components) approved',
   G2: 'Design frozen (approved version)',
   G3: 'Technology stack and major dependencies approved',
   G4: 'Implementation verified; deviations accepted',
@@ -16,8 +17,8 @@ export const MODES = {
   'existing-project': { entry: 'discovery', waive: [], writesCode: true },
   'design-only': { entry: 'discovery', waive: [], writesCode: false },
   'implement-approved': { entry: 'stack', waive: [], writesCode: true, requiresApprovedDesign: true },
-  'ui-refinement': { entry: 'concepts', waive: ['G1'], writesCode: true },
-  'quick-change': { entry: 'concepts', waive: ['G1'], writesCode: true },
+  'ui-refinement': { entry: 'concepts', waive: ['G1', 'DS'], writesCode: true },
+  'quick-change': { entry: 'concepts', waive: ['G1', 'DS'], writesCode: true },
   'review-only': { entry: 'audit', waive: [], writesCode: false },
 };
 
@@ -59,7 +60,7 @@ export function newState({ mode = 'new-product', product = '' } = {}) {
     createdAt: at,
     updatedAt: at,
     design: { version: 1, status: 'draft', locked: false, approved: [] },
-    gates: { G1: null, G2: null, G3: null, G4: null },
+    gates: { G1: null, DS: null, G2: null, G3: null, G4: null },
     waived: Object.fromEntries(MODES[mode].waive.map((g) => [g, `waived by mode ${mode}`])),
     history: [{ at, event: 'init', mode }],
   };
@@ -84,8 +85,12 @@ export function transitionBlockers(state, to) {
     reasons.push(`Mode "${state.mode}" does not include implementation; switch mode first (dfw mode <mode>).`);
   }
   switch (to) {
+    case 'system':
+      if (!gatePassed(state, 'G1')) reasons.push('G1 (design direction) is not approved yet.');
+      break;
     case 'concepts':
       if (!gatePassed(state, 'G1')) reasons.push('G1 (design direction) is not approved yet.');
+      if (!gatePassed(state, 'DS')) reasons.push('DS (design system) is not approved yet: build foundations and components first (phase "system").');
       break;
     case 'implement':
       if (!currentApproval(state)) reasons.push('G2: there is no approved, frozen design for the current version.');

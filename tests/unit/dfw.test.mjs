@@ -33,16 +33,19 @@ test('glob matching', () => {
   assert.ok(globToRegExp('PRODUCT.md').test('PRODUCT.md'));
 });
 
-test('state machine: concepts needs G1, implement needs G2+G3', () => {
+test('state machine: system needs G1, concepts needs G1+DS, implement needs G2+G3', () => {
   const s = newState({ mode: 'new-product' });
-  assert.deepEqual(transitionBlockers(s, 'concepts'), ['G1 (design direction) is not approved yet.']);
+  assert.deepEqual(transitionBlockers(s, 'system'), ['G1 (design direction) is not approved yet.']);
+  assert.equal(transitionBlockers(s, 'concepts').length, 2);
   const b = transitionBlockers(s, 'implement');
   assert.equal(b.length, 2);
   s.gates.G1 = { approvedAt: 'x' };
+  assert.match(transitionBlockers(s, 'concepts')[0], /^DS/);
+  s.gates.DS = { approvedAt: 'x' };
   assert.deepEqual(transitionBlockers(s, 'concepts'), []);
   assert.equal(newState({ mode: 'quick' }).mode, 'quick-change', 'mode aliases');
   const q = newState({ mode: 'quick-change' });
-  assert.deepEqual(transitionBlockers(q, 'concepts'), [], 'quick-change waives G1');
+  assert.deepEqual(transitionBlockers(q, 'concepts'), [], 'quick-change waives G1 and DS');
   const d = newState({ mode: 'design-only' });
   assert.ok(transitionBlockers(d, 'implement').some((r) => r.includes('does not include implementation')));
 });
@@ -172,6 +175,13 @@ test('cli: init, gates, approve G2 blocked by MUST findings', () => {
   assert.throws(() => cli(root, 'phase', 'concepts'), /G1/);
   cli(root, 'phase', 'direction');
   cli(root, 'approve', 'G1', '--note', 'Direction A');
+  assert.throws(() => cli(root, 'phase', 'concepts'), /DS/);
+  cli(root, 'phase', 'system');
+  assert.throws(() => cli(root, 'approve', 'DS', '--note', 'x'), /needs a design system/);
+  assert.match(cli(root, 'system', 'init', '--preset', 'industrial', '--only', 'button,badge'), /2 component/);
+  assert.throws(() => cli(root, 'approve', 'DS', '--note', 'x'), /Rationale/);
+  fs.appendFileSync(path.join(root, 'DESIGN.md'), '\n## Rationale\n' + ['Accent is signal blue because red/green/yellow already mean stop/go/caution on the floor.', 'Neutrals are cool steel because the counter sits under fluorescent light.', 'Base 16 with a 1.2 UI ratio because operators read from one metre.', 'Large density because users wear gloves at the counter.', 'Hazard tape motif only on the scan zone because it marks where to act.'].map((x) => `- ${x}`).join('\n') + '\n');
+  cli(root, 'approve', 'DS', '--note', 'Industrial preset, button + badge');
   cli(root, 'phase', 'concepts');
   fs.mkdirSync(path.join(root, 'design/screens/home'), { recursive: true });
   fs.writeFileSync(path.join(root, 'design/screens/home/a.html'), '<!doctype html><html lang="en"><head><link rel="stylesheet" href="../../tokens/tokens.css"></head><body><img src="x.png" data-dfw-id="hero.img"></body></html>');

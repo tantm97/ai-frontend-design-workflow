@@ -1,0 +1,29 @@
+<dfw-component name="banner" group="Feedback" variants="info ok warn err" sizes="md xl" props="icon title"
+  description="Inline message. role=alert for err/warn that need action. size xl = large feedback band readable from a distance (counter/kiosk).">
+<style>
+.banner { display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); font: var(--font-weight-regular) var(--font-size-sm) / var(--font-leading-snug) var(--font-family-body); }
+.banner .icon { width: var(--size-icon-sm); height: var(--size-icon-sm); flex: none; margin-top: var(--space-half); }
+.banner__body { display: grid; gap: var(--space-half); min-width: 0; flex: 1; }
+.banner__title { margin: 0; font-weight: var(--font-weight-semibold); }
+.banner__actions { display: flex; gap: var(--space-2); margin-left: auto; align-self: center; }
+.banner__actions:empty { display: none; }
+.banner--info { background: var(--color-status-info-tint); color: var(--color-status-info-text); }
+.banner--ok { background: var(--color-status-ok-tint); color: var(--color-status-ok-text); }
+.banner--warn { background: var(--color-status-warn-tint); color: var(--color-status-warn-text); }
+.banner--err { background: var(--color-status-err-tint); color: var(--color-status-err-text); }
+.banner--xl { align-items: center; gap: var(--space-5); padding: var(--space-5) var(--space-8); border-radius: 0; font-size: var(--font-size-md); min-height: var(--size-band); }
+.banner--xl .icon { width: var(--size-icon-xl); height: var(--size-icon-xl); margin: 0; }
+.banner--xl .banner__title { font-size: var(--font-size-xl); }
+.banner--xl.banner--ok { background: var(--color-status-ok); color: var(--color-on-fill); }
+.banner--xl.banner--err { background: var(--color-status-err); color: var(--color-on-fill); }
+.banner--xl.banner--warn { background: var(--color-status-warn); color: var(--color-on-warn); }
+.banner--xl.banner--info { background: var(--color-surface); color: var(--color-ink); border-top: var(--border-width) solid var(--color-rule); }
+</style>
+<template>
+<div class="banner banner--{{variant}} banner--{{size}}"><dfw-icon name="{{icon}}"></dfw-icon><div class="banner__body"><p class="banner__title" data-dfw-if="title">{{title}}</p><span><dfw-slot></dfw-slot></span></div><div class="banner__actions"><dfw-slot name="actions"></dfw-slot></div></div>
+</template>
+<dfw-examples>
+<div style="width: 520px; display: grid; gap: 8px"><dfw-use c="banner" variant="warn" icon="triangle-alert" title="Holding 1 overdue item">Bosch GWS 060, overdue 2 days.</dfw-use><dfw-use c="banner" variant="err" icon="circle-x" title="Card not recognised" role="alert">Enter the employee ID to continue.</dfw-use></div>
+<div style="width: 720px; display: grid; gap: 8px"><dfw-use c="banner" variant="ok" size="xl" icon="circle-check" title="Added Fluke 117 multimeter">Scan the next item or press Enter to confirm.</dfw-use><dfw-use c="banner" variant="err" size="xl" icon="octagon-alert" title="Item already on loan to Trần Văn Bình" role="alert">Not added. Ask the borrower to return it first.</dfw-use></div>
+</dfw-examples>
+</dfw-component>

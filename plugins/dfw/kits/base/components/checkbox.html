@@ -1,0 +1,12 @@
+<dfw-component name="checkbox" group="Inputs" props="label input-id" description="Checkbox with label. Pass checked / disabled as attributes on the instance.">
+<style>
+.check { display: inline-flex; align-items: center; gap: var(--space-2); font: var(--font-weight-regular) var(--font-size-sm) / var(--font-leading-snug) var(--font-family-body); color: var(--color-ink); cursor: pointer; min-height: var(--size-target-min); }
+.check input { width: var(--size-icon-sm); height: var(--size-icon-sm); margin: 0; accent-color: var(--color-accent); }
+</style>
+<template>
+<label class="check"><input type="checkbox" id="{{input-id}}"><span data-dfw-if="label">{{label}}</span></label>
+</template>
+<dfw-examples>
+<dfw-use c="checkbox" label="Only flagged transactions" input-id="ex-c1"></dfw-use>
+</dfw-examples>
+</dfw-component>

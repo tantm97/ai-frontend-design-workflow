@@ -1,0 +1,17 @@
+<dfw-component name="avatar" group="Display" sizes="md sm lg xl" props="initials src name"
+  description="Person image or initials. name is the accessible label.">
+<style>
+.avatar { display: inline-grid; place-items: center; flex: none; width: var(--size-control); height: var(--size-control); border-radius: var(--radius-pill); overflow: hidden; background: var(--color-accent-soft); color: var(--color-accent-text); font: var(--font-weight-semibold) var(--font-size-xs) / 1 var(--font-family-body); }
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.avatar--sm { width: var(--size-control-sm); height: var(--size-control-sm); font-size: var(--font-size-2xs); }
+.avatar--lg { width: var(--size-control-lg); height: var(--size-control-lg); font-size: var(--font-size-sm); }
+.avatar--xl { width: var(--size-avatar-xl); height: var(--size-avatar-xl); border-radius: var(--radius-lg); font-size: var(--font-size-xl); }
+</style>
+<template>
+<span class="avatar avatar--{{size}}" role="img" aria-label="{{name}}"><img data-dfw-if="src" src="{{src}}" alt=""><span data-dfw-if="!src" aria-hidden="true">{{initials}}</span></span>
+</template>
+<dfw-examples>
+<dfw-use c="avatar" initials="TH" name="Nguyễn Thị Thu Hương"></dfw-use>
+<dfw-use c="avatar" size="xl" initials="TH" name="Nguyễn Thị Thu Hương"></dfw-use>
+</dfw-examples>
+</dfw-component>

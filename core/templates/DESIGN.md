@@ -12,6 +12,9 @@
 ## Direction
 TODO after G1: name of the chosen direction, the one-sentence concept, and why it fits the product and users.
 
+## Rationale
+<!-- 5+ lines: decision - because <context fact or principle>. Covers: accent choice, neutral temperature, type scale (base, ratios), density, signature motif, what each brand colour must never be used for. dfw system audit checks this. -->
+
 ## Principles
 1. TODO
 

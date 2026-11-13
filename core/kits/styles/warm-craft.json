@@ -1,0 +1,353 @@
+{
+  "id": "warm-craft",
+  "seeds": {
+    "brand": {
+      "hue": 42,
+      "chroma": 0.13
+    },
+    "neutral": {
+      "hue": 70,
+      "tint": 0.016
+    },
+    "signature": {
+      "hue": 118,
+      "chroma": 0.08
+    },
+    "accentFrom": "neutral",
+    "warmSurface": true,
+    "brandStep": 700
+  },
+  "names": {
+    "brand": "dat-nung",
+    "neutral": "lanh",
+    "signature": "oliu"
+  },
+  "type": {
+    "base": 16,
+    "ratio": 1.2,
+    "displayRatio": 1.414,
+    "displayFrom": 30,
+    "eyebrow": {
+      "size": 12,
+      "weight": 600,
+      "tracking": "0.14em",
+      "upper": true
+    },
+    "ui": {
+      "2xs": 11,
+      "xs": 12,
+      "sm": 13,
+      "md": 16,
+      "lg": 19,
+      "xl": 23,
+      "2xl": 28,
+      "3xl": 30,
+      "4xl": 42
+    },
+    "display": [
+      85,
+      60,
+      42,
+      30
+    ]
+  },
+  "axes": {
+    "formality": 2,
+    "energy": 3,
+    "era": 2,
+    "warmth": 5,
+    "density": 2,
+    "richness": 4,
+    "seriousness": 2
+  },
+  "rationale": [
+    "Primary buttons are dark brown ink, terracotta is brand: terracotta sits 15° from error red and would make every CTA look like a warning.",
+    "Linen neutrals (hue 70) and olive signature are analogous-warm, so the palette feels hand-made rather than digital.",
+    "Serif display at √2 jumps gives the menu/editorial voice; UI text stays sans."
+  ],
+  "name": "Warm craft",
+  "tags": [
+    "warm",
+    "craft",
+    "food",
+    "hospitality",
+    "cafe",
+    "handmade",
+    "serif",
+    "friendly",
+    "consumer",
+    "booking"
+  ],
+  "concept": "Linen, terracotta and stitched paper bags: a hand-made, editorial warmth with a soft serif for headings and a stamp-like seal.",
+  "fits": [
+    "F&B, cafes, bakeries",
+    "hotels and homestays",
+    "handmade goods"
+  ],
+  "avoid": [
+    "enterprise tools",
+    "finance"
+  ],
+  "base": "soft",
+  "fonts": {
+    "display": "Fraunces",
+    "body": "Be Vietnam Pro",
+    "mono": "JetBrains Mono",
+    "displayWeights": "400;500;600",
+    "note": "Fraunces 500 with soft optical size; italic for small flourishes only."
+  },
+  "fontsLatin": {
+    "display": "Fraunces",
+    "body": "DM Sans",
+    "mono": "JetBrains Mono",
+    "displayWeights": "400;500;600"
+  },
+  "radius": {
+    "sm": 6,
+    "md": 10,
+    "lg": 16,
+    "xl": 22
+  },
+  "density": "regular",
+  "motifs": [
+    {
+      "name": "stitch",
+      "use": "Dashed \"stitched\" border on coupons, notes, empty states.",
+      "css": ".motif--stitch { border: var(--border-width-strong) dashed var(--color-rule); border-radius: var(--radius-lg); padding: var(--space-5); }"
+    },
+    {
+      "name": "seal",
+      "use": "Round stamp seal with the brand initial; one per page, near the logo or a guarantee.",
+      "css": ".motif--seal { width: var(--space-16); height: var(--space-16); border-radius: var(--radius-pill); display: grid; place-items: center; border: var(--border-width-strong) solid var(--color-accent); color: var(--color-accent); font: italic var(--font-weight-medium) var(--font-size-xl) / 1 var(--font-family-display); transform: rotate(-8deg); }"
+    }
+  ],
+  "layout": "Editorial columns with generous margins; photography large; asymmetric hero (text left 5 cols, image right 7).",
+  "components": [
+    "Buttons 40px, radius 10, dark-brown ink primary; terracotta for seals, tags and brand bands.",
+    "Menu/product cards: photo first, name in serif 22.",
+    "Prices tabular, small caps currency."
+  ],
+  "do": [
+    "Real food/product photos.",
+    "Warm neutrals instead of grey.",
+    "Serif headings, sans UI."
+  ],
+  "dont": [
+    "Cold blue accents.",
+    "Emoji as icons.",
+    "Thick drop shadows."
+  ],
+  "palette": {
+    "dat-nung-50": {
+      "hex": "#fff5f1",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "dat-nung-100": {
+      "hex": "#ffeae2",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "dat-nung-200": {
+      "hex": "#ffd4c4",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "dat-nung-300": {
+      "hex": "#f7b9a0",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "dat-nung-400": {
+      "hex": "#e79677",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "dat-nung-500": {
+      "hex": "#cf7551",
+      "usage": "Terracotta: illustrations, brand bands, seals, tags; not for buttons (too close to error red)."
+    },
+    "dat-nung-600": {
+      "hex": "#b45832",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "dat-nung-700": {
+      "hex": "#96421f",
+      "usage": "Used for: large brand surfaces."
+    },
+    "dat-nung-800": {
+      "hex": "#773112",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "dat-nung-900": {
+      "hex": "#58230c",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "dat-nung-950": {
+      "hex": "#3c1606",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "lanh-50": {
+      "hex": "#fcf6f0",
+      "usage": "Used for: cards, tables, inputs, text on brand surfaces."
+    },
+    "lanh-100": {
+      "hex": "#f4eee7",
+      "usage": "Used for: page background, table headers, wells, hover."
+    },
+    "lanh-200": {
+      "hex": "#e4ded6",
+      "usage": "Used for: dividers, selected backgrounds."
+    },
+    "lanh-300": {
+      "hex": "#cfc8c0",
+      "usage": "Used for: focus halo."
+    },
+    "lanh-400": {
+      "hex": "#b4aca3",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "lanh-500": {
+      "hex": "#978f87",
+      "usage": "Linen to dark brown: all neutrals and the ink-brown primary buttons."
+    },
+    "lanh-600": {
+      "hex": "#7d756c",
+      "usage": "Used for: control borders."
+    },
+    "lanh-700": {
+      "hex": "#655d55",
+      "usage": "Used for: emphasised borders, placeholders."
+    },
+    "lanh-800": {
+      "hex": "#4e4841",
+      "usage": "Used for: secondary text."
+    },
+    "lanh-900": {
+      "hex": "#3a342e",
+      "usage": "Used for: primary actions, links, selected text, focus ring."
+    },
+    "lanh-950": {
+      "hex": "#27221c",
+      "usage": "Used for: body text, hover/pressed."
+    },
+    "oliu-50": {
+      "hex": "#f7f8f1",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "oliu-100": {
+      "hex": "#edf1e3",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "oliu-200": {
+      "hex": "#dde2ca",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "oliu-300": {
+      "hex": "#c6ceaa",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "oliu-400": {
+      "hex": "#a9b384",
+      "usage": "Used for: signature motif."
+    },
+    "oliu-500": {
+      "hex": "#8c9761",
+      "usage": "Olive: secondary tags, notes, leaf details."
+    },
+    "oliu-600": {
+      "hex": "#727d45",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "oliu-700": {
+      "hex": "#5b6431",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "oliu-800": {
+      "hex": "#464e22",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "oliu-900": {
+      "hex": "#333918",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "oliu-950": {
+      "hex": "#21250e",
+      "usage": "Reserve step (hover/pressed/charts)."
+    }
+  },
+  "roles": {
+    "canvas": "lanh-100",
+    "surface": "lanh-50",
+    "surface-sunken": "lanh-100",
+    "surface-hover": "lanh-100",
+    "rule": "lanh-200",
+    "border": "lanh-600",
+    "border-strong": "lanh-700",
+    "subtle": "lanh-700",
+    "muted": "lanh-800",
+    "ink": "lanh-950",
+    "accent": "lanh-900",
+    "accent-hover": "lanh-950",
+    "accent-soft": "lanh-200",
+    "accent-text": "lanh-900",
+    "focus-ring": "lanh-300",
+    "on-accent": "#ffffff",
+    "focus": "lanh-900",
+    "brand": "dat-nung-700",
+    "on-brand": "lanh-50",
+    "signature": "oliu-400"
+  },
+  "status": {
+    "ok": "#2a702d",
+    "ok-tint": "#f1faf1",
+    "ok-text": "#1c571f",
+    "info": "#00649d",
+    "info-tint": "#f1f9ff",
+    "info-text": "#004d7b",
+    "warn": "#f0c07f",
+    "warn-tint": "#fff6ea",
+    "warn-text": "#805400",
+    "err": "#b65445",
+    "err-tint": "#fff5f3",
+    "err-text": "#983f32"
+  },
+  "onFill": "#ffffff",
+  "shadowTint": "#27221c",
+  "paletteNotes": [],
+  "contrasts": [
+    {
+      "fg": "ink",
+      "bg": "surface",
+      "ratio": 14.7
+    },
+    {
+      "fg": "muted",
+      "bg": "surface",
+      "ratio": 8.41
+    },
+    {
+      "fg": "accent",
+      "bg": "surface",
+      "ratio": 11.45
+    },
+    {
+      "fg": "on-accent",
+      "bg": "accent",
+      "ratio": 12.28
+    },
+    {
+      "fg": "on-brand",
+      "bg": "brand",
+      "ratio": 6.32
+    },
+    {
+      "fg": "border",
+      "bg": "surface",
+      "ratio": 4.23
+    }
+  ],
+  "audit": [
+    {
+      "level": "info",
+      "rule": "brand-vs-error",
+      "message": "The brand hue shares the error hue: never place error messages on brand surfaces, and keep errors iconified with words."
+    }
+  ],
+  "dark": false
+}

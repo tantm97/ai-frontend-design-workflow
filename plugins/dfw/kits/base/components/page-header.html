@@ -1,0 +1,17 @@
+<dfw-component name="page-header" group="Layout" props="title subtitle"
+  description="Top of a page: title, optional subtitle/breadcrumb, actions slot on the right.">
+<style>
+.phead { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3) var(--space-4); padding: var(--space-5) var(--space-8); border-bottom: var(--border-width) solid var(--color-rule); background: var(--color-surface); }
+.phead__titles { display: grid; gap: var(--space-half); min-width: 0; }
+.phead__title { margin: 0; font: var(--font-weight-semibold) var(--font-size-2xl) / var(--font-leading-tight) var(--font-family-display); letter-spacing: var(--font-tracking-tight); color: var(--color-ink); text-wrap: balance; }
+.phead__sub { margin: 0; font-size: var(--font-size-sm); color: var(--color-muted); }
+.phead__actions { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+@media (max-width: 900px) { .phead { padding: var(--space-4); } }
+</style>
+<template>
+<header class="phead"><div class="phead__titles"><h1 class="phead__title">{{title}}</h1><p class="phead__sub" data-dfw-if="subtitle">{{subtitle}}</p></div><div class="phead__actions"><dfw-slot name="actions"></dfw-slot></div></header>
+</template>
+<dfw-examples>
+<div style="width: 720px"><dfw-use c="page-header" title="Equipment" subtitle="1,284 items · 12 categories"><dfw-fill slot="actions"><dfw-use c="button" variant="secondary">Import</dfw-use><dfw-use c="button" variant="primary" icon="plus">Add equipment</dfw-use></dfw-fill></dfw-use></div>
+</dfw-examples>
+</dfw-component>

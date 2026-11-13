@@ -1,0 +1,341 @@
+{
+  "id": "dark-console",
+  "seeds": {
+    "brand": {
+      "hue": 215,
+      "chroma": 0.12
+    },
+    "neutral": {
+      "hue": 250,
+      "tint": 0.012
+    },
+    "signature": {
+      "hue": 145,
+      "chroma": 0.16
+    },
+    "dark": true
+  },
+  "names": {
+    "brand": "cyan",
+    "neutral": "dem",
+    "signature": "lan"
+  },
+  "type": {
+    "base": 14,
+    "ratio": 1.2,
+    "displayRatio": 1.333,
+    "displayFrom": 26,
+    "eyebrow": {
+      "size": 11,
+      "weight": 500,
+      "tracking": "0.1em",
+      "upper": true
+    },
+    "ui": {
+      "2xs": 11,
+      "xs": 12,
+      "sm": 13,
+      "md": 14,
+      "lg": 17,
+      "xl": 20,
+      "2xl": 24,
+      "3xl": 26,
+      "4xl": 35
+    },
+    "display": [
+      62,
+      46,
+      35,
+      26
+    ]
+  },
+  "axes": {
+    "formality": 3,
+    "energy": 3,
+    "era": 5,
+    "warmth": 1,
+    "density": 5,
+    "richness": 2,
+    "seriousness": 4
+  },
+  "rationale": [
+    "Accent is cyan, not green: in a monitoring console green means healthy; a green button would read as a status.",
+    "Neutrals are blue-slate, never #000, to keep depth between panels.",
+    "14px base: dense operator screens; mono carries data."
+  ],
+  "name": "Dark console",
+  "tags": [
+    "dark",
+    "developer",
+    "monitoring",
+    "devops",
+    "terminal",
+    "technical",
+    "data",
+    "night",
+    "security"
+  ],
+  "concept": "A night-shift control console: deep slate panes, phosphor-green signals, monospace readouts and a dotted grid behind the canvas.",
+  "fits": [
+    "developer tools",
+    "monitoring and incident consoles",
+    "security dashboards"
+  ],
+  "avoid": [
+    "consumer retail",
+    "print-like editorial"
+  ],
+  "base": "crisp",
+  "dark": true,
+  "fonts": {
+    "display": "Geist",
+    "body": "Geist",
+    "mono": "Geist Mono",
+    "displayWeights": "500;600",
+    "note": "Mono for every value and id; display Geist 600 tight."
+  },
+  "fontsLatin": {
+    "display": "Geist",
+    "body": "Geist",
+    "mono": "Geist Mono",
+    "displayWeights": "500;600"
+  },
+  "radius": {
+    "sm": 4,
+    "md": 6,
+    "lg": 8,
+    "xl": 10
+  },
+  "density": "compact",
+  "motifs": [
+    {
+      "name": "dot-grid",
+      "use": "Background of canvases and empty areas (subtle dotted grid).",
+      "css": ".motif--dot-grid { background-image: radial-gradient(var(--color-rule) 1px, transparent 1px); background-size: var(--space-5) var(--space-5); }"
+    }
+  ],
+  "layout": "Dense panels with 1px dividers, resizable split views, status bar at bottom.",
+  "components": [
+    "Values and timestamps in mono 12-13.",
+    "Status dots + labels; pulsing only for live incidents.",
+    "Buttons 32-36px."
+  ],
+  "do": [
+    "Green means healthy/live only; actions are cyan.",
+    "Use mono for data.",
+    "Avoid pure black."
+  ],
+  "dont": [
+    "Neon glows.",
+    "Purple-blue gradients.",
+    "Light grey text below 4.5:1."
+  ],
+  "palette": {
+    "cyan-50": {
+      "hex": "#edfafe",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "cyan-100": {
+      "hex": "#daf4fb",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "cyan-200": {
+      "hex": "#bae8f4",
+      "usage": "Used for: hover/pressed."
+    },
+    "cyan-300": {
+      "hex": "#90d6e8",
+      "usage": "Used for: primary actions, links, selected text, focus ring."
+    },
+    "cyan-400": {
+      "hex": "#59bdd4",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "cyan-500": {
+      "hex": "#04a2bc",
+      "usage": "Cyan: actions, selection, focus."
+    },
+    "cyan-600": {
+      "hex": "#00859b",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "cyan-700": {
+      "hex": "#006a7d",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "cyan-800": {
+      "hex": "#005261",
+      "usage": "Used for: focus halo."
+    },
+    "cyan-900": {
+      "hex": "#003d48",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "cyan-950": {
+      "hex": "#002831",
+      "usage": "Used for: selected backgrounds."
+    },
+    "dem-50": {
+      "hex": "#f4f8fd",
+      "usage": "Used for: body text, text on brand surfaces."
+    },
+    "dem-100": {
+      "hex": "#ebeff4",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "dem-200": {
+      "hex": "#dae0e5",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "dem-300": {
+      "hex": "#c4cad0",
+      "usage": "Used for: secondary text."
+    },
+    "dem-400": {
+      "hex": "#a8aeb4",
+      "usage": "Used for: emphasised borders, placeholders."
+    },
+    "dem-500": {
+      "hex": "#8b9198",
+      "usage": "Night slate neutrals (blue-tinted, never pure black). Used for: control borders."
+    },
+    "dem-600": {
+      "hex": "#71777d",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "dem-700": {
+      "hex": "#5a5f65",
+      "usage": "Used for: dividers."
+    },
+    "dem-800": {
+      "hex": "#454a4f",
+      "usage": "Used for: table headers, wells, hover, large brand surfaces."
+    },
+    "dem-900": {
+      "hex": "#31363b",
+      "usage": "Used for: cards, tables, inputs."
+    },
+    "dem-950": {
+      "hex": "#1f2327",
+      "usage": "Used for: page background, text on primary buttons."
+    },
+    "lan-50": {
+      "hex": "#f0fbf0",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "lan-100": {
+      "hex": "#e0f6df",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "lan-200": {
+      "hex": "#c4ebc4",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "lan-300": {
+      "hex": "#a0dba1",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "lan-400": {
+      "hex": "#75c378",
+      "usage": "Used for: signature motif."
+    },
+    "lan-500": {
+      "hex": "#4aa851",
+      "usage": "Phosphor green: live/healthy indicators only (same meaning as success)."
+    },
+    "lan-600": {
+      "hex": "#238d32",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "lan-700": {
+      "hex": "#04731d",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "lan-800": {
+      "hex": "#005a13",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "lan-900": {
+      "hex": "#00420b",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "lan-950": {
+      "hex": "#002c06",
+      "usage": "Reserve step (hover/pressed/charts)."
+    }
+  },
+  "roles": {
+    "canvas": "dem-950",
+    "surface": "dem-900",
+    "surface-sunken": "dem-800",
+    "surface-hover": "dem-800",
+    "rule": "dem-700",
+    "border": "dem-500",
+    "border-strong": "dem-400",
+    "subtle": "dem-400",
+    "muted": "dem-300",
+    "ink": "dem-50",
+    "accent": "cyan-300",
+    "accent-hover": "cyan-200",
+    "accent-soft": "cyan-950",
+    "accent-text": "cyan-300",
+    "on-accent": "dem-950",
+    "focus": "cyan-300",
+    "focus-ring": "cyan-800",
+    "brand": "dem-800",
+    "on-brand": "dem-50",
+    "signature": "lan-400"
+  },
+  "status": {
+    "ok": "#72c291",
+    "ok-tint": "#002b15",
+    "ok-text": "#9ed9b3",
+    "info": "#59bdd4",
+    "info-tint": "#002831",
+    "info-text": "#90d6e8",
+    "warn": "#d7a43d",
+    "warn-tint": "#301f00",
+    "warn-text": "#eac37d",
+    "err": "#e99290",
+    "err-tint": "#3d1315",
+    "err-text": "#fab5b3"
+  },
+  "onFill": "#1f2327",
+  "shadowTint": "#1f2327",
+  "paletteNotes": [
+    "info uses the accent ramp (the accent is blue; a second blue would compete)."
+  ],
+  "contrasts": [
+    {
+      "fg": "ink",
+      "bg": "surface",
+      "ratio": 11.44
+    },
+    {
+      "fg": "muted",
+      "bg": "surface",
+      "ratio": 7.38
+    },
+    {
+      "fg": "accent",
+      "bg": "surface",
+      "ratio": 7.53
+    },
+    {
+      "fg": "on-accent",
+      "bg": "accent",
+      "ratio": 9.77
+    },
+    {
+      "fg": "on-brand",
+      "bg": "brand",
+      "ratio": 8.4
+    },
+    {
+      "fg": "border",
+      "bg": "surface",
+      "ratio": 3.83
+    }
+  ],
+  "audit": []
+}

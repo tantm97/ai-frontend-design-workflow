@@ -3,45 +3,296 @@
   "$id": "https://dfw.local/schemas/design-manifest.schema.json",
   "title": "dfw design manifest (design/design.json)",
   "type": "object",
-  "required": ["schema", "screens"],
+  "required": [
+    "schema",
+    "screens"
+  ],
   "properties": {
-    "schema": { "const": 1 },
-    "product": { "type": "string" },
-    "surface": { "enum": ["product", "marketing"] },
+    "schema": {
+      "const": 1
+    },
+    "product": {
+      "type": "string"
+    },
+    "surface": {
+      "enum": [
+        "product",
+        "marketing"
+      ]
+    },
     "breakpoints": {
       "type": "array",
-      "items": { "type": "object", "required": ["id", "width", "height"], "properties": { "id": { "type": "string" }, "label": { "type": "string" }, "width": { "type": "integer" }, "height": { "type": "integer" } } }
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "width",
+          "height"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "width": {
+            "type": "integer"
+          },
+          "height": {
+            "type": "integer"
+          },
+          "short": {
+            "type": "string",
+            "description": "Frame title prefix (e.g. D, M, T)."
+          }
+        }
+      }
     },
-    "themes": { "type": "array", "items": { "type": "string" } },
-    "states": { "type": "array", "items": { "type": "string" } },
-    "flows": { "type": "array", "items": { "type": "object", "required": ["id"], "properties": { "id": { "type": "string" }, "title": { "type": "string" }, "screens": { "type": "array", "items": { "type": "string" } } } } },
-    "components": { "type": "array", "items": { "type": "object", "required": ["id", "file"], "properties": { "id": { "type": "string" }, "file": { "type": "string" }, "description": { "type": "string" } } } },
+    "themes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "states": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "flows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "screens": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "components": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "file"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "screens": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "variants"],
+        "required": [
+          "id",
+          "variants"
+        ],
         "properties": {
-          "id": { "type": "string", "pattern": "^[a-z0-9_][a-z0-9/_-]*$" },
-          "title": { "type": "string" },
-          "flow": { "type": "string" },
-          "route": { "type": "string" },
-          "description": { "type": "string" },
-          "approvedVariant": { "type": "string" },
-          "archived": { "type": "boolean" },
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9_][a-z0-9/_-]*$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "flow": {
+            "type": "string"
+          },
+          "route": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "approvedVariant": {
+            "type": "string"
+          },
+          "archived": {
+            "type": "boolean"
+          },
           "variants": {
             "type": "array",
             "minItems": 1,
             "items": {
               "type": "object",
-              "required": ["id", "file"],
+              "required": [
+                "id",
+                "file"
+              ],
               "properties": {
-                "id": { "type": "string" },
-                "label": { "type": "string" },
-                "file": { "type": "string", "description": "Path relative to design/" },
-                "mode": { "enum": ["layout", "style", "creative"] },
-                "recommended": { "type": "boolean" },
-                "description": { "type": "string" }
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "file": {
+                  "type": "string",
+                  "description": "Path relative to design/"
+                },
+                "mode": {
+                  "enum": [
+                    "layout",
+                    "style",
+                    "creative"
+                  ]
+                },
+                "recommended": {
+                  "type": "boolean"
+                },
+                "description": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "page": {
+            "type": "string"
+          },
+          "states": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "lang": {
+      "type": "string",
+      "description": "Content language of the screens (BCP 47)."
+    },
+    "sampleText": {
+      "type": "string",
+      "description": "Text sample for the Design System page typography section."
+    },
+    "pages": {
+      "type": "array",
+      "description": "Pages (modules) shown on the Studio canvas; the Design System page is always first.",
+      "items": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]*$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "screens": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "description": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "title",
+                "items"
+              ],
+              "properties": {
+                "title": {
+                  "type": "string"
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "breakpoint",
+                    "variants",
+                    "states",
+                    "custom"
+                  ]
+                },
+                "breakpoint": {
+                  "type": "string"
+                },
+                "screens": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "states": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "notes": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "title",
+                      "items"
+                    ],
+                    "properties": {
+                      "title": {
+                        "type": "string"
+                      },
+                      "items": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
               }
             }
           }

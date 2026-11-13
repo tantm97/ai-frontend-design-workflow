@@ -1,0 +1,297 @@
+{
+  "id": "editorial-luxe",
+  "seeds": {
+    "brand": {
+      "hue": 10,
+      "chroma": 0.12
+    },
+    "neutral": {
+      "hue": 75,
+      "tint": 0.01
+    },
+    "accentFrom": "neutral",
+    "warmSurface": true,
+    "brandStep": 700
+  },
+  "names": {
+    "brand": "do-ruou",
+    "neutral": "nga"
+  },
+  "type": {
+    "base": 16,
+    "ratio": 1.2,
+    "displayRatio": 1.5,
+    "displayFrom": 34,
+    "eyebrow": {
+      "size": 11,
+      "weight": 600,
+      "tracking": "0.24em",
+      "upper": true
+    },
+    "ui": {
+      "2xs": 11,
+      "xs": 12,
+      "sm": 13,
+      "md": 16,
+      "lg": 19,
+      "xl": 23,
+      "2xl": 28,
+      "3xl": 34,
+      "4xl": 51
+    },
+    "display": [
+      115,
+      77,
+      51,
+      34
+    ]
+  },
+  "axes": {
+    "formality": 5,
+    "energy": 2,
+    "era": 2,
+    "warmth": 3,
+    "density": 1,
+    "richness": 3,
+    "seriousness": 4
+  },
+  "rationale": [
+    "Black buttons, burgundy accents: burgundy is 17° from error red; luxury convention is black anyway.",
+    "Display ratio 1.5 (34/51/77/115): fashion editorial needs extreme scale contrast.",
+    "Ivory neutrals (hue 75) instead of white for a printed-page feel."
+  ],
+  "name": "Editorial luxe",
+  "tags": [
+    "luxury",
+    "fashion",
+    "editorial",
+    "premium",
+    "serif",
+    "minimal",
+    "magazine",
+    "storefront",
+    "beauty"
+  ],
+  "concept": "A fashion magazine: ivory pages, black type, one burgundy accent, high-contrast Didone-like display, wide margins and thin rules.",
+  "fits": [
+    "fashion and beauty",
+    "premium hospitality",
+    "galleries and publishing"
+  ],
+  "avoid": [
+    "dense operational tools"
+  ],
+  "base": "crisp",
+  "fonts": {
+    "display": "Playfair Display",
+    "body": "Hanken Grotesk",
+    "mono": "JetBrains Mono",
+    "displayWeights": "400;500;600",
+    "note": "Playfair 400 at 48+ only; body Hanken 15-16; small caps eyebrows."
+  },
+  "fontsLatin": {
+    "display": "Bodoni Moda",
+    "body": "Instrument Sans",
+    "mono": "JetBrains Mono",
+    "displayWeights": "400;500"
+  },
+  "radius": {
+    "sm": 0,
+    "md": 0,
+    "lg": 2,
+    "xl": 4
+  },
+  "density": "regular",
+  "motifs": [
+    {
+      "name": "thin-rule-caption",
+      "use": "Image captions and section openers: thin rule + spaced small caps.",
+      "css": ".motif--thin-rule-caption { border-top: 1px solid var(--color-ink); padding-top: var(--space-2); font-size: var(--font-size-2xs); letter-spacing: 0.24em; text-transform: uppercase; }"
+    }
+  ],
+  "layout": "Asymmetric 12-column editorial grid, full-bleed imagery, huge display titles overlapping image edges sparingly.",
+  "components": [
+    "Buttons square (radius 0), 44px, uppercase 12/600 tracking 0.16em.",
+    "Product titles serif 24.",
+    "Prices quiet, body size."
+  ],
+  "do": [
+    "Huge type, few words.",
+    "Lots of ivory space.",
+    "One accent."
+  ],
+  "dont": [
+    "Rounded corners.",
+    "Badges everywhere.",
+    "Icons in buttons."
+  ],
+  "palette": {
+    "do-ruou-50": {
+      "hex": "#fff4f6",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "do-ruou-100": {
+      "hex": "#ffe8eb",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "do-ruou-200": {
+      "hex": "#fed2d7",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "do-ruou-300": {
+      "hex": "#f5b6be",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "do-ruou-400": {
+      "hex": "#e4939f",
+      "usage": "Used for: signature motif."
+    },
+    "do-ruou-500": {
+      "hex": "#cc7180",
+      "usage": "Burgundy: editorial accents, sale/limited tags with words, brand moments; not buttons."
+    },
+    "do-ruou-600": {
+      "hex": "#b05566",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "do-ruou-700": {
+      "hex": "#934050",
+      "usage": "Used for: large brand surfaces."
+    },
+    "do-ruou-800": {
+      "hex": "#742f3d",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "do-ruou-900": {
+      "hex": "#56212c",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "do-ruou-950": {
+      "hex": "#3a151c",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "nga-50": {
+      "hex": "#faf7f3",
+      "usage": "Used for: cards, tables, inputs, text on brand surfaces."
+    },
+    "nga-100": {
+      "hex": "#f2eeea",
+      "usage": "Used for: page background, table headers, wells, hover."
+    },
+    "nga-200": {
+      "hex": "#e2ded9",
+      "usage": "Used for: dividers, selected backgrounds."
+    },
+    "nga-300": {
+      "hex": "#ccc8c3",
+      "usage": "Used for: focus halo."
+    },
+    "nga-400": {
+      "hex": "#b1ada7",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "nga-500": {
+      "hex": "#94908a",
+      "usage": "Ivory to black: neutrals and black buttons."
+    },
+    "nga-600": {
+      "hex": "#7a7570",
+      "usage": "Used for: control borders."
+    },
+    "nga-700": {
+      "hex": "#625e59",
+      "usage": "Used for: emphasised borders, placeholders."
+    },
+    "nga-800": {
+      "hex": "#4c4844",
+      "usage": "Used for: secondary text."
+    },
+    "nga-900": {
+      "hex": "#383531",
+      "usage": "Used for: primary actions, links, selected text, focus ring."
+    },
+    "nga-950": {
+      "hex": "#25221f",
+      "usage": "Used for: body text, hover/pressed."
+    }
+  },
+  "roles": {
+    "canvas": "nga-100",
+    "surface": "nga-50",
+    "surface-sunken": "nga-100",
+    "surface-hover": "nga-100",
+    "rule": "nga-200",
+    "border": "nga-600",
+    "border-strong": "nga-700",
+    "subtle": "nga-700",
+    "muted": "nga-800",
+    "ink": "nga-950",
+    "accent": "nga-900",
+    "accent-hover": "nga-950",
+    "accent-soft": "nga-200",
+    "accent-text": "nga-900",
+    "focus-ring": "nga-300",
+    "on-accent": "#ffffff",
+    "focus": "nga-900",
+    "brand": "do-ruou-700",
+    "on-brand": "nga-50",
+    "signature": "do-ruou-400"
+  },
+  "status": {
+    "ok": "#247031",
+    "ok-tint": "#f1faf1",
+    "ok-text": "#165822",
+    "info": "#00649d",
+    "info-tint": "#f1f9ff",
+    "info-text": "#004d7b",
+    "warn": "#efc07e",
+    "warn-tint": "#fff6ea",
+    "warn-text": "#805500",
+    "err": "#b65447",
+    "err-tint": "#fff5f3",
+    "err-text": "#983f33"
+  },
+  "onFill": "#ffffff",
+  "shadowTint": "#25221f",
+  "paletteNotes": [],
+  "contrasts": [
+    {
+      "fg": "ink",
+      "bg": "surface",
+      "ratio": 14.81
+    },
+    {
+      "fg": "muted",
+      "bg": "surface",
+      "ratio": 8.48
+    },
+    {
+      "fg": "accent",
+      "bg": "surface",
+      "ratio": 11.42
+    },
+    {
+      "fg": "on-accent",
+      "bg": "accent",
+      "ratio": 12.2
+    },
+    {
+      "fg": "on-brand",
+      "bg": "brand",
+      "ratio": 6.36
+    },
+    {
+      "fg": "border",
+      "bg": "surface",
+      "ratio": 4.27
+    }
+  ],
+  "audit": [
+    {
+      "level": "info",
+      "rule": "brand-vs-error",
+      "message": "The brand hue shares the error hue: never place error messages on brand surfaces, and keep errors iconified with words."
+    }
+  ],
+  "dark": false
+}

@@ -1,6 +1,6 @@
 {
   "name": "dfw",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Design-first frontend workflow: discovery, direction, framework-neutral HTML/CSS concepts in a local studio with click-to-comment review, design and technology approval gates, implementation and verification. Orchestrates vendored design skills from dfw-marketplace.",
   "author": {
     "name": "tantm97",
@@ -16,5 +16,14 @@
     "review"
   ],
   "homepage": "https://github.com/tantm97/ai-frontend-design-workflow",
-  "repository": "https://github.com/tantm97/ai-frontend-design-workflow"
+  "repository": "https://github.com/tantm97/ai-frontend-design-workflow",
+  "dependencies": [
+    "frontend-design",
+    "ux-research",
+    "ui-ux-pro-max",
+    "impeccable",
+    "emil-design-eng",
+    "hallmark",
+    "taste-reference"
+  ]
 }

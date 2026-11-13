@@ -45,16 +45,21 @@ export async function loadPlaywright() {
  * Screenshot a list of jobs: [{url, width, height, out, fullPage, selector}].
  * Returns [{out, ok, error}].
  */
-export async function screenshot(jobs) {
+export async function screenshot(jobs, { concurrency = 4 } = {}) {
   const { chromium } = await loadPlaywright();
   const browser = await chromium.launch();
-  const results = [];
-  try {
-    for (const j of jobs) {
+  const results = new Array(jobs.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < jobs.length) {
+      const i = next++;
+      const j = jobs[i];
       const page = await browser.newPage({ viewport: { width: j.width, height: j.height }, deviceScaleFactor: j.scale || 1 });
       try {
-        await page.goto(j.url, { waitUntil: 'networkidle', timeout: 30000 });
-        await page.evaluate(() => document.fonts && document.fonts.ready);
+        // "load" + fonts, not "networkidle": the studio keeps a live-reload connection open.
+        await page.goto(j.url, { waitUntil: 'load', timeout: 30000 });
+        await page.evaluate(() => (document.fonts ? document.fonts.ready.then(() => true) : true));
+        await page.waitForTimeout(80);
         fs.mkdirSync(path.dirname(j.out), { recursive: true });
         if (j.selector) {
           const el = await page.$(j.selector);
@@ -63,13 +68,16 @@ export async function screenshot(jobs) {
         } else {
           await page.screenshot({ path: j.out, fullPage: j.fullPage !== false });
         }
-        results.push({ out: j.out, ok: true });
+        results[i] = { out: j.out, ok: true };
       } catch (e) {
-        results.push({ out: j.out, ok: false, error: e.message });
+        results[i] = { out: j.out, ok: false, error: e.message };
       } finally {
         await page.close();
       }
     }
+  };
+  try {
+    await Promise.all(Array.from({ length: Math.min(concurrency, jobs.length) }, worker));
   } finally {
     await browser.close();
   }

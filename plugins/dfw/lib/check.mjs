@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { lintDesign } from './lint.mjs';
+import { buildSystem, buildComposed } from './compose.mjs';
+import { auditDesignSystem } from './dsaudit.mjs';
 import { impeccableLauncher, sloplintScript, tasteCopyLintScript } from './locate.mjs';
 import { readJson, projectPaths, toPosix } from './util.mjs';
 
@@ -132,12 +134,38 @@ export function runChecks(root, targets, config, { timeoutMs, allowDownload = fa
     const lintTargets = targets ? designTargets.filter((t) => t.startsWith('design/')) : null;
     const findings = targets && !lintTargets.length ? [] : lintDesign(root, lintTargets);
     results.push({ tool: 'dfw-lint', status: 'ran', findings });
+    if (!targets || lintTargets.some((t) => t.startsWith('design/tokens/') || t.startsWith('design/system/'))) {
+      results.push({ tool: 'dfw-ds-audit', status: 'ran', findings: auditDesignSystem(root) });
+    }
   }
   const external = targets || designTargets;
-  const expanded = external.flatMap((t) => (t === 'design' ? listDesignUi(root) : [t]));
-  if (want('impeccable') && c.impeccable !== false) results.push(runImpeccable(root, expanded, { env, timeoutMs: budget, allowDownload }));
-  if (want('sloplint') && c.sloplint !== false) results.push(runSloplint(root, expanded, { env, timeoutMs: budget }));
-  if (want('taste') && c.tasteCopyLint) results.push(runTasteCopyLint(root, expanded, { env, timeoutMs: budget }));
+  if (!['impeccable', 'sloplint', 'taste'].some(want)) return results;
+  // External tools read plain HTML: give them composed copies (components and icons expanded)
+  // and map findings back to the source files.
+  buildSystem(root);
+  const expanded = external
+    .flatMap((t) => (t === 'design' ? listDesignUi(root) : [t]))
+    .filter((t) => !t.startsWith('design/system/components/'));
+  const composed = new Map();
+  const toolTargets = expanded.map((t) => {
+    if (/^https?:/.test(t) || !t.endsWith('.html')) return t;
+    const [r] = buildComposed(root, [t]);
+    if (!r?.composed) return t;
+    const rel = toPosix(path.relative(root, r.out));
+    composed.set(rel, t);
+    return rel;
+  });
+  const remap = (res) => {
+    for (const f of res.findings || []) {
+      const k = toPosix(String(f.file || ''));
+      const hit = composed.get(k) || composed.get(k.replace(/^.*?(\.dfw\/build\/)/, '$1'));
+      if (hit) f.file = hit;
+    }
+    return res;
+  };
+  if (want('impeccable') && c.impeccable !== false) results.push(remap(runImpeccable(root, toolTargets, { env, timeoutMs: budget, allowDownload })));
+  if (want('sloplint') && c.sloplint !== false) results.push(remap(runSloplint(root, toolTargets, { env, timeoutMs: budget })));
+  if (want('taste') && c.tasteCopyLint) results.push(remap(runTasteCopyLint(root, toolTargets, { env, timeoutMs: budget })));
   return results;
 }
 
@@ -148,7 +176,7 @@ function listDesignUi(root) {
     for (const e of fs.readdirSync(abs, { withFileTypes: true })) {
       const r = `${rel}/${e.name}`;
       if (e.isDirectory()) {
-        if (e.name === 'approved' || e.name === 'handoff') continue;
+        if (e.name === 'approved' || e.name === 'handoff' || e.name === 'components' && rel.endsWith('/system')) continue;
         walk(path.join(abs, e.name), r);
       } else if (UI_EXT.has(path.extname(e.name))) out.push(r);
     }

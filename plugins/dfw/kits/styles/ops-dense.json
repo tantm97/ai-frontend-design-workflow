@@ -1,0 +1,342 @@
+{
+  "id": "ops-dense",
+  "seeds": {
+    "brand": {
+      "hue": 255,
+      "chroma": 0.17
+    },
+    "neutral": {
+      "hue": 245,
+      "tint": 0.006
+    },
+    "signature": {
+      "hue": 55,
+      "chroma": 0.17
+    },
+    "signatureStep": 500
+  },
+  "names": {
+    "brand": "lam",
+    "neutral": "xam",
+    "signature": "cam"
+  },
+  "type": {
+    "base": 14,
+    "ratio": 1.125,
+    "displayRatio": 1.333,
+    "displayFrom": 24,
+    "eyebrow": {
+      "size": 11,
+      "weight": 600,
+      "tracking": "0.08em",
+      "upper": true
+    },
+    "ui": {
+      "2xs": 11,
+      "xs": 12,
+      "sm": 13,
+      "md": 14,
+      "lg": 16,
+      "xl": 18,
+      "2xl": 20,
+      "3xl": 24,
+      "4xl": 32
+    },
+    "display": [
+      57,
+      43,
+      32,
+      24
+    ]
+  },
+  "axes": {
+    "formality": 3,
+    "energy": 2,
+    "era": 4,
+    "warmth": 2,
+    "density": 5,
+    "richness": 1,
+    "seriousness": 4
+  },
+  "rationale": [
+    "14px base and a tight 1.125 UI ratio: 50 rows on screen without losing scanability.",
+    "Orange is a signature for 'moving' states, 28° from error red; it is never used for errors and always has a label.",
+    "One blue for actions + info."
+  ],
+  "name": "Ops dense",
+  "tags": [
+    "logistics",
+    "dense",
+    "dashboard",
+    "table",
+    "operations",
+    "supply-chain",
+    "condensed",
+    "data",
+    "b2b",
+    "internal"
+  ],
+  "concept": "A dispatch board: compact condensed type, cool greys, signal colours used sparingly, everything aligned to columns so 50 rows fit on screen.",
+  "fits": [
+    "logistics and dispatch",
+    "inventory and ERP screens",
+    "call centres"
+  ],
+  "avoid": [
+    "marketing",
+    "consumer onboarding"
+  ],
+  "base": "crisp",
+  "fonts": {
+    "display": "Archivo",
+    "body": "Archivo",
+    "mono": "IBM Plex Mono",
+    "displayWeights": "600;700",
+    "note": "Archivo at width 87-100 for UI; display at 600."
+  },
+  "fontsLatin": {
+    "display": "Archivo",
+    "body": "Archivo",
+    "mono": "IBM Plex Mono",
+    "displayWeights": "600;700"
+  },
+  "radius": {
+    "sm": 2,
+    "md": 3,
+    "lg": 4,
+    "xl": 6
+  },
+  "density": "compact",
+  "motifs": [
+    {
+      "name": "status-strip",
+      "use": "A 3px left strip on table rows only for exceptional states (late, blocked).",
+      "css": ".motif--status-strip { box-shadow: inset 3px 0 0 var(--color-signature); }"
+    }
+  ],
+  "layout": "Full-width tables, sticky headers and first column, filters in one toolbar row, 4px grid.",
+  "components": [
+    "Rows 36px, text 13, header 12.",
+    "Buttons 32px.",
+    "IDs mono 12."
+  ],
+  "do": [
+    "Fit more rows; trim chrome.",
+    "Right-align numbers.",
+    "Use colour only for exceptions."
+  ],
+  "dont": [
+    "Cards for table data.",
+    "Large empty headers.",
+    "Rainbow status chips."
+  ],
+  "palette": {
+    "lam-50": {
+      "hex": "#f3f8ff",
+      "usage": "Used for: selected backgrounds."
+    },
+    "lam-100": {
+      "hex": "#e4f0ff",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "lam-200": {
+      "hex": "#cae1ff",
+      "usage": "Used for: focus halo."
+    },
+    "lam-300": {
+      "hex": "#a5ccff",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "lam-400": {
+      "hex": "#72b0ff",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "lam-500": {
+      "hex": "#4291f1",
+      "usage": "Signal blue: actions and selection (also info)."
+    },
+    "lam-600": {
+      "hex": "#1d75d7",
+      "usage": "Used for: primary actions, links, focus ring."
+    },
+    "lam-700": {
+      "hex": "#005cb6",
+      "usage": "Used for: hover/pressed, selected text."
+    },
+    "lam-800": {
+      "hex": "#00478f",
+      "usage": "Used for: large brand surfaces."
+    },
+    "lam-900": {
+      "hex": "#00346c",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "lam-950": {
+      "hex": "#00224a",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xam-50": {
+      "hex": "#f5f8fa",
+      "usage": "Used for: page background, text on brand surfaces."
+    },
+    "xam-100": {
+      "hex": "#eceff1",
+      "usage": "Used for: table headers, wells, hover."
+    },
+    "xam-200": {
+      "hex": "#dcdfe2",
+      "usage": "Used for: dividers."
+    },
+    "xam-300": {
+      "hex": "#c6cacc",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xam-400": {
+      "hex": "#aaaeb1",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xam-500": {
+      "hex": "#8e9194",
+      "usage": "Cool greys for dense tables. Used for: control borders."
+    },
+    "xam-600": {
+      "hex": "#73777a",
+      "usage": "Used for: emphasised borders, placeholders."
+    },
+    "xam-700": {
+      "hex": "#5c5f62",
+      "usage": "Used for: secondary text."
+    },
+    "xam-800": {
+      "hex": "#47494c",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xam-900": {
+      "hex": "#333638",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xam-950": {
+      "hex": "#212325",
+      "usage": "Used for: body text."
+    },
+    "cam-50": {
+      "hex": "#fff5ef",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "cam-100": {
+      "hex": "#ffeadd",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "cam-200": {
+      "hex": "#ffd5ba",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "cam-300": {
+      "hex": "#ffb786",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "cam-400": {
+      "hex": "#f0934f",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "cam-500": {
+      "hex": "#d97000",
+      "usage": "Orange: in-transit/attention markers (strips, dots), never text below 18px. Used for: signature motif."
+    },
+    "cam-600": {
+      "hex": "#b35b00",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "cam-700": {
+      "hex": "#914800",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "cam-800": {
+      "hex": "#713700",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "cam-900": {
+      "hex": "#552700",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "cam-950": {
+      "hex": "#3a1800",
+      "usage": "Reserve step (hover/pressed/charts)."
+    }
+  },
+  "roles": {
+    "canvas": "xam-50",
+    "surface": "#ffffff",
+    "surface-sunken": "xam-100",
+    "surface-hover": "xam-100",
+    "rule": "xam-200",
+    "border": "xam-500",
+    "border-strong": "xam-600",
+    "subtle": "xam-600",
+    "muted": "xam-700",
+    "ink": "xam-950",
+    "accent": "lam-600",
+    "accent-hover": "lam-700",
+    "accent-soft": "lam-50",
+    "accent-text": "lam-700",
+    "focus-ring": "lam-200",
+    "on-accent": "#ffffff",
+    "focus": "lam-600",
+    "brand": "lam-800",
+    "on-brand": "xam-50",
+    "signature": "cam-500"
+  },
+  "status": {
+    "ok": "#00723a",
+    "ok-tint": "#eefcf1",
+    "ok-text": "#00592b",
+    "info": "#005cb6",
+    "info-tint": "#f3f8ff",
+    "info-text": "#005cb6",
+    "warn": "#ebc27d",
+    "warn-tint": "#fef6e9",
+    "warn-text": "#7c5700",
+    "err": "#c64145",
+    "err-tint": "#fff5f4",
+    "err-text": "#a62a31"
+  },
+  "onFill": "#ffffff",
+  "shadowTint": "#212325",
+  "paletteNotes": [
+    "info uses the accent ramp (the accent is blue; a second blue would compete)."
+  ],
+  "contrasts": [
+    {
+      "fg": "ink",
+      "bg": "surface",
+      "ratio": 15.77
+    },
+    {
+      "fg": "muted",
+      "bg": "surface",
+      "ratio": 6.43
+    },
+    {
+      "fg": "accent",
+      "bg": "surface",
+      "ratio": 4.59
+    },
+    {
+      "fg": "on-accent",
+      "bg": "accent",
+      "ratio": 4.59
+    },
+    {
+      "fg": "on-brand",
+      "bg": "brand",
+      "ratio": 8.57
+    },
+    {
+      "fg": "border",
+      "bg": "surface",
+      "ratio": 3.17
+    }
+  ],
+  "audit": [],
+  "dark": false
+}

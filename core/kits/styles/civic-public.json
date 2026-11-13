@@ -1,0 +1,340 @@
+{
+  "id": "civic-public",
+  "seeds": {
+    "brand": {
+      "hue": 255,
+      "chroma": 0.13
+    },
+    "neutral": {
+      "hue": 255,
+      "tint": 0.005
+    },
+    "signature": {
+      "hue": 85,
+      "chroma": 0.16
+    },
+    "signatureStep": 300
+  },
+  "names": {
+    "brand": "xanh-cong",
+    "neutral": "xam",
+    "signature": "vang"
+  },
+  "type": {
+    "base": 17,
+    "ratio": 1.2,
+    "displayRatio": 1.25,
+    "displayFrom": 28,
+    "eyebrow": {
+      "size": 13,
+      "weight": 700,
+      "tracking": "0.04em",
+      "upper": false
+    },
+    "ui": {
+      "2xs": 11,
+      "xs": 12,
+      "sm": 14,
+      "md": 17,
+      "lg": 20,
+      "xl": 24,
+      "2xl": 29,
+      "3xl": 31,
+      "4xl": 39
+    },
+    "display": [
+      61,
+      48,
+      39,
+      31
+    ]
+  },
+  "axes": {
+    "formality": 4,
+    "energy": 2,
+    "era": 3,
+    "warmth": 2,
+    "density": 2,
+    "richness": 1,
+    "seriousness": 5
+  },
+  "rationale": [
+    "Blue signals trust and is safe for colour-vision deficiencies; it doubles as info so there is one blue.",
+    "17px base and large targets: citizens of every age and device.",
+    "Modest display ratio (1.25): clarity over drama."
+  ],
+  "name": "Civic public",
+  "tags": [
+    "government",
+    "public-service",
+    "civic",
+    "accessible",
+    "forms",
+    "education",
+    "trust",
+    "neutral"
+  ],
+  "concept": "A public-service portal: plain, high-contrast, generous type, numbered steps and unmistakable actions; dignity through clarity.",
+  "fits": [
+    "government and public services",
+    "education portals",
+    "NGOs"
+  ],
+  "avoid": [
+    "luxury",
+    "brand-led marketing"
+  ],
+  "base": "industrial",
+  "fonts": {
+    "display": "Public Sans",
+    "body": "Public Sans",
+    "mono": "Roboto Mono",
+    "displayWeights": "600;700",
+    "note": "Body 17; headings 700; never light weights."
+  },
+  "fontsLatin": {
+    "display": "Public Sans",
+    "body": "Public Sans",
+    "mono": "Roboto Mono",
+    "displayWeights": "600;700"
+  },
+  "radius": {
+    "sm": 2,
+    "md": 4,
+    "lg": 4,
+    "xl": 6
+  },
+  "density": "large",
+  "motifs": [
+    {
+      "name": "official-banner",
+      "use": "Top strip stating the official site/service. Once, at the very top.",
+      "css": ".motif--official-banner { background: var(--color-brand); color: var(--color-on-brand); padding: var(--space-1) var(--space-4); font-size: var(--font-size-xs); }"
+    }
+  ],
+  "layout": "Single column 720 for tasks; numbered step list; left nav for long guides.",
+  "components": [
+    "Buttons 48px, radius 4, full labels (\"Nộp hồ sơ\").",
+    "Inputs 48px, hint above field.",
+    "Error summary at top of form linking to fields."
+  ],
+  "do": [
+    "Number steps.",
+    "Write at plain-language level.",
+    "Make focus extra visible."
+  ],
+  "dont": [
+    "Icons without labels.",
+    "Grey text below 4.5:1.",
+    "Decorative imagery."
+  ],
+  "palette": {
+    "xanh-cong-50": {
+      "hex": "#f3f8ff",
+      "usage": "Used for: selected backgrounds."
+    },
+    "xanh-cong-100": {
+      "hex": "#e4f0ff",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xanh-cong-200": {
+      "hex": "#cae1ff",
+      "usage": "Used for: focus halo."
+    },
+    "xanh-cong-300": {
+      "hex": "#a6ccfe",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xanh-cong-400": {
+      "hex": "#7fb0f0",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xanh-cong-500": {
+      "hex": "#5993db",
+      "usage": "Civic blue: actions, links, official header; also info."
+    },
+    "xanh-cong-600": {
+      "hex": "#3c77c1",
+      "usage": "Used for: primary actions, links, focus ring."
+    },
+    "xanh-cong-700": {
+      "hex": "#285fa2",
+      "usage": "Used for: hover/pressed, selected text."
+    },
+    "xanh-cong-800": {
+      "hex": "#1a4981",
+      "usage": "Used for: large brand surfaces."
+    },
+    "xanh-cong-900": {
+      "hex": "#123560",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xanh-cong-950": {
+      "hex": "#0a2341",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xam-50": {
+      "hex": "#f6f7fa",
+      "usage": "Used for: page background, text on brand surfaces."
+    },
+    "xam-100": {
+      "hex": "#edeff1",
+      "usage": "Used for: table headers, wells, hover."
+    },
+    "xam-200": {
+      "hex": "#dddfe1",
+      "usage": "Used for: dividers."
+    },
+    "xam-300": {
+      "hex": "#c7c9cc",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xam-400": {
+      "hex": "#abadb0",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xam-500": {
+      "hex": "#8f9194",
+      "usage": "Neutral greys at the same temperature. Used for: control borders."
+    },
+    "xam-600": {
+      "hex": "#747679",
+      "usage": "Used for: emphasised borders, placeholders."
+    },
+    "xam-700": {
+      "hex": "#5d5f61",
+      "usage": "Used for: secondary text."
+    },
+    "xam-800": {
+      "hex": "#47494c",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xam-900": {
+      "hex": "#343538",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "xam-950": {
+      "hex": "#222325",
+      "usage": "Used for: body text."
+    },
+    "vang-50": {
+      "hex": "#fdf7e9",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "vang-100": {
+      "hex": "#fbedd2",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "vang-200": {
+      "hex": "#f4dcac",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "vang-300": {
+      "hex": "#e7c57c",
+      "usage": "Used for: signature motif."
+    },
+    "vang-400": {
+      "hex": "#d3a63c",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "vang-500": {
+      "hex": "#b68900",
+      "usage": "Official notice band (dark text)."
+    },
+    "vang-600": {
+      "hex": "#957000",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "vang-700": {
+      "hex": "#785900",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "vang-800": {
+      "hex": "#5e4500",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "vang-900": {
+      "hex": "#453200",
+      "usage": "Reserve step (hover/pressed/charts)."
+    },
+    "vang-950": {
+      "hex": "#2f2000",
+      "usage": "Reserve step (hover/pressed/charts)."
+    }
+  },
+  "roles": {
+    "canvas": "xam-50",
+    "surface": "#ffffff",
+    "surface-sunken": "xam-100",
+    "surface-hover": "xam-100",
+    "rule": "xam-200",
+    "border": "xam-500",
+    "border-strong": "xam-600",
+    "subtle": "xam-600",
+    "muted": "xam-700",
+    "ink": "xam-950",
+    "accent": "xanh-cong-600",
+    "accent-hover": "xanh-cong-700",
+    "accent-soft": "xanh-cong-50",
+    "accent-text": "xanh-cong-700",
+    "focus-ring": "xanh-cong-200",
+    "on-accent": "#ffffff",
+    "focus": "xanh-cong-600",
+    "brand": "xanh-cong-800",
+    "on-brand": "xam-50",
+    "signature": "vang-300"
+  },
+  "status": {
+    "ok": "#0a723b",
+    "ok-tint": "#f0fbf2",
+    "ok-text": "#00592b",
+    "info": "#285fa2",
+    "info-tint": "#f3f8ff",
+    "info-text": "#285fa2",
+    "warn": "#f3be80",
+    "warn-tint": "#fff6ec",
+    "warn-text": "#845200",
+    "err": "#b65350",
+    "err-tint": "#fff5f4",
+    "err-text": "#983d3c"
+  },
+  "onFill": "#ffffff",
+  "shadowTint": "#222325",
+  "paletteNotes": [
+    "info uses the accent ramp (the accent is blue; a second blue would compete)."
+  ],
+  "contrasts": [
+    {
+      "fg": "ink",
+      "bg": "surface",
+      "ratio": 15.73
+    },
+    {
+      "fg": "muted",
+      "bg": "surface",
+      "ratio": 6.41
+    },
+    {
+      "fg": "accent",
+      "bg": "surface",
+      "ratio": 4.56
+    },
+    {
+      "fg": "on-accent",
+      "bg": "accent",
+      "ratio": 4.56
+    },
+    {
+      "fg": "on-brand",
+      "bg": "brand",
+      "ratio": 8.47
+    },
+    {
+      "fg": "border",
+      "bg": "surface",
+      "ratio": 3.16
+    }
+  ],
+  "audit": [],
+  "dark": false
+}
