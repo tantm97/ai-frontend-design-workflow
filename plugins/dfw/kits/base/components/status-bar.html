@@ -1,0 +1,35 @@
+<dfw-component name="status-bar" group="Data" props="label total"
+  description="Distribution of items across statuses as one stacked bar + a legend with numbers and percentages (replaces pie/donut charts: easier to compare, works with 5+ statuses). Children: <a class=status-bar__seg data-tone=ok|loan|over|maint|retired style=flex:N href=...>; legend: <li data-tone=..>Label <b>N</b> <span>x%</span></li> inside <dfw-fill slot=legend>. Colour only for exceptions: ok/loan neutral-blue, over = error, maint = warning.">
+<style>
+.status-bar { display: grid; gap: var(--space-4); }
+.status-bar__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+.status-bar__head b { font: var(--font-weight-semibold) var(--font-size-xl) / var(--font-leading-snug) var(--font-family-display); color: var(--color-ink); }
+.status-bar__head span { font-size: var(--font-size-sm); color: var(--color-muted); }
+.status-bar__track { display: flex; height: var(--space-6); border-radius: var(--radius-sm); overflow: hidden; gap: var(--space-half); background: var(--color-surface); }
+.status-bar__seg { display: block; min-width: var(--space-1); text-decoration: none; transition: filter var(--duration-fast) var(--easing-out); }
+.status-bar__seg:hover { filter: brightness(0.9); }
+.status-bar__seg:focus-visible { outline: var(--focus-width) solid var(--color-focus); outline-offset: var(--focus-offset); }
+[data-tone="ok"].status-bar__seg { background: var(--color-border); }
+[data-tone="loan"].status-bar__seg { background: var(--color-accent); }
+[data-tone="over"].status-bar__seg { background: var(--color-status-err); }
+[data-tone="maint"].status-bar__seg { background: var(--color-status-warn); }
+[data-tone="retired"].status-bar__seg { background: var(--color-rule); }
+.status-bar__legend { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-3) var(--space-6); }
+.status-bar__legend li { display: grid; grid-template-columns: auto 1fr; column-gap: var(--space-2); align-items: center; font-size: var(--font-size-sm); color: var(--color-muted); }
+.status-bar__legend li::before { content: ""; grid-row: span 2; width: var(--space-3); height: var(--space-3); border-radius: var(--radius-sm); }
+.status-bar__legend li b { font: var(--font-weight-semibold) var(--font-size-xl) / 1.2 var(--font-family-display); color: var(--color-ink); font-variant-numeric: tabular-nums; }
+.status-bar__legend li span { grid-column: 2; }
+.status-bar__legend [data-tone="ok"]::before { background: var(--color-border); }
+.status-bar__legend [data-tone="loan"]::before { background: var(--color-accent); }
+.status-bar__legend [data-tone="over"]::before { background: var(--color-status-err); }
+.status-bar__legend [data-tone="maint"]::before { background: var(--color-status-warn); }
+.status-bar__legend [data-tone="retired"]::before { background: var(--color-rule); }
+.status-bar__legend [data-tone="over"] b { color: var(--color-status-err-text); }
+</style>
+<template>
+<div class="status-bar" role="group" aria-label="{{label}}"><div class="status-bar__head"><b>{{label}}</b><span>{{total}}</span></div><div class="status-bar__track"><dfw-slot></dfw-slot></div><ul class="status-bar__legend"><dfw-slot name="legend"></dfw-slot></ul></div>
+</template>
+<dfw-examples>
+<div style="width:640px"><dfw-use c="status-bar" label="Trạng thái thiết bị" total="1.284 thiết bị"><a class="status-bar__seg" data-tone="ok" style="flex:1110" href="#" aria-label="Sẵn sàng 1.110"></a><a class="status-bar__seg" data-tone="loan" style="flex:142" href="#" aria-label="Đang mượn 142"></a><a class="status-bar__seg" data-tone="over" style="flex:7" href="#" aria-label="Quá hạn 7"></a><a class="status-bar__seg" data-tone="maint" style="flex:12" href="#" aria-label="Bảo trì 12"></a><a class="status-bar__seg" data-tone="retired" style="flex:13" href="#" aria-label="Ngừng dùng 13"></a><dfw-fill slot="legend"><li data-tone="ok">Sẵn sàng <b>1.110</b><span>86,4%</span></li><li data-tone="loan">Đang mượn <b>142</b><span>11,1%</span></li><li data-tone="over">Quá hạn <b>7</b><span>0,5%</span></li><li data-tone="maint">Bảo trì <b>12</b><span>0,9%</span></li><li data-tone="retired">Ngừng dùng <b>13</b><span>1,0%</span></li></dfw-fill></dfw-use></div>
+</dfw-examples>
+</dfw-component>

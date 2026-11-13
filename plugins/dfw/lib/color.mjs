@@ -138,7 +138,8 @@ export function buildPalette(seeds, names = {}) {
   for (const [k, base] of Object.entries(STATUS_HUE)) {
     const diff = ((nHue - base + 540) % 360) - 180;
     const pull = Math.max(-6, Math.min(6, diff * Math.min(1, tint / 0.02) * 0.1));
-    statusRamps[k] = ramp({ hue: (base + pull + 360) % 360, chroma: k === 'warn' ? 0.16 : Math.min(0.19, Math.max(0.13, brandChroma)) });
+    // Status fills must read as signals even next to muted brands: fixed, fairly high chroma.
+    statusRamps[k] = ramp({ hue: (base + pull + 360) % 360, chroma: { ok: 0.17, info: 0.15, warn: 0.16, err: 0.2 }[k] });
   }
   // Info = accent when they are close (a second blue next to the accent is noise).
   if (accentIsChromatic && hueDistance(STATUS_HUE.info, accentHue) < 40) {

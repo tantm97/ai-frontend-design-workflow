@@ -296,9 +296,9 @@
     "warn": "#ebc27d",
     "warn-tint": "#fef6e9",
     "warn-text": "#7c5700",
-    "err": "#c64145",
+    "err": "#d22d3a",
     "err-tint": "#fff5f4",
-    "err-text": "#a62a31"
+    "err-text": "#b00f27"
   },
   "onFill": "#ffffff",
   "shadowTint": "#212325",

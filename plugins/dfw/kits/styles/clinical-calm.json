@@ -286,18 +286,18 @@
     "signature": "hong-200"
   },
   "status": {
-    "ok": "#0f713a",
-    "ok-tint": "#f0fbf2",
-    "ok-text": "#01592a",
-    "info": "#1562a0",
+    "ok": "#007237",
+    "ok-tint": "#eefcf1",
+    "ok-text": "#005929",
+    "info": "#0061a6",
     "info-tint": "#f2f8ff",
-    "info-text": "#074b7f",
+    "info-text": "#0061a6",
     "warn": "#ecc27d",
     "warn-tint": "#fff6e9",
     "warn-text": "#7d5700",
-    "err": "#b65253",
+    "err": "#d22c3d",
     "err-tint": "#fff5f4",
-    "err-text": "#983d3f"
+    "err-text": "#b00f2a"
   },
   "onFill": "#ffffff",
   "shadowTint": "#202324",

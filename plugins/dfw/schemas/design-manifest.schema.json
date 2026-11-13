@@ -180,6 +180,77 @@
             "items": {
               "type": "string"
             }
+          },
+          "blueprint": {
+            "type": "object",
+            "description": "Agreed before any HTML is written (cheap to change). dfw blueprint lists them.",
+            "required": [
+              "goal",
+              "layout",
+              "aboveFold",
+              "data",
+              "feedback"
+            ],
+            "properties": {
+              "goal": {
+                "type": "string",
+                "description": "The one job of this screen, for whom."
+              },
+              "layout": {
+                "enum": [
+                  "task",
+                  "flow",
+                  "split"
+                ],
+                "description": "page master variant"
+              },
+              "regions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "content": {
+                      "type": "string"
+                    },
+                    "priority": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              },
+              "aboveFold": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "What must be visible without scrolling at the primary breakpoint."
+              },
+              "data": {
+                "type": "object",
+                "properties": {
+                  "empty": {
+                    "type": "string"
+                  },
+                  "typical": {
+                    "type": "string"
+                  },
+                  "max": {
+                    "type": "string"
+                  }
+                },
+                "description": "How the screen behaves with no, typical and very large data."
+              },
+              "feedback": {
+                "type": "string",
+                "description": "Where success/error messages appear (anchored panel, inline, toast) and whether they persist."
+              },
+              "primaryAction": {
+                "type": "string"
+              }
+            }
           }
         }
       }

@@ -1,0 +1,28 @@
+<dfw-component name="page" group="Layout" variants="flow task split" preview="frame"
+  description="Page layout inside app-shell, so every screen of a kind has the same paddings, widths and behaviour. flow = dashboards, lists, forms (page scrolls). task = one work object filling the viewport (counter, kiosk, checkout): the object stretches to the available height, long lists scroll INSIDE it, the feedback slot is anchored at the bottom and the primary action stays on screen whatever the data. split = list + detail. Slots: default (primary), side (optional column), feedback (task: anchored status panel).">
+<style>
+.page { display: grid; gap: var(--space-6); padding: var(--space-6) var(--space-8) var(--space-10); align-content: start; min-width: 0; }
+.page__primary, .page__side { min-width: 0; }
+.page__side:empty, .page__feedback:empty { display: none; }
+.page--flow { grid-template-columns: minmax(0, 1fr); }
+.page--flow:has(> .page__side:not(:empty)) { grid-template-columns: minmax(0, 1fr) var(--size-aside, 360px); align-items: start; }
+.page--flow > .page__primary { display: grid; gap: var(--space-6); align-content: start; }
+.page--split { grid-template-columns: minmax(300px, 400px) minmax(0, 1fr); align-items: start; }
+.page--task { height: 100%; min-height: 0; box-sizing: border-box; padding: var(--space-5) var(--space-8); gap: var(--space-4) var(--space-8); align-content: stretch; justify-content: center;
+  grid-template-columns: minmax(0, var(--size-task, 960px)) var(--size-aside, 300px); grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: "primary side" "feedback side"; }
+.page--task:has(> .page__side:empty) { grid-template-columns: minmax(0, var(--size-task, 960px)); grid-template-areas: "primary" "feedback"; }
+.page--task > .page__primary { grid-area: primary; display: flex; flex-direction: column; min-height: 0; }
+.page--task > .page__primary > * { flex: 1 1 auto; min-height: 0; }
+.page--task > .page__side { grid-area: side; min-height: 0; overflow: auto; }
+.page--task > .page__feedback { grid-area: feedback; }
+@media (max-width: 1500px) { .page--task { grid-template-columns: minmax(0, var(--size-task, 960px)); grid-template-areas: "primary" "feedback"; } .page--task > .page__side { display: none; } }
+@media (max-width: 900px) { .page { padding: var(--space-4); } .page--split, .page--flow:has(> .page__side:not(:empty)) { grid-template-columns: minmax(0, 1fr); } }
+</style>
+<template>
+<div class="page page--{{variant}}"><div class="page__primary"><dfw-slot></dfw-slot></div><aside class="page__side"><dfw-slot name="side"></dfw-slot></aside><div class="page__feedback" data-dfw-anchor="feedback"><dfw-slot name="feedback"></dfw-slot></div></div>
+</template>
+<dfw-examples>
+<dfw-use c="app-shell" current="items"><dfw-fill slot="header"><dfw-use c="page-header" title="Flow page" subtitle="Dashboards, lists, forms"></dfw-use></dfw-fill><dfw-use c="page" variant="flow"><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px"><dfw-use c="stat" label="Items" value="1,284" href="#"></dfw-use><dfw-use c="stat" label="On loan" value="142" href="#"></dfw-use><dfw-use c="stat" variant="alert" label="Overdue" value="7" href="#"></dfw-use></div><dfw-use c="card" title="Card"><p style="margin:0">Content flows; the page scrolls.</p></dfw-use></dfw-use></dfw-use>
+<dfw-use c="app-shell" variant="focus" mode="Task mode"><dfw-use c="page" variant="task"><dfw-use c="card" variant="raised" title="Work object" subtitle="Fills the height; lists scroll inside"><p style="margin:0">Primary content</p><dfw-fill slot="foot"><dfw-use c="button" variant="primary" size="lg">Confirm</dfw-use></dfw-fill></dfw-use><dfw-fill slot="feedback"><dfw-use c="banner" variant="ok" size="xl" icon="circle-check" title="Anchored feedback">Always on screen, never pushed by data.</dfw-use></dfw-fill></dfw-use></dfw-use>
+</dfw-examples>
+</dfw-component>

@@ -14,17 +14,15 @@
   <meta name="description" content="One sentence: what this screen is for.">
   <dfw-head></dfw-head>
   <style>
-    body { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); min-height: 100vh; }
     .page { display: grid; gap: var(--space-6); padding: var(--space-6) var(--space-8); align-content: start; }
   </style>
 </head>
 <body>
-  <dfw-use c="nav" variant="sidebar" label="Main" id="nav">
-    <dfw-use c="nav-item" icon="house" current="page" id="nav.home">Home</dfw-use>
-  </dfw-use>
-  <main data-dfw-id="screen">
-    <dfw-use c="page-header" title="Screen title" id="screen.header"></dfw-use>
+  <dfw-use c="app-shell" current="home" id="shell">
+    <dfw-fill slot="header">
+      <dfw-use c="page-header" title="Screen title" id="screen.header"></dfw-use>
+    </dfw-fill>
     <div class="page" data-dfw-id="screen.body"></div>
-  </main>
+  </dfw-use>
 </body>
 </html>

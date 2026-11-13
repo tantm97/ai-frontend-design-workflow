@@ -243,7 +243,7 @@
   },
   "status": {
     "ok": "#007237",
-    "ok-tint": "#edfcf0",
+    "ok-tint": "#eefcf1",
     "ok-text": "#005929",
     "info": "#3a6aea",
     "info-tint": "#f4f7ff",
@@ -251,9 +251,9 @@
     "warn": "#f1bf7f",
     "warn-tint": "#fff6eb",
     "warn-text": "#825300",
-    "err": "#ce3537",
+    "err": "#d22e33",
     "err-tint": "#fff5f4",
-    "err-text": "#ad1c24"
+    "err-text": "#b1111f"
   },
   "onFill": "#ffffff",
   "shadowTint": "#222324",

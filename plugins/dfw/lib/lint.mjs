@@ -96,6 +96,8 @@ export function lintScreen(root, rel, text, lib = loadComponents(root)) {
     }
     for (const [tag, c] of counts) add('warn', 'use-component', c.line, `${c.n} raw <${tag}> element(s); the design system has component "${c.comp}" for this. Use <dfw-use c="${c.comp}">.`);
     if (!r.instances.length && /<body/i.test(text)) add('warn', 'no-components', body ? lineOf(text, body) : 1, 'Screen uses no design-system components; build screens from design/system/components.');
+    if (lib.has('page') && r.instances.length && !r.instances.some((x) => x.component === 'page') && !rel.includes('/_')) add('warn', 'page-layout', 1, 'Screen does not use the page layout master (<dfw-use c="page" variant="task|flow|split">): paddings, widths and overflow behaviour will drift from other screens.');
+    if (lib.has('app-shell') && r.instances.length && !r.instances.some((x) => x.component === 'app-shell') && !rel.includes('/_')) add('warn', 'app-shell', 1, 'Screen does not use the shared app-shell: every screen should be framed by the same navigation and layout (<dfw-use c="app-shell" current="...">).');
   }
   return out;
 }
@@ -185,6 +187,12 @@ export function lintManifest(root) {
   if (!m) return [{ level: 'error', rule: 'manifest-missing', file: rel, line: 1, message: 'design/design.json is missing.', source: 'dfw' }];
   if (!Array.isArray(m.screens) || !m.screens.length) out.push({ level: 'warn', rule: 'manifest-screens', file: rel, line: 1, message: 'Manifest has no screens yet (fine during the system phase).', source: 'dfw' });
   const screenIds = new Set((m.screens || []).map((x) => x.id));
+  for (const sc of m.screens || []) {
+    if (String(sc.id).startsWith('_')) continue;
+    const bp = sc.blueprint;
+    if (!bp) out.push({ level: 'warn', rule: 'blueprint', file: rel, line: 1, message: `Screen "${sc.id}" has no blueprint (goal, layout, aboveFold, data, feedback). Agree it with the user before building: it is cheaper to fix a blueprint than a screen.`, source: 'dfw' });
+    else for (const k of ['goal', 'layout', 'aboveFold', 'data', 'feedback']) if (!bp[k] || (Array.isArray(bp[k]) && !bp[k].length)) out.push({ level: 'warn', rule: 'blueprint', file: rel, line: 1, message: `Screen "${sc.id}" blueprint is missing "${k}".`, source: 'dfw' });
+  }
   for (const pg of m.pages || []) {
     for (const sid of pg.screens || []) if (!screenIds.has(sid)) out.push({ level: 'error', rule: 'manifest-page-screen', file: rel, line: 1, message: `Page "${pg.id}" lists unknown screen "${sid}".`, source: 'dfw' });
   }
@@ -210,7 +218,12 @@ export function lintDesign(root, files = null) {
   const p = projectPaths(root);
   const out = [];
   const targets = files
-    ? files.map((f) => toPosix(path.relative(root, path.resolve(root, f))))
+    ? files.flatMap((f) => {
+        const abs = path.resolve(root, f);
+        // A directory target lints every file under it.
+        if (fs.existsSync(abs) && fs.statSync(abs).isDirectory()) return listFiles(abs).map((r) => toPosix(path.relative(root, path.join(abs, r))));
+        return [toPosix(path.relative(root, abs))];
+      })
     : listFiles(p.design, { exclude: ['approved'] }).map((r) => `design/${r}`);
   if (!files || targets.includes('design/design.json')) out.push(...lintManifest(root));
   const lib = loadComponents(root);
@@ -219,6 +232,7 @@ export function lintDesign(root, files = null) {
     const abs = path.join(root, rel);
     if (!fs.existsSync(abs)) continue;
     const text = fs.readFileSync(abs, 'utf8');
+    if (rel === 'design/system/head.html') continue; // font links snippet, not a page
     if (rel.startsWith('design/system/components/') && rel.endsWith('.html')) out.push(...lintComponentFile(rel, text));
     else if (rel.endsWith('.html')) {
       out.push(...lintHtml(rel, text));
