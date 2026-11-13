@@ -1,0 +1,21 @@
+name: validate
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Unit tests
+        run: npm test
+      - name: Committed plugins match a clean build from the lock
+        run: node scripts/build.mjs --check
+      - name: Marketplace validation (structure, cross-references, no upstream hooks, conflict lint)
+        run: node scripts/validate.mjs

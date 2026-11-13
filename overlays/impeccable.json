@@ -1,0 +1,37 @@
+{
+  "ops": [
+    {
+      "op": "description",
+      "file": "skills/impeccable/SKILL.md",
+      "value": "Impeccable design commands: critique, audit, polish, harden, typeset, layout, colorize, clarify, adapt, distill, bolder/quieter, onboard, shape. Invoked by the dfw workflow for critique/audit/refinement; use directly when the user names Impeccable or an /impeccable command. Not for starting new pages from scratch (dfw leads that).",
+      "why": "Upstream claims design/redesign of anything; dfw routes it to its domain (critique/audit/refine)."
+    },
+    {
+      "op": "replace",
+      "file": "skills/impeccable/SKILL.md",
+      "pattern": "^\\*\\*Pin / Unpin:\\*\\*.*$",
+      "flags": "m",
+      "with": "**Pin / Unpin:** disabled in dfw-marketplace (creates global slash commands that collide with other skills; dfw policy R10). Tell the user it is unavailable.",
+      "min": 1,
+      "why": "pin creates bare /<command> shortcuts outside the plugin namespace."
+    },
+    {
+      "op": "replace",
+      "file": "skills/impeccable/SKILL.md",
+      "pattern": "^\\*\\*Hooks:\\*\\*.*$",
+      "flags": "m",
+      "with": "**Hooks:** disabled in dfw-marketplace. The dfw workflow runs `impeccable detect` itself after edits and at its gates (dfw policy R10). Do not run `hooks on`; it writes to Claude Code settings.",
+      "min": 1,
+      "why": "`hooks on` writes hook entries into settings files; dfw provides a controlled check hook instead."
+    },
+    {
+      "op": "replace",
+      "file": "skills/impeccable/scripts/impeccable",
+      "pattern": "^#!/bin/sh\\n",
+      "flags": "",
+      "with": "#!/bin/sh\n# dfw-marketplace overlay: telemetry, update checks and hooks off unless the user overrides them.\n: \"${DO_NOT_TRACK:=1}\"; : \"${IMPECCABLE_NO_UPDATE_CHECK:=1}\"; : \"${IMPECCABLE_HOOK_DISABLED:=1}\"\nexport DO_NOT_TRACK IMPECCABLE_NO_UPDATE_CHECK IMPECCABLE_HOOK_DISABLED\n",
+      "min": 1,
+      "why": "Applies the approved privacy defaults to every invocation, including ones the model runs from the skill text."
+    }
+  ]
+}

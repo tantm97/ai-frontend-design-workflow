@@ -1,0 +1,10 @@
+{
+  "ops": [
+    {
+      "op": "write",
+      "file": "skills/taste-reference/SKILL.md",
+      "from": "overlays/files/taste-reference/SKILL.md",
+      "why": "Reference mode: dfw ships selected Taste references with its own small SKILL.md instead of the full generator (no hooks, no 36 MB kit, no dealing scripts)."
+    }
+  ]
+}

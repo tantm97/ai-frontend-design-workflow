@@ -1,0 +1,11 @@
+{
+  "name": "ux-research",
+  "version": "0.0.0-02717ef",
+  "description": "Anthropic UX research and UX writing skills: research plans, synthesis of findings, interface copy.",
+  "author": {
+    "name": "Anthropic"
+  },
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/anthropics/knowledge-work-plugins/tree/main/design",
+  "repository": "https://github.com/anthropics/knowledge-work-plugins"
+}

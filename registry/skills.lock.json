@@ -1,0 +1,41 @@
+{
+  "$comment": "Build input. Full commit SHAs only. Change through scripts/skills.mjs (propose -> apply / rollback), not by hand.",
+  "version": 1,
+  "skills": {
+    "frontend-design": {
+      "repo": "anthropics/skills",
+      "sha": "2c5958ecac7cee2b583967a2c4981d0f4a75c579",
+      "lockedAt": "2026-11-13"
+    },
+    "ux-research": {
+      "repo": "anthropics/knowledge-work-plugins",
+      "sha": "02717ef04446b6ef5aa4b8af15bb536d79f42ed0",
+      "lockedAt": "2026-11-13"
+    },
+    "ui-ux-pro-max": {
+      "repo": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "sha": "6ae86f61f520d6ca229d2f40e070410638c908c5",
+      "lockedAt": "2026-11-13"
+    },
+    "impeccable": {
+      "repo": "pbakaus/impeccable",
+      "sha": "c4cd1924c389f68d37c687d9c2bbf13f12547c41",
+      "lockedAt": "2026-11-13"
+    },
+    "emil-design-eng": {
+      "repo": "emilkowalski/skills",
+      "sha": "f7ce8c02d6e3c8f0d980a44c57bcc41a40254349",
+      "lockedAt": "2026-11-13"
+    },
+    "hallmark": {
+      "repo": "nutlope/hallmark",
+      "sha": "04977e15f3dfd6ee4b74c887dac3eb52665d6c92",
+      "lockedAt": "2026-11-13"
+    },
+    "taste-reference": {
+      "repo": "Leonxlnx/taste-skill",
+      "sha": "f6b76575f949707b4e3c37cd86cb44b0b98643e8",
+      "lockedAt": "2026-11-13"
+    }
+  }
+}

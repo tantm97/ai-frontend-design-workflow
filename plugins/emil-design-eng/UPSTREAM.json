@@ -1,0 +1,56 @@
+{
+  "id": "emil-design-eng",
+  "repo": "emilkowalski/skills",
+  "sha": "f7ce8c02d6e3c8f0d980a44c57bcc41a40254349",
+  "track": "main",
+  "include": [
+    {
+      "from": "skills/animate",
+      "to": "skills/animate"
+    },
+    {
+      "from": "skills/review-animations",
+      "to": "skills/review-animations"
+    },
+    {
+      "from": "skills/improve-animations",
+      "to": "skills/improve-animations"
+    },
+    {
+      "from": "skills/animation-vocabulary",
+      "to": "skills/animation-vocabulary"
+    },
+    {
+      "from": "skills/pick-ui-library",
+      "to": "skills/pick-ui-library"
+    }
+  ],
+  "overlay": [
+    {
+      "op": "dropKeys",
+      "file": "skills/review-animations/SKILL.md",
+      "why": "The Skill tool refuses skills with disable-model-invocation, so dfw and its visual-reviewer agent could not delegate motion reviews."
+    },
+    {
+      "op": "description",
+      "file": "skills/review-animations/SKILL.md",
+      "why": "Unlocked for delegation but kept narrow."
+    },
+    {
+      "op": "dropKeys",
+      "file": "skills/pick-ui-library/SKILL.md",
+      "why": "dfw's stack gate may delegate library suggestions."
+    },
+    {
+      "op": "description",
+      "file": "skills/pick-ui-library/SKILL.md",
+      "why": "Library choices are the user's decision in dfw."
+    },
+    {
+      "op": "description",
+      "file": "skills/animate/SKILL.md",
+      "why": "Keep motion within the approved stack."
+    }
+  ],
+  "mode": "plugin"
+}

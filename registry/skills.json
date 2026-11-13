@@ -1,0 +1,141 @@
+{
+  "$comment": "Source of truth for vendored external skills. Pinned commits live in registry/skills.lock.json (the build INPUT). Adaptations live in overlays/<id>.json. Never edit plugins/<vendored>/ by hand.",
+  "marketplace": {
+    "name": "dfw-marketplace",
+    "owner": { "name": "tantm97", "url": "https://github.com/tantm97" },
+    "description": "Design-first frontend workflow (dfw) plus pinned, de-conflicted copies of the design skills it orchestrates."
+  },
+  "local": [
+    { "plugin": "dfw", "adapter": "claude-code", "category": "design", "description": "Design-first frontend workflow orchestrator: gates, studio, click-to-comment review, routing, checks." }
+  ],
+  "skills": [
+    {
+      "id": "frontend-design",
+      "plugin": "frontend-design",
+      "repo": "anthropics/skills",
+      "track": "main",
+      "license": "Apache-2.0",
+      "author": "Anthropic",
+      "homepage": "https://github.com/anthropics/skills/tree/main/skills/frontend-design",
+      "role": "Aesthetic base for every design phase",
+      "description": "Anthropic frontend-design: distinctive, intentional visual direction instead of templated defaults. Invoked by dfw.",
+      "include": [{ "from": "skills/frontend-design", "to": "skills/frontend-design" }],
+      "licenseFiles": ["skills/frontend-design/LICENSE.txt"],
+      "provides": ["frontend-design"]
+    },
+    {
+      "id": "ux-research",
+      "plugin": "ux-research",
+      "repo": "anthropics/knowledge-work-plugins",
+      "track": "main",
+      "license": "Apache-2.0",
+      "author": "Anthropic",
+      "homepage": "https://github.com/anthropics/knowledge-work-plugins/tree/main/design",
+      "role": "Discovery (research planning, synthesis) and UX copy",
+      "description": "Anthropic UX research and UX writing skills: research plans, synthesis of findings, interface copy.",
+      "include": [
+        { "from": "design/skills/user-research", "to": "skills/user-research" },
+        { "from": "design/skills/research-synthesis", "to": "skills/research-synthesis" },
+        { "from": "design/skills/ux-copy", "to": "skills/ux-copy" },
+        { "from": "design/CONNECTORS.md", "to": "CONNECTORS.md" }
+      ],
+      "licenseFiles": ["LICENSE"],
+      "provides": ["user-research", "research-synthesis", "ux-copy"]
+    },
+    {
+      "id": "ui-ux-pro-max",
+      "plugin": "ui-ux-pro-max",
+      "repo": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "track": "main",
+      "license": "MIT",
+      "author": "Next Level Builder",
+      "homepage": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill",
+      "role": "Data lookup: palettes, font pairings, product types, UX guidelines, charts (core skill only)",
+      "description": "UI UX Pro Max core skill: searchable local database of styles, palettes, font pairings, UX guidelines and charts (Python 3). Invoked by dfw as data, not as a decision maker.",
+      "skillsPath": "./.claude/skills/",
+      "include": [{ "from": ".claude/skills/ui-ux-pro-max", "to": ".claude/skills/ui-ux-pro-max", "exclude": ["scripts/tests"] }],
+      "licenseFiles": ["LICENSE"],
+      "provides": ["ui-ux-pro-max"],
+      "excludedOnPurpose": ["design (paid image APIs)", "ui-styling (forces shadcn/Tailwind)", "brand", "banner-design", "slides", "design-system (slides/Tailwind token pipeline)"]
+    },
+    {
+      "id": "impeccable",
+      "plugin": "impeccable",
+      "repo": "pbakaus/impeccable",
+      "track": "main",
+      "license": "Apache-2.0",
+      "author": "Paul Bakaus",
+      "homepage": "https://impeccable.style",
+      "role": "Critique, audit, polish, harden; detector used by dfw check",
+      "description": "Impeccable design commands (critique, audit, polish, harden, typeset, layout, ...) and its 62-rule detector. Hooks removed; telemetry and update checks disabled by dfw.",
+      "include": [
+        { "from": "plugin/skills", "to": "skills" },
+        { "from": "plugin/agents", "to": "agents" }
+      ],
+      "licenseFiles": ["LICENSE", "NOTICE.md"],
+      "provides": ["impeccable"],
+      "excludedOnPurpose": ["plugin/hooks (dfw runs the detector itself)"]
+    },
+    {
+      "id": "emil-design-eng",
+      "plugin": "emil-design-eng",
+      "repo": "emilkowalski/skills",
+      "track": "main",
+      "license": "MIT",
+      "author": "Emil Kowalski",
+      "homepage": "https://github.com/emilkowalski/skills",
+      "role": "Motion craft and motion review; library picks at the stack gate",
+      "description": "Emil Kowalski's design engineering skills used by dfw: animate, review-animations, improve-animations, animation-vocabulary, pick-ui-library.",
+      "include": [
+        { "from": "skills/animate", "to": "skills/animate" },
+        { "from": "skills/review-animations", "to": "skills/review-animations" },
+        { "from": "skills/improve-animations", "to": "skills/improve-animations" },
+        { "from": "skills/animation-vocabulary", "to": "skills/animation-vocabulary" },
+        { "from": "skills/pick-ui-library", "to": "skills/pick-ui-library" }
+      ],
+      "licenseFiles": ["LICENSE"],
+      "provides": ["animate", "review-animations", "improve-animations", "animation-vocabulary", "pick-ui-library"],
+      "excludedOnPurpose": ["prototype (React picker; dfw studio covers variants)", "emil-design-eng umbrella", "native/mobile skills"]
+    },
+    {
+      "id": "hallmark",
+      "plugin": "hallmark",
+      "repo": "nutlope/hallmark",
+      "track": "main",
+      "license": "MIT",
+      "author": "Nutlope",
+      "homepage": "https://github.com/nutlope/hallmark",
+      "role": "Lead for marketing/landing pages; sloplint used by dfw check",
+      "description": "Hallmark: anti-generic design skill for websites and landing pages, with sloplint. Invoked by dfw for marketing surfaces; edit hook not installed.",
+      "include": [{ "from": "skills/hallmark", "to": "skills/hallmark", "exclude": ["agents"] }],
+      "licenseFiles": ["LICENSE"],
+      "provides": ["hallmark"]
+    },
+    {
+      "id": "taste-reference",
+      "plugin": "taste-reference",
+      "repo": "Leonxlnx/taste-skill",
+      "track": "main",
+      "license": "MIT",
+      "author": "Leonxlnx",
+      "homepage": "https://github.com/Leonxlnx/taste-skill",
+      "role": "Reference mode only: website copy and section references + copy-lint",
+      "description": "Reference material from Taste (company-website copy, voice, sections, layout) and its copy-lint script. No hooks, no kit, no dealing scripts. Used by dfw as inspiration for marketing pages.",
+      "include": [
+        { "from": "skills/taste-skill/references/copy.md", "to": "skills/taste-reference/references/copy.md" },
+        { "from": "skills/taste-skill/references/copy-voice.md", "to": "skills/taste-reference/references/copy-voice.md" },
+        { "from": "skills/taste-skill/references/copy-registers.md", "to": "skills/taste-reference/references/copy-registers.md" },
+        { "from": "skills/taste-skill/references/copy-moves.md", "to": "skills/taste-reference/references/copy-moves.md" },
+        { "from": "skills/taste-skill/references/copy-tells.md", "to": "skills/taste-reference/references/copy-tells.md" },
+        { "from": "skills/taste-skill/references/sections.md", "to": "skills/taste-reference/references/sections.md" },
+        { "from": "skills/taste-skill/references/sections-library.md", "to": "skills/taste-reference/references/sections-library.md" },
+        { "from": "skills/taste-skill/references/layout-v4.md", "to": "skills/taste-reference/references/layout-v4.md" },
+        { "from": "skills/taste-skill/references/cards.md", "to": "skills/taste-reference/references/cards.md" },
+        { "from": "skills/taste-skill/scripts/copy-lint.mjs", "to": "skills/taste-reference/scripts/copy-lint.mjs" }
+      ],
+      "licenseFiles": ["LICENSE"],
+      "provides": ["taste-reference"],
+      "mode": "reference"
+    }
+  ]
+}

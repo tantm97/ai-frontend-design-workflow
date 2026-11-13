@@ -1,0 +1,12 @@
+{
+  "name": "ui-ux-pro-max",
+  "version": "0.0.0-6ae86f6",
+  "description": "UI UX Pro Max core skill: searchable local database of styles, palettes, font pairings, UX guidelines and charts (Python 3). Invoked by dfw as data, not as a decision maker.",
+  "author": {
+    "name": "Next Level Builder"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill",
+  "repository": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill",
+  "skills": "./.claude/skills/"
+}

@@ -1,0 +1,17 @@
+{
+  "name": "dfw-marketplace",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Design-first frontend workflow (dfw) for Claude Code, plus pinned, de-conflicted copies of the design skills it orchestrates.",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:check": "node scripts/build.mjs --check",
+    "validate": "node scripts/validate.mjs",
+    "test": "node --test tests/unit/*.test.mjs",
+    "test:e2e": "node tests/e2e/studio.e2e.mjs",
+    "skills": "node scripts/skills.mjs"
+  }
+}

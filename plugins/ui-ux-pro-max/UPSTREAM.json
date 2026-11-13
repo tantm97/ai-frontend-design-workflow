@@ -1,0 +1,28 @@
+{
+  "id": "ui-ux-pro-max",
+  "repo": "nextlevelbuilder/ui-ux-pro-max-skill",
+  "sha": "6ae86f61f520d6ca229d2f40e070410638c908c5",
+  "track": "main",
+  "include": [
+    {
+      "from": ".claude/skills/ui-ux-pro-max",
+      "to": ".claude/skills/ui-ux-pro-max",
+      "exclude": [
+        "scripts/tests"
+      ]
+    }
+  ],
+  "overlay": [
+    {
+      "op": "description",
+      "file": ".claude/skills/ui-ux-pro-max/SKILL.md",
+      "why": "Upstream description claims every UI task; in dfw it is a supporting data source (precedence level 5)."
+    },
+    {
+      "op": "replace",
+      "file": ".claude/skills/ui-ux-pro-max/SKILL.md",
+      "why": "macOS and many Linux systems ship python3 without a `python` alias."
+    }
+  ],
+  "mode": "plugin"
+}

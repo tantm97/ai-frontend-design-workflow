@@ -1,0 +1,42 @@
+{
+  "id": "ux-research",
+  "repo": "anthropics/knowledge-work-plugins",
+  "sha": "02717ef04446b6ef5aa4b8af15bb536d79f42ed0",
+  "track": "main",
+  "include": [
+    {
+      "from": "design/skills/user-research",
+      "to": "skills/user-research"
+    },
+    {
+      "from": "design/skills/research-synthesis",
+      "to": "skills/research-synthesis"
+    },
+    {
+      "from": "design/skills/ux-copy",
+      "to": "skills/ux-copy"
+    },
+    {
+      "from": "design/CONNECTORS.md",
+      "to": "CONNECTORS.md"
+    }
+  ],
+  "overlay": [
+    {
+      "op": "description",
+      "file": "skills/user-research/SKILL.md",
+      "why": "Keep discovery routed through dfw."
+    },
+    {
+      "op": "description",
+      "file": "skills/research-synthesis/SKILL.md",
+      "why": "Keep discovery routed through dfw."
+    },
+    {
+      "op": "description",
+      "file": "skills/ux-copy/SKILL.md",
+      "why": "Keep copy work routed through dfw while still answering direct copy requests."
+    }
+  ],
+  "mode": "plugin"
+}

@@ -1,0 +1,31 @@
+<!doctype html>
+<!--
+  dfw screen skeleton. Copy to design/screens/<screen-id>/<variant-id>.html.
+  Rules:
+  - Plain HTML + CSS. No framework, no build step, no external CDN scripts.
+  - Every value comes from tokens: var(--color-...), var(--space-...). No hard-coded colors.
+  - Every meaningful element gets a stable, unique data-dfw-id ("area.element", lowercase).
+  - States: style alternate states with html[data-state="empty"] ... selectors (studio State menu).
+  - Themes: tokens.css defines [data-theme="dark"] overrides when themes exist.
+  - Shared components: copy markup from design/components/<name>.html and keep its data-dfw-id prefix.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Screen title - Product</title>
+  <link rel="stylesheet" href="../../tokens/tokens.css">
+  <link rel="stylesheet" href="../../styles/base.css">
+  <style>
+    /* Screen-specific layout only; shared rules belong in design/styles/. */
+  </style>
+</head>
+<body>
+  <header data-dfw-id="app-header">
+    <nav data-dfw-id="app-header.nav" aria-label="Primary"></nav>
+  </header>
+  <main data-dfw-id="screen.main">
+    <h1 data-dfw-id="screen.title">Screen title</h1>
+  </main>
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "ops": [
+    {
+      "op": "description",
+      "file": "skills/frontend-design/SKILL.md",
+      "value": "Aesthetic method for distinctive, intentional visual design (direction, typography, color, avoiding templated AI defaults). Invoked by the dfw workflow during design phases; use directly only when the user names frontend-design.",
+      "why": "Upstream triggers on any new UI; dfw's router decides when it loads so it does not compete with the workflow."
+    }
+  ]
+}

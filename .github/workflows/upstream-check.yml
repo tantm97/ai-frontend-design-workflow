@@ -1,0 +1,30 @@
+name: upstream-check
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch: {}
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+concurrency:
+  group: upstream-check
+  cancel-in-progress: false
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Configure git identity
+        run: |
+          git config user.name "dfw-upstream-bot"
+          git config user.email "dfw-upstream-bot@users.noreply.github.com"
+      - name: Propose updates (PR per skill; merging the PR is the approval)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/ci-upstream.mjs

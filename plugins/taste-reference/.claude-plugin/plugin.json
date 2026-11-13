@@ -1,0 +1,11 @@
+{
+  "name": "taste-reference",
+  "version": "0.0.0-f6b7657",
+  "description": "Reference material from Taste (company-website copy, voice, sections, layout) and its copy-lint script. No hooks, no kit, no dealing scripts. Used by dfw as inspiration for marketing pages.",
+  "author": {
+    "name": "Leonxlnx"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/Leonxlnx/taste-skill",
+  "repository": "https://github.com/Leonxlnx/taste-skill"
+}

@@ -1,0 +1,11 @@
+{
+  "name": "frontend-design",
+  "version": "0.0.0-2c5958e",
+  "description": "Anthropic frontend-design: distinctive, intentional visual direction instead of templated defaults. Invoked by dfw.",
+  "author": {
+    "name": "Anthropic"
+  },
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/anthropics/skills/tree/main/skills/frontend-design",
+  "repository": "https://github.com/anthropics/skills"
+}

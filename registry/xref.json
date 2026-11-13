@@ -1,0 +1,12 @@
+{
+  "$comment": "Files inside vendored plugins that dfw code or instructions depend on. Checked on every build, proposal and validation (fixes the 'sync silently deletes files the router uses' failure seen in the reference repo).",
+  "requiredFiles": {
+    "impeccable": ["skills/impeccable/SKILL.md", "skills/impeccable/scripts/impeccable", "skills/impeccable/scripts/VERSION", "skills/impeccable/scripts/engine-checksums.txt"],
+    "hallmark": ["skills/hallmark/SKILL.md", "skills/hallmark/scripts/sloplint.mjs"],
+    "ui-ux-pro-max": [".claude/skills/ui-ux-pro-max/SKILL.md", ".claude/skills/ui-ux-pro-max/scripts/search.py"],
+    "taste-reference": ["skills/taste-reference/SKILL.md", "skills/taste-reference/scripts/copy-lint.mjs"],
+    "frontend-design": ["skills/frontend-design/SKILL.md"],
+    "ux-research": ["skills/user-research/SKILL.md", "skills/research-synthesis/SKILL.md", "skills/ux-copy/SKILL.md"],
+    "emil-design-eng": ["skills/animate/SKILL.md", "skills/review-animations/SKILL.md", "skills/pick-ui-library/SKILL.md"]
+  }
+}

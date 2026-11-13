@@ -1,0 +1,56 @@
+{
+  "id": "taste-reference",
+  "repo": "Leonxlnx/taste-skill",
+  "sha": "f6b76575f949707b4e3c37cd86cb44b0b98643e8",
+  "track": "main",
+  "include": [
+    {
+      "from": "skills/taste-skill/references/copy.md",
+      "to": "skills/taste-reference/references/copy.md"
+    },
+    {
+      "from": "skills/taste-skill/references/copy-voice.md",
+      "to": "skills/taste-reference/references/copy-voice.md"
+    },
+    {
+      "from": "skills/taste-skill/references/copy-registers.md",
+      "to": "skills/taste-reference/references/copy-registers.md"
+    },
+    {
+      "from": "skills/taste-skill/references/copy-moves.md",
+      "to": "skills/taste-reference/references/copy-moves.md"
+    },
+    {
+      "from": "skills/taste-skill/references/copy-tells.md",
+      "to": "skills/taste-reference/references/copy-tells.md"
+    },
+    {
+      "from": "skills/taste-skill/references/sections.md",
+      "to": "skills/taste-reference/references/sections.md"
+    },
+    {
+      "from": "skills/taste-skill/references/sections-library.md",
+      "to": "skills/taste-reference/references/sections-library.md"
+    },
+    {
+      "from": "skills/taste-skill/references/layout-v4.md",
+      "to": "skills/taste-reference/references/layout-v4.md"
+    },
+    {
+      "from": "skills/taste-skill/references/cards.md",
+      "to": "skills/taste-reference/references/cards.md"
+    },
+    {
+      "from": "skills/taste-skill/scripts/copy-lint.mjs",
+      "to": "skills/taste-reference/scripts/copy-lint.mjs"
+    }
+  ],
+  "overlay": [
+    {
+      "op": "write",
+      "file": "skills/taste-reference/SKILL.md",
+      "why": "Reference mode: dfw ships selected Taste references with its own small SKILL.md instead of the full generator (no hooks, no 36 MB kit, no dealing scripts)."
+    }
+  ],
+  "mode": "reference"
+}

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>dfw Studio</title>
+  <link rel="stylesheet" href="/__dfw/static/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <div class="brand-text">
+        <strong id="product">Design Studio</strong>
+        <span id="meta" class="muted">loading…</span>
+      </div>
+    </div>
+
+    <div class="toolbar" role="toolbar" aria-label="Canvas controls">
+      <div class="segmented" role="radiogroup" aria-label="Interaction mode">
+        <button type="button" role="radio" aria-checked="true" data-mode="view" title="View (V)">View</button>
+        <button type="button" role="radio" aria-checked="false" data-mode="comment" title="Comment (C)">Comment</button>
+      </div>
+      <div id="breakpoints" class="chips" role="group" aria-label="Breakpoints"></div>
+      <label class="select" id="theme-wrap" hidden>
+        <span>Theme</span>
+        <select id="theme"></select>
+      </label>
+      <label class="select" id="state-wrap" hidden>
+        <span>State</span>
+        <select id="state"></select>
+      </label>
+      <div class="zoom" role="group" aria-label="Zoom">
+        <button type="button" id="zoom-out" title="Zoom out (-)" aria-label="Zoom out">−</button>
+        <button type="button" id="zoom-label" title="Reset zoom (0)">50%</button>
+        <button type="button" id="zoom-in" title="Zoom in (+)" aria-label="Zoom in">+</button>
+      </div>
+    </div>
+
+    <button type="button" id="panel-toggle" class="ghost" aria-expanded="true" aria-controls="panel">
+      Comments <span id="open-count" class="count">0</span>
+    </button>
+  </header>
+
+  <div class="layout">
+    <nav class="sidebar" aria-label="Screens">
+      <h2 class="eyebrowless">Screens</h2>
+      <ol id="screen-list"></ol>
+    </nav>
+
+    <main id="canvas" class="canvas" tabindex="-1">
+      <div id="canvas-inner"></div>
+      <p id="empty" class="empty" hidden>No screens yet. Claude adds screens to <code>design/screens/</code> and lists them in <code>design/design.json</code>.</p>
+    </main>
+
+    <aside id="panel" class="panel" aria-label="Review comments">
+      <div class="panel-head">
+        <div class="tabs" role="tablist">
+          <button type="button" role="tab" data-filter="active" aria-selected="true">Open</button>
+          <button type="button" role="tab" data-filter="fixed" aria-selected="false">To verify</button>
+          <button type="button" role="tab" data-filter="closed" aria-selected="false">Closed</button>
+          <button type="button" role="tab" data-filter="all" aria-selected="false">All</button>
+        </div>
+        <button type="button" id="new-session" class="link" title="Close this review round and start a new one">New round</button>
+      </div>
+      <ol id="comment-list" class="comment-list"></ol>
+      <p class="hint muted">Press <kbd>C</kbd>, click an element in any frame, write what should change. Hold <kbd>Alt</kbd> to pick the exact element instead of its component.</p>
+    </aside>
+  </div>
+
+  <div id="composer" class="composer" role="dialog" aria-modal="false" aria-labelledby="composer-target" hidden>
+    <p id="composer-target" class="composer-target"></p>
+    <textarea id="composer-text" rows="4" placeholder="What should change, and why?"></textarea>
+    <div class="composer-actions">
+      <span class="muted small"><kbd>⌘</kbd><kbd>Enter</kbd> to save</span>
+      <button type="button" id="composer-cancel" class="ghost">Cancel</button>
+      <button type="button" id="composer-save" class="primary">Add comment</button>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <script type="module" src="/__dfw/static/app.js"></script>
+</body>
+</html>

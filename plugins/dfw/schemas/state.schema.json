@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dfw.local/schemas/state.schema.json",
+  "title": "dfw workflow state (.dfw/state.json)",
+  "type": "object",
+  "required": ["schema", "mode", "phase", "design", "gates", "history"],
+  "properties": {
+    "schema": { "const": 1 },
+    "product": { "type": "string" },
+    "mode": { "enum": ["new-product", "existing-project", "design-only", "implement-approved", "ui-refinement", "quick-change", "review-only"] },
+    "phase": { "enum": ["discovery", "direction", "concepts", "stack", "implement", "verify", "audit", "done"] },
+    "active": { "type": "boolean" },
+    "design": {
+      "type": "object",
+      "properties": {
+        "version": { "type": "integer", "minimum": 1 },
+        "status": { "enum": ["draft", "approved"] },
+        "locked": { "type": "boolean" },
+        "approved": { "type": "array", "items": { "type": "object", "properties": { "version": { "type": "string" }, "hash": { "type": "string" }, "at": { "type": "string" }, "note": { "type": "string" } } } }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "properties": { "G1": { "$ref": "#/$defs/gate" }, "G2": { "$ref": "#/$defs/gate" }, "G3": { "$ref": "#/$defs/gate" }, "G4": { "$ref": "#/$defs/gate" } }
+    },
+    "waived": { "type": "object", "additionalProperties": { "type": "string" } },
+    "history": { "type": "array", "items": { "type": "object", "required": ["at", "event"] } }
+  },
+  "$defs": {
+    "gate": { "type": ["object", "null"], "properties": { "approvedAt": { "type": "string" }, "note": { "type": "string" } } }
+  }
+}

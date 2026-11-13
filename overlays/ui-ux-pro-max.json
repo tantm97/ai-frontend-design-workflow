@@ -1,0 +1,19 @@
+{
+  "ops": [
+    {
+      "op": "description",
+      "file": ".claude/skills/ui-ux-pro-max/SKILL.md",
+      "value": "Searchable UI/UX data (Python 3): product-type design systems, palettes, font pairings, UX guidelines, charts, icons, stack notes. Invoked by the dfw workflow as a data source; its picks are recommendations, not decisions. Use directly only when the user names UI UX Pro Max.",
+      "why": "Upstream description claims every UI task; in dfw it is a supporting data source (precedence level 5)."
+    },
+    {
+      "op": "replace",
+      "file": ".claude/skills/ui-ux-pro-max/SKILL.md",
+      "pattern": "\\bpython \"\\$\\{CLAUDE_PLUGIN_ROOT\\}",
+      "flags": "g",
+      "with": "python3 \"${CLAUDE_PLUGIN_ROOT}",
+      "min": 1,
+      "why": "macOS and many Linux systems ship python3 without a `python` alias."
+    }
+  ]
+}

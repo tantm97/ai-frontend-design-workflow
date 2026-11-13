@@ -1,0 +1,7 @@
+{
+  "ops": [
+    { "op": "description", "file": "skills/user-research/SKILL.md", "value": "Plan and conduct user research (research questions, interview guides, usability tests, surveys). Invoked by the dfw workflow in discovery; use directly when the user explicitly asks for a research plan or interview guide.", "why": "Keep discovery routed through dfw." },
+    { "op": "description", "file": "skills/research-synthesis/SKILL.md", "value": "Synthesize research data (interviews, surveys, tickets, usability notes) into themes, insights and prioritized recommendations. Invoked by the dfw workflow in discovery; use directly when the user explicitly asks to synthesize research data.", "why": "Keep discovery routed through dfw." },
+    { "op": "description", "file": "skills/ux-copy/SKILL.md", "value": "Write or review interface copy: microcopy, errors, empty states, CTAs, confirmations, onboarding text. Invoked by the dfw workflow; use directly when the user asks for UX copy.", "why": "Keep copy work routed through dfw while still answering direct copy requests." }
+  ]
+}

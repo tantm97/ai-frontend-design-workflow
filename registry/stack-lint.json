@@ -1,0 +1,12 @@
+{
+  "$comment": "Patterns in upstream instruction text that may conflict with dfw policies. Hits are warnings shown in validation and update proposals (new hits are highlighted). Rulings live in core/workflow/policies/conflicts.md.",
+  "rules": [
+    { "id": "imposes-stack", "pattern": "\\b(always|must|should|default to)\\s+(use|be built (with|in)|write in)\\s+(tailwind|shadcn|react|next\\.?js|vue|svelte|angular|material ui|mui|chakra|bootstrap)\\b", "note": "Stack choice belongs to gate G3 (policy R1)." },
+    { "id": "installs-dependency", "pattern": "\\b(npm|pnpm|yarn|bun) (i|install|add)\\b", "note": "New dependencies need approval at G3." },
+    { "id": "writes-settings", "pattern": "settings(\\.local)?\\.json", "note": "Skills must not change Claude Code settings (policy R10)." },
+    { "id": "installs-hooks", "pattern": "\\b(install-hook|hooks on|PostToolUse|PreToolUse)\\b", "note": "Upstream hooks are stripped; dfw runs checks itself (policy R10)." },
+    { "id": "paid-api", "pattern": "(api\\.openai\\.com|OPENAI_API_KEY|TOGETHER_API_KEY|GEMINI_API_KEY|SLEEK_API_KEY|replicate|fal\\.ai)", "note": "Paid services only on explicit user request with their key (policy R9)." },
+    { "id": "owns-design-md", "pattern": "\\b(write|create|overwrite|generate)s?\\b.{0,40}\\b(DESIGN\\.md|PRODUCT\\.md)\\b", "note": "dfw owns PRODUCT.md and DESIGN.md (policy R2)." },
+    { "id": "telemetry", "pattern": "\\btelemetry\\b", "note": "Telemetry must stay off by default (overlay env)." }
+  ]
+}

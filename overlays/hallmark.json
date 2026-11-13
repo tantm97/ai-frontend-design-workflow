@@ -1,0 +1,19 @@
+{
+  "ops": [
+    {
+      "op": "description",
+      "file": "skills/hallmark/SKILL.md",
+      "value": "Design skill for websites and landing pages that look designed, not generated, with the sloplint checker. Use when the user names Hallmark, or when the dfw workflow delegates a marketing/landing page (dfw passes DESIGN.md and brand inputs; use custom mode). Never on an existing design unless the user names Hallmark.",
+      "why": "Upstream fires on any new build; in dfw it leads marketing surfaces only."
+    },
+    {
+      "op": "replace",
+      "file": "skills/hallmark/SKILL.md",
+      "pattern": "<skill-dir>",
+      "flags": "g",
+      "with": "${CLAUDE_SKILL_DIR}",
+      "min": 1,
+      "why": "Installed as a plugin, the placeholder must resolve to the real skill directory."
+    }
+  ]
+}

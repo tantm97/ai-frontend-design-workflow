@@ -1,0 +1,39 @@
+{
+  "id": "impeccable",
+  "repo": "pbakaus/impeccable",
+  "sha": "c4cd1924c389f68d37c687d9c2bbf13f12547c41",
+  "track": "main",
+  "include": [
+    {
+      "from": "plugin/skills",
+      "to": "skills"
+    },
+    {
+      "from": "plugin/agents",
+      "to": "agents"
+    }
+  ],
+  "overlay": [
+    {
+      "op": "description",
+      "file": "skills/impeccable/SKILL.md",
+      "why": "Upstream claims design/redesign of anything; dfw routes it to its domain (critique/audit/refine)."
+    },
+    {
+      "op": "replace",
+      "file": "skills/impeccable/SKILL.md",
+      "why": "pin creates bare /<command> shortcuts outside the plugin namespace."
+    },
+    {
+      "op": "replace",
+      "file": "skills/impeccable/SKILL.md",
+      "why": "`hooks on` writes hook entries into settings files; dfw provides a controlled check hook instead."
+    },
+    {
+      "op": "replace",
+      "file": "skills/impeccable/scripts/impeccable",
+      "why": "Applies the approved privacy defaults to every invocation, including ones the model runs from the skill text."
+    }
+  ],
+  "mode": "plugin"
+}

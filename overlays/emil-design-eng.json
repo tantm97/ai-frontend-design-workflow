@@ -1,0 +1,34 @@
+{
+  "ops": [
+    {
+      "op": "dropKeys",
+      "file": "skills/review-animations/SKILL.md",
+      "keys": ["disable-model-invocation"],
+      "why": "The Skill tool refuses skills with disable-model-invocation, so dfw and its visual-reviewer agent could not delegate motion reviews."
+    },
+    {
+      "op": "description",
+      "file": "skills/review-animations/SKILL.md",
+      "value": "Use ONLY when the user asks to review motion, or when the dfw workflow / visual-reviewer delegates a motion review. Reviews animation and motion code against a high craft bar (Emil Kowalski). Default to flagging; approval is earned.",
+      "why": "Unlocked for delegation but kept narrow."
+    },
+    {
+      "op": "dropKeys",
+      "file": "skills/pick-ui-library/SKILL.md",
+      "keys": ["disable-model-invocation"],
+      "why": "dfw's stack gate may delegate library suggestions."
+    },
+    {
+      "op": "description",
+      "file": "skills/pick-ui-library/SKILL.md",
+      "value": "Use ONLY when the user asks which library to use, or when the dfw stack gate delegates a library suggestion. Recommends libraries for a frontend task from a curated list; recommendations still need the user's approval at the dfw stack gate (G3).",
+      "why": "Library choices are the user's decision in dfw."
+    },
+    {
+      "op": "description",
+      "file": "skills/animate/SKILL.md",
+      "value": "Build an animation from scratch, deciding purpose, tool, properties, curve, duration, interruption and exit. Use when the user asks to animate something or the dfw workflow delegates motion work. Implements only in the approved stack (or plain CSS in dfw design files).",
+      "why": "Keep motion within the approved stack."
+    }
+  ]
+}

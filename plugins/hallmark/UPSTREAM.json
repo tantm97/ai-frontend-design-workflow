@@ -1,0 +1,28 @@
+{
+  "id": "hallmark",
+  "repo": "nutlope/hallmark",
+  "sha": "04977e15f3dfd6ee4b74c887dac3eb52665d6c92",
+  "track": "main",
+  "include": [
+    {
+      "from": "skills/hallmark",
+      "to": "skills/hallmark",
+      "exclude": [
+        "agents"
+      ]
+    }
+  ],
+  "overlay": [
+    {
+      "op": "description",
+      "file": "skills/hallmark/SKILL.md",
+      "why": "Upstream fires on any new build; in dfw it leads marketing surfaces only."
+    },
+    {
+      "op": "replace",
+      "file": "skills/hallmark/SKILL.md",
+      "why": "Installed as a plugin, the placeholder must resolve to the real skill directory."
+    }
+  ],
+  "mode": "plugin"
+}

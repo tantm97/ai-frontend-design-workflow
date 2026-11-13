@@ -1,0 +1,20 @@
+{
+  "id": "frontend-design",
+  "repo": "anthropics/skills",
+  "sha": "2c5958ecac7cee2b583967a2c4981d0f4a75c579",
+  "track": "main",
+  "include": [
+    {
+      "from": "skills/frontend-design",
+      "to": "skills/frontend-design"
+    }
+  ],
+  "overlay": [
+    {
+      "op": "description",
+      "file": "skills/frontend-design/SKILL.md",
+      "why": "Upstream triggers on any new UI; dfw's router decides when it loads so it does not compete with the workflow."
+    }
+  ],
+  "mode": "plugin"
+}

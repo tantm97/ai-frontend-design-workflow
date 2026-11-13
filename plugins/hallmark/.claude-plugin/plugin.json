@@ -1,0 +1,11 @@
+{
+  "name": "hallmark",
+  "version": "0.0.0-04977e1",
+  "description": "Hallmark: anti-generic design skill for websites and landing pages, with sloplint. Invoked by dfw for marketing surfaces; edit hook not installed.",
+  "author": {
+    "name": "Nutlope"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/nutlope/hallmark",
+  "repository": "https://github.com/nutlope/hallmark"
+}

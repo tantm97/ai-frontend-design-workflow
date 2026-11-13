@@ -1,0 +1,11 @@
+{
+  "name": "impeccable",
+  "version": "0.0.0-c4cd192",
+  "description": "Impeccable design commands (critique, audit, polish, harden, typeset, layout, ...) and its 62-rule detector. Hooks removed; telemetry and update checks disabled by dfw.",
+  "author": {
+    "name": "Paul Bakaus"
+  },
+  "license": "Apache-2.0",
+  "homepage": "https://impeccable.style",
+  "repository": "https://github.com/pbakaus/impeccable"
+}

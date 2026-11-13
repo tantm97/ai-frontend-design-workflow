@@ -1,0 +1,11 @@
+{
+  "name": "emil-design-eng",
+  "version": "0.0.0-f7ce8c0",
+  "description": "Emil Kowalski's design engineering skills used by dfw: animate, review-animations, improve-animations, animation-vocabulary, pick-ui-library.",
+  "author": {
+    "name": "Emil Kowalski"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/emilkowalski/skills",
+  "repository": "https://github.com/emilkowalski/skills"
+}
