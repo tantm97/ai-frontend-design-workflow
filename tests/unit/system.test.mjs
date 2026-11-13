@@ -56,14 +56,14 @@ test('system: init copies kit + preset tokens + icons and builds css; options an
   const root = project();
   fs.writeFileSync(path.join(root, 'design/tokens/tokens.json'), '{"$description":"Placeholder tokens created by dfw init."}');
   const r = systemInit(root, { preset: 'soft' });
-  assert.equal(r.copied.length, 21);
+  assert.equal(r.copied.length, 24);
   assert.ok(r.tokensWritten);
   assert.ok(r.icons.includes('chevron-down'));
   const css = fs.readFileSync(path.join(root, 'design/tokens/tokens.css'), 'utf8');
   assert.match(css, /--color-accent: #0f6e66/);
   assert.match(css, /--size-control: 40px/);
   assert.ok(fs.existsSync(path.join(root, 'design/system/components.css')));
-  assert.equal(loadComponents(root).size, 21);
+  assert.equal(loadComponents(root).size, 24);
   assert.deepEqual(listPresets().map((p) => p.name).sort(), ['crisp', 'industrial', 'soft']);
 
   const o = systemOptions(root, ['crisp', 'industrial']);
@@ -143,7 +143,9 @@ test('style guides: library, search, apply as aliased tokens with usage rules, l
   assert.match(fs.readFileSync(path.join(root, 'design/system/head.html'), 'utf8'), /Noto\+Serif\+Display/);
   const page = composeHtml(root, renderSystemPage(root, { designBase: '../' }));
   assert.deepEqual(page.issues, []);
-  assert.match(page.html, /Style · Heritage signboard/);
+  assert.match(page.html, /<h2>Concept<\/h2>/);
+  assert.match(page.html, /class="ds-table"/);
+  assert.match(page.html, /class="ds-ramp"/);
   assert.match(page.html, /class="ds-spec"/);
   // English-only font set
   const latin = styleTokens(getStyle('editorial-luxe'), { fonts: 'latin' });
@@ -159,4 +161,35 @@ test('style guides: library, search, apply as aliased tokens with usage rules, l
   assert.match(t.html, /^<h1 class="t t--display-lg t--tone-default"/);
   assert.match(t.html, /<p class="t t--body t--tone-default"[^>]*>p<\/p>/);
   buildTokens(root);
+});
+
+test('compose: a nested instance keeps its own slot fills', () => {
+  const root = project();
+  fs.mkdirSync(path.join(root, 'design/system/components'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'design/system/components/box.html'), '<dfw-component name="box"><template><section><dfw-slot></dfw-slot><footer><dfw-slot name="legend"></dfw-slot></footer></section></template></dfw-component>');
+  fs.writeFileSync(path.join(root, 'design/system/components/bar.html'), '<dfw-component name="bar"><template><div class="bar"><dfw-slot></dfw-slot><ul><dfw-slot name="legend"></dfw-slot></ul></div></template></dfw-component>');
+  const r = composeHtml(root, '<dfw-use c="box"><dfw-use c="bar"><i>seg</i><dfw-fill slot="legend"><li>inner</li></dfw-fill></dfw-use><dfw-fill slot="legend">outer</dfw-fill></dfw-use>');
+  assert.match(r.html, /<ul><li>inner<\/li><\/ul>/);
+  assert.match(r.html, /<footer>outer<\/footer>/);
+});
+
+test('compose: {{prop==value?text}} marks the current item of a shared shell', () => {
+  const root = project();
+  fs.mkdirSync(path.join(root, 'design/system/components'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'design/system/components/shell.html'), '<dfw-component name="shell" props="current"><template><nav><a aria-current="{{current==home?page}}">H</a><a aria-current="{{current==list?page}}">L</a></nav><main><dfw-slot></dfw-slot></main></template></dfw-component>');
+  const r = composeHtml(root, '<dfw-use c="shell" current="list">x</dfw-use>');
+  assert.match(r.html, /<a aria-current="">H<\/a><a aria-current="page">L<\/a>/);
+});
+
+test('layout: void detection on measured blocks', async () => {
+  const { findVoids } = await import('../../core/lib/layout.mjs');
+  const base = { vw: 1366, vh: 768, content: { x: 0, w: 1366, top: 56, docH: 768 } };
+  // Content ends at y=300 on a 768px screen: a tail void.
+  const tail = findVoids({ ...base, blocks: [{ x: 100, y: 80, w: 900, h: 220 }] });
+  assert.equal(tail[0].kind, 'tail');
+  // Two blocks with a 400px empty band between them.
+  const gap = findVoids({ ...base, content: { ...base.content, docH: 1400 }, blocks: [{ x: 100, y: 80, w: 900, h: 200 }, { x: 100, y: 700, w: 900, h: 500 }] });
+  assert.ok(gap.some((v) => v.kind === 'gap' && v.height >= 400));
+  // A filled screen: no voids.
+  assert.deepEqual(findVoids({ ...base, blocks: [{ x: 0, y: 56, w: 1366, h: 712 }] }), []);
 });

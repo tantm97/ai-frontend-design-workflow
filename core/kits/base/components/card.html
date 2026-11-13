@@ -1,12 +1,12 @@
-<dfw-component name="card" group="Layout" variants="default raised flat" props="title subtitle"
-  description="Surface that groups related content. Header (title, subtitle, actions slot), body (default slot), footer slot. raised = the single active work object on a screen.">
+<dfw-component name="card" group="Layout" variants="default raised flat" props="title subtitle body=padded"
+  description="Surface that groups related content. Header (title, subtitle, actions slot), body (default slot), footer slot. raised = the single active work object on a screen. body=flush puts a table edge to edge (no card-inside-card borders); body=scroll keeps header and footer fixed while the body scrolls (work objects in a task page).">
 <style>
 .card { display: flex; flex-direction: column; min-width: 0; background: var(--color-surface); border: var(--border-width) solid var(--color-rule); border-radius: var(--radius-lg); }
 .card--raised { border-color: transparent; box-shadow: var(--shadow-md); }
 .card--flat { background: var(--color-surface-sunken); border-color: transparent; }
 .card__head { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4) var(--space-5); border-bottom: var(--border-width) solid var(--color-rule); }
 .card__titles { display: grid; gap: var(--space-half); min-width: 0; }
-.card__title { margin: 0; font: var(--font-weight-semibold) var(--font-size-md) / var(--font-leading-snug) var(--font-family-display); letter-spacing: var(--font-tracking-tight); color: var(--color-ink); }
+.card__title { margin: 0; font: var(--font-weight-semibold) var(--font-size-xl) / var(--font-leading-snug) var(--font-family-display); letter-spacing: var(--font-tracking-tight); color: var(--color-ink); }
 .card__subtitle { margin: 0; font-size: var(--font-size-xs); color: var(--color-muted); }
 .card__actions { margin-left: auto; display: flex; gap: var(--space-2); align-items: center; }
 .card__body { padding: var(--space-5); min-width: 0; }
@@ -14,9 +14,11 @@
 .card__foot { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-5); border-top: var(--border-width) solid var(--color-rule); }
 .card__foot:empty { display: none; }
 .card__body--flush { padding: 0; }
+.card__body--scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.card__body--flush > .dtable { border: 0; border-radius: 0; }
 </style>
 <template>
-<section class="card card--{{variant}}"><header class="card__head" data-dfw-if="title"><div class="card__titles"><h2 class="card__title">{{title}}</h2><p class="card__subtitle" data-dfw-if="subtitle">{{subtitle}}</p></div><div class="card__actions"><dfw-slot name="actions"></dfw-slot></div></header><div class="card__body"><dfw-slot></dfw-slot></div><footer class="card__foot"><dfw-slot name="foot"></dfw-slot></footer></section>
+<section class="card card--{{variant}}"><header class="card__head" data-dfw-if="title"><div class="card__titles"><h2 class="card__title">{{title}}</h2><p class="card__subtitle" data-dfw-if="subtitle">{{subtitle}}</p></div><div class="card__actions"><dfw-slot name="actions"></dfw-slot></div></header><div class="card__body card__body--{{body}}"><dfw-slot></dfw-slot></div><footer class="card__foot"><dfw-slot name="foot"></dfw-slot></footer></section>
 </template>
 <dfw-examples>
 <div style="width: 360px"><dfw-use c="card" title="Overdue equipment" subtitle="5 people"><dfw-fill slot="actions"><dfw-use c="button" variant="ghost" size="sm">Export</dfw-use></dfw-fill><p style="margin:0">Card body content.</p></dfw-use></div>

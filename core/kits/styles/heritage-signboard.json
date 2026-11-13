@@ -299,18 +299,18 @@
     "signature": "kim-500"
   },
   "status": {
-    "ok": "#157224",
-    "ok-tint": "#f0fbf0",
-    "ok-text": "#065917",
+    "ok": "#00731c",
+    "ok-tint": "#effbef",
+    "ok-text": "#005a13",
     "info": "#00649d",
     "info-tint": "#f1f9ff",
     "info-text": "#004d7b",
     "warn": "#efc07e",
     "warn-tint": "#fff6ea",
     "warn-text": "#805500",
-    "err": "#be4d3c",
+    "err": "#d2311d",
     "err-tint": "#fff5f3",
-    "err-text": "#9f3728"
+    "err-text": "#b01603"
   },
   "onFill": "#ffffff",
   "shadowTint": "#26221d",

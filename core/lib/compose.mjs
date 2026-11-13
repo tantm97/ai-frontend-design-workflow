@@ -18,7 +18,9 @@
 //   - id -> data-dfw-id on the root element; class is appended; any other
 //     attribute that is not a declared prop is copied onto the root element.
 //   - inner HTML fills <dfw-slot>; <dfw-fill slot="x">...</dfw-fill> fills <dfw-slot name="x">.
-//   - props="a b=default" declares props (optional default); {{prop}} placeholders are HTML-escaped; data-dfw-if="prop" drops the element when prop is empty,
+//   - props="a b=default" declares props (optional default); {{prop}} placeholders are HTML-escaped;
+//     {{prop==value?text}} renders text only when prop equals value; data-dfw-if="prop==value" / "prop!=value";
+//   - preview="frame" on <dfw-component> shows its examples as a scaled full-screen frame on the Design System page; data-dfw-if="prop" drops the element when prop is empty,
 //     data-dfw-if="!prop" drops it when prop is set.
 // Icon: <dfw-icon name="scan-line" size="20"></dfw-icon> -> inline SVG from design/system/icons/<name>.svg.
 // Head: <dfw-head></dfw-head> inside <head> -> design/system/head.html (font links etc., {{base}} = path to design/)
@@ -108,6 +110,8 @@ export function parseComponentFile(text, rel) {
     const tpl = /<template\b[^>]*>([\s\S]*?)<\/template>/i.exec(inner);
     const ex = /<dfw-examples\b[^>]*>([\s\S]*?)<\/dfw-examples>/i.exec(inner);
     const list = (s) => (s || '').split(/[\s,]+/).filter(Boolean);
+    // props: space-separated, or comma-separated when a default contains spaces ("current, brand=Asset Tracking").
+    const propList = (s) => (String(s || '').includes(',') ? String(s).split(',').map((x) => x.trim()).filter(Boolean) : list(s));
     const variants = list(a.variants);
     const sizes = list(a.sizes);
     defs.push({
@@ -120,9 +124,10 @@ export function parseComponentFile(text, rel) {
       sizes,
       defaultVariant: a['default-variant'] || variants[0] || '',
       defaultSize: a['default-size'] || sizes[0] || '',
-      props: list(a.props).map((x) => x.split('=')[0]),
-      propDefaults: Object.fromEntries(list(a.props).filter((x) => x.includes('=')).map((x) => [x.split('=')[0], x.slice(x.indexOf('=') + 1)])),
+      props: propList(a.props).map((x) => x.split('=')[0]),
+      propDefaults: Object.fromEntries(propList(a.props).filter((x) => x.includes('=')).map((x) => [x.split('=')[0], x.slice(x.indexOf('=') + 1)])),
       replaces: list(a.replaces),
+      preview: a.preview || '',
       styles,
       template: tpl ? tpl[1].trim() : '',
       examples: ex ? ex[1].trim() : '',
@@ -161,13 +166,23 @@ function fillTemplate(def, props, slots) {
     if (!el) break;
     const a = parseAttrs(el.attrs);
     const cond = a['data-dfw-if'];
-    const neg = cond.startsWith('!');
-    const val = props[neg ? cond.slice(1) : cond];
-    const truthy = val != null && val !== '' && val !== 'false';
-    const keep = neg ? !truthy : truthy;
+    let keep;
+    const cmp = /^([\w-]+)\s*(==|!=)\s*([\w-]+)$/.exec(cond);
+    if (cmp) {
+      // data-dfw-if="variant==focus" / "variant!=focus"
+      const eq = String(props[cmp[1]] ?? '') === cmp[3];
+      keep = cmp[2] === '==' ? eq : !eq;
+    } else {
+      const neg = cond.startsWith('!');
+      const val = props[neg ? cond.slice(1) : cond];
+      const truthy = val != null && val !== '' && val !== 'false';
+      keep = neg ? !truthy : truthy;
+    }
     if (!keep) out = out.slice(0, start) + out.slice(el.end);
     else out = out.slice(0, start) + out.slice(start, el.openEnd).replace(/\s*data-dfw-if\s*=\s*"[^"]*"/, '') + out.slice(el.openEnd);
   }
+  // {{prop==value?text}}: text when the prop equals value (e.g. aria-current in a shared app shell).
+  out = out.replace(/\{\{\s*([\w-]+)\s*==\s*([\w-]+)\s*\?\s*([^}]*)\}\}/g, (_, n, v, t) => (String(props[n] ?? '') === v ? escapeHtml(t) : ''));
   out = out.replace(/\{\{\s*([\w-]+)\s*\}\}/g, (_, n) => escapeHtml(props[n] ?? ''));
   out = out.replace(/<dfw-slot(?:\s+name="([\w-]+)")?\s*(?:\/>|>([\s\S]*?)<\/dfw-slot>)/g, (_, n, fallback) => {
     const v = slots[n || 'default'];
@@ -266,13 +281,25 @@ export function composeHtml(root, html, { lib = loadComponents(root), depth = 0,
         // Slots
         let inner = html.slice(el.innerStart, el.innerEnd);
         const slots = {};
-        let fillIdx;
-        while ((fillIdx = inner.search(/<dfw-fill\b/)) !== -1) {
-          const f = findElement(inner, fillIdx);
+        // Only <dfw-fill> elements that belong to THIS instance: skip over nested <dfw-use> subtrees,
+        // whose fills belong to the nested component.
+        let rest = '';
+        let pos = 0;
+        const tagRe = /<dfw-(use|fill)\b/g;
+        let t;
+        while ((t = tagRe.exec(inner))) {
+          const f = findElement(inner, t.index);
           if (!f) break;
+          if (t[1] === 'use') {
+            tagRe.lastIndex = f.end;
+            continue;
+          }
           slots[parseAttrs(f.attrs).slot || 'default'] = inner.slice(f.innerStart, f.innerEnd);
-          inner = inner.slice(0, fillIdx) + inner.slice(f.end);
+          rest += inner.slice(pos, t.index);
+          pos = f.end;
+          tagRe.lastIndex = f.end;
         }
+        inner = rest + inner.slice(pos);
         if (slots.default == null) slots.default = inner;
         let body = fillTemplate(def, props, slots);
         body = annotateRoot(body, { ...passthrough, 'data-dfw-id': attrs.id, 'data-dfw-component': name, 'data-dfw-variant': def.variants.length ? variant : undefined, 'data-dfw-size': def.sizes.length ? size : undefined }, attrs.class);
@@ -333,9 +360,16 @@ export function buildComposed(root, rels) {
     const r = composeHtml(root, text, { lib, designBase: designBaseFor(rel) });
     const out = path.join(outDir, rel);
     fs.mkdirSync(path.dirname(out), { recursive: true });
-    // Keep relative asset links working from the build copy.
+    // Inline local stylesheets so static checkers (Impeccable, sloplint) see the real styles,
+    // then keep other relative links (images, fonts) working from the build copy.
+    const inlined = r.html.replace(/<link\b[^>]*rel=["']stylesheet["'][^>]*>/gi, (tag) => {
+      const href = (/href=["']([^"']+)["']/.exec(tag) || [])[1];
+      if (!href || /^(https?:)?\/\//.test(href)) return tag;
+      const file = path.resolve(path.dirname(abs), href.split('?')[0]);
+      return fs.existsSync(file) ? `<style data-dfw-inlined="${escapeHtml(href)}">\n${fs.readFileSync(file, 'utf8')}\n</style>` : tag;
+    });
     const base = toPosix(path.relative(path.dirname(out), path.dirname(abs))) || '.';
-    const html = r.html.replace(/<head([^>]*)>/i, `<head$1>\n<base href="${base}/">`);
+    const html = inlined.replace(/<head([^>]*)>/i, `<head$1>\n<base href="${base}/">`);
     fs.writeFileSync(out, html);
     res.push({ rel, out, composed: true });
   }

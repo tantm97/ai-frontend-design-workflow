@@ -292,17 +292,17 @@
   },
   "status": {
     "ok": "#007241",
-    "ok-tint": "#ecfcf1",
+    "ok-tint": "#edfcf2",
     "ok-text": "#005831",
-    "info": "#005fad",
+    "info": "#085fab",
     "info-tint": "#f2f8ff",
-    "info-text": "#005fad",
+    "info-text": "#085fab",
     "warn": "#f4be81",
     "warn-tint": "#fff6ec",
     "warn-text": "#855200",
-    "err": "#ce343f",
+    "err": "#d22c3c",
     "err-tint": "#fff5f4",
-    "err-text": "#ad1b2c"
+    "err-text": "#b00f28"
   },
   "onFill": "#ffffff",
   "shadowTint": "#232226",

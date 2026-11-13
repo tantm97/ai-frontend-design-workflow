@@ -10,6 +10,8 @@ import { runChecks, formatReport, UI_EXT } from './check.mjs';
 import { buildTokens } from './tokens.mjs';
 import { buildSystem } from './compose.mjs';
 import { undelivered, markDelivered, formatForClaude } from './inbox.mjs';
+import { layoutCheck, changedScreens, markChecked } from './layout.mjs';
+import { playwrightStatus } from './runtime.mjs';
 import { pruneSessions } from './lang.mjs';
 import { allComments } from './comments.mjs';
 
@@ -100,11 +102,33 @@ export function userPromptSubmit(input) {
   return text ? { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: text } } : null;
 }
 
-/** If the user commented while Claude was working, keep going instead of stopping. */
-export function stop(input) {
+/**
+ * Before Claude stops: (1) deliver comments the user posted meanwhile; (2) re-render every screen whose
+ * file, masters or tokens changed and block once on layout MUST findings (overlap, overflow, anchors
+ * off screen with long lists), so edits never leave the design broken. Fails open.
+ */
+export async function stop(input) {
   if (input.stop_hook_active) return null; // never loop
   const text = inboxFor(input);
-  return text ? { decision: 'block', reason: text } : null;
+  if (text) return { decision: 'block', reason: text };
+  const root = rootFrom(input);
+  const state = loadState(root);
+  if (!state || state.active === false || !['system', 'concepts'].includes(state.phase)) return null;
+  const config = loadConfig(root);
+  if (config.checks?.layoutOnStop === false || !playwrightStatus().installed) return null;
+  const ch = changedScreens(root);
+  if (!ch.screens.length && !ch.changedComps.length && !ch.tokensChanged) return null;
+  const res = await layoutCheck(root, { screens: ch.screens, states: true, stress: true, system: ch.changedComps.length > 0 || ch.tokensChanged });
+  if (res.status !== 'ran') return null;
+  const must = res.findings.filter((f) => f.level === 'error');
+  const should = res.findings.filter((f) => f.level === 'warn' && ['void', 'consistency', 'clipped'].includes(f.rule));
+  if (!must.length && !should.length) {
+    markChecked(root);
+    return null;
+  }
+  markChecked(root); // report each state of the design once
+  const lines = [...must, ...should].slice(0, 15).map((f) => `- [${f.level === 'error' ? 'MUST' : 'SHOULD'}] (${f.rule}) ${f.message}`);
+  return { decision: 'block', reason: `dfw layout check after your edits (${ch.screens.length} screen(s)${ch.changedComps.length ? `, changed masters: ${ch.changedComps.join(', ')}` : ''}):\n${lines.join('\n')}\nFix these in the design system (masters, page layout) where possible, re-run "dfw layout check --changed", then finish. See references/layout-patterns.md.` };
 }
 
 export const HANDLERS = { 'session-start': sessionStart, 'pre-tool-use': preToolUse, 'post-tool-use': postToolUse, 'user-prompt-submit': userPromptSubmit, stop };

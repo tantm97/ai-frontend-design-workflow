@@ -24,6 +24,7 @@ import { searchIcons, addIcons } from './icons.mjs';
 import { fontSubsets } from './fonts.mjs';
 import { listStyles, searchStyles, getStyle, formatStyle, applyStyle, matchStyles, AXES } from './style.mjs';
 import { auditDesignSystem } from './dsaudit.mjs';
+import { layoutCheck, changedScreens, markChecked } from './layout.mjs';
 import { buildPalette, typeScale } from './color.mjs';
 import { waitForComments, formatForClaude, undelivered, markDelivered } from './inbox.mjs';
 
@@ -47,6 +48,8 @@ Design system (built before any screen)
   dfw style list | search <words> | show <id>   Curated style guides (concept, named palette + rules, type, motifs)
   dfw style apply <id> [--fonts latin]          Turn a guide into tokens + fonts + motif master (latin = English-only fonts)
   dfw style match [--brief design/system/brief.json]   Rank guides against the brief's personality axes, with reasons
+  dfw blueprint [list|<screen>] [--json]        Screen blueprints (goal, layout, above-the-fold, data range, feedback) to agree before building
+  dfw layout check [--screen a,b] [--bp ids] [--states] [--changed]   Rendered check: overlap, clipping, overflow, anchors (with long lists), empty space, cross-screen consistency
   dfw system audit [--json]                     Senior review: contrast, accent vs status hues, neutrals, type rhythm, rationale
   dfw palette build --brand <hex|hue> ...       OKLCH ramps + roles picked by contrast + harmonised status colours
   dfw type scale --base 16 --ratio 1.2 --display-ratio 1.333 [--write]   Modular type scale
@@ -494,7 +497,7 @@ export async function main(argv) {
       input = JSON.parse((await readStdin()) || '{}');
     } catch {}
     try {
-      const res = handler(input);
+      const res = await handler(input);
       if (res) process.stdout.write(JSON.stringify(res));
     } catch (e) {
       // Fail open: never break the session because of a dfw bug.
@@ -617,6 +620,33 @@ export async function main(argv) {
       lines.push('Roles:', ...Object.entries(pal.roles).map(([k, v]) => `  ${k.padEnd(14)} ${v}`), 'Status:', `  ${Object.entries(pal.status).map(([k, v]) => `${k} ${v}`).join('  ')}`, ...pal.notes.map((n) => `Note: ${n}`));
       lines.push('Next: put the ramps in color.palette.* with usage rules, roles as aliases, then "dfw system audit".');
       return out(lines.join('\n'));
+    }
+    case 'blueprint': {
+      const m = readJson(projectPaths(root).manifest, {});
+      const list = (m.screens || []).filter((x) => (a._[1] && a._[1] !== 'list' ? x.id === a._[1] : !String(x.id).startsWith('_')));
+      if (a.json) return out(list.map((x) => ({ id: x.id, title: x.title, blueprint: x.blueprint || null })), true);
+      return out(list.map((x) => {
+        const b = x.blueprint;
+        if (!b) return `${x.id}: NO BLUEPRINT`;
+        return [`${x.id} · ${x.title || ''} · layout ${b.layout}`, `  goal: ${b.goal}`, b.primaryAction ? `  primary action: ${b.primaryAction}` : '', `  above the fold: ${(b.aboveFold || []).join('; ')}`, ...(b.regions || []).map((r) => `  region ${r.priority ?? ''} ${r.name}: ${r.content}`), `  data: empty → ${b.data?.empty || '?'} | typical → ${b.data?.typical || '?'} | max → ${b.data?.max || '?'}`, `  feedback: ${b.feedback}`].filter(Boolean).join('\n');
+      }).join('\n\n') || 'No screens.');
+    }
+    case 'layout': {
+      if ((a._[1] || 'check') !== 'check') throw new DfwError('Usage: dfw layout check [--screen a,b] [--bp ids] [--states] [--no-stress] [--changed] [--no-system] [--json]');
+      let screens = a.screen ? String(a.screen).split(',') : null;
+      if (a.changed) {
+        const ch = changedScreens(root);
+        screens = ch.screens;
+        if (!screens.length && !ch.changedComps.length && !ch.tokensChanged) return out('Layout: nothing changed since the last check.');
+      }
+      const res = await layoutCheck(root, { screens, bp: a.bp ? String(a.bp).split(',') : null, states: Boolean(a.states), stress: !a['no-stress'], system: !a['no-system'] && (!a.changed || changedScreens(root).changedComps.length > 0 || !screens) });
+      if (res.status !== 'ran') return out(`Layout check ${res.status}: ${res.detail}`);
+      const errors = res.findings.filter((f) => f.level === 'error').length;
+      if (!errors) markChecked(root);
+      if (errors) process.exitCode = 2;
+      if (a.json) return out(res, true);
+      const label = { error: 'MUST', warn: 'SHOULD', info: 'NOTE' };
+      return out([`Layout: ${res.renders} render(s), ${errors} must, ${res.findings.length - errors} should.`, ...res.findings.map((f) => `- [${label[f.level]}] (${f.rule}) ${f.message}`)].join('\n'));
     }
     case 'icons': {
       const sub = a._[1] || 'list';

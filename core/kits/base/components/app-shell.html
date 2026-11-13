@@ -1,0 +1,45 @@
+<dfw-component name="app-shell" group="Layout" variants="sidebar focus" preview="frame" props="current, brand=Product, mode=, exit=Exit, exit-href=#"
+  description="variant sidebar = full navigation (management screens); variant focus = a slim top bar only, for task modes such as a counter or kiosk (same colours, type and components, no navigation to distract). The ONE application frame every screen uses (navigation + main area), so all screens share the same structure and style. Edit this master's navigation for your product; screens pass current=<key> to highlight their item. Slots: default (main content), header (top of main), footer (bottom of main, e.g. a feedback band).">
+<style>
+.shell { display: grid; grid-template-columns: auto minmax(0, 1fr); min-height: 100vh; background: var(--color-canvas); }
+.shell__main { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-width: 0; }
+.shell__main > main { min-width: 0; grid-row: 2; }
+.shell__header { grid-row: 1; } .shell__footer { grid-row: 3; } /* fixed rows: an empty header must not pull main into the auto row */
+.shell__header:empty, .shell__footer:empty { display: none; }
+.shell__footer { padding: 0 var(--space-6) var(--space-5); }
+.shell--focus { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); height: 100vh; min-height: 0; }
+.shell--focus .shell__main { min-height: 0; }
+.shell--focus .shell__main > main { min-height: 0; overflow: hidden; }
+.shell__bar { display: flex; align-items: center; gap: var(--space-4); min-height: var(--size-control-lg); padding: 0 var(--space-6); background: var(--color-surface); border-bottom: var(--border-width) solid var(--color-rule); }
+.shell__brand { display: inline-flex; align-items: center; gap: var(--space-2); font: var(--font-weight-semibold) var(--font-size-md) / 1.2 var(--font-family-body); color: var(--color-ink); }
+.shell__mode { padding-left: var(--space-4); border-left: var(--border-width) solid var(--color-rule); font: var(--font-weight-medium) var(--font-size-sm) / 1.2 var(--font-family-body); color: var(--color-muted); }
+.shell__mode:empty { display: none; }
+.shell__spacer { flex: 1; }
+.shell__actions { display: flex; align-items: center; gap: var(--space-2); }
+.shell__actions:empty { display: none; }
+.shell__exit { display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--size-target); padding: 0 var(--space-3); border-radius: var(--radius-md); color: var(--color-accent-text); font: var(--font-weight-medium) var(--font-size-sm) / 1 var(--font-family-body); text-decoration: none; }
+.shell__exit:hover { background: var(--color-surface-hover); }
+.shell__exit:focus-visible { outline: var(--focus-width) solid var(--color-focus); outline-offset: var(--focus-offset); }
+@media (max-width: 900px) { .shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; } }
+</style>
+<template>
+<div class="shell shell--{{variant}}">
+<dfw-use data-dfw-if="variant==sidebar" c="nav" variant="sidebar" label="Main">
+<div class="nav__brand"><dfw-icon name="package" size="20"></dfw-icon>{{brand}}</div>
+<dfw-use c="nav-item" icon="house" href="#" current="{{current==home?page}}">Home</dfw-use>
+<div class="nav__label">Work</div>
+<dfw-use c="nav-item" icon="package" href="#" current="{{current==items?page}}">Items</dfw-use>
+<dfw-use c="nav-item" icon="file-clock" href="#" current="{{current==history?page}}">History</dfw-use>
+<div class="nav__spacer"></div>
+<hr>
+<dfw-use c="nav-item" icon="settings" href="#" current="{{current==settings?page}}">Settings</dfw-use>
+</dfw-use>
+<header class="shell__bar" data-dfw-if="variant==focus"><span class="shell__brand"><dfw-icon name="package" size="20"></dfw-icon>{{brand}}</span><span class="shell__mode">{{mode}}</span><span class="shell__spacer"></span><span class="shell__actions"><dfw-slot name="bar"></dfw-slot></span><a class="shell__exit" href="{{exit-href}}"><dfw-icon name="layout-dashboard" size="16"></dfw-icon>{{exit}}</a></header>
+<div class="shell__main"><header class="shell__header"><dfw-slot name="header"></dfw-slot></header><main><dfw-slot></dfw-slot></main><footer class="shell__footer"><dfw-slot name="footer"></dfw-slot></footer></div>
+</div>
+</template>
+<dfw-examples>
+<dfw-use c="app-shell" current="items"><dfw-fill slot="header"><dfw-use c="page-header" title="Items" subtitle="variant sidebar"></dfw-use></dfw-fill></dfw-use>
+<dfw-use c="app-shell" variant="focus" mode="Counter 1"><dfw-fill slot="header"><dfw-use c="page-header" title="Task mode" subtitle="variant focus"></dfw-use></dfw-fill></dfw-use>
+</dfw-examples>
+</dfw-component>

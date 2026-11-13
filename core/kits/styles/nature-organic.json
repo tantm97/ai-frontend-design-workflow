@@ -287,18 +287,18 @@
     "signature": "dat-set-400"
   },
   "status": {
-    "ok": "#267030",
-    "ok-tint": "#f1faf1",
-    "ok-text": "#185722",
+    "ok": "#007320",
+    "ok-tint": "#effbef",
+    "ok-text": "#005a17",
     "info": "#00649d",
     "info-tint": "#f1f9ff",
     "info-text": "#004d7b",
     "warn": "#efc17e",
     "warn-tint": "#fff6ea",
     "warn-text": "#7f5500",
-    "err": "#b65544",
+    "err": "#d2311a",
     "err-tint": "#fff5f3",
-    "err-text": "#973f30"
+    "err-text": "#b01700"
   },
   "onFill": "#ffffff",
   "shadowTint": "#25231d",

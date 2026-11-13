@@ -145,6 +145,10 @@ export function motifComponent(g) {
   return `<dfw-component name="motif" group="Signature" variants="${g.motifs.map((m) => m.name).join(' ')}" props="as=div"
   description="Signature motifs of the ${g.name} style. ${desc}">
 <style>
+/* Motifs belong to the "${g.id}" style. While comparing other option themes, decorative motifs
+   are hidden and motifs with content fall back to plain text (content never disappears). */
+[data-theme^="opt-"]:not([data-theme="opt-${g.id}"]) .motif:empty { display: none; }
+[data-theme^="opt-"]:not([data-theme="opt-${g.id}"]) .motif:not(:empty) { all: unset; font-family: var(--font-family-mono); font-size: var(--font-size-sm); color: var(--color-muted); }
 ${g.motifs.map((m) => m.css).join('\n')}
 </style>
 <template>
@@ -176,7 +180,9 @@ export function applyStyle(root, id, { fonts = 'vi' } = {}) {
   if (fs.existsSync(designMd) && g.rationale?.length) {
     const text = fs.readFileSync(designMd, 'utf8');
     const block = `## Rationale\n<!-- Seeded from style guide "${id}". Rewrite each line for THIS product: decision - because <context fact or principle>. -->\n${g.rationale.map((r) => `- ${r}`).join('\n')}\n`;
-    if (/^## Rationale\s*$/m.test(text)) {
+    const seeded = /^## Rationale\s*\n<!-- Seeded from style guide "[^"]*"[\s\S]*?-->\n(?:- .*\n?)*/m;
+    if (seeded.test(text)) fs.writeFileSync(designMd, text.replace(seeded, block)); // still the untouched seed of another guide: replace it
+    else if (/^## Rationale\s*$/m.test(text)) {
       if (!/^## Rationale\s*$\n(?:<!--[\s\S]*?-->\n)?- /m.test(text)) fs.writeFileSync(designMd, text.replace(/^## Rationale\s*$\n(?:<!--[\s\S]*?-->\n)?/m, block));
     } else fs.writeFileSync(designMd, `${text.trimEnd()}\n\n${block}`);
   }
@@ -216,7 +222,7 @@ export function matchStyles(brief) {
         notes.push(g.dark ? 'dark-first style' : 'light-first style');
       }
       const kw = (brief.keywords || []).filter((k) => g.tags.includes(String(k).toLowerCase()));
-      fit += kw.length * 3;
+      fit = Math.min(100, fit + kw.length * 3);
       return { id: g.id, name: g.name, fit, matches: kw, mismatches: diffs, notes, concept: g.concept };
     })
     .sort((a, b) => b.fit - a.fit);

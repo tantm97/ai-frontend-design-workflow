@@ -18,13 +18,15 @@ The user must never see a first draft. Every design-system page and every page o
 | 3 | Spacing rhythm | Spacing only from the scale; related things close, groups clearly separated; consistent padding in like containers; aligned edges (shared left lines). |
 | 4 | Density fit | Matches the users (operators: large targets, few items, big feedback; analysts: dense tables) — not generic airy SaaS for everything. |
 | 5 | Color discipline | Neutral by default; accent only for primary action/selection; status colors only for status; no decorative gradients; contrast passes. |
-| 6 | Component consistency | Same thing looks the same everywhere (buttons, badges, tables); no one-off styles; icons from one set, one stroke width, consistent size. |
+| 6 | Component consistency | Every screen uses the same `app-shell` (navigation, header, frame); same thing looks the same everywhere (buttons, badges, tables); no one-off styles; icons from one set, one stroke width, consistent size. |
 | 7 | Content realism | Real names, long values, edge cases, empty/error states designed; no lorem, no "John Doe", no fake perfect numbers. |
 | 8 | Craft details | Optical alignment of icons and text, no orphaned words in headings, no clipped text, no double borders, no cards inside cards, consistent radii. |
+| 9a | Space and anchors | No voids or overlaps (`dfw layout check`); task screens fill the viewport, feedback and primary action stay put with long data. |
 | 9 | Responsiveness | Every breakpoint intentional (reflow, not squeeze); nothing overflows; primary action reachable. |
 | 10 | Accessibility | Focus visible, 24px+ targets (44px on touch/counter), labels, no color-only meaning, contrast. |
 
 ## "AI look" tells to remove
+- Screens of one product with different frames (a rail here, a sidebar there, different headers).
 - Generic grey/white neutrals and black shadows with no relation to the concept.
 - Palette named only by role (primary/secondary) with no usage rules.
 - Everything at body size: no display type anywhere.

@@ -73,7 +73,7 @@ The hook regenerates `tokens.css` and `components.css` after every edit; `dfw bu
 </dfw-examples>
 </dfw-component>
 ```
-- `{{prop}}` (escaped), `{{variant}}`, `{{size}}`; `data-dfw-if="prop"` / `"!prop"` keeps an element only when the prop is set / unset.
+- `props="a b=default"` (or comma-separated when a default has spaces: `props="current, brand=Asset Tracking"`); `{{prop}}` (escaped), `{{variant}}`, `{{size}}`, `{{prop==value?text}}` (e.g. `aria-current` in the shared `app-shell`); `data-dfw-if="prop"` / `"!prop"` keeps an element only when the prop is set / unset.
 - `<dfw-slot>` = instance content; `<dfw-slot name="actions">` is filled by `<dfw-fill slot="actions">` in the instance.
 - `replaces="button input"`: the lint warns when a screen uses those raw elements instead of the component.
 - Styles: tokens only (hard-coded colors are MUST errors in masters; raw lengths are SHOULD warnings). Cover every state in CSS: hover, focus-visible, active, disabled, loading (`aria-busy`), invalid/selected where relevant.
@@ -91,15 +91,18 @@ The hook regenerates `tokens.css` and `components.css` after every edit; `dfw bu
   <style>/* layout only: grid, flex, gap, padding, width, position */</style>
 </head>
 <body>
-  <dfw-use c="nav" variant="sidebar" label="Main"> <dfw-use c="nav-item" icon="package" current="page">Inventory</dfw-use> </dfw-use>
-  <main data-dfw-id="inventory">
-    <dfw-use c="page-header" title="Inventory" id="inventory.header">
-      <dfw-fill slot="actions"><dfw-use c="button" variant="primary" icon="plus" id="inventory.add">Add item</dfw-use></dfw-fill>
-    </dfw-use>
-  </main>
+  <dfw-use c="app-shell" current="items" id="shell">
+    <dfw-fill slot="header">
+      <dfw-use c="page-header" title="Inventory" id="inventory.header">
+        <dfw-fill slot="actions"><dfw-use c="button" variant="primary" icon="plus" id="inventory.add">Add item</dfw-use></dfw-fill>
+      </dfw-use>
+    </dfw-fill>
+    <div data-dfw-id="inventory"> ... </div>
+  </dfw-use>
 </body>
 </html>
 ```
+- Every screen is framed by the shared `app-shell` master (one navigation and layout for the whole product; a counter/kiosk mode is a variant of it, not a different frame).
 - `<dfw-head>` expands to the font links, tokens.css, base.css and components.css.
 - `<dfw-use c="..." variant size id ...>`: `id` becomes the instance's `data-dfw-id`; `class` is appended; other non-prop attributes (aria-*, disabled, href, role, checked) are copied to the root element.
 - `<dfw-icon name="search" size="16" label="...">` (decorative unless `label`). Find icons with `dfw icons search <words>`, add with `dfw icons add <names>`.

@@ -294,18 +294,18 @@
     "signature": "oliu-400"
   },
   "status": {
-    "ok": "#2a702d",
-    "ok-tint": "#f1faf1",
-    "ok-text": "#1c571f",
+    "ok": "#007413",
+    "ok-tint": "#f0fbef",
+    "ok-text": "#005a0c",
     "info": "#00649d",
     "info-tint": "#f1f9ff",
     "info-text": "#004d7b",
     "warn": "#f0c07f",
     "warn-tint": "#fff6ea",
     "warn-text": "#805400",
-    "err": "#b65445",
+    "err": "#d2311f",
     "err-tint": "#fff5f3",
-    "err-text": "#983f32"
+    "err-text": "#b01505"
   },
   "onFill": "#ffffff",
   "shadowTint": "#27221c",

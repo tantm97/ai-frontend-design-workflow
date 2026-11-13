@@ -294,8 +294,8 @@
     "signature": "vang-300"
   },
   "status": {
-    "ok": "#02723c",
-    "ok-tint": "#f0fbf3",
+    "ok": "#00723c",
+    "ok-tint": "#eefcf1",
     "ok-text": "#00582d",
     "info": "#23619b",
     "info-tint": "#f2f8ff",
@@ -303,9 +303,9 @@
     "warn": "#eac37d",
     "warn-tint": "#fef6e9",
     "warn-text": "#7b5700",
-    "err": "#b65254",
+    "err": "#d22c3f",
     "err-tint": "#fff5f4",
-    "err-text": "#983d3f"
+    "err-text": "#b00e2b"
   },
   "onFill": "#ffffff",
   "shadowTint": "#202326",

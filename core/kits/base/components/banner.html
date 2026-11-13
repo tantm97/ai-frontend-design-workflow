@@ -1,5 +1,5 @@
 <dfw-component name="banner" group="Feedback" variants="info ok warn err" sizes="md xl" props="icon title"
-  description="Inline message. role=alert for err/warn that need action. size xl = large feedback band readable from a distance (counter/kiosk).">
+  description="Inline message. role=alert for err/warn that need action. size xl = docked feedback panel readable from a distance (counter/kiosk): tinted background, solid status icon, large title; errors get a stronger border and stay until dismissed.">
 <style>
 .banner { display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); font: var(--font-weight-regular) var(--font-size-sm) / var(--font-leading-snug) var(--font-family-body); }
 .banner .icon { width: var(--size-icon-sm); height: var(--size-icon-sm); flex: none; margin-top: var(--space-half); }
@@ -11,13 +11,19 @@
 .banner--ok { background: var(--color-status-ok-tint); color: var(--color-status-ok-text); }
 .banner--warn { background: var(--color-status-warn-tint); color: var(--color-status-warn-text); }
 .banner--err { background: var(--color-status-err-tint); color: var(--color-status-err-text); }
-.banner--xl { align-items: center; gap: var(--space-5); padding: var(--space-5) var(--space-8); border-radius: 0; font-size: var(--font-size-md); min-height: var(--size-band); }
-.banner--xl .icon { width: var(--size-icon-xl); height: var(--size-icon-xl); margin: 0; }
-.banner--xl .banner__title { font-size: var(--font-size-xl); }
-.banner--xl.banner--ok { background: var(--color-status-ok); color: var(--color-on-fill); }
-.banner--xl.banner--err { background: var(--color-status-err); color: var(--color-on-fill); }
-.banner--xl.banner--warn { background: var(--color-status-warn); color: var(--color-on-warn); }
-.banner--xl.banner--info { background: var(--color-surface); color: var(--color-ink); border-top: var(--border-width) solid var(--color-rule); }
+.banner--xl { align-items: center; gap: var(--space-4); padding: var(--space-4) var(--space-5); min-height: var(--size-band); border: var(--border-width) solid; border-radius: var(--radius-lg); box-shadow: var(--shadow-md); font-size: var(--font-size-md); }
+.banner--xl > .icon { box-sizing: content-box; width: var(--size-icon-lg); height: var(--size-icon-lg); padding: var(--space-2); margin: 0; border-radius: var(--radius-pill); color: var(--color-on-fill); }
+.banner--xl .banner__title { font: var(--font-weight-semibold) var(--font-size-xl) / var(--font-leading-snug) var(--font-family-body); color: var(--color-ink); }
+.banner--xl .banner__body { gap: var(--space-1); color: var(--color-muted); }
+.banner--xl.banner--ok { background: var(--color-status-ok-tint); border-color: var(--color-status-ok); }
+.banner--xl.banner--ok > .icon { background: var(--color-status-ok); }
+.banner--xl.banner--err { background: var(--color-status-err-tint); border-color: var(--color-status-err); }
+.banner--xl.banner--err > .icon { background: var(--color-status-err); }
+.banner--xl.banner--err .banner__title { color: var(--color-status-err-text); }
+.banner--xl.banner--warn { background: var(--color-status-warn-tint); border-color: var(--color-status-warn); }
+.banner--xl.banner--warn > .icon { background: var(--color-status-warn); color: var(--color-on-warn); }
+.banner--xl.banner--info { background: var(--color-surface); border-color: var(--color-rule); }
+.banner--xl.banner--info > .icon { background: var(--color-accent); color: var(--color-on-accent); }
 </style>
 <template>
 <div class="banner banner--{{variant}} banner--{{size}}"><dfw-icon name="{{icon}}"></dfw-icon><div class="banner__body"><p class="banner__title" data-dfw-if="title">{{title}}</p><span><dfw-slot></dfw-slot></span></div><div class="banner__actions"><dfw-slot name="actions"></dfw-slot></div></div>
