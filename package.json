@@ -1,6 +1,6 @@
 {
   "name": "ai-frontend-design-workflow",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Design-first frontend workflow (dfw) for Claude Code, plus pinned, de-conflicted copies of the design skills it orchestrates.",
   "type": "module",

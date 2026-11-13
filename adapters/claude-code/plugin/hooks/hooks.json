@@ -1,5 +1,5 @@
 {
-  "description": "dfw: session context, write gate (no implementation before design + stack approval; frozen designs are immutable), fast design checks after edits, and delivery of new Studio review comments (with the next prompt, or before Claude stops). All handlers fail open on internal errors.",
+  "description": "dfw: session context, write gate (no implementation before design + stack approval; frozen designs are immutable), fast design checks after edits, delivery of new Studio review comments, and a rendered layout check of changed screens before Claude stops. All handlers fail open on internal errors.",
   "hooks": {
     "SessionStart": [
       {
@@ -53,7 +53,7 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/dfw\" hook stop",
-            "timeout": 10
+            "timeout": 120
           }
         ]
       }

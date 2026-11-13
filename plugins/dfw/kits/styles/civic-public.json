@@ -13,7 +13,8 @@
       "hue": 85,
       "chroma": 0.16
     },
-    "signatureStep": 300
+    "signatureStep": 300,
+    "accentStep": 700
   },
   "names": {
     "brand": "xanh-cong",
@@ -60,6 +61,7 @@
   },
   "rationale": [
     "Blue signals trust and is safe for colour-vision deficiencies; it doubles as info so there is one blue.",
+    "Accent at step 700 (deep civic blue, ~9:1) rather than the lightest passing step: public-service actions should read as firm and official, not airy.",
     "17px base and large targets: citizens of every age and device.",
     "Modest display ratio (1.25): clarity over drama."
   ],
@@ -155,15 +157,15 @@
     },
     "xanh-cong-600": {
       "hex": "#3c77c1",
-      "usage": "Used for: primary actions, links, focus ring."
+      "usage": "Reserve step (hover/pressed/charts)."
     },
     "xanh-cong-700": {
       "hex": "#285fa2",
-      "usage": "Used for: hover/pressed, selected text."
+      "usage": "Used for: primary actions, links, selected text, focus ring."
     },
     "xanh-cong-800": {
       "hex": "#1a4981",
-      "usage": "Used for: large brand surfaces."
+      "usage": "Used for: hover/pressed, large brand surfaces."
     },
     "xanh-cong-900": {
       "hex": "#123560",
@@ -273,20 +275,20 @@
     "subtle": "xam-600",
     "muted": "xam-700",
     "ink": "xam-950",
-    "accent": "xanh-cong-600",
-    "accent-hover": "xanh-cong-700",
+    "accent": "xanh-cong-700",
+    "accent-hover": "xanh-cong-800",
     "accent-soft": "xanh-cong-50",
     "accent-text": "xanh-cong-700",
     "focus-ring": "xanh-cong-200",
     "on-accent": "#ffffff",
-    "focus": "xanh-cong-600",
+    "focus": "xanh-cong-700",
     "brand": "xanh-cong-800",
     "on-brand": "xam-50",
     "signature": "vang-300"
   },
   "status": {
-    "ok": "#0a723b",
-    "ok-tint": "#f0fbf2",
+    "ok": "#007239",
+    "ok-tint": "#eefcf1",
     "ok-text": "#00592b",
     "info": "#285fa2",
     "info-tint": "#f3f8ff",
@@ -294,9 +296,9 @@
     "warn": "#f3be80",
     "warn-tint": "#fff6ec",
     "warn-text": "#845200",
-    "err": "#b65350",
+    "err": "#d22d37",
     "err-tint": "#fff5f4",
-    "err-text": "#983d3c"
+    "err-text": "#b11024"
   },
   "onFill": "#ffffff",
   "shadowTint": "#222325",
@@ -317,12 +319,12 @@
     {
       "fg": "accent",
       "bg": "surface",
-      "ratio": 4.56
+      "ratio": 6.46
     },
     {
       "fg": "on-accent",
       "bg": "accent",
-      "ratio": 4.56
+      "ratio": 6.46
     },
     {
       "fg": "on-brand",

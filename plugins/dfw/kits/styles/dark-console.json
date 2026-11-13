@@ -287,18 +287,18 @@
     "signature": "lan-400"
   },
   "status": {
-    "ok": "#72c291",
+    "ok": "#56c787",
     "ok-tint": "#002b15",
-    "ok-text": "#9ed9b3",
+    "ok-text": "#8edead",
     "info": "#59bdd4",
     "info-tint": "#002831",
     "info-text": "#90d6e8",
     "warn": "#d7a43d",
     "warn-tint": "#301f00",
     "warn-text": "#eac37d",
-    "err": "#e99290",
-    "err-tint": "#3d1315",
-    "err-text": "#fab5b3"
+    "err": "#ff8283",
+    "err-tint": "#48020c",
+    "err-text": "#ffb2b0"
   },
   "onFill": "#1f2327",
   "shadowTint": "#1f2327",

@@ -238,18 +238,18 @@
     "signature": "do-ruou-400"
   },
   "status": {
-    "ok": "#247031",
-    "ok-tint": "#f1faf1",
-    "ok-text": "#165822",
+    "ok": "#007323",
+    "ok-tint": "#effbef",
+    "ok-text": "#005919",
     "info": "#00649d",
     "info-tint": "#f1f9ff",
     "info-text": "#004d7b",
     "warn": "#efc07e",
     "warn-tint": "#fff6ea",
     "warn-text": "#805500",
-    "err": "#b65447",
+    "err": "#d23023",
     "err-tint": "#fff5f3",
-    "err-text": "#983f33"
+    "err-text": "#b0150c"
   },
   "onFill": "#ffffff",
   "shadowTint": "#25221f",

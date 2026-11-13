@@ -1,11 +1,14 @@
 <dfw-component name="nav" group="Navigation" variants="sidebar rail" props="label"
-  description="App navigation. Children: nav-item instances (+ optional <hr>). sidebar = labels beside icons (240px); rail = icons over short labels (80px).">
+  description="App navigation. Children: nav-item instances, optional <div class=nav__brand>, <div class=nav__label> group labels, <hr>, <div class=nav__spacer>. sidebar = labels beside icons (240px); rail = icons over short labels (80px).">
 <style>
 .nav { display: flex; flex-direction: column; gap: var(--space-half); padding: var(--space-3); background: var(--color-surface); border-right: var(--border-width) solid var(--color-rule); min-height: 100%; }
 .nav--sidebar { width: var(--size-sidebar); }
 .nav--rail { width: var(--size-rail); align-items: stretch; padding: var(--space-2); }
 .nav hr { border: 0; border-top: var(--border-width) solid var(--color-rule); margin: var(--space-2) 0; width: 100%; }
 .nav__spacer { flex: 1; }
+.nav__label { margin: var(--space-4) var(--space-3) var(--space-1); font: var(--font-eyebrow-weight, 600) var(--font-eyebrow-size, 12px) / 1.3 var(--font-family-body); letter-spacing: var(--font-eyebrow-tracking, 0.06em); text-transform: var(--font-eyebrow-case, uppercase); color: var(--color-muted); }
+.nav__brand { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3) var(--space-4); font: var(--font-weight-semibold) var(--font-size-md) / 1.2 var(--font-family-body); color: var(--color-ink); }
+@media (max-width: 900px) { .nav { flex-direction: row; align-items: center; width: auto; min-height: 0; overflow-x: auto; padding: var(--space-2); border-right: 0; border-bottom: var(--border-width) solid var(--color-rule); } .nav hr, .nav__spacer, .nav__label, .nav__brand { display: none; } .nav .navi { flex: none; white-space: nowrap; } .nav .navi__count, .nav .navi__hint { display: none; } }
 </style>
 <template>
 <nav class="nav nav--{{variant}}" aria-label="{{label}}"><dfw-slot></dfw-slot></nav>

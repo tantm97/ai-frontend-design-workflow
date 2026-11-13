@@ -286,18 +286,18 @@
     "signature": "vang-400"
   },
   "status": {
-    "ok": "#1f7134",
-    "ok-tint": "#f1fbf2",
-    "ok-text": "#115825",
+    "ok": "#00732b",
+    "ok-tint": "#effcf0",
+    "ok-text": "#00591f",
     "info": "#00649d",
     "info-tint": "#f1f9ff",
     "info-text": "#004d7b",
     "warn": "#efc17e",
     "warn-tint": "#fff6ea",
     "warn-text": "#7f5500",
-    "err": "#b65446",
+    "err": "#d23021",
     "err-tint": "#fff5f3",
-    "err-text": "#983f33"
+    "err-text": "#b01508"
   },
   "onFill": "#ffffff",
   "shadowTint": "#23231f",
