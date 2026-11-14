@@ -9,7 +9,7 @@ import { addComment, updateComment } from '../../core/lib/comments.mjs';
 import { undelivered, waitForComments } from '../../core/lib/inbox.mjs';
 import { newState, saveState } from '../../core/lib/state.mjs';
 
-const DFW = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../core/bin/dfw');
+const DFW = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../core/bin/dfw.mjs');
 function project() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dfw-inbox-'));
   fs.mkdirSync(path.join(root, '.dfw'), { recursive: true });

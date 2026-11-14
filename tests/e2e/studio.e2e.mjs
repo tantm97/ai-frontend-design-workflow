@@ -1,21 +1,32 @@
 // End-to-end test of the dfw Studio click-to-comment flow (real browser via Playwright).
 // Usage: node tests/e2e/studio.e2e.mjs [--keep] [--shots <dir>]
-// Needs Playwright installed for dfw (dfw setup --playwright, or DFW_RUNTIME_DIR).
+// Dev-only: needs the "playwright" package (its click/keyboard API drives the Studio). It is
+// resolved from this repo's node_modules or from $DFW_RUNTIME_DIR (a folder with playwright installed).
+// dfw itself does not use Playwright (it renders through lib/cdp.mjs).
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { loadPlaywright, playwrightStatus } from '../../core/lib/runtime.mjs';
+import { createRequire } from 'node:module';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const DFW = path.join(REPO, 'core', 'bin', 'dfw');
+const DFW = path.join(REPO, 'core', 'bin', 'dfw.mjs');
 const args = process.argv.slice(2);
 const shotsDir = args.includes('--shots') ? path.resolve(args[args.indexOf('--shots') + 1]) : null;
 
-if (!playwrightStatus().installed) {
-  console.log('SKIP: Playwright not installed for dfw (dfw setup --playwright).');
+function loadPlaywright() {
+  for (const base of [REPO, process.env.DFW_RUNTIME_DIR].filter(Boolean)) {
+    try {
+      return createRequire(path.join(base, 'package.json'))('playwright');
+    } catch {}
+  }
+  return null;
+}
+const pw = loadPlaywright();
+if (!pw) {
+  console.log('SKIP: playwright not found (npm i -D playwright, or set DFW_RUNTIME_DIR).');
   process.exit(0);
 }
 
@@ -72,7 +83,7 @@ fs.writeFileSync(manifestFile, JSON.stringify(m, null, 2));
 const port = 4700 + Math.floor(Math.random() * 200);
 const started = dfw('studio', 'start', '--port', String(port));
 const url = started.match(/http:\/\/\S+/)[0];
-const { chromium } = await loadPlaywright();
+const { chromium } = pw;
 const browser = await chromium.launch();
 let failed = false;
 try {

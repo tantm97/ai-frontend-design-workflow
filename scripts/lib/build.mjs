@@ -136,7 +136,13 @@ export function writeNotices(registry, lock, { root = REPO_ROOT } = {}) {
     const sha = lock.skills[s.id].sha;
     lines.push(`| ${s.plugin} | https://github.com/${s.repo} | \`${sha.slice(0, 12)}\` | ${s.license} | ${s.author} |`);
   }
-  lines.push('', 'The `dfw` plugin, scripts, overlays and policies are original work under the MIT license (see LICENSE).', '');
+  lines.push(
+    '',
+    'The `dfw` plugin, scripts, overlays and policies are original work under the MIT license (see LICENSE).',
+    '',
+    'The single-file `dfw` binaries attached to GitHub releases embed the official Node.js runtime (MIT; its bundled third-party licenses: https://github.com/nodejs/node/blob/main/LICENSE) and are built with esbuild (MIT) and postject (MIT). dfw drives an already-installed Chromium-based browser; `dfw setup --browser` downloads Google\'s chrome-headless-shell (Chrome for Testing, BSD-3-Clause and its own notices) only on request.',
+    '',
+  );
   fs.writeFileSync(path.join(root, 'THIRD_PARTY_NOTICES.md'), lines.join('\n'));
 }
 

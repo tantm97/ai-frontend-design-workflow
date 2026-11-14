@@ -1,0 +1,85 @@
+name: release-binaries
+# Builds the single-file dfw binary (Node SEA) on each platform and publishes them, with
+# SHA256SUMS, as the GitHub release v<version>. Trigger: push a tag v<version> that matches
+# plugins/dfw/.claude-plugin/plugin.json (or run it by hand to get artifacts without a release).
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  # The embedded runtime: an official nodejs.org build (portable; Homebrew/distro builds are not).
+  NODE_VERSION: 26.13.0
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-15, target: darwin-arm64 }
+          - { os: macos-15-intel, target: darwin-x64 }
+          - { os: ubuntu-24.04, target: linux-x64 }
+          - { os: ubuntu-24.04-arm, target: linux-arm64 }
+          - { os: windows-2025, target: win32-x64 }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: npm ci
+      - name: Tag matches the plugin version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          v=$(node -p "require('./plugins/dfw/.claude-plugin/plugin.json').version")
+          test "v$v" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} != plugin version v$v"; exit 1; }
+      - name: Build
+        run: node scripts/build-binary.mjs --out dist
+      - name: Smoke test (standalone, through the plugin launcher, and a real render)
+        run: |
+          export DFW_HOME="$RUNNER_TEMP/dfwhome"
+          bin=$(ls dist/dfw-* | grep -v '\.sha256$')
+          "$bin" version | grep -q binary
+          "$bin" doctor
+          v=$(node -p "require('./plugins/dfw/.claude-plugin/plugin.json').version")
+          name=dfw; [ "${{ matrix.target }}" = win32-x64 ] && name=dfw.exe
+          mkdir -p "$DFW_HOME/bin/$v" && cp "$bin" "$DFW_HOME/bin/$v/$name"
+          plugins/dfw/bin/dfw version | grep -q binary
+          # Headless render through lib/cdp.mjs (runner images ship Chrome).
+          echo '<!doctype html><h1 style="font:40px sans-serif">dfw</h1>' > "$RUNNER_TEMP/t.html"
+          node -e "console.log(require('url').pathToFileURL(process.argv[1]).href)" "$RUNNER_TEMP/t.html" > "$RUNNER_TEMP/url"
+          "$bin" shoot --url "$(cat "$RUNNER_TEMP/url")" --bp desktop --out "$RUNNER_TEMP/t.png"
+          test -s "$RUNNER_TEMP/t.png"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dfw-${{ matrix.target }}
+          path: dist/dfw-*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: SHA256SUMS
+        working-directory: dist
+        run: |
+          rm -f *.sha256
+          sha256sum dfw-* > SHA256SUMS
+          cat SHA256SUMS
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "dfw $GITHUB_REF_NAME" \
+            --notes "Single-file dfw binaries (no Node.js needed). Install: curl -fsSL https://raw.githubusercontent.com/$GITHUB_REPOSITORY/main/install.sh | sh  — or, with Node: npx github:$GITHUB_REPOSITORY"

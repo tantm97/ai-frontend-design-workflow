@@ -1,85 +1,58 @@
-// Optional local runtime for screenshots: Playwright (Apache-2.0) installed into
-// ~/.config/dfw/runtime on explicit request ("dfw setup --playwright").
-import fs from 'node:fs';
-import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { createRequire } from 'node:module';
-import { globalDir, DfwError } from './util.mjs';
+// Headless rendering for screenshots and the layout check. It drives the Chrome / Edge /
+// Chromium already on the machine over the DevTools protocol (lib/cdp.mjs): nothing to
+// npm-install. "dfw setup --browser" downloads a headless Chrome only when none is found.
+import { launch, fontsReady, browserStatus, installBrowser } from './cdp.mjs';
 
-export const PLAYWRIGHT_VERSION = '1.64.1'; // pinned; released 2026-10-14
+export { browserStatus, installBrowser, fontsReady };
 
-export function runtimeDir() {
-  return process.env.DFW_RUNTIME_DIR || path.join(globalDir(), 'runtime');
-}
-
-export function playwrightStatus() {
-  const dir = runtimeDir();
-  const pkg = path.join(dir, 'node_modules', 'playwright', 'package.json');
-  if (!fs.existsSync(pkg)) return { installed: false, dir };
-  const version = JSON.parse(fs.readFileSync(pkg, 'utf8')).version;
-  return { installed: true, version, dir };
-}
-
-export function installPlaywright({ log = console.error } = {}) {
-  const dir = runtimeDir();
-  fs.mkdirSync(dir, { recursive: true });
-  const pkgFile = path.join(dir, 'package.json');
-  if (!fs.existsSync(pkgFile)) fs.writeFileSync(pkgFile, JSON.stringify({ name: 'dfw-runtime', private: true }, null, 2));
-  log(`Installing playwright@${PLAYWRIGHT_VERSION} into ${dir} ...`);
-  let r = spawnSync('npm', ['install', '--no-fund', '--no-audit', `playwright@${PLAYWRIGHT_VERSION}`], { cwd: dir, stdio: 'inherit' });
-  if (r.status !== 0) throw new DfwError('npm install playwright failed.');
-  log('Installing Chromium for Playwright ...');
-  r = spawnSync(path.join(dir, 'node_modules', '.bin', 'playwright'), ['install', 'chromium'], { cwd: dir, stdio: 'inherit' });
-  if (r.status !== 0) throw new DfwError('playwright install chromium failed.');
-  return playwrightStatus();
-}
-
-export async function loadPlaywright() {
-  const st = playwrightStatus();
-  if (!st.installed) throw new DfwError('Playwright is not installed for dfw. Ask the user, then run: dfw setup --playwright');
-  const require = createRequire(path.join(st.dir, 'package.json'));
-  return require('playwright');
+/** Start a browser plus one shared context per device scale (shared memory cache, cached fonts). */
+export async function openRenderer() {
+  const browser = await launch();
+  const ctxs = new Map();
+  return {
+    browser,
+    async page({ width, height, scale = 1 }) {
+      if (!ctxs.has(scale)) ctxs.set(scale, browser.newContext({ deviceScaleFactor: scale }));
+      const page = await (await ctxs.get(scale)).newPage();
+      await page.setViewportSize({ width, height });
+      return page;
+    },
+    close: () => browser.close(),
+  };
 }
 
 /**
- * Screenshot a list of jobs: [{url, width, height, out, fullPage, selector}].
+ * Screenshot a list of jobs: [{url, width, height, out, fullPage, selector, scale}].
  * Returns [{out, ok, error}].
  */
-export async function screenshot(jobs, { concurrency = 4 } = {}) {
-  const { chromium } = await loadPlaywright();
-  const browser = await chromium.launch();
+export async function screenshot(jobs, { concurrency = 6 } = {}) {
+  const r = await openRenderer();
   const results = new Array(jobs.length);
   let next = 0;
   const worker = async () => {
     while (next < jobs.length) {
       const i = next++;
       const j = jobs[i];
-      const page = await browser.newPage({ viewport: { width: j.width, height: j.height }, deviceScaleFactor: j.scale || 1 });
+      let page = null;
       try {
-        // "load" + fonts, not "networkidle": the studio keeps a live-reload connection open.
-        await page.goto(j.url, { waitUntil: 'load', timeout: 30000 });
-        await page.evaluate(() => (document.fonts ? document.fonts.ready.then(() => true) : true));
-        await page.waitForTimeout(80);
-        fs.mkdirSync(path.dirname(j.out), { recursive: true });
-        if (j.selector) {
-          const el = await page.$(j.selector);
-          if (!el) throw new Error(`selector not found: ${j.selector}`);
-          await el.screenshot({ path: j.out });
-        } else {
-          await page.screenshot({ path: j.out, fullPage: j.fullPage !== false });
-        }
+        page = await r.page(j);
+        // "load" + fonts, not "network idle": the studio keeps a live-reload connection open.
+        await page.goto(j.url, { timeout: 30000 });
+        await fontsReady(page);
+        await page.waitForTimeout(60);
+        await page.screenshot({ path: j.out, fullPage: j.fullPage !== false, selector: j.selector });
         results[i] = { out: j.out, ok: true };
       } catch (e) {
         results[i] = { out: j.out, ok: false, error: e.message };
       } finally {
-        await page.close();
+        await page?.close();
       }
     }
   };
   try {
     await Promise.all(Array.from({ length: Math.min(concurrency, jobs.length) }, worker));
   } finally {
-    await browser.close();
+    await r.close();
   }
   return results;
 }

@@ -1,6 +1,6 @@
 {
   "name": "ai-frontend-design-workflow",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Design-first frontend workflow (dfw) for Claude Code, plus pinned, de-conflicted copies of the design skills it orchestrates.",
   "type": "module",
@@ -21,5 +21,9 @@
   },
   "bin": {
     "ai-frontend-design-workflow": "scripts/install.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "postject": "1.0.0-alpha.6"
   }
 }

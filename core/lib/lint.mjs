@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { readJson, listFiles, projectPaths, toPosix } from './util.mjs';
-import { composeHtml, loadComponents, designBaseFor } from './compose.mjs';
+import { composeHtml, loadComponents, designBaseFor, findElement } from './compose.mjs';
 
 const STRUCTURAL = ['button', 'a', 'input', 'select', 'textarea', 'nav', 'header', 'main', 'footer', 'section', 'form', 'table', 'dialog', 'aside', 'img', 'h1', 'h2', 'h3', 'ul', 'ol', 'label'];
 const COLOR_RE = /#(?:[0-9a-fA-F]{3,4}){1,2}\b|\b(?:rgba?|hsla?|oklch|oklab|lab|lch|color)\(/g;
@@ -85,11 +85,20 @@ export function lintScreen(root, rel, text, lib = loadComponents(root)) {
     const replaced = new Map();
     for (const d of lib.values()) for (const t of d.replaces) replaced.set(t, d.name);
     const body = Math.max(0, text.search(/<body/i));
+    // Raw elements inside instances whose master accepts them (segmented buttons, tabs) are fine.
+    const allowed = [];
+    for (const u of text.matchAll(/<dfw-use\b[^>]*\bc="([\w-]+)"/g)) {
+      const d = lib.get(u[1]);
+      if (!d?.accepts?.length) continue;
+      const el = findElement(text, u.index);
+      if (el) allowed.push({ from: el.innerStart, to: el.innerEnd, tags: d.accepts });
+    }
     const counts = new Map();
     for (const [tag, comp] of replaced) {
       const re = new RegExp(`<${tag}\\b`, 'gi');
       for (const m of text.matchAll(re)) {
         if (m.index < body) continue;
+        if (allowed.some((r) => m.index > r.from && m.index < r.to && r.tags.includes(tag))) continue;
         if (!counts.has(tag)) counts.set(tag, { n: 0, line: lineOf(text, m.index), comp });
         counts.get(tag).n++;
       }

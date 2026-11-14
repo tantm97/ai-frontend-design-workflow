@@ -36,6 +36,7 @@
       <div id="breakpoints" class="chips" role="group" aria-label="Breakpoints"></div>
       <button type="button" id="states-toggle" class="chip" aria-pressed="false" title="Show one frame per declared state">States</button>
       <button type="button" id="full-toggle" class="chip" aria-pressed="false" title="Grow frames to their full content height">Full height</button>
+      <button type="button" id="pins-toggle" class="chip" aria-pressed="true" title="Comment pins: open → all → off (Shift+C)">Pins: open</button>
       <label class="select" id="theme-wrap" hidden><span>Theme</span><select id="theme"></select></label>
     </div>
 
@@ -110,6 +111,8 @@
         <dt><kbd>V</kbd></dt><dd>Select tool</dd>
         <dt><kbd>H</kbd> / hold <kbd>Space</kbd></dt><dd>Hand tool (pan)</dd>
         <dt><kbd>C</kbd></dt><dd>Comment tool (also in Present)</dd>
+        <dt><kbd>Shift</kbd><kbd>C</kbd></dt><dd>Comment pins: open → all → off (Present: show / hide)</dd>
+        <dt>Click a pin</dt><dd>Read the comment, verify or reopen it in place</dd>
         <dt><kbd>I</kbd></dt><dd>Interact tool: click through the prototype on the canvas</dd>
         <dt><kbd>P</kbd> / double-click frame title</dt><dd>Present the selected frame full-window</dd>
         <dt><kbd>←</kbd> <kbd>→</kbd> (Present)</dt><dd>Previous / next frame of the page</dd>
@@ -133,25 +136,30 @@
 
   <div id="present" class="present" role="dialog" aria-modal="true" aria-label="Prototype preview" hidden>
     <div class="p-bar">
-      <strong id="p-title" class="p-title"></strong>
-      <span id="p-count" class="p-count"></span>
       <div class="p-nav">
-        <button type="button" id="p-prev" title="Previous frame (←)" aria-label="Previous frame">←</button>
-        <button type="button" id="p-next" title="Next frame (→)" aria-label="Next frame">→</button>
+        <button type="button" id="p-prev" title="Previous frame (←)" aria-label="Previous frame"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <span id="p-count" class="p-count"></span>
+        <button type="button" id="p-next" title="Next frame (→)" aria-label="Next frame"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       </div>
-      <label class="p-sel"><span>Breakpoint</span><select id="p-bp"></select></label>
-      <label class="p-sel"><span>State</span><select id="p-state"></select></label>
-      <label class="p-sel" id="p-theme-wrap" hidden><span>Theme</span><select id="p-theme"></select></label>
-      <span class="p-spacer"></span>
-      <button type="button" id="p-comment" class="p-btn" aria-pressed="false" title="Comment (C)">Comment</button>
-      <button type="button" id="p-fit" class="p-btn" aria-pressed="true" title="Toggle fit width / 100%">Fit width</button>
-      <button type="button" id="p-full" class="p-btn" title="Browser fullscreen (F)">Fullscreen</button>
-      <a id="p-open" class="p-btn" href="#" target="_blank" rel="noopener">Open in new tab ↗</a>
-      <button type="button" id="p-close" class="p-btn" title="Close (Esc)" aria-label="Close preview">✕</button>
+      <strong id="p-title" class="p-title"></strong>
+      <div class="p-group">
+        <label class="p-sel"><span>Breakpoint</span><select id="p-bp"></select></label>
+        <label class="p-sel"><span>State</span><select id="p-state"></select></label>
+        <label class="p-sel" id="p-theme-wrap" hidden><span>Theme</span><select id="p-theme"></select></label>
+      </div>
+      <div class="p-group">
+        <button type="button" id="p-pins" class="p-btn" aria-pressed="false" title="Show comment pins (Shift+C)">Pins</button>
+        <button type="button" id="p-comment" class="p-btn" aria-pressed="false" title="Comment (C)">Comment</button>
+        <button type="button" id="p-fit" class="p-btn" aria-pressed="true" title="Toggle fit width / 100%">Fit width</button>
+        <button type="button" id="p-full" class="p-btn" title="Browser fullscreen (F)">Fullscreen</button>
+        <a id="p-open" class="p-btn" href="#" target="_blank" rel="noopener" title="Open in a new tab" aria-label="Open in a new tab">↗</a>
+        <button type="button" id="p-close" class="p-btn" title="Close (Esc)" aria-label="Close preview">✕</button>
+      </div>
     </div>
     <div id="p-stage" class="p-stage"><div id="p-wrap" class="p-wrap"></div></div>
   </div>
 
+  <div id="pin-pop" class="pin-pop" role="dialog" aria-label="Comment" hidden></div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   <script type="module" src="/__dfw/static/app.js"></script>
 </body>

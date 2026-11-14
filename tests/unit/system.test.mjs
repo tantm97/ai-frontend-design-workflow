@@ -193,3 +193,12 @@ test('layout: void detection on measured blocks', async () => {
   // A filled screen: no voids.
   assert.deepEqual(findVoids({ ...base, blocks: [{ x: 0, y: 56, w: 1366, h: 712 }] }), []);
 });
+
+test('compose: prop lists with spaces, commas and spaced defaults', async () => {
+  const { parseComponentFile } = await import('../../core/lib/compose.mjs');
+  const [a] = parseComponentFile('<dfw-component name="x" props="asset name location site=Asset Tracking, printed"><template><i></i></template></dfw-component>', 'x.html');
+  assert.deepEqual(a.props, ['asset', 'name', 'location', 'site', 'printed']);
+  assert.equal(a.propDefaults.site, 'Asset Tracking');
+  const [b] = parseComponentFile('<dfw-component name="y" props="as=p tone=default"><template><i></i></template></dfw-component>', 'y.html');
+  assert.deepEqual(b.propDefaults, { as: 'p', tone: 'default' });
+});

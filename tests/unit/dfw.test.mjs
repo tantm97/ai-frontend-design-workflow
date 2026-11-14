@@ -15,7 +15,7 @@ import { addComment, updateComment, allComments } from '../../core/lib/comments.
 import { freezeDesign, verifySnapshot, reopenDesign } from '../../core/lib/freeze.mjs';
 import { globToRegExp } from '../../core/lib/util.mjs';
 
-const DFW = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../core/bin/dfw');
+const DFW = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../core/bin/dfw.mjs');
 
 function tmpProject() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dfw-unit-'));

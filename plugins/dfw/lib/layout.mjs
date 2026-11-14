@@ -1,5 +1,5 @@
 // Rendered layout check: what a reviewer sees, not what the HTML says.
-// Renders each screen (composed, CSS inlined) at each breakpoint/state in Playwright and measures:
+// Renders each screen (composed, CSS inlined) at each breakpoint/state in headless Chrome (lib/cdp.mjs) and measures:
 //   overlap        two content elements painting over each other (MUST)
 //   h-overflow     page wider than the viewport (MUST)
 //   anchor         an element marked data-dfw-anchor (feedback, primary action) not fully on screen,
@@ -11,10 +11,11 @@
 // Also runs on the generated Design System page.
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { projectPaths, readJson, writeJson, toPosix } from './util.mjs';
 import { buildComposed, buildSystem, composeHtml, loadComponents } from './compose.mjs';
 import { renderSystemPage } from './system-page.mjs';
-import { playwrightStatus, loadPlaywright } from './runtime.mjs';
+import { browserStatus, openRenderer, fontsReady } from './runtime.mjs';
 import { loadConfig } from './config.mjs';
 
 // Runs inside the page. Returns raw measurements; thresholds are applied in Node.
@@ -61,7 +62,9 @@ function measure(opts) {
     if (!vis(el)) continue;
     const r = visibleRect(el);
     if (!r || r.width < 1 || r.height < 1) continue;
-    if (r.width * r.height > vw * vh * 0.6) continue;
+    // Page-sized wrappers are not content; a large component surface (a card filling a task page) is.
+    const comp = el.getAttribute('data-dfw-component');
+    if (r.width * r.height > vw * vh * 0.6 && (!comp || /^(app-shell|page|nav)$/.test(comp))) continue;
     const cs = getComputedStyle(el);
     const hasText = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
     const replaced = /^(IMG|SVG|INPUT|SELECT|TEXTAREA|BUTTON|CANVAS|VIDEO|svg)$/.test(el.tagName);
@@ -100,9 +103,17 @@ function measure(opts) {
       if (x > 2 && y > 2 && out.overlaps.length < 20) out.overlaps.push({ a: label(a.el), b: label(b.el), area: Math.round(x * y), boxes: true });
     }
   }
-  // Clipped text.
+  // Clipped text: by its own box, or cut off horizontally by a clipping ancestor (vertical cuts are
+  // normal inside scroll areas).
   for (const p of painted) {
     if (!p.hasText) continue;
+    const full = p.el.getBoundingClientRect();
+    let scroller = false;
+    for (let a = p.el.parentElement; a && a !== document.body; a = a.parentElement) if (/auto|scroll/.test(getComputedStyle(a).overflowX)) { scroller = true; break; }
+    if (!scroller && full.width - p.r.width > 2 && p.cs.position !== 'fixed' && out.clipped.length < 20) {
+      out.clipped.push({ el: label(p.el.closest('[data-dfw-id],[data-dfw-component]') || p.el), text: p.el.textContent.trim().slice(0, 40) });
+      continue;
+    }
     const cs = p.cs;
     const clipsX = /hidden|clip/.test(cs.overflowX) && p.el.scrollWidth > p.el.clientWidth + 1 && cs.textOverflow !== 'ellipsis';
     const clipsY = /hidden|clip/.test(cs.overflowY) && p.el.scrollHeight > p.el.clientHeight + 1 && cs.webkitLineClamp === 'none';
@@ -226,7 +237,8 @@ export function markChecked(root) {
  * opts: { screens?: [ids], bp?: [ids], states?: true, stress?: true, system?: true }
  */
 export async function layoutCheck(root, opts = {}) {
-  if (!playwrightStatus().installed) return { status: 'unavailable', detail: 'Playwright not installed (dfw setup --playwright)', findings: [] };
+  const bs = browserStatus();
+  if (!bs.installed) return { status: 'unavailable', detail: bs.detail, findings: [] };
   const p = projectPaths(root);
   const m = readJson(p.manifest, {});
   const config = loadConfig(root);
@@ -250,31 +262,31 @@ export async function layoutCheck(root, opts = {}) {
     const bp = bps.find((b) => b.width >= 1280) || bps[0];
     jobs.push({ screen: '_system', variant: 'page', rel: 'design/system/index.html', bp, state: null, stress: false, system: true });
   }
-  const { chromium } = await loadPlaywright();
-  const browser = await chromium.launch();
+  const renderer = await openRenderer();
   const results = [];
   try {
     let next = 0;
     const worker = async () => {
       while (next < jobs.length) {
         const j = jobs[next++];
-        const page = await browser.newPage({ viewport: { width: j.bp.width, height: j.bp.height } });
+        let page = null;
         try {
-          await page.goto('file://' + files.get(j.rel), { waitUntil: 'load', timeout: 30000 });
+          page = await renderer.page({ width: j.bp.width, height: j.bp.height });
+          await page.goto(pathToFileURL(files.get(j.rel)).href, { timeout: 30000 });
           if (j.state) await page.evaluate((st) => document.documentElement.setAttribute('data-state', st), j.state);
-          await page.evaluate(() => (document.fonts ? document.fonts.ready.then(() => true) : true));
-          await page.waitForTimeout(60);
+          await fontsReady(page);
+          await page.waitForTimeout(40);
           results.push({ ...j, m: await page.evaluate(measure, { stress: j.stress }) });
         } catch (e) {
           results.push({ ...j, error: e.message });
         } finally {
-          await page.close();
+          await page?.close();
         }
       }
     };
-    await Promise.all(Array.from({ length: Math.min(4, jobs.length) }, worker));
+    await Promise.all(Array.from({ length: Math.min(6, jobs.length) }, worker));
   } finally {
-    await browser.close();
+    await renderer.close();
   }
 
   const findings = [];
