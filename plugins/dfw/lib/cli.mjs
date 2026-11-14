@@ -5,8 +5,10 @@ import net from 'node:net';
 import { spawn, spawnSync } from 'node:child_process';
 import {
   PLUGIN_ROOT, parseArgs, parseValue, findProjectRoot, projectPaths, readJson, writeJson, appendJsonl,
-  readJsonl, nowIso, readStdin, DfwError, copyDir, listFiles, claudeDir, globalDir,
+  readJsonl, nowIso, readStdin, DfwError, copyDir, listFiles, claudeDir, globalDir, selfCommand, IS_BINARY,
 } from './util.mjs';
+import { binaryStatus, installBinary, dfwVersion } from './binary.mjs';
+import { install, uninstall } from './install.mjs';
 import { loadConfig, setConfigValue, getConfigValue } from './config.mjs';
 import { loadState, saveState, newState, setPhase, approveGate, setMode, summarize, MODES, PHASES, GATES, currentApproval } from './state.mjs';
 import { freezeDesign, reopenDesign, verifySnapshot } from './freeze.mjs';
@@ -17,7 +19,7 @@ import { addComment, allComments, updateComment, newSession } from './comments.m
 import { languageStatus, setLanguage } from './lang.mjs';
 import { HANDLERS } from './hooks.mjs';
 import { impeccableLauncher, pluginRoot, sloplintScript, tasteCopyLintScript } from './locate.mjs';
-import { playwrightStatus, installPlaywright, screenshot } from './runtime.mjs';
+import { browserStatus, installBrowser, screenshot } from './runtime.mjs';
 import { buildSystem, loadComponents } from './compose.mjs';
 import { systemInit, systemOptions, systemChoose, systemSummary, listPresets } from './system.mjs';
 import { searchIcons, addIcons } from './icons.mjs';
@@ -66,7 +68,7 @@ Design workspace
   dfw check [files...|--url <u>] [--json] [--setup]   dfw lint + Impeccable + sloplint (+ Taste copy-lint)
   dfw studio start|stop|status [--port <n>]     Local Design Studio (canvas + click-to-comment)
   dfw shoot [--screen <id>|--page <id>] [--variant <id>] [--bp <ids>] [--state <s>|--states] [--theme <t>|--themes] [--system]
-                                                Screenshots in one browser run (Playwright); --url <u> --out <file> for any URL
+                                                Screenshots in one browser run (your Chrome/Edge, headless); --url <u> --out <file> for any URL
   dfw verify-snapshot [<version>]               Check an approved snapshot was not modified
   dfw handoff                                   Generate design/handoff/v<N>.md skeleton
 
@@ -89,7 +91,11 @@ Stack and settings
   dfw lang status|set <code> [--session <id>]   Communication language for this session
   dfw config get <key> | set <key> <value> [--global|--project|--local]
   dfw doctor                                    Environment and installation checks
-  dfw setup --playwright                        Install pinned Playwright + Chromium for screenshots
+  dfw setup --browser                           Download a headless Chrome (only if no Chrome/Edge/Chromium is installed)
+  dfw setup --binary                            Download the single-file dfw binary for this version (faster; Node optional)
+  dfw install [--scope user|project|local] [--no-runtime] [--no-binary]   Register dfw + its skills with Claude Code
+  dfw uninstall [--scope ...]                   Remove them (project files stay)
+  dfw version
 `;
 
 function out(data, json) {
@@ -286,7 +292,8 @@ async function cmdStudio(root, a) {
   for (let i = 0; i < 20 && !(await portFree(port)); i++) port++;
   fs.mkdirSync(p.dfw, { recursive: true });
   const log = fs.openSync(path.join(p.dfw, 'studio.log'), 'a');
-  const child = spawn(process.execPath, [path.join(PLUGIN_ROOT, 'studio', 'server.mjs'), '--root', root, '--port', String(port)], {
+  const self = selfCommand();
+  const child = spawn(self.cmd, [...self.args, '__studio-server', '--root', root, '--port', String(port)], {
     detached: true,
     stdio: ['ignore', log, log],
   });
@@ -306,7 +313,9 @@ async function cmdShoot(root, a) {
   let jobs = [];
   if (a.url) {
     for (const bp of bps) {
-      const outFile = a.out ? path.resolve(a.out.replace('{bp}', bp.id)) : path.join(p.dfw, 'shots', 'url', `${new URL(a.url).pathname.replace(/\W+/g, '_') || 'root'}__${bp.id}.png`);
+      // Several breakpoints into one --out name would overwrite each other: suffix the breakpoint.
+      const outName = a.out && !a.out.includes('{bp}') && bps.length > 1 ? a.out.replace(/(\.\w+)?$/, (ext) => `__{bp}${ext || '.png'}`) : a.out;
+      const outFile = outName ? path.resolve(outName.replace('{bp}', bp.id)) : path.join(p.dfw, 'shots', 'url', `${new URL(a.url).pathname.replace(/\W+/g, '_') || 'root'}__${bp.id}.png`);
       jobs.push({ url: a.url, width: bp.width, height: bp.height, out: outFile, selector: a.selector, fullPage: !a.viewport });
     }
   } else {
@@ -451,7 +460,9 @@ function cmdDoctor(root) {
   const rows = [];
   const ok = (name, good, detail) => rows.push(`${good ? 'ok  ' : 'WARN'} ${name}${detail ? ` - ${detail}` : ''}`);
   const major = Number(process.versions.node.split('.')[0]);
-  ok('node >= 20', major >= 20, process.versions.node);
+  const bin = binaryStatus();
+  ok('dfw runtime', true, IS_BINARY ? `binary ${bin.version} (${process.execPath})` : `node ${process.versions.node}${bin.installed ? ` (binary installed: ${bin.path})` : ' (optional: dfw setup --binary)'}`);
+  if (!IS_BINARY) ok('node >= 22 for renders', major >= 22, process.versions.node);
   const py = spawnSync('python3', ['--version'], { encoding: 'utf8' });
   ok('python3 (UI UX Pro Max search)', py.status === 0, (py.stdout || py.stderr || 'not found').trim());
   ok('git', spawnSync('git', ['--version']).status === 0);
@@ -463,8 +474,8 @@ function cmdDoctor(root) {
   ok('impeccable engine downloaded', Boolean(imp?.ready), imp ? (imp.ready ? imp.version : 'run "dfw check --setup" once (downloads a checksum-verified binary from GitHub)') : 'impeccable plugin not found');
   ok('sloplint', Boolean(sloplintScript()));
   ok('taste copy-lint', Boolean(tasteCopyLintScript()), 'optional');
-  const pw = playwrightStatus();
-  ok('playwright (screenshots)', pw.installed, pw.installed ? `${pw.version} in ${pw.dir}` : 'optional: dfw setup --playwright');
+  const br = browserStatus();
+  ok('browser for screenshots and layout check', br.installed, br.installed ? `${br.source}: ${br.path}` : `${br.detail}`);
   // Duplicate installs of the same upstream skills from other marketplaces load twice.
   const installed = readJson(path.join(claudeDir(), 'plugins', 'installed_plugins.json'), null);
   if (installed?.plugins) {
@@ -486,8 +497,17 @@ function cmdDoctor(root) {
 }
 
 export async function main(argv) {
+  // Internal: the Studio server process ("dfw studio start" spawns it; same in the binary).
+  if (argv[0] === '__studio-server') {
+    globalThis.__DFW_STUDIO_ARGV = argv.slice(1);
+    await import('../studio/server.mjs');
+    return;
+  }
   const a = parseArgs(argv);
   const cmd = a._[0];
+  if (cmd === 'version' || a.version) return out(`dfw ${dfwVersion()} (${IS_BINARY ? 'binary' : `node ${process.versions.node}`})`);
+  if (cmd === 'install') return install({ scope: a.scope || 'user', source: a.source || undefined, runtime: !a['no-runtime'], binary: !a['no-binary'], quiet: Boolean(a.quiet) });
+  if (cmd === 'uninstall') return uninstall({ scope: a.scope || 'user', quiet: Boolean(a.quiet) });
   if (!cmd || cmd === 'help' || a.help) return out(HELP);
   if (cmd === 'hook') {
     const handler = HANDLERS[a._[1]];
@@ -744,12 +764,13 @@ export async function main(argv) {
     case 'doctor':
       return cmdDoctor(root);
     case 'setup': {
-      if (a.playwright) return out(installPlaywright(), true);
+      if (a.browser || a.playwright) return out(await installBrowser(), true);
+      if (a.binary) return out(await installBinary(), true);
       if (a['marketplace-repo']) {
         const file = setConfigValue('global', root, 'marketplaceRepo', path.resolve(a['marketplace-repo']));
         return out(`Recorded marketplace repo in ${file}`);
       }
-      throw new DfwError('Usage: dfw setup --playwright | --marketplace-repo <path>');
+      throw new DfwError('Usage: dfw setup --browser | --binary | --marketplace-repo <path>');
     }
     default:
       throw new DfwError(`Unknown command "${cmd}". Run "dfw help".`);

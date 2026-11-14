@@ -52,6 +52,9 @@ const S = {
   space: false,
   panning: null,
   zoomOnSelect: false,
+  // Comment pins on the canvas: 'active' (open + to verify), 'all' (also closed) or 'off'.
+  pins: store.get('pins', 'active'),
+  pop: null, // comment id shown in the pin popover
 };
 
 const ACTIVE = ['open', 'acknowledged', 'reopened'];
@@ -62,7 +65,7 @@ const hud = $('#hud');
 const ALL = '__all';
 const PKEY = '__present';
 // Presenter state: a pseudo-frame shown full-window.
-const P = { present: true, key: PKEY, open: false, loaded: false, fit: store.get('pfit', true), scale: 1, screen: null, variant: null, bp: null, state: null, file: null, system: false, pinRects: [] };
+const P = { present: true, key: PKEY, open: false, loaded: false, pins: store.get('ppins', false), fit: store.get('pfit', true), scale: 1, screen: null, variant: null, bp: null, state: null, file: null, system: false, pinRects: [] };
 
 async function api(path, opts = {}) {
   const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
@@ -458,16 +461,69 @@ function updateHud() {
     b.style.left = `${r[0] + r[2]}px`;
     b.style.top = `${r[1]}px`;
   }
+  placePop();
+}
+
+/* ---------------------------------------------------------------- pin popover (read a comment in place) */
+
+function openPop(id) {
+  S.pop = id;
+  renderPop();
+  renderPins();
+}
+
+function closePop() {
+  if (!S.pop) return;
+  S.pop = null;
+  $('#pin-pop').hidden = true;
+  for (const b of $$('#pins button.on')) b.classList.remove('on');
+}
+
+function renderPop() {
+  const c = S.comments.find((x) => x.id === S.pop);
+  const pop = $('#pin-pop');
+  if (!c) return closePop();
+  const where = c.screen === 'system' ? 'Design System' : [c.screen, c.variant, c.breakpoint, c.state].filter(Boolean).join(' / ');
+  const thread = (c.thread || []).slice(-3);
+  pop.innerHTML = `
+    <div class="pop-head"><span class="num">#${esc(c.id.replace('fb_', ''))}</span><span class="status" data-s="${esc(c.status)}">${statusLabel(c.status)}</span><button type="button" class="pop-x" aria-label="Close">✕</button></div>
+    <p class="pop-text">${esc(c.comment)}</p>
+    <p class="pop-where">${esc(where)} · <code>${esc(c.target?.dfwId || c.target?.selector || 'area')}</code></p>
+    ${thread.length ? `<ul class="thread">${thread.map((t) => `<li><span class="by">${esc(t.by)} · ${esc(new Date(t.at).toLocaleString())}</span>${esc(t.message)}</li>`).join('')}</ul>` : ''}
+    <div class="comment-actions"></div>`;
+  $('.pop-x', pop).onclick = closePop;
+  commentActions(c, $('.comment-actions', pop));
+  pop.hidden = false;
+  placePop();
+}
+
+function placePop() {
+  const pop = $('#pin-pop');
+  if (!S.pop || pop.hidden) return;
+  const b = $(`#pins button[data-id="${S.pop}"]`);
+  if (!b || b.hidden) return closePop();
+  const r = b.getBoundingClientRect();
+  const w = pop.offsetWidth;
+  const h = pop.offsetHeight;
+  let x = r.right + 8;
+  if (x + w > innerWidth - 8) x = Math.max(8, r.left - w - 8);
+  pop.style.left = `${x}px`;
+  pop.style.top = `${Math.min(Math.max(48, r.top), innerHeight - h - 8)}px`;
 }
 
 /* ---------------------------------------------------------------- pins */
 
 const STATUS_COLOR = { open: '#c2410c', acknowledged: '#c2410c', reopened: '#c2410c', fixed: '#a16207', resolved: '#15803d' };
 
+const PIN_STATUSES = { active: ['open', 'acknowledged', 'reopened', 'fixed'], all: ['open', 'acknowledged', 'reopened', 'fixed', 'resolved'], off: [] };
+/** Presenter: pins only when toggled on, or while commenting. Canvas: the Pins setting. */
+const pinStatuses = (f) => (f?.present ? (P.pins || P.mode === 'comment' ? PIN_STATUSES.active : []) : PIN_STATUSES[S.pins] || PIN_STATUSES.active);
+
 function pinsFor(f) {
   if (!f) return [];
+  const show = pinStatuses(f);
   return S.comments
-    .filter((c) => c.status !== 'dismissed' && (f.system ? c.screen === 'system' : f.screen && c.screen === f.screen.id && c.variant === f.variant?.id && (c.state || null) === (f.state || null)))
+    .filter((c) => show.includes(c.status) && (f.system ? c.screen === 'system' : f.screen && c.screen === f.screen.id && c.variant === f.variant?.id && (c.state || null) === (f.state || null)))
     .map((c) => ({ id: c.id, n: Number(c.id.replace('fb_', '')), selector: c.target?.selector, dfwId: c.target?.dfwId, status: c.status }));
 }
 
@@ -481,16 +537,24 @@ function renderPins() {
       const b = document.createElement('button');
       b.type = 'button';
       b.textContent = Number(c.id.replace('fb_', ''));
-      b.title = `Comment #${b.textContent}: ${c.comment.slice(0, 80)}`;
+      b.title = `Comment #${b.textContent} · ${statusLabel(c.status)}`;
+      b.setAttribute('aria-label', `Comment ${b.textContent}: ${c.comment.slice(0, 80)}`);
+      b.dataset.s = c.status;
+      if (S.pop === c.id) b.classList.add('on');
       b.dataset.key = f.key;
       b.dataset.id = c.id;
       b.dataset.rect = JSON.stringify(p.rect);
       b.style.background = STATUS_COLOR[c.status] || '#78716c';
-      b.onclick = () => {
+      b.onclick = (e) => {
+        e.stopPropagation();
+        if (S.pop === c.id) return closePop();
         S.selectedComment = c.id;
-        setTab('comments');
-        renderComments();
-        document.querySelector(`.comment[data-id="${c.id}"]`)?.scrollIntoView({ block: 'nearest' });
+        if (!P.open) {
+          setTab('comments');
+          renderComments();
+          document.querySelector(`.comment[data-id="${c.id}"]`)?.scrollIntoView({ block: 'nearest' });
+        }
+        openPop(c.id);
       };
       wrap.append(b);
     }
@@ -929,6 +993,7 @@ function openPresent(f) {
 function closePresent() {
   if (!P.open) return;
   closeComposer();
+  closePop();
   P.open = false;
   P.loaded = false;
   P.pinRects = [];
@@ -983,10 +1048,18 @@ function layoutPresent() {
   updateHud();
 }
 
+/** Does canvas frame f show what the presenter shows now? (ids, not objects: a live reload rebuilds them) */
+const presentMatches = (f) =>
+  f.system ? P.system : !P.system && f.screen?.id === P.screen?.id && f.variant?.id === P.variant?.id && f.bp?.id === P.bp?.id && (f.state || null) === (P.state || null);
+
 function presentIndex() {
   const list = presentList();
-  const i = list.findIndex((f) => (f.system ? P.system : !P.system && f.screen === P.screen && f.variant === P.variant && f.bp?.id === P.bp?.id && (f.state || null) === (P.state || null)));
-  return i >= 0 ? i : list.findIndex((f) => f.key === P.key0);
+  // The same screen can sit on several rows (sections, All pages): the key decides, attributes only
+  // when the user switched breakpoint/state in the presenter bar.
+  const k = list.findIndex((f) => f.key === P.key0);
+  if (k >= 0 && presentMatches(list[k])) return k;
+  const i = list.findIndex(presentMatches);
+  return i >= 0 ? i : k;
 }
 
 function renderPresentBar() {
@@ -1006,11 +1079,13 @@ function renderPresentBar() {
   $('#p-theme').innerHTML = `<option value="">default</option>` + themes.map((t) => `<option ${t === S.theme ? 'selected' : ''}>${esc(t)}</option>`).join('');
   $('#p-open').href = presentSrc();
   $('#p-comment').setAttribute('aria-pressed', String(P.mode === 'comment'));
+  $('#p-pins').setAttribute('aria-pressed', String(P.pins));
 }
 
 function presentStep(dir) {
   const list = presentList();
   if (!list.length) return;
+  closePop();
   const i = presentIndex();
   const f = list[(Math.max(0, i) + dir + list.length) % list.length];
   P.system = !!f.system;
@@ -1026,6 +1101,8 @@ function presentStep(dir) {
 function setPresentMode(mode) {
   P.mode = mode;
   if (mode !== 'comment') closeComposer();
+  if (mode !== 'comment' && !P.pins) closePop();
+  if (P.loaded) post(P, { type: 'dfw:pins', pins: pinsFor(P) });
   if (P.loaded) post(P, { type: 'dfw:mode', mode });
   renderPresentBar();
 }
@@ -1089,12 +1166,43 @@ $('#p-fit').onclick = () => {
 };
 $('#p-full').onclick = toggleFullscreen;
 $('#p-comment').onclick = () => setPresentMode(P.mode === 'comment' ? 'present' : 'comment');
+$('#p-pins').onclick = () => togglePresentPins();
+$('#pins-toggle').onclick = () => cyclePins();
+
+function togglePresentPins() {
+  P.pins = !P.pins;
+  store.set('ppins', P.pins);
+  if (!P.pins) closePop();
+  renderPresentBar();
+  syncPins();
+}
+
+const PIN_LABEL = { active: 'Pins: open', all: 'Pins: all', off: 'Pins: off' };
+function cyclePins() {
+  S.pins = { active: 'all', all: 'off', off: 'active' }[S.pins] || 'active';
+  store.set('pins', S.pins);
+  if (S.pins === 'off') closePop();
+  renderPinsToggle();
+  syncPins();
+  toast(S.pins === 'off' ? 'Comment pins hidden (Shift+C shows them).' : S.pins === 'all' ? 'Showing every pin, closed comments too.' : 'Showing pins of open and to-verify comments.');
+}
+function renderPinsToggle() {
+  const b = $('#pins-toggle');
+  b.textContent = PIN_LABEL[S.pins] || PIN_LABEL.active;
+  b.setAttribute('aria-pressed', String(S.pins !== 'off'));
+}
+function syncPresentKey() {
+  const f = presentList().find(presentMatches);
+  if (f) P.key0 = f.key;
+}
 $('#p-bp').onchange = (e) => {
   P.bp = S.manifest.breakpoints.find((b) => b.id === e.target.value) || P.bp;
+  syncPresentKey();
   loadPresent();
 };
 $('#p-state').onchange = (e) => {
   P.state = e.target.value || null;
+  syncPresentKey();
   loadPresent();
 };
 $('#p-theme').onchange = (e) => {
@@ -1169,6 +1277,7 @@ viewport.addEventListener('mousedown', (e) => {
   }
   if (e.button === 0 && (e.target === viewport || e.target === world)) {
     closeComposer();
+    closePop();
     clearSelection();
   }
 });
@@ -1196,11 +1305,13 @@ function handleKey(d) {
     if (mod || d.alt) return;
     if (key === 'Escape') {
       if (!$('#composer').hidden) return closeComposer();
+      if (S.pop) return closePop();
       if (P.mode === 'comment') return setPresentMode('present');
       return closePresent();
     }
     if (key === 'ArrowLeft') return presentStep(-1);
     if (key === 'ArrowRight') return presentStep(1);
+    if (key === 'C' && d.shift) return togglePresentPins();
     if (key === 'c' || key === 'C') return setPresentMode(P.mode === 'comment' ? 'present' : 'comment');
     if (key === 'f' || key === 'F') return toggleFullscreen();
     if (key === 'p' || key === 'P') return closePresent();
@@ -1218,6 +1329,7 @@ function handleKey(d) {
   switch (key) {
     case 'Escape':
       if (!$('#composer').hidden) return closeComposer();
+      if (S.pop) return closePop();
       if (S.sel) {
         postAll({ type: 'dfw:clear-selection' });
         S.sel = null;
@@ -1243,8 +1355,10 @@ function handleKey(d) {
     case 'f':
     case 'F':
       return toggleFullscreen();
-    case 'c':
     case 'C':
+      if (d.shift) return cyclePins();
+    // falls through
+    case 'c':
       return setMode(S.mode === 'comment' ? 'select' : 'comment');
     case '+':
     case '=':
@@ -1328,7 +1442,13 @@ function renderComments() {
       <p class="comment-text">${esc(c.comment)}</p>
       ${last.length ? `<ul class="thread">${last.map((t) => `<li><span class="by">${esc(t.by)} · ${esc(new Date(t.at).toLocaleString())}</span>${esc(t.message)}</li>`).join('')}</ul>` : ''}
       <div class="comment-actions"></div>`;
-    const actions = $('.comment-actions', li);
+    commentActions(c, $('.comment-actions', li));
+    li.onclick = () => focusComment(c);
+    list.append(li);
+  }
+}
+
+function commentActions(c, actions) {
     const btn = (label, cls, fn) => {
       const b = document.createElement('button');
       b.type = 'button';
@@ -1348,9 +1468,6 @@ function renderComments() {
     } else {
       btn('Reopen', '', () => askReason(actions, (msg) => patch(c.id, { status: 'reopened', message: msg })));
     }
-    li.onclick = () => focusComment(c);
-    list.append(li);
-  }
 }
 
 function askReason(container, done) {
@@ -1368,6 +1485,7 @@ function askReason(container, done) {
   };
   ta.onclick = (e) => e.stopPropagation();
   container.append(ta, ok);
+  placePop();
   ta.focus();
 }
 
@@ -1479,6 +1597,11 @@ async function loadComments() {
   renderComments();
   renderPages();
   syncPins();
+  if (S.pop) {
+    const c = S.comments.find((x) => x.id === S.pop);
+    if (!c || !pinStatuses(P.open ? P : null).includes(c.status)) closePop();
+    else renderPop();
+  }
 }
 
 function renderToolbar() {
@@ -1505,6 +1628,7 @@ function renderToolbar() {
   }
   $('#states-toggle').setAttribute('aria-pressed', String(S.showStates));
   $('#full-toggle').setAttribute('aria-pressed', String(S.fullHeight));
+  renderPinsToggle();
   const themes = m.themes || [];
   $('#theme-wrap').hidden = !themes.length;
   $('#theme').innerHTML = `<option value="">default</option>` + themes.map((t) => `<option ${t === S.theme ? 'selected' : ''}>${esc(t)}</option>`).join('');

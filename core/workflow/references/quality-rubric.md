@@ -19,7 +19,7 @@ The user must never see a first draft. Every design-system page and every page o
 | 4 | Density fit | Matches the users (operators: large targets, few items, big feedback; analysts: dense tables) — not generic airy SaaS for everything. |
 | 5 | Color discipline | Neutral by default; accent only for primary action/selection; status colors only for status; no decorative gradients; contrast passes. |
 | 6 | Component consistency | Every screen uses the same `app-shell` (navigation, header, frame); same thing looks the same everywhere (buttons, badges, tables); no one-off styles; icons from one set, one stroke width, consistent size. |
-| 7 | Content realism | Real names, long values, edge cases, empty/error states designed; no lorem, no "John Doe", no fake perfect numbers. |
+| 7 | Content realism | Real names, long values, edge cases, empty/error states designed; no lorem, no "John Doe", no fake perfect numbers. One shared cast across screens: the same person, asset ID, department and time mean the same thing on every screen (keep it in `design/system/sample-data.md`). |
 | 8 | Craft details | Optical alignment of icons and text, no orphaned words in headings, no clipped text, no double borders, no cards inside cards, consistent radii. |
 | 9a | Space and anchors | No voids or overlaps (`dfw layout check`); task screens fill the viewport, feedback and primary action stay put with long data. |
 | 9 | Responsiveness | Every breakpoint intentional (reflow, not squeeze); nothing overflows; primary action reachable. |

@@ -1,5 +1,5 @@
 <dfw-component name="data-table" group="Data" variants="default dense" props="label"
-  description="Tabular data. Slot: <thead>/<tbody> rows. Helpers: td.num (right, tabular), .cell-sub (second line), tr.is-selected, tr.is-alert, tr.is-group + tr.is-child (grouped rows), th[aria-sort].">
+  description="Tabular data. Slot: <thead>/<tbody> rows. Helpers: td.num (right, tabular), .cell-sub (second line), tr.is-selected, tr.is-alert, tr.is-group + tr.is-child (grouped rows; is-group.is-alert keeps the alert tint), th[aria-sort], span.cell-placeholder for loading rows.">
 <style>
 .dtable { width: 100%; overflow: auto; background: var(--color-surface); border: var(--border-width) solid var(--color-rule); border-radius: var(--radius-lg); }
 .dtable table { width: 100%; border-collapse: collapse; font: var(--font-weight-regular) var(--font-size-sm) / var(--font-leading-snug) var(--font-family-body); font-variant-numeric: tabular-nums; color: var(--color-ink); }
@@ -15,6 +15,8 @@
 .dtable tr.is-alert td { background: var(--color-status-err-tint); }
 .dtable tr.is-alert:hover td { background: var(--color-status-err-tint); }
 .dtable tr.is-group td { background: var(--color-surface-sunken); font-weight: var(--font-weight-medium); }
+.dtable tr.is-group.is-alert td { background: var(--color-status-err-tint); }
+.dtable .cell-placeholder { display: block; height: var(--space-3); width: 60%; border-radius: var(--radius-sm); background: var(--color-surface-sunken); }
 .dtable tr.is-child td:nth-child(2) { padding-left: var(--space-10); }
 .dtable tr.is-child td { color: var(--color-muted); }
 .dtable--dense td { padding: var(--space-2) var(--space-3); }

@@ -13,3 +13,5 @@ This repository vendors unmodified copies of the following projects (adapted onl
 | taste-reference | https://github.com/Leonxlnx/taste-skill | `f6b76575f949` | MIT | Leonxlnx |
 
 The `dfw` plugin, scripts, overlays and policies are original work under the MIT license (see LICENSE).
+
+The single-file `dfw` binaries attached to GitHub releases embed the official Node.js runtime (MIT; its bundled third-party licenses: https://github.com/nodejs/node/blob/main/LICENSE) and are built with esbuild (MIT) and postject (MIT). dfw drives an already-installed Chromium-based browser; `dfw setup --browser` downloads Google's chrome-headless-shell (Chrome for Testing, BSD-3-Clause and its own notices) only on request.

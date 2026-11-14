@@ -20,6 +20,7 @@
 //   - inner HTML fills <dfw-slot>; <dfw-fill slot="x">...</dfw-fill> fills <dfw-slot name="x">.
 //   - props="a b=default" declares props (optional default); {{prop}} placeholders are HTML-escaped;
 //     {{prop==value?text}} renders text only when prop equals value; data-dfw-if="prop==value" / "prop!=value";
+//   - accepts="button": raw children of that tag are the expected slot content (lint does not ask to replace them);
 //   - preview="frame" on <dfw-component> shows its examples as a scaled full-screen frame on the Design System page; data-dfw-if="prop" drops the element when prop is empty,
 //     data-dfw-if="!prop" drops it when prop is set.
 // Icon: <dfw-icon name="scan-line" size="20"></dfw-icon> -> inline SVG from design/system/icons/<name>.svg.
@@ -111,7 +112,22 @@ export function parseComponentFile(text, rel) {
     const ex = /<dfw-examples\b[^>]*>([\s\S]*?)<\/dfw-examples>/i.exec(inner);
     const list = (s) => (s || '').split(/[\s,]+/).filter(Boolean);
     // props: space-separated, or comma-separated when a default contains spaces ("current, brand=Asset Tracking").
-    const propList = (s) => (String(s || '').includes(',') ? String(s).split(',').map((x) => x.trim()).filter(Boolean) : list(s));
+    // props: names separated by spaces and/or commas; a default (name=value) runs to the next comma,
+    // so "asset name site=Asset Tracking, printed" gives asset, name, site (default "Asset Tracking"), printed.
+    const propList = (s) =>
+      !String(s || '').includes(',')
+        ? list(s) // "as=p tone=default": space-separated, defaults without spaces
+        : String(s)
+        .split(',')
+        .flatMap((part) => {
+          const t = part.trim();
+          if (!t) return [];
+          const eq = t.indexOf('=');
+          if (eq < 0) return t.split(/\s+/);
+          const before = t.slice(0, eq).trim().split(/\s+/);
+          const last = before.pop();
+          return [...before, `${last}=${t.slice(eq + 1).trim()}`];
+        });
     const variants = list(a.variants);
     const sizes = list(a.sizes);
     defs.push({
@@ -128,6 +144,7 @@ export function parseComponentFile(text, rel) {
       propDefaults: Object.fromEntries(propList(a.props).filter((x) => x.includes('=')).map((x) => [x.split('=')[0], x.slice(x.indexOf('=') + 1)])),
       replaces: list(a.replaces),
       preview: a.preview || '',
+      accepts: list(a.accepts),
       styles,
       template: tpl ? tpl[1].trim() : '',
       examples: ex ? ex[1].trim() : '',

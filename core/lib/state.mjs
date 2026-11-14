@@ -168,6 +168,6 @@ export function summarize(state) {
   return [
     `dfw: product="${state.product || '(unnamed)'}" mode=${state.mode} phase=${state.phase}`,
     `design: v${state.design.version} ${state.design.status}${state.design.locked ? ' (locked)' : ''}${appr ? `, approved ${appr.version}` : ''}`,
-    `gates: G1=${g('G1')} G2=${appr ? 'approved' : 'open'} G3=${g('G3')} G4=${g('G4')}`,
+    `gates: G1=${g('G1')} DS=${g('DS')} G2=${appr ? 'approved' : 'open'} G3=${g('G3')} G4=${g('G4')}`,
   ].join('\n');
 }

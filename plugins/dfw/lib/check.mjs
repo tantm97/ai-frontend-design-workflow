@@ -7,7 +7,7 @@ import { lintDesign } from './lint.mjs';
 import { buildSystem, buildComposed } from './compose.mjs';
 import { auditDesignSystem } from './dsaudit.mjs';
 import { impeccableLauncher, sloplintScript, tasteCopyLintScript } from './locate.mjs';
-import { readJson, projectPaths, toPosix } from './util.mjs';
+import { readJson, projectPaths, toPosix, nodeExecutable } from './util.mjs';
 
 export const UI_EXT = new Set(['.html', '.htm', '.css', '.scss', '.sass', '.less', '.jsx', '.tsx', '.vue', '.svelte', '.astro']);
 
@@ -43,7 +43,9 @@ export function runSloplint(root, targets, { env, timeoutMs }) {
   const files = targets.filter((t) => /\.(html|css|jsx|tsx|vue|svelte|astro)$/.test(t));
   if (!files.length) return { tool: 'sloplint', status: 'skipped', findings: [] };
   const scope = sloplintScope(root);
-  const r = run(process.execPath, [script, ...files, '--json', '--scope', scope], { cwd: root, env, timeoutMs });
+  const node = nodeExecutable();
+  if (!node) return { tool: 'sloplint', status: 'unavailable', detail: 'needs Node.js on PATH', findings: [] };
+  const r = run(node, [script, ...files, '--json', '--scope', scope], { cwd: root, env, timeoutMs });
   if (r.timedOut) return { tool: 'sloplint', status: 'timeout', findings: [] };
   const data = parseJsonLoose(r.stdout);
   if (!data) return { tool: 'sloplint', status: 'error', detail: (r.stderr || r.stdout).slice(0, 400), findings: [] };
@@ -93,7 +95,9 @@ export function runTasteCopyLint(root, targets, { env, timeoutMs }) {
   if (!script) return { tool: 'taste-copy-lint', status: 'unavailable', findings: [] };
   const files = targets.filter((t) => /\.(html|md|txt)$/.test(t));
   if (!files.length) return { tool: 'taste-copy-lint', status: 'skipped', findings: [] };
-  const r = run(process.execPath, [script, ...files, '--json'], { cwd: root, env, timeoutMs });
+  const node = nodeExecutable();
+  if (!node) return { tool: 'taste-copy-lint', status: 'unavailable', detail: 'needs Node.js on PATH', findings: [] };
+  const r = run(node, [script, ...files, '--json'], { cwd: root, env, timeoutMs });
   const data = parseJsonLoose(r.stdout);
   if (!data) return { tool: 'taste-copy-lint', status: 'error', detail: (r.stderr || r.stdout).slice(0, 400), findings: [] };
   const findings = [];

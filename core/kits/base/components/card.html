@@ -15,7 +15,7 @@
 .card__foot:empty { display: none; }
 .card__body--flush { padding: 0; }
 .card__body--scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
-.card__body--flush > .dtable { border: 0; border-radius: 0; }
+.card__body--flush .dtable { border: 0; border-radius: 0; } /* also through state wrappers */
 </style>
 <template>
 <section class="card card--{{variant}}"><header class="card__head" data-dfw-if="title"><div class="card__titles"><h2 class="card__title">{{title}}</h2><p class="card__subtitle" data-dfw-if="subtitle">{{subtitle}}</p></div><div class="card__actions"><dfw-slot name="actions"></dfw-slot></div></header><div class="card__body card__body--{{body}}"><dfw-slot></dfw-slot></div><footer class="card__foot"><dfw-slot name="foot"></dfw-slot></footer></section>

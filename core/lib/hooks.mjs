@@ -11,7 +11,7 @@ import { buildTokens } from './tokens.mjs';
 import { buildSystem } from './compose.mjs';
 import { undelivered, markDelivered, formatForClaude } from './inbox.mjs';
 import { layoutCheck, changedScreens, markChecked } from './layout.mjs';
-import { playwrightStatus } from './runtime.mjs';
+import { browserStatus } from './runtime.mjs';
 import { pruneSessions } from './lang.mjs';
 import { allComments } from './comments.mjs';
 
@@ -115,7 +115,7 @@ export async function stop(input) {
   const state = loadState(root);
   if (!state || state.active === false || !['system', 'concepts'].includes(state.phase)) return null;
   const config = loadConfig(root);
-  if (config.checks?.layoutOnStop === false || !playwrightStatus().installed) return null;
+  if (config.checks?.layoutOnStop === false || !browserStatus().installed) return null;
   const ch = changedScreens(root);
   if (!ch.screens.length && !ch.changedComps.length && !ch.tokensChanged) return null;
   const res = await layoutCheck(root, { screens: ch.screens, states: true, stress: true, system: ch.changedComps.length > 0 || ch.tokensChanged });

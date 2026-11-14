@@ -23,3 +23,6 @@ html:not([data-state="warning"]) .when-warning, html:not([data-state="success"])
 html[data-state="empty"] .unless-empty, html[data-state="loading"] .unless-loading,
 html[data-state="error"] .unless-error, html[data-state="offline"] .unless-offline,
 html[data-state="warning"] .unless-warning, html[data-state="success"] .unless-success { display: none !important; }
+
+/* Visually hidden, still read by screen readers. */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }

@@ -9,11 +9,21 @@ discovery -> direction (G1) -> design system (DS) -> pages of screens + review (
 
 ## Install (one command)
 
+No Node.js needed (downloads the single-file `dfw` binary for your OS, checks its SHA-256, then registers everything with Claude Code):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/tantm97/ai-frontend-design-workflow/main/install.sh | sh
+```
+
+With Node.js:
+
 ```bash
 npx github:tantm97/ai-frontend-design-workflow
 ```
 
-This adds the `dfw-marketplace` to Claude Code, installs `dfw` (its plugin dependencies pull in the seven design skills), installs the pinned screenshot runtime and the Impeccable engine (telemetry off), and runs `dfw doctor`. Options: `--scope project` (share via `.claude/settings.json`), `--no-runtime`, `uninstall`. Then restart Claude Code (or `/reload-plugins`) and type `/dfw`.
+Both add the `dfw-marketplace` to Claude Code, install `dfw` (its plugin dependencies pull in the seven design skills), set up the Impeccable engine (telemetry off) and run `dfw doctor`. Screenshots and the layout check use the Chrome, Edge or Chromium already on your machine; only when none is found does the installer download Google's headless Chrome once. Options: `--scope project` (share via `.claude/settings.json`), `--no-runtime`, `--no-binary`, `uninstall`. Then restart Claude Code (or `/reload-plugins`) and type `/dfw`.
+
+How dfw runs: the plugin's `bin/dfw` launcher starts the `dfw` binary for its version (`~/.config/dfw/bin/<version>/`) when present, otherwise Node.js. `dfw setup --binary` fetches the binary later; `DFW_NO_BINARY=1` forces Node.
 
 Inside Claude Code without npx: `claude plugin marketplace add tantm97/ai-frontend-design-workflow` then `claude plugin install dfw@dfw-marketplace`.
 
@@ -47,8 +57,8 @@ Vendored plugins are built from pinned commits (`registry/skills.lock.json`) wit
 ## Requirements
 
 - Claude Code with a Claude subscription (no API key needed).
-- Node.js 20+ (Node 22+ for Taste's copy-lint), Python 3 (UI UX Pro Max search), git.
-- The installer downloads a pinned Playwright + Chromium into `~/.config/dfw/runtime` (screenshots) unless `--no-runtime`.
+- The `dfw` binary, or Node.js 22+. Node is still used for the vendored skills' own scripts (Hallmark sloplint, Taste copy-lint) when present; without it those optional checks report "unavailable". Python 3 (UI UX Pro Max search), git.
+- A Chromium-based browser for screenshots and the layout check: your installed Chrome / Edge / Chromium / Brave (driven headless over the DevTools protocol, no npm packages), `DFW_BROWSER=/path/to/chrome`, or `dfw setup --browser` (Google's chrome-headless-shell, once, into `~/.config/dfw/browser`). Web fonts used by designs are cached in `~/.config/dfw/cache/fonts`.
 
 If you already installed any of these skills from their original marketplaces, disable those copies (`dfw doctor` warns about duplicates), otherwise both load.
 
@@ -74,8 +84,9 @@ Review loop: Claude starts the Studio (`dfw studio start`, default http://127.0.
 | Pages | Design System, one page per module, Explorations, or **All pages** on one canvas |
 | Inspect | click an element (Cmd/Alt-click for the exact one): layers, tokens in use, component + variant, "Go to master" |
 | Edit directly | double-click text; change variant/size/props or spacing tokens in the inspector; Cmd/Ctrl+Z undoes |
-| Clickable preview | **P** (or double-click a frame title) for full-window Present; **I** to interact on the canvas; ← → between screens |
+| Clickable preview | **P** (or double-click a frame title) for full-window Present; **I** to interact on the canvas; ← → between screens. Present hides comment pins unless you press **Pins** (Shift+C) or comment |
 | Comment | **C**, click an element, write (Cmd/Ctrl+Enter). Claude receives it immediately; fixed comments appear under **To verify** where you resolve or reopen them |
+| Comment pins | click a pin to read the comment and its thread, and resolve or reopen it in place. **Shift+C** (or the **Pins** chip) cycles open → all → off; resolved comments are hidden by default |
 
 Useful commands (`dfw help` for all): `dfw status`, `dfw style match|show|apply`, `dfw system init|options|choose|audit|list`, `dfw palette build`, `dfw type scale`, `dfw icons search|add`, `dfw fonts check`, `dfw check`, `dfw shoot --page <id> --states`, `dfw comments list|wait`, `dfw decisions`, `dfw pause|resume`.
 
@@ -121,7 +132,8 @@ Other AI coding agents can be supported by adding an adapter under `adapters/` (
 
 ```bash
 npm test                 # unit tests
-npm run test:e2e         # studio end-to-end (needs dfw setup --playwright)
+npm run test:e2e         # studio end-to-end (dev only: needs the playwright package, npm i -D playwright)
+node scripts/build-binary.mjs   # single-file binary for this platform into dist/ (embed an official nodejs.org node: --node <path>)
 npm run build            # assemble plugins/dfw and rebuild vendored plugins from the lock
 npm run build:check      # committed plugins/ must equal a clean build
 npm run validate         # structure, cross-references, no upstream hooks, conflict lint, claude plugin validate

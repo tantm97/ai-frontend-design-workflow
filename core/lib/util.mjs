@@ -4,8 +4,30 @@ import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 
-export const PLUGIN_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// The dfw binary (Node SEA) runs from a single file: its launcher passes the plugin directory, or
+// the binary extracts its embedded copy, in DFW_PLUGIN_ROOT. From source it is this file's parent.
+export const PLUGIN_ROOT = process.env.DFW_PLUGIN_ROOT ? path.resolve(process.env.DFW_PLUGIN_ROOT) : path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+/** True inside the single-file dfw binary. */
+export const IS_BINARY = globalThis.__DFW_SEA === true;
+
+/** argv prefix to run this dfw again in a child process (binary: itself; source: node bin/dfw.mjs). */
+export function selfCommand() {
+  return IS_BINARY ? { cmd: process.execPath, args: [] } : { cmd: process.execPath, args: [path.join(PLUGIN_ROOT, 'bin', 'dfw.mjs')] };
+}
+
+let nodeCache;
+/** A Node.js executable for third-party .mjs/.js tools (the binary is not a general Node). */
+export function nodeExecutable() {
+  if (!IS_BINARY) return process.execPath;
+  if (nodeCache === undefined) {
+    const r = spawnSync('node', ['--version'], { encoding: 'utf8', shell: process.platform === 'win32' });
+    nodeCache = r.status === 0 ? 'node' : null;
+  }
+  return nodeCache;
+}
 export const MARKETPLACE_NAME = 'dfw-marketplace';
 
 export function readJson(file, fallback = undefined) {

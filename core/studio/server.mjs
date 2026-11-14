@@ -5,8 +5,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { projectPaths, readJson, parseArgs, listFiles } from '../lib/util.mjs';
+import { projectPaths, readJson, parseArgs, listFiles, PLUGIN_ROOT } from '../lib/util.mjs';
 import { loadConfig } from '../lib/config.mjs';
 import { loadState, summarize } from '../lib/state.mjs';
 import { addComment, allComments, updateComment, newSession, currentSession } from '../lib/comments.mjs';
@@ -14,8 +13,9 @@ import { composeHtml, loadComponents, buildSystem, escapeHtml } from '../lib/com
 import { applyEdit, undoEdit, loadTokenNames } from '../lib/edit.mjs';
 import { studioPages } from './pages.mjs';
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const args = parseArgs(process.argv.slice(2));
+// Started as "dfw __studio-server --root <dir> --port <n>" (works the same from source and in the binary).
+const HERE = path.join(PLUGIN_ROOT, 'studio');
+const args = parseArgs(globalThis.__DFW_STUDIO_ARGV || process.argv.slice(2));
 const root = path.resolve(args.root || process.cwd());
 const P = projectPaths(root);
 const config = loadConfig(root);
