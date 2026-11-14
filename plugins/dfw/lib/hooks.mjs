@@ -1,11 +1,13 @@
-// Hook entry points (wired in hooks/hooks.json). Every handler is fail-open:
+// Hook entry points (wired in each adapter's hooks.json). Every handler is fail-open:
 // an internal error never blocks the user's session; it is reported on stderr.
+// Handlers receive input normalized by host.mjs and return a neutral result
+// ({ context } | { deny } | { block }); the CLI formats it for the calling host.
 import fs from 'node:fs';
 import path from 'node:path';
 import { findProjectRoot, toPosix } from './util.mjs';
 import { loadState, summarize } from './state.mjs';
 import { loadConfig } from './config.mjs';
-import { decideWrite, filesFromToolInput, preToolUseResponse } from './gate.mjs';
+import { decideWrite, filesFromToolInput, preToolUseResult } from './gate.mjs';
 import { runChecks, formatReport, UI_EXT } from './check.mjs';
 import { buildTokens } from './tokens.mjs';
 import { buildSystem } from './compose.mjs';
@@ -15,11 +17,15 @@ import { browserStatus } from './runtime.mjs';
 import { pruneSessions } from './lang.mjs';
 import { allComments } from './comments.mjs';
 
+// Relative paths (apply_patch bodies) are relative to the session's cwd, not the project root.
+const toolFiles = (input) => filesFromToolInput(input.tool_name, input.tool_input).map((f) => path.resolve(input.cwd || process.cwd(), f));
+
 function rootFrom(input) {
-  return findProjectRoot(process.env.CLAUDE_PROJECT_DIR || input.cwd || process.cwd());
+  return findProjectRoot(process.env.DFW_PROJECT_DIR || process.env.CLAUDE_PROJECT_DIR || input.cwd || process.cwd());
 }
 
 export function sessionStart(input) {
+  // Claude Code only: persist the session id for later Bash calls (dfw lang).
   if (input.session_id && process.env.CLAUDE_ENV_FILE) {
     try {
       fs.appendFileSync(process.env.CLAUDE_ENV_FILE, `export DFW_SESSION_ID='${String(input.session_id).replace(/'/g, '')}'\n`);
@@ -37,25 +43,33 @@ export function sessionStart(input) {
     `Session id for "dfw lang": ${input.session_id || 'unknown'}.`,
     'This project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).',
   ];
-  return { hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: lines.join('\n') } };
+  return { context: lines.join('\n') };
 }
 
 export function preToolUse(input) {
-  const files = filesFromToolInput(input.tool_name, input.tool_input);
+  const files = toolFiles(input);
   if (!files.length) return null;
   const root = rootFrom(input);
   const state = loadState(root);
   if (!state) return null;
   const config = loadConfig(root);
   for (const f of files) {
-    const res = preToolUseResponse(decideWrite({ root, state, config, absFile: f }));
+    const res = preToolUseResult(decideWrite({ root, state, config, absFile: f }));
     if (res) return res;
   }
   return null;
 }
 
-export function postToolUse(input) {
-  const files = filesFromToolInput(input.tool_name, input.tool_input);
+export function postToolUse(input, host = {}) {
+  // Hosts that cannot add context to the user's prompt get new Studio comments here instead.
+  const inbox = host.context?.UserPromptSubmit === false ? inboxFor(input) : null;
+  const checks = postToolUseChecks(input);
+  const text = [checks, inbox].filter(Boolean).join('\n\n');
+  return text ? { context: text } : null;
+}
+
+function postToolUseChecks(input) {
+  const files = toolFiles(input);
   if (!files.length) return null;
   const root = rootFrom(input);
   const state = loadState(root);
@@ -78,12 +92,7 @@ export function postToolUse(input) {
   const results = runChecks(root, targets, config, { timeoutMs: config.checks?.timeoutMs || 8000, tools: mode === 'full' ? undefined : ['dfw'] });
   const { text, tally } = formatReport(results, { max: config.checks?.maxFindings || 12 });
   if (!tally.error && !tally.warn) return null;
-  return {
-    hookSpecificOutput: {
-      hookEventName: 'PostToolUse',
-      additionalContext: `dfw checks on ${targets.join(', ')}:\n${text}\nFix MUST items before moving on; SHOULD items unless the brief or a recorded decision says otherwise.`,
-    },
-  };
+  return `dfw checks on ${targets.join(', ')}:\n${text}\nFix MUST items before moving on; SHOULD items unless the brief or a recorded decision says otherwise.`;
 }
 
 function inboxFor(input) {
@@ -97,9 +106,10 @@ function inboxFor(input) {
 }
 
 /** New Studio comments ride along with the user's next message. */
-export function userPromptSubmit(input) {
+export function userPromptSubmit(input, host = {}) {
+  if (host.context?.UserPromptSubmit === false) return null; // delivered by PostToolUse / Stop instead
   const text = inboxFor(input);
-  return text ? { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: text } } : null;
+  return text ? { context: text } : null;
 }
 
 /**
@@ -110,7 +120,7 @@ export function userPromptSubmit(input) {
 export async function stop(input) {
   if (input.stop_hook_active) return null; // never loop
   const text = inboxFor(input);
-  if (text) return { decision: 'block', reason: text };
+  if (text) return { block: text };
   const root = rootFrom(input);
   const state = loadState(root);
   if (!state || state.active === false || !['system', 'concepts'].includes(state.phase)) return null;
@@ -128,7 +138,10 @@ export async function stop(input) {
   }
   markChecked(root); // report each state of the design once
   const lines = [...must, ...should].slice(0, 15).map((f) => `- [${f.level === 'error' ? 'MUST' : 'SHOULD'}] (${f.rule}) ${f.message}`);
-  return { decision: 'block', reason: `dfw layout check after your edits (${ch.screens.length} screen(s)${ch.changedComps.length ? `, changed masters: ${ch.changedComps.join(', ')}` : ''}):\n${lines.join('\n')}\nFix these in the design system (masters, page layout) where possible, re-run "dfw layout check --changed", then finish. See references/layout-patterns.md.` };
+  return { block: `dfw layout check after your edits (${ch.screens.length} screen(s)${ch.changedComps.length ? `, changed masters: ${ch.changedComps.join(', ')}` : ''}):\n${lines.join('\n')}\nFix these in the design system (masters, page layout) where possible, re-run "dfw layout check --changed", then finish. See references/layout-patterns.md.` };
 }
 
 export const HANDLERS = { 'session-start': sessionStart, 'pre-tool-use': preToolUse, 'post-tool-use': postToolUse, 'user-prompt-submit': userPromptSubmit, stop };
+
+/** Host event name of each handler (output formats are keyed by it). */
+export const HOOK_EVENTS = { 'session-start': 'SessionStart', 'pre-tool-use': 'PreToolUse', 'post-tool-use': 'PostToolUse', 'user-prompt-submit': 'UserPromptSubmit', stop: 'Stop' };

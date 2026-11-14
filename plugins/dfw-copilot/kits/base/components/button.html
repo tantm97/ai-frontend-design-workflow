@@ -1,0 +1,35 @@
+<dfw-component name="button" group="Actions" variants="primary secondary ghost danger" sizes="md sm lg" props="icon icon-end kbd" replaces="button"
+  description="Text button. One primary per view; secondary for alternatives; ghost for low-emphasis; danger for destructive actions.">
+<style>
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: var(--size-control); padding: 0 var(--space-4); border: var(--border-width) solid transparent; border-radius: var(--radius-md); font: var(--font-weight-medium) var(--font-size-sm) / 1 var(--font-family-body); letter-spacing: var(--font-tracking-normal); white-space: nowrap; cursor: pointer; text-decoration: none; transition: background-color var(--duration-fast) var(--easing-out), border-color var(--duration-fast) var(--easing-out), color var(--duration-fast) var(--easing-out); }
+.btn .icon { width: var(--size-icon-sm); height: var(--size-icon-sm); flex: none; }
+.btn--primary { background: var(--color-accent); color: var(--color-on-accent); }
+.btn--primary:hover { background: var(--color-accent-hover); }
+.btn--secondary { background: var(--color-surface); color: var(--color-ink); border-color: var(--color-border); }
+.btn--secondary:hover { background: var(--color-surface-hover); border-color: var(--color-border-strong); }
+.btn--ghost { background: transparent; color: var(--color-ink); }
+.btn--ghost:hover { background: var(--color-surface-hover); }
+.btn--danger { background: var(--color-status-err); color: var(--color-on-fill); }
+.btn--danger:hover { background: var(--color-status-err-text); }
+.btn:active { transform: translateY(1px); }
+.btn:focus-visible { outline: var(--focus-width) solid var(--color-focus); outline-offset: var(--focus-offset); }
+.btn:disabled, .btn[aria-disabled="true"] { background: var(--color-surface-sunken); color: var(--color-subtle); border-color: var(--color-rule); cursor: not-allowed; transform: none; }
+.btn[aria-busy="true"] { cursor: progress; opacity: .7; }
+.btn--sm { min-height: var(--size-control-sm); padding: 0 var(--space-3); font-size: var(--font-size-xs); }
+.btn--lg { min-height: var(--size-control-lg); padding: 0 var(--space-6); font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); }
+.btn kbd { font: var(--font-weight-medium) var(--font-size-2xs) / 1 var(--font-family-mono); padding: var(--space-1) var(--space-1); border-radius: var(--radius-sm); background: color-mix(in srgb, currentColor 14%, transparent); }
+</style>
+<template>
+<button class="btn btn--{{variant}} btn--{{size}}" type="button"><dfw-icon data-dfw-if="icon" name="{{icon}}"></dfw-icon><span><dfw-slot>Button</dfw-slot></span><dfw-icon data-dfw-if="icon-end" name="{{icon-end}}"></dfw-icon><kbd data-dfw-if="kbd">{{kbd}}</kbd></button>
+</template>
+<dfw-examples>
+<dfw-use c="button" variant="primary">Save changes</dfw-use>
+<dfw-use c="button" variant="secondary">Cancel</dfw-use>
+<dfw-use c="button" variant="ghost">Skip</dfw-use>
+<dfw-use c="button" variant="danger">Delete</dfw-use>
+<dfw-use c="button" variant="primary" size="lg" kbd="Enter">Confirm</dfw-use>
+<dfw-use c="button" variant="secondary" size="sm">Small</dfw-use>
+<dfw-use c="button" variant="primary" disabled>Disabled</dfw-use>
+<dfw-use c="button" variant="primary" aria-busy="true">Saving…</dfw-use>
+</dfw-examples>
+</dfw-component>

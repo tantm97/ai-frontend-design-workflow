@@ -13,14 +13,31 @@ const registry = loadRegistry();
 const lock = loadLock();
 const mp = readJson(path.join(REPO_ROOT, '.claude-plugin', 'marketplace.json'));
 
-// 1. Marketplace <-> plugins.
-for (const p of mp.plugins) {
-  const pj = path.join(REPO_ROOT, p.source, '.claude-plugin', 'plugin.json');
-  if (!fs.existsSync(pj)) errors.push(`marketplace lists ${p.name} but ${p.source}/.claude-plugin/plugin.json is missing`);
-  else if (readJson(pj).name !== p.name) errors.push(`${p.source}: plugin.json name differs from marketplace entry ${p.name}`);
+// 1. Marketplaces (one per host format) <-> plugins.
+for (const file of [path.join('.claude-plugin', 'marketplace.json'), path.join('.github', 'plugin', 'marketplace.json')]) {
+  const m = readJson(path.join(REPO_ROOT, file));
+  for (const p of m.plugins) {
+    const pj = [path.join(p.source, '.claude-plugin', 'plugin.json'), path.join(p.source, 'plugin.json')].map((f) => path.join(REPO_ROOT, f)).find((f) => fs.existsSync(f));
+    if (!pj) errors.push(`${file} lists ${p.name} but ${p.source} has no plugin manifest`);
+    else if (readJson(pj).name !== p.name) errors.push(`${p.source}: plugin manifest name differs from ${file} entry ${p.name}`);
+  }
+  const names = m.plugins.map((p) => p.name);
+  if (new Set(names).size !== names.length) errors.push(`duplicate plugin names in ${file}`);
 }
-const names = mp.plugins.map((p) => p.name);
-if (new Set(names).size !== names.length) errors.push('duplicate plugin names in marketplace.json');
+// Host plugins must not leak unrendered placeholders or another host's variables.
+for (const l of registry.local || []) {
+  const spec = readJson(path.join(REPO_ROOT, 'adapters', l.adapter, 'assemble.json'));
+  const dir = path.join(REPO_ROOT, 'plugins', spec.plugin);
+  for (const sub of ['skills', 'agents']) {
+    const walk = (d) => (fs.existsSync(d) ? fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)])) : []);
+    for (const f of walk(path.join(dir, sub)).filter((f) => f.endsWith('.md'))) {
+      const t = fs.readFileSync(f, 'utf8');
+      const left = t.match(/\{\{(SKILL_DIR|ASK_TOOL|BACKGROUND|HOST_NAME|HOST_SETTINGS|DFW_CLI|INVOKE_SKILL)\}\}/);
+      if (left) errors.push(`${path.relative(REPO_ROOT, f)}: unrendered ${left[0]}`);
+      if (spec.host !== 'claude' && /CLAUDE_SKILL_DIR|AskUserQuestion/.test(t)) errors.push(`${path.relative(REPO_ROOT, f)}: Claude Code-only wording in the ${spec.host} plugin`);
+    }
+  }
+}
 
 // 2. Lock <-> built copies.
 for (const s of registry.skills) {

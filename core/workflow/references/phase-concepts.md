@@ -2,7 +2,7 @@
 
 Goal: every screen in scope, organised in **pages per module**, composed only from the approved design system, at all breakpoints and states, with 2-3 variants where a real choice exists; reviewed visually; then G2.
 
-Format: `references/design-format.md`. Skeleton: `${CLAUDE_SKILL_DIR}/../../templates/screen.html`.
+Format: `references/design-format.md`. Skeleton: `{{SKILL_DIR}}/../../templates/screen.html`.
 
 Skills (budget): base `frontend-design:frontend-design`; product UI support `ui-ux-pro-max:ui-ux-pro-max` (UX rules) and `ux-research:ux-copy` (microcopy, empty/error states). Marketing: lead `hallmark:hallmark`, support `taste-reference:taste-reference` + `ux-research:ux-copy`. Motion-heavy: `emil-design-eng:animate`.
 

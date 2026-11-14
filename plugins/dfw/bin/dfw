@@ -1,12 +1,24 @@
 #!/bin/sh
-# dfw launcher (Claude Code puts plugin bin/ on PATH; hooks call it too).
+# dfw launcher (Claude Code puts plugin bin/ on PATH; hooks of every host call it too).
 # Runs the single-file dfw binary for this plugin version when it is installed
 # ("dfw setup --binary", or install.sh), otherwise Node.js with bin/dfw.mjs.
 # DFW_NO_BINARY=1 forces Node.
-DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+# Resolve symlinks (e.g. ~/.local/bin/dfw -> <plugin>/bin/dfw) to find the plugin directory.
+SELF=$0
+while [ -L "$SELF" ]; do
+  LINK=$(readlink "$SELF")
+  case "$LINK" in
+    /*) SELF=$LINK ;;
+    *) SELF=$(dirname -- "$SELF")/$LINK ;;
+  esac
+done
+DIR=$(CDPATH= cd -- "$(dirname -- "$SELF")" && pwd)
 ROOT=$(dirname -- "$DIR")
 if [ -z "$DFW_NO_BINARY" ]; then
-  VER=$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$ROOT/.claude-plugin/plugin.json" 2>/dev/null | head -n 1)
+  # Manifest: Claude Code format, or a root plugin.json (GitHub Copilot and other hosts).
+  MANIFEST="$ROOT/.claude-plugin/plugin.json"
+  [ -f "$MANIFEST" ] || MANIFEST="$ROOT/plugin.json"
+  VER=$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$MANIFEST" 2>/dev/null | head -n 1)
   HOME_DIR=${DFW_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/dfw}
   if [ -n "$VER" ]; then
     for B in "$HOME_DIR/bin/$VER/dfw" "$HOME_DIR/bin/$VER/dfw.exe"; do

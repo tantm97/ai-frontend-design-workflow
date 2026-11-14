@@ -2,7 +2,7 @@
 
 Preconditions (enforced by the hook): approved design (G2) for the current version, approved stack (G3), phase `implement`.
 
-Inputs: `design/handoff/vN.md` (complete its TODO sections with the user first), `design/approved/vN/` (source of truth; never edit), `.dfw/stack.json`, the stack guide `${CLAUDE_SKILL_DIR}/stacks/<stack>.md`.
+Inputs: `design/handoff/vN.md` (complete its TODO sections with the user first), `design/approved/vN/` (source of truth; never edit), `.dfw/stack.json`, the stack guide `{{SKILL_DIR}}/stacks/<stack>.md`.
 
 Skills (budget): no aesthetic skill leads here; the approved design is the authority. Support only when needed: `emil-design-eng:animate` for motion in scope; `ux-research:ux-copy` for copy not covered by the design.
 

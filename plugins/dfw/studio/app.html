@@ -32,9 +32,12 @@
       <button type="button" id="present-btn" class="icon-btn present-btn" title="Present (P) · full-screen prototype" aria-label="Present">
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7.5-4.5z" fill="currentColor"/></svg>
       </button>
+      <button type="button" id="shoot-btn" class="icon-btn" title="Screenshot every screen of every page to PNG (shown breakpoints, states, theme)" aria-label="Screenshot all screens">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 5.5a1 1 0 0 1 1-1h1.8l1-1.5h3.4l1 1.5h1.8a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><circle cx="8" cy="8.3" r="2.2" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
+      </button>
       <span class="sep" aria-hidden="true"></span>
-      <div id="breakpoints" class="chips" role="group" aria-label="Breakpoints"></div>
-      <button type="button" id="states-toggle" class="chip" aria-pressed="false" title="Show one frame per declared state">States</button>
+      <details class="ms" id="bp-menu"><summary class="chip" title="Breakpoints to show"></summary><div class="ms-list" id="breakpoints" role="group" aria-label="Breakpoints"></div></details>
+      <details class="ms" id="state-menu"><summary class="chip" title="States to show (one frame per checked state)"></summary><div class="ms-list" id="states" role="group" aria-label="States"></div></details>
       <button type="button" id="full-toggle" class="chip" aria-pressed="false" title="Grow frames to their full content height">Full height</button>
       <button type="button" id="pins-toggle" class="chip" aria-pressed="true" title="Comment pins: open → all → off (Shift+C)">Pins: open</button>
       <label class="select" id="theme-wrap" hidden><span>Theme</span><select id="theme"></select></label>
@@ -151,6 +154,7 @@
         <button type="button" id="p-pins" class="p-btn" aria-pressed="false" title="Show comment pins (Shift+C)">Pins</button>
         <button type="button" id="p-comment" class="p-btn" aria-pressed="false" title="Comment (C)">Comment</button>
         <button type="button" id="p-fit" class="p-btn" aria-pressed="true" title="Toggle fit width / 100%">Fit width</button>
+        <button type="button" id="p-shoot" class="p-btn" title="Screenshot this screen to PNG (full height, at this breakpoint)">Screenshot</button>
         <button type="button" id="p-full" class="p-btn" title="Browser fullscreen (F)">Fullscreen</button>
         <a id="p-open" class="p-btn" href="#" target="_blank" rel="noopener" title="Open in a new tab" aria-label="Open in a new tab">↗</a>
         <button type="button" id="p-close" class="p-btn" title="Close (Esc)" aria-label="Close preview">✕</button>

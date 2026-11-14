@@ -1,0 +1,19 @@
+<dfw-component name="stat" group="Data" variants="default alert" props="label value delta href"
+  description="Key number with label and optional context/link. alert = needs attention (use sparingly).">
+<style>
+.stat { display: grid; gap: var(--space-1); padding: var(--space-4) var(--space-5); border: var(--border-width) solid var(--color-rule); border-radius: var(--radius-lg); background: var(--color-surface); color: var(--color-ink); text-decoration: none; min-width: 0; }
+.stat__label { font-size: var(--font-size-xs); color: var(--color-muted); font-weight: var(--font-weight-medium); }
+.stat__value { font: var(--font-weight-semibold) var(--font-size-3xl) / var(--font-leading-tight) var(--font-family-display); letter-spacing: var(--font-tracking-tight); font-variant-numeric: tabular-nums; }
+.stat__delta { font-size: var(--font-size-xs); color: var(--color-muted); }
+.stat--alert { border-color: var(--color-status-err); }
+.stat--alert .stat__value { color: var(--color-status-err-text); }
+a.stat:hover { border-color: var(--color-border-strong); }
+</style>
+<template>
+<a class="stat stat--{{variant}}" href="{{href}}"><span class="stat__label">{{label}}</span><span class="stat__value">{{value}}</span><span class="stat__delta" data-dfw-if="delta">{{delta}}</span></a>
+</template>
+<dfw-examples>
+<div style="width: 220px"><dfw-use c="stat" label="On loan" value="142" delta="11% of all equipment" href="#"></dfw-use></div>
+<div style="width: 220px"><dfw-use c="stat" variant="alert" label="Overdue" value="7" delta="5 people" href="#"></dfw-use></div>
+</dfw-examples>
+</dfw-component>

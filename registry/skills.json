@@ -6,7 +6,8 @@
     "description": "Design-first frontend workflow (dfw) plus pinned, de-conflicted copies of the design skills it orchestrates."
   },
   "local": [
-    { "plugin": "dfw", "adapter": "claude-code", "category": "design", "description": "Design-first frontend workflow orchestrator: gates, studio, click-to-comment review, routing, checks." }
+    { "plugin": "dfw", "adapter": "claude-code", "host": "claude", "marketplace": ".claude-plugin/marketplace.json", "category": "design", "description": "Design-first frontend workflow orchestrator: gates, studio, click-to-comment review, routing, checks." },
+    { "plugin": "dfw-copilot", "adapter": "copilot", "host": "copilot", "marketplace": ".github/plugin/marketplace.json", "category": "design", "description": "Design-first frontend workflow orchestrator for GitHub Copilot: gates, studio, click-to-comment review, routing, checks." }
   ],
   "skills": [
     {

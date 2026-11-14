@@ -51,7 +51,7 @@ The hook regenerates `tokens.css` and `components.css` after every edit; `dfw bu
 }
 ```
 - The Studio always shows a generated **Design System** page first (foundations + every component and variant), then one page per entry in `pages` (a module or feature area), each a canvas of frames: screen × variant × breakpoint (× state / theme when toggled).
-- Each page is laid out like a pencil.dev section: title + description, one row per breakpoint, a Variants row, a States row, and annotation panels (`notes`) beside the rows. Override the rows with `sections: [{ title, kind: breakpoint|variants|states|custom, breakpoint, screens, states, notes }]`. "All pages" stacks every page on one canvas.
+- Each page is laid out like a pencil.dev section: title + description, one row per breakpoint, a Variants row, a States row, and annotation panels (`notes`) beside the rows. Override the rows with `sections: [{ title, kind: breakpoint|variants|states|custom, breakpoint, screens, states, notes }]`. In the Studio the user picks which breakpoints and states are shown (multi-select menus with All, default all); state frames, including `kind: states` sections, appear only for checked states. The Studio camera button screenshots every screen of every page, and Present has a Screenshot button for the screen being shown; both save to `.dfw/shots/studio/<time>/`. "All pages" stacks every page on one canvas.
 - Screens whose id starts with `_` (direction explorations) appear on an "Explorations" page.
 - Prototype links: normal `<a href="../other/default.html">` or `data-dfw-goto="<screen-id>[/<variant>]"` on any element; they work in Present mode (P) and with the Interact tool (I).
 

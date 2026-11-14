@@ -78,6 +78,7 @@ const m = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
 m.screens = [{ id: 'home', title: 'Home', variants: [{ id: 'a', label: 'A', file: 'screens/home/a.html' }, { id: 'b', label: 'B', file: 'screens/home/a.html' }] },
   { id: 'detail', title: 'Detail', variants: [{ id: 'a', label: 'A', file: 'screens/detail/a.html' }] },
 ];
+m.states = ['empty', 'loading', 'error'];
 fs.writeFileSync(manifestFile, JSON.stringify(m, null, 2));
 
 const port = 4700 + Math.floor(Math.random() * 200);
@@ -92,15 +93,54 @@ try {
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(url);
   await page.waitForSelector('.frame iframe');
-  const frames = await page.$$('.frame iframe');
-  // Auto sections: one row per breakpoint (primary variants) + a Variants row.
-  assert.equal(frames.length, 5, '2 screens x 2 breakpoints + 1 variant');
-  assert.deepEqual(await page.$$eval('.prow-gutter h2', (h) => h.map((x) => x.textContent)), ['Desktop 1440', 'Tablet 834', 'Variants']);
-  assert.equal(await page.textContent('.frame[data-key="home::a::desktop"] .frame-title'), 'D · Home · A↗');
+  const count = () => page.$$eval('.frame[data-key]', (f) => f.length); // frames, not iframes (off-screen iframes load lazily)
+  const summary = (id) => page.textContent(`#${id} summary`);
+  // Default: every breakpoint and every state. 2 screens x 3 breakpoints + 1 variant + 2 screens x 3 states.
+  assert.equal(await count(), 13);
+  assert.equal(await summary('bp-menu'), 'All breakpoints');
+  assert.equal(await summary('state-menu'), 'States: all');
   const pages = await page.$$eval('#page-list button', (bs) => bs.map((b) => b.textContent));
   assert.match(pages[0], /All pages/, 'All pages entry first');
   assert.match(pages[1], /Design System/, 'Design System is the first page');
-  assert.match(pages[2], /Screens\s*5/, 'Screens page with frame count');
+  assert.match(pages[2], /Screens\s*13/, 'Screens page with frame count');
+  // State menu: "All" off -> no state frames; pick some -> only those; "All" back on.
+  await page.click('#state-menu summary');
+  await page.uncheck('#states .ms-all input');
+  assert.equal(await count(), 7);
+  assert.equal(await summary('state-menu'), 'States: off');
+  await page.check('#states label:has-text("empty") input');
+  await page.check('#states label:has-text("error") input');
+  assert.equal(await count(), 11);
+  assert.equal(await summary('state-menu'), 'States: empty, error');
+  assert.equal(await page.$eval('#states .ms-all input', (i) => i.indeterminate), true);
+  if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-0-menus.png') });
+  await page.check('#states .ms-all input');
+  assert.equal(await count(), 13);
+  await page.uncheck('#states .ms-all input');
+  // Breakpoint menu (opening it closes the state menu): "All" off keeps the first one.
+  await page.click('#bp-menu summary');
+  assert.equal(await page.$eval('#state-menu', (d) => d.open), false);
+  await page.uncheck('#breakpoints .ms-all input');
+  assert.equal(await count(), 3, 'desktop only: 2 screens + 1 variant');
+  assert.equal(await summary('bp-menu'), 'Desktop 1440');
+  await page.click('#breakpoints label:has-text("Desktop") input');
+  assert.equal(await page.isChecked('#breakpoints label:has-text("Desktop") input'), true, 'last breakpoint stays on');
+  await page.check('#breakpoints label:has-text("Tablet") input');
+  await page.click('#bp-menu summary');
+  // Auto sections: one row per breakpoint (primary variants) + a Variants row.
+  assert.equal(await count(), 5, '2 screens x 2 breakpoints + 1 variant');
+  assert.deepEqual(await page.$$eval('.prow-gutter h2', (h) => h.map((x) => x.textContent)), ['Desktop 1440', 'Tablet 834', 'Variants']);
+  assert.equal(await page.textContent('.frame[data-key="home::a::desktop"] .frame-title'), 'D · Home · A↗');
+  // Screenshot all: every screen of every page (5 frames + Design System) -> PNG files under .dfw/shots/studio/<time>/.
+  await page.click('#shoot-btn');
+  await page.waitForFunction(() => /PNG saved/.test(document.querySelector('#toast').textContent), null, { timeout: 60000 });
+  const shootMsg = await page.textContent('#toast');
+  assert.match(shootMsg, /^6\/6 PNG saved in \.dfw\/shots\/studio\//);
+  const shotRoot = path.join(tmp, '.dfw/shots/studio');
+  const shotFiles = fs.readdirSync(path.join(shotRoot, fs.readdirSync(shotRoot)[0])).sort();
+  assert.deepEqual(shotFiles, ['design-system.png', 'detail__a__desktop.png', 'detail__a__tablet.png', 'home__a__desktop.png', 'home__a__tablet.png', 'home__b__desktop.png']);
+  const bad = await page.evaluate(() => fetch('/__dfw/api/shoot', { method: 'POST', body: JSON.stringify({ frames: [{ src: 'file:///etc/passwd' }] }) }).then((r) => r.status));
+  assert.equal(bad, 400, 'only Studio design URLs can be screenshotted');
   if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-1-canvas.png') });
 
   // Enter comment mode and click the CTA inside the first (desktop, variant A) frame.
@@ -241,6 +281,10 @@ try {
   await pf.locator('[data-dfw-id="home.link"]').waitFor();
   assert.match(await page.textContent('#p-title'), /Home · A/);
   if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-8-present.png') });
+  // Present screenshot: the screen being shown, saved and downloaded.
+  const [download] = await Promise.all([page.waitForEvent('download', { timeout: 60000 }), page.click('#p-shoot')]);
+  assert.equal(download.suggestedFilename(), 'home__a__desktop.png');
+  await page.waitForFunction(() => /^1\/1 PNG saved/.test(document.querySelector('#toast').textContent));
   await pf.locator('[data-dfw-id="home.link"]').click();
   await page.waitForFunction(() => /Detail/.test(document.querySelector('#p-title').textContent));
   await pf.locator('[data-dfw-goto="home/b"]').click();

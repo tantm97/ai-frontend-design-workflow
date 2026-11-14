@@ -2,7 +2,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { claudeDir, MARKETPLACE_NAME, PLUGIN_ROOT, readJson, globalDir } from './util.mjs';
+import { claudeDir, MARKETPLACE_NAME, PLUGIN_ROOT, readJson, globalDir, manifestPath } from './util.mjs';
+import { HOSTS } from './host.mjs';
 
 function newestDir(dir) {
   if (!fs.existsSync(dir)) return null;
@@ -18,18 +19,25 @@ function newestDir(dir) {
 export function pluginRoot(name) {
   // 1. Sibling in the same marketplace checkout (dev mode, or plugin cache layout).
   const sibling = path.resolve(PLUGIN_ROOT, '..', name);
-  if (fs.existsSync(path.join(sibling, '.claude-plugin', 'plugin.json'))) return sibling;
+  if (manifestPath(sibling)) return sibling;
   // 1b. Dev checkout: core/ next to plugins/.
   const dev = path.resolve(PLUGIN_ROOT, '..', 'plugins', name);
-  if (fs.existsSync(path.join(dev, '.claude-plugin', 'plugin.json'))) return dev;
+  if (manifestPath(dev)) return dev;
   // 2. Plugin cache: <claudeDir>/plugins/cache/<marketplace>/<plugin>/<version>/
   const cached = newestDir(path.join(claudeDir(), 'plugins', 'cache', MARKETPLACE_NAME, name));
-  if (cached && fs.existsSync(path.join(cached, '.claude-plugin', 'plugin.json'))) return cached;
+  if (cached && manifestPath(cached)) return cached;
+  // 2b. Other hosts' install directories (e.g. ~/.copilot/installed-plugins/dfw-marketplace/<plugin>).
+  for (const h of Object.values(HOSTS)) {
+    for (const dir of h.installedPluginDirs?.() || []) {
+      const p = path.join(dir, name);
+      if (manifestPath(p)) return p;
+    }
+  }
   // 3. Marketplace repo recorded in global config.
   const repo = readJson(path.join(globalDir(), 'config.json'), {}).marketplaceRepo;
   if (repo) {
     const p = path.join(repo, 'plugins', name);
-    if (fs.existsSync(path.join(p, '.claude-plugin', 'plugin.json'))) return p;
+    if (manifestPath(p)) return p;
   }
   return null;
 }

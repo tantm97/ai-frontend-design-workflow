@@ -5,7 +5,7 @@
 The user reviews in the Studio (`dfw studio start`). Comments are stored in `.dfw/reviews/rv_*.json` using the feedback contract (`schemas/feedback.schema.json`): screen, variant, breakpoint, state, theme, target (`dfwId`, CSS selector, bounding box, accessible role/name, text, computed style summary, source file:line), comment text, status, thread.
 
 ### Live comments (the user comments, you fix, no relaying)
-- As soon as the Studio is shown to the user, start listening: run `dfw comments wait --timeout 3600` **in the background** (Bash `run_in_background`). It exits the moment the user posts a comment (after a short pause for bursts) and prints the comments; you are re-invoked with that output. Apply them (below), then start `dfw comments wait` in the background again. Stop listening only when the user says review is over or the phase moves on.
+- As soon as the Studio is shown to the user, start listening: run `dfw comments wait --timeout 3600` **in the background** ({{BACKGROUND}}). It exits the moment the user posts a comment (after a short pause for bursts) and prints the comments; you are re-invoked with that output. Apply them (below), then start `dfw comments wait` in the background again. Stop listening only when the user says review is over or the phase moves on.
 - The hooks are the safety net: new comments are also injected with the user's next message (UserPromptSubmit) and before you stop (Stop hook). Each comment is delivered once; `dfw comments inbox --peek` shows undelivered ones.
 - The Studio shows live status per comment: Open → Claude is working (ack) → Fixed, please verify → Resolved by the user.
 

@@ -12,6 +12,7 @@ import { addComment, allComments, updateComment, newSession, currentSession } fr
 import { composeHtml, loadComponents, buildSystem, escapeHtml } from '../lib/compose.mjs';
 import { applyEdit, undoEdit, loadTokenNames } from '../lib/edit.mjs';
 import { studioPages } from './pages.mjs';
+import { screenshot } from '../lib/runtime.mjs';
 
 // Started as "dfw __studio-server --root <dir> --port <n>" (works the same from source and in the binary).
 const HERE = path.join(PLUGIN_ROOT, 'studio');
@@ -71,6 +72,36 @@ function manifest() {
   }
   const out = { ...base, product: path.basename(root), inferred: true, screens: [...screens.values()] };
   return { ...out, studioPages: studioPages(out) };
+}
+
+let shooting = false;
+
+/**
+ * Screenshot Studio frames to .dfw/shots/studio/<time>/<name>.png with the same headless renderer as "dfw shoot".
+ * frames: [{ src: '/design/...' | '/__dfw/system.html', w, h, name }]. Returns [{ name, ok, file, url, error }].
+ */
+async function shootFrames({ frames = [], fullPage = true } = {}) {
+  if (shooting) throw Object.assign(new Error('A screenshot is already running.'), { exitCode: 1 });
+  const list = frames.filter((f) => typeof f.src === 'string' && (f.src.startsWith('/design/') || f.src === '/__dfw/system.html')).slice(0, 200);
+  if (!list.length) throw Object.assign(new Error('Nothing to screenshot.'), { exitCode: 1 });
+  const dir = path.join(P.dfw, 'shots', 'studio', new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().replace(/[:.]/g, '-').slice(0, 19)); // local time
+  const jobs = list.map((f) => ({
+    url: `http://${host}:${port}${f.src}`,
+    width: Math.max(200, Math.min(4000, Number(f.w) || 1440)),
+    height: Math.max(200, Math.min(4000, Number(f.h) || 900)),
+    out: path.join(dir, `${String(f.name || 'frame').replace(/[^\w.-]+/g, '_').slice(0, 120)}.png`),
+    fullPage,
+  }));
+  shooting = true;
+  try {
+    const res = await screenshot(jobs);
+    return res.map((r) => {
+      const rel = path.relative(P.dfw, r.out).split(path.sep).join('/');
+      return { name: path.basename(r.out), ok: r.ok, error: r.error, file: path.relative(root, r.out), url: r.ok ? `/__dfw/${rel}` : null };
+    });
+  } finally {
+    shooting = false;
+  }
 }
 
 function send(res, code, body, type = 'application/json; charset=utf-8') {
@@ -189,6 +220,12 @@ const server = http.createServer(async (req, res) => {
     if (p === '/__dfw/api/edit' && req.method === 'POST') return send(res, 200, applyEdit(root, await body(req)));
     if (p === '/__dfw/api/undo' && req.method === 'POST') return send(res, 200, undoEdit(root));
 
+    if (p === '/__dfw/api/shoot' && req.method === 'POST') return send(res, 200, await shootFrames(await body(req)));
+    if (p.startsWith('/__dfw/shots/')) {
+      const f = safeJoin(path.join(P.dfw, 'shots'), p.slice('/__dfw/shots/'.length));
+      if (!f || !f.endsWith('.png') || !fs.existsSync(f)) return send(res, 404, { error: 'not found' });
+      return send(res, 200, fs.readFileSync(f), 'image/png');
+    }
     if (p === '/__dfw/api/manifest') return send(res, 200, manifest());
     if (p === '/__dfw/api/state') {
       const state = loadState(root);

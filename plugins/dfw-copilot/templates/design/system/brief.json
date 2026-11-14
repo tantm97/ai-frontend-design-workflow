@@ -1,0 +1,33 @@
+{
+  "$comment": "Design system brief (filled in the direction phase). Personality 1-5 per axis: formality casual(1)-formal(5), energy calm-energetic, era traditional-modern, warmth cool-warm, density airy-dense, richness minimal-ornamented, seriousness playful-serious. dfw style match ranks the style guides against it.",
+  "context": {
+    "users": "",
+    "environment": "e.g. counter PC at 1 m, factory lighting, gloves; or phone outdoors",
+    "frequency": "e.g. all shift long / weekly",
+    "stakes": "what a mistake costs",
+    "surface": "product"
+  },
+  "brand": {
+    "existing": "logo, colours, fonts that are fixed",
+    "assets": "design/assets/...",
+    "mustAvoid": []
+  },
+  "personality": {
+    "formality": 3,
+    "energy": 3,
+    "era": 3,
+    "warmth": 3,
+    "density": 3,
+    "richness": 2,
+    "seriousness": 4
+  },
+  "weights": {},
+  "constraints": {
+    "dark": false,
+    "lang": [
+      "vi",
+      "en"
+    ]
+  },
+  "keywords": []
+}

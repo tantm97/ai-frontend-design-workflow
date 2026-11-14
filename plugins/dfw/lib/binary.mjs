@@ -4,12 +4,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { PLUGIN_ROOT, globalDir, readJson, DfwError, IS_BINARY } from './util.mjs';
+import { globalDir, DfwError, IS_BINARY, pluginManifest } from './util.mjs';
 
 export const RELEASE_REPO = 'tantm97/ai-frontend-design-workflow';
 
 export function dfwVersion() {
-  return readJson(path.join(PLUGIN_ROOT, '.claude-plugin', 'plugin.json'), {})?.version || process.env.DFW_VERSION || '0.0.0';
+  return pluginManifest().version || process.env.DFW_VERSION || '0.0.0';
 }
 
 /** Release asset name for this machine, e.g. dfw-0.4.0-darwin-arm64 / dfw-0.4.0-win32-x64.exe. */
