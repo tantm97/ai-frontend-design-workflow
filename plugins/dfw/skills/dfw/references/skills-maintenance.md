@@ -15,6 +15,6 @@ External skills are vendored, commit-pinned copies built from the dfw-marketplac
 ## Rules
 1. Never apply an update without the user's approval. Present the proposal report: changed descriptions (trigger scope), added/removed files, **new or changed executable code and hooks (security-relevant)**, broken references used by dfw, new stack-imposing or conflicting instructions, size change.
 2. A proposal with blocking issues (broken references, overlay patches that no longer apply, new hooks) is not applied; propose an overlay/policy fix first and show it.
-3. After applying: commit in the marketplace repo (ask before committing/pushing), then the user runs `claude plugin marketplace update dfw-marketplace` and `/reload-plugins` (or restarts Claude Code).
+3. After applying: commit in the marketplace repo (ask before committing/pushing), then the user runs `dfw install` (updates the marketplace and plugins for every installed host) and restarts Claude Code.
 4. Rollback restores the previous lock entry and rebuilds; commit it the same way.
-5. Do not edit vendored files under `plugins/<vendored>/` by hand; change `overlays/<id>.json` and rebuild. `plugins/dfw` is generated too: edit `core/` or `adapters/claude-code/plugin/`.
+5. Do not edit vendored files under `plugins/<vendored>/` by hand; change `overlays/<id>.json` and rebuild. `plugins/dfw` is generated too: edit `core/` or `adapters/<host>/`.

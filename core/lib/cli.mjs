@@ -17,7 +17,8 @@ import { buildTokens } from './tokens.mjs';
 import { detectStack } from './stack.mjs';
 import { addComment, allComments, updateComment, newSession } from './comments.mjs';
 import { languageStatus, setLanguage } from './lang.mjs';
-import { HANDLERS } from './hooks.mjs';
+import { HANDLERS, HOOK_EVENTS } from './hooks.mjs';
+import { currentHost, normalizeHookInput, formatHookOutput, HOSTS, SUPPORTED_HOSTS } from './host.mjs';
 import { impeccableLauncher, pluginRoot, sloplintScript, tasteCopyLintScript } from './locate.mjs';
 import { browserStatus, installBrowser, screenshot } from './runtime.mjs';
 import { buildSystem, loadComponents } from './compose.mjs';
@@ -93,8 +94,10 @@ Stack and settings
   dfw doctor                                    Environment and installation checks
   dfw setup --browser                           Download a headless Chrome (only if no Chrome/Edge/Chromium is installed)
   dfw setup --binary                            Download the single-file dfw binary for this version (faster; Node optional)
-  dfw install [--scope user|project|local] [--no-runtime] [--no-binary]   Register dfw + its skills with Claude Code
-  dfw uninstall [--scope ...]                   Remove them (project files stay)
+  dfw install [--host auto|claude|copilot|all] [--scope user|project|local] [--no-runtime] [--no-binary]
+                                                Register dfw + its skills with Claude Code and/or GitHub Copilot (auto = every one installed)
+  dfw uninstall [--host ...] [--scope ...]      Remove them (project files stay)
+  dfw hook <name> [--host claude|copilot]       Hook entry point (stdin JSON from the host)
   dfw version
 `;
 
@@ -361,6 +364,7 @@ async function cmdShoot(root, a) {
   }
   if (!jobs.length) throw new DfwError('Nothing to screenshot (check --screen/--variant/--bp).');
   const res = await screenshot(jobs);
+  if (res.some((r) => !r.ok)) process.exitCode = 2;
   return out(res.map((r) => `${r.ok ? 'ok  ' : 'FAIL'} ${path.relative(root, r.out)}${r.error ? ` (${r.error})` : ''}`).join('\n'));
 }
 
@@ -492,6 +496,21 @@ function cmdDoctor(root) {
       ok(`approved snapshot ${ap.version} intact`, !problems.length, problems.slice(0, 5).join('; '));
     }
   }
+  for (const h of Object.values(HOSTS)) {
+    if (h.status !== 'supported') {
+      ok(`host ${h.name}`, true, 'planned');
+      continue;
+    }
+    const cli = spawnSync(h.cli, ['--version'], { encoding: 'utf8', shell: process.platform === 'win32' });
+    if (cli.status !== 0) {
+      ok(`host ${h.name}`, true, `"${h.cli}" not found (skip, or install it and run "dfw install --host ${h.id}")`);
+      continue;
+    }
+    let plugin = false;
+    if (h.id === 'claude') plugin = Boolean(readJson(path.join(claudeDir(), 'plugins', 'installed_plugins.json'), {})?.plugins?.['dfw@dfw-marketplace']);
+    else plugin = fs.existsSync(path.join(h.dfwPluginDir(), 'bin', 'dfw'));
+    ok(`host ${h.name}`, plugin, `${(cli.stdout || '').trim().split('\n')[0]}; dfw plugin ${plugin ? 'installed' : `missing (dfw install --host ${h.id})`}`);
+  }
   ok('global config dir', true, globalDir());
   return out(rows.join('\n'));
 }
@@ -506,8 +525,8 @@ export async function main(argv) {
   const a = parseArgs(argv);
   const cmd = a._[0];
   if (cmd === 'version' || a.version) return out(`dfw ${dfwVersion()} (${IS_BINARY ? 'binary' : `node ${process.versions.node}`})`);
-  if (cmd === 'install') return install({ scope: a.scope || 'user', source: a.source || undefined, runtime: !a['no-runtime'], binary: !a['no-binary'], quiet: Boolean(a.quiet) });
-  if (cmd === 'uninstall') return uninstall({ scope: a.scope || 'user', quiet: Boolean(a.quiet) });
+  if (cmd === 'install') return install({ host: a.host || 'auto', scope: a.scope || 'user', source: a.source || undefined, runtime: !a['no-runtime'], binary: !a['no-binary'], quiet: Boolean(a.quiet) });
+  if (cmd === 'uninstall') return uninstall({ host: a.host || 'auto', scope: a.scope || 'user', quiet: Boolean(a.quiet) });
   if (!cmd || cmd === 'help' || a.help) return out(HELP);
   if (cmd === 'hook') {
     const handler = HANDLERS[a._[1]];
@@ -517,7 +536,8 @@ export async function main(argv) {
       input = JSON.parse((await readStdin()) || '{}');
     } catch {}
     try {
-      const res = await handler(input);
+      const host = currentHost(a.host);
+      const res = formatHookOutput(host.id, HOOK_EVENTS[a._[1]], await handler(normalizeHookInput(input), host));
       if (res) process.stdout.write(JSON.stringify(res));
     } catch (e) {
       // Fail open: never break the session because of a dfw bug.

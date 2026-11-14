@@ -3,7 +3,8 @@ import path from 'node:path';
 import { matchesAny, toPosix } from './util.mjs';
 import { currentApproval, gatePassed } from './state.mjs';
 
-const WRITE_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
+// Canonical (normalized by host.mjs) names of tools that write files.
+const WRITE_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'ApplyPatch']);
 
 /**
  * Decide whether a write to `absFile` is allowed.
@@ -54,19 +55,21 @@ export function decideWrite({ root, state, config, absFile }) {
   return { allow: true };
 }
 
+/** Paths touched by an apply_patch body ("*** Update File: a/b.ts", "*** Move to: …"). */
+export function filesFromPatch(text = '') {
+  const out = [];
+  for (const m of String(text).matchAll(/^\*\*\* (?:Add File|Update File|Delete File|Move to): (.+)$/gm)) out.push(m[1].trim());
+  return out;
+}
+
 export function filesFromToolInput(toolName, input = {}) {
   if (!WRITE_TOOLS.has(toolName)) return [];
-  const f = input.file_path || input.notebook_path || input.path;
+  if (toolName === 'ApplyPatch') return filesFromPatch(input.input || input.patch || input.content || '');
+  const f = input.file_path || input.notebook_path || input.path || input.filePath;
   return f ? [f] : [];
 }
 
-export function preToolUseResponse(decision) {
-  if (decision.allow) return null;
-  return {
-    hookSpecificOutput: {
-      hookEventName: 'PreToolUse',
-      permissionDecision: 'deny',
-      permissionDecisionReason: decision.reason,
-    },
-  };
+/** Neutral hook result for a write decision; host.mjs formats it per host. */
+export function preToolUseResult(decision) {
+  return decision.allow ? null : { deny: decision.reason };
 }

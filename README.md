@@ -1,6 +1,6 @@
 # AI Frontend Design Workflow
 
-**An AI-powered UI/UX and frontend design workflow for AI coding agents, starting with Claude Code.** It takes a product from requirements to an approved visual design to working frontend code: UX research, a reasoned design direction, a design system built first, a local Figma-like design studio with live click-to-comment review, design and technology approval gates, implementation in the stack you choose (React, Vue, Angular, Svelte, plain HTML...), and verification against the approved design.
+**An AI-powered UI/UX and frontend design workflow for AI coding agents: Claude Code and GitHub Copilot today (OpenCode, Codex and Cursor planned).** It takes a product from requirements to an approved visual design to working frontend code: UX research, a reasoned design direction, a design system built first, a local Figma-like design studio with live click-to-comment review, design and technology approval gates, implementation in the stack you choose (React, Vue, Angular, Svelte, plain HTML...), and verification against the approved design.
 
 ```
 discovery -> direction (G1) -> design system (DS) -> pages of screens + review (G2: design frozen)
@@ -25,7 +25,7 @@ Both add the `dfw-marketplace` to Claude Code, install `dfw` (its plugin depende
 
 How dfw runs: the plugin's `bin/dfw` launcher starts the `dfw` binary for its version (`~/.config/dfw/bin/<version>/`) when present, otherwise Node.js. `dfw setup --binary` fetches the binary later; `DFW_NO_BINARY=1` forces Node.
 
-Inside Claude Code without npx: `claude plugin marketplace add tantm97/ai-frontend-design-workflow` then `claude plugin install dfw@dfw-marketplace`.
+The installer registers dfw with every supported tool it finds (`--host claude|copilot|all` to choose). Without the installer: Claude Code `claude plugin marketplace add tantm97/ai-frontend-design-workflow` then `claude plugin install dfw@dfw-marketplace`; GitHub Copilot CLI `copilot plugin marketplace add tantm97/ai-frontend-design-workflow` then `copilot plugin install dfw@dfw-marketplace` (and the seven skills the same way).
 
 The workflow is called **dfw** (design-first workflow): `/dfw` in Claude Code, `dfw` on the command line.
 
@@ -86,6 +86,8 @@ Review loop: Claude starts the Studio (`dfw studio start`, default http://127.0.
 | Edit directly | double-click text; change variant/size/props or spacing tokens in the inspector; Cmd/Ctrl+Z undoes |
 | Clickable preview | **P** (or double-click a frame title) for full-window Present; **I** to interact on the canvas; ← → between screens. Present hides comment pins unless you press **Pins** (Shift+C) or comment |
 | Comment | **C**, click an element, write (Cmd/Ctrl+Enter). Claude receives it immediately; fixed comments appear under **To verify** where you resolve or reopen them |
+| Breakpoints and states | top-bar menus with checkboxes and **All** (default: all shown); only checked breakpoints/states get frames |
+| Screenshot | top-bar camera: every screen of every page (shown breakpoints/states, theme) to PNG in `.dfw/shots/studio/<time>/`; **Screenshot** in Present (also fullscreen): the screen being shown, saved and downloaded |
 | Comment pins | click a pin to read the comment and its thread, and resolve or reopen it in place. **Shift+C** (or the **Pins** chip) cycles open → all → off; resolved comments are hidden by default |
 
 Useful commands (`dfw help` for all): `dfw status`, `dfw style match|show|apply`, `dfw system init|options|choose|audit|list`, `dfw palette build`, `dfw type scale`, `dfw icons search|add`, `dfw fonts check`, `dfw check`, `dfw shoot --page <id> --states`, `dfw comments list|wait`, `dfw decisions`, `dfw pause|resume`.
@@ -117,9 +119,13 @@ core/                     agent-agnostic workflow core
   kits/base/              starter design system: 21 token-driven components + presets (crisp, soft, industrial)
   kits/styles/            12 generated style guides (OKLCH palettes, rationale, personality axes)
   assets/icons/           Lucide icon bundle (ISC, pinned tag)
-  workflow/               phase guides, precedence + conflict policies, stack guides
-adapters/claude-code/     Claude Code packaging: skill, agents, hooks, plugin.json (+ assemble.json)
-plugins/                  GENERATED marketplace plugins (dfw + vendored skills); do not edit by hand
+  workflow/               SKILL.md, agents, phase guides, precedence + conflict policies, stack guides (host placeholders rendered at build)
+  lib/host.mjs            everything that differs between AI tools (hook formats, skill wording, install paths)
+  manifest.json           name, version, dependencies: source of every host's plugin manifest
+adapters/claude-code/     Claude Code packaging: hooks + assemble.json -> plugins/dfw
+adapters/copilot/         GitHub Copilot packaging: hooks + assemble.json -> plugins/dfw-copilot
+plugins/                  GENERATED marketplace plugins (dfw, dfw-copilot, vendored skills); do not edit by hand
+.claude-plugin/, .github/plugin/  GENERATED marketplaces for Claude Code and GitHub Copilot
 registry/                 vendored skill registry, lock (pinned commits), xref and conflict-lint rules
 overlays/                 declarative adaptations applied to vendored skills at build time
 scripts/                  installer (npx), build, validate, skill update management, presets, style guides, icon vendoring, CI helper
@@ -155,7 +161,7 @@ npm test && npm run build:check && npm run validate
 
 Proposal reports cover: trigger/description changes, added/changed executable code and hooks, files dfw depends on (cross-reference check), new conflict-lint hits, and instruction size. A weekly GitHub Action (`.github/workflows/upstream-check.yml`) opens one PR per update (merging is the approval) or an issue when an update is blocked. After merging: `claude plugin marketplace update dfw-marketplace` and `/reload-plugins`.
 
-When you change `core/` or the Claude Code adapter, run `npm run build` and bump `version` in `adapters/claude-code/plugin/.claude-plugin/plugin.json` so installed copies update.
+When you change `core/` or an adapter, run `npm run build` and bump `version` in `core/manifest.json` (and `package.json`) so installed copies update.
 
 ## Known limitations
 

@@ -78,6 +78,21 @@ export function globalDir() {
   return path.join(xdg, 'dfw');
 }
 
+/** Manifest files a dfw plugin may carry: Claude Code format, or a root plugin.json (Copilot and others). */
+export const MANIFESTS = [path.join('.claude-plugin', 'plugin.json'), 'plugin.json', 'manifest.json']; // manifest.json: core/ in the dev repo
+
+/** Path of a plugin directory's manifest, or null. */
+export function manifestPath(dir) {
+  for (const m of MANIFESTS) if (fs.existsSync(path.join(dir, m))) return path.join(dir, m);
+  return null;
+}
+
+/** The plugin's manifest (name, version, dependencies...), whichever host format it uses. */
+export function pluginManifest(dir = PLUGIN_ROOT) {
+  const f = manifestPath(dir);
+  return f ? readJson(f, {}) : {};
+}
+
 /** Claude Code config directory (respects CLAUDE_CONFIG_DIR). */
 export function claudeDir() {
   return process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');

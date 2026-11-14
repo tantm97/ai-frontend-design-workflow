@@ -34,8 +34,8 @@ const S = {
   mode: 'select',
   cam: { x: 0, y: 0, z: 0.25 },
   cams: {},
-  activeBps: store.get('bps2', null),
-  showStates: store.get('states', false),
+  activeBps: store.get('bps3', null), // null = all
+  activeStates: store.get('states3', null), // null = all
   fullHeight: store.get('full', false),
   theme: store.get('theme', ''),
   frames: new Map(), // key -> frame
@@ -96,8 +96,11 @@ const postAll = (msg) => S.frames.forEach((f) => f.loaded && post(f, msg));
 const L = { PAD: 96, HEAD_GAP: 72, ROW_GAP: 240, FRAME_GAP: 80, GUTTER_NOTES: 420, GUTTER: 300, GUTTER_GAP: 80, SEC_GAP: 480 };
 const bpShort = (bp) => (bp ? bp.short || String(bp.label || bp.id).charAt(0).toUpperCase() : '');
 const primaryVariant = (s) => (s.variants || []).find((v) => v.recommended) || (s.variants || [])[0];
-const activeBps = () => S.manifest.breakpoints.filter((b) => S.activeBps.includes(b.id));
+const bpShown = (id) => !S.activeBps || S.activeBps.includes(id);
+const activeBps = () => S.manifest.breakpoints.filter((b) => bpShown(b.id));
 const statesOf = (s) => (s.states && s.states.length ? s.states : S.manifest.states || []);
+const shownStates = (list) => (S.activeStates ? list.filter((x) => S.activeStates.includes(x)) : list);
+const allStates = () => [...new Set([...(S.manifest.states || []), ...(S.manifest.screens || []).flatMap((s) => s.states || [])])];
 
 function frameSrc(file, state) {
   const q = new URLSearchParams();
@@ -158,7 +161,7 @@ function pageModel(page) {
     for (const sec of page.sections) {
       const kind = sec.kind || (sec.breakpoint ? 'breakpoint' : sec.states ? 'states' : 'custom');
       const bpDecl = sec.breakpoint && S.manifest.breakpoints.find((b) => b.id === sec.breakpoint);
-      if (kind === 'breakpoint' && bpDecl && !S.activeBps.includes(bpDecl.id)) continue;
+      if (kind === 'breakpoint' && bpDecl && !bpShown(bpDecl.id)) continue;
       const bp = bpDecl || primary;
       if (!bp) continue;
       const list = sec.screens ? refs(sec.screens) : screens.map((s) => ({ s, v: null }));
@@ -168,7 +171,7 @@ function pageModel(page) {
           const vs = v ? [v] : (s.variants || []).filter((x) => x !== primaryVariant(s));
           for (const x of vs) frames.push(makeSpec(s, x, bp, null));
         } else if (kind === 'states') {
-          for (const st of sec.states || statesOf(s)) frames.push(makeSpec(s, v || primaryVariant(s), bp, st));
+          for (const st of shownStates(sec.states || statesOf(s))) frames.push(makeSpec(s, v || primaryVariant(s), bp, st));
         } else frames.push(makeSpec(s, v || primaryVariant(s), bp, null));
       }
       const defTitle = { breakpoint: `${bp.label || bp.id} ${bp.width}`, variants: 'Variants', states: 'States' }[kind] || '';
@@ -180,8 +183,8 @@ function pageModel(page) {
     }
     const alt = screens.flatMap((s) => (s.variants || []).filter((v) => v !== primaryVariant(s)).map((v) => makeSpec(s, v, primary, null)));
     if (alt.length) rows.push({ title: 'Variants', sub: `Alternatives at ${primary.label || primary.id} ${primary.width}`, frames: alt });
-    if (S.showStates) {
-      const st = screens.flatMap((s) => statesOf(s).map((x) => makeSpec(s, primaryVariant(s), primary, x)));
+    if (allStates().length) {
+      const st = screens.flatMap((s) => shownStates(statesOf(s)).map((x) => makeSpec(s, primaryVariant(s), primary, x)));
       const names = [...new Set(st.map((f) => f.state))];
       if (st.length) rows.push({ title: `States (${names.join(' · ')})`, sub: `at ${primary.label || primary.id} ${primary.width}`, frames: st });
     }
@@ -1609,29 +1612,83 @@ function renderToolbar() {
   $('#product').textContent = m.product || 'Design Studio';
   const st = S.state;
   $('#meta').textContent = [st ? `v${st.design.version} ${st.design.status}` : null, m.inferred ? 'manifest inferred' : null].filter(Boolean).join(' · ');
-  const wrap = $('#breakpoints');
-  wrap.innerHTML = '';
-  for (const bp of m.breakpoints) {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.textContent = `${bp.label || bp.id} ${bp.width}`;
-    b.setAttribute('aria-pressed', String(S.activeBps.includes(bp.id)));
-    b.onclick = () => {
-      const on = S.activeBps.includes(bp.id);
-      if (on && S.activeBps.length === 1) return;
-      S.activeBps = on ? S.activeBps.filter((x) => x !== bp.id) : m.breakpoints.map((x) => x.id).filter((x) => x === bp.id || S.activeBps.includes(x));
-      store.set('bps2', S.activeBps);
-      renderToolbar();
-      rebuildKeepCam();
-    };
-    wrap.append(b);
-  }
-  $('#states-toggle').setAttribute('aria-pressed', String(S.showStates));
+  const bpName = (bp) => `${bp.label || bp.id} ${bp.width}`;
+  const bpOn = activeBps();
+  $('#bp-menu summary').textContent = !S.activeBps ? 'All breakpoints' : bpOn.length <= 2 ? bpOn.map(bpName).join(', ') : `${bpOn.length} breakpoints`;
+  checkList($('#breakpoints'), m.breakpoints.map((bp) => ({ id: bp.id, label: bpName(bp) })), S.activeBps, (ids) => {
+    S.activeBps = ids && !ids.length ? [bpOn[0].id] : ids; // keep at least one breakpoint
+    store.set('bps3', S.activeBps);
+  });
+  const states = allStates();
+  $('#state-menu').hidden = !states.length;
+  const stOn = shownStates(states);
+  $('#state-menu summary').textContent = `States: ${!S.activeStates ? 'all' : !stOn.length ? 'off' : stOn.length <= 2 ? stOn.join(', ') : stOn.length}`;
+  checkList($('#states'), states.map((x) => ({ id: x, label: x })), S.activeStates, (ids) => {
+    S.activeStates = ids;
+    store.set('states3', ids);
+  });
   $('#full-toggle').setAttribute('aria-pressed', String(S.fullHeight));
   renderPinsToggle();
   const themes = m.themes || [];
   $('#theme-wrap').hidden = !themes.length;
   $('#theme').innerHTML = `<option value="">default</option>` + themes.map((t) => `<option ${t === S.theme ? 'selected' : ''}>${esc(t)}</option>`).join('');
+}
+
+/** Checkbox list with an "All" row for a toolbar menu. checked: ids, or null = all. onChange gets ids or null (all). */
+function checkList(wrap, items, checked, onChange) {
+  const on = (id) => !checked || checked.includes(id);
+  const n = items.filter((it) => on(it.id)).length;
+  const change = (ids) => {
+    onChange(ids && ids.length === items.length ? null : ids);
+    renderToolbar();
+    rebuildKeepCam();
+  };
+  wrap.innerHTML = '';
+  const all = document.createElement('label');
+  all.className = 'ms-all';
+  all.innerHTML = `<input type="checkbox" ${n === items.length ? 'checked' : ''}> All`;
+  all.querySelector('input').indeterminate = n > 0 && n < items.length;
+  all.querySelector('input').onchange = (e) => change(e.target.checked ? null : []);
+  wrap.append(all);
+  for (const it of items) {
+    const l = document.createElement('label');
+    l.innerHTML = `<input type="checkbox" ${on(it.id) ? 'checked' : ''}> ${esc(it.label)}`;
+    l.querySelector('input').onchange = (e) => change(items.map((x) => x.id).filter((id) => (id === it.id ? e.target.checked : on(id))));
+    wrap.append(l);
+  }
+}
+
+/** Every frame of every page with the current breakpoint/state/theme choices (a screen shown on two pages once). */
+function allFrameSpecs() {
+  const seen = new Map();
+  for (const p of S.pages) for (const r of pageModel(p).rows) for (const f of r.frames) seen.set(f.key, f);
+  return [...seen.values()];
+}
+
+/** Screenshot frame specs ({src, w, h, system, screen, variant, bp, state}) to PNG; one shot is also downloaded. */
+async function shootFrames(list, btn) {
+  if (btn.disabled) return;
+  if (!list.length) return toast('No screen to screenshot.');
+  btn.disabled = true;
+  toast(`Screenshotting ${list.length} screen(s)…`);
+  try {
+    const name = (f) => (f.system ? 'design-system' : [f.screen?.id || f.file?.replace(/\.html$/, ''), f.variant?.id, f.bp?.id, S.theme, f.state].filter(Boolean).join('__').replace(/\//g, '__'));
+    const res = await api('/__dfw/api/shoot', { method: 'POST', body: JSON.stringify({ frames: list.map((f) => ({ src: f.src, w: f.w, h: f.h, name: name(f) })) }) });
+    const ok = res.filter((r) => r.ok);
+    if (ok.length === 1) {
+      const a = document.createElement('a');
+      a.href = ok[0].url;
+      a.download = ok[0].name;
+      a.click();
+    }
+    const dir = ok[0]?.file.split('/').slice(0, -1).join('/');
+    toast(`${ok.length}/${res.length} PNG saved${dir ? ` in ${dir}` : ''}${ok.length < res.length ? ` · failed: ${res.find((r) => !r.ok).error}` : ''}`);
+  } catch (e) {
+    // A Studio server started before an update serves the new page but not the new API.
+    toast(e.message === 'not found' ? 'Screenshot needs a newer Studio server: run "dfw studio stop" then "dfw studio start", and reload.' : `Screenshot failed: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 function rebuildKeepCam() {
@@ -1650,7 +1707,7 @@ async function loadAll({ keepCam = false } = {}) {
   S.components = new Map(comps.map((c) => [c.name, c]));
   const ids = manifest.breakpoints.map((b) => b.id);
   if (S.activeBps) S.activeBps = S.activeBps.filter((id) => ids.includes(id));
-  if (!S.activeBps?.length) S.activeBps = ids.slice(0, 2);
+  if (!S.activeBps?.length) S.activeBps = null;
   renderToolbar();
   if (keepCam && S.page) rebuildKeepCam();
   else setPage(store.get('page', null) || S.pages.find((p) => !p.system && p.screens.length)?.id || 'system');
@@ -1661,18 +1718,20 @@ async function loadAll({ keepCam = false } = {}) {
 
 for (const b of $$('.seg button')) b.onclick = () => setMode(b.dataset.mode);
 for (const b of $$('.ptabs button')) b.onclick = () => setTab(b.dataset.tab);
+$('#shoot-btn').onclick = () => shootFrames(allFrameSpecs(), $('#shoot-btn'));
+// Present: the screen as shown (breakpoint, state, theme), full height.
+$('#p-shoot').onclick = () =>
+  shootFrames([{ src: presentSrc(), w: P.system ? 1440 : P.bp.width, h: P.system ? 900 : P.bp.height, system: P.system, screen: P.screen, variant: P.variant, file: P.file, bp: P.bp, state: P.state }], $('#p-shoot'));
 $('#zoom-in').onclick = () => zoomStep(1);
 $('#zoom-out').onclick = () => zoomStep(-1);
 $('#zoom-label').onclick = () => zoomToFit();
 $('#help').onclick = () => ($('#shortcuts').hidden = false);
 $('#shortcuts-close').onclick = () => ($('#shortcuts').hidden = true);
 $('#shortcuts').onclick = (e) => e.target.id === 'shortcuts' && ($('#shortcuts').hidden = true);
-$('#states-toggle').onclick = () => {
-  S.showStates = !S.showStates;
-  store.set('states', S.showStates);
-  renderToolbar();
-  rebuildKeepCam();
-};
+// Close an open toolbar menu on a click outside it.
+document.addEventListener('click', (e) => {
+  for (const d of $$('details.ms[open]')) if (!d.contains(e.target)) d.open = false;
+});
 $('#full-toggle').onclick = () => {
   S.fullHeight = !S.fullHeight;
   store.set('full', S.fullHeight);

@@ -1,0 +1,686 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dfw Architecture &amp; Guide</title>
+<style>
+:root{
+  --bg:#f7f7f5;--surface:#ffffff;--surface-2:#f0f0ec;--ink:#1c1d1f;--ink-2:#55585e;--ink-3:#8a8d93;
+  --line:#e2e2dc;--accent:#3b5bdb;--accent-soft:#e7ecfd;
+  --c-core:#2f6f4f;--c-core-soft:#e3f1e9;--c-adapt:#7a4cc2;--c-adapt-soft:#efe8fa;
+  --c-ext:#b4601b;--c-ext-soft:#fbeee2;--c-user:#1f6fb2;--c-user-soft:#e3effa;
+  --c-gate:#c0392b;--c-gate-soft:#fbe6e3;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#141518;--surface:#1c1d21;--surface-2:#24262b;--ink:#ececec;--ink-2:#b2b5bb;--ink-3:#7c8087;
+  --line:#33353b;--accent:#8ea5ff;--accent-soft:#252c47;
+  --c-core:#6fcf9b;--c-core-soft:#1c3328;--c-adapt:#b89af0;--c-adapt-soft:#2c2340;
+  --c-ext:#f0a764;--c-ext-soft:#3a2818;--c-user:#7ab8ef;--c-user-soft:#182c40;
+  --c-gate:#f08a7e;--c-gate-soft:#3d1f1b;
+}}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 var(--sans)}
+a{color:var(--accent)}
+code,kbd,pre{font-family:var(--mono);font-size:.86em}
+code{background:var(--surface-2);padding:1px 5px;border-radius:4px}
+kbd{border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;background:var(--surface)}
+pre{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:12px 14px;overflow:auto;line-height:1.5}
+pre code{background:none;padding:0}
+.layout{display:grid;grid-template-columns:240px minmax(0,1fr);max-width:1240px;margin:0 auto}
+nav.toc{position:sticky;top:0;align-self:start;height:100vh;overflow:auto;padding:28px 18px;border-right:1px solid var(--line)}
+nav.toc b{display:block;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin:18px 0 6px}
+nav.toc a{display:block;color:var(--ink-2);text-decoration:none;padding:3px 8px;border-radius:6px;font-size:14px}
+nav.toc a:hover{background:var(--surface-2);color:var(--ink)}
+main{padding:32px 40px 80px;min-width:0}
+header.hero h1{font-size:34px;line-height:1.15;margin:0 0 8px}
+header.hero p{color:var(--ink-2);max-width:70ch;margin:0}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.badge{font-size:12px;border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:2px 10px;color:var(--ink-2)}
+section{margin-top:56px}
+h2{font-size:24px;margin:0 0 4px;scroll-margin-top:16px}
+h2 small{display:block;font-size:13px;font-weight:500;color:var(--ink-3);letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px}
+h3{font-size:17px;margin:28px 0 8px}
+.lead{color:var(--ink-2);max-width:75ch}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
+.fig{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;margin:16px 0;overflow-x:auto}
+.fig svg{display:block;width:100%;height:auto;min-width:640px}
+.fig figcaption{font-size:13px;color:var(--ink-3);margin-top:8px}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.grid .card h4{margin:0 0 4px;font-size:15px}
+.grid .card p{margin:0;color:var(--ink-2);font-size:14px}
+.tag{display:inline-block;font:600 11px/1.6 var(--sans);letter-spacing:.04em;text-transform:uppercase;padding:0 7px;border-radius:4px}
+.t-core{background:var(--c-core-soft);color:var(--c-core)}
+.t-adapt{background:var(--c-adapt-soft);color:var(--c-adapt)}
+.t-ext{background:var(--c-ext-soft);color:var(--c-ext)}
+.t-user{background:var(--c-user-soft);color:var(--c-user)}
+.t-gate{background:var(--c-gate-soft);color:var(--c-gate)}
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:14px;background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:var(--surface-2);font-weight:600;font-size:13px;color:var(--ink-2)}
+tr:last-child td{border-bottom:0}
+td code{overflow-wrap:anywhere}
+td:first-child code{white-space:nowrap}
+.steps{counter-reset:s;list-style:none;padding:0;margin:0}
+.steps>li{counter-increment:s;position:relative;padding:0 0 18px 44px}
+.steps>li::before{content:counter(s);position:absolute;left:0;top:0;width:28px;height:28px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-weight:700;display:grid;place-items:center;font-size:14px}
+.steps>li b{display:block}
+.note{border-left:3px solid var(--accent);background:var(--accent-soft);padding:10px 14px;border-radius:0 8px 8px 0;margin:14px 0;font-size:14px}
+.warn{border-left-color:var(--c-gate);background:var(--c-gate-soft)}
+.tree{font-family:var(--mono);font-size:13px;line-height:1.55;white-space:pre;overflow:auto}
+.tree .d{color:var(--ink-3)}
+details{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:8px 0}
+details summary{cursor:pointer;font-weight:600}
+/* svg tokens */
+.s-box{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+.s-core{fill:var(--c-core-soft);stroke:var(--c-core);stroke-width:1.2}
+.s-adapt{fill:var(--c-adapt-soft);stroke:var(--c-adapt);stroke-width:1.2}
+.s-ext{fill:var(--c-ext-soft);stroke:var(--c-ext);stroke-width:1.2}
+.s-user{fill:var(--c-user-soft);stroke:var(--c-user);stroke-width:1.2}
+.s-gate{fill:var(--c-gate-soft);stroke:var(--c-gate);stroke-width:1.4}
+.s-t{fill:var(--ink);font:600 13px var(--sans)}
+.s-s{fill:var(--ink-2);font:12px var(--sans)}
+.s-m{fill:var(--ink-2);font:11.5px var(--mono)}
+.s-k{fill:var(--ink-3);font:600 10.5px var(--sans);letter-spacing:.06em}
+.s-line{stroke:var(--ink-3);stroke-width:1.3;fill:none}
+.s-dash{stroke:var(--ink-3);stroke-width:1.2;fill:none;stroke-dasharray:4 4}
+.s-arrow{fill:var(--ink-3)}
+.s-gt{fill:var(--c-gate);font:700 12px var(--sans)}
+.s-ct{fill:var(--c-core);font:700 11px var(--sans);letter-spacing:.05em}
+.s-at{fill:var(--c-adapt);font:700 11px var(--sans);letter-spacing:.05em}
+.s-et{fill:var(--c-ext);font:700 11px var(--sans);letter-spacing:.05em}
+.s-ut{fill:var(--c-user);font:700 11px var(--sans);letter-spacing:.05em}
+@media (max-width:900px){
+  .layout{grid-template-columns:1fr}
+  nav.toc{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line);padding:16px}
+  main{padding:24px 16px 64px}
+  header.hero h1{font-size:27px}
+}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav class="toc" aria-label="Contents">
+  <strong>dfw</strong> <span class="badge">v0.4.0</span> <a href="architecture.vi.html" style="display:inline;padding:0 4px;font-size:12px">Tiếng Việt</a>
+  <b>Architecture</b>
+  <a href="#overview">1. The big picture</a>
+  <a href="#repo">2. Repository layout</a>
+  <a href="#workflow">3. Phases &amp; gates</a>
+  <a href="#runtime">4. Who does what in a session</a>
+  <a href="#hooks">5. Hooks</a>
+  <a href="#skills">6. External design skills</a>
+  <a href="#cli">7. The dfw CLI</a>
+  <a href="#render">8. Rendering &amp; the binary</a>
+  <a href="#studio">9. Studio &amp; the comment loop</a>
+  <a href="#project">10. Files in your project</a>
+  <b>Guide</b>
+  <a href="#install">11. Install</a>
+  <a href="#first">12. First project, step by step</a>
+  <a href="#modes">13. Modes</a>
+  <a href="#review">14. Reviewing in Studio</a>
+  <a href="#commands">15. Command cheat sheet</a>
+  <a href="#trouble">16. Troubleshooting</a>
+  <a href="#dev">17. Developing dfw</a>
+</nav>
+
+<main>
+<header class="hero">
+  <h1>dfw: design-first frontend workflow</h1>
+  <p>A Claude Code plugin that makes Claude design before it codes: discovery, a visual direction, a design system, then screens reviewed on a local Figma-like Studio. Only after you approve the design and the tech stack does it write real application code, and then it verifies the result against the design.</p>
+  <div class="badges"><span class="badge">Claude Code plugin</span><span class="badge">HTML/CSS + DTCG tokens</span><span class="badge">5 approval gates</span><span class="badge">Local Studio</span><span class="badge">Single-file binary</span></div>
+</header>
+
+<!-- 1 -->
+<section id="overview">
+  <h2><small>Architecture</small>1. The big picture</h2>
+  <p class="lead">dfw has three layers. <span class="tag t-core">core</span> is the engine and knows nothing about Claude Code. <span class="tag t-adapt">adapter</span> turns it into things Claude Code understands (a skill, agents, hooks). <span class="tag t-ext">external skills</span> are pinned copies of design skills that dfw calls when a phase needs them.</p>
+  <figure class="fig">
+    <svg viewBox="0 0 960 470" role="img" aria-label="Layer diagram: user, Claude Code, adapter, core, external skills, project files">
+      <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="s-arrow"/></marker></defs>
+      <!-- user -->
+      <rect x="20" y="20" width="200" height="90" rx="10" class="s-user"/>
+      <text x="36" y="44" class="s-ut">YOU</text>
+      <text x="36" y="66" class="s-t">Chat with Claude</text>
+      <text x="36" y="86" class="s-s">answer questions, approve gates</text>
+      <rect x="20" y="130" width="200" height="90" rx="10" class="s-user"/>
+      <text x="36" y="154" class="s-ut">YOU</text>
+      <text x="36" y="176" class="s-t">Studio in the browser</text>
+      <text x="36" y="196" class="s-s">127.0.0.1:4600, comments</text>
+      <!-- claude code -->
+      <rect x="270" y="20" width="420" height="300" rx="12" class="s-box"/>
+      <text x="288" y="44" class="s-k">CLAUDE CODE</text>
+      <rect x="288" y="56" width="384" height="250" rx="10" class="s-adapt"/>
+      <text x="304" y="78" class="s-at">ADAPTER · adapters/claude-code/plugin</text>
+      <rect x="304" y="90" width="170" height="96" rx="8" class="s-box"/>
+      <text x="316" y="112" class="s-t">Skill: dfw</text>
+      <text x="316" y="132" class="s-s">SKILL.md orchestrator</text>
+      <text x="316" y="150" class="s-s">+ phase references</text>
+      <text x="316" y="168" class="s-s">+ policies</text>
+      <rect x="488" y="90" width="170" height="96" rx="8" class="s-box"/>
+      <text x="500" y="112" class="s-t">4 agents</text>
+      <text x="500" y="132" class="s-s">design-director</text>
+      <text x="500" y="150" class="s-s">screen-builder · visual-reviewer</text>
+      <text x="500" y="168" class="s-s">skill-steward</text>
+      <rect x="304" y="198" width="354" height="94" rx="8" class="s-box"/>
+      <text x="316" y="220" class="s-t">Hooks (hooks.json)</text>
+      <text x="316" y="240" class="s-s">SessionStart · PreToolUse (write gate) · PostToolUse (lint)</text>
+      <text x="316" y="258" class="s-s">UserPromptSubmit (deliver comments) · Stop (layout check)</text>
+      <text x="316" y="278" class="s-m">"$CLAUDE_PLUGIN_ROOT/bin/dfw" hook &lt;name&gt;</text>
+      <!-- external -->
+      <rect x="740" y="20" width="200" height="300" rx="12" class="s-ext"/>
+      <text x="756" y="44" class="s-et">EXTERNAL SKILLS</text>
+      <text x="756" y="70" class="s-s">frontend-design</text>
+      <text x="756" y="92" class="s-s">ux-research</text>
+      <text x="756" y="114" class="s-s">ui-ux-pro-max</text>
+      <text x="756" y="136" class="s-s">impeccable</text>
+      <text x="756" y="158" class="s-s">emil-design-eng</text>
+      <text x="756" y="180" class="s-s">hallmark</text>
+      <text x="756" y="202" class="s-s">taste-reference</text>
+      <text x="756" y="236" class="s-s">pinned commits,</text>
+      <text x="756" y="254" class="s-s">hooks + telemetry</text>
+      <text x="756" y="272" class="s-s">removed, routed by</text>
+      <text x="756" y="290" class="s-s">the dfw skill</text>
+      <!-- core -->
+      <rect x="270" y="350" width="420" height="100" rx="12" class="s-core"/>
+      <text x="288" y="374" class="s-ct">CORE · the dfw CLI (core/lib) + Studio + kits + templates</text>
+      <text x="288" y="398" class="s-s">state &amp; gates · tokens &amp; design system · compose · lint / layout / check</text>
+      <text x="288" y="418" class="s-s">CDP renderer (your Chrome/Edge) · comments &amp; inbox · stack · install</text>
+      <text x="288" y="438" class="s-m">bin/dfw → binary (if installed) or node bin/dfw.mjs</text>
+      <!-- project -->
+      <rect x="740" y="350" width="200" height="100" rx="12" class="s-box"/>
+      <text x="756" y="374" class="s-k">YOUR PROJECT</text>
+      <text x="756" y="398" class="s-m">.dfw/  design/</text>
+      <text x="756" y="418" class="s-m">PRODUCT.md DESIGN.md</text>
+      <text x="756" y="438" class="s-m">src/ (after G2+G3)</text>
+      <!-- arrows -->
+      <path d="M220 65H286" class="s-line" marker-end="url(#a)"/>
+      <path d="M220 175 C250 175 250 400 268 400" class="s-line" marker-end="url(#a)"/>
+      <path d="M672 140H738" class="s-line" marker-end="url(#a)"/>
+      <path d="M480 306V348" class="s-line" marker-end="url(#a)"/>
+      <path d="M690 400H738" class="s-line" marker-end="url(#a)"/>
+      <text x="230" y="58" class="s-s">prompts</text>
+      <text x="688" y="132" class="s-s">uses</text>
+      <text x="488" y="332" class="s-s">every action runs dfw …</text>
+      <text x="694" y="392" class="s-s">reads/</text>
+      <text x="694" y="414" class="s-s">writes</text>
+    </svg>
+    <figcaption>Claude never edits the design state by hand: it calls <code>dfw</code> commands, and the hooks call the same CLI automatically.</figcaption>
+  </figure>
+  <div class="grid">
+    <div class="card"><h4>Design first</h4><p>Designs are framework-neutral HTML/CSS plus W3C DTCG tokens, so they render anywhere and can be implemented in any stack.</p></div>
+    <div class="card"><h4>Design system first</h4><p>Tokens and component masters come before screens. Screens are built from component instances (<code>&lt;dfw-use&gt;</code>), not one-off markup.</p></div>
+    <div class="card"><h4>You hold the gates</h4><p>Five approvals (G1, DS, G2, G3, G4) are recorded only after you approve in chat or in the Studio. A hook blocks code writes before G2 and G3.</p></div>
+    <div class="card"><h4>State lives in the project</h4><p>Everything is plain files in <code>.dfw/</code> and <code>design/</code>, so it can be committed and reviewed like code.</p></div>
+  </div>
+</section>
+
+<!-- 2 -->
+<section id="repo">
+  <h2><small>Architecture</small>2. Repository layout</h2>
+  <p class="lead">You edit <code>core/</code> and <code>adapters/</code>. <code>plugins/</code> is generated by <code>node scripts/build.mjs</code> (except the vendored external skills) and is what Claude Code installs.</p>
+  <div class="card tree"><span class="d"># source of truth</span>
+core/
+  bin/dfw              <span class="d">POSIX sh launcher: binary if present, else node dfw.mjs</span>
+  bin/dfw.mjs          <span class="d">Node entry (compile cache → lib/cli.mjs)</span>
+  lib/                 <span class="d">the CLI modules (section 7)</span>
+  studio/              <span class="d">server.mjs + app.html/css/js (section 9)</span>
+  kits/base/           <span class="d">starter component masters (button, card, data-table, app-shell…)</span>
+  kits/styles/         <span class="d">curated style guides: palettes, type, motifs</span>
+  templates/           <span class="d">PRODUCT.md, DESIGN.md, handoff.md, screen.html, design/ skeleton</span>
+  workflow/references/ <span class="d">one file per phase + quality rubric, layout patterns, type pairings…</span>
+  workflow/policies/   <span class="d">precedence.md, conflicts.md (which skill wins when they disagree)</span>
+  workflow/stacks/     <span class="d">react, vue, svelte, angular, html implementation notes</span>
+  schemas/             <span class="d">JSON schemas (feedback/comments contract…)</span>
+  assets/              <span class="d">icons, fonts metadata</span>
+adapters/claude-code/plugin/
+  skills/dfw/SKILL.md  <span class="d">the orchestrator Claude reads</span>
+  agents/*.md          <span class="d">design-director, screen-builder, visual-reviewer, skill-steward</span>
+  hooks/hooks.json     <span class="d">5 hooks → bin/dfw hook &lt;name&gt;</span>
+
+<span class="d"># generated / vendored</span>
+plugins/dfw/           <span class="d">core + adapter merged (build output)</span>
+plugins/&lt;7 skills&gt;/    <span class="d">pinned, de-conflicted external design skills</span>
+.claude-plugin/marketplace.json  <span class="d">makes this repo a Claude Code marketplace</span>
+
+<span class="d"># tooling</span>
+scripts/build.mjs        <span class="d">build plugins/dfw, notices, checks (--check)</span>
+scripts/build-binary.mjs <span class="d">single-file binary (Node SEA)</span>
+scripts/sea/entry.mjs    <span class="d">binary entry: unpacks embedded plugin files</span>
+scripts/install.mjs      <span class="d">npx installer → lib/install.mjs</span>
+install.sh               <span class="d">curl | sh installer for machines without Node</span>
+.github/workflows/release-binaries.yml  <span class="d">builds 5 platforms on tag v*</span>
+tests/unit, tests/e2e</div>
+</section>
+
+<!-- 3 -->
+<section id="workflow">
+  <h2><small>Architecture</small>3. Phases &amp; gates</h2>
+  <p class="lead">The workflow is a state machine stored in <code>.dfw/state.json</code>. Each phase has a reference file Claude reads before working on it, and an exit condition. Red diamonds are gates only you can pass.</p>
+  <figure class="fig">
+    <svg viewBox="0 0 960 300" role="img" aria-label="Phase flow with gates G1, DS, G2, G3, G4">
+      <defs><marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="s-arrow"/></marker></defs>
+      <g>
+        <rect x="10" y="40" width="110" height="64" rx="10" class="s-box"/><text x="22" y="66" class="s-t">discovery</text><text x="22" y="86" class="s-s">PRODUCT.md</text>
+        <rect x="160" y="40" width="110" height="64" rx="10" class="s-box"/><text x="172" y="66" class="s-t">direction</text><text x="172" y="86" class="s-s">2–3 briefs</text>
+        <polygon points="300,72 320,52 340,72 320,92" class="s-gate"/><text x="309" y="77" class="s-gt">G1</text>
+        <rect x="370" y="40" width="120" height="64" rx="10" class="s-box"/><text x="382" y="66" class="s-t">system</text><text x="382" y="86" class="s-s">tokens + components</text>
+        <polygon points="520,72 540,52 560,72 540,92" class="s-gate"/><text x="529" y="77" class="s-gt">DS</text>
+        <rect x="590" y="40" width="140" height="64" rx="10" class="s-box"/><text x="602" y="66" class="s-t">concepts</text><text x="602" y="86" class="s-s">pages of screens</text>
+        <polygon points="760,72 780,52 800,72 780,92" class="s-gate"/><text x="769" y="77" class="s-gt">G2</text>
+        <text x="742" y="118" class="s-s">design frozen</text>
+        <path d="M120 72H158" class="s-line" marker-end="url(#b)"/>
+        <path d="M270 72H298" class="s-line" marker-end="url(#b)"/>
+        <path d="M340 72H368" class="s-line" marker-end="url(#b)"/>
+        <path d="M490 72H518" class="s-line" marker-end="url(#b)"/>
+        <path d="M560 72H588" class="s-line" marker-end="url(#b)"/>
+        <path d="M730 72H758" class="s-line" marker-end="url(#b)"/>
+        <!-- review loop -->
+        <path d="M640 104 C640 150 700 150 700 106" class="s-dash" marker-end="url(#b)"/>
+        <text x="600" y="160" class="s-s">review loop: Studio comments → fix</text>
+        <!-- row 2 -->
+        <path d="M800 72 C900 72 900 230 860 230" class="s-line" marker-end="url(#b)"/>
+        <rect x="720" y="198" width="138" height="64" rx="10" class="s-box"/><text x="732" y="224" class="s-t">stack</text><text x="732" y="244" class="s-s">framework, deps</text>
+        <polygon points="670,230 690,210 710,230 690,250" class="s-gate"/><text x="679" y="235" class="s-gt">G3</text>
+        <rect x="500" y="198" width="140" height="64" rx="10" class="s-core"/><text x="512" y="224" class="s-t">implement</text><text x="512" y="244" class="s-s">real code in src/</text>
+        <rect x="330" y="198" width="140" height="64" rx="10" class="s-box"/><text x="342" y="224" class="s-t">verify</text><text x="342" y="244" class="s-s">app vs design</text>
+        <polygon points="260,230 280,210 300,230 280,250" class="s-gate"/><text x="269" y="235" class="s-gt">G4</text>
+        <rect x="120" y="198" width="110" height="64" rx="10" class="s-box"/><text x="132" y="224" class="s-t">done</text><text x="132" y="244" class="s-s">accepted</text>
+        <path d="M720 230H712" class="s-line" marker-end="url(#b)"/>
+        <path d="M670 230H642" class="s-line" marker-end="url(#b)"/>
+        <path d="M500 230H472" class="s-line" marker-end="url(#b)"/>
+        <path d="M330 230H302" class="s-line" marker-end="url(#b)"/>
+        <path d="M260 230H232" class="s-line" marker-end="url(#b)"/>
+        <rect x="440" y="140" width="60" height="1" fill="none"/>
+        <text x="500" y="290" class="s-s">PreToolUse hook blocks writes to app code until both G2 and G3 are recorded</text>
+      </g>
+    </svg>
+  </figure>
+  <table>
+    <thead><tr><th>Phase</th><th>What happens</th><th>Reference</th><th>Exit</th></tr></thead>
+    <tbody>
+      <tr><td><b>discovery</b></td><td>Claude asks about users, goals, content, constraints and writes <code>PRODUCT.md</code>. Unknowns become recorded assumptions.</td><td><code>phase-discovery.md</code></td><td>PRODUCT.md complete enough</td></tr>
+      <tr><td><b>direction</b></td><td>The design-director agent researches references and writes 2–3 distinct visual directions with reasons. Optional quick visual sketches in <code>design/screens/_directions</code>.</td><td><code>phase-direction.md</code></td><td><span class="tag t-gate">G1</span> you pick one</td></tr>
+      <tr><td><b>system</b></td><td>Style guide → tokens (colour ramps in OKLCH, type scale, spacing, radius, motion) → component masters from the kit → the Design System page in Studio. <code>dfw system audit</code> checks contrast and rationale.</td><td><code>phase-system.md</code>, <code>design-system-thinking.md</code></td><td><span class="tag t-gate">DS</span> you approve the DS page</td></tr>
+      <tr><td><b>concepts</b></td><td>Blueprints per screen are agreed, then one screen-builder agent per page builds screens from component instances. Claude self-critiques twice (quality rubric), then you review in Studio.</td><td><code>phase-concepts.md</code>, <code>phase-review.md</code>, <code>layout-patterns.md</code></td><td><span class="tag t-gate">G2</span> approval freezes the design as a version</td></tr>
+      <tr><td><b>stack</b></td><td><code>dfw stack detect</code> reads the existing project, Claude proposes framework, styling approach and major dependencies.</td><td><code>phase-stack.md</code>, <code>stacks/*.md</code></td><td><span class="tag t-gate">G3</span> you approve the stack</td></tr>
+      <tr><td><b>implement</b></td><td>Code is written in the approved stack from <code>design/handoff/v&lt;N&gt;.md</code>. The frozen design cannot be edited.</td><td><code>phase-implement.md</code></td><td>handoff complete</td></tr>
+      <tr><td><b>verify</b></td><td>The visual-reviewer screenshots the running app at each breakpoint and compares it with the design; deviations are listed.</td><td><code>phase-verify.md</code></td><td><span class="tag t-gate">G4</span> you accept result or deviations</td></tr>
+    </tbody>
+  </table>
+  <div class="note">Need to change an approved design? <code>dfw reopen --reason "…"</code> opens a new version (v2, v3…); old snapshots stay and <code>dfw verify-snapshot</code> proves they were not modified.</div>
+</section>
+
+<!-- 4 -->
+<section id="runtime">
+  <h2><small>Architecture</small>4. Who does what in a session</h2>
+  <p class="lead">The main Claude conversation, guided by <code>SKILL.md</code>, is the only one that talks to you and records gates. It hands narrow jobs to agents and runs everything through the CLI.</p>
+  <figure class="fig">
+    <svg viewBox="0 0 960 330" role="img" aria-label="Main assistant delegating to agents">
+      <defs><marker id="c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="s-arrow"/></marker></defs>
+      <rect x="20" y="120" width="140" height="80" rx="10" class="s-user"/><text x="36" y="146" class="s-ut">YOU</text><text x="36" y="168" class="s-t">chat + Studio</text><text x="36" y="186" class="s-s">approve gates</text>
+      <rect x="220" y="100" width="230" height="120" rx="12" class="s-adapt"/><text x="236" y="124" class="s-at">MAIN ASSISTANT</text><text x="236" y="148" class="s-t">dfw skill (orchestrator)</text><text x="236" y="168" class="s-s">language · status · mode · phase</text><text x="236" y="186" class="s-s">routes to design skills</text><text x="236" y="204" class="s-s">only one who records gates</text>
+      <path d="M160 160H218" class="s-line" marker-start="url(#c)" marker-end="url(#c)"/>
+      <rect x="520" y="14" width="200" height="66" rx="10" class="s-box"/><text x="534" y="38" class="s-t">design-director</text><text x="534" y="58" class="s-s">references → direction briefs</text><text x="534" y="72" class="s-k">READ-ONLY</text>
+      <rect x="520" y="92" width="200" height="66" rx="10" class="s-box"/><text x="534" y="116" class="s-t">screen-builder × N</text><text x="534" y="136" class="s-s">one per page, in parallel</text><text x="534" y="150" class="s-k">WRITES ITS SCREENS ONLY</text>
+      <rect x="520" y="170" width="200" height="66" rx="10" class="s-box"/><text x="534" y="194" class="s-t">visual-reviewer</text><text x="534" y="214" class="s-s">shots + checks → Must/Should/Nice</text><text x="534" y="228" class="s-k">READ-ONLY</text>
+      <rect x="520" y="248" width="200" height="66" rx="10" class="s-box"/><text x="534" y="272" class="s-t">skill-steward</text><text x="534" y="292" class="s-s">upstream updates for the 7 skills</text><text x="534" y="306" class="s-k">PROPOSES, YOU APPROVE</text>
+      <path d="M450 160 C485 160 485 47 518 47" class="s-line" marker-end="url(#c)"/>
+      <path d="M450 160 C485 160 485 125 518 125" class="s-line" marker-end="url(#c)"/>
+      <path d="M450 160 C485 160 485 203 518 203" class="s-line" marker-end="url(#c)"/>
+      <path d="M450 160 C485 160 485 281 518 281" class="s-line" marker-end="url(#c)"/>
+      <rect x="780" y="100" width="160" height="120" rx="12" class="s-core"/><text x="796" y="124" class="s-ct">dfw CLI</text><text x="796" y="148" class="s-s">status, approve,</text><text x="796" y="166" class="s-s">system, lint, shoot,</text><text x="796" y="184" class="s-s">layout check,</text><text x="796" y="202" class="s-s">comments…</text>
+      <path d="M720 160H778" class="s-dash" marker-end="url(#c)"/>
+      <text x="726" y="152" class="s-s">all call</text>
+    </svg>
+  </figure>
+  <h3>What the skill does on every invocation</h3>
+  <ol class="steps">
+    <li><b>Language</b>Once per session it asks which language to talk in (<code>dfw lang</code>). Files, code and commit messages always stay English.</li>
+    <li><b>State</b><code>dfw status</code>: no workflow yet → pick a mode; otherwise continue the current phase.</li>
+    <li><b>Mode</b>Maps your request to a mode (section 13) and runs <code>dfw init</code>.</li>
+    <li><b>Read the phase reference</b>Only the file for the current phase is loaded, which keeps context small.</li>
+    <li><b>Policies</b>Before calling any external design skill it reads <code>precedence.md</code> and <code>conflicts.md</code>: your instruction &gt; approved decisions &gt; dfw rules &gt; external skills.</li>
+  </ol>
+</section>
+
+<!-- 5 -->
+<section id="hooks">
+  <h2><small>Architecture</small>5. Hooks: the automatic guardrails</h2>
+  <p class="lead">Claude Code runs these itself, so they work even if Claude forgets a rule. Each one runs <code>bin/dfw hook &lt;name&gt;</code> (about 80 ms). If a hook hits an internal error it lets the action through rather than blocking your work. <code>dfw pause</code> turns them off for a project.</p>
+  <figure class="fig">
+    <svg viewBox="0 40 960 160" role="img" aria-label="Hook timeline in a Claude turn">
+      <defs><marker id="d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="s-arrow"/></marker></defs>
+      <path d="M20 100H940" class="s-line" marker-end="url(#d)"/>
+      <circle cx="70" cy="100" r="7" class="s-adapt"/><text x="30" y="80" class="s-t">SessionStart</text><text x="22" y="128" class="s-s">phase, language,</text><text x="22" y="144" class="s-s">open comments</text>
+      <circle cx="250" cy="100" r="7" class="s-adapt"/><text x="190" y="80" class="s-t">UserPromptSubmit</text><text x="190" y="128" class="s-s">inject new Studio</text><text x="190" y="144" class="s-s">comments</text>
+      <circle cx="450" cy="100" r="7" class="s-gate"/><text x="400" y="80" class="s-t">PreToolUse</text><text x="380" y="128" class="s-s">block app code before</text><text x="380" y="144" class="s-s">G2+G3; block frozen design</text>
+      <rect x="520" y="88" width="80" height="24" rx="6" class="s-box"/><text x="534" y="105" class="s-s">Edit/Write</text>
+      <circle cx="660" cy="100" r="7" class="s-adapt"/><text x="610" y="80" class="s-t">PostToolUse</text><text x="600" y="128" class="s-s">fast lint, rebuild</text><text x="600" y="144" class="s-s">tokens.css</text>
+      <circle cx="860" cy="100" r="7" class="s-adapt"/><text x="840" y="80" class="s-t">Stop</text><text x="790" y="128" class="s-s">render changed screens,</text><text x="790" y="144" class="s-s">layout check (≤120 s)</text>
+      <text x="20" y="186" class="s-k">ONE SESSION → EACH TURN → EACH FILE EDIT → END OF TURN</text>
+    </svg>
+  </figure>
+  <table>
+    <thead><tr><th>Hook</th><th>When</th><th>What it does</th><th>Can block?</th></tr></thead>
+    <tbody>
+      <tr><td><code>session-start</code></td><td>Session opens</td><td>Adds context: current phase, gates, session id for <code>dfw lang</code>, open comments, environment warnings.</td><td>No</td></tr>
+      <tr><td><code>user-prompt-submit</code></td><td>Every message you send</td><td>Delivers comments you posted in Studio since the last turn (the "inbox").</td><td>No</td></tr>
+      <tr><td><code>pre-tool-use</code></td><td>Before Edit / Write / MultiEdit / NotebookEdit</td><td>Write gate: no application code before G2 and G3; approved (frozen) design versions are immutable.</td><td><b>Yes</b></td></tr>
+      <tr><td><code>post-tool-use</code></td><td>After a file edit</td><td>For design files: <code>dfw lint</code> on the file (hard-coded colours, unknown tokens, broken instances…), rebuilds tokens.css / components.css.</td><td>Reports to Claude</td></tr>
+      <tr><td><code>stop</code></td><td>Before Claude ends its turn</td><td>If screens changed: rendered layout check on them (overlap, clipping, overflow, empty space). Claude must fix MUST findings before stopping.</td><td>Asks Claude to continue</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- 6 -->
+<section id="skills">
+  <h2><small>Architecture</small>6. External design skills</h2>
+  <p class="lead">dfw doesn't rewrite design knowledge. It vendors seven skills at fixed commits (removing their hooks, telemetry and update checks) and loads only the one a step needs.</p>
+  <table>
+    <thead><tr><th>Skill</th><th>Used for</th><th>Typical phase</th></tr></thead>
+    <tbody>
+      <tr><td><code>frontend-design</code> <span class="tag t-ext">Anthropic</span></td><td>Distinctive, intentional visual direction instead of templated defaults</td><td>direction, concepts</td></tr>
+      <tr><td><code>ux-research</code> <span class="tag t-ext">Anthropic</span></td><td>Research plans, synthesis, interface copy</td><td>discovery, concepts</td></tr>
+      <tr><td><code>ui-ux-pro-max</code></td><td>Searchable data: styles, palettes, font pairings, UX guidelines (used as data, not as a decision maker)</td><td>direction, system</td></tr>
+      <tr><td><code>impeccable</code></td><td>Critique, audit, polish, harden, typeset; 62-rule detector used by <code>dfw check</code></td><td>review, verify</td></tr>
+      <tr><td><code>emil-design-eng</code></td><td>Animation and motion review</td><td>concepts, implement</td></tr>
+      <tr><td><code>hallmark</code></td><td><code>sloplint</code>: catches "AI-generated" UI tells</td><td>review</td></tr>
+      <tr><td><code>taste-reference</code></td><td>Copy lint for interface text</td><td>review</td></tr>
+    </tbody>
+  </table>
+  <div class="note">Updating them: ask for <code>/dfw skills</code>. The skill-steward agent checks upstream, writes a compatibility and security report, and applies an update only after you approve it.</div>
+</section>
+
+<!-- 7 -->
+<section id="cli">
+  <h2><small>Architecture</small>7. The dfw CLI (core/lib)</h2>
+  <p class="lead">Every real action goes through <code>dfw</code>. <code>cli.mjs</code> parses the command and calls one of these modules.</p>
+  <div class="grid">
+    <div class="card"><span class="tag t-core">workflow</span><h4>state · gate · freeze · config · lang</h4><p>Phase machine in <code>.dfw/state.json</code>, gate records, decisions log, design snapshots and their hashes, layered config (global → project → local), session language.</p></div>
+    <div class="card"><span class="tag t-core">design system</span><h4>tokens · color · fonts · style · icons</h4><p>DTCG <code>tokens.json</code> → <code>tokens.css</code>; OKLCH palettes with contrast-picked roles; modular type scale; Google Fonts subsets; curated style guides; Lucide icons.</p></div>
+    <div class="card"><span class="tag t-core">design system</span><h4>system · system-page · dsaudit</h4><p>Starter components from <code>kits/base</code>, component list/variants/props, the generated Design System page, senior audit (contrast, accent vs status hues, type rhythm, rationale).</p></div>
+    <div class="card"><span class="tag t-core">screens</span><h4>compose</h4><p>Expands <code>&lt;dfw-use&gt;</code> component instances into full HTML with tokens, so screens stay in sync with their masters.</p></div>
+    <div class="card"><span class="tag t-core">quality</span><h4>lint · layout · check</h4><p><code>lint</code>: fast static rules. <code>layout</code>: renders screens at each breakpoint/state (also with grown lists) and finds overlap, clipping, overflow, missing anchors, voids. <code>check</code>: adds Impeccable, sloplint, copy-lint.</p></div>
+    <div class="card"><span class="tag t-core">rendering</span><h4>cdp · runtime</h4><p>Drives your installed Chrome/Edge headless over the DevTools protocol; font cache; used by <code>shoot</code> and <code>layout</code>. See section 8.</p></div>
+    <div class="card"><span class="tag t-core">review</span><h4>comments · inbox · edit · locate</h4><p>Comment records and statuses, delivery to Claude via hooks, Studio direct edits written back to source, mapping a clicked element to its file and line.</p></div>
+    <div class="card"><span class="tag t-core">code</span><h4>stack</h4><p>Detects the existing stack (package.json, frameworks, styling), stores the proposal for G3.</p></div>
+    <div class="card"><span class="tag t-core">install</span><h4>install · binary · hooks</h4><p>Registers marketplace + plugins with Claude Code, downloads the binary and checks the browser; hook handlers.</p></div>
+  </div>
+</section>
+
+<!-- 8 -->
+<section id="render">
+  <h2><small>Architecture</small>8. Rendering &amp; the single-file binary</h2>
+  <h3>How dfw starts</h3>
+  <figure class="fig">
+    <svg viewBox="0 0 960 210" role="img" aria-label="Launcher decision flow">
+      <defs><marker id="e" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="s-arrow"/></marker></defs>
+      <rect x="20" y="70" width="150" height="64" rx="10" class="s-adapt"/><text x="34" y="96" class="s-t">bin/dfw</text><text x="34" y="116" class="s-s">sh launcher</text>
+      <polygon points="230,102 300,62 370,102 300,142" class="s-box"/><text x="252" y="98" class="s-s">binary for this</text><text x="262" y="114" class="s-s">version?</text>
+      <rect x="440" y="14" width="270" height="70" rx="10" class="s-core"/><text x="454" y="40" class="s-t">~/.config/dfw/bin/&lt;ver&gt;/dfw</text><text x="454" y="60" class="s-s">Node SEA binary, ~65 MB, no Node needed</text>
+      <rect x="440" y="120" width="270" height="70" rx="10" class="s-core"/><text x="454" y="146" class="s-t">node bin/dfw.mjs</text><text x="454" y="166" class="s-s">needs Node 22+ on PATH</text>
+      <rect x="760" y="70" width="180" height="64" rx="10" class="s-box"/><text x="774" y="96" class="s-t">lib/cli.mjs main()</text><text x="774" y="116" class="s-s">same code either way</text>
+      <path d="M170 102H228" class="s-line" marker-end="url(#e)"/>
+      <path d="M370 102 C400 102 400 49 438 49" class="s-line" marker-end="url(#e)"/><text x="386" y="62" class="s-s">yes</text>
+      <path d="M370 102 C400 102 400 155 438 155" class="s-line" marker-end="url(#e)"/><text x="386" y="150" class="s-s">no</text>
+      <path d="M710 49 C735 49 735 102 758 102" class="s-line" marker-end="url(#e)"/>
+      <path d="M710 155 C735 155 735 102 758 102" class="s-line" marker-end="url(#e)"/>
+    </svg>
+    <figcaption><code>DFW_NO_BINARY=1</code> forces the Node path. The binary embeds the plugin's data files and unpacks them once to <code>~/.config/dfw/plugin/&lt;ver&gt;-&lt;hash&gt;</code> when run on its own.</figcaption>
+  </figure>
+  <h3>How screens are rendered</h3>
+  <ol class="steps">
+    <li><b>Find a browser</b><code>DFW_BROWSER</code> / <code>CHROME_PATH</code> → a headless Chrome downloaded by <code>dfw setup --browser</code> → installed Chrome, Edge, Chromium or Brave.</li>
+    <li><b>Launch headless</b>One browser per command with a temporary profile and <code>--remote-debugging-port=0</code>; dfw talks to it over Node's built-in WebSocket.</li>
+    <li><b>Render in parallel</b>One context per device scale, up to 6 pages at once; viewport set per breakpoint; wait for load and fonts.</li>
+    <li><b>Font cache</b>Google Fonts requests are intercepted and served from <code>~/.config/dfw/cache/fonts</code>, so repeat renders never hit the network.</li>
+    <li><b>Measure or capture</b><code>layout</code> evaluates geometry in the page; <code>shoot</code> captures PNGs (full page or one element).</li>
+  </ol>
+  <table>
+    <thead><tr><th>Operation</th><th>v0.3 (Playwright)</th><th>v0.4 (CDP)</th></tr></thead>
+    <tbody>
+      <tr><td>Layout check, one screen</td><td>~25 s</td><td>~2.8 s</td></tr>
+      <tr><td>Layout check, all screens + states (52 renders)</td><td>~33 s</td><td>~4 s</td></tr>
+      <tr><td>Extra install</td><td>npm runtime + ~150 MB Chromium</td><td>none (uses your browser)</td></tr>
+    </tbody>
+  </table>
+  <h3>Release pipeline</h3>
+  <p>Push tag <code>v&lt;version&gt;</code> → GitHub Actions builds darwin-arm64, darwin-x64, linux-x64, linux-arm64 and win32-x64 binaries with the official Node 26 LTS, smoke-tests each (including a real render), and publishes a release with <code>SHA256SUMS</code>. <code>install.sh</code> and <code>dfw setup --binary</code> verify that checksum before installing.</p>
+</section>
+
+<!-- 9 -->
+<section id="studio">
+  <h2><small>Architecture</small>9. Studio &amp; the comment loop</h2>
+  <p class="lead"><code>dfw studio start</code> runs a small local server (<code>studio/server.mjs</code>) on <code>127.0.0.1:4600</code>. The app is plain HTML/CSS/JS: a pannable canvas of iframes, one per screen × breakpoint × state, grouped by page.</p>
+  <figure class="fig">
+    <svg viewBox="0 0 960 250" role="img" aria-label="Comment loop between Studio, files, hooks and Claude">
+      <defs><marker id="f" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="s-arrow"/></marker></defs>
+      <rect x="20" y="80" width="170" height="80" rx="10" class="s-user"/><text x="34" y="106" class="s-ut">YOU IN STUDIO</text><text x="34" y="128" class="s-s">C → click element</text><text x="34" y="146" class="s-s">→ write comment</text>
+      <rect x="250" y="80" width="170" height="80" rx="10" class="s-box"/><text x="264" y="106" class="s-t">.dfw/reviews/</text><text x="264" y="128" class="s-s">comment + element</text><text x="264" y="146" class="s-s">selector + screen</text>
+      <rect x="480" y="80" width="170" height="80" rx="10" class="s-adapt"/><text x="494" y="106" class="s-at">HOOK</text><text x="494" y="128" class="s-s">UserPromptSubmit</text><text x="494" y="146" class="s-s">injects the inbox</text>
+      <rect x="710" y="80" width="230" height="80" rx="10" class="s-adapt"/><text x="724" y="106" class="s-at">CLAUDE</text><text x="724" y="128" class="s-s">ack → edit design → lint</text><text x="724" y="146" class="s-s">→ dfw comments fixed</text>
+      <path d="M190 120H248" class="s-line" marker-end="url(#f)"/>
+      <path d="M420 120H478" class="s-line" marker-end="url(#f)"/>
+      <path d="M650 120H708" class="s-line" marker-end="url(#f)"/>
+      <path d="M825 160 C825 230 105 230 105 162" class="s-dash" marker-end="url(#f)"/>
+      <text x="300" y="222" class="s-s">Studio live-reloads the frame; status "fixed" → you resolve, reopen or reply</text>
+      <text x="300" y="40" class="s-s">open → acknowledged → fixed → resolved (or reopened / dismissed)</text>
+    </svg>
+  </figure>
+  <div class="grid">
+    <div class="card"><h4>Canvas</h4><p>Every screen at every breakpoint and state side by side, plus the Design System page. Pan, zoom, select layers, inspect styles and tokens.</p></div>
+    <div class="card"><h4>Comments &amp; pins</h4><p>Pins mark commented elements. Click a pin to read the comment and thread. Toggle pins open → all → off with <kbd>Shift</kbd><kbd>C</kbd>.</p></div>
+    <div class="card"><h4>Direct edit</h4><p>Small text/style tweaks in the inspector are written back to the source file (undo with <kbd>⌘</kbd><kbd>Z</kbd>).</p></div>
+    <div class="card"><h4>Present</h4><p><kbd>P</kbd> shows one frame full-window like a prototype; <kbd>←</kbd> <kbd>→</kbd> step through the page. Pins are hidden by default.</p></div>
+    <div class="card"><h4>Approve</h4><p>Gates can be approved from Studio as well as chat; it records the same <code>dfw approve</code>.</p></div>
+  </div>
+</section>
+
+<!-- 10 -->
+<section id="project">
+  <h2><small>Architecture</small>10. Files in your project</h2>
+  <div class="card tree">PRODUCT.md                 <span class="d">who it's for, goals, content, constraints (discovery)</span>
+DESIGN.md                  <span class="d">the design language in words: principles, decisions, rationale</span>
+design/
+  design.json              <span class="d">manifest: pages, screens, breakpoints, states, variants</span>
+  tokens/tokens.json       <span class="d">DTCG tokens (source)  → tokens.css (built)</span>
+  tokens/themes/           <span class="d">theme overrides (e.g. dark, option themes)</span>
+  system/                  <span class="d">brief.json, style.json, components/ (masters), components.css, head.html, icons/</span>
+  styles/base.css          <span class="d">base element styles</span>
+  screens/&lt;id&gt;/            <span class="d">one folder per screen: index.html (+ states, variants)</span>
+  screens/_directions/     <span class="d">direction sketches (G1)</span>
+  assets/                  <span class="d">images, source documents</span>
+  handoff/v&lt;N&gt;.md          <span class="d">implementation handoff for each approved version</span>
+.dfw/
+  state.json               <span class="d">mode, phase, gates, design version</span>
+  decisions.jsonl          <span class="d">every recorded decision with its level (1 = you … 5 = external skill)</span>
+  config.json              <span class="d">project settings</span>
+  reviews/                 <span class="d">comments and threads per round</span>
+  archive/                 <span class="d">frozen design snapshots</span>
+  shots/                   <span class="d">screenshots</span>
+  build/, layout-cache.json, studio.json, studio.log   <span class="d">caches and runtime files</span></div>
+  <div class="note">Commit <code>PRODUCT.md</code>, <code>DESIGN.md</code>, <code>design/</code> and <code>.dfw/state.json</code>, <code>decisions.jsonl</code>, <code>reviews/</code>, <code>archive/</code>. Caches (<code>build/</code>, <code>shots/</code>, <code>layout-cache.json</code>, <code>studio.*</code>) can be ignored.</div>
+</section>
+
+<!-- 11 -->
+<section id="install">
+  <h2><small>Guide</small>11. Install</h2>
+  <h3>Option A: no Node.js on the machine</h3>
+  <pre><code>curl -fsSL https://raw.githubusercontent.com/tantm97/ai-frontend-design-workflow/main/install.sh | sh</code></pre>
+  <p>Downloads the binary for your OS, verifies its SHA-256, installs it to <code>~/.config/dfw/bin/&lt;ver&gt;/</code>, links <code>~/.local/bin/dfw</code>, then runs <code>dfw install</code>. Pin a version with <code>DFW_VERSION=0.4.0</code>.</p>
+  <div class="note warn">Works only after a release has been published (tag <code>v0.4.0</code> pushed and the release workflow finished).</div>
+  <h3>Option B: with Node.js 22+</h3>
+  <pre><code>npx github:tantm97/ai-frontend-design-workflow</code></pre>
+  <p>Same steps, from source. Flags: <code>--scope user|project|local</code>, <code>--no-binary</code> (stay on Node), <code>--no-runtime</code> (skip browser check).</p>
+  <h3>What install does</h3>
+  <ol class="steps">
+    <li><b>Marketplace</b>Adds or updates <code>dfw-marketplace</code> in Claude Code.</li>
+    <li><b>Plugins</b>Installs <code>dfw</code> and the seven design skills.</li>
+    <li><b>Binary</b>Downloads the matching binary (failure is only a warning; Node keeps working).</li>
+    <li><b>Browser</b>Looks for Chrome/Edge/Chromium/Brave; if none, suggests <code>dfw setup --browser</code>.</li>
+    <li><b>Doctor</b>Prints <code>dfw doctor</code>: everything should be green.</li>
+  </ol>
+  <p>Restart Claude Code afterwards. Remove with <code>dfw uninstall</code> (project files stay).</p>
+  <h3>Requirements</h3>
+  <table>
+    <thead><tr><th>Need</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td>Claude Code</td><td>Host for the skill, agents and hooks</td></tr>
+      <tr><td>dfw binary <i>or</i> Node 22+</td><td>Runs the CLI</td></tr>
+      <tr><td>Chrome / Edge / Chromium / Brave (or <code>dfw setup --browser</code>)</td><td>Screenshots and layout checks</td></tr>
+      <tr><td>Optional: Node, Python 3</td><td>Hallmark sloplint and Taste copy-lint need Node; ui-ux-pro-max search needs Python. Missing → reported as "unavailable", dfw still works</td></tr>
+      <tr><td>Windows</td><td>Git Bash (hooks call the sh launcher)</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- 12 -->
+<section id="first">
+  <h2><small>Guide</small>12. First project, step by step</h2>
+  <ol class="steps">
+    <li><b>Open Claude Code in your project folder and describe what you want</b>e.g. <i>"Design an asset tracking web app for warehouse staff"</i>, or type <code>/dfw new …</code>. The dfw skill triggers on any frontend UI task.</li>
+    <li><b>Pick a language</b>Claude asks once per session which language to talk in.</li>
+    <li><b>Answer discovery questions</b>Users, key tasks, data, devices, brand constraints. Upload requirement documents to <code>design/assets/</code> if you have them. Claude writes <code>PRODUCT.md</code>.</li>
+    <li><b>Choose a direction (G1)</b>Read the 2–3 briefs (and sketches if offered). Reply with your pick or a mix: <i>"Go with B, but warmer colours"</i>.</li>
+    <li><b>Review the Design System (DS)</b>Claude starts Studio and shows the DS page: palette, type scale, components and their states. Comment on anything, then say <i>"approve DS"</i>.</li>
+    <li><b>Agree blueprints</b>For each screen: goal, layout, what's above the fold, data range. Confirm or adjust.</li>
+    <li><b>Review screens in Studio</b>Screens appear page by page. Use <kbd>C</kbd> to comment, check breakpoints and states, use Present to click through. Claude fixes and marks comments "fixed"; you resolve or reopen.</li>
+    <li><b>Approve the design (G2)</b>When every page is right: <i>"approve G2"</i>. The design is frozen as v1 and a handoff is generated.</li>
+    <li><b>Approve the stack (G3)</b>Claude detects or proposes the framework and dependencies. Approve or change.</li>
+    <li><b>Implementation and verification (G4)</b>Claude builds the app, then compares it with the design at each breakpoint and lists deviations. Accept to finish.</li>
+  </ol>
+  <div class="note">Check where you are at any time with <i>"dfw status"</i> in chat or <code>dfw status</code> in a terminal.</div>
+</section>
+
+<!-- 13 -->
+<section id="modes">
+  <h2><small>Guide</small>13. Modes</h2>
+  <table>
+    <thead><tr><th>Say / argument</th><th>Mode</th><th>Use when</th><th>Path</th></tr></thead>
+    <tbody>
+      <tr><td><code>new</code></td><td>new-product</td><td>A product from scratch</td><td>full workflow</td></tr>
+      <tr><td><code>existing</code></td><td>existing-project</td><td>Redesign an app that already has code</td><td>stack detected early; design extracted from current UI</td></tr>
+      <tr><td><code>design-only</code></td><td>design-only</td><td>You only want the design and handoff</td><td>stops after G2</td></tr>
+      <tr><td><code>implement</code></td><td>implement-approved</td><td>A design is already approved</td><td>G3 → implement → verify</td></tr>
+      <tr><td><code>refine</code></td><td>ui-refinement</td><td>Polish an existing screen or flow</td><td>short concepts + review on the affected screens</td></tr>
+      <tr><td><code>quick</code></td><td>quick-change</td><td>Small UI change in a project that has <code>.dfw/</code></td><td>edit within the approved system, checks still run</td></tr>
+      <tr><td><code>review</code></td><td>review-only</td><td>Audit a UI without changing it</td><td>audit report (Must/Should/Nice)</td></tr>
+      <tr><td><code>skills</code></td><td>skill maintenance</td><td>Update the external design skills</td><td>skill-steward proposal → your approval</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- 14 -->
+<section id="review">
+  <h2><small>Guide</small>14. Reviewing in Studio</h2>
+  <table>
+    <thead><tr><th>Key</th><th>Action</th></tr></thead>
+    <tbody>
+      <tr><td><kbd>V</kbd></td><td>Select tool</td></tr>
+      <tr><td><kbd>H</kbd> / hold <kbd>Space</kbd></td><td>Hand tool (pan)</td></tr>
+      <tr><td><kbd>C</kbd></td><td>Comment tool: click an element, write what should change (<kbd>Alt</kbd> picks the exact element instead of its component; <kbd>⌘</kbd><kbd>Enter</kbd> saves)</td></tr>
+      <tr><td><kbd>Shift</kbd><kbd>C</kbd></td><td>Comment pins: open → all → off (in Present: show / hide)</td></tr>
+      <tr><td>Click a pin</td><td>Show the comment text, thread and actions</td></tr>
+      <tr><td><kbd>I</kbd></td><td>Interact: click through the prototype on the canvas</td></tr>
+      <tr><td><kbd>P</kbd> / double-click a frame title</td><td>Present the frame full-window; <kbd>←</kbd> <kbd>→</kbd> previous / next</td></tr>
+      <tr><td><kbd>F</kbd></td><td>Browser fullscreen</td></tr>
+      <tr><td><kbd>⌘</kbd>/<kbd>Ctrl</kbd> + scroll, pinch, <kbd>+</kbd> <kbd>-</kbd>, <kbd>0</kbd></td><td>Zoom at pointer / in / out / 100%</td></tr>
+      <tr><td><kbd>Shift</kbd><kbd>1</kbd> / <kbd>Shift</kbd><kbd>2</kbd></td><td>Zoom to fit / to selection</td></tr>
+      <tr><td><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd></td><td>Parent / first child / previous / next layer</td></tr>
+      <tr><td><kbd>⌘</kbd>/<kbd>Ctrl</kbd> <kbd>Z</kbd></td><td>Undo last Studio edit</td></tr>
+      <tr><td><kbd>Esc</kbd> · <kbd>?</kbd></td><td>Deselect / close · shortcut sheet</td></tr>
+    </tbody>
+  </table>
+  <h3>Writing comments that get fixed right</h3>
+  <ul>
+    <li>One change per comment, pinned on the element it's about.</li>
+    <li>Say the outcome, not only the problem: <i>"Status column should be a coloured badge, not plain text"</i>.</li>
+    <li>For system-wide changes (font, colour, spacing) say so: <i>"Use this font across the whole product"</i>. Claude changes the tokens, not one screen.</li>
+    <li>When Claude marks a comment <b>fixed</b>, check it and resolve, or reopen with a reply.</li>
+  </ul>
+</section>
+
+<!-- 15 -->
+<section id="commands">
+  <h2><small>Guide</small>15. Command cheat sheet</h2>
+  <p class="lead">You rarely need these; Claude runs them. They're useful in a terminal to check state or do things by hand. <code>dfw help</code> lists everything.</p>
+  <details open><summary>Workflow</summary><pre><code>dfw status                          # phase, gates, version, comments
+dfw init --mode new-product --product "Name"
+dfw phase &lt;phase&gt; [--force --reason "…"]
+dfw approve G1|DS|G2|G3|G4 --note "what exactly was approved"
+dfw reopen --reason "…"             # new design version after G2
+dfw decisions                       # recorded decisions
+dfw pause | resume                  # turn gates and hooks off/on for this project</code></pre></details>
+  <details><summary>Design system</summary><pre><code>dfw style match | list | search &lt;words&gt; | show &lt;id&gt; | apply &lt;id&gt;
+dfw system init [--style &lt;id&gt; | --preset crisp|soft|industrial]
+dfw palette build --brand "#3b5bdb"
+dfw type scale --base 16 --ratio 1.2 --write
+dfw system options a b c  →  dfw system choose &lt;one&gt;
+dfw system audit
+dfw icons search &lt;words&gt; | add &lt;names…&gt;
+dfw fonts check "Be Vietnam Pro"
+dfw build                           # tokens.css + components.css</code></pre></details>
+  <details><summary>Screens and checks</summary><pre><code>dfw blueprint [&lt;screen&gt;]
+dfw lint [files…]                   # fast static rules
+dfw layout check [--screen a,b] [--states] [--changed]
+dfw check [files… | --url &lt;u&gt;]      # lint + Impeccable + sloplint + copy-lint
+dfw shoot --screen &lt;id&gt; --bp desktop,mobile --states
+dfw shoot --url http://localhost:3000 --out shot.png
+dfw handoff
+dfw verify-snapshot [&lt;version&gt;]</code></pre></details>
+  <details><summary>Studio and comments</summary><pre><code>dfw studio start | stop | status [--port 4600]
+dfw comments [--status active]
+dfw comments show &lt;id&gt;
+dfw comments reply &lt;id&gt; --message "…"
+dfw comments resolve &lt;id&gt; --by user</code></pre></details>
+  <details><summary>Setup and maintenance</summary><pre><code>dfw doctor
+dfw version
+dfw setup --browser                 # only if no Chrome/Edge/Chromium
+dfw setup --binary                  # download the binary for this version
+dfw install [--scope user|project|local] [--no-binary]
+dfw uninstall
+dfw lang status | set vi
+dfw config get &lt;key&gt; | set &lt;key&gt; &lt;value&gt; [--global|--project|--local]</code></pre></details>
+</section>
+
+<!-- 16 -->
+<section id="trouble">
+  <h2><small>Guide</small>16. Troubleshooting</h2>
+  <table>
+    <thead><tr><th>Symptom</th><th>Fix</th></tr></thead>
+    <tbody>
+      <tr><td>Anything odd</td><td>Run <code>dfw doctor</code> first; it checks runtime, Node version, browser, plugins and project state.</td></tr>
+      <tr><td>"no browser found"</td><td>Install Chrome/Edge, set <code>DFW_BROWSER=/path/to/chrome</code>, or run <code>dfw setup --browser</code>.</td></tr>
+      <tr><td>Claude says it can't write code</td><td>The write gate is working: G2 and G3 must be approved first. <code>dfw status</code> shows which gate is missing.</td></tr>
+      <tr><td>Need to bypass gates temporarily</td><td><code>dfw pause</code>, then <code>dfw resume</code> when done.</td></tr>
+      <tr><td>Studio doesn't open</td><td><code>dfw studio status</code>; restart with <code>dfw studio stop</code> + <code>start</code>; another port: <code>--port 4700</code>. Log: <code>.dfw/studio.log</code>.</td></tr>
+      <tr><td>Comments don't reach Claude</td><td>They're delivered on your next message. <code>dfw comments inbox --peek</code> shows what's pending.</td></tr>
+      <tr><td>Binary behaves differently from source</td><td>Force Node with <code>DFW_NO_BINARY=1</code> to compare.</td></tr>
+      <tr><td>macOS warns about the binary</td><td>It's ad-hoc signed, not notarized. Installing via <code>curl | sh</code> avoids the warning; a browser download triggers it.</td></tr>
+      <tr><td>sloplint / copy-lint "unavailable"</td><td>Install Node 22+; dfw works without them.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- 17 -->
+<section id="dev">
+  <h2><small>Guide</small>17. Developing dfw</h2>
+  <pre><code>node scripts/build.mjs              # core + adapter → plugins/dfw, notices
+node scripts/build.mjs --check      # verify plugins/ is up to date
+node --test tests/unit              # unit tests
+node tests/e2e/studio.e2e.mjs       # Studio end-to-end (needs Playwright, dev only)
+node scripts/build-binary.mjs       # local binary in dist/ (official Node build for portability)
+git tag v0.4.0 &amp;&amp; git push origin v0.4.0   # CI builds and publishes binaries</code></pre>
+  <ul>
+    <li>Edit <code>core/</code> and <code>adapters/</code>, never <code>plugins/dfw/</code> directly; rebuild after changes.</li>
+    <li>Bump the version in <code>adapters/…/plugin.json</code>, <code>.claude-plugin/marketplace.json</code> and <code>package.json</code> together; the release tag must match.</li>
+    <li>Keep hooks fail-open and fast: they run on every edit and message.</li>
+  </ul>
+</section>
+</main>
+</div>
+</body>
+</html>

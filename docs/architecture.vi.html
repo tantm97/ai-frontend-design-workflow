@@ -1,0 +1,1929 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kiến trúc và hướng dẫn dfw</title>
+<style>
+:root{
+  --bg:#f7f7f5;--surface:#ffffff;--surface-2:#f0f0ec;--ink:#1c1d1f;--ink-2:#55585e;--ink-3:#8a8d93;
+  --line:#e2e2dc;--accent:#3b5bdb;--accent-soft:#e7ecfd;
+  --c-core:#2f6f4f;--c-core-soft:#e3f1e9;--c-adapt:#7a4cc2;--c-adapt-soft:#efe8fa;
+  --c-ext:#b4601b;--c-ext-soft:#fbeee2;--c-user:#1f6fb2;--c-user-soft:#e3effa;
+  --c-gate:#c0392b;--c-gate-soft:#fbe6e3;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#141518;--surface:#1c1d21;--surface-2:#24262b;--ink:#ececec;--ink-2:#b2b5bb;--ink-3:#7c8087;
+  --line:#33353b;--accent:#8ea5ff;--accent-soft:#252c47;
+  --c-core:#6fcf9b;--c-core-soft:#1c3328;--c-adapt:#b89af0;--c-adapt-soft:#2c2340;
+  --c-ext:#f0a764;--c-ext-soft:#3a2818;--c-user:#7ab8ef;--c-user-soft:#182c40;
+  --c-gate:#f08a7e;--c-gate-soft:#3d1f1b;
+}}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 var(--sans)}
+a{color:var(--accent)}
+code,kbd,pre{font-family:var(--mono);font-size:.86em}
+code{background:var(--surface-2);padding:1px 5px;border-radius:4px}
+kbd{border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;background:var(--surface)}
+pre{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:12px 14px;overflow:auto;line-height:1.5}
+pre code{background:none;padding:0}
+.layout{display:grid;grid-template-columns:240px minmax(0,1fr);max-width:1240px;margin:0 auto}
+nav.toc{position:sticky;top:0;align-self:start;height:100vh;overflow:auto;padding:28px 18px;border-right:1px solid var(--line)}
+nav.toc b{display:block;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin:18px 0 6px}
+nav.toc a{display:block;color:var(--ink-2);text-decoration:none;padding:3px 8px;border-radius:6px;font-size:14px}
+nav.toc a:hover{background:var(--surface-2);color:var(--ink)}
+main{padding:32px 40px 80px;min-width:0}
+header.hero h1{font-size:34px;line-height:1.15;margin:0 0 8px}
+header.hero p{color:var(--ink-2);max-width:70ch;margin:0}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.badge{font-size:12px;border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:2px 10px;color:var(--ink-2)}
+section{margin-top:56px}
+h2{font-size:24px;margin:0 0 4px;scroll-margin-top:16px}
+h2 small{display:block;font-size:13px;font-weight:500;color:var(--ink-3);letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px}
+h3{font-size:17px;margin:28px 0 8px}
+.lead{color:var(--ink-2);max-width:75ch}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
+.fig{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;margin:16px 0;overflow-x:auto}
+.fig svg{display:block;width:100%;height:auto;min-width:640px}
+.fig figcaption{font-size:13px;color:var(--ink-3);margin-top:8px}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.grid .card h4{margin:0 0 4px;font-size:15px}
+.grid .card p{margin:0;color:var(--ink-2);font-size:14px}
+.tag{display:inline-block;font:600 11px/1.6 var(--sans);letter-spacing:.04em;text-transform:uppercase;padding:0 7px;border-radius:4px}
+.t-core{background:var(--c-core-soft);color:var(--c-core)}
+.t-adapt{background:var(--c-adapt-soft);color:var(--c-adapt)}
+.t-ext{background:var(--c-ext-soft);color:var(--c-ext)}
+.t-user{background:var(--c-user-soft);color:var(--c-user)}
+.t-gate{background:var(--c-gate-soft);color:var(--c-gate)}
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:14px;background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:var(--surface-2);font-weight:600;font-size:13px;color:var(--ink-2)}
+tr:last-child td{border-bottom:0}
+td code{overflow-wrap:break-word}
+td:first-child code{white-space:nowrap}
+#commands table{table-layout:fixed}
+#commands th:nth-child(1){width:36%}
+#commands th:nth-child(2){width:38%}
+#commands td:first-child code{white-space:normal;overflow-wrap:anywhere}
+.steps{counter-reset:s;list-style:none;padding:0;margin:0}
+.steps>li{counter-increment:s;position:relative;padding:0 0 18px 44px}
+.steps>li::before{content:counter(s);position:absolute;left:0;top:0;width:28px;height:28px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-weight:700;display:grid;place-items:center;font-size:14px}
+.steps>li b{display:block}
+.note{border-left:3px solid var(--accent);background:var(--accent-soft);padding:10px 14px;border-radius:0 8px 8px 0;margin:14px 0;font-size:14px}
+.warn{border-left-color:var(--c-gate);background:var(--c-gate-soft)}
+.tree{font-family:var(--mono);font-size:13px;line-height:1.55;white-space:pre;overflow:auto}
+.tree .d{color:var(--ink-3)}
+details{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:8px 0}
+details summary{cursor:pointer;font-weight:600}
+/* svg tokens */
+.s-box{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+.s-core{fill:var(--c-core-soft);stroke:var(--c-core);stroke-width:1.2}
+.s-adapt{fill:var(--c-adapt-soft);stroke:var(--c-adapt);stroke-width:1.2}
+.s-ext{fill:var(--c-ext-soft);stroke:var(--c-ext);stroke-width:1.2}
+.s-user{fill:var(--c-user-soft);stroke:var(--c-user);stroke-width:1.2}
+.s-gate{fill:var(--c-gate-soft);stroke:var(--c-gate);stroke-width:1.4}
+.s-t{fill:var(--ink);font:600 13px var(--sans)}
+.s-s{fill:var(--ink-2);font:12px var(--sans)}
+.s-m{fill:var(--ink-2);font:11.5px var(--mono)}
+.s-k{fill:var(--ink-3);font:600 10.5px var(--sans);letter-spacing:.06em}
+.s-line{stroke:var(--ink-3);stroke-width:1.3;fill:none}
+.s-dash{stroke:var(--ink-3);stroke-width:1.2;fill:none;stroke-dasharray:4 4}
+.s-arrow{fill:var(--ink-3)}
+.s-gt{fill:var(--c-gate);font:700 12px var(--sans)}
+.s-ct{fill:var(--c-core);font:700 11px var(--sans);letter-spacing:.05em}
+.s-at{fill:var(--c-adapt);font:700 11px var(--sans);letter-spacing:.05em}
+.s-et{fill:var(--c-ext);font:700 11px var(--sans);letter-spacing:.05em}
+.s-ut{fill:var(--c-user);font:700 11px var(--sans);letter-spacing:.05em}
+@media (max-width:900px){
+  .layout{grid-template-columns:1fr}
+  nav.toc{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line);padding:16px}
+  main{padding:24px 16px 64px}
+  header.hero h1{font-size:27px}
+}
+.s-xs{fill:var(--ink-2);font:11px var(--sans)}
+.s-xm{fill:var(--ink-2);font:10.5px var(--mono)}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav class="toc" aria-label="Mục lục">
+  <strong>dfw</strong> <span class="badge">v0.4.0</span> <a href="architecture.html" style="display:inline;padding:0 4px;font-size:12px">English</a>
+  <b>Bắt đầu</b>
+  <a href="#purpose">1. dfw dùng để làm gì</a>
+  <a href="#flow">2. Một dự án chạy thế nào</a>
+  <a href="#overview">3. Bên trong có gì</a>
+  <b>Business flow</b>
+  <a href="#business">4. Business flow chi tiết</a>
+  <a href="#example">5. Ví dụ một dự án từ đầu tới cuối</a>
+  <a href="#modes">6. Các mode</a>
+  <b>Kiến trúc</b>
+  <a href="#repo">7. Cấu trúc repo và đường build</a>
+  <a href="#files">8. Từng file làm gì</a>
+  <a href="#skillflow">9. Skill chạy qua những gì</a>
+  <a href="#external">10. Repo bên ngoài đang dùng</a>
+  <a href="#hooks">11. Hook chi tiết</a>
+  <a href="#state">12. Trạng thái và cổng duyệt</a>
+  <a href="#studio">13. Studio và comment</a>
+  <a href="#pipeline">14. Pipeline thiết kế và kiểm tra</a>
+  <a href="#cmdflow">15. Luồng chạy các lệnh</a>
+  <a href="#render">16. Render, chụp màn hình, binary</a>
+  <a href="#project">17. File trong project người dùng</a>
+  <b>Mở rộng</b>
+  <a href="#copilot">18. Nhiều công cụ AI (host)</a>
+  <b>Hướng dẫn</b>
+  <a href="#install">19. Cài đặt</a>
+  <a href="#review">20. Review trên Studio</a>
+  <a href="#commands">21. Bảng lệnh</a>
+  <a href="#improve">22. Muốn cải thiện thì sửa ở đâu</a>
+  <a href="#trouble">23. Xử lý sự cố</a>
+  <a href="#dev">24. Phát triển và phát hành</a>
+</nav>
+
+<main>
+<header class="hero">
+  <h1>dfw: để Claude thiết kế giao diện trước, rồi mới code</h1>
+  <p>dfw là một plugin cài vào công cụ AI viết code (hiện có Claude Code và GitHub Copilot). Khi bạn nhờ Claude làm giao diện, dfw bắt Claude đi theo đúng trình tự của một đội thiết kế chuyên nghiệp: hiểu sản phẩm → đưa ra thiết kế cho bạn xem và góp ý → bạn duyệt → mới viết code → kiểm tra code có giống thiết kế không.</p>
+  <div class="badges"><span class="badge">Tài liệu nội bộ</span><span class="badge">Cài vào Claude Code</span><span class="badge">Xem thiết kế trên trình duyệt</span><span class="badge">Bạn duyệt từng bước</span></div>
+</header>
+
+<div class="card" style="margin-top:24px">
+  <h3 style="margin-top:0">Tóm tắt trong 30 giây</h3>
+  <ul style="margin:0;padding-left:20px">
+    <li><b>Bạn</b> mô tả sản phẩm bằng lời, xem thiết kế trên trình duyệt, bấm vào chỗ muốn sửa để góp ý, và nói "duyệt" khi đã ưng.</li>
+    <li><b>Claude</b> hỏi cho rõ yêu cầu, đề xuất phong cách, dựng bộ màu/chữ/nút dùng chung, dựng từng màn hình, sửa theo góp ý, rồi code thật.</li>
+    <li><b>dfw</b> giữ trật tự: Claude không được code trước khi bạn duyệt, thiết kế tự được kiểm tra lỗi sau mỗi lần sửa, và mọi quyết định đều được lưu lại thành file.</li>
+  </ul>
+</div>
+
+<div class="card" style="margin-top:14px">
+  <h3 style="margin-top:0">Đọc trang này thế nào</h3>
+  <ul style="margin:0;padding-left:20px">
+    <li>Mới làm quen: đọc mục <b>1–6</b>, rồi <b>19–21</b>.</li>
+    <li>Muốn hiểu code và kiến trúc: mục <b>7–17</b>.</li>
+    <li>Muốn sửa hoặc cải thiện dfw: mục <b>22</b> (bảng tra "muốn đổi gì thì sửa file nào") và <b>24</b>.</li>
+    <li>Chạy trên nhiều công cụ AI (Claude Code, Copilot; sau này OpenCode, Codex, Cursor): mục <b>18</b>.</li>
+  </ul>
+</div>
+
+<!-- 1 -->
+<section id="purpose">
+  <h2><small>Bắt đầu</small>1. dfw dùng để làm gì</h2>
+  <p class="lead">Khi nhờ AI làm giao diện mà không có quy trình, thường gặp những vấn đề dưới đây. dfw sinh ra để giải quyết đúng các vấn đề đó.</p>
+  <table>
+    <thead><tr><th>Không có dfw</th><th>Có dfw</th></tr></thead>
+    <tbody>
+      <tr><td>AI viết code ngay, bạn chỉ thấy giao diện khi đã thành code, sửa rất tốn công.</td><td>Thiết kế làm trước bằng HTML/CSS nhẹ, xem ngay trên trình duyệt. Sửa thiết kế nhanh hơn nhiều so với sửa code.</td></tr>
+      <tr><td>Giao diện na ná nhau, "mùi AI", mỗi màn một kiểu.</td><td>Có bước chọn phong cách riêng, và một bộ màu, chữ, component dùng chung cho mọi màn.</td></tr>
+      <tr><td>Góp ý bằng chat: "cái nút ở góc trên bên phải…", AI hay hiểu nhầm chỗ.</td><td>Bấm thẳng vào phần tử trên thiết kế và viết góp ý, giống comment trong Figma. Claude biết chính xác bạn nói về chỗ nào, tới tận file và dòng.</td></tr>
+      <tr><td>AI tự quyết mọi thứ, kể cả framework và thư viện.</td><td>Có 5 điểm dừng để bạn duyệt. Chưa duyệt thì Claude không được đi tiếp: một hook chặn tự động.</td></tr>
+      <tr><td>Code xong không ai so lại với thiết kế.</td><td>Bước cuối chụp app thật ở nhiều kích thước màn hình và so với thiết kế, liệt kê chỗ lệch.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- 2 -->
+<section id="flow">
+  <h2><small>Bắt đầu</small>2. Một dự án chạy thế nào</h2>
+  <p class="lead">Toàn bộ quá trình gồm 7 bước. Ô xanh dương là việc của bạn, ô tím là việc của Claude, ô xanh lá là code thật. Hình thoi đỏ là lúc Claude dừng lại chờ bạn duyệt.</p>
+  <figure class="fig">
+    <svg viewBox="0 0 960 360" role="img" aria-label="7 bước của một dự án với dfw">
+      <defs><marker id="g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="s-arrow"/></marker></defs>
+      <rect x="10" y="20" width="200" height="100" rx="12" class="s-adapt"/>
+      <text x="26" y="46" class="s-at">BƯỚC 1 · TÌM HIỂU</text>
+      <text x="26" y="70" class="s-t">Claude hỏi về sản phẩm</text>
+      <text x="26" y="90" class="s-s">ai dùng, để làm gì,</text>
+      <text x="26" y="108" class="s-s">có những màn nào</text>
+      <rect x="250" y="20" width="200" height="100" rx="12" class="s-adapt"/>
+      <text x="266" y="46" class="s-at">BƯỚC 2 · PHONG CÁCH</text>
+      <text x="266" y="70" class="s-t">Đề xuất 2–3 hướng</text>
+      <text x="266" y="90" class="s-s">mỗi hướng một cảm giác,</text>
+      <text x="266" y="108" class="s-s">kèm lý do</text>
+      <polygon points="475,70 495,50 515,70 495,90" class="s-gate"/><text x="485" y="75" class="s-gt">G1</text>
+      <rect x="540" y="20" width="200" height="100" rx="12" class="s-adapt"/>
+      <text x="556" y="46" class="s-at">BƯỚC 3 · BỘ NỀN</text>
+      <text x="556" y="70" class="s-t">Design system</text>
+      <text x="556" y="90" class="s-s">màu, chữ, khoảng cách,</text>
+      <text x="556" y="108" class="s-s">nút, bảng, form…</text>
+      <polygon points="765,70 785,50 805,70 785,90" class="s-gate"/><text x="774" y="75" class="s-gt">DS</text>
+      <path d="M210 70H248" class="s-line" marker-end="url(#g)"/>
+      <path d="M450 70H473" class="s-line" marker-end="url(#g)"/>
+      <path d="M515 70H538" class="s-line" marker-end="url(#g)"/>
+      <path d="M740 70H763" class="s-line" marker-end="url(#g)"/>
+      <path d="M805 70 C930 70 930 220 862 220" class="s-line" marker-end="url(#g)"/>
+      <rect x="660" y="170" width="200" height="100" rx="12" class="s-adapt"/>
+      <text x="676" y="196" class="s-at">BƯỚC 4 · MÀN HÌNH</text>
+      <text x="676" y="220" class="s-t">Dựng các màn hình</text>
+      <text x="676" y="240" class="s-s">ghép từ bộ nền ở bước 3,</text>
+      <text x="676" y="258" class="s-s">xem trên Studio</text>
+      <rect x="420" y="170" width="200" height="100" rx="12" class="s-user"/>
+      <text x="436" y="196" class="s-ut">BẠN GÓP Ý</text>
+      <text x="436" y="220" class="s-t">Bấm vào chỗ cần sửa</text>
+      <text x="436" y="240" class="s-s">Claude sửa, bạn xem lại,</text>
+      <text x="436" y="258" class="s-s">lặp tới khi ưng</text>
+      <path d="M660 205H622" class="s-line" marker-end="url(#g)"/>
+      <path d="M620 240H658" class="s-line" marker-end="url(#g)"/>
+      <polygon points="370,220 390,200 410,220 390,240" class="s-gate"/><text x="380" y="225" class="s-gt">G2</text>
+      <path d="M420 220H412" class="s-line" marker-end="url(#g)"/>
+      <text x="345" y="190" class="s-s">khoá thiết kế</text>
+      <rect x="150" y="170" width="190" height="100" rx="12" class="s-adapt"/>
+      <text x="166" y="196" class="s-at">BƯỚC 5 · CÔNG NGHỆ</text>
+      <text x="166" y="220" class="s-t">Chọn framework</text>
+      <text x="166" y="240" class="s-s">React, Vue… và thư viện</text>
+      <text x="166" y="258" class="s-s">đề xuất cho bạn chọn</text>
+      <path d="M370 220H342" class="s-line" marker-end="url(#g)"/>
+      <polygon points="100,220 120,200 140,220 120,240" class="s-gate"/><text x="110" y="225" class="s-gt">G3</text>
+      <path d="M150 220H142" class="s-line" marker-end="url(#g)"/>
+      <path d="M100 220 C40 220 40 320 90 320" class="s-line" marker-end="url(#g)"/>
+      <rect x="92" y="290" width="260" height="60" rx="12" class="s-core"/>
+      <text x="108" y="314" class="s-ct">BƯỚC 6 · CODE</text>
+      <text x="108" y="336" class="s-s">viết code thật theo thiết kế đã khoá</text>
+      <rect x="400" y="290" width="260" height="60" rx="12" class="s-core"/>
+      <text x="416" y="314" class="s-ct">BƯỚC 7 · KIỂM TRA</text>
+      <text x="416" y="336" class="s-s">so app thật với thiết kế, báo chỗ lệch</text>
+      <path d="M352 320H398" class="s-line" marker-end="url(#g)"/>
+      <polygon points="690,320 710,300 730,320 710,340" class="s-gate"/><text x="700" y="325" class="s-gt">G4</text>
+      <path d="M660 320H688" class="s-line" marker-end="url(#g)"/>
+      <text x="745" y="325" class="s-t">Xong</text>
+    </svg>
+    <figcaption>Không phải dự án nào cũng đi đủ 7 bước. Ví dụ chỉ sửa nhỏ một màn thì bỏ qua bước 1–3; chỉ cần thiết kế thì dừng sau G2. Xem mục 6 (Các mode).</figcaption>
+  </figure>
+  <h3>Từng bước, bạn sẽ thấy gì</h3>
+  <ol class="steps">
+    <li><b>Tìm hiểu</b>Claude hỏi vài câu về người dùng, mục tiêu, dữ liệu, thiết bị. Kết quả là file <code>PRODUCT.md</code> mô tả sản phẩm. Bạn chỉ cần trả lời trong chat.</li>
+    <li><b>Chọn phong cách (G1)</b>Claude đưa 2–3 hướng thiết kế khác nhau, ví dụ "gọn gàng kiểu công cụ chuyên nghiệp" hay "mềm mại, thân thiện". Bạn chọn một, hoặc kết hợp.</li>
+    <li><b>Bộ nền design system (DS)</b>Trước khi vẽ màn nào, Claude dựng bộ dùng chung: bảng màu, cỡ chữ, khoảng cách, và các component như nút, ô nhập, bảng, thẻ. Bạn xem tất cả trên một trang và duyệt.</li>
+    <li><b>Màn hình và góp ý (G2)</b>Claude dựng từng màn bằng cách ghép các component ở bước 3, nên mọi màn đồng bộ. Bạn mở Studio (một trang web chạy trên máy bạn, giống Figma), bấm vào chỗ muốn sửa và ghi góp ý. Claude sửa xong thì báo lại. Khi ưng, bạn duyệt và thiết kế được chụp lại thành phiên bản cố định (v1), không ai sửa được nữa.</li>
+    <li><b>Chọn công nghệ (G3)</b>Claude xem project đang có gì (hoặc đề xuất mới) và đưa ra framework, thư viện. Bạn duyệt.</li>
+    <li><b>Code</b>Bây giờ Claude mới được viết code thật, dựa trên tài liệu handoff sinh ra từ thiết kế. Trước G2 và G3, dfw tự chặn mọi lần Claude định ghi code.</li>
+    <li><b>Kiểm tra (G4)</b>Claude chạy app, chụp màn hình ở nhiều kích thước và so với thiết kế. Bạn xem danh sách chỗ lệch và quyết định chấp nhận hay sửa.</li>
+  </ol>
+  <div class="note">Trong suốt quá trình, sau mỗi lần Claude sửa thiết kế, dfw tự kiểm tra lỗi (màu sai, chữ đè nhau, bị tràn…) và bắt Claude sửa trước khi đưa cho bạn xem. Bạn không phải làm gì thêm.</div>
+</section>
+
+<!-- 3 -->
+<section id="overview">
+  <h2><small>Bắt đầu</small>3. Bên trong có gì</h2>
+  <p class="lead">dfw gồm vài bộ phận, mỗi bộ phận một vai. Cách dễ hình dung nhất là coi nó như một đội làm dự án:</p>
+  <table>
+    <thead><tr><th>Bộ phận</th><th>Giống như</th><th>Làm gì</th></tr></thead>
+    <tbody>
+      <tr><td><b>Skill dfw</b> (<code>SKILL.md</code>)</td><td>Quản lý dự án</td><td>Bản hướng dẫn Claude đọc đầu tiên. Nó cho Claude biết đang ở bước nào, bước đó cần làm gì, khi nào phải dừng chờ bạn duyệt.</td></tr>
+      <tr><td><b>4 agent</b></td><td>Nhân viên chuyên môn</td><td>Các "Claude phụ" nhận việc hẹp: một người nghiên cứu phong cách, nhiều người dựng màn hình song song, một người review chất lượng, một người lo cập nhật các skill bên ngoài.</td></tr>
+      <tr><td><b>5 hook</b></td><td>Bảo vệ và trợ lý tự động</td><td>Claude Code tự chạy chúng vào các thời điểm cố định: chặn code khi chưa duyệt, kiểm tra lỗi sau mỗi lần sửa, chuyển góp ý của bạn tới Claude.</td></tr>
+      <tr><td><b>CLI <code>dfw</code></b></td><td>Bộ đồ nghề</td><td>Chương trình dòng lệnh làm mọi việc thật: lưu trạng thái, tạo màu và chữ, ghép màn hình, chụp ảnh, kiểm tra lỗi. Claude và các hook đều gọi nó.</td></tr>
+      <tr><td><b>Studio</b></td><td>Phòng họp review</td><td>Trang web chạy trên máy bạn để xem mọi màn hình, góp ý và duyệt.</td></tr>
+      <tr><td><b>7 skill bên ngoài</b></td><td>Chuyên gia tư vấn</td><td>Các bộ kiến thức thiết kế có sẵn (của Anthropic và cộng đồng). Skill dfw chỉ mời đúng chuyên gia cần cho từng bước.</td></tr>
+      <tr><td><b>File trong project</b></td><td>Hồ sơ dự án</td><td>Mọi thứ lưu thành file trong project của bạn (<code>.dfw/</code>, <code>design/</code>), commit lên git được như code.</td></tr>
+    </tbody>
+  </table>
+  <figure class="fig">
+    <svg viewBox="0 0 960 400" role="img" aria-label="Cách các bộ phận nối với nhau">
+      <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="s-arrow"/></marker></defs>
+      <rect x="20" y="30" width="190" height="80" rx="10" class="s-user"/>
+      <text x="36" y="56" class="s-ut">BẠN · CHAT</text>
+      <text x="36" y="78" class="s-t">Yêu cầu, trả lời, duyệt</text>
+      <text x="36" y="96" class="s-s">trong Claude Code</text>
+      <rect x="20" y="250" width="190" height="80" rx="10" class="s-user"/>
+      <text x="36" y="276" class="s-ut">BẠN · STUDIO</text>
+      <text x="36" y="298" class="s-t">Xem thiết kế, góp ý</text>
+      <text x="36" y="316" class="s-s">trên trình duyệt</text>
+      <rect x="270" y="20" width="420" height="200" rx="12" class="s-adapt"/>
+      <text x="288" y="44" class="s-at">TRONG CÔNG CỤ AI (CLAUDE CODE / COPILOT)</text>
+      <rect x="288" y="56" width="180" height="70" rx="8" class="s-box"/>
+      <text x="300" y="80" class="s-t">Skill dfw</text>
+      <text x="300" y="100" class="s-s">quản lý dự án</text>
+      <rect x="490" y="56" width="180" height="70" rx="8" class="s-box"/>
+      <text x="502" y="80" class="s-t">4 agent</text>
+      <text x="502" y="100" class="s-s">nhân viên chuyên môn</text>
+      <rect x="288" y="140" width="382" height="66" rx="8" class="s-box"/>
+      <text x="300" y="164" class="s-t">5 hook</text>
+      <text x="300" y="184" class="s-s">tự chạy: chặn code sớm, kiểm tra lỗi, chuyển góp ý</text>
+      <rect x="740" y="20" width="200" height="200" rx="12" class="s-ext"/>
+      <text x="756" y="44" class="s-et">7 SKILL BÊN NGOÀI</text>
+      <text x="756" y="72" class="s-s">chuyên gia tư vấn:</text>
+      <text x="756" y="94" class="s-s">phong cách, UX, màu,</text>
+      <text x="756" y="116" class="s-s">font, chuyển động,</text>
+      <text x="756" y="138" class="s-s">soát lỗi thiết kế</text>
+      <text x="756" y="172" class="s-s">chỉ gọi khi bước</text>
+      <text x="756" y="194" class="s-s">hiện tại cần</text>
+      <rect x="270" y="260" width="420" height="110" rx="12" class="s-core"/>
+      <text x="288" y="284" class="s-ct">CLI dfw · BỘ ĐỒ NGHỀ</text>
+      <text x="288" y="308" class="s-s">lưu trạng thái và các lần duyệt · tạo màu, chữ, component</text>
+      <text x="288" y="328" class="s-s">ghép màn hình · chụp ảnh · kiểm tra lỗi · chạy Studio</text>
+      <text x="288" y="352" class="s-m">gõ được trong terminal: dfw status, dfw help…</text>
+      <rect x="740" y="260" width="200" height="110" rx="12" class="s-box"/>
+      <text x="756" y="284" class="s-k">PROJECT CỦA BẠN</text>
+      <text x="756" y="308" class="s-s">hồ sơ dự án:</text>
+      <text x="756" y="328" class="s-m">.dfw/  design/</text>
+      <text x="756" y="348" class="s-m">PRODUCT.md DESIGN.md</text>
+      <path d="M210 70H268" class="s-line" marker-start="url(#a)" marker-end="url(#a)"/>
+      <path d="M210 290H268" class="s-line" marker-start="url(#a)" marker-end="url(#a)"/>
+      <path d="M690 120H738" class="s-line" marker-end="url(#a)"/>
+      <path d="M480 220V258" class="s-line" marker-end="url(#a)"/>
+      <path d="M690 315H738" class="s-line" marker-start="url(#a)" marker-end="url(#a)"/>
+      <text x="490" y="244" class="s-s">mọi việc thật đều gọi dfw</text>
+      <text x="700" y="112" class="s-s">mời</text>
+      <text x="694" y="306" class="s-s">đọc/ghi</text>
+      <text x="218" y="282" class="s-s">Studio</text>
+    </svg>
+    <figcaption>Bạn chỉ làm việc ở 2 chỗ: chat và Studio. Mọi thứ còn lại do Claude và dfw lo.</figcaption>
+  </figure>
+  <h3>Vài từ hay gặp</h3>
+  <table>
+    <thead><tr><th>Từ</th><th>Nghĩa</th></tr></thead>
+    <tbody>
+      <tr><td>Design system</td><td>Bộ quy tắc và mảnh ghép dùng chung cho cả sản phẩm: màu, chữ, khoảng cách, và các component.</td></tr>
+      <tr><td>Token</td><td>Một giá trị được đặt tên trong design system, ví dụ <code>color.primary</code> = xanh dương. Đổi token là đổi ở mọi màn. Lưu theo chuẩn W3C DTCG trong <code>design/tokens/tokens.json</code>.</td></tr>
+      <tr><td>Component / master / instance</td><td>Component là một mảnh giao diện dùng lại được (nút, ô nhập, bảng…). "Master" là bản gốc trong <code>design/system/components/</code>; "instance" là chỗ màn hình dùng nó qua thẻ <code>&lt;dfw-use c="button"&gt;</code>.</td></tr>
+      <tr><td>Breakpoint</td><td>Kích thước màn hình cần thiết kế: điện thoại, máy tính bảng, máy tính.</td></tr>
+      <tr><td>State</td><td>Trạng thái của một màn: đang tải, không có dữ liệu, có lỗi…</td></tr>
+      <tr><td>Phase</td><td>Giai đoạn hiện tại của quy trình: discovery, direction, system, concepts, stack, implement, verify, audit, done.</td></tr>
+      <tr><td>Cổng duyệt (G1, DS, G2, G3, G4)</td><td>Điểm Claude phải dừng chờ bạn đồng ý mới đi tiếp.</td></tr>
+      <tr><td>Mode</td><td>Loại công việc (làm mới, sửa nhỏ, chỉ review…), quyết định đi qua những phase nào.</td></tr>
+      <tr><td>Hook</td><td>Đoạn lệnh Claude Code tự chạy vào thời điểm cố định (mở phiên, trước/sau khi sửa file, cuối lượt).</td></tr>
+      <tr><td>Agent</td><td>Một Claude phụ được giao một việc hẹp, làm xong báo lại cho Claude chính.</td></tr>
+      <tr><td>Skill</td><td>Một gói hướng dẫn (file <code>SKILL.md</code> + tài liệu kèm) mà Claude nạp khi cần.</td></tr>
+      <tr><td>Plugin / marketplace</td><td>Plugin là gói cài vào Claude Code (skill, agent, hook…). Marketplace là danh sách plugin trong một repo; repo này là marketplace <code>dfw-marketplace</code>.</td></tr>
+      <tr><td>Vendor / overlay</td><td>Vendor: chép code của repo khác vào repo mình ở commit cố định. Overlay: các chỉnh sửa nhỏ dfw áp lên bản chép đó.</td></tr>
+      <tr><td>Handoff</td><td>Tài liệu bàn giao từ thiết kế sang code (<code>design/handoff/v&lt;N&gt;.md</code>).</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- 4 -->
+<section id="business">
+  <h2><small>Business flow</small>4. Business flow chi tiết</h2>
+  <p class="lead">Sơ đồ dưới đây xếp theo "làn": mỗi hàng là một vai, mỗi cột là một phase. Đọc theo cột để biết trong một phase ai làm gì; đọc theo hàng để biết một vai tham gia những đâu.</p>
+  <figure class="fig">
+    <svg viewBox="0 0 960 470" role="img" aria-label="Swimlane: vai trò theo từng phase">
+      <!-- header -->
+      <g class="s-xs">
+      <rect x="110" y="10" width="840" height="34" rx="6" class="s-box"/>
+      <text x="122" y="32" class="s-t">discovery</text><text x="242" y="32" class="s-t">direction</text><text x="374" y="32" class="s-t">system</text><text x="494" y="32" class="s-t">concepts</text><text x="614" y="32" class="s-t">stack</text><text x="734" y="32" class="s-t">implement</text><text x="854" y="32" class="s-t">verify</text>
+      <polygon points="352,27 360,19 368,27 360,35" class="s-gate"/>
+      <polygon points="472,27 480,19 488,27 480,35" class="s-gate"/>
+      <polygon points="592,27 600,19 608,27 600,35" class="s-gate"/>
+      <polygon points="712,27 720,19 728,27 720,35" class="s-gate"/>
+      </g>
+      <!-- lanes -->
+      <rect x="10" y="52" width="940" height="66" rx="8" class="s-user"/><text x="20" y="80" class="s-ut">BẠN</text>
+      <rect x="10" y="124" width="940" height="66" rx="8" class="s-adapt"/><text x="20" y="152" class="s-at">CLAUDE</text><text x="20" y="168" class="s-at">CHÍNH</text>
+      <rect x="10" y="196" width="940" height="66" rx="8" class="s-box"/><text x="20" y="224" class="s-k">AGENT</text>
+      <rect x="10" y="268" width="940" height="66" rx="8" class="s-ext"/><text x="20" y="296" class="s-et">SKILL</text><text x="20" y="312" class="s-et">NGOÀI</text>
+      <rect x="10" y="340" width="940" height="56" rx="8" class="s-box"/><text x="20" y="372" class="s-k">HOOK</text>
+      <rect x="10" y="402" width="940" height="60" rx="8" class="s-core"/><text x="20" y="428" class="s-ct">CLI dfw</text><text x="20" y="444" class="s-ct">(ví dụ)</text>
+      <!-- column separators -->
+      <path d="M230 52V462M350 52V462M470 52V462M590 52V462M710 52V462M830 52V462" class="s-dash"/>
+      <!-- BAN -->
+      <text x="118" y="80" class="s-xs">trả lời câu hỏi</text><text x="118" y="96" class="s-xs">gửi tài liệu</text>
+      <text x="238" y="80" class="s-xs">chọn 1 hướng</text><text x="238" y="96" class="s-xs">→ duyệt G1</text>
+      <text x="358" y="80" class="s-xs">xem trang DS</text><text x="358" y="96" class="s-xs">→ duyệt DS</text>
+      <text x="478" y="80" class="s-xs">comment Studio</text><text x="478" y="96" class="s-xs">→ duyệt G2</text>
+      <text x="598" y="80" class="s-xs">xem đề xuất</text><text x="598" y="96" class="s-xs">→ duyệt G3</text>
+      <text x="718" y="80" class="s-xs">chờ / xem PR</text>
+      <text x="838" y="80" class="s-xs">xem chỗ lệch</text><text x="838" y="96" class="s-xs">→ duyệt G4</text>
+      <!-- CLAUDE -->
+      <text x="118" y="152" class="s-xs">hỏi, viết</text><text x="118" y="168" class="s-xs">PRODUCT.md</text>
+      <text x="238" y="152" class="s-xs">tổng hợp 2–3</text><text x="238" y="168" class="s-xs">brief, phác nhanh</text>
+      <text x="358" y="152" class="s-xs">token, component</text><text x="358" y="168" class="s-xs">DESIGN.md</text>
+      <text x="478" y="152" class="s-xs">blueprint, tự chấm</text><text x="478" y="168" class="s-xs">2 vòng, sửa comment</text>
+      <text x="598" y="152" class="s-xs">dò stack,</text><text x="598" y="168" class="s-xs">đề xuất thư viện</text>
+      <text x="718" y="152" class="s-xs">code theo</text><text x="718" y="168" class="s-xs">handoff</text>
+      <text x="838" y="152" class="s-xs">chạy app, chụp,</text><text x="838" y="168" class="s-xs">so thiết kế</text>
+      <!-- AGENT -->
+      <text x="118" y="232" class="s-xs">—</text>
+      <text x="238" y="224" class="s-xs">design-director</text><text x="238" y="240" class="s-xs">(nghiên cứu)</text>
+      <text x="358" y="232" class="s-xs">—</text>
+      <text x="478" y="224" class="s-xs">screen-builder ×N</text><text x="478" y="240" class="s-xs">visual-reviewer</text>
+      <text x="598" y="232" class="s-xs">—</text>
+      <text x="718" y="232" class="s-xs">—</text>
+      <text x="838" y="224" class="s-xs">visual-reviewer</text>
+      <!-- EXT -->
+      <text x="118" y="296" class="s-xs">ux-research</text>
+      <text x="238" y="296" class="s-xs">frontend-design</text><text x="238" y="312" class="s-xs">ui-ux-pro-max</text>
+      <text x="358" y="296" class="s-xs">ui-ux-pro-max</text><text x="358" y="312" class="s-xs">impeccable</text>
+      <text x="478" y="296" class="s-xs">impeccable, emil</text><text x="478" y="312" class="s-xs">hallmark, taste</text>
+      <text x="598" y="296" class="s-xs">emil (chọn</text><text x="598" y="312" class="s-xs">thư viện UI)</text>
+      <text x="718" y="296" class="s-xs">emil (animate)</text>
+      <text x="838" y="296" class="s-xs">impeccable audit</text><text x="838" y="312" class="s-xs">emil review</text>
+      <!-- HOOK -->
+      <text x="118" y="366" class="s-xs">chặn ghi code</text>
+      <text x="238" y="366" class="s-xs">chặn ghi code</text>
+      <text x="358" y="366" class="s-xs">lint · layout</text><text x="358" y="382" class="s-xs">khi dừng</text>
+      <text x="478" y="366" class="s-xs">lint · layout</text><text x="478" y="382" class="s-xs">· đưa comment</text>
+      <text x="598" y="366" class="s-xs">chặn ghi code</text>
+      <text x="718" y="366" class="s-xs">cho ghi code;</text><text x="718" y="382" class="s-xs">khoá design/</text>
+      <text x="838" y="366" class="s-xs">khoá design/</text>
+      <!-- CLI -->
+      <text x="118" y="428" class="s-xm">init · status</text>
+      <text x="238" y="428" class="s-xm">approve G1</text>
+      <text x="358" y="428" class="s-xm">style apply</text><text x="358" y="444" class="s-xm">approve DS</text>
+      <text x="478" y="428" class="s-xm">layout check</text><text x="478" y="444" class="s-xm">approve G2</text>
+      <text x="598" y="428" class="s-xm">stack detect</text><text x="598" y="444" class="s-xm">approve G3</text>
+      <text x="718" y="428" class="s-xm">handoff</text><text x="718" y="444" class="s-xm">phase implement</text>
+      <text x="838" y="428" class="s-xm">shoot --url</text><text x="838" y="444" class="s-xm">approve G4</text>
+    </svg>
+    <figcaption>Hình thoi đỏ ở đầu cột = cổng duyệt phải qua để vào phase đó (G1 → system, DS → concepts, G2 → stack, G3 → implement; G4 để kết thúc sau verify). Hook PreToolUse chặn ghi code ứng dụng ở mọi cột trước implement; từ G2 trở đi thư mục <code>design/</code> bị khoá.</figcaption>
+  </figure>
+
+  <h3>Chi tiết từng phase</h3>
+  <table>
+    <thead><tr><th>Phase</th><th>Đầu vào</th><th>Việc chính</th><th>Lệnh dfw thường chạy</th><th>File sinh ra / sửa</th><th>Ra khỏi phase khi</th></tr></thead>
+    <tbody>
+      <tr><td><b>discovery</b></td><td>Yêu cầu của bạn, tài liệu (để ở <code>design/assets/</code>)</td><td>Hỏi về người dùng, việc chính, dữ liệu, thiết bị, ràng buộc. Điều chưa rõ ghi thành giả định.</td><td><code>dfw init --mode new-product --product "…"</code><br><code>dfw status</code><br><code>dfw decide --level 1 --topic brand "…"</code></td><td><code>PRODUCT.md</code>, <code>.dfw/state.json</code>, <code>.dfw/config.json</code>, <code>.dfw/decisions.jsonl</code>, khung <code>design/</code></td><td>PRODUCT.md đủ dùng</td></tr>
+      <tr><td><b>direction</b></td><td>PRODUCT.md</td><td>design-director nghiên cứu tham khảo, viết 2–3 brief khác nhau; có thể phác nhanh.</td><td><code>dfw style match</code><br><code>dfw style show &lt;id&gt;</code><br><code>dfw approve G1 --note "Hướng B, ấm hơn"</code></td><td><code>design/system/brief.json</code>, <code>design/screens/_directions/</code></td><td><span class="tag t-gate">G1</span></td></tr>
+      <tr><td><b>system</b></td><td>Hướng đã chọn</td><td>Style guide → token (màu OKLCH, thang chữ, khoảng cách, bo góc, chuyển động) → component từ kit → trang Design System.</td><td><code>dfw style apply &lt;id&gt;</code> hoặc <code>dfw system init --preset crisp</code><br><code>dfw palette build --brand "#3b5bdb"</code><br><code>dfw system audit</code><br><code>dfw approve DS --note "…"</code></td><td><code>design/tokens/tokens.json</code> → <code>tokens.css</code>, <code>design/system/components/*.html</code>, <code>components.css</code>, <code>style.json</code>, <code>head.html</code>, <code>DESIGN.md</code></td><td><span class="tag t-gate">DS</span>: phải có component; lint + audit không còn lỗi MUST; không còn theme thử <code>opt-*</code></td></tr>
+      <tr><td><b>concepts</b></td><td>DS đã duyệt</td><td>Thống nhất blueprint từng màn → screen-builder dựng song song → tự chấm 2 vòng → bạn review trên Studio → sửa theo comment.</td><td><code>dfw blueprint</code><br><code>dfw studio start</code><br><code>dfw layout check --states</code><br><code>dfw check</code><br><code>dfw comments fixed fb_003 --message "…"</code><br><code>dfw approve G2 --note "…"</code></td><td><code>design/design.json</code>, <code>design/screens/&lt;id&gt;/*.html</code>, <code>.dfw/reviews/*.json</code>; khi G2: <code>design/approved/v1/</code> + <code>approval.lock.json</code></td><td><span class="tag t-gate">G2</span>: check không còn MUST; không còn comment open/acknowledged/reopened/fixed</td></tr>
+      <tr><td><b>stack</b></td><td>Thiết kế đã khoá</td><td>Dò project hiện có, đề xuất framework, cách viết style, thư viện chính; có thể nhờ emil chọn thư viện UI.</td><td><code>dfw stack detect --write</code><br><code>dfw stack set --json '{…}'</code><br><code>dfw approve G3 --note "…"</code></td><td><code>.dfw/stack.json</code></td><td><span class="tag t-gate">G3</span>: cần có <code>.dfw/stack.json</code></td></tr>
+      <tr><td><b>implement</b></td><td>G2 + G3</td><td>Sinh handoff rồi code theo stack đã duyệt, đọc ghi chú trong <code>stacks/&lt;framework&gt;.md</code>.</td><td><code>dfw handoff</code><br><code>dfw phase implement</code></td><td><code>design/handoff/v1.md</code>, code trong <code>src/</code>…</td><td>Làm xong theo handoff</td></tr>
+      <tr><td><b>verify</b></td><td>App chạy được</td><td>Chụp app ở từng breakpoint, so với thiết kế, liệt kê lệch; chạy check trên URL.</td><td><code>dfw phase verify</code><br><code>dfw shoot --url http://localhost:3000 --out app.png</code><br><code>dfw check --url http://localhost:3000</code><br><code>dfw approve G4 --note "…"</code></td><td>Báo cáo review, ảnh trong <code>.dfw/shots/</code></td><td><span class="tag t-gate">G4</span>: phải đang ở phase verify</td></tr>
+    </tbody>
+  </table>
+  <div class="note"><b>Mỗi lần duyệt</b> đều ghi một dòng vào <code>.dfw/decisions.jsonl</code> (<code>level: 1</code>, <code>topic: "gate:G2"</code>, <code>by: "user"</code>) và lịch sử trong <code>state.json</code>. Lệnh <code>dfw approve</code> luôn bắt buộc <code>--note</code> ghi rõ đã duyệt cái gì.</div>
+  <div class="note warn"><b>Đổi ý sau G2?</b> <code>dfw reopen --reason "…"</code>: tăng phiên bản (v2), mở khoá <code>design/</code>, xoá G2 và G4, đưa phase về concepts. Bản v1 trong <code>design/approved/v1/</code> vẫn giữ nguyên và <code>dfw verify-snapshot v1</code> chứng minh nó chưa bị sửa.</div>
+</section>
+
+<!-- 5 -->
+<section id="example">
+  <h2><small>Business flow</small>5. Ví dụ một dự án từ đầu tới cuối</h2>
+  <p class="lead">Ví dụ: làm web app quản lý tài sản trong kho. Cột trái là bạn gõ gì, cột phải là Claude chạy gì phía sau. Các lệnh là lệnh thật; phần kết quả in ra được rút gọn để minh hoạ.</p>
+
+  <h3>Bước 0: mở project</h3>
+  <pre><code>cd ~/projects/asset-app
+claude                      # mở Claude Code trong thư mục project</code></pre>
+  <p>Hook <code>session-start</code> chạy ngay. Project chưa có <code>.dfw/</code> nên nó không thêm gì.</p>
+
+  <h3>Bước 1: discovery</h3>
+  <table>
+    <thead><tr><th>Bạn gõ</th><th>Claude làm phía sau</th></tr></thead>
+    <tbody>
+      <tr><td><i>"Thiết kế web app quản lý tài sản cho nhân viên kho: mượn/trả thiết bị, xem lịch sử."</i></td><td>Skill dfw tự kích hoạt. Hỏi ngôn ngữ (một lần mỗi phiên) rồi:
+<pre><code>dfw lang set vi --session &lt;id&gt;
+dfw status            # → "No dfw workflow in this project"
+dfw init --mode new-product --product "Asset App"</code></pre>Đọc <code>references/phase-discovery.md</code>, hỏi bạn vài câu.</td></tr>
+      <tr><td>Trả lời: ai dùng, thiết bị, số lượng tài sản, có cần tiếng Việt không…</td><td>Viết <code>PRODUCT.md</code>. Ghi quyết định quan trọng:
+<pre><code>dfw decide --level 1 --topic locale "UI tiếng Việt, font phải có subset vietnamese"</code></pre></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Bước 2: direction (G1)</h3>
+  <table>
+    <tbody>
+      <tr><td style="width:38%">(chờ)</td><td>Giao cho agent design-director (chỉ đọc) nghiên cứu, cùng skill <code>frontend-design</code> và dữ liệu <code>ui-ux-pro-max</code>:
+<pre><code>dfw style match
+#  ops-dense          0.82  dày dữ liệu, tương phản rõ, hợp bảng lớn
+#  industrial-utility 0.77  …
+dfw style show ops-dense</code></pre>Trả về 2–3 brief trong chat.</td></tr>
+      <tr><td><i>"Chọn hướng 1, nhưng màu ấm hơn."</i></td><td><pre><code>dfw approve G1 --note "Hướng 1 (ops-dense), màu ấm hơn"
+dfw phase system</code></pre></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Bước 3: system (DS)</h3>
+  <table>
+    <tbody>
+      <tr><td style="width:38%">(chờ)</td><td><pre><code>dfw style apply ops-dense
+dfw fonts check "Be Vietnam Pro"     # có subset vietnamese không
+dfw system init                      # chép component từ kit
+dfw system audit                     # tương phản, màu nhấn vs màu trạng thái…
+dfw studio start                     # http://127.0.0.1:4600</code></pre>Mỗi lần Claude sửa token/component, hook <code>post-tool-use</code> build lại <code>tokens.css</code>, <code>components.css</code> và lint. Cuối lượt, hook <code>stop</code> render trang DS để kiểm tra bố cục.</td></tr>
+      <tr><td>Mở Studio, xem trang "Design System", comment: <i>"Nút primary đậm quá"</i>. Rồi: <i>"Duyệt DS"</i></td><td>Comment tới Claude ở tin nhắn sau (hook <code>user-prompt-submit</code>). Sửa token, đánh dấu fixed, rồi:
+<pre><code>dfw approve DS --note "Bảng màu ấm, Be Vietnam Pro, 24 component"</code></pre></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Bước 4: concepts (G2)</h3>
+  <table>
+    <tbody>
+      <tr><td style="width:38%">Xác nhận blueprint các màn: Dashboard, Mượn, Trả, Lịch sử.</td><td><pre><code>dfw blueprint
+dfw blueprint dashboard</code></pre>Mỗi page một agent screen-builder dựng song song (chỉ ghi vào <code>design/screens/&lt;id&gt;/</code> của nó). Tự chấm 2 vòng theo <code>quality-rubric.md</code>:
+<pre><code>dfw layout check --states
+#  MUST  dashboard@mobile  overlap  .kpi-row vs .page-header
+dfw check
+#  MUST 0 · SHOULD 2 · NICE 3</code></pre></td></tr>
+      <tr><td>Review trên Studio, comment 5 chỗ.</td><td>Mỗi comment:
+<pre><code>dfw comments ack fb_007
+# … sửa design/screens/return/index.html …
+dfw comments fixed fb_007 --message "Đổi bảng thành danh sách thẻ ở mobile"</code></pre></td></tr>
+      <tr><td>Bấm "Resolve" từng comment trên Studio. <i>"Duyệt G2"</i></td><td><pre><code>dfw approve G2 --note "4 màn, 3 breakpoint, state loading/empty/error"
+# → chạy check đầy đủ, chụp design/ thành design/approved/v1/ + approval.lock.json
+dfw handoff        # design/handoff/v1.md</code></pre></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Bước 5–7: stack, implement, verify</h3>
+  <table>
+    <tbody>
+      <tr><td style="width:38%">(chờ)</td><td><pre><code>dfw stack detect --write     # đọc package.json…
+dfw phase stack</code></pre>Đề xuất: "Vue 3 + Vite, CSS variables từ tokens, không thêm UI kit".</td></tr>
+      <tr><td><i>"Ok, duyệt G3"</i></td><td><pre><code>dfw approve G3 --note "Vue 3 + Vite, không UI kit"
+dfw phase implement</code></pre>Bây giờ hook <code>pre-tool-use</code> mới cho ghi vào <code>src/</code>. Code theo <code>design/handoff/v1.md</code> và <code>stacks/vue.md</code>.</td></tr>
+      <tr><td>(chờ)</td><td><pre><code>dfw phase verify
+dfw shoot --url http://localhost:5173 --bp desktop,mobile --out .dfw/shots/app.png
+dfw check --url http://localhost:5173</code></pre>Agent visual-reviewer so với <code>design/approved/v1</code>, trả danh sách lệch.</td></tr>
+      <tr><td><i>"Chấp nhận, duyệt G4"</i></td><td><pre><code>dfw approve G4 --note "Chấp nhận, 2 lệch nhỏ ghi trong báo cáo"
+dfw phase done</code></pre></td></tr>
+    </tbody>
+  </table>
+  <div class="note">Nếu giữa chừng Claude thử ghi <code>src/App.vue</code> khi chưa có G2/G3, hook trả về <code>deny</code> với lý do, Claude Code không cho ghi, và Claude phải quay lại xin duyệt.</div>
+</section>
+
+<!-- 6 -->
+<section id="modes">
+  <h2><small>Business flow</small>6. Các mode</h2>
+  <p class="lead">Mode quyết định phase bắt đầu, cổng nào được miễn, và có được viết code không. Định nghĩa trong <code>core/lib/state.mjs</code> và giải thích trong <code>references/modes.md</code>.</p>
+  <table>
+    <thead><tr><th>Bạn nói / tham số</th><th>Mode</th><th>Bắt đầu ở</th><th>Cổng miễn</th><th>Viết code?</th><th>Đường đi</th><th>Dùng khi</th></tr></thead>
+    <tbody>
+      <tr><td><code>new</code></td><td>new-product</td><td>discovery</td><td>—</td><td>Có</td><td>đủ 7 bước</td><td>Sản phẩm mới</td></tr>
+      <tr><td><code>existing</code></td><td>existing-project</td><td>discovery</td><td>—</td><td>Có</td><td>như trên + dò stack sớm</td><td>Thiết kế lại app đã có code</td></tr>
+      <tr><td><code>design</code>, <code>design-only</code></td><td>design-only</td><td>discovery</td><td>—</td><td>Không</td><td>… → G2 → done</td><td>Chỉ cần thiết kế + handoff</td></tr>
+      <tr><td><code>implement</code></td><td>implement-approved</td><td>stack</td><td>—</td><td>Có</td><td>G3 → implement → verify</td><td>Đã có thiết kế được duyệt (không dùng với <code>init</code>)</td></tr>
+      <tr><td><code>refine</code></td><td>ui-refinement</td><td>concepts</td><td>G1, DS</td><td>Có</td><td>concepts → G2 → stack → …</td><td>Làm đẹp màn/luồng có sẵn</td></tr>
+      <tr><td><code>quick</code></td><td>quick-change</td><td>concepts</td><td>G1, DS</td><td>Có</td><td>như refine</td><td>Sửa nhỏ trong project đã có <code>.dfw/</code></td></tr>
+      <tr><td><code>review</code></td><td>review-only</td><td>audit</td><td>—</td><td>Không</td><td>chỉ audit; chỉ ghi <code>.dfw/</code></td><td>Đánh giá UI không sửa</td></tr>
+      <tr><td><code>skills</code></td><td>(không phải mode dự án)</td><td>—</td><td>—</td><td>—</td><td>skill-steward đề xuất → bạn duyệt</td><td>Cập nhật 7 skill bên ngoài</td></tr>
+    </tbody>
+  </table>
+  <pre><code>dfw init --mode quick --product "Asset App"   # bắt đầu với mode quick-change
+dfw mode ui-refinement                        # đổi mode giữa chừng (tính lại cổng miễn)</code></pre>
+</section>
+
+<!-- 7 -->
+<section id="repo">
+  <h2><small>Kiến trúc</small>7. Cấu trúc repo và đường build</h2>
+  <p class="lead">Repo này vừa là <b>mã nguồn</b> của dfw, vừa là <b>marketplace</b> cho từng công cụ AI ("host"). Mọi thứ dùng chung nằm trong <code>core/</code>; phần riêng của từng host nằm trong <code>adapters/&lt;host&gt;/</code>. Build ghép hai phần thành một plugin cho mỗi host. Bạn chỉ sửa ở cột "nguồn".</p>
+  <figure class="fig">
+    <svg viewBox="0 0 960 540" role="img" aria-label="Đường đi từ mã nguồn tới từng host">
+      <defs><marker id="r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="s-arrow"/></marker></defs>
+      <text x="20" y="22" class="s-k">NGUỒN (BẠN SỬA)</text>
+      <rect x="20" y="32" width="230" height="200" rx="10" class="s-core"/>
+      <text x="34" y="56" class="s-ct">core/ (dùng chung mọi host)</text>
+      <text x="34" y="78" class="s-xm">bin/ lib/ studio/ kits/</text>
+      <text x="34" y="96" class="s-xm">templates/ assets/ schemas/</text>
+      <text x="34" y="114" class="s-xm">lib/host.mjs  ← khác biệt host</text>
+      <text x="34" y="132" class="s-xm">manifest.json ← tên, version</text>
+      <text x="34" y="150" class="s-xm">workflow/SKILL.md</text>
+      <text x="34" y="168" class="s-xm">workflow/agents/*.md</text>
+      <text x="34" y="186" class="s-xm">workflow/references/ policies/</text>
+      <text x="34" y="204" class="s-xm">workflow/stacks/</text>
+      <text x="34" y="222" class="s-xs">chữ có placeholder {{…}}</text>
+      <rect x="20" y="244" width="230" height="74" rx="10" class="s-adapt"/>
+      <text x="34" y="266" class="s-at">adapters/claude-code/</text>
+      <text x="34" y="286" class="s-xm">assemble.json</text>
+      <text x="34" y="304" class="s-xm">plugin/hooks/hooks.json</text>
+      <rect x="20" y="328" width="230" height="74" rx="10" class="s-adapt"/>
+      <text x="34" y="350" class="s-at">adapters/copilot/</text>
+      <text x="34" y="370" class="s-xm">assemble.json</text>
+      <text x="34" y="388" class="s-xm">plugin/hooks.json (version 1)</text>
+      <rect x="20" y="412" width="230" height="86" rx="10" class="s-ext"/>
+      <text x="34" y="436" class="s-et">7 skill bên ngoài</text>
+      <text x="34" y="456" class="s-xm">registry/skills.json + lock</text>
+      <text x="34" y="474" class="s-xm">overlays/&lt;id&gt;.json</text>
+      <text x="34" y="490" class="s-xs">+ repo gốc ở commit khoá</text>
+      <!-- build -->
+      <rect x="290" y="200" width="180" height="140" rx="10" class="s-box"/>
+      <text x="304" y="224" class="s-t">npm run build</text>
+      <text x="304" y="244" class="s-xm">scripts/build.mjs</text>
+      <text x="304" y="264" class="s-xs">mỗi adapter: chép core,</text>
+      <text x="304" y="280" class="s-xs">thay placeholder theo host,</text>
+      <text x="304" y="296" class="s-xs">đổi định dạng agent,</text>
+      <text x="304" y="312" class="s-xs">sinh manifest + dfw.json;</text>
+      <text x="304" y="328" class="s-xs">tải skill ngoài, áp overlay</text>
+      <path d="M250 132 C270 132 270 240 288 240" class="s-line" marker-end="url(#r)"/>
+      <path d="M250 281 C270 281 270 262 288 262" class="s-line" marker-end="url(#r)"/>
+      <path d="M250 365 C270 365 270 290 288 290" class="s-line" marker-end="url(#r)"/>
+      <path d="M250 455 C275 455 275 318 288 318" class="s-line" marker-end="url(#r)"/>
+      <!-- generated -->
+      <text x="510" y="22" class="s-k">SINH RA (KHÔNG SỬA TAY)</text>
+      <rect x="510" y="32" width="210" height="104" rx="10" class="s-adapt"/>
+      <text x="524" y="54" class="s-at">plugins/dfw/ (Claude Code)</text>
+      <text x="524" y="74" class="s-xm">.claude-plugin/plugin.json</text>
+      <text x="524" y="92" class="s-xm">skills/dfw/SKILL.md</text>
+      <text x="524" y="110" class="s-xm">agents/*.md · hooks/hooks.json</text>
+      <text x="524" y="128" class="s-xm">bin lib studio kits · dfw.json</text>
+      <rect x="510" y="146" width="210" height="104" rx="10" class="s-adapt"/>
+      <text x="524" y="168" class="s-at">plugins/dfw-copilot/ (Copilot)</text>
+      <text x="524" y="188" class="s-xm">plugin.json (tên "dfw")</text>
+      <text x="524" y="206" class="s-xm">skills/dfw/SKILL.md</text>
+      <text x="524" y="224" class="s-xm">agents/*.agent.md · hooks.json</text>
+      <text x="524" y="242" class="s-xm">bin lib studio kits · dfw.json</text>
+      <rect x="510" y="260" width="210" height="64" rx="10" class="s-box"/>
+      <text x="524" y="284" class="s-t">plugins/&lt;7 skill&gt;/</text>
+      <text x="524" y="304" class="s-xs">dùng chung cho cả hai host</text>
+      <rect x="510" y="334" width="210" height="74" rx="10" class="s-box"/>
+      <text x="524" y="356" class="s-t">2 marketplace</text>
+      <text x="524" y="376" class="s-xm">.claude-plugin/marketplace.json</text>
+      <text x="524" y="394" class="s-xm">.github/plugin/marketplace.json</text>
+      <rect x="510" y="418" width="210" height="44" rx="10" class="s-box"/>
+      <text x="524" y="445" class="s-t">THIRD_PARTY_NOTICES.md</text>
+      <path d="M470 240 C490 240 490 84 508 84" class="s-line" marker-end="url(#r)"/>
+      <path d="M470 262 C490 262 490 198 508 198" class="s-line" marker-end="url(#r)"/>
+      <path d="M470 290H508" class="s-line" marker-end="url(#r)"/>
+      <path d="M470 318 C490 318 490 370 508 370" class="s-line" marker-end="url(#r)"/>
+      <!-- hosts -->
+      <text x="770" y="22" class="s-k">MÁY NGƯỜI DÙNG</text>
+      <rect x="770" y="32" width="170" height="104" rx="10" class="s-user"/>
+      <text x="784" y="54" class="s-ut">CLAUDE CODE</text>
+      <text x="784" y="74" class="s-xs">dfw install --host claude</text>
+      <text x="784" y="92" class="s-xm">claude plugin install …</text>
+      <text x="784" y="110" class="s-xs">cache: ~/.claude/plugins/</text>
+      <text x="784" y="126" class="s-xs">bin/ có sẵn trên PATH</text>
+      <rect x="770" y="146" width="170" height="120" rx="10" class="s-user"/>
+      <text x="784" y="168" class="s-ut">GITHUB COPILOT</text>
+      <text x="784" y="188" class="s-xs">dfw install --host copilot</text>
+      <text x="784" y="206" class="s-xm">copilot plugin install …</text>
+      <text x="784" y="224" class="s-xs">~/.copilot/installed-plugins/</text>
+      <text x="784" y="240" class="s-xs">(local: dùng tại chỗ)</text>
+      <text x="784" y="256" class="s-xs">+ link ~/.local/bin/dfw</text>
+      <rect x="770" y="276" width="170" height="86" rx="10" class="s-box"/>
+      <text x="784" y="298" class="s-k">DỰ KIẾN</text>
+      <text x="784" y="318" class="s-xs">OpenCode · Codex · Cursor</text>
+      <text x="784" y="336" class="s-xs">= thêm adapters/&lt;host&gt;/</text>
+      <text x="784" y="352" class="s-xs">+ 1 mục trong host.mjs</text>
+      <rect x="770" y="372" width="170" height="90" rx="10" class="s-core"/>
+      <text x="784" y="394" class="s-ct">~/.config/dfw/</text>
+      <text x="784" y="414" class="s-xm">bin/&lt;ver&gt;/dfw</text>
+      <text x="784" y="432" class="s-xm">cache/fonts browser/</text>
+      <text x="784" y="450" class="s-xs">dùng chung mọi host</text>
+      <path d="M720 370 C745 370 745 84 768 84" class="s-line" marker-end="url(#r)"/>
+      <path d="M720 385 C750 385 750 206 768 206" class="s-line" marker-end="url(#r)"/>
+      <!-- release + ci -->
+      <rect x="290" y="372" width="180" height="90" rx="10" class="s-box"/>
+      <text x="304" y="396" class="s-t">tag v0.4.0</text>
+      <text x="304" y="416" class="s-xm">release-binaries.yml</text>
+      <text x="304" y="434" class="s-xs">5 binary + SHA256SUMS</text>
+      <text x="304" y="450" class="s-xs">→ GitHub Release</text>
+      <path d="M470 440 C620 500 760 500 855 464" class="s-dash" marker-end="url(#r)"/>
+      <text x="560" y="492" class="s-xs">install.sh / dfw setup --binary tải binary</text>
+      <rect x="20" y="508" width="450" height="28" rx="8" class="s-box"/>
+      <text x="34" y="527" class="s-xs">CI mỗi PR: npm test · build --check (plugins/ khớp nguồn) · validate.mjs (cả 2 marketplace)</text>
+    </svg>
+  </figure>
+
+  <h3>Cây thư mục gốc</h3>
+  <div class="card tree">core/                      <span class="d">bộ máy dfw, không phụ thuộc host nào (mục 8)</span>
+  manifest.json            <span class="d">tên, phiên bản, mô tả, skill phụ thuộc: nguồn duy nhất cho manifest mọi host</span>
+  lib/host.mjs             <span class="d">khác biệt giữa các host: đọc/ghi hook, chữ trong skill, nơi cài</span>
+  workflow/SKILL.md        <span class="d">skill dfw (một nguồn, render theo host)</span>
+  workflow/agents/*.md     <span class="d">4 agent (một nguồn, đổi định dạng theo host)</span>
+adapters/
+  README.md                <span class="d">cách thêm host mới</span>
+  claude-code/
+    assemble.json          <span class="d">host "claude", plugin "dfw", manifest .claude-plugin/plugin.json</span>
+    plugin/hooks/hooks.json <span class="d">5 hook → "${CLAUDE_PLUGIN_ROOT}/bin/dfw" hook &lt;tên&gt;</span>
+  copilot/
+    assemble.json          <span class="d">host "copilot", thư mục dfw-copilot, tên "dfw", manifest plugin.json</span>
+    plugin/hooks.json      <span class="d">5 hook (version 1, bash + powershell) → dfw hook &lt;tên&gt; --host copilot</span>
+plugins/                   <span class="d">SINH RA: dfw, dfw-copilot, 7 skill</span>
+.claude-plugin/marketplace.json  <span class="d">SINH RA: marketplace cho Claude Code</span>
+.github/plugin/marketplace.json  <span class="d">SINH RA: marketplace cho Copilot (cùng tên dfw-marketplace)</span>
+registry/                  <span class="d">skills.json (7 skill + 2 plugin local), lock, history, xref, stack-lint</span>
+overlays/                  <span class="d">chỉnh sửa dfw áp lên skill ngoài</span>
+reports/proposals/         <span class="d">báo cáo đề xuất cập nhật skill</span>
+scripts/                   <span class="d">build, validate, skills, install, binary, sinh dữ liệu</span>
+tests/unit, tests/e2e      <span class="d">test (host.test.mjs kiểm phần đa host)</span>
+docs/                      <span class="d">trang này</span>
+install.sh, package.json, .github/workflows/, README.md, LICENSE, THIRD_PARTY_NOTICES.md</div>
+  <h3>Build làm gì với văn bản dùng chung</h3>
+  <table>
+    <thead><tr><th>Placeholder trong core</th><th>Claude Code</th><th>GitHub Copilot</th></tr></thead>
+    <tbody>
+      <tr><td><code>{{SKILL_DIR}}</code></td><td><code>${CLAUDE_SKILL_DIR}</code></td><td><code>.</code> (thư mục của SKILL.md)</td></tr>
+      <tr><td><code>{{ASK_TOOL}}</code></td><td>AskUserQuestion</td><td>the ask_user tool</td></tr>
+      <tr><td><code>{{BACKGROUND}}</code></td><td>Bash <code>run_in_background</code></td><td>an async/background shell command</td></tr>
+      <tr><td><code>{{DFW_CLI}}</code></td><td>dfw có trên PATH (bin/ của plugin)</td><td>dfw trên PATH, hoặc đường dẫn đầy đủ trong plugin</td></tr>
+      <tr><td><code>{{INVOKE_SKILL}}</code></td><td>tool Skill, tên <code>plugin:skill</code></td><td>gọi skill theo tên</td></tr>
+      <tr><td><code>{{HOST_NAME}}</code>, <code>{{HOST_SETTINGS}}</code></td><td>Claude Code, <code>~/.claude/settings.json</code></td><td>GitHub Copilot, <code>~/.copilot/</code></td></tr>
+      <tr><td>Tên <code>plugin:skill</code> (vd. <code>impeccable:impeccable</code>, <code>dfw:screen-builder</code>)</td><td>giữ nguyên</td><td>rút thành tên skill/agent (<code>impeccable</code>, <code>screen-builder</code>)</td></tr>
+      <tr><td>Khối <code>&lt;!-- host:copilot --&gt; … &lt;!-- /host --&gt;</code></td><td>bỏ</td><td>giữ</td></tr>
+      <tr><td>Agent <code>agents/*.md</code></td><td>giữ nguyên (tools, model…)</td><td>đổi thành <code>*.agent.md</code>, frontmatter chỉ còn name + description</td></tr>
+    </tbody>
+  </table>
+  <div class="note">Vì sao phải chép core vào từng plugin? Plugin của mỗi host phải tự chứa đủ (host chép hoặc đọc nguyên thư mục plugin), nên không trỏ ngược ra <code>core/</code> được. <code>npm run build:check</code> trong CI đảm bảo bản chép luôn khớp nguồn; <code>validate.mjs</code> chặn placeholder chưa thay hoặc chữ riêng của Claude Code lọt vào plugin Copilot.</div>
+</section>
+
+<!-- 8 -->
+<section id="files">
+  <h2><small>Kiến trúc</small>8. Từng file làm gì</h2>
+  <p class="lead">Số dòng ghi trong ngoặc để bạn ước lượng độ lớn. Đường dẫn tính từ gốc repo.</p>
+
+  <h3>core/bin: điểm vào</h3>
+  <table>
+    <thead><tr><th>File</th><th>Làm gì</th></tr></thead>
+    <tbody>
+      <tr><td><code>core/bin/dfw</code></td><td>Launcher viết bằng sh. Đọc phiên bản trong <code>.claude-plugin/plugin.json</code>; nếu có <code>~/.config/dfw/bin/&lt;ver&gt;/dfw</code> thì chạy binary (đặt <code>DFW_PLUGIN_ROOT</code>), không thì chạy <code>node bin/dfw.mjs</code>; không có cả hai thì thoát mã 127 kèm gợi ý cài. <code>DFW_NO_BINARY=1</code> bỏ qua binary.</td></tr>
+      <tr><td><code>core/bin/dfw.mjs</code></td><td>Điểm vào Node: kiểm Node ≥ 20, bật compile cache, gọi <code>main()</code> trong <code>lib/cli.mjs</code>.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>core/lib: các module của CLI</h3>
+  <table>
+    <thead><tr><th>Module</th><th>Nhóm</th><th>Làm gì</th></tr></thead>
+    <tbody>
+      <tr><td><code>cli.mjs</code> (778)</td><td>điều phối</td><td>Đọc lệnh, gọi module tương ứng, in kết quả, đặt mã thoát (2 khi có lỗi MUST). Chứa luôn <code>status</code>, <code>approve</code>, <code>studio</code>, <code>handoff</code>, <code>doctor</code>, <code>setup</code>, và bộ chạy hook.</td></tr>
+      <tr><td><code>util.mjs</code> (234)</td><td>chung</td><td>Tìm gốc project (thư mục có <code>.dfw/state.json</code>, không thì có <code>.git</code>), đọc/ghi JSON, <code>PLUGIN_ROOT</code>, <code>IS_BINARY</code>, <code>selfCommand()</code>, <code>nodeExecutable()</code>, lỗi <code>DfwError</code>.</td></tr>
+      <tr><td><code>state.mjs</code> (173)</td><td>quy trình</td><td>Máy trạng thái: mode, phase, cổng; luật chuyển phase; ghi lịch sử và quyết định.</td></tr>
+      <tr><td><code>gate.mjs</code> (72)</td><td>quy trình</td><td>Quyết định cho/chặn ghi file (hàm thuần <code>decideWrite</code>) + chuyển thành output hook.</td></tr>
+      <tr><td><code>freeze.mjs</code> (77)</td><td>quy trình</td><td>Khi G2: chụp <code>design/</code> vào <code>design/approved/vN/</code>, viết <code>approval.lock.json</code> có hash từng file. <code>reopen</code> và <code>verify-snapshot</code>.</td></tr>
+      <tr><td><code>config.mjs</code> (97)</td><td>quy trình</td><td>Cấu hình nhiều lớp: mặc định plugin &lt; global &lt; project &lt; local.</td></tr>
+      <tr><td><code>lang.mjs</code> (51)</td><td>quy trình</td><td>Ngôn ngữ trao đổi theo phiên; nhớ ngôn ngữ dùng lần trước.</td></tr>
+      <tr><td><code>hooks.mjs</code> (134)</td><td>hook</td><td>5 hàm xử lý hook (mục 11). Lỗi nội bộ không bao giờ chặn người dùng.</td></tr>
+      <tr><td><code>tokens.mjs</code> (142)</td><td>design system</td><td>DTCG <code>tokens.json</code> + <code>themes/*.json</code> → <code>tokens.css</code> (<code>:root</code> và <code>[data-theme=…]</code>).</td></tr>
+      <tr><td><code>color.mjs</code> (323)</td><td>design system</td><td>Dải màu OKLCH từ vài quyết định (màu thương hiệu, nhiệt độ trung tính), chọn vai trò theo độ tương phản, màu trạng thái hài hoà, thang chữ.</td></tr>
+      <tr><td><code>style.mjs</code> (254)</td><td>design system</td><td>Thư viện style guide <code>kits/styles/*.json</code>: tìm, xem, chấm điểm theo brief, áp thành token.</td></tr>
+      <tr><td><code>system.mjs</code> (154)</td><td>design system</td><td><code>system init</code> (chép component kit, preset), <code>options</code>/<code>choose</code> (so 2–3 theme), <code>list</code>.</td></tr>
+      <tr><td><code>system-page.mjs</code> (359)</td><td>design system</td><td>Sinh trang "Design System": nền tảng từ token + mọi component với variant và ví dụ.</td></tr>
+      <tr><td><code>dsaudit.mjs</code> (110)</td><td>design system</td><td>Review cấp senior: tương phản, màu nhấn trùng màu trạng thái, nhiệt độ xám, số lượng hue, nhịp chữ, lý do trong DESIGN.md.</td></tr>
+      <tr><td><code>fonts.mjs</code> (10)</td><td>design system</td><td>Hỏi Google Fonts xem font có subset nào (vd. vietnamese). Chỉ gửi tên font.</td></tr>
+      <tr><td><code>icons.mjs</code> (56)</td><td>design system</td><td>Tìm/thêm icon Lucide vào <code>design/system/icons/</code>.</td></tr>
+      <tr><td><code>compose.mjs</code> (394)</td><td>màn hình</td><td>Mở rộng <code>&lt;dfw-use&gt;</code>, <code>&lt;dfw-icon&gt;</code>, <code>&lt;dfw-head&gt;</code>, slot, prop thành HTML thường; build <code>components.css</code>; bản ghép đầy đủ vào <code>.dfw/build/</code>.</td></tr>
+      <tr><td><code>lint.mjs</code> (260)</td><td>kiểm tra</td><td>Luật tĩnh nhanh cho HTML, CSS, token, manifest (danh sách ở mục 14).</td></tr>
+      <tr><td><code>layout.mjs</code> (331)</td><td>kiểm tra</td><td>Render thật từng màn × breakpoint × state (cả bản danh sách dài ra) và đo chồng lấn, tràn, bị cắt, neo, khoảng trống, độ nhất quán giữa các màn.</td></tr>
+      <tr><td><code>check.mjs</code> (209)</td><td>kiểm tra</td><td>Gom dfw lint + DS audit + Impeccable + Hallmark sloplint (+ Taste copy-lint), quy về MUST/SHOULD/NICE và trỏ về file nguồn.</td></tr>
+      <tr><td><code>locate.mjs</code> (68)</td><td>kiểm tra</td><td>Tìm thư mục của các plugin anh em (Impeccable, Hallmark, Taste) trong cache của Claude Code.</td></tr>
+      <tr><td><code>cdp.mjs</code> (421)</td><td>render</td><td>Driver DevTools protocol tự viết: tìm/mở Chrome ẩn, context, page, chụp, cache font, tải chrome-headless-shell.</td></tr>
+      <tr><td><code>runtime.mjs</code> (58)</td><td>render</td><td>Lớp mỏng trên cdp: <code>openRenderer()</code>, <code>screenshot(jobs)</code> chạy song song 6 trang.</td></tr>
+      <tr><td><code>comments.mjs</code> (143)</td><td>review</td><td>Kho comment theo phiên review trong <code>.dfw/reviews/</code>, luật chuyển trạng thái.</td></tr>
+      <tr><td><code>inbox.mjs</code> (54)</td><td>review</td><td>Biết comment nào chưa đưa cho Claude; <code>comments wait</code> chờ comment mới.</td></tr>
+      <tr><td><code>edit.mjs</code> (222)</td><td>review</td><td>Sửa trực tiếp từ Studio ghi ngược về file nguồn, có nhật ký để hoàn tác (<code>.dfw/edits/</code>).</td></tr>
+      <tr><td><code>stack.mjs</code> (108)</td><td>code</td><td>Dò stack hiện có từ <code>package.json</code>…; lưu đề xuất <code>.dfw/stack.json</code>.</td></tr>
+      <tr><td><code>install.mjs</code> (93)</td><td>cài đặt</td><td><code>dfw install</code>/<code>uninstall</code>: gọi <code>claude plugin …</code>, tải binary, kiểm trình duyệt, doctor.</td></tr>
+      <tr><td><code>binary.mjs</code> (61)</td><td>cài đặt</td><td>Tên file binary theo nền tảng, tải từ GitHub Release và kiểm SHA-256.</td></tr>
+      <tr><td><code>host.mjs</code></td><td>đa host</td><td>Danh sách host (Claude Code, Copilot; OpenCode, Codex, Cursor dự kiến), chuẩn hoá input hook, định dạng output theo host, giá trị placeholder cho skill, nơi cài plugin (mục 18).</td></tr>
+    </tbody>
+  </table>
+
+  <h3>core/studio: phần giống Figma</h3>
+  <table>
+    <thead><tr><th>File</th><th>Làm gì</th></tr></thead>
+    <tbody>
+      <tr><td><code>server.mjs</code> (309)</td><td>Web server local (127.0.0.1), không dependency. Phục vụ app, ghép thiết kế khi trả về, API token/component/manifest/state/comment/edit/chụp ảnh (<code>/__dfw/api/shoot</code>), đẩy sự kiện qua SSE, theo dõi file để tải lại.</td></tr>
+      <tr><td><code>pages.mjs</code> (48)</td><td>Gom các màn trong manifest thành "page" trên canvas; page "Design System" luôn đứng đầu.</td></tr>
+      <tr><td><code>app.html</code>, <code>app.css</code></td><td>Khung giao diện Studio: thanh trên, panel trái (page, layer), canvas, panel phải (inspect, comment), thanh Present, popover pin, bảng phím tắt.</td></tr>
+      <tr><td><code>app.js</code> (1781)</td><td>Toàn bộ logic phía trình duyệt: menu chọn breakpoint/state, chụp hết / chụp màn trong Present, canvas kéo/zoom, khung iframe, chọn layer, inspect, comment và pin, Present, sửa trực tiếp, nhận SSE.</td></tr>
+      <tr><td><code>overlay.js</code></td><td>Script chèn vào từng iframe thiết kế: báo vị trí hover/chọn, layer, token đang dùng, sửa chữ, chuyển phím và cuộn về Studio qua <code>postMessage</code>.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>core/kits, templates, schemas, assets</h3>
+  <table>
+    <thead><tr><th>Đường dẫn</th><th>Làm gì</th></tr></thead>
+    <tbody>
+      <tr><td><code>kits/base/components/*.html</code></td><td>24 component gốc: app-shell, page, page-header, nav, nav-item, button, icon-button, field, select, checkbox, segmented, tabs, filter-chip, badge, banner, card, stat, data-table, dialog, empty-state, status-bar, avatar, kbd, text. <code>dfw system init</code> chép vào project.</td></tr>
+      <tr><td><code>kits/base/presets/</code></td><td>3 preset token + head: <code>crisp</code>, <code>soft</code>, <code>industrial</code> (sinh bằng <code>scripts/make-presets.mjs</code>).</td></tr>
+      <tr><td><code>kits/styles/*.json</code></td><td>12 style guide: civic-public, clinical-calm, dark-console, editorial-luxe, heritage-signboard, industrial-utility, ledger-finance, nature-organic, ops-dense, playful-bold, swiss-grid, warm-craft (sinh bằng <code>scripts/make-styles.mjs</code>).</td></tr>
+      <tr><td><code>templates/PRODUCT.md</code>, <code>DESIGN.md</code>, <code>handoff.md</code>, <code>screen.html</code></td><td>Mẫu mà <code>dfw init</code> và <code>dfw handoff</code> chép vào project.</td></tr>
+      <tr><td><code>templates/design/</code></td><td>Khung thư mục <code>design/</code> cho project mới (design.json, system/brief.json…).</td></tr>
+      <tr><td><code>schemas/*.schema.json</code></td><td>Hợp đồng dữ liệu: <code>state</code>, <code>config</code>, <code>design-manifest</code>, <code>feedback</code> (comment, độc lập với công cụ).</td></tr>
+      <tr><td><code>assets/icons/lucide.json</code></td><td>Bộ icon Lucide đã vendor.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>core/workflow: kiến thức và luật cho Claude</h3>
+  <table>
+    <thead><tr><th>File</th><th>Claude đọc khi</th><th>Nội dung</th></tr></thead>
+    <tbody>
+      <tr><td><code>references/modes.md</code></td><td>chọn mode</td><td>Đường đi của từng mode.</td></tr>
+      <tr><td><code>references/phase-discovery.md</code></td><td>phase discovery</td><td>Hỏi gì, ghi PRODUCT.md thế nào; skill ux-research, ui-ux-pro-max.</td></tr>
+      <tr><td><code>references/phase-direction.md</code></td><td>phase direction</td><td>Cách tạo 2–3 hướng; frontend-design, ui-ux-pro-max, hallmark/taste cho marketing.</td></tr>
+      <tr><td><code>references/phase-system.md</code></td><td>phase system</td><td>Dựng token, component, trang DS; frontend-design, ui-ux-pro-max, impeccable.</td></tr>
+      <tr><td><code>references/phase-concepts.md</code></td><td>phase concepts</td><td>Blueprint, chia page cho screen-builder, ghép màn; ux-copy, emil animate, hallmark/taste.</td></tr>
+      <tr><td><code>references/phase-review.md</code></td><td>review và audit</td><td>Vòng comment, áp comment, audit cho review-only; impeccable, emil review-animations.</td></tr>
+      <tr><td><code>references/phase-stack.md</code></td><td>phase stack</td><td>Dò stack, hỏi duyệt; emil pick-ui-library.</td></tr>
+      <tr><td><code>references/phase-implement.md</code></td><td>phase implement</td><td>Từ handoff sang code; emil animate, ux-copy.</td></tr>
+      <tr><td><code>references/phase-verify.md</code></td><td>phase verify</td><td>So app với thiết kế, báo lệch.</td></tr>
+      <tr><td><code>references/quality-rubric.md</code></td><td>trước khi đưa bạn xem</td><td>Tiêu chí chấm và 2 vòng tự sửa.</td></tr>
+      <tr><td><code>references/design-format.md</code></td><td>khi viết file thiết kế</td><td>Định dạng <code>design/</code>: manifest, <code>&lt;dfw-use&gt;</code>, id phần tử, state.</td></tr>
+      <tr><td><code>references/layout-patterns.md</code></td><td>khi dựng bố cục</td><td>app-shell + page task/flow/split, neo, phần tử co giãn, không khoảng trống.</td></tr>
+      <tr><td><code>references/design-system-thinking.md</code></td><td>quyết định màu/chữ/style</td><td>Cách senior quyết định: ngữ cảnh → nguyên tắc → quyết định → kiểm.</td></tr>
+      <tr><td><code>references/type-pairings.md</code></td><td>chọn font</td><td>Các cặp font tuyển chọn.</td></tr>
+      <tr><td><code>references/skills-maintenance.md</code></td><td>mode skills</td><td>Quy trình cập nhật skill ngoài.</td></tr>
+      <tr><td><code>policies/precedence.md</code></td><td>mỗi phiên, trước khi gọi skill ngoài</td><td>5 cấp ưu tiên khi mâu thuẫn (mục 9).</td></tr>
+      <tr><td><code>policies/conflicts.md</code></td><td>khi hai skill ngoài nói khác nhau</td><td>Phán quyết cho các xung đột đã biết (cấp 4).</td></tr>
+      <tr><td><code>stacks/react.md</code>, <code>vue.md</code>, <code>svelte.md</code>, <code>angular.md</code>, <code>html.md</code></td><td>implement</td><td>Ghi chú chuyển thiết kế sang từng framework.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Skill, agent và adapter</h3>
+  <table>
+    <thead><tr><th>File</th><th>Làm gì</th></tr></thead>
+    <tbody>
+      <tr><td><code>core/manifest.json</code></td><td>Tên, phiên bản, mô tả, <code>dependencies</code> = 7 skill ngoài. Build sinh manifest cho từng host từ file này, kèm <code>dfw.json</code> (host, version, dependencies).</td></tr>
+      <tr><td><code>core/workflow/SKILL.md</code></td><td>Bản điều phối (mục 9): việc mỗi lần gọi, bảng phase, luật bắt buộc, cách làm tiếp, vai trò.</td></tr>
+      <tr><td><code>core/workflow/agents/design-director.md</code></td><td>Agent nghiên cứu + viết brief. Công cụ: đọc, tìm, Bash, Skill, web. Không ghi file.</td></tr>
+      <tr><td><code>core/workflow/agents/screen-builder.md</code></td><td>Agent dựng màn của một page. Được ghi, nhưng chỉ vào <code>design/screens/&lt;id của nó&gt;/</code>.</td></tr>
+      <tr><td><code>core/workflow/agents/visual-reviewer.md</code></td><td>Agent chụp + check + báo cáo Must/Should/Nice. Cấm Edit/Write.</td></tr>
+      <tr><td><code>core/workflow/agents/skill-steward.md</code></td><td>Agent kiểm/đề xuất cập nhật skill ngoài. Chỉ đọc + Bash.</td></tr>
+      <tr><td><code>adapters/claude-code/plugin/hooks/hooks.json</code></td><td>Gắn 5 sự kiện của Claude Code vào <code>bin/dfw hook &lt;tên&gt;</code>, kèm matcher và timeout.</td></tr>
+      <tr><td><code>adapters/copilot/plugin/hooks.json</code></td><td>Cùng 5 sự kiện cho Copilot (version 1, bash + powershell), gọi <code>dfw hook &lt;tên&gt; --host copilot</code>.</td></tr>
+      <tr><td><code>adapters/*/assemble.json</code></td><td>Host, thư mục plugin, file manifest, danh sách chép và cách render (<code>text</code>, <code>agent</code>).</td></tr>
+    </tbody>
+  </table>
+
+  <h3>scripts: công cụ của repo</h3>
+  <table>
+    <thead><tr><th>File</th><th>Chạy bằng</th><th>Làm gì</th></tr></thead>
+    <tbody>
+      <tr><td><code>build.mjs</code> + <code>lib/build.mjs</code></td><td><code>npm run build</code> · <code>build:check</code></td><td>Ghép <code>plugins/dfw</code> theo <code>assemble.json</code>; dựng 7 plugin skill từ repo gốc ở commit khoá + overlay; viết <code>marketplace.json</code>, <code>THIRD_PARTY_NOTICES.md</code>. <code>--check</code> build vào thư mục tạm rồi so.</td></tr>
+      <tr><td><code>lib/overlay.mjs</code></td><td>(build gọi)</td><td>Áp các thao tác overlay: <code>description</code>, <code>replace</code>, <code>write</code>, <code>dropKeys</code>.</td></tr>
+      <tr><td><code>lib/checks.mjs</code></td><td>(build, validate gọi)</td><td>xref (file bắt buộc), không lọt hook upstream, conflict-lint, file thực thi.</td></tr>
+      <tr><td><code>lib/git.mjs</code>, <code>lib/frontmatter.mjs</code></td><td>(nội bộ)</td><td>Lấy repo gốc theo commit; đọc frontmatter SKILL.md.</td></tr>
+      <tr><td><code>validate.mjs</code></td><td><code>npm run validate</code></td><td>Kiểm cấu trúc marketplace, lock khớp build, xref, không hook ngoài, conflict-lint, và <code>claude plugin validate</code> nếu có.</td></tr>
+      <tr><td><code>skills.mjs</code></td><td><code>npm run skills -- &lt;lệnh&gt;</code></td><td><code>status</code>, <code>check</code>, <code>propose</code>, <code>apply</code>, <code>rollback</code>, <code>history</code> cho skill ngoài.</td></tr>
+      <tr><td><code>ci-upstream.mjs</code></td><td>CI thứ Hai</td><td>Có bản mới → PR (không chặn) hoặc issue (bị chặn). Không bao giờ đẩy thẳng lên main.</td></tr>
+      <tr><td><code>install.mjs</code></td><td><code>npx github:tantm97/ai-frontend-design-workflow</code></td><td>Vỏ mỏng gọi <code>plugins/dfw/lib/install.mjs</code>.</td></tr>
+      <tr><td><code>build-binary.mjs</code> + <code>sea/entry.mjs</code></td><td><code>node scripts/build-binary.mjs</code></td><td>Binary một file (mục 16).</td></tr>
+      <tr><td><code>make-presets.mjs</code></td><td><code>npm run presets</code></td><td>Sinh 3 preset token, kiểm tương phản WCAG trước khi ghi.</td></tr>
+      <tr><td><code>make-styles.mjs</code></td><td><code>npm run styles</code></td><td>Sinh 12 style guide, kiểm tương phản từng cặp vai trò.</td></tr>
+      <tr><td><code>vendor-icons.mjs</code></td><td><code>npm run icons</code></td><td>Chép bộ Lucide ở tag cố định vào <code>core/assets/icons/lucide.json</code>.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Test và CI</h3>
+  <table>
+    <thead><tr><th>File</th><th>Kiểm gì</th></tr></thead>
+    <tbody>
+      <tr><td><code>tests/unit/dfw.test.mjs</code></td><td>CLI, state, cổng, hook ghi file, freeze, lint…</td></tr>
+      <tr><td><code>tests/unit/system.test.mjs</code></td><td>Design system: init, preset, style, compose, trang DS.</td></tr>
+      <tr><td><code>tests/unit/color.test.mjs</code></td><td>Dải màu OKLCH, tương phản, thang chữ.</td></tr>
+      <tr><td><code>tests/unit/edit.test.mjs</code></td><td>Sửa trực tiếp từ Studio và hoàn tác.</td></tr>
+      <tr><td><code>tests/unit/inbox.test.mjs</code></td><td>Đưa comment tới Claude đúng một lần.</td></tr>
+      <tr><td><code>tests/unit/marketplace.test.mjs</code></td><td>Cấu trúc marketplace và plugin sinh ra.</td></tr>
+      <tr><td><code>tests/e2e/studio.e2e.mjs</code></td><td>Mở Studio thật bằng Playwright: canvas, comment, Present.</td></tr>
+      <tr><td><code>.github/workflows/validate.yml</code></td><td>Mỗi push/PR: unit test, build --check, validate.</td></tr>
+      <tr><td><code>.github/workflows/upstream-check.yml</code></td><td>Thứ Hai 06:00 UTC: tìm bản mới của skill ngoài.</td></tr>
+      <tr><td><code>.github/workflows/release-binaries.yml</code></td><td>Tag <code>v*</code>: build 5 binary, chạy thử, phát hành.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- 9 -->
+<section id="skillflow">
+  <h2><small>Kiến trúc</small>9. Skill chạy qua những gì</h2>
+  <p class="lead">Đây là đường đi của một lần Claude xử lý yêu cầu giao diện: từ lúc skill dfw được kích hoạt tới lúc làm xong một phase. Mục đích của từng chặng ghi ngay dưới tên.</p>
+  <figure class="fig">
+    <svg viewBox="0 0 960 560" role="img" aria-label="Đường đi của skill dfw">
+      <defs><marker id="k" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="s-arrow"/></marker></defs>
+      <rect x="20" y="20" width="200" height="66" rx="10" class="s-user"/><text x="34" y="44" class="s-ut">YÊU CẦU</text><text x="34" y="64" class="s-t">"thiết kế màn…"</text><text x="34" y="78" class="s-xs">hoặc /dfw &lt;mode&gt; …</text>
+      <rect x="260" y="20" width="200" height="66" rx="10" class="s-adapt"/><text x="274" y="44" class="s-at">KÍCH HOẠT</text><text x="274" y="64" class="s-t">SKILL.md được nạp</text><text x="274" y="78" class="s-xs">mô tả skill khớp việc frontend</text>
+      <path d="M220 53H258" class="s-line" marker-end="url(#k)"/>
+      <rect x="500" y="10" width="440" height="86" rx="10" class="s-box"/>
+      <text x="514" y="32" class="s-t">§0 Mỗi lần gọi, theo thứ tự</text>
+      <text x="514" y="52" class="s-xs">1. Ngôn ngữ: dfw lang status → hỏi 1 lần/phiên → dfw lang set</text>
+      <text x="514" y="68" class="s-xs">2. Trạng thái: dfw status (có "next:" gợi ý bước tiếp)</text>
+      <text x="514" y="84" class="s-xs">3. Mode: chưa có → dfw init --mode …  ·  4. Đọc reference của phase</text>
+      <path d="M460 53H498" class="s-line" marker-end="url(#k)"/>
+      <!-- policies -->
+      <rect x="20" y="120" width="300" height="96" rx="10" class="s-box"/>
+      <text x="34" y="144" class="s-t">Policy (đọc 1 lần/phiên)</text>
+      <text x="34" y="164" class="s-xm">policies/precedence.md</text>
+      <text x="34" y="180" class="s-xm">policies/conflicts.md</text>
+      <text x="34" y="200" class="s-xs">để biết ai thắng khi các nguồn nói khác nhau</text>
+      <!-- reference -->
+      <rect x="340" y="120" width="300" height="96" rx="10" class="s-box"/>
+      <text x="354" y="144" class="s-t">Reference của phase hiện tại</text>
+      <text x="354" y="164" class="s-xm">references/phase-&lt;phase&gt;.md</text>
+      <text x="354" y="180" class="s-xm">+ quality-rubric, layout-patterns…</text>
+      <text x="354" y="200" class="s-xs">để biết phase này làm gì, gọi skill nào</text>
+      <!-- rules -->
+      <rect x="660" y="120" width="280" height="96" rx="10" class="s-gate"/>
+      <text x="674" y="144" class="s-t">§1 Luật bắt buộc</text>
+      <text x="674" y="162" class="s-xs">cổng là của người dùng</text>
+      <text x="674" y="176" class="s-xs">không code trước G2 + G3</text>
+      <text x="674" y="190" class="s-xs">thiết kế đã duyệt bị khoá · không tự chọn stack</text>
+      <text x="674" y="204" class="s-xs">tối đa 1 skill chính + 2 phụ mỗi phase</text>
+      <path d="M720 96 C720 108 170 104 170 118" class="s-line" marker-end="url(#k)"/>
+      <path d="M720 96 C720 108 490 104 490 118" class="s-line" marker-end="url(#k)"/>
+      <path d="M720 96V118" class="s-line" marker-end="url(#k)"/>
+      <!-- work -->
+      <rect x="20" y="240" width="920" height="200" rx="12" class="s-adapt"/>
+      <text x="36" y="264" class="s-at">LÀM VIỆC TRONG PHASE</text>
+      <rect x="36" y="276" width="210" height="150" rx="8" class="s-box"/>
+      <text x="48" y="298" class="s-t">Gọi skill ngoài</text>
+      <text x="48" y="318" class="s-xs">bằng tool Skill, tên đầy đủ</text>
+      <text x="48" y="334" class="s-xm">frontend-design (nền)</text>
+      <text x="48" y="350" class="s-xs">luôn có trong phase thiết kế</text>
+      <text x="48" y="370" class="s-xs">+ 1 skill chính + ≤ 2 phụ</text>
+      <text x="48" y="390" class="s-xs">để lấy kiến thức chuyên môn,</text>
+      <text x="48" y="406" class="s-xs">không để chúng quyết thay</text>
+      <rect x="260" y="276" width="210" height="150" rx="8" class="s-box"/>
+      <text x="272" y="298" class="s-t">Giao việc cho agent</text>
+      <text x="272" y="318" class="s-xm">dfw:design-director</text>
+      <text x="272" y="334" class="s-xm">dfw:screen-builder ×N</text>
+      <text x="272" y="350" class="s-xm">dfw:visual-reviewer</text>
+      <text x="272" y="366" class="s-xm">dfw:skill-steward</text>
+      <text x="272" y="390" class="s-xs">để làm song song, giữ</text>
+      <text x="272" y="406" class="s-xs">context của Claude chính gọn</text>
+      <rect x="484" y="276" width="210" height="150" rx="8" class="s-core"/>
+      <text x="496" y="298" class="s-ct">Chạy CLI dfw</text>
+      <text x="496" y="318" class="s-xm">dfw style / system / blueprint</text>
+      <text x="496" y="334" class="s-xm">dfw layout check / check</text>
+      <text x="496" y="350" class="s-xm">dfw shoot / studio</text>
+      <text x="496" y="366" class="s-xm">dfw comments …</text>
+      <text x="496" y="390" class="s-xs">để làm việc thật và có</text>
+      <text x="496" y="406" class="s-xs">bằng chứng (ảnh, kết quả check)</text>
+      <rect x="708" y="276" width="218" height="150" rx="8" class="s-box"/>
+      <text x="720" y="298" class="s-t">Ghi file thiết kế</text>
+      <text x="720" y="318" class="s-xm">design/screens/…</text>
+      <text x="720" y="334" class="s-xm">design/system/…</text>
+      <text x="720" y="350" class="s-xm">PRODUCT.md, DESIGN.md</text>
+      <text x="720" y="374" class="s-xs">hook pre-tool-use cho/chặn</text>
+      <text x="720" y="390" class="s-xs">hook post-tool-use lint ngay</text>
+      <text x="720" y="406" class="s-xs">hook stop kiểm bố cục cuối lượt</text>
+      <path d="M170 216V238" class="s-line" marker-end="url(#k)"/><path d="M490 216V238" class="s-line" marker-end="url(#k)"/><path d="M800 216V238" class="s-line" marker-end="url(#k)"/>
+      <!-- exit -->
+      <rect x="20" y="462" width="300" height="80" rx="10" class="s-box"/>
+      <text x="34" y="486" class="s-t">Tự chấm 2 vòng</text>
+      <text x="34" y="506" class="s-xs">quality-rubric.md, render + check</text>
+      <text x="34" y="522" class="s-xs">không đưa bản nháp đầu tiên cho bạn</text>
+      <rect x="340" y="462" width="300" height="80" rx="10" class="s-user"/>
+      <text x="354" y="486" class="s-ut">BẠN</text>
+      <text x="354" y="506" class="s-t">Xem, góp ý, duyệt</text>
+      <text x="354" y="522" class="s-xs">chat hoặc Studio</text>
+      <rect x="660" y="462" width="280" height="80" rx="10" class="s-core"/>
+      <text x="674" y="486" class="s-ct">GHI NHẬN</text>
+      <text x="674" y="506" class="s-xm">dfw approve &lt;G&gt; --note …</text>
+      <text x="674" y="522" class="s-xm">dfw phase &lt;tiếp&gt;</text>
+      <path d="M320 502H338" class="s-line" marker-end="url(#k)"/>
+      <path d="M640 502H658" class="s-line" marker-end="url(#k)"/>
+      <path d="M170 440V460" class="s-line" marker-end="url(#k)"/>
+      <path d="M940 502 C955 502 955 240 942 240" class="s-dash" marker-end="url(#k)"/>
+    </svg>
+    <figcaption>Vòng lặp: sau khi ghi nhận cổng, Claude chuyển phase và lặp lại từ "Reference của phase hiện tại".</figcaption>
+  </figure>
+
+  <h3>Mỗi phase gọi skill ngoài nào (theo các file reference)</h3>
+  <table>
+    <thead><tr><th>Phase</th><th>Skill ngoài được gọi</th><th>Để làm gì</th></tr></thead>
+    <tbody>
+      <tr><td>discovery</td><td><code>ux-research:user-research</code>, <code>ux-research:research-synthesis</code>, <code>ui-ux-pro-max</code>, <code>impeccable</code></td><td>Lập câu hỏi, tổng hợp; tra loại sản phẩm; đánh giá UI cũ (nếu có).</td></tr>
+      <tr><td>direction</td><td><code>frontend-design</code>, <code>ui-ux-pro-max</code>, <code>hallmark</code>, <code>taste-reference</code></td><td>Hướng thẩm mỹ; dữ liệu style/màu/font; marketing page dùng hallmark + taste.</td></tr>
+      <tr><td>system</td><td><code>frontend-design</code>, <code>ui-ux-pro-max</code>, <code>impeccable</code></td><td>Bộ nền có chủ đích; dữ liệu font/màu; soát lỗi.</td></tr>
+      <tr><td>concepts</td><td><code>frontend-design</code>, <code>ui-ux-pro-max</code>, <code>ux-research:ux-copy</code>, <code>emil-design-eng:animate</code>, <code>hallmark</code>, <code>taste-reference</code></td><td>Màn hình, chữ trên giao diện, chuyển động, trang marketing.</td></tr>
+      <tr><td>review / audit</td><td><code>impeccable</code>, <code>emil-design-eng:review-animations</code></td><td>Critique, audit, review chuyển động.</td></tr>
+      <tr><td>stack</td><td><code>emil-design-eng:pick-ui-library</code></td><td>Gợi ý thư viện UI (bạn quyết).</td></tr>
+      <tr><td>implement</td><td><code>emil-design-eng:animate</code>, <code>ux-research:ux-copy</code></td><td>Chuyển động trong code, chữ cuối cùng.</td></tr>
+      <tr><td>mọi lần <code>dfw check</code></td><td>Impeccable detect, Hallmark sloplint, (Taste copy-lint)</td><td>Chạy như công cụ dòng lệnh, không phải nạp skill.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Khi các nguồn nói khác nhau: 5 cấp ưu tiên</h3>
+  <table>
+    <thead><tr><th>Cấp</th><th>Nguồn</th><th>Ví dụ</th><th>Ghi lại bằng</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Quyết định rõ ràng của bạn</td><td>"Dùng màu tím thương hiệu", các lần duyệt cổng</td><td><code>dfw decide --level 1</code>, <code>dfw approve</code></td></tr>
+      <tr><td>2</td><td>Yêu cầu nghiệp vụ, ràng buộc kỹ thuật, mức tối thiểu WCAG 2.2 AA</td><td>Luật trong PRODUCT.md, stack sẵn có</td><td>PRODUCT.md, <code>.dfw/stack.json</code></td></tr>
+      <tr><td>3</td><td>Design system đã duyệt</td><td>DESIGN.md, tokens, <code>design/approved/vN</code></td><td>DESIGN.md</td></tr>
+      <tr><td>4</td><td>Phán quyết của dfw</td><td><code>policies/conflicts.md</code></td><td><code>dfw decide --level 4</code></td></tr>
+      <tr><td>5</td><td>Khuyến nghị của skill ngoài</td><td>Luật thẩm mỹ của frontend-design, lệnh cấm của Impeccable…</td><td>—</td></tr>
+    </tbody>
+  </table>
+  <p>Cấp cao thắng. Không "lấy trung bình": chọn một bên, áp dụng trọn vẹn, ghi lý do. Nếu quyết định của bạn phá mức tối thiểu accessibility, Claude giải thích hậu quả một lần, đề xuất phương án gần nhất, và để bạn quyết.</p>
+</section>
+<!-- EXTERNAL -->
+<section id="external">
+  <h2><small>Kiến trúc chi tiết</small>10. Repo bên ngoài đang dùng</h2>
+  <p class="lead">dfw dùng 3 nhóm thứ từ bên ngoài: <b>7 skill thiết kế</b> (chép vào repo, khoá commit), <b>dữ liệu vendor</b> (icon), và <b>công cụ build/chạy</b>. Không có dịch vụ trả phí nào; khi chạy, dfw chỉ gọi mạng để tải Google Fonts (một lần, rồi cache) và tải binary/trình duyệt khi cài.</p>
+
+  <h3>7 skill thiết kế (nguồn: <code>registry/skills.json</code>, khoá commit: <code>registry/skills.lock.json</code>)</h3>
+  <table>
+    <thead><tr><th>Skill trong dfw</th><th>Repo gốc · commit khoá</th><th>Lấy phần nào</th><th>Vai trò trong dfw</th><th>dfw sửa gì (overlay)</th></tr></thead>
+    <tbody>
+      <tr><td><code>frontend-design</code><br><span class="tag t-ext">Apache-2.0 · Anthropic</span></td><td><code>anthropics/skills</code><br><code>2c5958e</code></td><td><code>skills/frontend-design</code></td><td>Nền thẩm mỹ cho mọi phase thiết kế: chọn hướng có chủ đích, tránh giao diện rập khuôn.</td><td>Thu hẹp mô tả để skill không tự kích hoạt cho mọi UI; skill dfw quyết định lúc nào nạp.</td></tr>
+      <tr><td><code>ux-research</code><br><span class="tag t-ext">Apache-2.0 · Anthropic</span></td><td><code>anthropics/knowledge-work-plugins</code><br><code>02717ef</code></td><td><code>design/skills/user-research</code>, <code>research-synthesis</code>, <code>ux-copy</code>, <code>CONNECTORS.md</code></td><td>Discovery (kế hoạch nghiên cứu, tổng hợp) và viết chữ trên giao diện.</td><td>Mô tả 3 skill được chỉnh để đi qua dfw, vẫn trả lời khi người dùng hỏi thẳng về copy.</td></tr>
+      <tr><td><code>ui-ux-pro-max</code><br><span class="tag t-ext">MIT · Next Level Builder</span></td><td><code>nextlevelbuilder/ui-ux-pro-max-skill</code><br><code>6ae86f6</code></td><td><code>.claude/skills/ui-ux-pro-max</code> (cơ sở dữ liệu + <code>scripts/search.py</code>)</td><td>Tra cứu dữ liệu: bảng màu, cặp font, loại sản phẩm, nguyên tắc UX, biểu đồ. Chỉ là dữ liệu, không quyết định.</td><td>Mô tả hạ xuống "nguồn dữ liệu phụ"; đổi lệnh <code>python</code> → <code>python3</code>.</td></tr>
+      <tr><td><code>impeccable</code><br><span class="tag t-ext">Apache-2.0 · Paul Bakaus</span></td><td><code>pbakaus/impeccable</code><br><code>c4cd192</code></td><td><code>plugin/skills</code>, <code>plugin/agents</code></td><td>Critique, audit, polish, harden; bộ phát hiện 62 luật mà <code>dfw check</code> gọi.</td><td>Giới hạn vào critique/audit/refine; tắt <code>pin</code> và <code>hooks on</code>; script <code>impeccable</code> mặc định <code>DO_NOT_TRACK=1</code>, tắt kiểm tra cập nhật và hook.</td></tr>
+      <tr><td><code>emil-design-eng</code><br><span class="tag t-ext">MIT · Emil Kowalski</span></td><td><code>emilkowalski/skills</code><br><code>f7ce8c0</code></td><td><code>skills/animate</code>, <code>review-animations</code>, <code>improve-animations</code>, <code>animation-vocabulary</code>, <code>pick-ui-library</code></td><td>Chuyển động: làm, review, cải thiện animation; gợi ý thư viện ở cổng G3.</td><td>Bỏ cờ chặn gọi tự động để agent dùng được; mô tả giữ hẹp; animation phải nằm trong stack đã duyệt; chọn thư viện là quyết định của người dùng.</td></tr>
+      <tr><td><code>hallmark</code><br><span class="tag t-ext">MIT · Nutlope</span></td><td><code>nutlope/hallmark</code><br><code>04977e1</code></td><td><code>skills/hallmark</code> (bỏ thư mục <code>agents</code>)</td><td>Dẫn dắt trang marketing/landing; <code>sloplint</code> được <code>dfw check</code> gọi.</td><td>Chỉ dẫn dắt trang marketing; sửa đường dẫn placeholder; không cài hook sửa file của họ.</td></tr>
+      <tr><td><code>taste-reference</code><br><span class="tag t-ext">MIT · Leonxlnx</span></td><td><code>Leonxlnx/taste-skill</code><br><code>f6b7657</code></td><td>Chỉ 9 file tham khảo (copy, voice, sections, layout, cards) + <code>scripts/copy-lint.mjs</code></td><td>Tư liệu tham khảo cho trang marketing + kiểm tra chữ.</td><td>Viết <code>SKILL.md</code> nhỏ riêng của dfw (chế độ "chỉ tham khảo"); không lấy kit, hook, script khác.</td></tr>
+    </tbody>
+  </table>
+  <div class="note">Tất cả chỉ nằm trong repo dưới dạng bản chép tại commit đã khoá. Không có gì tải về lúc người dùng chạy. Muốn lên bản mới phải đi qua quy trình đề xuất → báo cáo → bạn duyệt (xem sơ đồ dưới).</div>
+
+  <h3>Thành phần bên ngoài khác</h3>
+  <table>
+    <thead><tr><th>Thành phần</th><th>Nguồn</th><th>Dùng để</th><th>Khi nào cần</th></tr></thead>
+    <tbody>
+      <tr><td>Lucide icons</td><td><code>lucide-icons/lucide</code> tag <code>1.64.0</code> (ISC)</td><td>Bộ icon; <code>scripts/vendor-icons.mjs</code> chép vào <code>core/assets/icons/lucide.json</code>; project chỉ copy icon mình dùng.</td><td>Lúc build repo (không cần mạng khi chạy)</td></tr>
+      <tr><td>Google Fonts</td><td>fonts.googleapis.com (miễn phí, không key)</td><td>Font của thiết kế; <code>dfw fonts check</code> hỏi subset (vd. vietnamese). Khi render, font được cache vào <code>~/.config/dfw/cache/fonts</code>.</td><td>Lần render đầu của mỗi font</td></tr>
+      <tr><td>Chrome / Edge / Chromium / Brave</td><td>Đã cài trên máy người dùng</td><td>Render ẩn qua DevTools protocol cho <code>shoot</code>, <code>layout check</code>.</td><td>Khi render</td></tr>
+      <tr><td>Chrome for Testing (chrome-headless-shell)</td><td>Google, chỉ mục JSON chính thức</td><td>Phương án dự phòng khi máy không có trình duyệt: <code>dfw setup --browser</code>.</td><td>Chỉ khi không có trình duyệt</td></tr>
+      <tr><td>Node.js</td><td>nodejs.org (bản chính thức 26.13.0 LTS cho binary)</td><td>Chạy dfw khi không dùng binary; được nhúng vào binary.</td><td>Luôn (trực tiếp hoặc bên trong binary)</td></tr>
+      <tr><td>esbuild <code>0.28.2</code>, postject <code>1.0.0-alpha.6</code></td><td>npm (devDependencies, khoá đúng phiên bản)</td><td>Chỉ dùng khi build binary.</td><td>Chỉ lúc build</td></tr>
+      <tr><td>Playwright</td><td>npm, chỉ trong repo dev</td><td>Chạy test e2e của Studio. Người dùng không cần.</td><td>Chỉ khi chạy e2e</td></tr>
+      <tr><td>Python 3</td><td>Có sẵn trên máy</td><td>Script tìm kiếm của ui-ux-pro-max.</td><td>Khi skill đó được dùng</td></tr>
+      <tr><td>GitHub Actions</td><td>actions/checkout, setup-node, upload/download-artifact</td><td>3 workflow: validate, upstream-check, release-binaries.</td><td>Trên GitHub</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Cập nhật một skill bên ngoài chạy thế nào</h3>
+  <figure class="fig">
+    <svg viewBox="0 0 960 260" role="img" aria-label="Quy trình cập nhật skill bên ngoài">
+      <defs><marker id="u" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="s-arrow"/></marker></defs>
+      <rect x="10" y="30" width="150" height="76" rx="10" class="s-ext"/><text x="24" y="54" class="s-et">REPO GỐC</text><text x="24" y="76" class="s-s">có commit mới</text><text x="24" y="94" class="s-m">anthropics/skills…</text>
+      <rect x="200" y="30" width="170" height="76" rx="10" class="s-box"/><text x="214" y="54" class="s-t">skills.mjs check</text><text x="214" y="76" class="s-s">so lock với upstream</text><text x="214" y="94" class="s-s">(CI thứ Hai hàng tuần)</text>
+      <rect x="410" y="30" width="190" height="76" rx="10" class="s-box"/><text x="424" y="54" class="s-t">skills.mjs propose</text><text x="424" y="76" class="s-s">build thử riêng + báo cáo</text><text x="424" y="94" class="s-m">reports/proposals/</text>
+      <rect x="640" y="14" width="300" height="104" rx="10" class="s-box"/><text x="654" y="36" class="s-t">Kiểm tra trong báo cáo</text><text x="654" y="56" class="s-xs">• file bắt buộc còn đủ (registry/xref.json)</text><text x="654" y="72" class="s-xs">• không lọt hook của upstream</text><text x="654" y="88" class="s-xs">• conflict-lint (registry/stack-lint.json)</text><text x="654" y="104" class="s-xs">• overlay áp được</text>
+      <path d="M160 68H198" class="s-line" marker-end="url(#u)"/><path d="M370 68H408" class="s-line" marker-end="url(#u)"/><path d="M600 68H638" class="s-line" marker-end="url(#u)"/>
+      <polygon points="790,150 810,130 830,150 810,170" class="s-gate"/><text x="796" y="155" class="s-gt">OK?</text>
+      <path d="M790 116V128" class="s-line"/>
+      <rect x="430" y="180" width="300" height="64" rx="10" class="s-core"/><text x="444" y="204" class="s-t">Không chặn → PR (merge = bạn duyệt)</text><text x="444" y="224" class="s-s">skills.mjs apply: đổi lock, build lại plugins/&lt;id&gt;</text>
+      <rect x="760" y="196" width="180" height="56" rx="10" class="s-gate"/><text x="774" y="220" class="s-t">Bị chặn → issue</text><text x="774" y="238" class="s-s">cần sửa overlay trước</text>
+      <path d="M790 150 C700 150 640 170 640 178" class="s-line" marker-end="url(#u)"/>
+      <path d="M830 150 C860 150 860 180 850 194" class="s-line" marker-end="url(#u)"/>
+      <rect x="10" y="180" width="380" height="64" rx="10" class="s-box"/><text x="24" y="204" class="s-t">Lỡ lên bản lỗi?</text><text x="24" y="224" class="s-m">node scripts/skills.mjs rollback &lt;id&gt;</text>
+      <text x="24" y="240" class="s-s">trả về commit trước, build lại; lịch sử: registry/history.jsonl</text>
+    </svg>
+  </figure>
+  <pre><code># xem đang khoá commit nào
+node scripts/skills.mjs status
+# có bản mới không (không đổi gì)
+node scripts/skills.mjs check
+# tạo đề xuất cho impeccable: build thử riêng, viết báo cáo vào reports/proposals/
+node scripts/skills.mjs propose impeccable
+# đọc báo cáo xong, đồng ý thì áp dụng (đổi lock, build lại, validate)
+node scripts/skills.mjs apply impeccable
+# quay lại bản trước
+node scripts/skills.mjs rollback impeccable</code></pre>
+</section>
+
+<!-- 11 -->
+<section id="hooks">
+  <h2><small>Kiến trúc</small>11. Hook chi tiết</h2>
+  <p class="lead">Claude Code gửi một JSON vào stdin của <code>bin/dfw hook &lt;tên&gt;</code>; dfw trả JSON qua stdout. Bộ chạy hook trong <code>cli.mjs</code> bắt mọi lỗi, ghi ra stderr và thoát mã 0, nên lỗi của dfw không bao giờ chặn bạn làm việc.</p>
+  <table>
+    <thead><tr><th>Hook</th><th>Matcher · timeout</th><th>Đọc từ input</th><th>Làm gì</th><th>Trả về</th></tr></thead>
+    <tbody>
+      <tr><td><code>session-start</code></td><td>— · 10 s</td><td><code>session_id</code></td><td>Ghi <code>DFW_SESSION_ID</code> vào <code>CLAUDE_ENV_FILE</code>; dọn file ngôn ngữ cũ hơn 30 ngày. Có workflow đang bật thì tóm tắt trạng thái, số comment mở/đã sửa, session id, nhắc gọi skill dfw.</td><td><code>additionalContext</code></td></tr>
+      <tr><td><code>user-prompt-submit</code></td><td>— · 10 s</td><td>—</td><td>Lấy các comment open/reopened chưa đưa, đánh dấu đã đưa.</td><td><code>additionalContext</code></td></tr>
+      <tr><td><code>pre-tool-use</code></td><td><code>Edit|Write|MultiEdit|NotebookEdit</code> · 10 s</td><td><code>tool_name</code>, <code>tool_input.file_path</code> / <code>notebook_path</code> / <code>path</code>, hoặc các dòng <code>*** Update File:</code> trong <code>apply_patch</code></td><td>Cổng ghi file (sơ đồ dưới). Đường dẫn tương đối tính theo <code>cwd</code> của phiên, không theo gốc project.</td><td><code>permissionDecision: "deny"</code> + lý do, hoặc không gì (cho qua)</td></tr>
+      <tr><td><code>post-tool-use</code></td><td><code>Edit|Write|MultiEdit</code> · 20 s</td><td>đường dẫn file vừa sửa</td><td>Chỉ với file giao diện (html, css, scss, jsx, tsx, vue, svelte, astro…) hoặc <code>design/**.json</code>, trừ <code>design/approved/</code>. Token đổi → build <code>tokens.css</code>; component đổi → build <code>components.css</code>. Rồi lint nhanh (8 s, tối đa 12 lỗi).</td><td><code>additionalContext</code> khi có lỗi/cảnh báo</td></tr>
+      <tr><td><code>stop</code></td><td>— · 120 s</td><td><code>stop_hook_active</code></td><td>(1) Còn comment chưa đưa → chặn dừng, đưa comment. (2) Phase system/concepts, có trình duyệt, màn hình đổi kể từ lần kiểm trước → render kiểm bố cục (cả state, cả bản danh sách dài). Mỗi trạng thái thiết kế chỉ báo một lần.</td><td><code>decision: "block"</code> + lý do, hoặc không gì</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Cổng ghi file (pre-tool-use) quyết định thế nào</h3>
+  <figure class="fig">
+    <svg viewBox="0 0 960 400" role="img" aria-label="Cây quyết định của cổng ghi file">
+      <defs><marker id="h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="s-arrow"/></marker></defs>
+      <rect x="20" y="20" width="170" height="50" rx="8" class="s-adapt"/><text x="34" y="42" class="s-t">Claude muốn ghi</text><text x="34" y="60" class="s-xm">src/App.vue</text>
+      <!-- chain of questions -->
+      <g>
+      <rect x="230" y="20" width="290" height="40" rx="8" class="s-box"/><text x="242" y="45" class="s-xs">1. Chưa có workflow, hoặc đang pause?</text>
+      <rect x="230" y="70" width="290" height="40" rx="8" class="s-box"/><text x="242" y="95" class="s-xs">2. File nằm ngoài project?</text>
+      <rect x="230" y="120" width="290" height="40" rx="8" class="s-box"/><text x="242" y="145" class="s-xs">3. Khớp gate.immutable (design/approved/**)?</text>
+      <rect x="230" y="170" width="290" height="40" rx="8" class="s-box"/><text x="242" y="195" class="s-xs">4. Khớp gate.allow (.dfw/**, design/handoff/**)?</text>
+      <rect x="230" y="220" width="290" height="40" rx="8" class="s-box"/><text x="242" y="245" class="s-xs">5. Mode review-only?</text>
+      <rect x="230" y="270" width="290" height="50" rx="8" class="s-box"/><text x="242" y="292" class="s-xs">6. Là file thiết kế (design/**, PRODUCT.md,</text><text x="242" y="308" class="s-xs">DESIGN.md)? → bị khoá sau G2 thì chặn</text>
+      <rect x="230" y="330" width="290" height="56" rx="8" class="s-box"/><text x="242" y="352" class="s-xs">7. Còn lại = code ứng dụng: chỉ cho khi</text><text x="242" y="368" class="s-xs">có G2 + G3 (hoặc miễn) + phase là</text><text x="242" y="382" class="s-xs">implement / verify / done</text>
+      </g>
+      <path d="M190 45H228" class="s-line" marker-end="url(#h)"/>
+      <path d="M355 60V68" class="s-line" marker-end="url(#h)"/><path d="M355 110V118" class="s-line" marker-end="url(#h)"/><path d="M355 160V168" class="s-line" marker-end="url(#h)"/><path d="M355 210V218" class="s-line" marker-end="url(#h)"/><path d="M355 260V268" class="s-line" marker-end="url(#h)"/><path d="M355 320V328" class="s-line" marker-end="url(#h)"/>
+      <text x="362" y="67" class="s-xs" style="paint-order:stroke;stroke:var(--surface);stroke-width:4px">không</text>
+      <!-- outcomes -->
+      <rect x="580" y="20" width="160" height="40" rx="8" class="s-core"/><text x="594" y="45" class="s-ct">CHO GHI</text>
+      <rect x="580" y="70" width="160" height="40" rx="8" class="s-core"/><text x="594" y="95" class="s-ct">CHO GHI</text>
+      <rect x="580" y="120" width="360" height="40" rx="8" class="s-gate"/><text x="594" y="145" class="s-gt">CHẶN: "frozen snapshot"</text>
+      <rect x="580" y="170" width="160" height="40" rx="8" class="s-core"/><text x="594" y="195" class="s-ct">CHO GHI</text>
+      <rect x="580" y="220" width="360" height="40" rx="8" class="s-gate"/><text x="594" y="245" class="s-gt">CHẶN: review-only chỉ ghi .dfw/</text>
+      <rect x="580" y="270" width="360" height="50" rx="8" class="s-box"/><text x="594" y="292" class="s-xs">chưa khoá → CHO GHI</text><text x="594" y="308" class="s-xs">đã khoá → CHẶN, cần dfw reopen</text>
+      <rect x="580" y="330" width="360" height="56" rx="8" class="s-box"/><text x="594" y="352" class="s-xs">đủ điều kiện → CHO GHI</text><text x="594" y="370" class="s-xs">thiếu → CHẶN, lý do nêu cổng/phase còn thiếu</text>
+      <path d="M520 40H578" class="s-line" marker-end="url(#h)"/><path d="M520 90H578" class="s-line" marker-end="url(#h)"/><path d="M520 140H578" class="s-line" marker-end="url(#h)"/><path d="M520 190H578" class="s-line" marker-end="url(#h)"/><path d="M520 240H578" class="s-line" marker-end="url(#h)"/><path d="M520 295H578" class="s-line" marker-end="url(#h)"/><path d="M520 358H578" class="s-line" marker-end="url(#h)"/>
+      <text x="536" y="34" class="s-xs">có</text>
+    </svg>
+    <figcaption>Hàm <code>decideWrite</code> trong <code>core/lib/gate.mjs</code> là hàm thuần (không đọc stdin), nên dễ test và dùng lại cho adapter khác. Các mẫu đường dẫn đổi được qua config <code>gate.allow</code>, <code>gate.immutable</code>, <code>gate.designPaths</code>.</figcaption>
+  </figure>
+  <h3>Thử một hook bằng tay</h3>
+  <pre><code># mô phỏng Claude Code muốn ghi src/App.vue khi chưa có G2
+echo '{"tool_name":"Write","tool_input":{"file_path":"src/App.vue"}}' | dfw hook pre-tool-use
+# → {"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny",
+#     "permissionDecisionReason":"dfw: implementation is blocked until …"}}
+
+# xem comment nào sẽ được đưa ở tin nhắn tới (không đánh dấu đã đưa)
+dfw comments inbox --peek</code></pre>
+</section>
+
+<!-- 12 -->
+<section id="state">
+  <h2><small>Kiến trúc</small>12. Trạng thái và cổng duyệt</h2>
+  <h3><code>.dfw/state.json</code> trông thế nào</h3>
+  <pre><code>{
+  "schema": 1, "product": "Asset App", "mode": "new-product", "phase": "concepts", "active": true,
+  "design": { "version": 1, "status": "draft", "locked": false,
+              "approved": [ /* {version, hash, at, note} sau mỗi G2 */ ] },
+  "gates":  { "G1": {"approvedAt": "…", "note": "Hướng 1"}, "DS": {…}, "G2": null, "G3": null, "G4": null },
+  "waived": { /* vd. "G1": "waived by mode quick-change" */ },
+  "history": [ {"at": "…", "event": "init"}, {"event": "approve", "gate": "G1"}, {"event": "phase", "to": "system"} ]
+}</code></pre>
+  <h3>Luật chuyển phase (<code>dfw phase &lt;tên&gt;</code>)</h3>
+  <table>
+    <thead><tr><th>Muốn vào</th><th>Cần có</th></tr></thead>
+    <tbody>
+      <tr><td>system</td><td>G1</td></tr>
+      <tr><td>concepts</td><td>G1 và DS (hoặc được miễn theo mode)</td></tr>
+      <tr><td>stack / implement / verify</td><td>Mode có viết code (trừ review-only)</td></tr>
+      <tr><td>implement</td><td>G2 (bản đã duyệt hiện tại) và G3</td></tr>
+      <tr><td>verify</td><td>Đang ở implement/verify, hoặc mode implement-approved</td></tr>
+      <tr><td>done</td><td>G4 nếu mode viết code; G2 nếu design-only</td></tr>
+    </tbody>
+  </table>
+  <p><code>--force --reason "…"</code> bỏ qua các điều kiện trên nhưng ghi lại vào lịch sử.</p>
+  <h3>Mỗi lần duyệt làm thêm gì</h3>
+  <table>
+    <thead><tr><th>Cổng</th><th>Kiểm trước khi ghi nhận</th><th>Việc làm thêm</th><th>Cờ vượt qua</th></tr></thead>
+    <tbody>
+      <tr><td>G1</td><td>—</td><td>Ghi quyết định</td><td>—</td></tr>
+      <tr><td>DS</td><td>Phải có component; build system; lint token + component; DS audit (thiếu lý do = lỗi)</td><td>—</td><td><code>--accept-findings</code>; còn theme thử <code>opt-*</code> thì cần <code>--force</code></td></tr>
+      <tr><td>G2</td><td><code>dfw check</code> đầy đủ (60 s) không còn MUST; không còn comment open/acknowledged/reopened/fixed</td><td>Chép <code>design/</code> → <code>design/approved/vN/</code> (+ PRODUCT.md, DESIGN.md vào <code>docs/</code> bên trong), viết <code>approval.lock.json</code> có sha256 từng file, khoá thiết kế</td><td><code>--accept-findings</code> (ghi kèm danh sách lỗi), <code>--accept-open-comments</code></td></tr>
+      <tr><td>G3</td><td>Phải có <code>.dfw/stack.json</code></td><td>Đánh dấu stack approved. <code>dfw stack set</code> sau đó sẽ xoá G3</td><td>—</td></tr>
+      <tr><td>G4</td><td>Phải đang ở phase verify</td><td>—</td><td>—</td></tr>
+    </tbody>
+  </table>
+  <p>Handoff không tự sinh ở G2; chạy riêng <code>dfw handoff</code>.</p>
+</section>
+
+<!-- 13 -->
+<section id="studio">
+  <h2><small>Kiến trúc</small>13. Studio và comment</h2>
+  <figure class="fig">
+    <svg viewBox="0 0 960 300" role="img" aria-label="Kiến trúc Studio">
+      <defs><marker id="s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="s-arrow"/></marker></defs>
+      <rect x="20" y="20" width="300" height="260" rx="12" class="s-user"/>
+      <text x="36" y="44" class="s-ut">TRÌNH DUYỆT CỦA BẠN</text>
+      <rect x="36" y="56" width="268" height="90" rx="8" class="s-box"/><text x="48" y="78" class="s-t">app.html + app.js</text><text x="48" y="98" class="s-xs">canvas, panel, Present, pin</text><text x="48" y="114" class="s-xs">EventSource('/__dfw/events')</text><text x="48" y="130" class="s-xs">fetch('/__dfw/api/…')</text>
+      <rect x="36" y="160" width="268" height="104" rx="8" class="s-box"/><text x="48" y="182" class="s-t">iframe mỗi màn × breakpoint</text><text x="48" y="202" class="s-xs">HTML đã ghép từ /design/…</text><text x="48" y="218" class="s-xs">+ overlay.js chèn sẵn</text><text x="48" y="234" class="s-xs">postMessage: hover, chọn, layer,</text><text x="48" y="250" class="s-xs">token, sửa chữ, phím</text>
+      <path d="M170 146V158" class="s-line" marker-start="url(#s)" marker-end="url(#s)"/>
+      <rect x="380" y="20" width="300" height="260" rx="12" class="s-core"/>
+      <text x="396" y="44" class="s-ct">server.mjs · 127.0.0.1:4600</text>
+      <text x="396" y="68" class="s-xm">GET  /design/*   ghép + overlay</text>
+      <text x="396" y="86" class="s-xm">GET  /__dfw/system.html</text>
+      <text x="396" y="104" class="s-xm">GET  /__dfw/api/tokens|components</text>
+      <text x="396" y="122" class="s-xm">GET  /__dfw/api/manifest|state</text>
+      <text x="396" y="140" class="s-xm">GET/POST /__dfw/api/comments</text>
+      <text x="396" y="158" class="s-xm">PATCH /__dfw/api/comments/fb_N</text>
+      <text x="396" y="176" class="s-xm">POST /__dfw/api/edit · /undo</text>
+      <text x="396" y="194" class="s-xm">POST /__dfw/api/sessions</text>
+      <text x="396" y="212" class="s-xm">GET  /__dfw/events   (SSE)</text>
+      <text x="396" y="236" class="s-xs">fs.watch design/ và .dfw/reviews/</text>
+      <text x="396" y="252" class="s-xs">→ đẩy "design" / "comments"; ping 25 s</text>
+      <path d="M320 150H378" class="s-line" marker-start="url(#s)" marker-end="url(#s)"/>
+      <rect x="740" y="20" width="200" height="120" rx="12" class="s-box"/>
+      <text x="756" y="44" class="s-k">FILE TRONG PROJECT</text>
+      <text x="756" y="66" class="s-xm">design/**</text>
+      <text x="756" y="84" class="s-xm">.dfw/reviews/rv_*.json</text>
+      <text x="756" y="102" class="s-xm">.dfw/edits/ (nhật ký sửa)</text>
+      <text x="756" y="120" class="s-xm">.dfw/studio.json</text>
+      <rect x="740" y="160" width="200" height="120" rx="12" class="s-adapt"/>
+      <text x="756" y="184" class="s-at">CLAUDE</text>
+      <text x="756" y="206" class="s-xs">sửa design/ → Studio tự</text>
+      <text x="756" y="222" class="s-xs">tải lại khung liên quan</text>
+      <text x="756" y="244" class="s-xs">nhận comment qua hook</text>
+      <text x="756" y="260" class="s-xs">hoặc dfw comments wait</text>
+      <path d="M680 80H738" class="s-line" marker-start="url(#s)" marker-end="url(#s)"/>
+      <path d="M840 140V158" class="s-line" marker-start="url(#s)" marker-end="url(#s)"/>
+    </svg>
+  </figure>
+  <h3>Vòng đời một comment</h3>
+  <figure class="fig">
+    <svg viewBox="0 0 960 190" role="img" aria-label="Trạng thái comment">
+      <defs><marker id="c2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="s-arrow"/></marker></defs>
+      <rect x="20" y="70" width="110" height="44" rx="22" class="s-user"/><text x="48" y="97" class="s-t">open</text>
+      <rect x="190" y="70" width="140" height="44" rx="22" class="s-adapt"/><text x="210" y="97" class="s-t">acknowledged</text>
+      <rect x="400" y="70" width="110" height="44" rx="22" class="s-adapt"/><text x="432" y="97" class="s-t">fixed</text>
+      <rect x="580" y="70" width="120" height="44" rx="22" class="s-core"/><text x="604" y="97" class="s-t">resolved</text>
+      <rect x="400" y="150" width="110" height="34" rx="17" class="s-user"/><text x="420" y="172" class="s-t">reopened</text>
+      <rect x="20" y="146" width="130" height="38" rx="19" class="s-box"/><text x="44" y="170" class="s-t">dismissed</text>
+      <path d="M130 92H188" class="s-line" marker-end="url(#c2)"/><path d="M330 92H398" class="s-line" marker-end="url(#c2)"/><path d="M510 92H578" class="s-line" marker-end="url(#c2)"/>
+      <path d="M75 70 C75 20 455 20 455 68" class="s-line" marker-end="url(#c2)"/>
+      <path d="M640 114 C640 160 520 167 512 167" class="s-line" marker-end="url(#c2)"/>
+      <path d="M455 114V148" class="s-dash" marker-end="url(#c2)"/>
+      <path d="M400 167 C300 167 260 140 260 116" class="s-line" marker-end="url(#c2)"/>
+      <path d="M75 114V144" class="s-dash" marker-end="url(#c2)"/>
+      <text x="150" y="86" class="s-xs">Claude</text><text x="330" y="64" class="s-xs">Claude + message</text><text x="520" y="86" class="s-xs">chỉ bạn</text>
+      <text x="200" y="34" class="s-xs">sửa ngay không cần ack</text><text x="560" y="150" class="s-xs">bạn mở lại</text>
+      <text x="84" y="134" class="s-xs">bạn đồng ý bỏ (từ open / ack / reopened)</text>
+    </svg>
+    <figcaption>Chỉ bạn (Studio luôn gửi <code>by: "user"</code>) mới resolve được. <code>fixed</code> bắt buộc có message mô tả đã đổi gì.</figcaption>
+  </figure>
+  <h3>Một comment được lưu thế nào</h3>
+  <pre><code>// .dfw/reviews/rv_20261114T091500.json  (mỗi phiên review một file)
+{ "id": "fb_007", "status": "open", "designVersion": 1,
+  "screen": "return", "variant": null, "breakpoint": "mobile", "state": "empty", "theme": null,
+  "file": "design/screens/return/index.html",
+  "target": { "dfwId": "return-list", "selector": "#return-list", "source": "design/screens/return/index.html:42",
+              "component": "data-table" },
+  "comment": "Ở mobile bảng này nên thành danh sách thẻ",
+  "thread": [ { "at": "…", "by": "user", "message": "…", "status": "open" } ],
+  "resolution": null, "provider": "dfw-studio" }</code></pre>
+  <p><b>Đưa comment tới Claude:</b> <code>inbox.mjs</code> giữ khoá <code>id:status:updatedAt</code> của comment đã đưa trong <code>.dfw/reviews/.delivered.json</code>. Comment open/reopened chưa có khoá → hook <code>user-prompt-submit</code> (tin nhắn tới) hoặc hook <code>stop</code> (trước khi Claude dừng) đưa vào. <code>dfw comments wait</code> (Claude chạy nền) hỏi mỗi giây, gom comment trong 1,5 s rồi thoát để đánh thức Claude.</p>
+</section>
+
+<!-- 14 -->
+<section id="pipeline">
+  <h2><small>Kiến trúc</small>14. Pipeline thiết kế và kiểm tra</h2>
+  <figure class="fig">
+    <svg viewBox="0 0 960 230" role="img" aria-label="Từ token tới màn hình đã kiểm">
+      <defs><marker id="p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="s-arrow"/></marker></defs>
+      <rect x="10" y="20" width="170" height="70" rx="10" class="s-box"/><text x="22" y="44" class="s-xm">tokens/tokens.json</text><text x="22" y="62" class="s-xm">tokens/themes/*.json</text><text x="22" y="80" class="s-xs">DTCG</text>
+      <rect x="10" y="110" width="170" height="70" rx="10" class="s-box"/><text x="22" y="134" class="s-xm">system/components/</text><text x="22" y="152" class="s-xm">*.html (master)</text><text x="22" y="170" class="s-xs">&lt;dfw-component&gt;</text>
+      <rect x="220" y="20" width="160" height="70" rx="10" class="s-core"/><text x="232" y="44" class="s-t">tokens build</text><text x="232" y="64" class="s-xm">→ tokens.css</text>
+      <rect x="220" y="110" width="160" height="70" rx="10" class="s-core"/><text x="232" y="134" class="s-t">buildSystem</text><text x="232" y="154" class="s-xm">→ components.css</text>
+      <rect x="420" y="60" width="170" height="90" rx="10" class="s-box"/><text x="432" y="84" class="s-xm">screens/&lt;id&gt;/index.html</text><text x="432" y="104" class="s-xs">&lt;dfw-use c="button"…&gt;</text><text x="432" y="120" class="s-xs">&lt;dfw-icon&gt; &lt;dfw-head&gt;</text><text x="432" y="138" class="s-xs">data-dfw-id, data-state</text>
+      <rect x="630" y="60" width="140" height="90" rx="10" class="s-core"/><text x="642" y="84" class="s-t">compose</text><text x="642" y="104" class="s-xs">→ HTML thường</text><text x="642" y="120" class="s-xm">.dfw/build/…</text>
+      <rect x="810" y="10" width="140" height="56" rx="10" class="s-box"/><text x="822" y="34" class="s-t">lint</text><text x="822" y="52" class="s-xs">tĩnh, ~ms</text>
+      <rect x="810" y="78" width="140" height="56" rx="10" class="s-box"/><text x="822" y="102" class="s-t">layout check</text><text x="822" y="120" class="s-xs">render Chrome</text>
+      <rect x="810" y="146" width="140" height="56" rx="10" class="s-box"/><text x="822" y="170" class="s-t">check</text><text x="822" y="188" class="s-xs">+ tool ngoài</text>
+      <path d="M180 55H218" class="s-line" marker-end="url(#p)"/><path d="M180 145H218" class="s-line" marker-end="url(#p)"/><path d="M380 55 C400 55 400 90 418 90" class="s-line" marker-end="url(#p)"/><path d="M380 145 C400 145 400 120 418 120" class="s-line" marker-end="url(#p)"/><path d="M590 105H628" class="s-line" marker-end="url(#p)"/>
+      <path d="M770 90 C790 90 790 38 808 38" class="s-line" marker-end="url(#p)"/><path d="M770 105H808" class="s-line" marker-end="url(#p)"/><path d="M770 120 C790 120 790 174 808 174" class="s-line" marker-end="url(#p)"/>
+      <text x="420" y="210" class="s-xs">Studio cũng ghép theo cách này mỗi khi trả về /design/…</text>
+    </svg>
+  </figure>
+  <h3>Ví dụ: master và instance</h3>
+  <pre><code>&lt;!-- design/system/components/button.html (master, rút gọn) --&gt;
+&lt;dfw-component name="button" group="Actions" variants="primary secondary ghost danger" sizes="md sm lg"
+               props="icon icon-end kbd" replaces="button" description="Text button. One primary per view…"&gt;
+&lt;style&gt; .btn { … var(--color-accent) … } .btn--primary { … } &lt;/style&gt;
+&lt;template&gt;
+  &lt;button class="btn btn--{{variant}} btn--{{size}}" type="button"&gt;
+    &lt;dfw-icon data-dfw-if="icon" name="{{icon}}"&gt;&lt;/dfw-icon&gt;&lt;span&gt;&lt;dfw-slot&gt;Button&lt;/dfw-slot&gt;&lt;/span&gt;
+    &lt;kbd data-dfw-if="kbd"&gt;{{kbd}}&lt;/kbd&gt;
+  &lt;/button&gt;
+&lt;/template&gt;
+&lt;/dfw-component&gt;
+
+&lt;!-- design/screens/borrow/index.html (instance) --&gt;
+&lt;dfw-use c="button" variant="primary" size="md" icon="plus" kbd="F2" id="borrow.submit"&gt;Mượn thiết bị&lt;/dfw-use&gt;</code></pre>
+<p>Màn hình chỉ được ghép component và bố cục. Màu, chữ, viền, bóng viết thẳng trong màn là lỗi MUST (<code>screen-visual-style</code>, <code>hardcoded-color</code>): cần gì mới thì thêm master hoặc variant trước.</p>
+  <h3>Luật lint (<code>lint.mjs</code>)</h3>
+  <table>
+    <thead><tr><th>Nhóm</th><th>Mã luật</th></tr></thead>
+    <tbody>
+      <tr><td>HTML / màn hình</td><td><code>html-lang</code> <code>tokens-link</code> <code>inline-style</code> <code>img-alt</code> <code>dfw-id-missing</code> <code>dfw-id-empty</code> <code>dfw-id-duplicate</code> <code>dfw-id-format</code> <code>use-component</code> <code>component-missing</code> <code>screen-visual-style</code> <code>raw-dimension</code> <code>no-components</code> <code>app-shell</code> <code>page-layout</code></td></tr>
+      <tr><td>File component</td><td><code>component-name</code> <code>component-template</code></td></tr>
+      <tr><td>CSS</td><td><code>hardcoded-color</code> <code>transition-all</code> <code>focus-removed</code></td></tr>
+      <tr><td>Token</td><td><code>token-type</code> <code>token-name</code> <code>token-alias</code> <code>token-empty</code> <code>token-json</code></td></tr>
+      <tr><td>Manifest</td><td><code>manifest-json</code> <code>manifest-missing</code> <code>manifest-screens</code> <code>blueprint</code> <code>manifest-page-screen</code> <code>manifest-screen-id</code> <code>manifest-screen-dup</code> <code>manifest-variants</code> <code>manifest-variant-file</code> <code>manifest-file-missing</code></td></tr>
+    </tbody>
+  </table>
+  <h3>Kết quả của layout check (<code>layout.mjs</code>)</h3>
+  <table>
+    <thead><tr><th>Mã</th><th>Mức</th><th>Nghĩa</th></tr></thead>
+    <tbody>
+      <tr><td><code>h-overflow</code></td><td>MUST</td><td>Trang tràn ngang (có thanh cuộn ngang).</td></tr>
+      <tr><td><code>overlap</code></td><td>MUST</td><td>Hai phần tử đè lên nhau.</td></tr>
+      <tr><td><code>anchor</code></td><td>MUST</td><td>Phần tử đánh dấu <code>data-dfw-anchor</code> (vd. nút chính) bị đẩy ra khỏi màn hình đầu.</td></tr>
+      <tr><td><code>clipped</code></td><td>SHOULD</td><td>Chữ hoặc nội dung bị cắt.</td></tr>
+      <tr><td><code>void</code></td><td>SHOULD</td><td>Khoảng trống lớn: giữa các khối, cuối trang, hoặc bố cục quá thưa.</td></tr>
+      <tr><td><code>consistency</code></td><td>SHOULD</td><td>Cùng component nhưng khác kích thước/vị trí giữa các màn.</td></tr>
+      <tr><td><code>render</code></td><td>SHOULD</td><td>Không render được.</td></tr>
+    </tbody>
+  </table>
+  <p>"Stress": nhân bản các phần tử con trong khối có <code>data-dfw-grow</code> để giả lập danh sách dài, xem bố cục có vỡ không.</p>
+  <h3>Công cụ ngoài trong <code>dfw check</code></h3>
+  <table>
+    <thead><tr><th>Công cụ</th><th>Lệnh thật được chạy</th><th>Ghi chú</th></tr></thead>
+    <tbody>
+      <tr><td>Impeccable detect</td><td><code>&lt;impeccable&gt;/skills/impeccable/scripts/impeccable detect --json &lt;files&gt;</code></td><td>Bỏ qua nếu engine chưa tải (<code>dfw check --setup</code> tải). Có thể trỏ bằng <code>IMPECCABLE_BIN</code>.</td></tr>
+      <tr><td>Hallmark sloplint</td><td><code>node skills/hallmark/scripts/sloplint.mjs &lt;files&gt; --json --scope page|app</code></td><td>FAIL chỉ là MUST với trang marketing.</td></tr>
+      <tr><td>Taste copy-lint</td><td><code>node …/taste-reference/scripts/copy-lint.mjs --json</code></td><td>Tắt mặc định; không bao giờ là MUST.</td></tr>
+    </tbody>
+  </table>
+  <p>Tất cả chạy trên bản đã ghép (để công cụ thấy HTML thật), kết quả trỏ ngược về file nguồn, chạy với <code>DO_NOT_TRACK=1</code> và có timeout.</p>
+</section>
+
+<!-- 15 -->
+<section id="cmdflow">
+  <h2><small>Kiến trúc</small>15. Luồng chạy các lệnh</h2>
+  <p class="lead">Mọi lệnh <code>dfw</code>, dù bạn gõ, Claude gõ hay hook gọi, đều đi chung một đường vào. Dưới đó là luồng của các lệnh quan trọng nhất.</p>
+
+  <h3>15.1 Đường vào chung</h3>
+  <figure class="fig">
+    <svg viewBox="0 0 960 250" role="img" aria-label="Đường vào chung của mọi lệnh dfw">
+      <defs><marker id="e1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="s-arrow"/></marker></defs>
+      <rect x="10" y="20" width="150" height="44" rx="8" class="s-user"/><text x="22" y="47" class="s-t">bạn gõ dfw …</text>
+      <rect x="10" y="74" width="150" height="44" rx="8" class="s-adapt"/><text x="22" y="101" class="s-t">Claude chạy Bash</text>
+      <rect x="10" y="128" width="150" height="44" rx="8" class="s-adapt"/><text x="22" y="155" class="s-t">hook Claude Code</text>
+      <rect x="200" y="74" width="150" height="44" rx="8" class="s-box"/><text x="212" y="94" class="s-t">bin/dfw (sh)</text><text x="212" y="110" class="s-xs">đọc version plugin</text>
+      <path d="M160 42 C180 42 180 90 198 90" class="s-line" marker-end="url(#e1)"/><path d="M160 96H198" class="s-line" marker-end="url(#e1)"/><path d="M160 150 C180 150 180 104 198 104" class="s-line" marker-end="url(#e1)"/>
+      <rect x="390" y="20" width="200" height="56" rx="8" class="s-core"/><text x="402" y="42" class="s-t">binary đã cài</text><text x="402" y="60" class="s-xm">~/.config/dfw/bin/&lt;ver&gt;/dfw</text>
+      <rect x="390" y="116" width="200" height="56" rx="8" class="s-core"/><text x="402" y="138" class="s-t">node bin/dfw.mjs</text><text x="402" y="156" class="s-xs">compile cache, Node ≥ 20</text>
+      <path d="M350 90 C370 90 370 48 388 48" class="s-line" marker-end="url(#e1)"/><path d="M350 104 C370 104 370 144 388 144" class="s-line" marker-end="url(#e1)"/>
+      <rect x="630" y="60" width="160" height="70" rx="8" class="s-box"/><text x="642" y="84" class="s-t">cli.mjs main()</text><text x="642" y="104" class="s-xs">version/install/help/hook</text><text x="642" y="120" class="s-xs">còn lại: tìm gốc project</text>
+      <path d="M590 48 C610 48 610 88 628 88" class="s-line" marker-end="url(#e1)"/><path d="M590 144 C610 144 610 104 628 104" class="s-line" marker-end="url(#e1)"/>
+      <rect x="820" y="20" width="130" height="150" rx="8" class="s-box"/><text x="832" y="44" class="s-t">module</text><text x="832" y="64" class="s-xm">state.mjs</text><text x="832" y="80" class="s-xm">style.mjs</text><text x="832" y="96" class="s-xm">layout.mjs</text><text x="832" y="112" class="s-xm">check.mjs</text><text x="832" y="128" class="s-xm">hooks.mjs</text><text x="832" y="144" class="s-xm">…</text>
+      <path d="M790 95H818" class="s-line" marker-end="url(#e1)"/>
+      <text x="10" y="210" class="s-xs">Mã thoát: 0 = ổn · 1 = lỗi (DfwError) · 2 = có lỗi MUST (check, lint, layout check, system audit, verify-snapshot, icons add) · 127 = không có binary lẫn Node.</text>
+      <text x="10" y="230" class="s-xs">Gốc project: thư mục gần nhất có .dfw/state.json, không thì có .git, không thì thư mục hiện tại. Hook dùng CLAUDE_PROJECT_DIR nếu có.</text>
+    </svg>
+  </figure>
+
+  <h3>15.2 <code>dfw approve G2 --note "…"</code></h3>
+  <figure class="fig">
+    <svg viewBox="0 0 960 200" role="img" aria-label="Luồng approve G2">
+      <defs><marker id="e2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="s-arrow"/></marker></defs>
+      <rect x="10" y="60" width="120" height="60" rx="8" class="s-box"/><text x="22" y="84" class="s-t">cmdApprove</text><text x="22" y="104" class="s-xs">--note bắt buộc</text>
+      <rect x="160" y="60" width="150" height="60" rx="8" class="s-box"/><text x="172" y="84" class="s-t">runChecks (60 s)</text><text x="172" y="104" class="s-xs">lint+audit+tool ngoài</text>
+      <rect x="340" y="60" width="150" height="60" rx="8" class="s-box"/><text x="352" y="84" class="s-t">comment còn mở?</text><text x="352" y="104" class="s-xs">open/ack/reopened/fixed</text>
+      <rect x="520" y="60" width="170" height="60" rx="8" class="s-core"/><text x="532" y="84" class="s-t">freezeDesign</text><text x="532" y="104" class="s-xm">design/approved/v1/</text>
+      <rect x="720" y="60" width="230" height="60" rx="8" class="s-core"/><text x="732" y="84" class="s-t">approveGate('G2')</text><text x="732" y="104" class="s-xs">state.locked=true · decisions.jsonl</text>
+      <path d="M130 90H158" class="s-line" marker-end="url(#e2)"/><path d="M310 90H338" class="s-line" marker-end="url(#e2)"/><path d="M490 90H518" class="s-line" marker-end="url(#e2)"/><path d="M690 90H718" class="s-line" marker-end="url(#e2)"/>
+      <rect x="160" y="140" width="330" height="44" rx="8" class="s-gate"/><text x="172" y="160" class="s-xs">có MUST → dừng (trừ --accept-findings)</text><text x="172" y="176" class="s-xs">còn comment → dừng (trừ --accept-open-comments)</text>
+      <path d="M235 120V138" class="s-dash" marker-end="url(#e2)"/><path d="M415 120V138" class="s-dash" marker-end="url(#e2)"/>
+      <text x="520" y="150" class="s-xs">approval.lock.json = {version, approvedAt, hash, note, files:[{path, sha256}]}</text>
+      <text x="520" y="168" class="s-xs">PRODUCT.md + DESIGN.md chép vào design/approved/v1/docs/</text>
+    </svg>
+  </figure>
+
+  <h3>15.3 <code>dfw layout check --states</code></h3>
+  <figure class="fig">
+    <svg viewBox="0 0 960 170" role="img" aria-label="Luồng layout check">
+      <defs><marker id="e3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="s-arrow"/></marker></defs>
+      <rect x="10" y="40" width="140" height="70" rx="8" class="s-box"/><text x="22" y="64" class="s-t">buildSystem</text><text x="22" y="84" class="s-xs">components.css</text><text x="22" y="100" class="s-xs">mới nhất</text>
+      <rect x="180" y="40" width="170" height="70" rx="8" class="s-box"/><text x="192" y="64" class="s-t">tạo job</text><text x="192" y="84" class="s-xs">màn × variant × bp</text><text x="192" y="100" class="s-xs">× state × stress</text>
+      <rect x="380" y="40" width="150" height="70" rx="8" class="s-box"/><text x="392" y="64" class="s-t">buildComposed</text><text x="392" y="84" class="s-xs">HTML ghép sẵn,</text><text x="392" y="100" class="s-xs">CSS inline</text>
+      <rect x="560" y="40" width="190" height="70" rx="8" class="s-core"/><text x="572" y="64" class="s-t">Chrome ẩn, 6 trang</text><text x="572" y="84" class="s-xs">đặt viewport, data-state</text><text x="572" y="100" class="s-xs">chờ font (cache), đo</text>
+      <rect x="780" y="40" width="170" height="70" rx="8" class="s-gate"/><text x="792" y="64" class="s-t">findings</text><text x="792" y="84" class="s-xs">MUST/SHOULD theo màn</text><text x="792" y="100" class="s-xs">mã thoát 2 nếu MUST</text>
+      <path d="M150 75H178" class="s-line" marker-end="url(#e3)"/><path d="M350 75H378" class="s-line" marker-end="url(#e3)"/><path d="M530 75H558" class="s-line" marker-end="url(#e3)"/><path d="M750 75H778" class="s-line" marker-end="url(#e3)"/>
+      <text x="10" y="150" class="s-xs">Hook stop gọi đúng hàm này nhưng chỉ cho các màn đổi kể từ lần trước (so mtime với .dfw/layout-cache.json), rồi ghi lại để không báo lặp.</text>
+    </svg>
+  </figure>
+  <pre><code>dfw layout check --states
+#  render 52 frames (4 screens × 3 bp × states + stress) …  4.1 s
+#  MUST   dashboard  mobile  overlap   .kpi-row ↔ .page-header (12px)
+#  SHOULD history    desktop void      tail gap 340px under #history-table
+#  1 MUST · 1 SHOULD                               (minh hoạ, rút gọn)
+dfw layout check --screen dashboard --bp mobile   # chỉ kiểm lại chỗ vừa sửa</code></pre>
+
+  <h3>15.4 <code>dfw studio start</code> và một vòng comment</h3>
+  <figure class="fig">
+    <svg viewBox="0 0 960 300" role="img" aria-label="Sequence: studio và comment">
+      <defs><marker id="e4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="s-arrow"/></marker></defs>
+      <text x="40" y="24" class="s-ut">BẠN / TRÌNH DUYỆT</text><text x="270" y="24" class="s-ct">SERVER STUDIO</text><text x="480" y="24" class="s-k">.dfw/reviews/</text><text x="650" y="24" class="s-at">HOOK</text><text x="820" y="24" class="s-at">CLAUDE</text>
+      <path d="M100 32V290M320 32V290M520 32V290M680 32V290M860 32V290" class="s-dash"/>
+      <path d="M860 50H322" class="s-line" marker-end="url(#e4)"/><text x="560" y="45" class="s-xs">dfw studio start → spawn __studio-server</text>
+      <path d="M100 80H318" class="s-line" marker-end="url(#e4)"/><text x="130" y="75" class="s-xs">mở 127.0.0.1:4600</text>
+      <path d="M100 115H318" class="s-line" marker-end="url(#e4)"/><text x="110" y="110" class="s-xs">POST /api/comments (C + bấm)</text>
+      <path d="M320 130H518" class="s-line" marker-end="url(#e4)"/><text x="340" y="126" class="s-xs">ghi fb_007 status open</text>
+      <path d="M320 145H102" class="s-dash" marker-end="url(#e4)"/><text x="130" y="160" class="s-xs">SSE "comments" → pin hiện</text>
+      <path d="M520 185H678" class="s-line" marker-end="url(#e4)"/><text x="530" y="180" class="s-xs">tin nhắn tới / trước khi dừng</text>
+      <path d="M680 200H858" class="s-line" marker-end="url(#e4)"/><text x="690" y="195" class="s-xs">additionalContext: fb_007</text>
+      <path d="M860 230H522" class="s-line" marker-end="url(#e4)"/><text x="560" y="225" class="s-xs">ack → sửa design/ → comments fixed</text>
+      <path d="M320 250H102" class="s-dash" marker-end="url(#e4)"/><text x="130" y="245" class="s-xs">SSE "design" → tải lại khung</text>
+      <path d="M100 280H318" class="s-line" marker-end="url(#e4)"/><text x="110" y="275" class="s-xs">PATCH resolve (by user)</text>
+    </svg>
+  </figure>
+
+  <h3>15.5 <code>dfw install</code></h3>
+  <figure class="fig">
+    <svg viewBox="0 0 960 150" role="img" aria-label="Luồng install">
+      <defs><marker id="e5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="s-arrow"/></marker></defs>
+      <rect x="10" y="30" width="120" height="76" rx="8" class="s-box"/><text x="22" y="54" class="s-t">1. kiểm tra</text><text x="22" y="74" class="s-xm">claude --version</text>
+      <rect x="150" y="30" width="190" height="76" rx="8" class="s-box"/><text x="162" y="54" class="s-t">2. marketplace</text><text x="162" y="74" class="s-xm">marketplace list → update</text><text x="162" y="90" class="s-xm">hoặc add &lt;source&gt;</text>
+      <rect x="360" y="30" width="190" height="76" rx="8" class="s-box"/><text x="372" y="54" class="s-t">3. plugin ×8</text><text x="372" y="74" class="s-xm">plugin install</text><text x="372" y="90" class="s-xm">&lt;p&gt;@dfw-marketplace</text>
+      <rect x="570" y="30" width="120" height="76" rx="8" class="s-box"/><text x="582" y="54" class="s-t">4. binary</text><text x="582" y="74" class="s-xs">lỗi = cảnh báo</text>
+      <rect x="710" y="30" width="110" height="76" rx="8" class="s-box"/><text x="722" y="54" class="s-t">5. browser</text><text x="722" y="74" class="s-xs">thiếu → tải</text>
+      <rect x="840" y="30" width="110" height="76" rx="8" class="s-core"/><text x="852" y="54" class="s-t">6–7.</text><text x="852" y="74" class="s-xs">check --setup</text><text x="852" y="90" class="s-xs">doctor</text>
+      <path d="M130 68H148" class="s-line" marker-end="url(#e5)"/><path d="M340 68H358" class="s-line" marker-end="url(#e5)"/><path d="M550 68H568" class="s-line" marker-end="url(#e5)"/><path d="M690 68H708" class="s-line" marker-end="url(#e5)"/><path d="M820 68H838" class="s-line" marker-end="url(#e5)"/>
+      <text x="10" y="135" class="s-xs">Chỉ lỗi khi cài plugin dfw là dừng hẳn; 7 skill kia lỗi thì cảnh báo. Gỡ: claude plugin uninstall ×8, rồi marketplace remove dfw-marketplace.</text>
+    </svg>
+  </figure>
+</section>
+
+<!-- 16 -->
+<section id="render">
+  <h2><small>Kiến trúc</small>16. Render, chụp màn hình và binary một file</h2>
+  <h3>Render</h3>
+  <ol class="steps">
+    <li><b>Tìm trình duyệt</b><code>DFW_BROWSER</code> / <code>CHROME_PATH</code> → Chrome ẩn đã tải bằng <code>dfw setup --browser</code> → Chrome, Edge, Chromium hoặc Brave đã cài.</li>
+    <li><b>Mở ẩn</b>Mỗi lệnh một trình duyệt, profile tạm, <code>--remote-debugging-port=0</code>; dfw nói chuyện qua WebSocket có sẵn trong Node (cần Node 22+ hoặc binary).</li>
+    <li><b>Render song song</b>Mỗi tỉ lệ màn hình một context, tối đa 6 trang; viewport theo breakpoint; chờ trang và font.</li>
+    <li><b>Cache font</b>Request Google Fonts được chặn lại và trả từ <code>~/.config/dfw/cache/fonts</code>.</li>
+    <li><b>Đo hoặc chụp</b><code>layout</code> đo trong trang; <code>shoot</code> chụp PNG (chi tiết bên dưới).</li>
+  </ol>
+  <table>
+    <thead><tr><th>Thao tác</th><th>v0.3 (Playwright)</th><th>v0.4 (CDP)</th></tr></thead>
+    <tbody>
+      <tr><td>Layout check, 1 màn</td><td>~25 s</td><td>~2,8 s</td></tr>
+      <tr><td>Layout check, mọi màn + state (52 render)</td><td>~33 s</td><td>~4 s</td></tr>
+      <tr><td>Cài thêm</td><td>runtime npm + Chromium ~150 MB</td><td>không</td></tr>
+    </tbody>
+  </table>
+  <h3 id="shoot">Chụp màn hình thiết kế (<code>dfw shoot</code>)</h3>
+  <p>Trên Studio có nút chụp hết và nút Screenshot trong Present làm cùng việc này (mục 20). Lệnh này biến các file HTML trong <code>design/</code> (hoặc một URL bất kỳ) thành ảnh PNG để Claude/Copilot nhìn và tự chấm thiết kế, và để so app thật với thiết kế ở phase verify. Code nằm ở 3 chỗ: <code>cli.mjs</code> (<code>cmdShoot</code>, lập danh sách ảnh), <code>runtime.mjs</code> (<code>screenshot</code>, chạy song song), <code>cdp.mjs</code> (<code>Page.screenshot</code>, nói chuyện với Chrome).</p>
+  <figure class="fig">
+    <svg viewBox="0 0 960 250" role="img" aria-label="Luồng code của dfw shoot">
+      <defs><marker id="sm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="s-arrow"/></marker></defs>
+      <rect x="10" y="30" width="200" height="100" rx="8" class="s-box"/><text x="22" y="54" class="s-t">Đầu vào</text><text x="22" y="74" class="s-xm">design/design.json</text><text x="22" y="90" class="s-xm">.dfw/studio.json (url)</text><text x="22" y="106" class="s-xm">cờ --screen --bp</text><text x="22" y="122" class="s-xm">--states --themes</text>
+      <rect x="250" y="20" width="210" height="120" rx="8" class="s-core"/><text x="262" y="44" class="s-ct">cli.mjs · cmdShoot</text><text x="262" y="66" class="s-xs">màn × biến thể × breakpoint</text><text x="262" y="82" class="s-xs">× state × theme = 1 job</text><text x="262" y="100" class="s-xm">{url, width, height,</text><text x="262" y="116" class="s-xm"> out, selector, fullPage}</text>
+      <rect x="500" y="20" width="210" height="120" rx="8" class="s-core"/><text x="512" y="44" class="s-ct">runtime.mjs · screenshot</text><text x="512" y="66" class="s-xs">1 trình duyệt cho cả lô</text><text x="512" y="82" class="s-xs">6 tab chạy song song</text><text x="512" y="98" class="s-xs">mỗi tab: mở → chờ font</text><text x="512" y="114" class="s-xs">→ chờ 60 ms → chụp</text><text x="512" y="130" class="s-xs">job lỗi không dừng cả lô</text>
+      <rect x="750" y="20" width="200" height="120" rx="8" class="s-core"/><text x="762" y="44" class="s-ct">cdp.mjs · Page</text><text x="762" y="66" class="s-xm">setDeviceMetrics…</text><text x="762" y="82" class="s-xm">Page.navigate</text><text x="762" y="98" class="s-xm">getLayoutMetrics</text><text x="762" y="114" class="s-xm">captureScreenshot</text><text x="762" y="130" class="s-xs">font từ cache đĩa</text>
+      <rect x="250" y="170" width="460" height="64" rx="8" class="s-box"/><text x="262" y="194" class="s-t">Kết quả</text><text x="262" y="212" class="s-xm">.dfw/shots/v1/&lt;màn&gt;__&lt;biến thể&gt;__&lt;bp&gt;[__theme][__state].png</text><text x="262" y="228" class="s-xs">in "ok"/"FAIL" từng ảnh; có ảnh lỗi thì thoát mã 2</text>
+      <path d="M210 80H248" class="s-line" marker-end="url(#sm)"/>
+      <path d="M460 80H498" class="s-line" marker-end="url(#sm)"/>
+      <path d="M710 80H748" class="s-line" marker-end="url(#sm)"/>
+      <path d="M850 140 C850 200 760 202 712 202" class="s-line" marker-end="url(#sm)"/>
+    </svg>
+  </figure>
+  <table>
+    <thead><tr><th>Bước</th><th>Code làm gì</th><th>Vì sao</th></tr></thead>
+    <tbody>
+      <tr><td>1. Lấy breakpoint</td><td><code>design.json → breakpoints</code>, không có thì <code>config.studio.breakpoints</code>; <code>--bp</code> lọc lại.</td><td>Ảnh đúng kích thước Studio đang hiển thị.</td></tr>
+      <tr><td>2. Lập job</td><td>Chụp thiết kế: cần Studio đang chạy (URL lấy từ <code>.dfw/studio.json</code>). Mỗi tổ hợp màn × biến thể × breakpoint × state × theme là 1 job; state/theme truyền qua <code>?state=…&amp;theme=…</code>. <code>--system</code> thêm trang design system (chỉ breakpoint đầu).</td><td>Studio phục vụ đúng CSS ghép sẵn, kit, font như lúc review.</td></tr>
+      <tr><td>3. Chụp URL</td><td><code>--url</code> bỏ qua Studio, chụp thẳng URL. Nhiều breakpoint mà chỉ có một <code>--out</code> thì tự thêm <code>__&lt;bp&gt;</code> (hoặc tự đặt <code>{bp}</code> trong tên).</td><td>Chụp app thật ở discovery và verify.</td></tr>
+      <tr><td>4. Mở trình duyệt</td><td><code>openRenderer</code>: 1 Chrome ẩn, mỗi tỉ lệ pixel một context.</td><td>Mở Chrome một lần cho cả lô nhanh hơn mở mỗi ảnh một lần.</td></tr>
+      <tr><td>5. Chụp</td><td>Chờ sự kiện <code>load</code> + <code>document.fonts.ready</code> (tối đa 3 s), không chờ "mạng rảnh".</td><td>Studio giữ kết nối live-reload mở, chờ mạng rảnh sẽ không bao giờ xong.</td></tr>
+      <tr><td>6. Cắt ảnh</td><td>Mặc định cả trang (chiều cao nội dung); <code>--viewport</code> chỉ phần màn hình; <code>--selector</code> chỉ một phần tử (cuộn tới rồi cắt theo khung).</td><td>Ảnh nhỏ khi chỉ cần xem một component.</td></tr>
+      <tr><td>7. Báo kết quả</td><td>Mỗi ảnh một dòng <code>ok</code>/<code>FAIL (lý do)</code>; có ảnh lỗi thì mã thoát 2.</td><td>Agent và script biết lô bị thiếu ảnh.</td></tr>
+    </tbody>
+  </table>
+<pre><code># Studio phải chạy trước khi chụp thiết kế
+dfw studio start
+dfw shoot --page borrow --states             # mọi màn của trang borrow, mọi state
+dfw shoot --screen login --bp mobile --themes
+dfw shoot --system                           # trang design system
+dfw shoot --screen login --selector ".card"  # chỉ một phần tử
+# App thật (không cần Studio)
+dfw shoot --url http://localhost:5173/login --bp desktop,mobile --out .dfw/shots/impl/login__{bp}.png</code></pre>
+  <p>Muốn sửa: tên file, tổ hợp job ở <code>cmdShoot</code> (<code>core/lib/cli.mjs</code>); thời gian chờ, số tab song song ở <code>core/lib/runtime.mjs</code>; cách cắt ảnh, cờ Chrome ở <code>core/lib/cdp.mjs</code>.</p>
+  <h3>Binary</h3>
+  <ol class="steps">
+    <li><b>Gom code</b>esbuild gom <code>scripts/sea/entry.mjs</code> + <code>lib/</code> thành 1 file JS.</li>
+    <li><b>Đóng gói dữ liệu</b>Mọi file plugin trừ <code>bin/</code>, <code>lib/</code> nén thành <code>plugin.json.gz</code> (~400 KB).</li>
+    <li><b>SEA blob</b>Node tạo blob gồm code, dữ liệu, V8 code cache.</li>
+    <li><b>Chèn vào Node</b>postject chèn blob vào bản chép của <code>node</code>; macOS ký tạm bằng <code>codesign</code>.</li>
+    <li><b>Lúc chạy</b>Nếu không được launcher đưa thư mục plugin, binary giải nén dữ liệu một lần vào <code>~/.config/dfw/plugin/&lt;ver&gt;-&lt;hash&gt;</code>.</li>
+  </ol>
+  <p>CI build 5 bản: darwin-arm64, darwin-x64, linux-x64, linux-arm64, win32-x64, bằng Node 26.13.0 LTS chính thức. Mỗi bản ~65 MB (nén gzip ~17 MB).</p>
+</section>
+
+<!-- 17 -->
+<section id="project">
+  <h2><small>Kiến trúc</small>17. File trong project người dùng</h2>
+  <div class="card tree">PRODUCT.md                 <span class="d">sản phẩm cho ai, mục tiêu, nội dung, ràng buộc, giả định</span>
+DESIGN.md                  <span class="d">ngôn ngữ thiết kế bằng lời: nguyên tắc, quyết định, lý do</span>
+design/
+  design.json              <span class="d">manifest: page, màn, breakpoint, state, variant, blueprint</span>
+  tokens/tokens.json       <span class="d">token DTCG (nguồn) → tokens.css (sinh ra)</span>
+  tokens/themes/*.json     <span class="d">ghi đè theo theme (dark, opt-* khi so phương án)</span>
+  system/
+    brief.json             <span class="d">trục tính cách thương hiệu, dùng cho dfw style match</span>
+    style.json             <span class="d">style guide đã áp</span>
+    head.html              <span class="d">link font, meta chung</span>
+    components/*.html      <span class="d">component master</span>
+    components.css         <span class="d">sinh ra từ các master</span>
+    icons/*.svg            <span class="d">icon project dùng</span>
+  styles/base.css          <span class="d">style nền cho thẻ HTML</span>
+  screens/&lt;id&gt;/*.html     <span class="d">màn hình (index + variant)</span>
+  screens/_directions/     <span class="d">bản phác các hướng (G1)</span>
+  assets/                  <span class="d">ảnh, tài liệu gốc</span>
+  approved/vN/             <span class="d">bản chụp khi G2 + approval.lock.json (KHÔNG sửa được)</span>
+  handoff/vN.md            <span class="d">tài liệu bàn giao cho code</span>
+.dfw/
+  state.json               <span class="d">mode, phase, cổng, phiên bản</span>
+  decisions.jsonl          <span class="d">mọi quyết định: {at, level, topic, decision, by, overrides?}</span>
+  config.json              <span class="d">cấu hình project (config.local.json cho máy riêng)</span>
+  stack.json               <span class="d">stack đề xuất / đã duyệt</span>
+  reviews/rv_*.json        <span class="d">comment theo phiên review; .delivered.json</span>
+  edits/                   <span class="d">nhật ký sửa trực tiếp từ Studio (để hoàn tác)</span>
+  build/                   <span class="d">HTML đã ghép (cache)</span>
+  shots/                   <span class="d">ảnh chụp</span>
+  layout-cache.json        <span class="d">mtime đã kiểm, để hook stop không báo lặp</span>
+  studio.json, studio.log  <span class="d">port và log Studio</span></div>
+  <div class="note">Nên commit: <code>PRODUCT.md</code>, <code>DESIGN.md</code>, <code>design/</code>, <code>.dfw/state.json</code>, <code>decisions.jsonl</code>, <code>config.json</code>, <code>stack.json</code>, <code>reviews/</code>. <code>dfw init</code> tạo <code>.dfw/.gitignore</code> bỏ qua <code>config.local.json</code>, <code>studio.json</code>, <code>studio.log</code>, <code>shots/</code>, <code>checks/</code>; nên tự thêm <code>.dfw/build/</code> và <code>.dfw/layout-cache.json</code>.</div>
+  <h3>Thư mục chung của dfw trên máy (<code>~/.config/dfw</code>, đổi bằng <code>DFW_HOME</code>)</h3>
+  <div class="card tree">bin/&lt;ver&gt;/dfw            <span class="d">binary</span>
+plugin/&lt;ver&gt;-&lt;hash&gt;/      <span class="d">dữ liệu plugin giải nén khi binary chạy độc lập</span>
+browser/                 <span class="d">chrome-headless-shell nếu đã tải</span>
+cache/fonts/             <span class="d">font Google đã tải</span>
+sessions/                <span class="d">ngôn ngữ đã chọn theo từng phiên (dọn sau 30 ngày)</span>
+config.json              <span class="d">cấu hình global, ngôn ngữ dùng lần trước</span></div>
+</section>
+
+<!-- 18 -->
+<section id="copilot">
+  <h2><small>Mở rộng</small>18. Nhiều công cụ AI (host)</h2>
+  <p class="lead">dfw được thiết kế để chạy trên nhiều công cụ AI. Hiện có <b>Claude Code</b> và <b>GitHub Copilot</b>; OpenCode, Codex, Cursor là dự kiến. Thêm một host = thêm <code>adapters/&lt;host&gt;/</code> + một mục trong <code>core/lib/host.mjs</code>; CLI, Studio, render, kit, token, luật kiểm tra dùng lại nguyên.</p>
+
+  <h3>18.1 Trạng thái từng host</h3>
+  <table>
+    <thead><tr><th>Host</th><th>Trạng thái</th><th>Skill</th><th>Agent</th><th>Hook chặn ghi file</th><th>Cài</th></tr></thead>
+    <tbody>
+      <tr><td>Claude Code</td><td><span class="tag t-core">hỗ trợ</span></td><td><code>skills/dfw/SKILL.md</code></td><td><code>agents/*.md</code></td><td>Có (PreToolUse)</td><td><code>dfw install --host claude</code></td></tr>
+      <tr><td>GitHub Copilot (CLI, VS Code, app)</td><td><span class="tag t-core">hỗ trợ</span></td><td><code>skills/dfw/SKILL.md</code></td><td><code>agents/*.agent.md</code></td><td>Có (PreToolUse, định dạng tương thích Claude)</td><td><code>dfw install --host copilot</code></td></tr>
+      <tr><td>OpenCode</td><td><span class="tag t-ext">dự kiến</span></td><td>Đọc <code>SKILL.md</code> (cả <code>.claude/skills/</code>)</td><td>Agent trong config</td><td>Qua plugin JS: <code>tool.execute.before</code> gọi <code>dfw hook</code></td><td>—</td></tr>
+      <tr><td>OpenAI Codex</td><td><span class="tag t-ext">dự kiến</span></td><td><code>skills/&lt;tên&gt;/SKILL.md</code> trong plugin</td><td>—</td><td>Có hook PreToolUse (ổn định từ v0.124); sửa file qua <code>apply_patch</code> (dfw đã đọc được)</td><td>—</td></tr>
+      <tr><td>Cursor</td><td><span class="tag t-ext">dự kiến</span></td><td>Rules <code>.cursor/rules</code></td><td>—</td><td><code>.cursor/hooks.json</code>: <code>preToolUse</code>, <code>afterFileEdit</code>, <code>stop</code></td><td>—</td></tr>
+    </tbody>
+  </table>
+  <p class="s-xs" style="font-size:13px;color:var(--ink-3)">Ghi chú về 3 host dự kiến lấy từ tài liệu và bài viết hiện có, cần kiểm lại khi làm adapter.</p>
+
+  <h3>18.2 Một hook chạy qua các lớp thế nào</h3>
+  <figure class="fig">
+    <svg viewBox="0 0 960 230" role="img" aria-label="Luồng hook qua lớp host">
+      <defs><marker id="hm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="s-arrow"/></marker></defs>
+      <rect x="10" y="20" width="170" height="70" rx="8" class="s-user"/><text x="22" y="44" class="s-ut">CLAUDE CODE</text><text x="22" y="64" class="s-xm">tool_name: Write</text><text x="22" y="80" class="s-xm">tool_input.file_path</text>
+      <rect x="10" y="110" width="170" height="90" rx="8" class="s-user"/><text x="22" y="134" class="s-ut">COPILOT</text><text x="22" y="154" class="s-xm">toolName: create</text><text x="22" y="170" class="s-xm">toolArgs: "{…path…}"</text><text x="22" y="188" class="s-xs">(hoặc dạng PascalCase)</text>
+      <rect x="220" y="60" width="170" height="90" rx="8" class="s-box"/><text x="232" y="84" class="s-t">bin/dfw hook &lt;tên&gt;</text><text x="232" y="104" class="s-xm">[--host copilot]</text><text x="232" y="124" class="s-xs">stdin JSON</text>
+      <rect x="430" y="40" width="170" height="130" rx="8" class="s-core"/><text x="442" y="64" class="s-ct">host.mjs</text><text x="442" y="86" class="s-xs">normalizeHookInput</text><text x="442" y="102" class="s-xs">camelCase → snake_case</text><text x="442" y="118" class="s-xs">create → Write, edit → Edit</text><text x="442" y="134" class="s-xs">apply_patch → đọc path</text><text x="442" y="150" class="s-xs">toolArgs chuỗi → JSON</text>
+      <rect x="640" y="40" width="140" height="130" rx="8" class="s-core"/><text x="652" y="64" class="s-ct">hooks.mjs</text><text x="652" y="86" class="s-xs">gate.mjs decideWrite</text><text x="652" y="104" class="s-xs">trả kết quả trung tính:</text><text x="652" y="122" class="s-xm">{deny}</text><text x="652" y="138" class="s-xm">{context}</text><text x="652" y="154" class="s-xm">{block}</text>
+      <rect x="820" y="20" width="130" height="80" rx="8" class="s-box"/><text x="832" y="44" class="s-t">Claude Code</text><text x="832" y="64" class="s-xm">hookSpecific…</text><text x="832" y="80" class="s-xm">permissionDecision</text>
+      <rect x="820" y="120" width="130" height="80" rx="8" class="s-box"/><text x="832" y="144" class="s-t">Copilot</text><text x="832" y="164" class="s-xm">permissionDecision</text><text x="832" y="180" class="s-xm">additionalContext</text>
+      <path d="M180 55 C200 55 200 95 218 95" class="s-line" marker-end="url(#hm)"/>
+      <path d="M180 155 C200 155 200 115 218 115" class="s-line" marker-end="url(#hm)"/>
+      <path d="M390 105H428" class="s-line" marker-end="url(#hm)"/>
+      <path d="M600 105H638" class="s-line" marker-end="url(#hm)"/>
+      <path d="M780 95 C800 95 800 60 818 60" class="s-line" marker-end="url(#hm)"/>
+      <path d="M780 115 C800 115 800 160 818 160" class="s-line" marker-end="url(#hm)"/>
+      <text x="640" y="200" class="s-xs">formatHookOutput(host, event, kết quả)</text>
+    </svg>
+  </figure>
+
+  <h3>18.3 Copilot khác Claude Code ở đâu, dfw xử lý thế nào</h3>
+  <table>
+    <thead><tr><th>Điểm</th><th>Copilot</th><th>dfw làm</th></tr></thead>
+    <tbody>
+      <tr><td>Định dạng hook</td><td><code>hooks.json</code> có <code>"version": 1</code>, mỗi lệnh có <code>bash</code> + <code>powershell</code>, <code>timeoutSec</code>. Sự kiện viết PascalCase thì payload snake_case và tên tool đổi sang tên Claude</td><td>Dùng sự kiện PascalCase; <code>host.mjs</code> vẫn đọc được dạng camelCase</td></tr>
+      <tr><td>Chặn ghi file</td><td><code>{"permissionDecision":"deny","permissionDecisionReason":…}</code></td><td><code>formatHookOutput('copilot', …)</code></td></tr>
+      <tr><td>Thêm ngữ cảnh khi bạn gửi tin nhắn</td><td>Không nhận <code>additionalContext</code> ở <code>userPromptSubmitted</code></td><td>Comment Studio được đưa ở PostToolUse và Stop thay vì lúc gửi tin nhắn</td></tr>
+      <tr><td>Đường dẫn plugin trong lệnh hook</td><td>Không có biến tài liệu hoá như <code>CLAUDE_PLUGIN_ROOT</code></td><td>Lệnh hook thử lần lượt: <code>$PLUGIN_ROOT</code>, <code>$CLAUDE_PLUGIN_ROOT</code>, <code>~/.copilot/installed-plugins/dfw-marketplace/dfw</code>, <code>~/.local/bin/dfw</code>, rồi <code>dfw</code> trên PATH</td></tr>
+      <tr><td><code>bin/</code> của plugin</td><td>Không tự thêm vào PATH</td><td><code>dfw install --host copilot</code> tạo link <code>~/.local/bin/dfw</code>; SKILL.md bản Copilot ghi đường dẫn đầy đủ dự phòng</td></tr>
+      <tr><td>Marketplace từ thư mục local</td><td>Dùng tại chỗ ("live"), không chép vào <code>installed-plugins</code></td><td><code>host.mjs</code> đọc <code>~/.copilot/settings.json</code> để biết plugin nằm đâu</td></tr>
+      <tr><td>Agent</td><td><code>*.agent.md</code>, frontmatter riêng</td><td>Build đổi tên và chỉ giữ name + description; giới hạn quyền ghi nằm trong nội dung agent</td></tr>
+      <tr><td>Hỏi người dùng, gọi skill</td><td>Tool <code>ask_user</code>; skill gọi theo tên</td><td>Placeholder <code>{{ASK_TOOL}}</code>, <code>{{INVOKE_SKILL}}</code></td></tr>
+    </tbody>
+  </table>
+
+  <h3>18.4 Đã kiểm gì</h3>
+  <ul>
+    <li>Copilot CLI 1.0.105 trên máy này, với <code>COPILOT_HOME</code> tạm: <code>marketplace add</code> nhận đúng <code>.github/plugin/marketplace.json</code>; <code>dfw install --host copilot</code> cài và bật đủ 8 plugin; link <code>~/.local/bin/dfw</code> đúng.</li>
+    <li>Chạy đúng lệnh trong <code>hooks.json</code> của Copilot với payload PascalCase, camelCase (tham số là chuỗi JSON) và <code>apply_patch</code>: chặn đúng file code, cho qua file thiết kế; SessionStart trả <code>additionalContext</code>.</li>
+    <li>Bản Claude Code sinh ra giống hệt trước khi tách (SKILL.md, agent không đổi).</li>
+    <li><span class="tag t-gate">chưa kiểm</span> một phiên Copilot thật có model (cần tài khoản và quota của bạn), Windows (lệnh powershell), VS Code.</li>
+  </ul>
+
+  <h3>18.5 Thêm một host mới</h3>
+  <ol class="steps">
+    <li><b>host.mjs</b>Thêm mục: <code>status</code>, <code>cli</code>, <code>adapter</code>, <code>context</code> (sự kiện nào nhận ngữ cảnh), <code>text</code> (giá trị placeholder), <code>installedPluginDirs</code>. Nếu payload/tool khác: bổ sung <code>normalizeHookInput</code>, <code>TOOL_ALIASES</code>, <code>formatHookOutput</code>.</li>
+    <li><b>adapters/&lt;host&gt;/</b><code>assemble.json</code> (host, thư mục plugin, file manifest) và <code>plugin/</code> với cấu hình hook của host đó gọi <code>dfw hook &lt;tên&gt; --host &lt;host&gt;</code>.</li>
+    <li><b>registry/skills.json</b>Thêm mục <code>local</code> với file marketplace của host.</li>
+    <li><b>install.mjs</b>Thêm nhánh cài trong <code>installInHost</code>.</li>
+    <li><b>Test</b>Thêm case vào <code>tests/unit/host.test.mjs</code>; <code>npm run build</code>, <code>npm test</code>, <code>npm run validate</code>.</li>
+  </ol>
+
+  <h3>Nguồn</h3>
+  <ul>
+    <li><a href="https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-hooks-reference">GitHub Docs: Copilot CLI hooks reference</a></li>
+    <li><a href="https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference">GitHub Docs: Copilot CLI plugin reference</a></li>
+    <li><a href="https://docs.github.com/en/copilot/concepts/customizations/plugins">GitHub Docs: Plugins for GitHub Copilot</a></li>
+    <li><a href="https://developers.openai.com/codex/hooks">OpenAI: Codex hooks</a></li>
+    <li><a href="https://cursor.com/docs/hooks">Cursor: Hooks</a></li>
+    <li><a href="https://v2.opencode.ai/docs/build/plugins">OpenCode: Plugins</a></li>
+  </ul>
+</section>
+
+<!-- 19 -->
+<section id="install">
+  <h2><small>Hướng dẫn</small>19. Cài đặt</h2>
+  <h3>Cách A: máy không có Node.js</h3>
+  <pre><code>curl -fsSL https://raw.githubusercontent.com/tantm97/ai-frontend-design-workflow/main/install.sh | sh
+# chọn phiên bản cố định:
+curl -fsSL …/install.sh | DFW_VERSION=0.4.0 sh</code></pre>
+  <p>Tải binary hợp với máy, kiểm SHA-256, cài vào <code>~/.config/dfw/bin/&lt;ver&gt;/</code>, tạo liên kết <code>~/.local/bin/dfw</code>, rồi chạy <code>dfw install</code>.</p>
+  <div class="note warn">Chỉ dùng được sau khi đã có release (push tag <code>v0.4.0</code> và workflow release chạy xong).</div>
+  <h3>Cách B: có Node.js 22+</h3>
+  <pre><code>npx github:tantm97/ai-frontend-design-workflow
+# tuỳ chọn: --scope user|project|local   --no-binary   --no-runtime</code></pre>
+  <h3>Chọn host</h3>
+  <pre><code>dfw install                   # mọi host có trên máy (claude, copilot)
+dfw install --host copilot    # chỉ GitHub Copilot
+dfw install --host all        # cả hai (báo lỗi nếu thiếu CLI của một host)</code></pre>
+  <h3>Cách C: cài từ thư mục repo trên máy (khi đang phát triển)</h3>
+  <pre><code>cd ~/workspace/git/dev/design-workflow-skills
+npm run build
+node scripts/install.mjs --source "$PWD"     # marketplace trỏ vào thư mục này</code></pre>
+  <p>Sau khi cài, khởi động lại Claude Code. Kiểm tra bằng <code>dfw doctor</code>. Gỡ bằng <code>dfw uninstall</code> (file trong project vẫn giữ).</p>
+  <table>
+    <thead><tr><th>Cần</th><th>Để làm gì</th></tr></thead>
+    <tbody>
+      <tr><td>Claude Code và/hoặc GitHub Copilot CLI</td><td>Nơi chạy skill, agent, hook</td></tr>
+      <tr><td>Binary dfw <i>hoặc</i> Node 22+</td><td>Chạy CLI (Node 20 chạy được nhưng không render được)</td></tr>
+      <tr><td>Chrome / Edge / Chromium / Brave (hoặc <code>dfw setup --browser</code>)</td><td>Chụp và kiểm bố cục</td></tr>
+      <tr><td>Tuỳ chọn: Node, Python 3</td><td>sloplint, copy-lint cần Node; tìm kiếm ui-ux-pro-max cần Python. Thiếu thì báo "unavailable"</td></tr>
+      <tr><td>Windows</td><td>Git Bash (hook gọi launcher sh)</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- 20 -->
+<section id="review">
+  <h2><small>Hướng dẫn</small>20. Review trên Studio</h2>
+  <table>
+    <thead><tr><th>Phím</th><th>Tác dụng</th></tr></thead>
+    <tbody>
+      <tr><td><kbd>V</kbd></td><td>Công cụ chọn</td></tr>
+      <tr><td><kbd>H</kbd> / giữ <kbd>Space</kbd></td><td>Kéo canvas</td></tr>
+      <tr><td><kbd>C</kbd></td><td>Comment: bấm phần tử, viết điều cần đổi (<kbd>Alt</kbd> chọn đúng phần tử thay vì cả component; <kbd>⌘</kbd><kbd>Enter</kbd> lưu)</td></tr>
+      <tr><td><kbd>Shift</kbd><kbd>C</kbd></td><td>Pin: open → all → off (trong Present: hiện / ẩn)</td></tr>
+      <tr><td>Bấm vào pin</td><td>Xem nội dung comment, thread, nút thao tác</td></tr>
+      <tr><td><kbd>I</kbd></td><td>Bấm thử prototype trên canvas</td></tr>
+      <tr><td><kbd>P</kbd> / bấm đúp tiêu đề khung</td><td>Present toàn cửa sổ; <kbd>←</kbd> <kbd>→</kbd> màn trước / sau</td></tr>
+      <tr><td><kbd>F</kbd></td><td>Toàn màn hình trình duyệt</td></tr>
+      <tr><td><kbd>⌘</kbd>/<kbd>Ctrl</kbd> + cuộn, <kbd>+</kbd> <kbd>-</kbd>, <kbd>0</kbd></td><td>Zoom tại con trỏ / phóng / thu / 100%</td></tr>
+      <tr><td><kbd>Shift</kbd><kbd>1</kbd> / <kbd>Shift</kbd><kbd>2</kbd></td><td>Vừa tất cả / vừa vùng chọn</td></tr>
+      <tr><td><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd></td><td>Layer cha / con đầu / trước / sau</td></tr>
+      <tr><td><kbd>⌘</kbd>/<kbd>Ctrl</kbd> <kbd>Z</kbd></td><td>Hoàn tác lần sửa trực tiếp gần nhất</td></tr>
+      <tr><td><kbd>Esc</kbd> · <kbd>?</kbd></td><td>Bỏ chọn · bảng phím tắt</td></tr>
+    </tbody>
+  </table>
+  <h3>Chọn kích thước màn hình và state</h3>
+  <p>Trên thanh công cụ có 2 menu chọn nhiều, mở ra là danh sách ô tick, dòng đầu là <b>All</b>. Mặc định hiện tất cả.</p>
+  <ul>
+    <li><b>Breakpoint</b> (nút ghi <i>"All breakpoints ▾"</i>, hoặc <i>"Desktop 1440, Tablet 834 ▾"</i> khi chọn một phần): tick màn nào thì canvas có hàng của màn đó. Luôn giữ ít nhất 1: bỏ tick All thì còn breakpoint đầu tiên.</li>
+    <li><b>States</b> (<i>"States: all"</i>, <i>"States: empty, error"</i>, hoặc <i>"States: off"</i>): tick state nào thì chỉ state đó có khung (ở breakpoint đầu tiên đang chọn), kể cả các section <code>kind: states</code> khai báo trong <code>design.json</code>. Không có state nào khai báo thì menu ẩn.</li>
+    <li>Ô All có dấu gạch khi chỉ chọn một phần. Breakpoint/state mới thêm vào <code>design.json</code> tự hiện nếu đang chọn All.</li>
+    <li>Lựa chọn được nhớ trong trình duyệt (localStorage), mở lại Studio vẫn giữ. Bấm ra ngoài để đóng menu.</li>
+  </ul>
+  <h3>Chụp màn thiết kế ngay trên Studio</h3>
+  <ul>
+    <li><b>Chụp hết</b>: nút <b>máy ảnh</b> trên thanh công cụ chụp mọi màn của mọi trang (cả Design System), theo breakpoint/state/theme đang chọn ở 2 menu. Màn xuất hiện ở nhiều trang chỉ chụp một lần.</li>
+    <li><b>Chụp từng màn</b>: vào Present (<kbd>P</kbd> hoặc bấm đúp tiêu đề khung, có thể bật Fullscreen), đi tới màn cần chụp (← →, bấm link trong prototype, đổi Breakpoint/State trên thanh), bấm <b>Screenshot</b>: chụp đúng màn đang xem, lưu vào thư mục và trình duyệt tải PNG về.</li>
+    <li>Ảnh lưu ở <code>.dfw/shots/studio/&lt;giờ&gt;/&lt;màn&gt;__&lt;biến thể&gt;__&lt;bp&gt;[__theme][__state].png</code>, chụp cả chiều cao trang, không dính lớp chọn/comment của Studio. Thông báo góc dưới ghi số ảnh và thư mục.</li>
+    <li>Dùng chung bộ chụp với <code>dfw shoot</code> (mục 16): server Studio gọi <code>screenshot()</code> trong <code>runtime.mjs</code> qua API <code>POST /__dfw/api/shoot</code>; chỉ nhận URL thiết kế của chính Studio, tối đa 200 khung một lần, một lượt chụp tại một thời điểm.</li>
+  </ul>
+  <h3>Viết comment để được sửa đúng</h3>
+  <ul>
+    <li>Mỗi comment một thay đổi, ghim đúng phần tử.</li>
+    <li>Nói kết quả mong muốn: <i>"Cột trạng thái nên là badge có màu"</i>, không chỉ <i>"cột này xấu"</i>.</li>
+    <li>Thay đổi toàn hệ thống thì nói rõ: <i>"Dùng font này cho cả sản phẩm"</i> → Claude đổi token, không sửa từng màn.</li>
+    <li>Claude đánh dấu <b>fixed</b> → bạn kiểm rồi Resolve, hoặc Reopen kèm trả lời.</li>
+  </ul>
+</section>
+
+<!-- 21 -->
+<section id="commands">
+  <h2><small>Hướng dẫn</small>21. Bảng lệnh</h2>
+  <p class="lead">Bình thường Claude tự chạy các lệnh này; bạn dùng khi muốn xem trạng thái hoặc làm tay trong terminal. Mỗi lệnh có ghi: làm gì, khi nào dùng, và ví dụ. Mã thoát 2 nghĩa là có lỗi MUST. <code>dfw help</code> in danh sách gốc bằng tiếng Anh.</p>
+
+  <h3>21.1 Quy trình (trạng thái, phase, cổng duyệt)</h3>
+  <table>
+    <thead><tr><th>Lệnh</th><th>Làm gì</th><th>Khi nào dùng · ví dụ</th></tr></thead>
+    <tbody>
+      <tr><td><code>dfw init --mode &lt;mode&gt; --product "&lt;tên&gt;"</code></td><td>Bắt đầu dfw trong project: tạo <code>.dfw/</code> (state, config, decisions, .gitignore), chép <code>PRODUCT.md</code>, <code>DESIGN.md</code>, khung <code>design/</code>, build token.</td><td>Lần đầu trong project. <code>dfw init --mode new --product "Asset App"</code></td></tr>
+      <tr><td><code>dfw status [--json]</code></td><td>In mode, phase, cổng đã/chưa duyệt, phiên bản thiết kế, số comment, và dòng <code>next:</code> gợi ý bước tiếp theo.</td><td>Bất cứ lúc nào muốn biết đang ở đâu.</td></tr>
+      <tr><td><code>dfw mode &lt;mode&gt;</code></td><td>Đổi loại công việc; tính lại cổng được miễn.</td><td>Đang làm mới mà chuyển sang chỉ sửa nhỏ: <code>dfw mode quick-change</code></td></tr>
+      <tr><td><code>dfw phase &lt;phase&gt; [--force --reason "…"]</code></td><td>Chuyển sang phase khác nếu đủ cổng; <code>--force</code> bỏ qua điều kiện nhưng ghi lý do vào lịch sử.</td><td>Sau khi duyệt G1: <code>dfw phase system</code></td></tr>
+      <tr><td><code>dfw approve &lt;G1|DS|G2|G3|G4&gt; --note "…"</code></td><td>Ghi nhận bạn đã duyệt một cổng; <code>--note</code> bắt buộc ghi rõ duyệt cái gì. Mỗi cổng có kiểm tra riêng (mục 12). G2 còn chụp và khoá thiết kế.</td><td>Chỉ khi bạn đã nói duyệt. <code>dfw approve G2 --note "4 màn, 3 breakpoint"</code></td></tr>
+      <tr><td><code>… --accept-findings</code></td><td>Cho duyệt DS/G2 dù còn lỗi MUST; danh sách lỗi được ghi kèm vào quyết định.</td><td>Khi bạn chấp nhận lỗi đó có chủ đích.</td></tr>
+      <tr><td><code>… --accept-open-comments</code></td><td>Cho duyệt G2 dù còn comment chưa xong.</td><td>Hiếm; comment còn lại để vòng sau.</td></tr>
+      <tr><td><code>dfw reopen --reason "…"</code></td><td>Mở lại thiết kế đã duyệt thành phiên bản mới (v2): mở khoá <code>design/</code>, xoá G2/G4, phase về concepts. Bản v1 vẫn giữ.</td><td>Muốn đổi thiết kế sau G2.</td></tr>
+      <tr><td><code>dfw verify-snapshot [v1]</code></td><td>Kiểm bản chụp đã duyệt không bị sửa (so sha256 với <code>approval.lock.json</code>).</td><td>Trước khi code hoặc khi nghi ngờ ai đó sửa.</td></tr>
+      <tr><td><code>dfw decide --level &lt;1-5&gt; --topic &lt;t&gt; "…" [--overrides "…"]</code></td><td>Ghi một quyết định vào <code>.dfw/decisions.jsonl</code> kèm cấp ưu tiên (1 = của bạn … 5 = skill ngoài).</td><td><code>dfw decide --level 1 --topic brand "Giữ màu tím thương hiệu"</code></td></tr>
+      <tr><td><code>dfw decisions [--json]</code></td><td>Liệt kê các quyết định đã ghi.</td><td>Xem lại vì sao đã chọn thế này.</td></tr>
+      <tr><td><code>dfw pause</code> / <code>dfw resume</code></td><td>Tắt / bật lại toàn bộ cổng và hook cho project này.</td><td>Tạm làm việc khác không liên quan thiết kế.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>21.2 Design system</h3>
+  <table>
+    <thead><tr><th>Lệnh</th><th>Làm gì</th><th>Khi nào dùng · ví dụ</th></tr></thead>
+    <tbody>
+      <tr><td><code>dfw style list</code></td><td>Liệt kê 12 style guide có sẵn.</td><td>Xem có những phong cách nào.</td></tr>
+      <tr><td><code>dfw style search &lt;từ&gt;</code></td><td>Tìm style guide theo từ khoá/tag.</td><td><code>dfw style search finance dense</code></td></tr>
+      <tr><td><code>dfw style show &lt;id&gt;</code></td><td>Xem chi tiết: ẩn dụ, bảng màu có tên + luật dùng, cặp font, motif, nên/không nên.</td><td><code>dfw style show ops-dense</code></td></tr>
+      <tr><td><code>dfw style match [--brief …]</code></td><td>Chấm điểm các style guide theo các trục tính cách trong <code>design/system/brief.json</code>, kèm lý do.</td><td>Phase direction, để gợi ý hướng.</td></tr>
+      <tr><td><code>dfw style apply &lt;id&gt; [--fonts latin]</code></td><td>Biến style guide thành token + font + motif cho project. <code>--fonts latin</code> = chỉ font tiếng Anh.</td><td>Sau G1. <code>dfw style apply ops-dense</code></td></tr>
+      <tr><td><code>dfw system init [--style &lt;id&gt; | --preset crisp|soft|industrial] [--only a,b] [--force]</code></td><td>Chép component kit vào <code>design/system/components/</code> và token khởi đầu (từ style hoặc preset). Không ghi đè nếu thiếu <code>--force</code>. <code>--only</code> chỉ lấy vài component.</td><td>Đầu phase system. <code>dfw system init --preset soft</code></td></tr>
+      <tr><td><code>dfw system presets</code></td><td>Liệt kê 3 preset.</td><td>—</td></tr>
+      <tr><td><code>dfw system options a b [c]</code></td><td>Tạo 2–3 theme thử (<code>opt-a</code>…) từ style/preset để so trên cùng màn hình trong Studio.</td><td>Khi bạn chưa chắc chọn phong cách nào.</td></tr>
+      <tr><td><code>dfw system choose &lt;tên&gt;</code></td><td>Lấy một theme thử làm token chính, xoá các theme thử.</td><td>Sau khi so xong.</td></tr>
+      <tr><td><code>dfw system list [--json]</code></td><td>Liệt kê component, variant, size, prop đang có.</td><td>Xem trong kho có gì trước khi dựng màn.</td></tr>
+      <tr><td><code>dfw system audit [--json]</code></td><td>Review cấp senior: tương phản, màu nhấn trùng màu trạng thái, xám, số hue, nhịp chữ, lý do trong DESIGN.md.</td><td>Trước khi duyệt DS.</td></tr>
+      <tr><td><code>dfw palette build --brand &lt;hex|hue&gt; …</code></td><td>Sinh dải màu OKLCH, chọn vai trò theo độ tương phản, màu trạng thái hài hoà.</td><td><code>dfw palette build --brand "#3b5bdb"</code></td></tr>
+      <tr><td><code>dfw type scale --base 16 --ratio 1.2 [--display-ratio 1.333] [--write]</code></td><td>Tính thang cỡ chữ; <code>--write</code> ghi vào token.</td><td>Chỉnh nhịp chữ.</td></tr>
+      <tr><td><code>dfw build</code> (= <code>dfw tokens build</code>)</td><td>Build <code>tokens.css</code> và <code>components.css</code>. Hook đã tự làm khi sửa file.</td><td>Khi sửa file bên ngoài Claude.</td></tr>
+      <tr><td><code>dfw icons search &lt;từ&gt;</code> / <code>add &lt;tên…&gt;</code> / <code>list</code></td><td>Tìm icon Lucide, chép icon vào <code>design/system/icons/</code>, xem icon đang dùng.</td><td><code>dfw icons add package qr-code</code></td></tr>
+      <tr><td><code>dfw fonts check &lt;font…&gt;</code></td><td>Hỏi Google Fonts xem font có subset nào (vd. vietnamese).</td><td><code>dfw fonts check "Be Vietnam Pro"</code></td></tr>
+    </tbody>
+  </table>
+
+  <h3>21.3 Màn hình và kiểm tra</h3>
+  <table>
+    <thead><tr><th>Lệnh</th><th>Làm gì</th><th>Khi nào dùng · ví dụ</th></tr></thead>
+    <tbody>
+      <tr><td><code>dfw blueprint [list|&lt;màn&gt;] [--json]</code></td><td>In blueprint từng màn: mục tiêu, bố cục, phần trên màn hình đầu, khoảng dữ liệu, phản hồi.</td><td>Thống nhất trước khi dựng HTML. <code>dfw blueprint dashboard</code></td></tr>
+      <tr><td><code>dfw lint [file…] [--json]</code></td><td>Chỉ chạy luật tĩnh của dfw (nhanh, ~ms).</td><td>Kiểm nhanh một file vừa sửa.</td></tr>
+      <tr><td><code>dfw layout check [--screen a,b] [--bp ids] [--states] [--changed]</code></td><td>Render thật bằng Chrome và đo chồng lấn, tràn, bị cắt, neo, khoảng trống, độ nhất quán. <code>--states</code> kiểm cả loading/empty/error; <code>--changed</code> chỉ màn đã đổi.</td><td><code>dfw layout check --screen dashboard --bp mobile</code></td></tr>
+      <tr><td><code>dfw check [file… | --url &lt;u&gt;] [--json]</code></td><td>Kiểm đầy đủ: lint + DS audit + Impeccable + Hallmark sloplint (+ Taste copy-lint). <code>--url</code> kiểm app đang chạy.</td><td>Cuối mỗi vòng sửa, trước G2.</td></tr>
+      <tr><td><code>dfw check --setup</code></td><td>Tải engine của Impeccable để <code>check</code> dùng được.</td><td>Một lần sau khi cài (install đã chạy).</td></tr>
+      <tr><td><code>dfw shoot [--screen &lt;id&gt; | --page &lt;id&gt;] [--variant] [--bp] [--state | --states] [--theme | --themes] [--system]</code></td><td>Chụp màn thiết kế ra PNG (trong <code>.dfw/shots/</code>), một lần mở trình duyệt cho nhiều ảnh.</td><td><code>dfw shoot --page borrow --states</code></td></tr>
+      <tr><td><code>dfw shoot --url &lt;u&gt; --out &lt;file&gt; [--bp …]</code></td><td>Chụp một URL bất kỳ (app thật). Nhiều breakpoint thì tên file thêm <code>__&lt;bp&gt;</code>.</td><td>Phase verify. <code>dfw shoot --url http://localhost:5173 --out app.png</code></td></tr>
+      <tr><td><code>dfw handoff</code></td><td>Sinh <code>design/handoff/v&lt;N&gt;.md</code> từ mẫu: tài liệu bàn giao cho code.</td><td>Sau G2.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>21.4 Studio và comment</h3>
+  <table>
+    <thead><tr><th>Lệnh</th><th>Làm gì</th><th>Khi nào dùng · ví dụ</th></tr></thead>
+    <tbody>
+      <tr><td><code>dfw studio start [--port 4600]</code></td><td>Chạy server Studio nền; in địa chỉ để mở trình duyệt.</td><td>Bắt đầu review.</td></tr>
+      <tr><td><code>dfw studio status</code> / <code>stop</code></td><td>Xem Studio có chạy không / tắt.</td><td>Studio không mở được.</td></tr>
+      <tr><td><code>dfw comments [list] [--status open|…|active] [--json]</code></td><td>Liệt kê comment; <code>active</code> = những cái chưa xong.</td><td>Xem còn bao nhiêu việc.</td></tr>
+      <tr><td><code>dfw comments show &lt;id&gt;</code></td><td>Xem đầy đủ một comment: phần tử, file:dòng, thread.</td><td><code>dfw comments show fb_007</code></td></tr>
+      <tr><td><code>dfw comments ack &lt;id&gt; [--message …]</code></td><td>Đánh dấu "đã nhận, đang xử lý".</td><td>Claude bắt đầu sửa.</td></tr>
+      <tr><td><code>dfw comments fixed &lt;id&gt; --message "…"</code></td><td>Đánh dấu đã sửa, bắt buộc mô tả đã đổi gì.</td><td>Sửa xong, chờ bạn xác nhận.</td></tr>
+      <tr><td><code>dfw comments reply &lt;id&gt; --message "…"</code></td><td>Thêm trả lời vào thread, không đổi trạng thái.</td><td>Hỏi lại cho rõ.</td></tr>
+      <tr><td><code>dfw comments dismiss &lt;id&gt; --message "…"</code></td><td>Bỏ comment, kèm lý do.</td><td>Chỉ khi bạn đã đồng ý bỏ.</td></tr>
+      <tr><td><code>dfw comments resolve &lt;id&gt; --by user</code></td><td>Đóng comment.</td><td>Chỉ khi bạn xác nhận (Studio làm việc này khi bạn bấm Resolve).</td></tr>
+      <tr><td><code>dfw comments add --json '{…}'</code></td><td>Thêm comment từ nguồn khác (adapter, công cụ ngoài).</td><td>Tích hợp.</td></tr>
+      <tr><td><code>dfw comments new-round</code></td><td>Mở phiên review mới (đóng phiên cũ).</td><td>Bắt đầu một vòng góp ý mới.</td></tr>
+      <tr><td><code>dfw comments wait [--timeout 3600]</code></td><td>Chờ tới khi có comment mới rồi thoát (Claude chạy nền để được đánh thức).</td><td>Trong lúc bạn đang review.</td></tr>
+      <tr><td><code>dfw comments inbox [--peek]</code></td><td>Comment chưa đưa cho Claude (đúng cái hook sẽ chèn); <code>--peek</code> chỉ xem, không đánh dấu.</td><td>Kiểm tra comment có tới Claude không.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>21.5 Stack, cài đặt, cấu hình</h3>
+  <table>
+    <thead><tr><th>Lệnh</th><th>Làm gì</th><th>Khi nào dùng · ví dụ</th></tr></thead>
+    <tbody>
+      <tr><td><code>dfw stack detect [--write]</code></td><td>Đọc project (package.json, framework, cách viết style) và đoán stack; <code>--write</code> lưu nháp vào <code>.dfw/stack.json</code>.</td><td>Phase stack, project đã có code.</td></tr>
+      <tr><td><code>dfw stack set --json '{…}'</code></td><td>Ghi stack đề xuất; nếu đã có G3 thì G3 bị xoá để duyệt lại.</td><td>Sau khi bàn với bạn.</td></tr>
+      <tr><td><code>dfw lang status | set &lt;code&gt; [--session &lt;id&gt;]</code></td><td>Xem / đặt ngôn ngữ trao đổi cho phiên hiện tại.</td><td><code>dfw lang set vi</code></td></tr>
+      <tr><td><code>dfw config get [key]</code></td><td>Xem cấu hình đã gộp các lớp.</td><td><code>dfw config get gate</code></td></tr>
+      <tr><td><code>dfw config set &lt;key&gt; &lt;value&gt; [--global|--project|--local]</code></td><td>Đổi một cấu hình ở lớp chọn (mặc định project).</td><td><code>dfw config set checks.layoutOnStop false</code></td></tr>
+      <tr><td><code>dfw doctor</code></td><td>Kiểm môi trường: runtime (binary/Node), phiên bản Node, trình duyệt, plugin, từng host (CLI có không, dfw đã cài chưa), project.</td><td>Khi có gì bất thường.</td></tr>
+      <tr><td><code>dfw version</code></td><td>In phiên bản và đang chạy bằng binary hay Node.</td><td>—</td></tr>
+      <tr><td><code>dfw setup --browser</code></td><td>Tải Chrome chạy ẩn chính thức (~105 MB), chỉ khi máy không có trình duyệt nào.</td><td>Máy chủ, CI.</td></tr>
+      <tr><td><code>dfw setup --binary</code></td><td>Tải binary đúng phiên bản và kiểm SHA-256.</td><td>Đang chạy bằng Node, muốn chuyển sang binary.</td></tr>
+      <tr><td><code>dfw install [--host auto|claude|copilot|all] [--scope user|project|local] [--no-binary] [--no-runtime]</code></td><td>Đăng ký marketplace + 8 plugin với từng host (auto = mọi host có CLI trên máy; all = mọi host được hỗ trợ, thiếu CLI thì báo lỗi), tải binary, kiểm trình duyệt, chạy doctor. Với Copilot còn tạo link <code>~/.local/bin/dfw</code>.</td><td>Cài lần đầu hoặc cập nhật.</td></tr>
+      <tr><td><code>dfw uninstall [--host …] [--scope …]</code></td><td>Gỡ plugin và marketplace ở từng host; file trong project giữ nguyên.</td><td>—</td></tr>
+      <tr><td><code>dfw hook &lt;tên&gt; [--host claude|copilot]</code></td><td>Chạy một hook với JSON từ stdin; host gọi lệnh này, <code>--host</code> chọn định dạng output.</td><td>Thử hook bằng tay (mục 11).</td></tr>
+    </tbody>
+  </table>
+
+  <h3>21.6 Lệnh của repo (khi phát triển dfw)</h3>
+  <table>
+    <thead><tr><th>Lệnh</th><th>Làm gì</th></tr></thead>
+    <tbody>
+      <tr><td><code>npm run build</code></td><td>Ghép <code>plugins/dfw</code>, dựng 7 plugin skill, viết marketplace và notices.</td></tr>
+      <tr><td><code>npm run build:check</code></td><td>Build vào thư mục tạm và so với <code>plugins/</code> đã commit.</td></tr>
+      <tr><td><code>npm test</code> / <code>npm run test:e2e</code></td><td>Unit test / test Studio bằng Playwright.</td></tr>
+      <tr><td><code>npm run validate</code></td><td>Kiểm marketplace: cấu trúc, lock, file bắt buộc, không có hook ngoài, conflict-lint.</td></tr>
+      <tr><td><code>npm run skills -- status | check | propose &lt;id&gt; | apply &lt;id&gt; | rollback &lt;id&gt; | history</code></td><td>Quản lý phiên bản 7 skill ngoài (mục 10).</td></tr>
+      <tr><td><code>npm run styles</code> / <code>presets</code> / <code>icons</code></td><td>Sinh lại style guide / preset / bộ icon.</td></tr>
+      <tr><td><code>node scripts/build-binary.mjs [--node &lt;exe&gt;] [--out dist]</code></td><td>Build binary cho máy hiện tại.</td></tr>
+      <tr><td><code>node scripts/install.mjs --source "$PWD"</code></td><td>Cài dfw từ thư mục repo trên máy.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- 22 -->
+<section id="improve">
+  <h2><small>Hướng dẫn</small>22. Muốn cải thiện thì sửa ở đâu</h2>
+  <p class="lead">Luôn sửa trong <code>core/</code>, <code>adapters/</code>, <code>registry/</code>, <code>overlays/</code> hoặc <code>scripts/</code>. Không sửa <code>plugins/</code> (sẽ bị build ghi đè, và CI báo lỗi vì không khớp).</p>
+
+  <h3>22.1 Bảng tra</h3>
+  <table>
+    <thead><tr><th>Muốn cải thiện</th><th>Sửa file</th><th>Sửa gì</th><th>Kiểm bằng</th></tr></thead>
+    <tbody>
+      <tr><td colspan="4"><b>Cách Claude làm việc (văn bản hướng dẫn)</b></td></tr>
+      <tr><td>Claude hỏi discovery thiếu/thừa</td><td><code>core/workflow/references/phase-discovery.md</code>, <code>core/templates/PRODUCT.md</code></td><td>Danh sách câu hỏi, cách gom câu hỏi, mục trong PRODUCT.md</td><td>Chạy thử mode new trên project test</td></tr>
+      <tr><td>Các hướng G1 nhàm, giống nhau</td><td><code>phase-direction.md</code>, <code>core/workflow/agents/design-director.md</code></td><td>Yêu cầu độ khác biệt giữa các hướng, nguồn tham khảo, định dạng brief</td><td>Chạy phase direction</td></tr>
+      <tr><td>Design system thiếu chiều sâu</td><td><code>phase-system.md</code>, <code>design-system-thinking.md</code></td><td>Bước dựng token, tiêu chí quyết định màu/chữ</td><td><code>dfw system audit</code></td></tr>
+      <tr><td>Màn hình bố cục kém, hay trống/chật</td><td><code>layout-patterns.md</code>, <code>quality-rubric.md</code>, <code>phase-concepts.md</code></td><td>Mẫu bố cục, tiêu chí chấm, cách chia việc cho screen-builder</td><td><code>dfw layout check --states</code></td></tr>
+      <tr><td>Claude đưa bản nháp còn lỗi</td><td><code>quality-rubric.md</code></td><td>Thêm tiêu chí vào 2 vòng tự chấm</td><td>Review trên Studio</td></tr>
+      <tr><td>Cách xử lý comment</td><td><code>phase-review.md</code> (mục "Applying comments")</td><td>Thứ tự ack → sửa → fixed, khi nào sửa ở token/master thay vì màn</td><td>Một vòng comment thật</td></tr>
+      <tr><td>Code sang framework chưa chuẩn</td><td><code>core/workflow/stacks/&lt;framework&gt;.md</code>, <code>phase-implement.md</code></td><td>Cách map token → CSS variables, cấu trúc component, quy ước</td><td>Phase implement</td></tr>
+      <tr><td>Luật bắt buộc, bảng phase, vai trò</td><td><code>core/workflow/SKILL.md</code></td><td>§0 thứ tự mỗi lần gọi, §1 luật, §3 vai trò. Giữ ngắn: Claude đọc file này mỗi lần</td><td>Mở phiên mới, gọi /dfw</td></tr>
+      <tr><td>Agent làm sai vai / thiếu quyền</td><td><code>core/workflow/agents/*.md</code></td><td>Mô tả, <code>tools</code>/<code>disallowedTools</code>, hướng dẫn</td><td>Giao việc cho agent đó</td></tr>
+      <tr><td colspan="4"><b>Skill bên ngoài</b></td></tr>
+      <tr><td>Phase nào gọi skill nào</td><td><code>core/workflow/references/phase-*.md</code></td><td>Đoạn "skills" của phase; giữ tối đa 1 chính + 2 phụ</td><td>Phase tương ứng</td></tr>
+      <tr><td>Hai skill ngoài mâu thuẫn</td><td><code>core/workflow/policies/conflicts.md</code></td><td>Thêm phán quyết (ai thắng, trong phạm vi nào, vì sao)</td><td>—</td></tr>
+      <tr><td>Skill ngoài tự kích hoạt lung tung, bật telemetry, ghi settings</td><td><code>overlays/&lt;id&gt;.json</code></td><td>Thao tác <code>description</code> / <code>replace</code> / <code>write</code> / <code>dropKeys</code>, kèm <code>why</code></td><td><code>npm run build</code> + <code>npm run validate</code></td></tr>
+      <tr><td>Lên bản mới của skill ngoài</td><td>(qua script)</td><td><code>npm run skills -- propose &lt;id&gt;</code> → đọc báo cáo → <code>apply</code></td><td>Báo cáo trong <code>reports/proposals/</code></td></tr>
+      <tr><td>Thêm một skill ngoài mới</td><td><code>registry/skills.json</code>, <code>registry/xref.json</code>, <code>overlays/&lt;id&gt;.json</code>, <code>core/manifest.json</code> (<code>dependencies</code>), reference của phase dùng nó</td><td>Khai báo repo, thư mục lấy, giấy phép, vai trò; file bắt buộc; overlay; rồi <code>skills propose</code> + <code>apply</code> để khoá commit</td><td><code>npm run build</code>, <code>validate</code>, <code>npm test</code></td></tr>
+      <tr><td>Bắt thêm câu xung đột trong skill ngoài</td><td><code>registry/stack-lint.json</code></td><td>Thêm mẫu regex + ghi chú</td><td><code>npm run validate</code></td></tr>
+      <tr><td colspan="4"><b>Design system và kit</b></td></tr>
+      <tr><td>Component kit (nút, bảng, form…)</td><td><code>core/kits/base/components/&lt;tên&gt;.html</code></td><td>Style dùng token, template, variant, prop, ví dụ <code>&lt;dfw-examples&gt;</code></td><td><code>npm test</code> (system.test), <code>dfw system init --force</code> trên project test</td></tr>
+      <tr><td>Thêm style guide</td><td><code>scripts/make-styles.mjs</code> (không sửa JSON tay)</td><td>Thêm khai báo guide: ẩn dụ, bảng màu, cặp font, motif, do/don't</td><td><code>npm run styles</code> (tự kiểm tương phản)</td></tr>
+      <tr><td>Preset crisp/soft/industrial</td><td><code>scripts/make-presets.mjs</code></td><td>Giá trị token của preset</td><td><code>npm run presets</code></td></tr>
+      <tr><td>Thuật toán màu, tương phản</td><td><code>core/lib/color.mjs</code>, <code>dsaudit.mjs</code></td><td>Cách dựng dải OKLCH, chọn vai trò, luật audit</td><td><code>npm test</code> (color.test)</td></tr>
+      <tr><td>Cặp font gợi ý</td><td><code>core/workflow/references/type-pairings.md</code></td><td>Thêm/bớt cặp, ghi subset</td><td><code>dfw fonts check</code></td></tr>
+      <tr><td>Trang Design System</td><td><code>core/lib/system-page.mjs</code></td><td>Bố cục, phần hiển thị</td><td>Studio, page "Design System"</td></tr>
+      <tr><td>Icon</td><td><code>scripts/vendor-icons.mjs</code></td><td>Đổi tag Lucide</td><td><code>npm run icons</code></td></tr>
+      <tr><td colspan="4"><b>Kiểm tra tự động</b></td></tr>
+      <tr><td>Thêm luật lint</td><td><code>core/lib/lint.mjs</code></td><td>Thêm luật với mã mới, mức error/warn/info</td><td>Test trong <code>tests/unit/dfw.test.mjs</code></td></tr>
+      <tr><td>Layout check bắt sai / bỏ sót</td><td><code>core/lib/layout.mjs</code></td><td>Ngưỡng void/overlap, loại finding, đoạn đo chạy trong trang</td><td><code>dfw layout check</code> trên project test</td></tr>
+      <tr><td>Mức nghiêm trọng, gom kết quả, tool ngoài</td><td><code>core/lib/check.mjs</code>, <code>locate.mjs</code></td><td>Map severity, cách gọi tool, timeout</td><td><code>dfw check</code></td></tr>
+      <tr><td colspan="4"><b>Quy trình, cổng, hook</b></td></tr>
+      <tr><td>Luật chuyển phase, mode mới</td><td><code>core/lib/state.mjs</code> (+ <code>references/modes.md</code>, bảng trong SKILL.md)</td><td><code>MODES</code>, <code>transitionBlockers</code>, <code>approveGate</code></td><td><code>npm test</code></td></tr>
+      <tr><td>Điều kiện khi duyệt một cổng</td><td><code>core/lib/cli.mjs</code> (<code>cmdApprove</code>), <code>freeze.mjs</code></td><td>Kiểm gì trước khi ghi nhận, việc làm thêm</td><td><code>npm test</code></td></tr>
+      <tr><td>Chặn/cho ghi file</td><td><code>core/lib/gate.mjs</code>; hoặc config <code>gate.allow</code>, <code>gate.immutable</code>, <code>gate.designPaths</code></td><td>Logic <code>decideWrite</code>; cho một project: <code>dfw config set gate.allow '["docs/**"]' --project</code></td><td><code>echo '{…}' | dfw hook pre-tool-use</code></td></tr>
+      <tr><td>Hỗ trợ host mới, hoặc sửa khác biệt của một host</td><td><code>core/lib/host.mjs</code>, <code>adapters/&lt;host&gt;/</code>, <code>registry/skills.json</code> (<code>local</code>), <code>core/lib/install.mjs</code></td><td>Theo mục 18.5</td><td><code>npm test</code> (host.test), <code>npm run validate</code></td></tr>
+      <tr><td>Chữ khác nhau giữa các host trong skill</td><td><code>core/workflow/*.md</code> (placeholder <code>{{…}}</code> hoặc khối <code>&lt;!-- host:… --&gt;</code>), giá trị trong <code>host.mjs</code></td><td>Không viết tên tool/biến riêng của một host thẳng vào core</td><td><code>npm run validate</code></td></tr>
+      <tr><td>Hành vi hook</td><td><code>core/lib/hooks.mjs</code>; matcher/timeout ở <code>adapters/claude-code/plugin/hooks/hooks.json</code></td><td>Nội dung context, điều kiện chạy, giới hạn số lỗi</td><td>Mô phỏng stdin như mục 11</td></tr>
+      <tr><td colspan="4"><b>Studio, comment, CLI, cài đặt</b></td></tr>
+      <tr><td>Giao diện Studio</td><td><code>core/studio/app.html</code>, <code>app.css</code>, <code>app.js</code></td><td>Giao diện, phím tắt, panel, Present, pin</td><td><code>npm run test:e2e</code> + mở Studio</td></tr>
+      <tr><td>Tương tác trong khung thiết kế</td><td><code>core/studio/overlay.js</code></td><td>Hover, chọn, đo, sửa chữ</td><td>Mở Studio</td></tr>
+      <tr><td>API, tải lại, phục vụ file</td><td><code>core/studio/server.mjs</code>, <code>pages.mjs</code></td><td>Route, SSE, cách nhóm page</td><td><code>npm run test:e2e</code></td></tr>
+      <tr><td>Dữ liệu comment, đưa comment cho Claude</td><td><code>core/lib/comments.mjs</code>, <code>inbox.mjs</code>, <code>core/schemas/feedback.schema.json</code></td><td>Trường, trạng thái, cách đưa</td><td><code>npm test</code> (inbox.test)</td></tr>
+      <tr><td>Nội dung handoff</td><td><code>core/templates/handoff.md</code>, <code>cmdHandoff</code> trong <code>cli.mjs</code></td><td>Mục, dữ liệu điền vào</td><td><code>dfw handoff</code></td></tr>
+      <tr><td>Thêm lệnh mới</td><td><code>core/lib/cli.mjs</code> (+ module mới trong <code>core/lib/</code>)</td><td>Nhánh trong <code>main</code>, dòng trong help, README, test</td><td><code>npm test</code></td></tr>
+      <tr><td>Render, chụp</td><td><code>core/lib/cdp.mjs</code>, <code>runtime.mjs</code></td><td>Cờ trình duyệt, song song, cache font</td><td><code>dfw shoot</code>, <code>layout check</code></td></tr>
+      <tr><td>Cài đặt, binary</td><td><code>core/lib/install.mjs</code>, <code>binary.mjs</code>, <code>install.sh</code>, <code>scripts/build-binary.mjs</code></td><td>Bước cài, tên file, nền tảng</td><td><code>node scripts/build-binary.mjs</code>, <code>sh -n install.sh</code></td></tr>
+      <tr><td>Tài liệu</td><td><code>README.md</code>, <code>docs/architecture*.html</code></td><td>—</td><td>Mở trình duyệt</td></tr>
+    </tbody>
+  </table>
+
+  <h3>22.2 Quy trình mỗi lần sửa</h3>
+  <figure class="fig">
+    <svg viewBox="0 0 960 150" role="img" aria-label="Quy trình sửa">
+      <defs><marker id="iv" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="s-arrow"/></marker></defs>
+      <rect x="10" y="30" width="140" height="70" rx="8" class="s-box"/><text x="22" y="54" class="s-t">1. Sửa nguồn</text><text x="22" y="74" class="s-xs">core/ adapters/</text><text x="22" y="90" class="s-xs">overlays/ registry/</text>
+      <rect x="170" y="30" width="140" height="70" rx="8" class="s-box"/><text x="182" y="54" class="s-t">2. Thử nhanh</text><text x="182" y="74" class="s-xm">node core/bin/</text><text x="182" y="90" class="s-xm">dfw.mjs …</text>
+      <rect x="330" y="30" width="140" height="70" rx="8" class="s-box"/><text x="342" y="54" class="s-t">3. Build</text><text x="342" y="74" class="s-xm">npm run build</text>
+      <rect x="490" y="30" width="150" height="70" rx="8" class="s-box"/><text x="502" y="54" class="s-t">4. Test</text><text x="502" y="74" class="s-xm">npm test</text><text x="502" y="90" class="s-xm">npm run validate</text>
+      <rect x="660" y="30" width="140" height="70" rx="8" class="s-box"/><text x="672" y="54" class="s-t">5. Cài lại</text><text x="672" y="74" class="s-xm">install --source</text><text x="672" y="90" class="s-xs">+ mở lại Claude</text>
+      <rect x="820" y="30" width="130" height="70" rx="8" class="s-core"/><text x="832" y="54" class="s-t">6. Thử thật</text><text x="832" y="74" class="s-xs">trên project test</text><text x="832" y="90" class="s-xs">→ commit, PR</text>
+      <path d="M150 65H168" class="s-line" marker-end="url(#iv)"/><path d="M310 65H328" class="s-line" marker-end="url(#iv)"/><path d="M470 65H488" class="s-line" marker-end="url(#iv)"/><path d="M640 65H658" class="s-line" marker-end="url(#iv)"/><path d="M800 65H818" class="s-line" marker-end="url(#iv)"/>
+      <text x="10" y="130" class="s-xs">Bước 2 dùng được ngay cho thay đổi trong core/lib (chạy thẳng mã nguồn). Thay đổi SKILL.md, agent, hook, reference phải qua bước 3–5 vì Claude Code đọc bản đã cài trong cache.</text>
+    </svg>
+  </figure>
+  <pre><code># 2. thử nhanh lệnh vừa sửa, ngay trong project test, chạy thẳng mã nguồn
+cd ~/projects/my-test-app
+node ~/path/to/design-workflow-skills/core/bin/dfw.mjs lint
+# 3–4.
+cd ~/path/to/design-workflow-skills
+npm run build && npm test && npm run build:check && npm run validate
+# 5. cài lại từ thư mục này rồi khởi động lại Claude Code
+node scripts/install.mjs --source "$PWD"</code></pre>
+
+  <h3>22.3 Ví dụ: thêm luật lint cấm <code>font-size</code> viết bằng px trong màn hình</h3>
+  <ol class="steps">
+    <li><b>Sửa luật</b>Trong <code>core/lib/lint.mjs</code>, ở nhóm luật CSS/màn hình, thêm mã <code>raw-font-size</code> mức <code>error</code> khi gặp <code>font-size: &lt;số&gt;px</code> ngoài token.</li>
+    <li><b>Thêm test</b>Trong <code>tests/unit/dfw.test.mjs</code>: một màn có <code>font-size:14px</code> phải ra <code>raw-font-size</code>; một màn dùng <code>var(--font-size-sm)</code> thì không.</li>
+    <li><b>Thử nhanh</b><code>node …/core/bin/dfw.mjs lint design/screens/dashboard/index.html</code> trong project test.</li>
+    <li><b>Ghi vào hướng dẫn</b>Nhắc trong <code>references/design-format.md</code> để Claude biết luật mới trước khi viết.</li>
+    <li><b>Build, test, cài lại</b>Như 22.2. Hook <code>post-tool-use</code> sẽ tự báo luật mới mỗi khi Claude sửa màn.</li>
+  </ol>
+
+  <h3>22.4 Ví dụ: muốn Claude dùng thêm Impeccable ở phase system</h3>
+  <ol class="steps">
+    <li>Mở <code>core/workflow/references/phase-system.md</code>, mục chọn skill: đặt <code>impeccable:impeccable</code> làm skill phụ, ghi rõ dùng lệnh nào (vd. critique trang DS trước khi đưa bạn).</li>
+    <li>Nếu nó mâu thuẫn với skill khác (vd. luật cấm font), thêm phán quyết vào <code>policies/conflicts.md</code>.</li>
+    <li><code>npm run build</code>, cài lại, chạy phase system trên project test và xem Claude có gọi đúng không.</li>
+  </ol>
+</section>
+
+<!-- 23 -->
+<section id="trouble">
+  <h2><small>Hướng dẫn</small>23. Xử lý sự cố</h2>
+  <table>
+    <thead><tr><th>Hiện tượng</th><th>Cách xử lý</th></tr></thead>
+    <tbody>
+      <tr><td>Có gì bất thường</td><td><code>dfw doctor</code>: kiểm runtime, Node, trình duyệt, plugin, trạng thái project.</td></tr>
+      <tr><td>"no browser found"</td><td>Cài Chrome/Edge, đặt <code>DFW_BROWSER=/đường/dẫn/chrome</code>, hoặc <code>dfw setup --browser</code>.</td></tr>
+      <tr><td>Claude nói không được viết code</td><td>Cổng ghi đang đúng: cần G2 và G3. <code>dfw status</code> cho biết thiếu gì.</td></tr>
+      <tr><td>Cần tạm bỏ cổng</td><td><code>dfw pause</code>, xong thì <code>dfw resume</code>.</td></tr>
+      <tr><td>Sửa thiết kế sau G2 bị chặn</td><td>Đúng thiết kế: <code>dfw reopen --reason "…"</code> tạo v2.</td></tr>
+      <tr><td>Studio không mở</td><td><code>dfw studio status</code>; <code>stop</code> + <code>start</code>; đổi cổng <code>--port 4700</code>; xem <code>.dfw/studio.log</code>.</td></tr>
+      <tr><td>Comment không tới Claude</td><td>Tới ở tin nhắn tiếp theo hoặc trước khi Claude dừng. <code>dfw comments inbox --peek</code> xem hàng chờ.</td></tr>
+      <tr><td>Sửa skill mà Claude vẫn làm như cũ</td><td>Chưa build hoặc chưa cài lại: <code>npm run build</code> → <code>install --source</code> → mở lại Claude Code.</td></tr>
+      <tr><td>CI báo <code>build --check</code> lệch</td><td>Đã sửa <code>plugins/</code> bằng tay hoặc quên build: sửa ở nguồn, <code>npm run build</code>, commit cả <code>plugins/</code>.</td></tr>
+      <tr><td>Binary chạy khác mã nguồn</td><td><code>DFW_NO_BINARY=1</code> để so.</td></tr>
+      <tr><td>macOS cảnh báo binary</td><td>Binary chỉ ký tạm; cài qua <code>curl | sh</code> thì không bị cảnh báo.</td></tr>
+      <tr><td>sloplint / copy-lint "unavailable"</td><td>Cài Node 22+.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- 24 -->
+<section id="dev">
+  <h2><small>Hướng dẫn</small>24. Phát triển và phát hành</h2>
+  <pre><code>npm run build            # core + adapter → plugins/dfw; 7 skill; marketplace; notices
+npm run build:check      # plugins/ có khớp nguồn không
+npm test                 # unit test
+npm run test:e2e         # e2e Studio (cần Playwright, chỉ dev)
+npm run validate         # kiểm marketplace
+npm run skills -- status | check | propose &lt;id&gt; | apply &lt;id&gt; | rollback &lt;id&gt;
+node scripts/build-binary.mjs   # binary cho máy hiện tại vào dist/</code></pre>
+  <h3>Phát hành một phiên bản</h3>
+  <ol class="steps">
+    <li><b>Nâng phiên bản</b>Ở <code>core/manifest.json</code> và <code>package.json</code> (marketplace và manifest từng host sinh ra khi build); rồi <code>npm run build</code>.</li>
+    <li><b>PR</b>CI <code>validate.yml</code> chạy test, build --check, validate. Merge vào main.</li>
+    <li><b>Tag</b><code>git tag v0.4.0 &amp;&amp; git push origin v0.4.0</code>. Tag phải khớp phiên bản plugin, CI kiểm.</li>
+    <li><b>CI release</b><code>release-binaries.yml</code> build 5 binary, chạy thử, tạo release kèm <code>SHA256SUMS</code>.</li>
+    <li><b>Người dùng cập nhật</b>Chạy lại <code>dfw install</code> (cập nhật marketplace, plugin, tải binary mới).</li>
+  </ol>
+  <ul>
+    <li>Giữ hook nhanh và luôn cho qua khi lỗi: chúng chạy ở mỗi lần sửa file và mỗi tin nhắn.</li>
+    <li>Mọi thứ người dùng thấy (file, commit) bằng tiếng Anh; chỉ phần trao đổi theo ngôn ngữ họ chọn.</li>
+  </ul>
+</section>
+</main>
+</div>
+</body>
+</html>

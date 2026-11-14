@@ -1,0 +1,28 @@
+/* Shared base styles for design screens. Values come from tokens only. */
+*, *::before, *::after { box-sizing: border-box; }
+html { color-scheme: light; overflow-x: clip; scrollbar-color: var(--color-border, #888) var(--color-canvas, transparent); }
+body { overflow-x: clip; }
+::selection { background: var(--color-accent-soft, #cde); color: var(--color-ink, inherit); }
+body {
+  margin: 0;
+  background: var(--color-canvas, var(--color-surface));
+  color: var(--color-ink);
+  font-family: var(--font-family-body);
+  line-height: 1.5;
+}
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* State switches for the Studio State menu (html[data-state]). Wrap alternatives in
+   .when-<state> / .unless-<state>; shown elements keep their own display. */
+html:not([data-state="empty"]) .when-empty, html:not([data-state="loading"]) .when-loading,
+html:not([data-state="error"]) .when-error, html:not([data-state="offline"]) .when-offline,
+html:not([data-state="warning"]) .when-warning, html:not([data-state="success"]) .when-success,
+html[data-state="empty"] .unless-empty, html[data-state="loading"] .unless-loading,
+html[data-state="error"] .unless-error, html[data-state="offline"] .unless-offline,
+html[data-state="warning"] .unless-warning, html[data-state="success"] .unless-success { display: none !important; }
+
+/* Visually hidden, still read by screen readers. */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }

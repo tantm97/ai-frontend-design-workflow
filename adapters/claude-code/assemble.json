@@ -1,6 +1,8 @@
 {
-  "$comment": "How the Claude Code plugin plugins/dfw is assembled from the agent-agnostic core and this adapter. Claude Code plugins must be self-contained, so core files are copied in. plugins/dfw is generated: edit core/ or adapters/claude-code/plugin/, then run npm run build.",
+  "$comment": "How a host plugin is assembled from the host-agnostic core and this adapter. Host plugins must be self-contained, so core files are copied in. Generated: edit core/ or adapters/<host>/plugin/, then run npm run build.",
+  "host": "claude",
   "plugin": "dfw",
+  "manifest": ".claude-plugin/plugin.json",
   "copy": [
     {
       "from": "core/bin",
@@ -31,16 +33,29 @@
       "to": "kits"
     },
     {
+      "from": "core/workflow/SKILL.md",
+      "to": "skills/dfw/SKILL.md",
+      "render": "text"
+    },
+    {
       "from": "core/workflow/references",
-      "to": "skills/dfw/references"
+      "to": "skills/dfw/references",
+      "render": "text"
     },
     {
       "from": "core/workflow/policies",
-      "to": "skills/dfw/policies"
+      "to": "skills/dfw/policies",
+      "render": "text"
     },
     {
       "from": "core/workflow/stacks",
-      "to": "skills/dfw/stacks"
+      "to": "skills/dfw/stacks",
+      "render": "text"
+    },
+    {
+      "from": "core/workflow/agents",
+      "to": "agents",
+      "render": "agent"
     },
     {
       "from": "adapters/claude-code/plugin",

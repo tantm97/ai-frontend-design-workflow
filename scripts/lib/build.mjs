@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fetchAt } from './git.mjs';
 import { loadOverlay, applyOverlay } from './overlay.mjs';
+import { renderText, getHost } from '../../core/lib/host.mjs';
 
 export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const CACHE = path.join(REPO_ROOT, '.cache', 'upstream');
@@ -89,9 +90,30 @@ export function buildPlugin(skill, sha, { outRoot = path.join(REPO_ROOT, 'plugin
   return upstream;
 }
 
-/** Assemble an agent adapter's plugin (e.g. plugins/dfw) from core/ + adapters/<agent>/. */
+/** Copilot (and similar hosts) custom agents: <name>.agent.md with name + description frontmatter. */
+function renderAgent(text, host) {
+  const m = text.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+  if (!m || host.id === 'claude') return renderText(text, host.id);
+  const keep = m[1].split('\n').filter((l) => /^(name|description):/.test(l));
+  return `---\n${keep.join('\n')}\n---\n${renderText(m[2], host.id)}`;
+}
+
+function renderTree(dest, kind, host) {
+  const files = fs.statSync(dest).isFile() ? [dest] : listFiles(dest).map((r) => path.join(dest, r));
+  for (const f of files) {
+    if (!f.endsWith('.md')) continue;
+    const text = fs.readFileSync(f, 'utf8');
+    if (kind === 'agent') {
+      fs.writeFileSync(f, renderAgent(text, host));
+      if (host.id !== 'claude' && !f.endsWith('.agent.md')) fs.renameSync(f, f.replace(/\.md$/, '.agent.md'));
+    } else fs.writeFileSync(f, renderText(text, host.id));
+  }
+}
+
+/** Assemble a host adapter's plugin (e.g. plugins/dfw, plugins/dfw-copilot) from core/ + adapters/<adapter>/. */
 export function assembleAdapter(agent = 'claude-code', { root = REPO_ROOT, outRoot = path.join(root, 'plugins') } = {}) {
   const spec = readJson(path.join(root, 'adapters', agent, 'assemble.json'));
+  const host = getHost(spec.host || 'claude');
   const dest = path.join(outRoot, spec.plugin);
   fs.rmSync(dest, { recursive: true, force: true });
   fs.mkdirSync(dest, { recursive: true });
@@ -99,28 +121,43 @@ export function assembleAdapter(agent = 'claude-code', { root = REPO_ROOT, outRo
     const from = path.join(root, c.from);
     if (!fs.existsSync(from)) throw new Error(`assemble ${agent}: ${c.from} does not exist`);
     copyEntry(from, path.join(dest, c.to));
+    if (c.render) renderTree(path.join(dest, c.to), c.render, host);
   }
+  // One manifest source (core/manifest.json) rendered in each host's format and location.
+  const core = readJson(path.join(root, 'core', 'manifest.json'));
+  const manifest = { ...core, name: spec.name || core.name, ...(spec.manifestExtra || {}) };
+  if (spec.manifest !== '.claude-plugin/plugin.json') delete manifest.dependencies; // kept in dfw.json
+  writeJson(path.join(dest, spec.manifest), manifest);
+  writeJson(path.join(dest, 'dfw.json'), { host: host.id, version: core.version, dependencies: core.dependencies || [] });
   fs.writeFileSync(
     path.join(dest, 'GENERATED.md'),
-    `# Generated directory\n\nThis plugin is assembled by \`npm run build\` from \`core/\` and \`adapters/${agent}/\` (see \`adapters/${agent}/assemble.json\`). Do not edit files here; edit the sources and rebuild.\n`,
+    `# Generated directory\n\nThis ${host.name} plugin is assembled by \`npm run build\` from \`core/\` and \`adapters/${agent}/\` (see \`adapters/${agent}/assemble.json\`). Do not edit files here; edit the sources and rebuild.\n`,
   );
-  return { plugin: spec.plugin, agent };
+  return { plugin: spec.plugin, agent, host: host.id, manifest: spec.manifest };
 }
 
+/**
+ * One marketplace per host format, same name ("dfw-marketplace") and same vendored skills:
+ * - .claude-plugin/marketplace.json (Claude Code): dfw -> ./plugins/dfw
+ * - .github/plugin/marketplace.json (GitHub Copilot): dfw -> ./plugins/dfw-copilot
+ */
 export function writeMarketplace(registry, lock, { root = REPO_ROOT } = {}) {
-  const plugins = [];
-  for (const l of registry.local || []) {
-    const pj = readJson(path.join(root, 'plugins', l.plugin, '.claude-plugin', 'plugin.json'));
-    plugins.push({ name: l.plugin, source: `./plugins/${l.plugin}`, description: l.description, version: pj.version, category: l.category });
-  }
-  for (const s of registry.skills) {
+  const skills = registry.skills.map((s) => {
     const sha = lock.skills[s.id]?.sha;
     if (!sha) throw new Error(`No lock entry for ${s.id}`);
-    plugins.push({ name: s.plugin, source: `./plugins/${s.plugin}`, description: s.description, version: `0.0.0-${sha.slice(0, 7)}`, category: 'design', license: s.license });
+    return { name: s.plugin, source: `./plugins/${s.plugin}`, description: s.description, version: `0.0.0-${sha.slice(0, 7)}`, category: 'design', license: s.license };
+  });
+  const out = {};
+  for (const l of registry.local || []) {
+    const spec = readJson(path.join(root, 'adapters', l.adapter, 'assemble.json'));
+    const pj = readJson(path.join(root, 'plugins', spec.plugin, spec.manifest));
+    const entry = { name: spec.name || spec.plugin, source: `./plugins/${spec.plugin}`, description: l.description, version: pj.version, category: l.category };
+    const file = l.marketplace || path.join('.claude-plugin', 'marketplace.json');
+    const mp = { name: registry.marketplace.name, owner: registry.marketplace.owner, metadata: { description: registry.marketplace.description }, plugins: [entry, ...skills] };
+    writeJson(path.join(root, file), mp);
+    out[file] = mp;
   }
-  const mp = { name: registry.marketplace.name, owner: registry.marketplace.owner, metadata: { description: registry.marketplace.description }, plugins };
-  writeJson(path.join(root, '.claude-plugin', 'marketplace.json'), mp);
-  return mp;
+  return out[path.join('.claude-plugin', 'marketplace.json')] || Object.values(out)[0];
 }
 
 export function writeNotices(registry, lock, { root = REPO_ROOT } = {}) {

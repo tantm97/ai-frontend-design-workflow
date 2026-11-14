@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dfw.local/schemas/feedback.schema.json",
+  "title": "dfw review session (feedback contract)",
+  "description": "Tool-independent visual feedback contract. Any review provider (dfw studio overlay, future Agentation/Penpot adapters) writes this shape to .dfw/reviews/rv_<timestamp>.json.",
+  "type": "object",
+  "required": ["schema", "id", "startedAt", "designVersion", "comments"],
+  "properties": {
+    "schema": { "const": 1 },
+    "id": { "type": "string", "pattern": "^rv_" },
+    "startedAt": { "type": "string", "format": "date-time" },
+    "closedAt": { "type": "string", "format": "date-time" },
+    "designVersion": { "type": "string", "pattern": "^v\\d+$" },
+    "comments": { "type": "array", "items": { "$ref": "#/$defs/comment" } }
+  },
+  "$defs": {
+    "comment": {
+      "type": "object",
+      "required": ["id", "createdAt", "comment", "status", "target", "thread"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^fb_\\d{3,}$" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "designVersion": { "type": "string" },
+        "screen": { "type": ["string", "null"], "description": "Screen id from design/design.json" },
+        "variant": { "type": ["string", "null"] },
+        "breakpoint": { "type": ["string", "null"] },
+        "state": { "type": ["string", "null"] },
+        "theme": { "type": ["string", "null"] },
+        "file": { "type": ["string", "null"], "description": "Project-relative design file" },
+        "target": {
+          "type": "object",
+          "properties": {
+            "dfwId": { "type": ["string", "null"], "description": "Stable element id (data-dfw-id)" },
+            "exact": { "type": "boolean", "description": "true when an element without its own data-dfw-id was picked (Alt-click)" },
+            "selector": { "type": "string", "description": "CSS selector, anchored on the nearest data-dfw-id" },
+            "source": { "type": ["string", "null"], "description": "file[:line] of the element in source" },
+            "tag": { "type": "string" },
+            "bbox": { "type": "array", "items": { "type": "number" }, "minItems": 4, "maxItems": 4, "description": "[x, y, width, height] in document CSS px at the given breakpoint" },
+            "viewportBbox": { "type": "array", "items": { "type": "number" }, "minItems": 4, "maxItems": 4 },
+            "a11y": { "type": "object", "properties": { "role": { "type": ["string", "null"] }, "name": { "type": "string" } } },
+            "text": { "type": "string" },
+            "styles": { "type": "object" },
+            "scroll": { "type": "array", "items": { "type": "number" } }
+          }
+        },
+        "comment": { "type": "string", "minLength": 1 },
+        "screenshot": { "type": ["string", "null"] },
+        "status": { "enum": ["open", "acknowledged", "fixed", "resolved", "reopened", "dismissed"] },
+        "thread": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["at", "by", "message"],
+            "properties": { "at": { "type": "string" }, "by": { "enum": ["user", "claude"] }, "message": { "type": "string" }, "status": { "type": "string" } }
+          }
+        },
+        "resolution": {
+          "type": ["object", "null"],
+          "properties": { "at": { "type": "string" }, "by": { "type": "string" }, "note": { "type": "string" }, "evidence": { "type": ["string", "null"] } }
+        },
+        "provider": { "type": "string" }
+      }
+    }
+  }
+}

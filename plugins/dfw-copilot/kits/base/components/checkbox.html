@@ -1,0 +1,12 @@
+<dfw-component name="checkbox" group="Inputs" props="label input-id checked hide-label" description="Checkbox with label. checked="1" checks it; hide-label="1" keeps the label for screen readers only (table row selection). The label text is the accessible name.">
+<style>
+.check { display: inline-flex; align-items: center; gap: var(--space-2); font: var(--font-weight-regular) var(--font-size-sm) / var(--font-leading-snug) var(--font-family-body); color: var(--color-ink); cursor: pointer; min-height: var(--size-target-min); }
+.check input { width: var(--size-icon-sm); height: var(--size-icon-sm); margin: 0; accent-color: var(--color-accent); }
+</style>
+<template>
+<label class="check"><input data-dfw-if="checked" type="checkbox" id="{{input-id}}" checked><input data-dfw-if="!checked" type="checkbox" id="{{input-id}}"><span data-dfw-if="!hide-label" class="check__text">{{label}}</span><span data-dfw-if="hide-label" class="sr-only">{{label}}</span></label>
+</template>
+<dfw-examples>
+<dfw-use c="checkbox" label="Only flagged transactions" input-id="ex-c1"></dfw-use>
+</dfw-examples>
+</dfw-component>

@@ -1,0 +1,18 @@
+<dfw-component name="nav-item" group="Navigation" variants="sidebar rail" props="icon href current count hint"
+  description="One navigation link. current=page marks the active item (aria-current).">
+<style>
+.navi { position: relative; display: flex; align-items: center; gap: var(--space-3); min-height: var(--size-control); padding: 0 var(--space-3); border-radius: var(--radius-md); color: var(--color-muted); font: var(--font-weight-medium) var(--font-size-sm) / 1.2 var(--font-family-body); text-decoration: none; }
+.navi .icon { width: var(--size-icon-sm); height: var(--size-icon-sm); flex: none; }
+.navi:hover { background: var(--color-surface-hover); color: var(--color-ink); }
+.navi[aria-current="page"] { background: var(--color-accent-soft); color: var(--color-accent-text); }
+.navi:focus-visible { outline: var(--focus-width) solid var(--color-focus); outline-offset: calc(var(--focus-width) * -1); }
+.navi__count { margin-left: auto; font-size: var(--font-size-2xs); color: var(--color-muted); }
+.navi__hint { margin-left: auto; font: var(--font-weight-medium) var(--font-size-2xs) / 1 var(--font-family-mono); color: var(--color-subtle); }
+.navi--rail { flex-direction: column; justify-content: center; gap: var(--space-1); min-height: var(--size-rail-item); padding: var(--space-2) var(--space-1); font-size: var(--font-size-2xs); text-align: center; }
+.navi--rail .icon { width: var(--size-icon); height: var(--size-icon); }
+.navi--rail .navi__hint, .navi--rail .navi__count { margin-left: 0; }
+</style>
+<template>
+<a class="navi navi--{{variant}}" href="{{href}}" aria-current="{{current}}"><dfw-icon data-dfw-if="icon" name="{{icon}}"></dfw-icon><span><dfw-slot></dfw-slot></span><span class="navi__count" data-dfw-if="count">{{count}}</span><span class="navi__hint" data-dfw-if="hint">{{hint}}</span></a>
+</template>
+</dfw-component>
