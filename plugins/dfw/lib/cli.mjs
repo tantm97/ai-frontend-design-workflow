@@ -20,6 +20,11 @@ import { languageStatus, setLanguage } from './lang.mjs';
 import { HANDLERS, HOOK_EVENTS } from './hooks.mjs';
 import { currentHost, normalizeHookInput, formatHookOutput, HOSTS, SUPPORTED_HOSTS } from './host.mjs';
 import { impeccableLauncher, pluginRoot, sloplintScript, tasteCopyLintScript } from './locate.mjs';
+import { a11yCheck, axeStatus, installAxe } from './a11y.mjs';
+import { diffImages, diffPairs } from './pixeldiff.mjs';
+import { extractTokensToFile } from './extract.mjs';
+import { runLighthouse } from './lighthouse.mjs';
+import { serveMcp, mcpInstall, mcpInstalled, MCP_TARGETS } from './mcp.mjs';
 import { browserStatus, installBrowser, screenshot } from './runtime.mjs';
 import { buildSystem, loadComponents } from './compose.mjs';
 import { systemInit, systemOptions, systemChoose, systemSummary, listPresets } from './system.mjs';
@@ -65,11 +70,13 @@ Design system (built before any screen)
 
 Design workspace
   dfw tokens build                              DTCG tokens.json -> tokens.css (+ components.css)
+  dfw tokens extract --url <u> [--out <file>]  Token seed (colours, fonts, sizes, radii, spacing) from a reference site or the running app
   dfw lint [files...] [--json]                  dfw design lint only (fast)
-  dfw check [files...|--url <u>] [--json] [--setup]   dfw lint + Impeccable + sloplint (+ Taste copy-lint)
+  dfw check [files...|--url <u>] [--states] [--themes] [--no-a11y] [--lighthouse] [--json] [--setup]   dfw lint + Impeccable + sloplint + axe (rendered a11y; whole design or URL); --lighthouse: performance/SEO of a running app (pinned, via npx)
   dfw studio start|stop|status [--port <n>]     Local Design Studio (canvas + click-to-comment)
   dfw shoot [--screen <id>|--page <id>] [--variant <id>] [--bp <ids>] [--state <s>|--states] [--theme <t>|--themes] [--system]
                                                 Screenshots in one browser run (your Chrome/Edge, headless); --url <u> --out <file> for any URL
+  dfw diff <a.png|dirA> <b.png|dirB> [--out] [--threshold 0.1]   Pixel diff (pixelmatch): % changed + a diff image (red = changed)
   dfw verify-snapshot [<version>]               Check an approved snapshot was not modified
   dfw handoff                                   Generate design/handoff/v<N>.md skeleton
 
@@ -93,11 +100,14 @@ Stack and settings
   dfw config get <key> | set <key> <value> [--global|--project|--local]
   dfw doctor                                    Environment and installation checks
   dfw setup --browser                           Download a headless Chrome (only if no Chrome/Edge/Chromium is installed)
+  dfw setup --a11y                              Download axe-core (pinned, integrity-checked) for the rendered accessibility check
   dfw setup --binary                            Download the single-file dfw binary for this version (faster; Node optional)
   dfw install [--host auto|claude|copilot|all] [--scope user|project|local] [--no-runtime] [--no-binary]
                                                 Register dfw + its skills with Claude Code and/or GitHub Copilot (auto = every one installed)
   dfw uninstall [--host ...] [--scope ...]      Remove them (project files stay)
   dfw hook <name> [--host claude|copilot]       Hook entry point (stdin JSON from the host)
+  dfw mcp                                       MCP server on stdio (for tools without a dfw plugin)
+  dfw mcp install|uninstall <opencode|codex|cursor|all> [--print]   Add/remove dfw in that tool's MCP config
   dfw version
 `;
 
@@ -201,7 +211,7 @@ function nextStep(state, data) {
   }
 }
 
-function cmdApprove(root, a) {
+async function cmdApprove(root, a) {
   const gate = (a._[1] || '').toUpperCase();
   const state = requireState(root);
   if (!a.note) throw new DfwError('Approvals record what the user approved: pass --note "<summary of what was approved>".');
@@ -221,6 +231,7 @@ function cmdApprove(root, a) {
   if (gate === 'G2') {
     const config = loadConfig(root);
     const results = runChecks(root, null, config, { timeoutMs: 60000 });
+    results.push(await a11yCheck(root, { states: true }));
     const rep = formatReport(results, { max: 30 });
     if (rep.tally.error && !a['accept-findings']) {
       throw new DfwError(`G2 blocked: ${rep.tally.error} MUST finding(s) in the design.\n${rep.text}\nFix them, or if the user explicitly accepts them, re-run with --accept-findings (it is recorded).`);
@@ -480,6 +491,8 @@ function cmdDoctor(root) {
   ok('taste copy-lint', Boolean(tasteCopyLintScript()), 'optional');
   const br = browserStatus();
   ok('browser for screenshots and layout check', br.installed, br.installed ? `${br.source}: ${br.path}` : `${br.detail}`);
+  const ax = axeStatus();
+  ok('axe-core for the accessibility check', ax.installed, ax.installed ? `${ax.version}: ${ax.path}` : ax.detail);
   // Duplicate installs of the same upstream skills from other marketplaces load twice.
   const installed = readJson(path.join(claudeDir(), 'plugins', 'installed_plugins.json'), null);
   if (installed?.plugins) {
@@ -497,8 +510,9 @@ function cmdDoctor(root) {
     }
   }
   for (const h of Object.values(HOSTS)) {
+    if (h.status === 'internal') continue;
     if (h.status !== 'supported') {
-      ok(`host ${h.name}`, true, 'planned');
+      ok(`host ${h.name}`, true, mcpInstalled(h.id) ? 'plugin planned; dfw MCP server configured' : `plugin planned; use "dfw mcp install ${h.id}"`);
       continue;
     }
     const cli = spawnSync(h.cli, ['--version'], { encoding: 'utf8', shell: process.platform === 'win32' });
@@ -525,6 +539,13 @@ export async function main(argv) {
   const a = parseArgs(argv);
   const cmd = a._[0];
   if (cmd === 'version' || a.version) return out(`dfw ${dfwVersion()} (${IS_BINARY ? 'binary' : `node ${process.versions.node}`})`);
+  if (cmd === 'mcp') {
+    const sub = a._[1];
+    if (!sub) return serveMcp();
+    if (sub !== 'install' && sub !== 'uninstall') throw new DfwError('Usage: dfw mcp | dfw mcp install|uninstall <opencode|codex|cursor|all> [--print]');
+    if (!a._[2]) throw new DfwError(`Which tool? ${Object.keys(MCP_TARGETS).join(', ')}, all`);
+    return out(mcpInstall(a._[2], { remove: sub === 'uninstall', print: Boolean(a.print) }));
+  }
   if (cmd === 'install') return install({ host: a.host || 'auto', scope: a.scope || 'user', source: a.source || undefined, runtime: !a['no-runtime'], binary: !a['no-binary'], quiet: Boolean(a.quiet) });
   if (cmd === 'uninstall') return uninstall({ host: a.host || 'auto', scope: a.scope || 'user', quiet: Boolean(a.quiet) });
   if (!cmd || cmd === 'help' || a.help) return out(HELP);
@@ -556,7 +577,7 @@ export async function main(argv) {
     case 'phase':
       return out(summarize(setPhase(root, requireState(root), a._[1], { force: Boolean(a.force), reason: a.reason })));
     case 'approve':
-      return cmdApprove(root, a);
+      return await cmdApprove(root, a);
     case 'reopen':
       return out(summarize(reopenDesign(root, requireState(root), { reason: a.reason })));
     case 'pause':
@@ -583,7 +604,12 @@ export async function main(argv) {
     }
     case 'build':
     case 'tokens': {
-      if (cmd === 'tokens' && a._[1] !== 'build') throw new DfwError('Usage: dfw tokens build');
+      if (cmd === 'tokens' && a._[1] === 'extract') {
+        if (!a.url) throw new DfwError('Usage: dfw tokens extract --url <reference site or running app> [--out design/system/extracted.tokens.json]');
+        if (!browserStatus().installed) throw new DfwError('dfw tokens extract renders in Chrome/Edge/Chromium: none found (dfw setup --browser).');
+        return out(await extractTokensToFile(root, a.url, a.out));
+      }
+      if (cmd === 'tokens' && a._[1] !== 'build') throw new DfwError('Usage: dfw tokens build | dfw tokens extract --url <u>');
       const r = buildTokens(root);
       const sys = buildSystem(root);
       return out(`Wrote ${path.relative(root, r.out)}${r.themes.length ? ` (themes: ${r.themes.join(', ')})` : ''}${sys.components ? `; ${sys.components} component(s) -> design/system/components.css` : ''}`);
@@ -723,6 +749,12 @@ export async function main(argv) {
       }
       const targets = a.url ? [a.url] : a._.length > 1 ? a._.slice(1) : null;
       const results = runChecks(root, targets, config, { timeoutMs: Number(a.timeout) || 60000, allowDownload: false, tools: cmd === 'lint' ? ['dfw'] : undefined });
+      // Rendered accessibility (axe) on the whole design or a URL; per-file runs stay fast and static.
+      if (cmd === 'check' && !a['no-a11y'] && (a.url || !targets)) results.push(await a11yCheck(root, { url: a.url, states: Boolean(a.states), themes: Boolean(a.themes) }));
+      if (cmd === 'check' && a.lighthouse) {
+        if (!a.url) throw new DfwError('--lighthouse needs --url <running app> (verify phase).');
+        results.push(runLighthouse(a.url));
+      }
       const rep = formatReport(results, { max: Number(a.max) || 60 });
       if (a.json) out({ results, tally: rep.tally }, true);
       else out(rep.text);
@@ -733,6 +765,14 @@ export async function main(argv) {
       return cmdStudio(root, a);
     case 'shoot':
       return cmdShoot(root, a);
+    case 'diff': {
+      if (a._.length < 3) throw new DfwError('Usage: dfw diff <a.png|dirA> <b.png|dirB> [--out <file|dir>] [--threshold 0.1] [--json]');
+      if (!browserStatus().installed) throw new DfwError('dfw diff renders in Chrome/Edge/Chromium: none found (dfw setup --browser).');
+      const res = await diffImages(diffPairs(path.resolve(a._[1]), path.resolve(a._[2]), a.out && path.resolve(a.out)), { threshold: Number(a.threshold) || 0.1 });
+      if (a.json) return out(res, true);
+      res.sort((x, y) => (y.ratio || 0) - (x.ratio || 0));
+      return out(res.map((r) => (r.error ? `ERROR  ${path.basename(r.b)}: ${r.error}` : `${(r.ratio * 100).toFixed(2).padStart(6)}%  ${path.basename(r.b)}${r.sizeChanged ? `  (size ${r.sizeChanged})` : ''}  -> ${path.relative(process.cwd(), r.out)}`)).join('\n'));
+    }
     case 'verify-snapshot': {
       const state = requireState(root);
       const v = a._[1] || currentApproval(state)?.version || state.design.approved.at(-1)?.version;
@@ -785,12 +825,13 @@ export async function main(argv) {
       return cmdDoctor(root);
     case 'setup': {
       if (a.browser || a.playwright) return out(await installBrowser(), true);
+      if (a.a11y) return out(await installAxe(), true);
       if (a.binary) return out(await installBinary(), true);
       if (a['marketplace-repo']) {
         const file = setConfigValue('global', root, 'marketplaceRepo', path.resolve(a['marketplace-repo']));
         return out(`Recorded marketplace repo in ${file}`);
       }
-      throw new DfwError('Usage: dfw setup --browser | --binary | --marketplace-repo <path>');
+      throw new DfwError('Usage: dfw setup --browser | --a11y | --binary | --marketplace-repo <path>');
     }
     default:
       throw new DfwError(`Unknown command "${cmd}". Run "dfw help".`);

@@ -93,7 +93,7 @@ const postAll = (msg) => S.frames.forEach((f) => f.loaded && post(f, msg));
 // row, a states row, or manifest-declared sections). A row may carry an
 // annotations panel (spec notes) at its left.
 
-const L = { PAD: 96, HEAD_GAP: 72, ROW_GAP: 240, FRAME_GAP: 80, GUTTER_NOTES: 420, GUTTER: 300, GUTTER_GAP: 80, SEC_GAP: 480 };
+const L = { FLOW_GAP: 480, PAD: 96, HEAD_GAP: 72, ROW_GAP: 240, FRAME_GAP: 80, GUTTER_NOTES: 420, GUTTER: 300, GUTTER_GAP: 80, SEC_GAP: 480 };
 const bpShort = (bp) => (bp ? bp.short || String(bp.label || bp.id).charAt(0).toUpperCase() : '');
 const primaryVariant = (s) => (s.variants || []).find((v) => v.recommended) || (s.variants || [])[0];
 const bpShown = (id) => !S.activeBps || S.activeBps.includes(id);
@@ -157,6 +157,12 @@ function pageModel(page) {
   const primary = bps[0];
   const screens = page.screens.map(screenById).filter(Boolean);
   const rows = [];
+  if (page.flow && primary) {
+    // Rows of 4 at the first shown breakpoint, in link order (sources before targets).
+    const specs = screens.map((s) => makeSpec(s, primaryVariant(s), primary, null));
+    for (let i = 0; i < specs.length; i += 4) rows.push({ title: i ? null : `Flow at ${primary.label || primary.id} ${primary.width}`, sub: i ? null : `${(S.manifest.flows || []).length} link(s)`, frames: specs.slice(i, i + 4) });
+    return { id: page.id, title: page.title, description: page.description || '', rows, flow: true };
+  }
   if (page.sections && page.sections.length) {
     for (const sec of page.sections) {
       const kind = sec.kind || (sec.breakpoint ? 'breakpoint' : sec.states ? 'states' : 'custom');
@@ -218,7 +224,7 @@ function buildPage() {
     },
     { root: viewport, rootMargin: '400px' },
   );
-  const pages = S.page === ALL ? S.pages : [currentPage()].filter(Boolean);
+  const pages = S.page === ALL ? S.pages.filter((p) => !p.flow) : [currentPage()].filter(Boolean);
   S.sections = [];
   for (const page of pages) {
     const model = pageModel(page);
@@ -302,10 +308,10 @@ function positionFrames() {
         f.x = x;
         f.y = y;
         f.el.style.cssText = `left:${f.x}px;top:${f.y}px;width:${f.w}px;height:${f.h}px`;
-        x += f.w + L.FRAME_GAP;
+        x += f.w + (sec.model.flow ? L.FLOW_GAP : L.FRAME_GAP);
         h = Math.max(h, f.h);
       }
-      maxW = Math.max(maxW, x - L.FRAME_GAP - x0 - L.PAD);
+      maxW = Math.max(maxW, x - (sec.model.flow ? L.FLOW_GAP : L.FRAME_GAP) - x0 - L.PAD);
       y += h;
     });
     const w = maxW + L.PAD * 2;
@@ -314,6 +320,48 @@ function positionFrames() {
     S.secBounds[sec.id] = [x0, secY, w, h];
     secY += h + L.SEC_GAP;
   }
+  drawFlow();
+}
+
+/** Arrows between the frames of the Flow page (world coordinates, so they pan and zoom with the canvas). */
+function drawFlow() {
+  world.querySelector('svg.flow')?.remove();
+  if (!S.sections.some((s) => s.model.flow)) return;
+  const byScreen = new Map();
+  for (const f of S.frames.values()) if (f.screen && !byScreen.has(f.screen.id)) byScreen.set(f.screen.id, f);
+  const b = pageBounds();
+  if (!b) return;
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('class', 'flow');
+  svg.setAttribute('width', b[0] + b[2]);
+  svg.setAttribute('height', b[1] + b[3]);
+  svg.innerHTML = '<defs><marker id="flow-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z"/></marker></defs>';
+  for (const e of S.manifest.flows || []) {
+    const a = byScreen.get(e.from);
+    const z = byScreen.get(e.to);
+    if (!a || !z) continue;
+    const forward = z.x > a.x || (z.x === a.x && z.y > a.y);
+    // A link back along the same pair runs below the forward one instead of on top of it.
+    const lane = (S.manifest.flows || []).some((x) => x.from === e.to && x.to === e.from) ? (forward ? -60 : 60) : 0;
+    const x1 = forward ? a.x + a.w : a.x;
+    const y1 = a.y + Math.min(a.h, 600) / 2 + lane;
+    const x2 = forward ? z.x : z.x + z.w;
+    const y2 = z.y + Math.min(z.h, 600) / 2 + lane;
+    const bend = Math.max(120, Math.abs(x2 - x1) / 2) * (forward ? 1 : -1);
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', `M${x1} ${y1} C${x1 + bend} ${y1} ${x2 - bend} ${y2} ${x2} ${y2}`);
+    path.setAttribute('marker-end', 'url(#flow-arrow)');
+    svg.append(path);
+    if (e.label) {
+      const t = document.createElementNS(ns, 'text');
+      t.setAttribute('x', (x1 + x2) / 2);
+      t.setAttribute('y', (y1 + y2) / 2 - 14);
+      t.textContent = e.label;
+      svg.append(t);
+    }
+  }
+  world.prepend(svg);
 }
 
 function loadFrame(f) {
@@ -604,7 +652,7 @@ function zoomToSection(id) {
 }
 
 function setPage(id, { fit = false } = {}) {
-  if (id !== ALL && !S.pages.some((p) => p.id === id)) id = S.pages.find((p) => !p.system && p.screens.length)?.id || 'system';
+  if (id !== ALL && !S.pages.some((p) => p.id === id)) id = S.pages.find((p) => !p.system && !p.flow && p.screens.length)?.id || 'system';
   S.cams[S.page] = { ...S.cam };
   S.page = id;
   store.set('page', id);
@@ -1710,7 +1758,7 @@ async function loadAll({ keepCam = false } = {}) {
   if (!S.activeBps?.length) S.activeBps = null;
   renderToolbar();
   if (keepCam && S.page) rebuildKeepCam();
-  else setPage(store.get('page', null) || S.pages.find((p) => !p.system && p.screens.length)?.id || 'system');
+  else setPage(store.get('page', null) || S.pages.find((p) => !p.system && !p.flow && p.screens.length)?.id || 'system');
   await loadComments();
 }
 

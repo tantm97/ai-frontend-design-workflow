@@ -5,12 +5,87 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { readJson, listFiles, projectPaths, toPosix } from './util.mjs';
 import { composeHtml, loadComponents, designBaseFor, findElement } from './compose.mjs';
+import { hexToOklch } from './color.mjs';
 
 const STRUCTURAL = ['button', 'a', 'input', 'select', 'textarea', 'nav', 'header', 'main', 'footer', 'section', 'form', 'table', 'dialog', 'aside', 'img', 'h1', 'h2', 'h3', 'ul', 'ol', 'label'];
 const COLOR_RE = /#(?:[0-9a-fA-F]{3,4}){1,2}\b|\b(?:rgba?|hsla?|oklch|oklab|lab|lch|color)\(/g;
 
 function lineOf(text, index) {
   return text.slice(0, index).split('\n').length;
+}
+
+/* ---------------------------------------------------------------- generic-AI tells ("slop") */
+
+// Colours AI-generated UIs default to. Exact values only: a brand that really uses one keeps it with a recorded decision.
+const AI_DEFAULT_COLORS = {
+  '#6366f1': 'Tailwind indigo', '#4f46e5': 'Tailwind indigo', '#4338ca': 'Tailwind indigo', '#3730a3': 'Tailwind indigo',
+  '#8b5cf6': 'Tailwind violet', '#7c3aed': 'Tailwind violet', '#a855f7': 'Tailwind purple',
+  '#d97757': 'the terracotta accent of the "warm cream + serif" default', '#f4f1ea': 'the warm cream ground of the "cream + serif + terracotta" default',
+};
+const FILLER_RE = /lorem ipsum|\bfeature (?:one|two|three)\b|placeholder text|sample content|your (?:headline|tagline) here/gi;
+const METRIC_RE = /\b\d+(?:\.\d+)?\s*[x×]\s+(?:faster|more|better|cheaper|productive)\b|\b99\.9+\s*%\s*uptime\b/gi;
+const PLACEHOLDER_IMG_RE = /\b(?:images\.unsplash\.com|source\.unsplash\.com|placehold\.co|placekitten\.com|picsum\.photos|via\.placeholder\.com|placeholder\.com)\b/gi;
+const EMOJI_RE = /\p{Extended_Pictographic}/u;
+// Marketing filler that reads as machine-written in product UI (dfw's own list).
+const COPY_TELL_RE = /\b(?:seamless(?:ly)?|effortless(?:ly)?|supercharge|unlock (?:the )?(?:power|potential)|elevate your|game[- ]changer|cutting[- ]edge|next[- ]level|revolutioni[sz]e|empower(?:s|ing)? (?:you|teams)|in today's fast[- ]paced|harness the power|at your fingertips|look no further|delve into)\b/gi;
+const VAGUE_ERROR_RE = /\b(?:oops!?|something went wrong|an error (?:has )?occurred)\b/gi;
+const CLICK_HERE_RE = /<a\b[^>]*>\s*(?:click here|here|read more|learn more)\s*<\/a>/gi;
+
+/** Interface-guideline rules checkable in CSS: zoom-triggering input text, raw z-index. */
+function guidelineCss(css, at, add) {
+  for (const b of css.matchAll(/([^{}]*)\{([^{}]*)\}/g)) {
+    const sel = b[1];
+    const fs = /font-size\s*:\s*(\d+(?:\.\d+)?)px/.exec(b[2]);
+    if (fs && Number(fs[1]) < 16 && /(^|[\s,>+~(])(input|select|textarea)\b/.test(sel)) {
+      add('warn', 'input-font-size', at(b.index), `Form field text is ${fs[1]}px: iOS zooms the page on focus below 16px. Use at least 16px on touch breakpoints.`);
+    }
+    const z = /z-index\s*:\s*(-?\d+)/.exec(b[2]);
+    if (z && Math.abs(Number(z[1])) > 1) add('warn', 'z-index-raw', at(b.index), `Raw z-index ${z[1]}: stacking order drifts when every component picks its own number. Use a z-index token (e.g. var(--z-overlay)).`);
+  }
+}
+
+/** Generic-AI tells in CSS: two-stop purple/blue "trust" gradients and the rounded card with a coloured left border. */
+function slopCss(css, at, add) {
+  guidelineCss(css, at, add);
+  for (const g of css.matchAll(/linear-gradient\(([^;{}]*)\)/gi)) {
+    const hues = [...g[1].matchAll(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g)].map((m) => hexToOklch(m[0])).filter((c) => c.c > 0.1).map((c) => c.h);
+    if (hues.length >= 2 && hues.every((h) => h >= 190 && h < 360) && Math.max(...hues) - Math.min(...hues) > 20) {
+      add('warn', 'ai-gradient', at(g.index), 'Purple/blue/cyan two-stop gradient: the textbook AI "trust" gradient. Use a flat surface and intentional type, or a gradient built from the palette with a reason.');
+    }
+  }
+  for (const b of css.matchAll(/\{([^{}]*)\}/g)) {
+    if (/border-left(?:-width)?\s*:\s*[^;]*\b(?:[2-9]|\d{2,})px/.test(b[1]) && /border-radius\s*:/.test(b[1])) {
+      add('warn', 'left-border-card', at(b.index), 'Rounded box with a thick coloured left border: the stock "AI dashboard tile". Drop the radius or the left border.');
+    }
+  }
+}
+
+/** Generic-AI tells in an HTML file: default colours, emoji icons, filler copy, invented metrics, placeholder image hosts, CSS tells. */
+function slopHtml(text, add) {
+  for (const m of text.matchAll(/#[0-9a-fA-F]{6}\b/g)) {
+    const name = AI_DEFAULT_COLORS[m[0].toLowerCase()];
+    if (name) add('warn', 'ai-default-color', m.index, `${m[0]} is ${name}, a colour AI-generated UIs default to. Use the palette (dfw palette build); keep it only if the brand requires it (dfw decide).`);
+  }
+  for (const sm of text.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)) {
+    const off = sm.index + sm[0].indexOf(sm[1]);
+    slopCss(sm[1], (i) => off + i, add);
+  }
+  const body = Math.max(0, text.search(/<body|<template/i));
+  const markup = text.slice(body).replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>/gi, (s) => ' '.repeat(s.length));
+  for (const m of markup.matchAll(/<(h[1-6]|button|li|label)\b[^>]*>([\s\S]*?)<\/\1>/gi)) {
+    if (EMOJI_RE.test(m[2].replace(/<[^>]*>/g, ''))) add('error', 'emoji-icon', body + m.index, `Emoji in <${m[1]}> used as an icon. Use a monoline SVG icon (dfw icons add <name>) with currentColor.`);
+  }
+  for (const m of markup.matchAll(/class\s*=\s*"[^"]*\bicon\b[^"]*"[^>]*>\s*(\S{1,4})/g)) {
+    if (EMOJI_RE.test(m[1])) add('error', 'emoji-icon', body + m.index, 'Emoji used as an icon. Use a monoline SVG icon (dfw icons add <name>) with currentColor.');
+  }
+  for (const m of markup.matchAll(FILLER_RE)) add('error', 'filler-copy', body + m.index, `Filler copy "${m[0]}". Write real, domain-specific content (PRODUCT.md data shapes), or solve the empty space with composition.`);
+  const textOnly = markup.replace(/<[^>]*>/g, (t) => ' '.repeat(t.length));
+  for (const m of textOnly.matchAll(COPY_TELL_RE)) add('warn', 'copy-tell', body + m.index, `"${m[0]}" is marketing filler that reads as machine-written. Say what the product does, in the user's words.`);
+  for (const m of textOnly.matchAll(VAGUE_ERROR_RE)) add('warn', 'vague-error', body + m.index, `"${m[0]}" says nothing. An error message states what happened, why if known, and what the user can do; keep their input.`);
+  for (const m of textOnly.matchAll(/(?<![.])\.\.\.(?![.])/g)) add('info', 'ellipsis-char', body + m.index, 'Use the ellipsis character "…" instead of three dots.');
+  for (const m of markup.matchAll(CLICK_HERE_RE)) add('warn', 'link-text', body + m.index, 'Link text must say where it goes ("View invoice 1042"), not "click here" / "learn more" (WCAG 2.4.4).');
+  for (const m of markup.matchAll(METRIC_RE)) add('warn', 'invented-metric', body + m.index, `"${m[0]}" looks like an invented metric. Use a real figure from the brief, or a clearly labelled placeholder.`);
+  for (const m of text.matchAll(PLACEHOLDER_IMG_RE)) add('warn', 'placeholder-image-host', m.index, `External placeholder image host "${m[0]}": fragile and obviously generic. Use a local asset in design/assets/ or a designed placeholder.`);
 }
 
 /** Lint one HTML screen/component file. */
@@ -53,6 +128,7 @@ export function lintHtml(rel, text) {
       add('warn', 'hardcoded-color', sm.index + sm[0].indexOf(sm[1]) + cm.index, `Hard-coded color "${cm[0]}" in <style>; use a token (var(--...)).`);
     }
   }
+  slopHtml(text, add);
   return out;
 }
 
@@ -104,11 +180,33 @@ export function lintScreen(root, rel, text, lib = loadComponents(root)) {
       }
     }
     for (const [tag, c] of counts) add('warn', 'use-component', c.line, `${c.n} raw <${tag}> element(s); the design system has component "${c.comp}" for this. Use <dfw-use c="${c.comp}">.`);
+    const primaries = (text.match(/variant="primary"/g) || []).length;
+    if (primaries > 2) add('warn', 'primary-overuse', 1, `${primaries} primary-variant instances on one screen: the accent loses its meaning. Keep one primary action per area (two at most per screen).`);
     if (!r.instances.length && /<body/i.test(text)) add('warn', 'no-components', body ? lineOf(text, body) : 1, 'Screen uses no design-system components; build screens from design/system/components.');
     if (lib.has('page') && r.instances.length && !r.instances.some((x) => x.component === 'page') && !rel.includes('/_')) add('warn', 'page-layout', 1, 'Screen does not use the page layout master (<dfw-use c="page" variant="task|flow|split">): paddings, widths and overflow behaviour will drift from other screens.');
     if (lib.has('app-shell') && r.instances.length && !r.instances.some((x) => x.component === 'app-shell') && !rel.includes('/_')) add('warn', 'app-shell', 1, 'Screen does not use the shared app-shell: every screen should be framed by the same navigation and layout (<dfw-use c="app-shell" current="...">).');
   }
+  out.push(...stateCoverage(root, rel, text));
   return out;
+}
+
+// Data surfaces and forms must design their non-happy states (the most common silent gap in AI-built UI).
+const DATA_SURFACE_RE = /<table\b|<dfw-use\b[^>]*\bc="[\w-]*(?:table|list|grid|feed)[\w-]*"/i;
+const FORM_RE = /<form\b|<dfw-use\b[^>]*\bc="[\w-]*form[\w-]*"/i;
+
+/** Warn when a screen with a table/list or a form declares no loading/empty/error states (design.json states). */
+export function stateCoverage(root, rel, text) {
+  const m = readJson(projectPaths(root).manifest, null);
+  const file = rel.replace(/^design\//, '');
+  const sc = (m?.screens || []).find((s) => (s.variants || []).some((v) => v.file === file));
+  if (!sc || String(sc.id).startsWith('_')) return [];
+  const states = new Set((sc.states?.length ? sc.states : m.states || []).map((x) => String(x).toLowerCase()));
+  const need = [];
+  if (DATA_SURFACE_RE.test(text)) need.push('loading', 'empty', 'error');
+  if (FORM_RE.test(text)) need.push('error');
+  const missing = [...new Set(need)].filter((s) => !states.has(s));
+  if (!missing.length) return [];
+  return [{ level: 'warn', rule: 'state-coverage', file: rel, line: 1, source: 'dfw', message: `Screen "${sc.id}" has ${DATA_SURFACE_RE.test(text) ? 'a data surface' : 'a form'} but no ${missing.join('/')} state. Add them to its "states" in design.json and design each (.when-<state> blocks): empty needs a headline, explanation and primary action; error says what happened and how to recover, keeping user input. Also check edge content (very long text, missing optional fields, large counts).` }];
 }
 
 /** Lint a component master file. */
@@ -132,6 +230,18 @@ export function lintComponentFile(rel, text) {
       add('warn', 'raw-dimension', sm.index + sm[0].indexOf(sm[1]) + pm.index, `Raw length "${pm[0].trim()}" in a component; use space/font/radius tokens.`);
     }
   }
+  slopHtml(text, add);
+  // Interactive masters design their state matrix: hover, keyboard focus, disabled.
+  const tpl = (/<template\b[^>]*>([\s\S]*?)<\/template>/.exec(text) || [])[1] || '';
+  // Only the root element counts (a card containing a link is not a control); native controls keep their own states unless restyled.
+  const root = (/^\s*<([a-z][\w-]*)\b([^>]*)>/i.exec(tpl) || [])[1]?.toLowerCase();
+  const css = [...text.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)].map((x) => x[1]).join('\n');
+  const need = [];
+  if (root === 'button' || root === 'a' || /^\s*<[^>]*role="(?:button|tab|switch|menuitem)"/.test(tpl)) need.push([':hover', /:hover/]);
+  if (root === 'button' || (/^(input|select|textarea)$/.test(root || '') && /appearance\s*:\s*none/.test(css))) need.push(['disabled', /:disabled|\[disabled\]|\[aria-disabled/]);
+  if (/outline\s*:\s*(none|0)\b/.test(css)) need.push([':focus-visible', /:focus-visible|:focus-within/]);
+  const missing = need.filter(([, re]) => !re.test(css)).map(([n]) => n);
+  if (missing.length) add('warn', 'component-states', null, `Interactive component has no ${missing.join(' / ')} style. Design its state matrix (default, hover, focus-visible, active, disabled, plus loading/selected where they apply).`);
   return out;
 }
 
@@ -148,6 +258,8 @@ export function lintCss(rel, text) {
   if (/transition\s*:\s*all\b/.test(clean)) {
     out.push({ level: 'warn', rule: 'transition-all', file: rel, line: lineOf(clean, clean.search(/transition\s*:\s*all\b/)), message: '"transition: all" animates unintended properties; list the properties.', source: 'dfw' });
   }
+  const add = (level, rule, index, message) => out.push({ level, rule, file: rel, line: lineOf(clean, index), message, source: 'dfw' });
+  slopCss(clean, (i) => i, add);
   if (/outline\s*:\s*(none|0)\b/.test(clean) && !/:focus-visible/.test(clean)) {
     out.push({ level: 'error', rule: 'focus-removed', file: rel, line: lineOf(clean, clean.search(/outline\s*:\s*(none|0)\b/)), message: 'Focus outline removed without a :focus-visible replacement (WCAG 2.4.7).', source: 'dfw' });
   }
@@ -177,6 +289,33 @@ export function lintTokens(rel, json) {
   for (const [name, { node }] of leaves) {
     for (const m of strings(node.$value).flatMap((s) => [...s.matchAll(/\{([^{}]+)\}/g)])) {
       if (!leaves.has(m[1])) out.push({ level: 'error', rule: 'token-alias', file: rel, line: 1, message: `Token "${name}" references unknown token "{${m[1]}}".`, source: 'dfw' });
+    }
+  }
+  // Near-duplicate colours: two tokens that look the same are one decision made twice.
+  const colors = [];
+  for (const [name, { node, type }] of leaves) {
+    if (type !== 'color') continue;
+    const hex = typeof node.$value === 'string' ? node.$value : node.$value?.hex;
+    if (typeof hex === 'string' && /^#[0-9a-f]{6}$/i.test(hex)) colors.push({ name, hex: hex.toLowerCase(), c: hexToOklch(hex) });
+  }
+  const reported = new Set();
+  for (let i = 0; i < colors.length; i++) {
+    for (let j = i + 1; j < colors.length; j++) {
+      const a = colors[i];
+      const b = colors[j];
+      if (a.hex === b.hex || reported.has(b.name)) continue; // identical values are usually deliberate aliases
+      const dh = Math.min(Math.abs(a.c.h - b.c.h), 360 - Math.abs(a.c.h - b.c.h)) * Math.min(a.c.c, b.c.c) * 0.0175;
+      const d = Math.hypot(a.c.l - b.c.l, a.c.c - b.c.c, dh);
+      if (d < 0.005) {
+        reported.add(b.name);
+        out.push({ level: 'warn', rule: 'near-duplicate-color', file: rel, line: 1, message: `Tokens "${a.name}" (${a.hex}) and "${b.name}" (${b.hex}) are visually the same colour. Merge them or alias one to the other.`, source: 'dfw' });
+      }
+    }
+  }
+  for (const [name, { node }] of leaves) {
+    for (const s of strings(node.$value)) {
+      const what = AI_DEFAULT_COLORS[String(s).trim().toLowerCase()];
+      if (what) out.push({ level: 'warn', rule: 'ai-default-color', file: rel, line: 1, message: `Token "${name}" is ${s} (${what}), a colour AI-generated UIs default to. Derive the palette from the brand (dfw palette build); keep it only if the brand requires it (dfw decide).`, source: 'dfw' });
     }
   }
   if (!leaves.size) out.push({ level: 'error', rule: 'token-empty', file: rel, line: 1, message: 'Token file has no tokens.', source: 'dfw' });

@@ -11,7 +11,7 @@ import { loadState, summarize } from '../lib/state.mjs';
 import { addComment, allComments, updateComment, newSession, currentSession } from '../lib/comments.mjs';
 import { composeHtml, loadComponents, buildSystem, escapeHtml } from '../lib/compose.mjs';
 import { applyEdit, undoEdit, loadTokenNames } from '../lib/edit.mjs';
-import { studioPages } from './pages.mjs';
+import { studioPages, screenFlows } from './pages.mjs';
 import { screenshot } from '../lib/runtime.mjs';
 
 // Started as "dfw __studio-server --root <dir> --port <n>" (works the same from source and in the binary).
@@ -59,6 +59,12 @@ function manifest() {
   };
   if (m) {
     const out = { ...base, ...m, breakpoints: m.breakpoints || base.breakpoints };
+    const files = new Map();
+    for (const s of out.screens || []) for (const v of s.variants || []) {
+      const f = path.join(P.design, v.file || '');
+      if (v.file && fs.existsSync(f)) files.set(v.file, fs.readFileSync(f, 'utf8'));
+    }
+    out.flows = screenFlows(out, files);
     return { ...out, studioPages: studioPages(out) };
   }
   const screens = new Map();

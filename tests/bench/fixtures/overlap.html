@@ -1,0 +1,13 @@
+<!doctype html>
+<!-- expect: overlap, reflow -->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Badges</title>
+<style>
+body{margin:0;font:16px/1.5 system-ui,sans-serif;color:#1d1d1f;background:#fff}
+main{padding:24px;max-width:960px}
+h1{font-size:28px;margin:0 0 16px}
+p{margin:0 0 12px}
+.box{position:relative;height:80px}.a,.b{position:absolute;top:10px;left:10px;margin:0}
+</style></head>
+<body><main data-dfw-id="main"><h1 data-dfw-id="title">Badges</h1>
+<div data-dfw-id="box" class="box"><p data-dfw-id="a" class="a">Checked out</p><p data-dfw-id="b" class="b">Overdue by two days</p></div>
+</main></body></html>

@@ -32,6 +32,10 @@ Then `dfw style match` ranks the 12 guides against the brief and explains each m
 - Density from context: control height 32 (dense pro), 40 (default), 44-56 (touch, counter, gloves).
 - 3-4 radius steps with a reason (2-4 = precise/industrial/editorial, 8-12 = friendly, 16+ = playful). Never mix sharp tables with bubbly buttons without saying why.
 
+## 4b. Component APIs and the state matrix
+- Variants are explicit, named alternatives (`variant="primary|secondary|danger"`, `size="md|lg"`), never a pile of booleans whose combinations nobody designed.
+- Every interactive master designs its state matrix: default, hover, focus-visible, active, disabled, plus loading and selected where they apply (`dfw lint` warns on missing ones: `component-states`). Show the states in the master's examples so the Design System page displays them.
+
 ## 5. Signature, not decoration
 One or two signature motifs from the concept (signboard frame, hazard tape, ledger double rule, field-note margin). Each has a usage rule (where, how often). Remove any decoration that has no rule.
 

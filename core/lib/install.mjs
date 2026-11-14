@@ -9,6 +9,7 @@ import { spawnSync } from 'node:child_process';
 import { PLUGIN_ROOT, IS_BINARY, readJson, selfCommand, pluginManifest } from './util.mjs';
 import { HOSTS, SUPPORTED_HOSTS, getHost } from './host.mjs';
 import { browserStatus, installBrowser } from './runtime.mjs';
+import { axeStatus, installAxe } from './a11y.mjs';
 import { binaryStatus, installBinary, RELEASE_REPO } from './binary.mjs';
 
 export const MARKET = 'dfw-marketplace';
@@ -119,6 +120,14 @@ export async function install({ host = 'auto', scope = 'user', source = RELEASE_
       step('Headless Chrome for screenshots and layout checks (no Chrome/Edge/Chromium found)');
       try {
         await installBrowser({ log: (m) => console.log(c.dim(`  ${m}`)) });
+      } catch (e) {
+        console.log(c.warn(`  skipped: ${e.message}`));
+      }
+    }
+    if (!axeStatus().installed) {
+      step('axe-core for the accessibility check (pinned, integrity-checked)');
+      try {
+        await installAxe({ log: (m) => console.log(c.dim(`  ${m}`)) });
       } catch (e) {
         console.log(c.warn(`  skipped: ${e.message}`));
       }

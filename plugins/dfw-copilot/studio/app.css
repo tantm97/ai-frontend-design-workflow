@@ -125,11 +125,15 @@ kbd { border: 1px solid var(--line-strong); border-radius: 3px; padding: 0 3px; 
 .present-btn { margin-left: 2px; color: var(--ink-2); }
 
 /* Page sections on the canvas: typeset like a design file (world units, scale with zoom). */
+svg.flow { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; z-index: 1; }
+svg.flow path { fill: none; stroke: var(--accent); stroke-width: 4; opacity: 0.85; }
+svg.flow marker path { fill: var(--accent); stroke: none; }
+svg.flow text { fill: var(--accent); font: 600 22px var(--font); text-anchor: middle; paint-order: stroke; stroke: var(--canvas); stroke-width: 8px; }
 .psec { position: absolute; background: var(--sec-bg); border-radius: 2px; }
 .psec-label { position: absolute; left: 0; bottom: 100%; padding-bottom: calc(6px * var(--iz)); font-size: calc(12px * var(--iz)); font-weight: 600; color: var(--frame-title); white-space: nowrap; }
 .psec-head { position: absolute; max-width: 1600px; color: var(--sec-ink); }
 .psec-head h1 { margin: 0; font: 600 56px/1.08 var(--font); letter-spacing: -0.02em; white-space: nowrap; }
-.psec-head p { margin: 14px 0 0; font-size: 22px; line-height: 1.5; color: var(--sec-ink-2); max-width: 1200px; }
+.psec-head p { margin: 14px 0 0; font-size: 22px; line-height: 1.5; color: var(--sec-ink-2); width: max-content; max-width: 1200px; }
 .prow-gutter { position: absolute; color: var(--sec-ink); }
 .prow-gutter > h2 { margin: 0; font: 600 32px/1.15 var(--font); letter-spacing: -0.01em; }
 .prow-gutter > p { margin: 8px 0 0; font-size: 16px; color: var(--sec-ink-2); }

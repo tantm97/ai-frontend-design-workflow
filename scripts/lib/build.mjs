@@ -121,7 +121,7 @@ export function assembleAdapter(agent = 'claude-code', { root = REPO_ROOT, outRo
     const from = path.join(root, c.from);
     if (!fs.existsSync(from)) throw new Error(`assemble ${agent}: ${c.from} does not exist`);
     copyEntry(from, path.join(dest, c.to));
-    if (c.render) renderTree(path.join(dest, c.to), c.render, host);
+    if (c.render) renderTree(path.join(dest, c.to), c.render, c.host ? getHost(c.host) : host);
   }
   // One manifest source (core/manifest.json) rendered in each host's format and location.
   const core = readJson(path.join(root, 'core', 'manifest.json'));

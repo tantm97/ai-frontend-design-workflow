@@ -29,7 +29,7 @@ The user reviews in the Studio (`dfw studio start`). Comments are stored in `.df
 5. Next: `dfw phase stack` (unless design-only: `dfw phase done`).
 
 ### Changing an approved design
-Only with the user's approval: `dfw reopen --reason "<why>"` -> new draft version, review again, approve again (G2 for vN+1). Implementation of the previous version pauses until then.
+Only with the user's approval: `dfw reopen --reason "<why>"` -> new draft version, review again, approve again (G2 for vN+1). Implementation of the previous version pauses until then. Before asking for the new approval, show what changed: `dfw shoot` the new version and `dfw diff .dfw/shots/vN .dfw/shots/vN+1` (percentage changed per screen, red = changed); every changed screen should map to a reason the user agreed to.
 
 ## Audit (review-only mode)
 Nothing is modified outside `.dfw/` (the hook enforces this).
