@@ -684,8 +684,9 @@ plugins/                   <span class="d">SINH RA: dfw, dfw-copilot, 7 skill</s
 registry/                  <span class="d">skills.json (7 skill + 2 plugin local), lock, history, xref, stack-lint</span>
 overlays/                  <span class="d">chỉnh sửa dfw áp lên skill ngoài</span>
 reports/proposals/         <span class="d">báo cáo đề xuất cập nhật skill</span>
-scripts/                   <span class="d">build, validate, skills, install, binary, sinh dữ liệu</span>
-tests/unit, tests/e2e      <span class="d">test (host.test.mjs kiểm phần đa host)</span>
+scripts/                   <span class="d">build, validate, skills, knowledge (file kiến thức pin), install, binary, sinh dữ liệu</span>
+tests/unit, tests/e2e      <span class="d">test (host.test.mjs đa host, mcp.test.mjs server MCP)</span>
+tests/bench/               <span class="d">bộ đo: fixtures/ (màn mẫu có lỗi cài sẵn), run.mjs, baseline.json, README (cả bộ đo workflow)</span>
 docs/                      <span class="d">trang này</span>
 install.sh, package.json, .github/workflows/, README.md, LICENSE, THIRD_PARTY_NOTICES.md</div>
   <h3>Build làm gì với văn bản dùng chung</h3>
@@ -856,6 +857,8 @@ install.sh, package.json, .github/workflows/, README.md, LICENSE, THIRD_PARTY_NO
       <tr><td><code>tests/unit/system.test.mjs</code></td><td>Design system: init, preset, style, compose, trang DS.</td></tr>
       <tr><td><code>tests/unit/color.test.mjs</code></td><td>Dải màu OKLCH, tương phản, thang chữ.</td></tr>
       <tr><td><code>tests/unit/edit.test.mjs</code></td><td>Sửa trực tiếp từ Studio và hoàn tác.</td></tr>
+      <tr><td><code>tests/unit/mcp.test.mjs</code></td><td>Server MCP qua JSON-RPC thật (guide, lệnh, cổng duyệt), ghi cấu hình OpenCode/Codex/Cursor.</td></tr>
+      <tr><td><code>tests/bench/run.mjs</code></td><td>Bộ đo kiểm tra: tỉ lệ bắt lỗi cài sẵn, báo nhầm, thời gian; so với baseline.</td></tr>
       <tr><td><code>tests/unit/inbox.test.mjs</code></td><td>Đưa comment tới Claude đúng một lần.</td></tr>
       <tr><td><code>tests/unit/marketplace.test.mjs</code></td><td>Cấu trúc marketplace và plugin sinh ra.</td></tr>
       <tr><td><code>tests/e2e/studio.e2e.mjs</code></td><td>Mở Studio thật bằng Playwright: canvas, comment, Present.</td></tr>
@@ -1016,6 +1019,10 @@ install.sh, package.json, .github/workflows/, README.md, LICENSE, THIRD_PARTY_NO
       <tr><td>Lucide icons</td><td><code>lucide-icons/lucide</code> tag <code>1.64.0</code> (ISC)</td><td>Bộ icon; <code>scripts/vendor-icons.mjs</code> chép vào <code>core/assets/icons/lucide.json</code>; project chỉ copy icon mình dùng.</td><td>Lúc build repo (không cần mạng khi chạy)</td></tr>
       <tr><td>Google Fonts</td><td>fonts.googleapis.com (miễn phí, không key)</td><td>Font của thiết kế; <code>dfw fonts check</code> hỏi subset (vd. vietnamese). Khi render, font được cache vào <code>~/.config/dfw/cache/fonts</code>.</td><td>Lần render đầu của mỗi font</td></tr>
       <tr><td>Chrome / Edge / Chromium / Brave</td><td>Đã cài trên máy người dùng</td><td>Render ẩn qua DevTools protocol cho <code>shoot</code>, <code>layout check</code>.</td><td>Khi render</td></tr>
+      <tr><td>axe-core 4.14.0</td><td>dequelabs/axe-core · MPL-2.0 · tarball npm, kiểm sha512</td><td>Kiểm tra a11y trên màn đã render và app thật (<code>dfw check</code>, G2). Giữ nguyên file, kèm LICENSE.</td><td>Sau <code>dfw setup --a11y</code> (hoặc <code>dfw install</code>)</td></tr>
+      <tr><td>pixelmatch 8.0.0</td><td>mapbox/pixelmatch · ISC · chép vào <code>core/assets/vendor/</code></td><td>So ảnh cho <code>dfw diff</code>.</td><td>Khi so ảnh</td></tr>
+      <tr><td>Lighthouse 13.6.0</td><td>GoogleChrome/lighthouse · Apache-2.0 · npx, pin version</td><td>Hiệu năng, best practices, SEO của app thật ở G4. Tắt báo lỗi.</td><td>Chỉ khi bạn đồng ý (<code>--lighthouse</code>)</td></tr>
+      <tr><td>Web Interface Guidelines</td><td>vercel-labs/web-interface-guidelines · MIT · commit + sha256 trong <code>registry/skills.json</code> ("knowledge")</td><td>Danh sách luật giao diện cho concepts, review, implement (<code>references/web-interface-guidelines.md</code>).</td><td>Luôn có (file đã chép)</td></tr>
       <tr><td>Chrome for Testing (chrome-headless-shell)</td><td>Google, chỉ mục JSON chính thức</td><td>Phương án dự phòng khi máy không có trình duyệt: <code>dfw setup --browser</code>.</td><td>Chỉ khi không có trình duyệt</td></tr>
       <tr><td>Node.js</td><td>nodejs.org (bản chính thức 26.13.0 LTS cho binary)</td><td>Chạy dfw khi không dùng binary; được nhúng vào binary.</td><td>Luôn (trực tiếp hoặc bên trong binary)</td></tr>
       <tr><td>esbuild <code>0.28.2</code>, postject <code>1.0.0-alpha.6</code></td><td>npm (devDependencies, khoá đúng phiên bản)</td><td>Chỉ dùng khi build binary.</td><td>Chỉ lúc build</td></tr>
