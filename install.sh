@@ -3,7 +3,7 @@
 # GitHub release, verify its SHA-256, then let it register dfw and its skills with Claude Code.
 #   curl -fsSL https://raw.githubusercontent.com/tantm97/ai-frontend-design-workflow/main/install.sh | sh
 #   ... | sh -s -- --scope project          (arguments go to "dfw install")
-#   DFW_VERSION=0.4.0 sh install.sh          (a specific release)
+#   DFW_VERSION=0.5.0 sh install.sh          (a specific release)
 set -eu
 REPO="tantm97/ai-frontend-design-workflow"
 

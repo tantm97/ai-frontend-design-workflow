@@ -58,6 +58,30 @@
       "render": "agent"
     },
     {
+      "from": "core/workflow/SKILL.md",
+      "to": "mcp/SKILL.md",
+      "render": "text",
+      "host": "mcp"
+    },
+    {
+      "from": "core/workflow/references",
+      "to": "mcp/references",
+      "render": "text",
+      "host": "mcp"
+    },
+    {
+      "from": "core/workflow/policies",
+      "to": "mcp/policies",
+      "render": "text",
+      "host": "mcp"
+    },
+    {
+      "from": "core/workflow/stacks",
+      "to": "mcp/stacks",
+      "render": "text",
+      "host": "mcp"
+    },
+    {
       "from": "adapters/copilot/plugin",
       "to": "."
     }

@@ -8,4 +8,6 @@ Applies only after G3 approved React (or Next.js, Remix, Vite + React).
 - **States:** loading/empty/error states from the handoff are real components, not afterthoughts (Suspense boundaries / query states).
 - **Next.js:** respect the router in use (app vs pages); server vs client components: interactive parts are client components, keep the rest server-rendered.
 - **Motion:** CSS transitions first; a motion library only if approved at G3.
+- **Composition:** compound components and explicit variant components instead of boolean props; React 19: no `forwardRef` (ref is a prop).
+- **Performance:** after G3 only, and only if the user wants it, Vercel's `react-best-practices` skill (vercel-labs/agent-skills) is a good rule list for waterfalls, bundle size and re-renders. Its repository has no LICENSE file (MIT is stated only in the skill's frontmatter), so dfw does not vendor it; the user installs it themselves.
 - **Verification route list:** fill handoff section 1 with actual routes.

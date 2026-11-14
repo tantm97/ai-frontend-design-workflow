@@ -8,8 +8,11 @@
 //   void           large empty band between content blocks, or a mostly empty first viewport (SHOULD)
 //   consistency    the same component + variant rendering differently across screens, or screens
 //                  of the same page layout with different content edges (SHOULD)
+//   reflow         at 320px wide with text at 125% (WCAG 1.4.10 / 1.4.4): horizontal scroll, overlap, clipping (SHOULD)
+//   variant-cosmetic  two variants of a screen with the same component structure: that is a theme, not a variant (SHOULD)
 // Also runs on the generated Design System page.
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { projectPaths, readJson, writeJson, toPosix } from './util.mjs';
@@ -180,12 +183,15 @@ export function findVoids(m, { minBand = 0.22 } = {}) {
   return res;
 }
 
+const REFLOW_BP = { id: 'reflow', width: 320, height: 640 };
+
 function screenJobs(root, m, { screens, bps, states, stress }) {
   const jobs = [];
   for (const s of m.screens || []) {
     if (screens && !screens.includes(s.id)) continue;
     for (const v of s.variants || []) {
       const rel = `design/${v.file}`;
+      if (stress) jobs.push({ screen: s.id, variant: v.id, rel, bp: REFLOW_BP, state: null, stress: false, reflow: true });
       for (const bp of bps) {
         for (const st of states(s)) {
           jobs.push({ screen: s.id, variant: v.id, rel, bp, state: st, stress: false });
@@ -203,11 +209,10 @@ export function changedScreens(root) {
   const cacheFile = path.join(p.dfw, 'layout-cache.json');
   const cache = readJson(cacheFile, {});
   const m = readJson(p.manifest, {});
-  const mtime = (f) => (fs.existsSync(f) ? fs.statSync(f).mtimeMs : 0);
   const compDir = path.join(p.design, 'system', 'components');
   const changedComps = new Set();
-  if (fs.existsSync(compDir)) for (const f of fs.readdirSync(compDir)) if (mtime(path.join(compDir, f)) > (cache[`c:${f}`] || 0)) changedComps.add(f.replace('.html', ''));
-  const tokensChanged = mtime(path.join(p.tokens, 'tokens.json')) > (cache['t:tokens'] || 0);
+  if (fs.existsSync(compDir)) for (const f of fs.readdirSync(compDir)) if (hashOf(path.join(compDir, f)) !== cache[`c:${f}`]) changedComps.add(f.replace('.html', ''));
+  const tokensChanged = hashOf(path.join(p.tokens, 'tokens.json')) !== cache['t:tokens'];
   const out = [];
   for (const s of m.screens || []) {
     for (const v of s.variants || []) {
@@ -215,20 +220,29 @@ export function changedScreens(root) {
       if (!fs.existsSync(abs)) continue;
       const text = fs.readFileSync(abs, 'utf8');
       const uses = [...text.matchAll(/<dfw-use\b[^>]*\bc="([\w-]+)"/g)].map((x) => x[1]);
-      if (tokensChanged || mtime(abs) > (cache[`s:${v.file}`] || 0) || uses.some((u) => changedComps.has(u))) out.push(s.id);
+      if (tokensChanged || hashOf(abs) !== cache[`s:${v.file}`] || uses.some((u) => changedComps.has(u))) out.push(s.id);
     }
   }
   return { screens: [...new Set(out)], changedComps: [...changedComps], tokensChanged };
+}
+
+// Content hashes, not mtimes: a checkout or touch that does not change a file does not invalidate its check,
+// and an edit always does (the "receipt" of a check is tied to the exact content that was measured).
+function hashOf(f) {
+  try {
+    return crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex').slice(0, 16);
+  } catch {
+    return null;
+  }
 }
 
 export function markChecked(root) {
   const p = projectPaths(root);
   const cache = {};
   const compDir = path.join(p.design, 'system', 'components');
-  const now = Date.now();
-  if (fs.existsSync(compDir)) for (const f of fs.readdirSync(compDir)) cache[`c:${f}`] = now;
-  cache['t:tokens'] = now;
-  for (const s of readJson(p.manifest, {}).screens || []) for (const v of s.variants || []) cache[`s:${v.file}`] = now;
+  if (fs.existsSync(compDir)) for (const f of fs.readdirSync(compDir)) cache[`c:${f}`] = hashOf(path.join(compDir, f));
+  cache['t:tokens'] = hashOf(path.join(p.tokens, 'tokens.json'));
+  for (const s of readJson(p.manifest, {}).screens || []) for (const v of s.variants || []) cache[`s:${v.file}`] = hashOf(path.join(p.design, v.file));
   writeJson(path.join(p.dfw, 'layout-cache.json'), cache);
 }
 
@@ -274,6 +288,7 @@ export async function layoutCheck(root, opts = {}) {
           page = await renderer.page({ width: j.bp.width, height: j.bp.height });
           await page.goto(pathToFileURL(files.get(j.rel)).href, { timeout: 30000 });
           if (j.state) await page.evaluate((st) => document.documentElement.setAttribute('data-state', st), j.state);
+          if (j.reflow) await page.evaluate(() => (document.documentElement.style.fontSize = '125%'));
           await fontsReady(page);
           await page.waitForTimeout(40);
           results.push({ ...j, m: await page.evaluate(measure, { stress: j.stress }) });
@@ -290,7 +305,7 @@ export async function layoutCheck(root, opts = {}) {
   }
 
   const findings = [];
-  const where = (r) => `${r.screen === '_system' ? 'Design System page' : `${r.screen}/${r.variant}`} @ ${r.bp.id}${r.state ? ` [${r.state}]` : ''}${r.stress ? ' [stress: long lists]' : ''}`;
+  const where = (r) => `${r.screen === '_system' ? 'Design System page' : `${r.screen}/${r.variant}`} @ ${r.reflow ? '320px, text 125%' : r.bp.id}${r.state ? ` [${r.state}]` : ''}${r.stress ? ' [stress: long lists]' : ''}`;
   const add = (r, level, rule, message) => findings.push({ level, rule, file: r.rel, line: 1, message: `${where(r)}: ${message}`, source: 'layout' });
   for (const r of results) {
     if (r.error) {
@@ -298,6 +313,13 @@ export async function layoutCheck(root, opts = {}) {
       continue;
     }
     const mm = r.m;
+    if (r.reflow) {
+      // Two-dimensional content (data tables, toolbars) is exempt from reflow in WCAG: a SHOULD, not a MUST.
+      if (mm.hOverflow > 1) add(r, 'warn', 'reflow', `page scrolls sideways by ${mm.hOverflow}px. Content should reflow to one column at 320px (WCAG 1.4.10); scroll only inside data tables.`);
+      for (const o of mm.overlaps.slice(0, 3)) add(r, 'warn', 'reflow', `"${o.a}" overlaps "${o.b}" when text is enlarged.`);
+      for (const c of mm.clipped.slice(0, 3)) add(r, 'warn', 'reflow', `text clipped in "${c.el}" when text is enlarged ("${c.text}…"). Let boxes grow with their text.`);
+      continue;
+    }
     if (mm.hOverflow > 1) add(r, 'error', 'h-overflow', `page is ${mm.hOverflow}px wider than the viewport.`);
     for (const o of mm.overlaps.slice(0, 5)) add(r, 'error', 'overlap', `"${o.a}" overlaps "${o.b}" (${o.area}px²).`);
     for (const a of mm.anchors) if (!a.inView && r.screen !== '_system') add(r, 'error', 'anchor', `anchored "${a.name}" is not fully visible (top ${a.top}, bottom ${a.bottom}, viewport ${mm.vh}). Anchored feedback and primary actions must stay on screen${r.stress ? ' even when lists grow: scroll the list inside its container' : ''}.`);
@@ -312,7 +334,7 @@ export async function layoutCheck(root, opts = {}) {
   }
   // Cross-screen consistency.
   const sigs = new Map();
-  for (const r of results.filter((x) => x.m && !x.stress && x.screen !== '_system')) {
+  for (const r of results.filter((x) => x.m && !x.stress && !x.reflow && x.screen !== '_system')) {
     for (const c of r.m.components) {
       const key = `${c.c}/${c.v}/${c.s}@${r.bp.id}`;
       if (!sigs.has(key)) sigs.set(key, new Map());
@@ -325,6 +347,26 @@ export async function layoutCheck(root, opts = {}) {
     if (bySig.size > 1) {
       const variants = [...bySig].map(([sig, scr]) => `${[...scr].join(', ')}: ${sig}`).join(' | ');
       findings.push({ level: 'warn', rule: 'consistency', file: 'design/design.json', line: 1, message: `Component ${key.split('@')[0]} renders differently across screens (${variants}). A screen is overriding the master; fix the master or the screen.`, source: 'layout' });
+    }
+  }
+  // Variants that only restyle the same structure should be themes (compare at the same breakpoint, default state).
+  const structure = new Map();
+  for (const r of results.filter((x) => x.m && !x.stress && !x.reflow && !x.state && x.screen !== '_system')) {
+    const key = `${r.screen}@${r.bp.id}`;
+    if (!structure.has(key)) structure.set(key, []);
+    structure.get(key).push({ variant: r.variant, sig: r.m.components.map((c) => `${c.c}/${c.v}`).join('|'), n: r.m.components.length, rel: r.rel });
+  }
+  const seenPairs = new Set();
+  for (const [key, list] of structure) {
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        const a = list[i];
+        const b = list[j];
+        const pair = `${key.split('@')[0]}:${a.variant}:${b.variant}`;
+        if (a.n < 3 || a.sig !== b.sig || a.rel === b.rel || seenPairs.has(pair)) continue;
+        seenPairs.add(pair);
+        findings.push({ level: 'warn', rule: 'variant-cosmetic', file: b.rel, line: 1, message: `${key.split('@')[0]}: variants "${a.variant}" and "${b.variant}" have the same component structure (${a.n} components in the same order). A variant should be a different layout or flow; a restyle belongs in a theme (design/tokens/themes/).`, source: 'layout' });
+      }
     }
   }
   return { status: 'ran', findings, renders: results.length };

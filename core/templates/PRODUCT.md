@@ -36,6 +36,10 @@ TODO: one paragraph: what the product is, for whom, and the outcome it delivers.
 ## Success metrics
 - TODO
 
+## Research
+Competitors (conventions to keep, visual default to avoid), adjacent-domain donors (structural map), ranked review themes -> recommendations. Sources as links.
+- TODO
+
 ## Open questions
 - TODO
 

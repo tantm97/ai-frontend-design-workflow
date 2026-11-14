@@ -1,6 +1,6 @@
 # AI Frontend Design Workflow
 
-**An AI-powered UI/UX and frontend design workflow for AI coding agents: Claude Code and GitHub Copilot today (OpenCode, Codex and Cursor planned).** It takes a product from requirements to an approved visual design to working frontend code: UX research, a reasoned design direction, a design system built first, a local Figma-like design studio with live click-to-comment review, design and technology approval gates, implementation in the stack you choose (React, Vue, Angular, Svelte, plain HTML...), and verification against the approved design.
+**An AI-powered UI/UX and frontend design workflow for AI coding agents: Claude Code and GitHub Copilot as plugins, OpenCode, Codex and Cursor through MCP.** It takes a product from requirements to an approved visual design to working frontend code: UX research, a reasoned design direction, a design system built first, a local Figma-like design studio with live click-to-comment review, design and technology approval gates, implementation in the stack you choose (React, Vue, Angular, Svelte, plain HTML...), and verification against the approved design.
 
 ```
 discovery -> direction (G1) -> design system (DS) -> pages of screens + review (G2: design frozen)
@@ -25,7 +25,7 @@ Both add the `dfw-marketplace` to Claude Code, install `dfw` (its plugin depende
 
 How dfw runs: the plugin's `bin/dfw` launcher starts the `dfw` binary for its version (`~/.config/dfw/bin/<version>/`) when present, otherwise Node.js. `dfw setup --binary` fetches the binary later; `DFW_NO_BINARY=1` forces Node.
 
-The installer registers dfw with every supported tool it finds (`--host claude|copilot|all` to choose). Without the installer: Claude Code `claude plugin marketplace add tantm97/ai-frontend-design-workflow` then `claude plugin install dfw@dfw-marketplace`; GitHub Copilot CLI `copilot plugin marketplace add tantm97/ai-frontend-design-workflow` then `copilot plugin install dfw@dfw-marketplace` (and the seven skills the same way).
+The installer registers dfw with every supported tool it finds (`--host claude|copilot|all` to choose). Without the installer: Claude Code `claude plugin marketplace add tantm97/ai-frontend-design-workflow` then `claude plugin install dfw@dfw-marketplace`; GitHub Copilot CLI `copilot plugin marketplace add tantm97/ai-frontend-design-workflow` then `copilot plugin install dfw@dfw-marketplace` (and the seven skills the same way). OpenCode, Codex, Cursor: `dfw mcp install opencode|codex|cursor|all` adds dfw's MCP server (workflow guide, CLI and a write-gate check) to that tool's config (`--print` to preview). MCP cannot block the tool's own file writes, so the approval gates are advisory there.
 
 The workflow is called **dfw** (design-first workflow): `/dfw` in Claude Code, `dfw` on the command line.
 
@@ -33,7 +33,13 @@ The workflow is called **dfw** (design-first workflow): `/dfw` in Claude Code, `
 - **Pages and a canvas.** Screens are grouped in pages per module. The local **Design Studio** shows the Design System page and every page as an infinite canvas of frames (screen × variant × breakpoint × state/theme): pan/zoom, layers, an inspector that shows which tokens and component an element uses, direct edits written back to the source (with undo), a full-window **Present** mode and an **Interact** tool for clickable prototypes, and click-to-comment review. Pages are laid out like a pencil.dev file: a section per module with rows per breakpoint, variants, states and annotation notes.
 - **Live review.** Comments you leave in the Studio reach Claude directly (a background `dfw comments wait`, plus hooks on your next message and before Claude stops); each comment shows its live status: waiting → Claude is working → fixed, please verify.
 - **Senior design reasoning, not taste by accident.** A design brief (use context + 7 personality axes) ranks 12 curated style guides (`dfw style match`). Palettes are generated as perceptual OKLCH ramps with roles picked by contrast targets (`dfw palette build`), type follows a modular scale (`dfw type scale`), and `dfw system audit` reviews the system like a senior designer: contrast, accent vs error/success hues, neutral temperature, hue budget, type rhythm, usage rules per colour, and a written rationale for every decision (required at the DS gate).
-- **Quality loop.** Two self-critique rounds against a rubric before you see anything, 2-3 options where a real choice exists, and automated checks (dfw lint, Impeccable, Hallmark sloplint) on the composed HTML.
+- **Quality loop.** Two self-critique rounds against a rubric before you see anything, 2-3 options where a real choice exists, and automated checks on the composed HTML:
+  - dfw lint, with AI-default tells, interface guidelines and missing states;
+  - a rendered layout check, including 320px with text at 125%;
+  - axe-core for rendered accessibility;
+  - Impeccable and Hallmark sloplint.
+
+  A check that could not run is reported as NOT VERIFIED, never as passing. `npm run bench` measures the checks on seeded defects.
 - **Hard gates.** A PreToolUse hook blocks implementation files until the design is approved (G2) and you approved the stack (G3). Approved designs are frozen in `design/approved/vN/` with a sha256 lock.
 - **No silent stack choices.** The design phase never assumes React/Tailwind/etc.; the stack is decided at G3 (existing projects keep their stack unless you approve a change).
 - **One orchestrator, curated skills.** dfw routes to one lead + at most two supporting skills per phase, with written precedence rules and conflict rulings.
@@ -51,6 +57,15 @@ The workflow is called **dfw** (design-first workflow): `/dfw` in Claude Code, `
 | `emil-design-eng` | [emilkowalski/skills](https://github.com/emilkowalski/skills) (MIT) | Motion craft and review; library picks at G3 |
 | `hallmark` | [nutlope/hallmark](https://github.com/nutlope/hallmark) (MIT) | Lead for marketing/landing pages; `sloplint` used by `dfw check` |
 | `taste-reference` | [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill) (MIT) | Reference mode only: website copy/section references + `copy-lint` |
+
+Also used, pinned and unmodified:
+
+| Item | Source | Use |
+|---|---|---|
+| Knowledge | [vercel-labs/web-interface-guidelines](https://github.com/vercel-labs/web-interface-guidelines) (MIT) | `references/web-interface-guidelines.md`, read in concepts, review and implement |
+| Tool | [axe-core](https://github.com/dequelabs/axe-core) 4.14.0 (MPL-2.0) | Downloaded once by `dfw setup --a11y` with its npm integrity hash checked; injected into rendered screens by `dfw check` |
+| Tool | [pixelmatch](https://github.com/mapbox/pixelmatch) 8.0.0 (ISC) | `core/assets/vendor/pixelmatch.js`, used by `dfw diff` |
+| Tool, optional | [Lighthouse](https://github.com/GoogleChrome/lighthouse) 13.6.0 (Apache-2.0) | `dfw check --url <u> --lighthouse` at G4 only, through npx, error reporting off |
 
 Vendored plugins are built from pinned commits (`registry/skills.lock.json`) with declarative overlays (`overlays/`); upstream files are never edited by hand. See `THIRD_PARTY_NOTICES.md`.
 
@@ -121,6 +136,7 @@ core/                     agent-agnostic workflow core
   assets/icons/           Lucide icon bundle (ISC, pinned tag)
   workflow/               SKILL.md, agents, phase guides, precedence + conflict policies, stack guides (host placeholders rendered at build)
   lib/host.mjs            everything that differs between AI tools (hook formats, skill wording, install paths)
+  lib/mcp.mjs             "dfw mcp": MCP server + config install for tools without a dfw plugin
   manifest.json           name, version, dependencies: source of every host's plugin manifest
 adapters/claude-code/     Claude Code packaging: hooks + assemble.json -> plugins/dfw
 adapters/copilot/         GitHub Copilot packaging: hooks + assemble.json -> plugins/dfw-copilot
@@ -146,6 +162,8 @@ npm run validate         # structure, cross-references, no upstream hooks, confl
 npm run styles           # regenerate the 12 style guides (fails on any senior-audit error)
 npm run presets          # regenerate the neutral presets
 npm run icons -- --tag <lucide tag>   # re-vendor the Lucide icon bundle
+npm run bench            # check benchmark: seeded defects -> detection, false positives, time (tests/bench/README.md)
+npm run knowledge -- check|sync|bump <id>   # vendored knowledge files (registry "knowledge")
 ```
 
 ## Maintaining external skills

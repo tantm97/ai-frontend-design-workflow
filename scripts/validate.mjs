@@ -6,6 +6,8 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { REPO_ROOT, readJson, loadRegistry, loadLock } from './lib/build.mjs';
 import { xrefCheck, hooksCheck, conflictLint } from './lib/checks.mjs';
+import { createHash } from 'node:crypto';
+import { unwrap } from './knowledge.mjs';
 
 const errors = [];
 const warnings = [];
@@ -54,6 +56,20 @@ for (const s of registry.skills) {
 for (const id of Object.keys(lock.skills)) if (!registry.skills.some((s) => s.id === id)) warnings.push(`lock has "${id}" which is not in the registry`);
 
 // 3. dfw's references to other plugins and files.
+// Vendored knowledge files: pinned, unmodified upstream text plus its license.
+for (const k of registry.knowledge || []) {
+  const f = path.join(REPO_ROOT, k.dest);
+  if (!/^[0-9a-f]{40}$/.test(k.commit || '')) errors.push(`knowledge ${k.id}: commit must be a full sha`);
+  if (!fs.existsSync(f)) {
+    errors.push(`knowledge ${k.id}: ${k.dest} missing (npm run knowledge -- sync)`);
+    continue;
+  }
+  const text = fs.readFileSync(f, 'utf8');
+  const body = unwrap(text);
+  if (body == null || createHash('sha256').update(body).digest('hex') !== k.sha256) errors.push(`knowledge ${k.id}: ${k.dest} differs from the pinned upstream text (do not edit it; npm run knowledge -- sync)`);
+  if (!/## License/.test(text)) errors.push(`knowledge ${k.id}: license section missing`);
+}
+
 errors.push(...xrefCheck());
 // 4. Hooks invariant.
 errors.push(...hooksCheck());

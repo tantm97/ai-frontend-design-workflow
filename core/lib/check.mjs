@@ -40,7 +40,7 @@ function sloplintScope(root) {
 export function runSloplint(root, targets, { env, timeoutMs }) {
   const script = sloplintScript();
   if (!script) return { tool: 'sloplint', status: 'unavailable', findings: [] };
-  const files = targets.filter((t) => /\.(html|css|jsx|tsx|vue|svelte|astro)$/.test(t));
+  const files = targets.filter((t) => !/^https?:/.test(t) && /\.(html|css|jsx|tsx|vue|svelte|astro)$/.test(t)); // reads files, not URLs
   if (!files.length) return { tool: 'sloplint', status: 'skipped', findings: [] };
   const scope = sloplintScope(root);
   const node = nodeExecutable();
@@ -204,6 +204,9 @@ export function formatReport(results, { max = 50 } = {}) {
   lines.push(`Checks: ${tally.error} must, ${tally.warn} should, ${tally.info} nice. Tools: ${results.map((r) => `${r.tool}=${r.status}`).join(', ')}`);
   for (const f of all.slice(0, max)) lines.push(`- [${label[f.level]}] ${f.file}:${f.line} (${f.source}/${f.rule}) ${f.message}`);
   if (all.length > max) lines.push(`- ... ${all.length - max} more (run "dfw check --json" for all).`);
-  for (const r of results) if (r.detail) lines.push(`  note: ${r.tool}: ${r.detail}`);
-  return { text: lines.join('\n'), tally, findings: all };
+  // Fail closed: a check that could not run is reported as NOT VERIFIED, never read as a pass.
+  const unverified = results.filter((r) => ['unverifiable', 'unavailable', 'not-installed', 'timeout', 'error'].includes(r.status));
+  if (unverified.length) lines.push(`NOT VERIFIED: ${unverified.map((r) => `${r.tool} (${r.detail || r.status})`).join('; ')}. Say so in any report; do not claim these aspects pass.`);
+  for (const r of results) if (r.detail && !unverified.includes(r)) lines.push(`  note: ${r.tool}: ${r.detail}`);
+  return { text: lines.join('\n'), tally, findings: all, unverified: unverified.map((r) => r.tool) };
 }

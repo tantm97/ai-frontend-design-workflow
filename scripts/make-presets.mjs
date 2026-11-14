@@ -30,10 +30,10 @@ const STATUS = {
 
 const PRESETS = {
   crisp: {
-    description: 'Crisp: neutral cool greys, indigo accent, compact controls, small radii, hairline dividers. Productive SaaS / admin tools.',
+    description: 'Crisp: neutral cool greys, cobalt accent, compact controls, small radii, hairline dividers. Productive SaaS / admin tools.',
     fonts: { body: ['Inter', 'Segoe UI', 'system-ui', 'sans-serif'], display: ['Inter', 'Segoe UI', 'system-ui', 'sans-serif'], mono: ['JetBrains Mono', 'Consolas', 'monospace'] },
     head: '<link rel="preconnect" href="https://fonts.googleapis.com">\n<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&family=JetBrains+Mono:wght@400;500&display=swap">',
-    color: { canvas: '#f7f7f8', surface: '#ffffff', 'surface-sunken': '#f4f4f5', 'surface-hover': '#f1f1f3', ink: '#18181b', muted: '#52525b', subtle: '#71717a', border: '#8b8b94', 'border-strong': '#52525b', rule: '#e4e4e7', accent: '#4f46e5', 'accent-hover': '#4338ca', 'accent-soft': '#eef0ff', 'accent-text': '#4338ca', 'on-accent': '#ffffff', focus: '#4f46e5', 'focus-ring': '#c7c9fb' },
+    color: { canvas: '#f7f7f8', surface: '#ffffff', 'surface-sunken': '#f4f4f5', 'surface-hover': '#f1f1f3', ink: '#18181b', muted: '#52525b', subtle: '#71717a', border: '#8b8b94', 'border-strong': '#52525b', rule: '#e4e4e7', accent: '#2453c7', 'accent-hover': '#1d43a3', 'accent-soft': '#edf2ff', 'accent-text': '#1d43a3', 'on-accent': '#ffffff', focus: '#2453c7', 'focus-ring': '#c4d4f6' },
     radius: { sm: 4, md: 6, lg: 10, xl: 14 },
     size: { control: 36, 'control-sm': 30, 'control-lg': 44 },
     tracking: { tight: -0.02, normal: -0.006, wide: 0.02 },

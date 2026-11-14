@@ -31,7 +31,7 @@ Grid, spacing scale, density level, navigation model, breakpoints.
 Inventory with states (default, hover, focus-visible, active, disabled, loading, empty, error).
 
 ## Motion
-Purpose, durations, easing, reduced-motion behavior.
+Budget by product type (references/phase-direction.md "Motion budget"), purpose, durations, easing, reduced-motion behavior.
 
 ## Imagery and iconography
 

@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { newState, transitionBlockers, setPhase, approveGate, saveState, loadState } from '../../core/lib/state.mjs';
 import { decideWrite } from '../../core/lib/gate.mjs';
 import { loadConfig, DEFAULTS } from '../../core/lib/config.mjs';
-import { lintHtml, lintCss, lintTokens } from '../../core/lib/lint.mjs';
+import { lintHtml, lintCss, lintTokens, stateCoverage } from '../../core/lib/lint.mjs';
 import { tokensToDeclarations } from '../../core/lib/tokens.mjs';
 import { addComment, updateComment, allComments } from '../../core/lib/comments.mjs';
 import { freezeDesign, verifySnapshot, reopenDesign } from '../../core/lib/freeze.mjs';
@@ -225,4 +225,92 @@ test('language: asked once per session, last used remembered', () => {
   const other = JSON.parse(cli(root, 'lang', 'status', '--session', 'def'));
   assert.equal(other.chosen, false, 'new session asks again');
   assert.equal(other.lastUsed, 'vi', 'offers last used as default');
+});
+
+test('lint: generic-AI tells (default colours, emoji icons, filler, metrics, placeholder hosts, gradient, left-border card)', () => {
+  const html = `<!doctype html><html lang="en"><head><link rel="stylesheet" href="tokens.css"><style>
+  .hero{background:linear-gradient(135deg,#7c3aed,#2563eb)} .tile{border-radius:12px;border-left:4px solid var(--color-accent)}
+  </style></head><body><h2 data-dfw-id="a">🚀 Fast</h2><button data-dfw-id="b">Go</button><p>Lorem ipsum dolor</p>
+  <p>Teams ship 10x faster</p><img data-dfw-id="c" alt="" src="https://images.unsplash.com/x.jpg"><span style="color:#6366f1">x</span></body></html>`;
+  const rules = lintHtml('design/screens/a.html', html).map((f) => `${f.level}:${f.rule}`);
+  for (const r of ['error:emoji-icon', 'error:filler-copy', 'warn:invented-metric', 'warn:placeholder-image-host', 'warn:ai-gradient', 'warn:left-border-card', 'warn:ai-default-color']) assert.ok(rules.includes(r), `${r} in ${rules}`);
+  // Clean markup raises none of them.
+  const clean = lintHtml('design/screens/b.html', `<html lang="en"><body><h2 data-dfw-id="a">Assets due for audit</h2><p>12 of 340 assets are overdue.</p></body></html>`);
+  assert.deepEqual(clean.filter((f) => /ai-|emoji|filler|metric|placeholder-image|left-border/.test(f.rule)), []);
+  assert.ok(lintCss('design/x.css', '.card{border-radius:8px;border-left:3px solid red}').some((f) => f.rule === 'left-border-card'));
+  assert.ok(lintTokens('t.json', { color: { $type: 'color', accent: { $value: '#4F46E5' } } }).some((f) => f.rule === 'ai-default-color'));
+});
+
+test('lint: state coverage for data surfaces and forms', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dfw-states-'));
+  fs.mkdirSync(path.join(root, 'design'), { recursive: true });
+  const write = (states) => fs.writeFileSync(path.join(root, 'design/design.json'), JSON.stringify({ states, screens: [{ id: 'list', variants: [{ id: 'a', file: 'screens/list/a.html' }] }] }));
+  write([]);
+  const f = stateCoverage(root, 'design/screens/list/a.html', '<body><table></table><form></form></body>');
+  assert.equal(f.length, 1);
+  assert.match(f[0].message, /no loading\/empty\/error state/);
+  write(['loading', 'empty', 'error']);
+  assert.deepEqual(stateCoverage(root, 'design/screens/list/a.html', '<body><table></table></body>'), []);
+  assert.deepEqual(stateCoverage(root, 'design/screens/list/a.html', '<body><p>no data surface</p></body>'), []);
+});
+
+test('lint: interface-guideline and copy rules, near-duplicate colours, component state matrix', async () => {
+  const { lintComponentFile } = await import('../../core/lib/lint.mjs');
+  const html = `<html lang="en"><head><style>input{font-size:13px} .menu{z-index:999}</style></head><body>
+  <p data-dfw-id="a">Seamlessly manage everything.</p><p data-dfw-id="b">Oops! Something went wrong.</p><p data-dfw-id="c">Loading...</p>
+  <a data-dfw-id="d" href="#x">click here</a></body></html>`;
+  const rules = new Set(lintHtml('design/screens/x.html', html).map((f) => f.rule));
+  for (const r of ['copy-tell', 'vague-error', 'ellipsis-char', 'link-text', 'input-font-size', 'z-index-raw']) assert.ok(rules.has(r), r);
+  const clean = lintHtml('design/screens/y.html', `<html lang="en"><head><style>input{font-size:16px} .menu{z-index:var(--z-menu)}</style></head><body><p data-dfw-id="a">Loading…</p><a data-dfw-id="d" href="#x">View invoice 1042</a></body></html>`);
+  assert.deepEqual(clean.filter((f) => /copy-tell|vague-error|ellipsis|link-text|input-font|z-index/.test(f.rule)), []);
+  const near = lintTokens('t.json', { color: { $type: 'color', a: { $value: '#f4f4f5' }, b: { $value: '#f4f4f6' }, c: { $value: '#2453c7' } } });
+  assert.equal(near.filter((f) => f.rule === 'near-duplicate-color').length, 1);
+  const btn = (css) => lintComponentFile('design/system/components/b.html', `<dfw-component name="b"><style>${css}</style><template><button class="b">x</button></template></dfw-component>`);
+  assert.ok(btn('.b{color:var(--c)}').some((f) => f.rule === 'component-states'));
+  assert.ok(!btn('.b:hover{} .b:disabled{}').some((f) => f.rule === 'component-states'));
+  // A card that merely contains a link is not a control.
+  assert.ok(!lintComponentFile('c.html', '<dfw-component name="c"><style>.c{}</style><template><div class="c"><a href="#">x</a></div></template></dfw-component>').some((f) => f.rule === 'component-states'));
+});
+
+test('studio: screen flows from data-dfw-goto and links; Flow page only when there are links', async () => {
+  const { screenFlows, studioPages } = await import('../../core/studio/pages.mjs');
+  const m = { screens: [{ id: 'list', variants: [{ id: 'a', file: 'screens/list/a.html' }] }, { id: 'detail', variants: [{ id: 'a', file: 'screens/detail/a.html' }] }] };
+  const files = new Map([
+    ['screens/list/a.html', '<a href="../detail/a.html">Open <b>drill</b></a><a href="https://example.com/x.html">ext</a>'],
+    ['screens/detail/a.html', '<button data-dfw-goto="list">Back to list</button><button data-dfw-goto="nope">x</button>'],
+  ]);
+  m.flows = screenFlows(m, files);
+  assert.deepEqual(m.flows, [{ from: 'list', to: 'detail', label: 'Open drill' }, { from: 'detail', to: 'list', label: 'Back to list' }]);
+  assert.deepEqual(studioPages(m).map((p) => p.id), ['system', 'flow', 'screens']);
+  assert.ok(!studioPages({ ...m, flows: [] }).some((p) => p.flow));
+});
+
+test('knowledge: vendored file keeps the upstream text byte for byte between markers', async () => {
+  const { wrap, unwrap } = await import('../../scripts/knowledge.mjs');
+  const body = '# Rules\n- MUST: x ≥ 24px …\n';
+  const text = wrap({ repo: 'o/r', commit: 'a'.repeat(40), path: 'AGENTS.md', license: 'MIT', title: 'T', usage: 'U' }, body, 'MIT License\n...');
+  assert.equal(unwrap(text), body);
+  assert.match(text, /## License \(MIT/);
+  const reg = JSON.parse(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../../registry/skills.json'), 'utf8'));
+  for (const k of reg.knowledge) assert.match(k.commit, /^[0-9a-f]{40}$/);
+});
+
+test('diff: identical screenshots are 0%, a changed one is not (needs Chrome)', { skip: !(await import('../../core/lib/runtime.mjs')).browserStatus().installed }, async () => {
+  const { diffImages } = await import('../../core/lib/pixeldiff.mjs');
+  const { openRenderer } = await import('../../core/lib/runtime.mjs');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dfw-diff-'));
+  const r = await openRenderer();
+  try {
+    const p = await r.page({ width: 200, height: 100 });
+    for (const [name, color] of [['a', '#ffffff'], ['b', '#ffffff'], ['c', '#d03030']]) {
+      await p.goto(`data:text/html,<body style="margin:0;background:${encodeURIComponent(color)}"><p style="margin:20px">Same text</p></body>`);
+      await p.screenshot({ path: path.join(dir, `${name}.png`) });
+    }
+  } finally {
+    await r.close();
+  }
+  const [same, changed] = await diffImages([{ a: path.join(dir, 'a.png'), b: path.join(dir, 'b.png') }, { a: path.join(dir, 'a.png'), b: path.join(dir, 'c.png'), out: path.join(dir, 'd.png') }]);
+  assert.equal(same.diff, 0);
+  assert.ok(changed.ratio > 0.5, `changed ratio ${changed.ratio}`);
+  assert.ok(fs.existsSync(path.join(dir, 'd.png')));
 });

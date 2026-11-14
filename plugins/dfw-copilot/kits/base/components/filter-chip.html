@@ -8,6 +8,8 @@
 .fchip--active { border-color: var(--color-accent); background: var(--color-accent-soft); color: var(--color-accent-text); }
 .fchip--active b { color: var(--color-accent-text); }
 .fchip:focus-visible { outline: var(--focus-width) solid var(--color-focus); outline-offset: var(--focus-offset); }
+.fchip:disabled, .fchip[aria-disabled="true"] { background: var(--color-surface-sunken); color: var(--color-subtle); border-color: var(--color-rule); cursor: not-allowed; }
+.fchip:disabled b { color: var(--color-subtle); }
 </style>
 <template>
 <button class="fchip fchip--{{variant}}" type="button" aria-haspopup="listbox">{{label}}: <b>{{value}}</b><dfw-icon name="chevron-down"></dfw-icon></button>

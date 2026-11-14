@@ -1,0 +1,150 @@
+{
+  "at": "2026-11-14T19:18:16.428Z",
+  "version": "0.5.0",
+  "fixtures": 27,
+  "detection": 1,
+  "coverage": 1,
+  "falsePositives": 0,
+  "checkers": [
+    {
+      "name": "lint",
+      "status": "ran",
+      "ms": 11,
+      "findings": 130
+    },
+    {
+      "name": "layout",
+      "status": "ran",
+      "ms": 7004,
+      "findings": 105
+    },
+    {
+      "name": "axe",
+      "status": "ran",
+      "ms": 2195,
+      "findings": 6
+    }
+  ],
+  "rules": {
+    "ai-default-color": {
+      "seeded": 1,
+      "found": 1,
+      "measured": true
+    },
+    "axe-color-contrast": {
+      "seeded": 2,
+      "found": 2,
+      "measured": true
+    },
+    "ai-gradient": {
+      "seeded": 1,
+      "found": 1,
+      "measured": true
+    },
+    "axe-button-name": {
+      "seeded": 1,
+      "found": 1,
+      "measured": true
+    },
+    "clipped": {
+      "seeded": 1,
+      "found": 1,
+      "measured": true
+    },
+    "reflow": {
+      "seeded": 4,
+      "found": 4,
+      "measured": true
+    },
+    "copy-tell": {
+      "seeded": 1,
+      "found": 1,
+      "measured": true
+    },
+    "ellipsis-char": {
+      "seeded": 1,
+      "found": 1,
+      "measured": true
+    },
+    "emoji-icon": {
+      "seeded": 1,
+      "found": 1,
+      "measured": true
+    },
+    "filler-copy": {
+      "seeded": 1,
+      "found": 1,
+      "measured": true
+    },
+    "axe-label": {
+      "seeded": 1,
+      "found": 1,
+      "measured": true
+    },
+    "h-overflow": {
+      "seeded": 2,
+      "found": 2,
+      "measured": true
+    },
+    "img-alt": {
+      "seeded": 1,
+      "found": 1,
+      "measured": true
+    },
+    "axe-image-alt": {
+      "seeded": 1,
+      "found": 1,
+      "measured": true
+    },
+    "input-font-size": {
+      "seeded": 1,
+      "found": 1,
+      "measured": true
+    },
+    "invented-metric": {
+      "seeded": 1,
+      "found": 1,
+      "measured": true
+    },
+    "left-border-card": {
+      "seeded": 1,
+      "found": 1,
+      "measured": true
+    },
+    "link-text": {
+      "seeded": 1,
+      "found": 1,
+      "measured": true
+    },
+    "overlap": {
+      "seeded": 1,
+      "found": 1,
+      "measured": true
+    },
+    "placeholder-image-host": {
+      "seeded": 1,
+      "found": 1,
+      "measured": true
+    },
+    "state-coverage": {
+      "seeded": 1,
+      "found": 1,
+      "measured": true
+    },
+    "axe-target-size": {
+      "seeded": 1,
+      "found": 1,
+      "measured": true
+    },
+    "vague-error": {
+      "seeded": 1,
+      "found": 1,
+      "measured": true
+    },
+    "z-index-raw": {
+      "seeded": 1,
+      "found": 1,
+      "measured": true
+    }
+  }
+}

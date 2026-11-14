@@ -69,10 +69,27 @@ export const HOSTS = {
     installedPluginDirs: () => [copilotPluginDirs().root],
     dfwPluginDir: () => copilotPluginDirs().dfw,
   },
-  // Planned: same core, new adapter. See docs for the capability notes of each.
-  opencode: { id: 'opencode', name: 'OpenCode', status: 'planned', cli: 'opencode' },
-  codex: { id: 'codex', name: 'OpenAI Codex', status: 'planned', cli: 'codex' },
-  cursor: { id: 'cursor', name: 'Cursor', status: 'planned', cli: 'cursor-agent' },
+  // Text rendering only: the guide served by "dfw mcp" (core/lib/mcp.mjs) to tools without a dfw plugin.
+  mcp: {
+    id: 'mcp',
+    name: 'MCP',
+    status: 'internal',
+    text: {
+      HOST_NAME: 'your AI coding tool (through the dfw MCP server)',
+      SKILL_DIR: '__DFW_SKILL_DIR__',
+      ASK_TOOL: 'your tool for asking the user (or a short numbered question in chat)',
+      BACKGROUND: 'a background shell command if your tool has one; otherwise check `dfw comments inbox` whenever you pause',
+      HOST_SETTINGS: "your tool's own settings",
+      DFW_CLI:
+        '`dfw` is a CLI, also available as the `dfw` MCP tool (arguments as a list, cwd = project root). This tool has no write hook: before creating or editing any file in a dfw project, call the `dfw_can_write` MCP tool and never write a DENIED file.',
+      INVOKE_SKILL: 'Design skills named here (impeccable, frontend-design, ...) may not be installed in your tool; when one is missing, follow this guide and its references directly. Agents named here (screen-builder, ...) are roles: do their work yourself.',
+    },
+    qualifiedSkillNames: false,
+  },
+  // Planned plugins (hooks): same core, new adapter. Until then they use "dfw mcp install <tool>".
+  opencode: { id: 'opencode', name: 'OpenCode', status: 'planned', cli: 'opencode', mcp: true },
+  codex: { id: 'codex', name: 'OpenAI Codex', status: 'planned', cli: 'codex', mcp: true },
+  cursor: { id: 'cursor', name: 'Cursor', status: 'planned', cli: 'cursor-agent', mcp: true },
 };
 
 export const SUPPORTED_HOSTS = Object.values(HOSTS).filter((h) => h.status === 'supported').map((h) => h.id);

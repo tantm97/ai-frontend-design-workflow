@@ -102,7 +102,15 @@ try {
   const pages = await page.$$eval('#page-list button', (bs) => bs.map((b) => b.textContent));
   assert.match(pages[0], /All pages/, 'All pages entry first');
   assert.match(pages[1], /Design System/, 'Design System is the first page');
-  assert.match(pages[2], /Screens\s*13/, 'Screens page with frame count');
+  assert.match(pages[2], /Flow\s*2/, 'Flow page (home <-> detail links) after the Design System');
+  assert.match(pages[3], /Screens\s*13/, 'Screens page with frame count');
+  // Flow page: one frame per linked screen, one labelled arrow per link.
+  await page.click('#page-list button[data-page="flow"]');
+  await page.waitForSelector('svg.flow path[marker-end]', { state: 'attached' });
+  assert.equal(await page.$$eval('svg.flow path[marker-end]', (p) => p.length), 2);
+  assert.deepEqual((await page.$$eval('svg.flow text', (t) => t.map((x) => x.textContent))).sort(), ['Back home', 'Order details']);
+  if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-0-flow.png') });
+  await page.click('#page-list button[data-page="screens"]');
   // State menu: "All" off -> no state frames; pick some -> only those; "All" back on.
   await page.click('#state-menu summary');
   await page.uncheck('#states .ms-all input');

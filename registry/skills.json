@@ -9,6 +9,20 @@
     { "plugin": "dfw", "adapter": "claude-code", "host": "claude", "marketplace": ".claude-plugin/marketplace.json", "category": "design", "description": "Design-first frontend workflow orchestrator: gates, studio, click-to-comment review, routing, checks." },
     { "plugin": "dfw-copilot", "adapter": "copilot", "host": "copilot", "marketplace": ".github/plugin/marketplace.json", "category": "design", "description": "Design-first frontend workflow orchestrator for GitHub Copilot: gates, studio, click-to-comment review, routing, checks." }
   ],
+  "knowledge": [
+    {
+      "id": "web-interface-guidelines",
+      "title": "Web Interface Guidelines (Vercel Labs)",
+      "repo": "vercel-labs/web-interface-guidelines",
+      "commit": "434b7f91364665f2f733b310ec54809bf8f37937",
+      "path": "AGENTS.md",
+      "sha256": "35411b4a2dcfa651fd33706a92cc860947364b521643107fbf3116abe3826d44",
+      "license": "MIT",
+      "licenseFile": "LICENSE",
+      "dest": "core/workflow/references/web-interface-guidelines.md",
+      "usage": "How dfw uses this list: during concepts and review, check screens against Interactions, Animation, Layout, Content & Accessibility, Content Handling, Dark Mode & Theming and Design (they apply to static HTML designs). Performance and Hydration apply only after G3, during implement and verify. dfw lint already enforces the mechanical rules (transition: all, outline removal, three dots instead of the ellipsis character, form text under 16px, emoji icons); axe (dfw check) covers names, contrast and targets in the rendered page. When a rule conflicts with the approved design system or a recorded decision, the decision wins; say so once."
+    }
+  ],
   "skills": [
     {
       "id": "frontend-design",
