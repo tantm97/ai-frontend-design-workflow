@@ -110,7 +110,7 @@ details summary{cursor:pointer;font-weight:600}
 <body>
 <div class="layout">
 <nav class="toc" aria-label="Mục lục">
-  <strong>dfw</strong> <span class="badge">v0.5.0</span> <a href="architecture.html" style="display:inline;padding:0 4px;font-size:12px">English</a>
+  <strong>dfw</strong> <span class="badge">v0.5.1</span> <a href="architecture.html" style="display:inline;padding:0 4px;font-size:12px">English</a>
   <b>Bắt đầu</b>
   <a href="#purpose">1. dfw dùng để làm gì</a>
   <a href="#flow">2. Một dự án chạy thế nào</a>
@@ -655,7 +655,7 @@ dfw mode ui-refinement                        # đổi mode giữa chừng (tín
       <path d="M720 385 C750 385 750 206 768 206" class="s-line" marker-end="url(#r)"/>
       <!-- release + ci -->
       <rect x="290" y="372" width="180" height="90" rx="10" class="s-box"/>
-      <text x="304" y="396" class="s-t">tag v0.5.0</text>
+      <text x="304" y="396" class="s-t">tag v0.5.1</text>
       <text x="304" y="416" class="s-xm">release-binaries.yml</text>
       <text x="304" y="434" class="s-xs">5 binary + SHA256SUMS</text>
       <text x="304" y="450" class="s-xs">→ GitHub Release</text>
@@ -1657,9 +1657,9 @@ dfw mcp uninstall cursor           # gỡ; file cũ được lưu thành *.dfw-b
   <h3>Cách A: máy không có Node.js</h3>
   <pre><code>curl -fsSL https://raw.githubusercontent.com/tantm97/ai-frontend-design-workflow/main/install.sh | sh
 # chọn phiên bản cố định:
-curl -fsSL …/install.sh | DFW_VERSION=0.5.0 sh</code></pre>
+curl -fsSL …/install.sh | DFW_VERSION=0.5.1 sh</code></pre>
   <p>Tải binary hợp với máy, kiểm SHA-256, cài vào <code>~/.config/dfw/bin/&lt;ver&gt;/</code>, tạo liên kết <code>~/.local/bin/dfw</code>, rồi chạy <code>dfw install</code>.</p>
-  <div class="note warn">Chỉ dùng được sau khi đã có release (push tag <code>v0.5.0</code> và workflow release chạy xong).</div>
+  <div class="note warn">Chỉ dùng được sau khi đã có release (push tag <code>v0.5.1</code> và workflow release chạy xong).</div>
   <h3>Cách B: có Node.js 22+</h3>
   <pre><code>npx github:tantm97/ai-frontend-design-workflow
 # tuỳ chọn: --scope user|project|local   --no-binary   --no-runtime</code></pre>
@@ -1996,7 +1996,7 @@ node scripts/build-binary.mjs   # binary cho máy hiện tại vào dist/</code>
   <ol class="steps">
     <li><b>Nâng phiên bản</b>Ở <code>core/manifest.json</code> và <code>package.json</code> (marketplace và manifest từng host sinh ra khi build); rồi <code>npm run build</code>.</li>
     <li><b>PR</b>CI <code>validate.yml</code> chạy test, build --check, validate. Merge vào main.</li>
-    <li><b>Tag</b><code>git tag v0.5.0 &amp;&amp; git push origin v0.5.0</code>. Tag phải khớp phiên bản plugin, CI kiểm.</li>
+    <li><b>Tag</b><code>git tag v0.5.1 &amp;&amp; git push origin v0.5.1</code>. Tag phải khớp phiên bản plugin, CI kiểm.</li>
     <li><b>CI release</b><code>release-binaries.yml</code> build 5 binary, chạy thử, tạo release kèm <code>SHA256SUMS</code>.</li>
     <li><b>Người dùng cập nhật</b>Chạy lại <code>dfw install</code> (cập nhật marketplace, plugin, tải binary mới).</li>
   </ol>

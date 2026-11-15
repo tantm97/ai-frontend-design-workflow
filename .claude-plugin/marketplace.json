@@ -12,7 +12,7 @@
       "name": "dfw",
       "source": "./plugins/dfw",
       "description": "Design-first frontend workflow orchestrator: gates, studio, click-to-comment review, routing, checks.",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "category": "design"
     },
     {
