@@ -100,12 +100,17 @@ export function systemOptions(root, names, { fonts = 'vi' } = {}) {
   return { themes: r.themes.filter((t) => t.startsWith('opt-')) };
 }
 
-/** Promote one option (or preset) to the base tokens and remove the option themes. */
+/** Promote one option (or preset) to the base tokens and remove the option themes. The option's tokens win, edits included. */
 export function systemChoose(root, name, { fonts = 'vi' } = {}) {
   const p = projectPaths(root);
   const themesDir = path.join(p.tokens, 'themes');
   if (isStyle(name)) {
+    // Fonts, motif, style.json and rationale come from the guide; the tokens come from the option theme the user
+    // compared and approved, so edits made to opt-<id>.json during the comparison are kept.
+    const opt = path.join(themesDir, `opt-${name}.json`);
+    const edited = fs.existsSync(opt) ? fs.readFileSync(opt) : null;
     applyStyle(root, name, { fonts });
+    if (edited) fs.writeFileSync(path.join(p.tokens, 'tokens.json'), edited);
   } else {
     const opt = path.join(themesDir, `opt-${name}.json`);
     const { tokens, head } = presetFiles(name);

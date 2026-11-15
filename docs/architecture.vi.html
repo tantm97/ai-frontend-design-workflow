@@ -738,15 +738,15 @@ install.sh, package.json, .github/workflows/, README.md, LICENSE, THIRD_PARTY_NO
       <tr><td><code>tokens.mjs</code> (142)</td><td>design system</td><td>DTCG <code>tokens.json</code> + <code>themes/*.json</code> → <code>tokens.css</code> (<code>:root</code> và <code>[data-theme=…]</code>).</td></tr>
       <tr><td><code>color.mjs</code> (323)</td><td>design system</td><td>Dải màu OKLCH từ vài quyết định (màu thương hiệu, nhiệt độ trung tính), chọn vai trò theo độ tương phản, màu trạng thái hài hoà, thang chữ.</td></tr>
       <tr><td><code>style.mjs</code> (254)</td><td>design system</td><td>Thư viện style guide <code>kits/styles/*.json</code>: tìm, xem, chấm điểm theo brief, áp thành token.</td></tr>
-      <tr><td><code>system.mjs</code> (129)</td><td>design system</td><td><code>system init</code> (token từ style/preset, tạo inventory rỗng; không chép component), <code>options</code>/<code>choose</code> (so 2–3 theme), <code>list</code>.</td></tr>
+      <tr><td><code>system.mjs</code> (134)</td><td>design system</td><td><code>system init</code> (token từ style/preset, tạo inventory rỗng; không chép component), <code>options</code>/<code>choose</code> (so 2–3 theme), <code>list</code>.</td></tr>
       <tr><td><code>inventory.mjs</code> (160)</td><td>design system</td><td>Inventory component (<code>design/system/inventory.json</code>), kiểm tra <code>kit-copy</code> / <code>inventory-*</code> / <code>unused-master</code>, <code>system ref</code> đọc kit làm tham khảo.</td></tr>
       <tr><td><code>system-page.mjs</code> (359)</td><td>design system</td><td>Sinh trang "Design System": nền tảng từ token + mọi component với variant và ví dụ.</td></tr>
       <tr><td><code>dsaudit.mjs</code> (110)</td><td>design system</td><td>Review cấp senior: tương phản, màu nhấn trùng màu trạng thái, nhiệt độ xám, số lượng hue, nhịp chữ, lý do trong DESIGN.md.</td></tr>
       <tr><td><code>fonts.mjs</code> (10)</td><td>design system</td><td>Hỏi Google Fonts xem font có subset nào (vd. vietnamese). Chỉ gửi tên font.</td></tr>
       <tr><td><code>icons.mjs</code> (56)</td><td>design system</td><td>Tìm/thêm icon Lucide vào <code>design/system/icons/</code>.</td></tr>
-      <tr><td><code>compose.mjs</code> (394)</td><td>màn hình</td><td>Mở rộng <code>&lt;dfw-use&gt;</code>, <code>&lt;dfw-icon&gt;</code>, <code>&lt;dfw-head&gt;</code>, slot, prop thành HTML thường; build <code>components.css</code>; bản ghép đầy đủ vào <code>.dfw/build/</code>.</td></tr>
+      <tr><td><code>compose.mjs</code> (398)</td><td>màn hình</td><td>Mở rộng <code>&lt;dfw-use&gt;</code>, <code>&lt;dfw-icon&gt;</code>, <code>&lt;dfw-head&gt;</code>, slot, prop thành HTML thường; build <code>components.css</code>; bản ghép đầy đủ vào <code>.dfw/build/</code>.</td></tr>
       <tr><td><code>lint.mjs</code> (344)</td><td>kiểm tra</td><td>Luật tĩnh nhanh cho HTML, CSS, token, manifest, cộng dấu hiệu "AI làm" và độ phủ state (danh sách ở mục 14).</td></tr>
-      <tr><td><code>layout.mjs</code> (331)</td><td>kiểm tra</td><td>Render thật từng màn × breakpoint × state (cả bản danh sách dài ra) và đo chồng lấn, tràn, bị cắt, neo, khoảng trống, độ nhất quán giữa các màn.</td></tr>
+      <tr><td><code>layout.mjs</code> (393)</td><td>kiểm tra</td><td>Render thật từng màn × breakpoint × state (cả bản danh sách dài ra) và đo chồng lấn, tràn, bị cắt, neo, khoảng trống, vùng chạm <code>layout.mjs</code> (331)</td><td>kiểm tra</td><td>Render thật từng màn × breakpoint × state (cả bản danh sách dài ra) và đo chồng lấn, tràn, bị cắt, neo, khoảng trống, độ nhất qlt; 44px ở màn cảm ứng, độ nhất quán giữa các màn.</td></tr>
       <tr><td><code>check.mjs</code> (209)</td><td>kiểm tra</td><td>Gom dfw lint + DS audit + Impeccable + Hallmark sloplint (+ Taste copy-lint), quy về MUST/SHOULD/NICE và trỏ về file nguồn.</td></tr>
       <tr><td><code>locate.mjs</code> (68)</td><td>kiểm tra</td><td>Tìm thư mục của các plugin anh em (Impeccable, Hallmark, Taste) trong cache của Claude Code.</td></tr>
       <tr><td><code>cdp.mjs</code> (421)</td><td>render</td><td>Driver DevTools protocol tự viết: tìm/mở Chrome ẩn, context, page, chụp, cache font, tải chrome-headless-shell.</td></tr>
@@ -1272,6 +1272,7 @@ dfw comments inbox --peek</code></pre>
 
 &lt;!-- design/screens/borrow/index.html (instance) --&gt;
 &lt;dfw-use c="button" variant="primary" size="md" icon="plus" kbd="F2" id="borrow.submit"&gt;Mượn thiết bị&lt;/dfw-use&gt;</code></pre>
+<p><code>{{base}}</code> là đường dẫn từ trang đang ghép tới thư mục <code>design/</code>, dùng được trong <code>head.html</code>, template và ví dụ của master, và thuộc tính của instance: <code>&lt;img src="{{base}}assets/logo.png"&gt;</code> ra <code>../../assets/logo.png</code> trong màn hình, <code>/design/assets/logo.png</code> trên Studio và trang Design System. Master nào tự khai báo prop tên <code>base</code> thì giữ nghĩa prop đó.</p>
 <p>Màn hình chỉ được ghép component và bố cục. Màu, chữ, viền, bóng viết thẳng trong màn là lỗi MUST (<code>screen-visual-style</code>, <code>hardcoded-color</code>): cần gì mới thì thêm master hoặc variant trước.</p>
   <h3>Luật lint (<code>lint.mjs</code>)</h3>
   <table>
@@ -1300,6 +1301,7 @@ dfw comments inbox --peek</code></pre>
       <tr><td><code>consistency</code></td><td>SHOULD</td><td>Cùng component nhưng khác kích thước/vị trí giữa các màn.</td></tr>
       <tr><td><code>reflow</code></td><td>SHOULD</td><td>Render thêm ở 320px với chữ 125% (WCAG 1.4.10, 1.4.4): cuộn ngang, chồng, chữ bị cắt.</td></tr>
       <tr><td><code>variant-cosmetic</code></td><td>SHOULD</td><td>Hai biến thể của một màn có cùng cấu trúc component: đó là theme, không phải biến thể.</td></tr>
+      <tr><td><code>touch-target</code></td><td>SHOULD</td><td>Ở breakpoint cảm ứng (rộng &lt; 1024px), phần tử bấm được nhỏ hơn 44×44px (checkbox/radio tính theo label, link nằm trong đoạn văn được miễn). Dùng <code>var(--size-target-touch)</code> (44px); <code>--size-target-wcag</code> (24px) chỉ là mức sàn của WCAG, axe kiểm riêng.</td></tr>
       <tr><td><code>render</code></td><td>SHOULD</td><td>Không render được.</td></tr>
     </tbody>
   </table>
@@ -1769,7 +1771,7 @@ node scripts/install.mjs --source "$PWD"     # marketplace trỏ vào thư mục
       <tr><td><code>dfw system ref [&lt;tên&gt;]</code></td><td>Liệt kê / in master của kit làm checklist state và a11y. Chỉ đọc, không chép.</td><td>Trước khi tự viết một component chung (button, field…).</td></tr>
       <tr><td><code>dfw system presets</code></td><td>Liệt kê 3 preset.</td><td>—</td></tr>
       <tr><td><code>dfw system options a b [c]</code></td><td>Tạo 2–3 theme thử (<code>opt-a</code>…) từ style/preset để so trên cùng màn hình trong Studio.</td><td>Khi bạn chưa chắc chọn phong cách nào.</td></tr>
-      <tr><td><code>dfw system choose &lt;tên&gt;</code></td><td>Lấy một theme thử làm token chính, xoá các theme thử.</td><td>Sau khi so xong.</td></tr>
+      <tr><td><code>dfw system choose &lt;tên&gt;</code></td><td>Lấy một theme thử làm token chính, xoá các theme thử. Token lấy từ file <code>opt-&lt;tên&gt;.json</code> nên chỉnh sửa làm trong lúc so vẫn giữ; với style guide thì font, motif, <code>style.json</code> lấy từ guide.</td><td>Sau khi so xong.</td></tr>
       <tr><td><code>dfw system list [--json]</code></td><td>Liệt kê component, variant, size, prop đang có.</td><td>Xem trong kho có gì trước khi dựng màn.</td></tr>
       <tr><td><code>dfw system audit [--json]</code></td><td>Review cấp senior: tương phản, màu nhấn trùng màu trạng thái, xám, số hue, nhịp chữ, lý do trong DESIGN.md.</td><td>Trước khi duyệt DS.</td></tr>
       <tr><td><code>dfw palette build --brand &lt;hex|hue&gt; …</code></td><td>Sinh dải màu OKLCH, chọn vai trò theo độ tương phản, màu trạng thái hài hoà.</td><td><code>dfw palette build --brand "#3b5bdb"</code></td></tr>
