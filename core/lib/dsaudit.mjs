@@ -1,10 +1,12 @@
 // Senior design-system review of the project's tokens and DESIGN.md: contrast, semantic colour
 // collisions, neutral temperature, hue budget, type rhythm and hierarchy, family/radius sprawl,
-// tinted elevation, and whether every decision has a written reason.
+// tinted elevation, whether every decision has a written reason, and whether every component
+// master is designed for the product (inventory, no verbatim kit copies).
 import fs from 'node:fs';
 import path from 'node:path';
 import { projectPaths, readJson } from './util.mjs';
 import { auditColors, auditTypeScale, hexToOklch } from './color.mjs';
+import { inventoryFindings } from './inventory.mjs';
 
 function collect(tree) {
   const out = new Map();
@@ -106,5 +108,6 @@ export function auditDesignSystem(root) {
   for (const part of text.split(/^(?=## )/m)) if (/^## (?:Rationale|Decisions and rationale)\s*$/m.test(part.split('\n')[0])) body += part.split('\n').slice(1).join('\n');
   const bullets = (body.match(/^\s*[-*] .{20,}/gm) || []).length;
   if (bullets < 5) findings.push({ level: 'warn', rule: 'rationale', file: 'DESIGN.md', line: 1, message: `DESIGN.md "## Rationale" has ${bullets} decision(s); write at least 5 "decision - because <context fact or principle>" lines (accent choice, neutrals, type scale, density, motif).`, source: 'dfw-ds' });
+  findings.push(...inventoryFindings(root));
   return findings;
 }

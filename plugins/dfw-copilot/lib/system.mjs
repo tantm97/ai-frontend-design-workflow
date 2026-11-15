@@ -1,11 +1,12 @@
-// Design-system scaffolding: start from the token-driven starter kit, explore 2-3
-// preset options side by side (as token themes), then promote the chosen one.
+// Design-system scaffolding: style/preset tokens and an empty component inventory, explore 2-3
+// options side by side (as token themes), then promote the chosen one. Components are designed
+// per product from the inventory; the starter kit is only a reference (inventory.mjs).
 import fs from 'node:fs';
 import path from 'node:path';
 import { PLUGIN_ROOT, projectPaths, readJson, writeJson, DfwError } from './util.mjs';
 import { buildTokens } from './tokens.mjs';
 import { buildSystem, loadComponents } from './compose.mjs';
-import { addIcons } from './icons.mjs';
+import { ensureInventory } from './inventory.mjs';
 import { isStyle, getStyle, styleTokens, headFor, applyStyle } from './style.mjs';
 
 export const KIT_DIR = path.join(PLUGIN_ROOT, 'kits', 'base');
@@ -35,49 +36,24 @@ function isPlaceholderTokens(file) {
   return /Placeholder tokens created by dfw init/.test(fs.readFileSync(file, 'utf8'));
 }
 
-/** Icons referenced by component masters (templates and examples). */
-function iconsUsed(root) {
-  const names = new Set();
-  const dir = path.join(projectPaths(root).design, 'system', 'components');
-  if (!fs.existsSync(dir)) return [];
-  for (const f of fs.readdirSync(dir)) {
-    const t = fs.readFileSync(path.join(dir, f), 'utf8');
-    for (const m of t.matchAll(/<dfw-icon\b[^>]*\bname="([a-z0-9-]+)"/g)) names.add(m[1]);
-    for (const m of t.matchAll(/<dfw-use\b[^>]*?\bicon(?:-end)?="([a-z0-9-]+)"/g)) names.add(m[1]);
-  }
-  return [...names];
-}
-
 /**
- * Copy the starter kit into design/system/ and (when tokens are still the placeholder) the preset tokens.
- * Existing component files are kept unless force is set.
+ * Start the design system: tokens + fonts (+ the style's motif master) and an empty component inventory.
+ * Components are NOT copied from the kit: every master is designed for the product from the inventory;
+ * the kit is a read-only reference ("dfw system ref"). Existing tokens are kept unless force is set.
  */
-export function systemInit(root, { preset = 'crisp', style = null, fonts = 'vi', force = false, components = null } = {}) {
+export function systemInit(root, { preset = 'crisp', style = null, fonts = 'vi', force = false } = {}) {
   const p = projectPaths(root);
   const sys = path.join(p.design, 'system');
-  const compDir = path.join(sys, 'components');
-  fs.mkdirSync(compDir, { recursive: true });
-  const src = path.join(KIT_DIR, 'components');
-  const copied = [];
-  const kept = [];
-  for (const f of fs.readdirSync(src).filter((x) => x.endsWith('.html'))) {
-    if (components && !components.includes(f.replace('.html', ''))) continue;
-    const dest = path.join(compDir, f);
-    if (fs.existsSync(dest) && !force) kept.push(f);
-    else {
-      fs.copyFileSync(path.join(src, f), dest);
-      copied.push(f);
-    }
+  fs.mkdirSync(path.join(sys, 'components'), { recursive: true });
+  const inventoryCreated = ensureInventory(root);
+  if (style) {
+    applyStyle(root, style, { fonts });
+    buildTokens(root);
+    buildSystem(root);
+    return { preset: `style:${style}`, tokensWritten: true, inventoryCreated };
   }
   const tokFile = path.join(p.tokens, 'tokens.json');
   let tokensWritten = false;
-  if (style) {
-    applyStyle(root, style, { fonts });
-    const icons = addIcons(root, iconsUsed(root));
-    buildTokens(root);
-    buildSystem(root);
-    return { preset: `style:${style}`, copied, kept, tokensWritten: true, icons: icons.added };
-  }
   const { tokens, head } = presetFiles(preset);
   if (force || isPlaceholderTokens(tokFile)) {
     fs.mkdirSync(p.tokens, { recursive: true });
@@ -86,10 +62,9 @@ export function systemInit(root, { preset = 'crisp', style = null, fonts = 'vi',
   }
   const headFile = path.join(sys, 'head.html');
   if (force || !fs.existsSync(headFile)) fs.writeFileSync(headFile, head);
-  const icons = addIcons(root, iconsUsed(root));
   buildTokens(root);
   buildSystem(root);
-  return { preset, copied, kept, tokensWritten, icons: icons.added };
+  return { preset, tokensWritten, inventoryCreated };
 }
 
 /** Write presets as token themes "opt-<name>" so the same screens can be compared in the Studio. */

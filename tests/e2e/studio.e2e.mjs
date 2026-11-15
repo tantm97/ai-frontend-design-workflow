@@ -140,14 +140,30 @@ try {
   assert.deepEqual(await page.$$eval('.prow-gutter h2', (h) => h.map((x) => x.textContent)), ['Desktop 1440', 'Tablet 834', 'Variants']);
   assert.equal(await page.textContent('.frame[data-key="home::a::desktop"] .frame-title'), 'D · Home · A↗');
   // Screenshot all: every screen of every page (5 frames + Design System) -> PNG files under .dfw/shots/studio/<time>/.
+  // The camera opens a picker (all screens checked by default); "Screenshot N" shoots the checked ones.
   await page.click('#shoot-btn');
+  assert.equal(await page.textContent('#shoot-go'), 'Screenshot 6');
+  await page.click('#shoot-go');
   await page.waitForFunction(() => /PNG saved/.test(document.querySelector('#toast').textContent), null, { timeout: 60000 });
   const shootMsg = await page.textContent('#toast');
   assert.match(shootMsg, /^6\/6 PNG saved in \.dfw\/shots\/studio\//);
   const shotRoot = path.join(tmp, '.dfw/shots/studio');
   const shotFiles = fs.readdirSync(path.join(shotRoot, fs.readdirSync(shotRoot)[0])).sort();
   assert.deepEqual(shotFiles, ['design-system.png', 'detail__a__desktop.png', 'detail__a__tablet.png', 'home__a__desktop.png', 'home__a__tablet.png', 'home__b__desktop.png']);
-  const bad = await page.evaluate(() => fetch('/__dfw/api/shoot', { method: 'POST', body: JSON.stringify({ frames: [{ src: 'file:///etc/passwd' }] }) }).then((r) => r.status));
+  // Pick only some screens: untick All, tick Detail -> only its frames are shot; the choice is remembered.
+  await page.click('#shoot-btn');
+  await page.uncheck('#shoot-items .ms-all input');
+  assert.equal(await page.isDisabled('#shoot-go'), true, 'nothing picked');
+  await page.check('#shoot-items label:has-text("Detail") input');
+  assert.equal(await page.textContent('#shoot-go'), 'Screenshot 2');
+  await page.click('#shoot-go');
+  await page.waitForFunction(() => /^2\/2 PNG saved/.test(document.querySelector('#toast').textContent), null, { timeout: 60000 });
+  assert.equal(await page.evaluate(() => document.querySelector('#shoot-menu').open), false, 'menu closes after shooting');
+  await page.click('#shoot-btn');
+  assert.equal(await page.textContent('#shoot-go'), 'Screenshot 2', 'picked screens are remembered');
+  await page.check('#shoot-items .ms-all input');
+  await page.click('#shoot-btn');
+, { method: 'POST', body: JSON.stringify({ frames: [{ src: 'file:///etc/passwd' }] }) }).then((r) => r.status));
   assert.equal(bad, 400, 'only Studio design URLs can be screenshotted');
   if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-1-canvas.png') });
 
