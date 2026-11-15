@@ -10,7 +10,7 @@ design/
   tokens/tokens.json          W3C DTCG 2025.10 tokens (source of truth for values)
   tokens/themes/<name>.json   overrides -> [data-theme="<name>"] (dark mode, or opt-<preset> while comparing options)
   tokens/tokens.css           generated (never edit)
-  system/head.html            font links etc. ({{base}} = path to design/)
+  system/head.html            font links etc. ({{base}} = path to design/; also works in masters, examples and screens: {{base}}assets/logo.png)
   system/inventory.json       components the product needs: name, purpose, usedBy, states (masters are designed from it)
   system/components/<name>.html   component masters (<dfw-component>)
   system/components.css       generated from the masters (never edit)
@@ -118,4 +118,4 @@ The hook regenerates `tokens.css` and `components.css` after every edit; `dfw bu
 - Colors: `{"$type":"color","$value":{"colorSpace":"srgb","components":[r,g,b],"hex":"#rrggbb"}}`.
 - Dimensions: `{"$type":"dimension","$value":{"value":16,"unit":"px"}}`; durations `{value, unit:"ms"}`.
 - Aliases: `"$value": "{color.blue.600}"`; group `$type` is inherited.
-- The token contract (names component masters and presets rely on): `color.{canvas,surface,surface-sunken,surface-hover,ink,muted,subtle,border,border-strong,rule,accent,accent-hover,accent-soft,accent-text,on-accent,on-fill,on-warn,focus,focus-ring}`, `color.status.{ok,info,warn,err}{,-tint,-text}`, `font.{family,size,weight,leading,tracking}.*`, `space.{half,1,1-5,2,3,4,5,6,8,10,12,16}`, `radius.{sm,md,lg,xl,pill}`, `border.{width,width-strong}`, `focus.{width,offset}`, `size.{control,control-sm,control-lg,target-min,icon*,sidebar,rail,rail-item,dialog*,band,avatar-xl}`, `shadow.{sm,md,lg}`, `duration.{fast,base}`, `easing.out`. Keep these names when adapting a preset; add new ones freely.
+- The token contract (names component masters and presets rely on): `color.{canvas,surface,surface-sunken,surface-hover,ink,muted,subtle,border,border-strong,rule,accent,accent-hover,accent-soft,accent-text,on-accent,on-fill,on-warn,focus,focus-ring}`, `color.status.{ok,info,warn,err}{,-tint,-text}`, `font.{family,size,weight,leading,tracking}.*`, `space.{half,1,1-5,2,3,4,5,6,8,10,12,16}`, `radius.{sm,md,lg,xl,pill}`, `border.{width,width-strong}`, `focus.{width,offset}`, `size.{control,control-sm,control-lg,target-wcag,target-touch,icon*,sidebar,rail,rail-item,dialog*,band,avatar-xl}`, `shadow.{sm,md,lg}`, `duration.{fast,base}`, `easing.out`. Keep these names when adapting a preset; add new ones freely.

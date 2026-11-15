@@ -24,7 +24,7 @@ The user must never see a first draft. Every design-system page and every page o
 | 8 | Craft details | Optical alignment of icons and text, no orphaned words in headings, no clipped text, no double borders, no cards inside cards, consistent radii. |
 | 9a | Space and anchors | No voids or overlaps (`dfw layout check`); task screens fill the viewport, feedback and primary action stay put with long data. |
 | 9 | Responsiveness | Every breakpoint intentional (reflow, not squeeze); nothing overflows; primary action reachable. |
-| 10 | Accessibility | Focus visible, 24px+ targets (44px on touch/counter), labels, no color-only meaning, contrast. |
+| 10 | Accessibility | Focus visible, targets sized with `size.target-touch` (44px) on touch/counter screens (`size.target-wcag`, 24px, is only the legal floor), labels, no color-only meaning, contrast. |
 
 ## "AI look" tells to remove
 `dfw lint` flags the mechanical ones: AI-default colours (Tailwind indigo/violet `#6366f1` `#4f46e5` `#7c3aed`..., the cream `#f4f1ea` + terracotta `#d97757` pairing), emoji icons, filler copy, invented metrics ("10x faster", "99.9% uptime"), external placeholder image hosts, purple/blue two-stop gradients, the rounded card with a thick left border, more than two primary actions per screen, and missing loading/empty/error states. The rest needs your eyes:

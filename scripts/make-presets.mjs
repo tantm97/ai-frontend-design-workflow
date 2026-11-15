@@ -104,7 +104,8 @@ for (const [name, p] of Object.entries(PRESETS)) {
     size: {
       $type: 'dimension',
       control: px(p.size.control), 'control-sm': px(p.size['control-sm']), 'control-lg': px(p.size['control-lg']),
-      'target-min': px(24, 'WCAG 2.2 AA minimum target.'),
+      'target-wcag': px(24, 'WCAG 2.2 AA floor for any target (2.5.8). A legal minimum, not a design size: never size touch controls with it.'),
+      'target-touch': px(44, 'Touch target: every tappable control on touch screens (phones, tablets, kiosks) is at least this tall and wide (Apple 44pt; Material 48dp).'),
       'icon-xs': px(14), 'icon-sm': px(16), icon: px(20), 'icon-lg': px(32), 'icon-xl': px(40),
       'avatar-xl': px(88), sidebar: px(240), rail: px(84), 'rail-item': px(60),
       dialog: px(480), 'dialog-sm': px(400), 'dialog-lg': px(640), band: px(88),

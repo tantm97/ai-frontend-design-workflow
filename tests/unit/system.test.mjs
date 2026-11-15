@@ -243,3 +243,63 @@ test('compose: prop lists with spaces, commas and spaced defaults', async () => 
   const [b] = parseComponentFile('<dfw-component name="y" props="as=p tone=default"><template><i></i></template></dfw-component>', 'y.html');
   assert.deepEqual(b.propDefaults, { as: 'p', tone: 'default' });
 });
+
+test('compose: {{base}} in masters, examples and instance props resolves to the page path to design/', () => {
+  const root = project();
+  const dir = path.join(root, 'design/system/components');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'logo.html'), '<dfw-component name="logo" props="img={{base}}assets/logo.png"><template><a href="{{base}}screens/home/a.html"><img src="{{img}}" alt=""></a></template><dfw-examples><dfw-use c="logo"></dfw-use></dfw-examples></dfw-component>');
+  fs.writeFileSync(path.join(dir, 'tile.html'), '<dfw-component name="tile" props="base"><template><i data-b="{{base}}"></i></template></dfw-component>');
+  const screen = composeHtml(root, '<dfw-use c="logo"></dfw-use><dfw-use c="logo" img="{{base}}assets/alt.png"></dfw-use>', { designBase: '../../' }).html;
+  assert.match(screen, /href="\.\.\/\.\.\/screens\/home\/a\.html"/);
+  assert.match(screen, /src="\.\.\/\.\.\/assets\/logo\.png"/);
+  assert.match(screen, /src="\.\.\/\.\.\/assets\/alt\.png"/);
+  const studio = composeHtml(root, '<dfw-use c="logo"></dfw-use>', { designBase: '/design/' }).html;
+  assert.match(studio, /src="\/design\/assets\/logo\.png"/);
+  const page = composeHtml(root, renderSystemPage(root, { designBase: '/design/' }), { designBase: '/design/' }).html;
+  assert.match(page, /src="\/design\/assets\/logo\.png"/, 'Design System page examples resolve too');
+  assert.doesNotMatch(page, /\{\{base\}\}/);
+  assert.match(composeHtml(root, '<dfw-use c="tile" base="x"></dfw-use>').html, /data-b="x"/, 'a master that declares a "base" prop keeps it');
+});
+
+test('tokens: presets ship target-wcag (24, floor) and target-touch (44); no ambiguous target-min', () => {
+  for (const name of ['crisp', 'soft', 'industrial']) {
+    const t = JSON.parse(fs.readFileSync(path.join(KIT_COMPONENTS, '..', 'presets', `${name}.tokens.json`), 'utf8'));
+    assert.equal(t.size['target-wcag'].$value.value, 24);
+    assert.equal(t.size['target-touch'].$value.value, 44);
+    assert.equal(t.size['target-min'], undefined);
+  }
+});
+
+test('system choose keeps edits made to the opt-<style> theme during the comparison', () => {
+  const root = project();
+  systemInit(root, { style: 'playful-bold' });
+  systemOptions(root, ['playful-bold', 'warm-craft']);
+  const opt = path.join(root, 'design/tokens/themes/opt-playful-bold.json');
+  const t = JSON.parse(fs.readFileSync(opt, 'utf8'));
+  t.color.accent = { $value: { colorSpace: 'srgb', components: [0.051, 0.4196, 0.4706], hex: '#0d6b78' }, $description: 'Edited during the comparison' };
+  fs.writeFileSync(opt, JSON.stringify(t));
+  systemChoose(root, 'playful-bold');
+  const tok = JSON.parse(fs.readFileSync(path.join(root, 'design/tokens/tokens.json'), 'utf8'));
+  assert.equal(tok.color.accent.$value.hex, '#0d6b78');
+  assert.match(fs.readFileSync(path.join(root, 'design/tokens/tokens.css'), 'utf8'), /--color-accent: #0d6b78/);
+  assert.ok(fs.existsSync(path.join(root, 'design/system/components/motif.html')), 'motif still comes from the guide');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'design/system/style.json'), 'utf8')).id, 'playful-bold');
+  assert.ok(!fs.existsSync(opt), 'option themes are removed');
+});
+
+test('layout: small tappable controls on touch breakpoints are a touch-target finding (needs Chrome)', { skip: !(await import('../../core/lib/runtime.mjs')).browserStatus().installed }, async () => {
+  const { layoutCheck } = await import('../../core/lib/layout.mjs');
+  const root = project();
+  systemInit(root, { preset: 'crisp' });
+  fs.writeFileSync(path.join(root, 'design/design.json'), JSON.stringify({ schema: 1, product: 'T', breakpoints: [{ id: 'mobile', width: 390, height: 844 }, { id: 'desktop', width: 1440, height: 900 }], screens: [{ id: 's', variants: [{ id: 'a', file: 'screens/s/a.html' }] }] }));
+  fs.mkdirSync(path.join(root, 'design/screens/s'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'design/screens/s/a.html'), '<!doctype html><html lang="en"><head><dfw-head></dfw-head></head><body><main><button data-dfw-id="tiny" style="height:30px;width:120px">Small</button><button data-dfw-id="ok" style="height:48px;width:120px">Big</button><p>Read the <a href="#" data-dfw-id="inline">terms</a> first.</p></main></body></html>');
+  const r = await layoutCheck(root, { system: false, stress: false });
+  const touch = r.findings.filter((f) => f.rule === 'touch-target');
+  assert.equal(touch.length, 1, JSON.stringify(touch));
+  assert.match(touch[0].message, /@ mobile/);
+  assert.match(touch[0].message, /"tiny" 120x30/);
+  assert.doesNotMatch(touch[0].message, /"main/);
+  assert.doesNotMatch(touch[0].message, /"ok"|"inline"/);
+});

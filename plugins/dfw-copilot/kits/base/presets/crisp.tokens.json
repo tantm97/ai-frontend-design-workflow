@@ -702,12 +702,19 @@
         "unit": "px"
       }
     },
-    "target-min": {
+    "target-wcag": {
       "$value": {
         "value": 24,
         "unit": "px"
       },
-      "$description": "WCAG 2.2 AA minimum target."
+      "$description": "WCAG 2.2 AA floor for any target (2.5.8). A legal minimum, not a design size: never size touch controls with it."
+    },
+    "target-touch": {
+      "$value": {
+        "value": 44,
+        "unit": "px"
+      },
+      "$description": "Touch target: every tappable control on touch screens (phones, tablets, kiosks) is at least this tall and wide (Apple 44pt; Material 48dp)."
     },
     "icon-xs": {
       "$value": {

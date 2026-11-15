@@ -25,6 +25,7 @@
 //     data-dfw-if="!prop" drops it when prop is set.
 // Icon: <dfw-icon name="scan-line" size="20"></dfw-icon> -> inline SVG from design/system/icons/<name>.svg.
 // Head: <dfw-head></dfw-head> inside <head> -> design/system/head.html (font links etc., {{base}} = path to design/)
+// {{base}} also works in component templates, examples and screens: {{base}}assets/logo.png resolves per page.
 //       + links to tokens/tokens.css, styles/base.css (if present) and system/components.css.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -200,7 +201,8 @@ function fillTemplate(def, props, slots) {
   }
   // {{prop==value?text}}: text when the prop equals value (e.g. aria-current in a shared app shell).
   out = out.replace(/\{\{\s*([\w-]+)\s*==\s*([\w-]+)\s*\?\s*([^}]*)\}\}/g, (_, n, v, t) => (String(props[n] ?? '') === v ? escapeHtml(t) : ''));
-  out = out.replace(/\{\{\s*([\w-]+)\s*\}\}/g, (_, n) => escapeHtml(props[n] ?? ''));
+  // {{base}} is not a prop: it stays for composeHtml to resolve to the page's path to design/.
+  out = out.replace(/\{\{\s*([\w-]+)\s*\}\}/g, (_, n) => (n === 'base' && !def.props.includes('base') ? '{{base}}' : escapeHtml(props[n] ?? '')));
   out = out.replace(/<dfw-slot(?:\s+name="([\w-]+)")?\s*(?:\/>|>([\s\S]*?)<\/dfw-slot>)/g, (_, n, fallback) => {
     const v = slots[n || 'default'];
     return v != null && v.trim() !== '' ? v : fallback || '';
@@ -331,6 +333,8 @@ export function composeHtml(root, html, { lib = loadComponents(root), depth = 0,
     re.lastIndex = el.end;
   }
   out += html.slice(i);
+  // {{base}} in masters, examples and instance attributes -> path from this page to design/ (e.g. {{base}}assets/logo.png).
+  if (depth === 0 && designBase) out = out.replaceAll('{{base}}', designBase);
   const withLines = (arr) => arr.map(({ index, ...rest }) => ({ ...rest, line: depth === 0 ? lineOf(srcText, index) + sourceLine : undefined }));
   return { html: out, instances: depth === 0 ? withLines(instances) : instances, issues: depth === 0 ? withLines(issues) : issues };
 }

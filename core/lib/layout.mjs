@@ -10,6 +10,8 @@
 //                  of the same page layout with different content edges (SHOULD)
 //   reflow         at 320px wide with text at 125% (WCAG 1.4.10 / 1.4.4): horizontal scroll, overlap, clipping (SHOULD)
 //   variant-cosmetic  two variants of a screen with the same component structure: that is a theme, not a variant (SHOULD)
+//   touch-target   at touch breakpoints (< 1024px wide), tappable controls smaller than 44x44px (SHOULD; the
+//                  24px WCAG floor is axe's target-size)
 // Also runs on the generated Design System page.
 import fs from 'node:fs';
 import crypto from 'node:crypto';
@@ -137,6 +139,24 @@ function measure(opts) {
     if (!vis(el)) continue;
     const cs = getComputedStyle(el);
     out.components.push({ c: el.getAttribute('data-dfw-component'), v: el.getAttribute('data-dfw-variant') || '', s: el.getAttribute('data-dfw-size') || '', sig: [cs.fontSize, cs.fontWeight, cs.letterSpacing, cs.paddingTop, cs.paddingLeft, cs.borderTopLeftRadius].join(' ') });
+  }
+  // Touch targets: tappable controls under 44x44 at touch breakpoints. A checkbox/radio counts as its label;
+  // links inside running text are exempt (WCAG 2.5.8 inline exception).
+  out.small = [];
+  if (opts.touch) {
+    for (const el of document.querySelectorAll('a[href], button, input:not([type="hidden"]), select, textarea, summary, [role="button"], [role="link"], [role="tab"], [role="checkbox"], [role="radio"]')) {
+      if (!vis(el) || el.closest('[aria-hidden="true"]')) continue;
+      let box = el;
+      if (/^(checkbox|radio)$/.test(el.type) && el.closest('label')) box = el.closest('label');
+      const cs = getComputedStyle(box);
+      if (el.tagName === 'A' && cs.display === 'inline' && [...el.parentElement.childNodes].some((n) => n !== el && n.nodeType === 3 && n.textContent.trim())) continue;
+      const r = box.getBoundingClientRect();
+      if ((r.width < 44 || r.height < 44) && out.small.length < 40) {
+        const text = (el.getAttribute('aria-label') || el.textContent || el.value || '').trim().replace(/\s+/g, ' ').slice(0, 24);
+        const own = el.getAttribute('data-dfw-id');
+        out.small.push({ el: own || `${label(el.closest('[data-dfw-id],[data-dfw-component]') || el)}${text ? ` › ${text}` : ''}`, w: Math.round(r.width), h: Math.round(r.height) });
+      }
+    }
   }
   const firstBlock = main.querySelector('[data-dfw-id],[data-dfw-component]');
   out.contentLeft = firstBlock ? Math.round(firstBlock.getBoundingClientRect().left - mr.left) : null;
@@ -291,7 +311,7 @@ export async function layoutCheck(root, opts = {}) {
           if (j.reflow) await page.evaluate(() => (document.documentElement.style.fontSize = '125%'));
           await fontsReady(page);
           await page.waitForTimeout(40);
-          results.push({ ...j, m: await page.evaluate(measure, { stress: j.stress }) });
+          results.push({ ...j, m: await page.evaluate(measure, { stress: j.stress, touch: !j.stress && !j.reflow && !j.system && j.bp.width < 1024 }) });
         } catch (e) {
           results.push({ ...j, error: e.message });
         } finally {
@@ -324,6 +344,10 @@ export async function layoutCheck(root, opts = {}) {
     for (const o of mm.overlaps.slice(0, 5)) add(r, 'error', 'overlap', `"${o.a}" overlaps "${o.b}" (${o.area}px²).`);
     for (const a of mm.anchors) if (!a.inView && r.screen !== '_system') add(r, 'error', 'anchor', `anchored "${a.name}" is not fully visible (top ${a.top}, bottom ${a.bottom}, viewport ${mm.vh}). Anchored feedback and primary actions must stay on screen${r.stress ? ' even when lists grow: scroll the list inside its container' : ''}.`);
     for (const c of mm.clipped.slice(0, 3)) add(r, 'warn', 'clipped', `text clipped in "${c.el}" ("${c.text}…").`);
+    if (mm.small?.length) {
+      const uniq = [...new Map(mm.small.map((x) => [x.el, x])).values()];
+      add(r, 'warn', 'touch-target', `${mm.small.length} tappable element(s) smaller than 44x44px on a touch screen: ${uniq.slice(0, 5).map((x) => `"${x.el}" ${x.w}x${x.h}`).join(', ')}${uniq.length > 5 ? ', …' : ''}. Size controls with var(--size-target-touch) (44px); var(--size-target-wcag) (24px) is only the legal floor.`);
+    }
     if (!r.stress) {
       for (const v of findVoids(mm)) {
         if (v.kind === 'gap') add(r, 'warn', 'void', `empty band of ${v.height}px between content blocks (from y=${v.from}). Close it, or let the block above fill the space.`);
