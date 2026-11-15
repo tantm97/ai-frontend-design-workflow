@@ -32,9 +32,9 @@
       <button type="button" id="present-btn" class="icon-btn present-btn" title="Present (P) · full-screen prototype" aria-label="Present">
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7.5-4.5z" fill="currentColor"/></svg>
       </button>
-      <button type="button" id="shoot-btn" class="icon-btn" title="Screenshot every screen of every page to PNG (shown breakpoints, states, theme)" aria-label="Screenshot all screens">
+      <details class="ms shoot-menu" id="shoot-menu"><summary class="icon-btn" id="shoot-btn" title="Screenshot screens to PNG: pick which (shown breakpoints, states, theme)" aria-label="Screenshot screens">
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 5.5a1 1 0 0 1 1-1h1.8l1-1.5h3.4l1 1.5h1.8a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><circle cx="8" cy="8.3" r="2.2" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
-      </button>
+      </summary><div class="ms-list shoot-list" role="dialog" aria-label="Screenshot screens"><div class="shoot-items" id="shoot-items" role="group" aria-label="Screens to screenshot"></div><div class="shoot-foot"><span id="shoot-count"></span><button type="button" id="shoot-go" class="shoot-go">Screenshot</button></div></div></details>
       <span class="sep" aria-hidden="true"></span>
       <details class="ms" id="bp-menu"><summary class="chip" title="Breakpoints to show"></summary><div class="ms-list" id="breakpoints" role="group" aria-label="Breakpoints"></div></details>
       <details class="ms" id="state-menu"><summary class="chip" title="States to show (one frame per checked state)"></summary><div class="ms-list" id="states" role="group" aria-label="States"></div></details>

@@ -8,6 +8,16 @@ import { lintDesign, lintScreen } from '../../core/lib/lint.mjs';
 import { systemInit, systemOptions, systemChoose, listPresets } from '../../core/lib/system.mjs';
 import { searchIcons, addIcons } from '../../core/lib/icons.mjs';
 import { renderSystemPage } from '../../core/lib/system-page.mjs';
+import { KIT_COMPONENTS, inventoryFindings, kitRefs, kitRef } from '../../core/lib/inventory.mjs';
+
+/** Test fixture only: put starter-kit masters into a project (the CLI never copies them). */
+function useKit(root, names = null) {
+  const dir = path.join(root, 'design/system/components');
+  fs.mkdirSync(dir, { recursive: true });
+  for (const f of fs.readdirSync(KIT_COMPONENTS).filter((x) => x.endsWith('.html'))) if (!names || names.includes(f.replace('.html', ''))) fs.copyFileSync(path.join(KIT_COMPONENTS, f), path.join(dir, f));
+  addIcons(root, ['chevron-down', 'triangle-alert', 'search', 'x', 'check', 'package', 'house', 'file-clock', 'settings', 'layout-dashboard', 'circle-check', 'circle-x', 'circle-alert', 'octagon-alert', 'package-open', 'ellipsis', 'wrench', 'log-in', 'log-out', 'plus']);
+  buildSystem(root);
+}
 
 function project() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dfw-sys-'));
@@ -20,7 +30,8 @@ function project() {
 
 test('compose: instances, slots, props, passthrough, nested, icons, head', () => {
   const root = project();
-  systemInit(root, { preset: 'crisp', components: ['button', 'card', 'badge'] });
+  systemInit(root, { preset: 'crisp' });
+  useKit(root, ['button', 'card', 'badge']);
   const html = `<html><head><dfw-head></dfw-head></head><body>
 <dfw-use c="card" title="A &quot;x&quot;" id="c1"><p>Body</p><dfw-fill slot="actions"><dfw-use c="button" variant="ghost" size="sm" id="c1.more" aria-label="More">More</dfw-use></dfw-fill></dfw-use>
 <dfw-use c="badge" variant="err" icon="triangle-alert">Overdue</dfw-use>
@@ -52,18 +63,19 @@ test('compose: unknown component and icon are reported, recursion is bounded', (
   assert.ok(r2.issues.some((i) => i.rule === 'compose-depth'));
 });
 
-test('system: init copies kit + preset tokens + icons and builds css; options and choose', () => {
+test('system: init writes tokens + an empty inventory and copies no components; options and choose', () => {
   const root = project();
   fs.writeFileSync(path.join(root, 'design/tokens/tokens.json'), '{"$description":"Placeholder tokens created by dfw init."}');
   const r = systemInit(root, { preset: 'soft' });
-  assert.equal(r.copied.length, 24);
   assert.ok(r.tokensWritten);
-  assert.ok(r.icons.includes('chevron-down'));
+  assert.ok(r.inventoryCreated);
+  assert.equal(r.copied, undefined);
   const css = fs.readFileSync(path.join(root, 'design/tokens/tokens.css'), 'utf8');
   assert.match(css, /--color-accent: #0f6e66/);
   assert.match(css, /--size-control: 40px/);
-  assert.ok(fs.existsSync(path.join(root, 'design/system/components.css')));
-  assert.equal(loadComponents(root).size, 24);
+  assert.equal(loadComponents(root).size, 0, 'no kit masters are copied');
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, 'design/system/inventory.json'), 'utf8')).components, []);
+  assert.equal(systemInit(root, { preset: 'soft' }).inventoryCreated, false, 'an existing inventory is kept');
   assert.deepEqual(listPresets().map((p) => p.name).sort(), ['crisp', 'industrial', 'soft']);
 
   const o = systemOptions(root, ['crisp', 'industrial']);
@@ -76,9 +88,10 @@ test('system: init copies kit + preset tokens + icons and builds css; options an
   assert.doesNotMatch(fs.readFileSync(path.join(root, 'design/tokens/tokens.css'), 'utf8'), /opt-/);
 });
 
-test('kit: every component composes its examples without issues and lints clean', () => {
+test('kit: every reference master composes its examples without issues and lints clean', () => {
   const root = project();
   systemInit(root, { preset: 'crisp' });
+  useKit(root);
   for (const d of loadComponents(root).values()) {
     const r = composeHtml(root, d.examples || `<dfw-use c="${d.name}"></dfw-use>`);
     assert.deepEqual(r.issues, [], `${d.name}: ${JSON.stringify(r.issues)}`);
@@ -93,7 +106,8 @@ test('kit: every component composes its examples without issues and lints clean'
 
 test('lint: screens must compose the design system and keep visual styling out', () => {
   const root = project();
-  systemInit(root, { preset: 'crisp', components: ['button'] });
+  systemInit(root, { preset: 'crisp' });
+  useKit(root, ['button']);
   const bad = `<!doctype html><html lang="en"><head><dfw-head></dfw-head><style>.x { display: grid; color: red; gap: 8px } .y{font-size:14px}</style></head>
 <body><main data-dfw-id="m"><button data-dfw-id="b">Raw</button><span style="background: #fff">x</span></main></body></html>`;
   const f = lintScreen(root, 'design/screens/s/a.html', bad);
@@ -116,7 +130,8 @@ test('icons: search ranks exact names, add copies svg and suggests on miss', () 
 
 test('composeFile + buildSystem for a screen file', () => {
   const root = project();
-  systemInit(root, { preset: 'crisp', components: ['button'] });
+  systemInit(root, { preset: 'crisp' });
+  useKit(root, ['button']);
   fs.mkdirSync(path.join(root, 'design/screens/s'), { recursive: true });
   fs.writeFileSync(path.join(root, 'design/screens/s/a.html'), '<html><head><dfw-head></dfw-head></head><body><dfw-use c="button" id="go">Go</dfw-use></body></html>');
   const r = composeFile(root, 'design/screens/s/a.html');
@@ -131,6 +146,8 @@ test('style guides: library, search, apply as aliased tokens with usage rules, l
   assert.equal(searchStyles('factory counter internal')[0].id, 'industrial-utility');
   const root = project();
   systemInit(root, { style: 'heritage-signboard' });
+  assert.deepEqual([...loadComponents(root).keys()], ['motif'], 'a style brings only its motif master');
+  useKit(root, ['button', 'text']);
   const css = fs.readFileSync(path.join(root, 'design/tokens/tokens.css'), 'utf8');
   assert.match(css, /--color-accent: var\(--color-palette-giay-900\)/, 'heritage uses an ink accent: lacquer red is the error hue');
   assert.match(css, /--font-family-display: "Noto Serif Display"/);
@@ -161,6 +178,30 @@ test('style guides: library, search, apply as aliased tokens with usage rules, l
   assert.match(t.html, /^<h1 class="t t--display-lg t--tone-default"/);
   assert.match(t.html, /<p class="t t--body t--tone-default"[^>]*>p<\/p>/);
   buildTokens(root);
+});
+
+test('inventory: kit copies, orphans, unbuilt entries and unused masters are findings', () => {
+  const root = project();
+  systemInit(root, { preset: 'crisp' });
+  const rules = () => inventoryFindings(root).map((f) => `${f.rule}:${f.level}`).sort();
+  assert.deepEqual(rules(), [], 'empty system: nothing to report');
+  useKit(root, ['button']);
+  assert.deepEqual(rules(), ['inventory-missing:warn', 'kit-copy:error']);
+  const dir = path.join(root, 'design/system/components');
+  fs.writeFileSync(path.join(dir, 'button.html'), '<dfw-component name="button" variants="primary"><style>.b { color: var(--color-ink); }</style><template><button class="b" type="button"><dfw-slot>Go</dfw-slot></button></template><dfw-examples><dfw-use c="button">Thêm vào giỏ</dfw-use></dfw-examples></dfw-component>');
+  const kitExamples = fs.readFileSync(path.join(KIT_COMPONENTS, 'badge.html'), 'utf8').match(/<dfw-examples>[\s\S]*?<\/dfw-examples>/)[0];
+  fs.writeFileSync(path.join(dir, 'tag.html'), `<dfw-component name="tag"><style>.t { color: var(--color-muted); }</style><template><span class="t"><dfw-slot></dfw-slot></span></template>${kitExamples}</dfw-component>`);
+  fs.writeFileSync(path.join(root, 'design/system/inventory.json'), JSON.stringify({ components: [{ name: 'button', purpose: 'Add to bag', usedBy: ['product'] }, { name: 'price', purpose: 'Price with old price', usedBy: ['product'] }] }));
+  assert.deepEqual(rules(), ['inventory-orphan:warn', 'inventory-unbuilt:warn', 'kit-copy:error']);
+  fs.rmSync(path.join(dir, 'tag.html'));
+  fs.writeFileSync(path.join(dir, 'price.html'), '<dfw-component name="price"><template><span><dfw-slot></dfw-slot></span></template></dfw-component>');
+  assert.deepEqual(rules(), []);
+  fs.writeFileSync(path.join(root, 'design/design.json'), JSON.stringify({ schema: 1, product: 'T', screens: [{ id: 'product', variants: [{ id: 'a', file: 'screens/product/a.html' }] }] }));
+  fs.mkdirSync(path.join(root, 'design/screens/product'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'design/screens/product/a.html'), '<dfw-use c="button">Thêm</dfw-use>');
+  assert.deepEqual(rules(), ['unused-master:warn'], 'price is never used once screens exist');
+  assert.ok(kitRefs().some((r) => r.name === 'button' && r.states.includes('focus-visible')));
+  assert.match(kitRef('button'), /<dfw-component name="button"/);
 });
 
 test('compose: a nested instance keeps its own slot fills', () => {

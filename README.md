@@ -102,10 +102,10 @@ Review loop: Claude starts the Studio (`dfw studio start`, default http://127.0.
 | Clickable preview | **P** (or double-click a frame title) for full-window Present; **I** to interact on the canvas; ← → between screens. Present hides comment pins unless you press **Pins** (Shift+C) or comment |
 | Comment | **C**, click an element, write (Cmd/Ctrl+Enter). Claude receives it immediately; fixed comments appear under **To verify** where you resolve or reopen them |
 | Breakpoints and states | top-bar menus with checkboxes and **All** (default: all shown); only checked breakpoints/states get frames |
-| Screenshot | top-bar camera: every screen of every page (shown breakpoints/states, theme) to PNG in `.dfw/shots/studio/<time>/`; **Screenshot** in Present (also fullscreen): the screen being shown, saved and downloaded |
+| Screenshot | top-bar camera: pick the screens to shoot (grouped by page, all checked by default, choice remembered), at the shown breakpoints/states and theme, to PNG in `.dfw/shots/studio/<time>/`; **Screenshot** in Present (also fullscreen): the screen being shown, saved and downloaded |
 | Comment pins | click a pin to read the comment and its thread, and resolve or reopen it in place. **Shift+C** (or the **Pins** chip) cycles open → all → off; resolved comments are hidden by default |
 
-Useful commands (`dfw help` for all): `dfw status`, `dfw style match|show|apply`, `dfw system init|options|choose|audit|list`, `dfw palette build`, `dfw type scale`, `dfw icons search|add`, `dfw fonts check`, `dfw check`, `dfw shoot --page <id> --states`, `dfw comments list|wait`, `dfw decisions`, `dfw pause|resume`.
+Useful commands (`dfw help` for all): `dfw status`, `dfw style match|show|apply`, `dfw system init|inventory|ref|options|choose|audit|list`, `dfw palette build`, `dfw type scale`, `dfw icons search|add`, `dfw fonts check`, `dfw check`, `dfw shoot --page <id> --states`, `dfw comments list|wait`, `dfw decisions`, `dfw pause|resume`.
 
 ## Why plain HTML/CSS as the design format
 

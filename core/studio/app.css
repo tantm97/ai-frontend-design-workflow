@@ -97,6 +97,17 @@ kbd { border: 1px solid var(--line-strong); border-radius: 3px; padding: 0 3px; 
 .ms-list { position: fixed; margin-top: 4px; min-width: 180px; max-height: 60vh; overflow: auto; padding: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 6px 20px rgb(0 0 0 / 0.15); z-index: 30; }
 .ms-list label { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 5px; white-space: nowrap; cursor: pointer; }
 .ms-list label:hover { background: var(--hover); }
+.shoot-menu > summary::after { content: none; }
+.shoot-menu > summary { display: grid; line-height: normal; }
+.icon-btn svg { width: 15px; height: 15px; }
+.shoot-list { min-width: 260px; padding: 0; }
+.shoot-items { max-height: calc(60vh - 48px); overflow: auto; padding: 4px; }
+.shoot-items .shoot-page { font-weight: 600; margin-top: 4px; }
+.shoot-items .shoot-screen { padding-left: 26px; }
+.shoot-items .shoot-n { margin-left: auto; padding-left: 12px; color: var(--ink-3); font-size: 11px; }
+.shoot-foot { position: sticky; bottom: 0; display: flex; align-items: center; gap: 8px; padding: 8px; border-top: 1px solid var(--line); background: var(--panel); color: var(--ink-3); font-size: 11px; }
+.shoot-go { margin-left: auto; height: 26px; padding: 0 12px; border: 0; border-radius: 6px; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
+.shoot-go:disabled { opacity: .5; cursor: default; }
 .ms-list .ms-all { border-bottom: 1px solid var(--line); border-radius: 5px 5px 0 0; margin-bottom: 2px; font-weight: 600; }
 .select { display: flex; align-items: center; gap: 4px; color: var(--ink-3); }
 .select select { height: 24px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel); padding: 0 4px; }

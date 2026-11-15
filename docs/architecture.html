@@ -303,7 +303,7 @@ tests/unit, tests/e2e</div>
     <tbody>
       <tr><td><b>discovery</b></td><td>Claude asks about users, goals, content, constraints and writes <code>PRODUCT.md</code>. Unknowns become recorded assumptions.</td><td><code>phase-discovery.md</code></td><td>PRODUCT.md complete enough</td></tr>
       <tr><td><b>direction</b></td><td>The design-director agent researches references and writes 2–3 distinct visual directions with reasons. Optional quick visual sketches in <code>design/screens/_directions</code>.</td><td><code>phase-direction.md</code></td><td><span class="tag t-gate">G1</span> you pick one</td></tr>
-      <tr><td><b>system</b></td><td>Style guide → tokens (colour ramps in OKLCH, type scale, spacing, radius, motion) → component masters from the kit → the Design System page in Studio. <code>dfw system audit</code> checks contrast and rationale.</td><td><code>phase-system.md</code>, <code>design-system-thinking.md</code></td><td><span class="tag t-gate">DS</span> you approve the DS page</td></tr>
+      <tr><td><b>system</b></td><td>Style guide → tokens (colour ramps in OKLCH, type scale, spacing, radius, motion) → component inventory (<code>design/system/inventory.json</code>: what the product needs and which screens use it) → masters designed for the product (the kit is a read-only reference, <code>dfw system ref</code>) → the Design System page in Studio. <code>dfw system audit</code> checks contrast and rationale.</td><td><code>phase-system.md</code>, <code>design-system-thinking.md</code></td><td><span class="tag t-gate">DS</span> you approve the DS page</td></tr>
       <tr><td><b>concepts</b></td><td>Blueprints per screen are agreed, then one screen-builder agent per page builds screens from component instances. Claude self-critiques twice (quality rubric), then you review in Studio.</td><td><code>phase-concepts.md</code>, <code>phase-review.md</code>, <code>layout-patterns.md</code></td><td><span class="tag t-gate">G2</span> approval freezes the design as a version</td></tr>
       <tr><td><b>stack</b></td><td><code>dfw stack detect</code> reads the existing project, Claude proposes framework, styling approach and major dependencies.</td><td><code>phase-stack.md</code>, <code>stacks/*.md</code></td><td><span class="tag t-gate">G3</span> you approve the stack</td></tr>
       <tr><td><b>implement</b></td><td>Code is written in the approved stack from <code>design/handoff/v&lt;N&gt;.md</code>. The frozen design cannot be edited.</td><td><code>phase-implement.md</code></td><td>handoff complete</td></tr>
@@ -471,7 +471,7 @@ tests/unit, tests/e2e</div>
     </svg>
   </figure>
   <div class="grid">
-    <div class="card"><h4>Canvas</h4><p>Every screen at every breakpoint and state side by side, plus the Design System page. Pan, zoom, select layers, inspect styles and tokens.</p></div>
+    <div class="card"><h4>Canvas</h4><p>Every screen at every breakpoint and state side by side, plus the Design System page. Frames show the full page height by default (<b>Full height</b> toggle crops to the viewport). Pan, zoom, select layers, inspect styles and tokens.</p></div>
     <div class="card"><h4>Comments &amp; pins</h4><p>Pins mark commented elements. Click a pin to read the comment and thread. Toggle pins open → all → off with <kbd>Shift</kbd><kbd>C</kbd>.</p></div>
     <div class="card"><h4>Direct edit</h4><p>Small text/style tweaks in the inspector are written back to the source file (undo with <kbd>⌘</kbd><kbd>Z</kbd>).</p></div>
     <div class="card"><h4>Present</h4><p><kbd>P</kbd> shows one frame full-window like a prototype; <kbd>←</kbd> <kbd>→</kbd> step through the page. Pins are hidden by default.</p></div>
@@ -615,7 +615,7 @@ dfw reopen --reason "…"             # new design version after G2
 dfw decisions                       # recorded decisions
 dfw pause | resume                  # turn gates and hooks off/on for this project</code></pre></details>
   <details><summary>Design system</summary><pre><code>dfw style match | list | search &lt;words&gt; | show &lt;id&gt; | apply &lt;id&gt;
-dfw system init [--style &lt;id&gt; | --preset crisp|soft|industrial]
+dfw system init [--style &lt;id&gt; | --preset crisp|soft|industrial]   # tokens + motif + empty inventory; copies no components
 dfw palette build --brand "#3b5bdb"
 dfw type scale --base 16 --ratio 1.2 --write
 dfw system options a b c  →  dfw system choose &lt;one&gt;

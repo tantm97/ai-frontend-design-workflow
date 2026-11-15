@@ -36,7 +36,7 @@ const S = {
   cams: {},
   activeBps: store.get('bps3', null), // null = all
   activeStates: store.get('states3', null), // null = all
-  fullHeight: store.get('full', false),
+  fullHeight: store.get('full2', true), // frames grow to their content height by default; the toggle crops to the viewport
   theme: store.get('theme', ''),
   frames: new Map(), // key -> frame
   byWin: new Map(), // contentWindow -> frame
@@ -895,6 +895,8 @@ window.addEventListener('message', (e) => {
       }
       f.loaded = true;
       f.sizeCount = 0;
+      f.lastStep = 0;
+      f.sizeStop = false;
       post(f, { type: 'dfw:mode', mode: S.mode });
       post(f, { type: 'dfw:tokens', vars: S.tokens });
       post(f, { type: 'dfw:pins', pins: pinsFor(f) });
@@ -904,16 +906,28 @@ window.addEventListener('message', (e) => {
       } else if (S.sel?.key === f.key) post(f, { type: 'dfw:select-id', dfwId: S.sel.own?.id || S.sel.target?.dfwId, selector: S.sel.target?.selector });
       if (S.selKey === f.key) post(f, { type: 'dfw:layers' });
       break;
-    case 'dfw:size':
-      if (f.auto && d.h && f.sizeCount++ < 8) {
-        const h = Math.min(20000, Math.max(f.system ? 900 : f.bp.height, Math.ceil(d.h)));
-        if (Math.abs(h - f.h) > 1) {
-          f.h = h;
-          positionFrames();
-          updateHud();
-        }
+    case 'dfw:size': {
+      // Grow the frame to its content. Only real changes count toward the limit (fonts, images and the
+      // ResizeObserver report many times). A section sized in vh grows with the frame by the same amount
+      // every round: two equal growth steps in a row mean a vh feedback loop, so the frame stops there.
+      if (!f.auto || !d.h || f.sizeStop) break;
+      const h = Math.min(20000, Math.max(f.system ? 900 : f.bp.height, Math.ceil(d.h)));
+      if (Math.abs(h - f.h) <= 1) break;
+      const step = h - f.h;
+      if (step > 0 && f.lastStep && Math.abs(step - f.lastStep) <= 2) {
+        f.sizeStop = true;
+        break;
       }
+      f.lastStep = step > 0 ? step : 0;
+      if (++f.sizeCount > 24) {
+        f.sizeStop = true;
+        break;
+      }
+      f.h = h;
+      positionFrames();
+      updateHud();
       break;
+    }
     case 'dfw:hover':
       S.hover = d.rect ? { key: f.key, rect: d.rect, label: d.label, comp: d.comp } : null;
       updateHud();
@@ -1713,6 +1727,70 @@ function allFrameSpecs() {
   return [...seen.values()];
 }
 
+/* Screenshot picker: screens grouped by page; the choice is kept in localStorage (null = all). */
+const shootKey = (f) => (f.system ? 'system' : f.screen?.id || f.file);
+let shootPicked = store.get('shoot1', null);
+
+/** Screens available to screenshot, grouped by page, each with its frame count under the current toolbar choices. */
+function shootGroups() {
+  const count = new Map();
+  for (const f of allFrameSpecs()) count.set(shootKey(f), (count.get(shootKey(f)) || 0) + 1);
+  const seen = new Set();
+  const groups = [];
+  for (const p of S.pages) {
+    if (p.flow) continue;
+    const items = [];
+    for (const r of pageModel(p).rows)
+      for (const f of r.frames) {
+        const k = shootKey(f);
+        if (seen.has(k)) continue;
+        seen.add(k);
+        items.push({ id: k, label: f.system ? 'Design System' : f.screen?.title || k, n: count.get(k) || 0 });
+      }
+    if (items.length) groups.push({ id: p.id, title: p.title, items });
+  }
+  return groups;
+}
+
+function shootSelection() {
+  return allFrameSpecs().filter((f) => !shootPicked || shootPicked.includes(shootKey(f)));
+}
+
+function renderShootMenu() {
+  const groups = shootGroups();
+  const ids = groups.flatMap((g) => g.items.map((i) => i.id));
+  if (shootPicked) shootPicked = shootPicked.filter((id) => ids.includes(id));
+  const on = (id) => !shootPicked || shootPicked.includes(id);
+  const set = (next) => {
+    shootPicked = next && next.length === ids.length ? null : next;
+    store.set('shoot1', shootPicked);
+    renderShootMenu();
+  };
+  const wrap = $('#shoot-items');
+  wrap.innerHTML = '';
+  const box = (cls, label, checked, mixed, onChange, n) => {
+    const l = document.createElement('label');
+    l.className = cls;
+    l.innerHTML = `<input type="checkbox" ${checked ? 'checked' : ''}> <span>${esc(label)}</span>${n != null ? `<span class="shoot-n">${n}</span>` : ''}`;
+    const i = l.querySelector('input');
+    i.indeterminate = mixed;
+    i.onchange = (e) => onChange(e.target.checked);
+    wrap.append(l);
+  };
+  const nOn = ids.filter(on).length;
+  box('ms-all', 'All screens', nOn === ids.length, nOn > 0 && nOn < ids.length, (c) => set(c ? null : []));
+  for (const g of groups) {
+    const gOn = g.items.filter((i) => on(i.id)).length;
+    const gIds = g.items.map((i) => i.id);
+    if (g.items.length > 1 || g.items[0].label !== g.title) box('shoot-page', g.title, gOn === g.items.length, gOn > 0 && gOn < g.items.length, (c) => set(c ? [...new Set([...ids.filter(on), ...gIds])] : ids.filter((id) => on(id) && !gIds.includes(id))));
+    for (const it of g.items) box(g.items.length > 1 || it.label !== g.title ? 'shoot-screen' : 'shoot-page', it.label, on(it.id), false, (c) => set(c ? [...ids.filter(on), it.id] : ids.filter((id) => on(id) && id !== it.id)), it.n);
+  }
+  const frames = shootSelection().length;
+  $('#shoot-count').textContent = `${frames} frame(s) · shown breakpoints/states`;
+  $('#shoot-go').textContent = `Screenshot ${frames}`;
+  $('#shoot-go').disabled = !frames;
+}
+
 /** Screenshot frame specs ({src, w, h, system, screen, variant, bp, state}) to PNG; one shot is also downloaded. */
 async function shootFrames(list, btn) {
   if (btn.disabled) return;
@@ -1766,7 +1844,13 @@ async function loadAll({ keepCam = false } = {}) {
 
 for (const b of $$('.seg button')) b.onclick = () => setMode(b.dataset.mode);
 for (const b of $$('.ptabs button')) b.onclick = () => setTab(b.dataset.tab);
-$('#shoot-btn').onclick = () => shootFrames(allFrameSpecs(), $('#shoot-btn'));
+// Toolbar camera: a menu to pick which screens to screenshot (all by default), grouped by page.
+$('#shoot-menu').addEventListener('toggle', () => $('#shoot-menu').open && renderShootMenu());
+$('#shoot-go').onclick = async () => {
+  const list = shootSelection();
+  await shootFrames(list, $('#shoot-go'));
+  if (list.length) $('#shoot-menu').open = false;
+};
 // Present: the screen as shown (breakpoint, state, theme), full height.
 $('#p-shoot').onclick = () =>
   shootFrames([{ src: presentSrc(), w: P.system ? 1440 : P.bp.width, h: P.system ? 900 : P.bp.height, system: P.system, screen: P.screen, variant: P.variant, file: P.file, bp: P.bp, state: P.state }], $('#p-shoot'));
@@ -1782,7 +1866,7 @@ document.addEventListener('click', (e) => {
 });
 $('#full-toggle').onclick = () => {
   S.fullHeight = !S.fullHeight;
-  store.set('full', S.fullHeight);
+  store.set('full2', S.fullHeight);
   renderToolbar();
   rebuildKeepCam();
 };
