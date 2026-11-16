@@ -111,6 +111,8 @@ Useful commands (`dfw help` for all): `dfw status`, `dfw style match|show|apply`
 
 Review the running app (phase verify): `dfw review start --url http://localhost:5173` opens a local proxy (127.0.0.1 only; HMR passes through) with a **Comment** button (or C) on the app itself. Comments go to the same inbox as Studio comments, with the route, a screenshot, and the element's `file:line:col` when the project has [code-inspector-plugin](https://github.com/zh-lx/code-inspector) (MIT, dev builds only). dfw never adds that dependency silently: `dfw inspector setup` prints the pinned devDependency and the Vite/webpack/Next config change to propose at G3; `--write` applies it only after G3 approved it (other bundlers: printed instructions). Without it, comments carry selector + text.
 
+Penpot (optional bridge; dfw's HTML and DTCG tokens stay the source of truth): `dfw tokens export --format penpot` writes a file for Penpot's Tokens panel (sets `base` + `themes/<name>`, themes, aliases); `dfw tokens import <file> [--dry-run]` brings Penpot token edits back with a diff summary (refused while the design is frozen). Mapping and limits: `plugins/dfw/skills/dfw/references/penpot.md`.
+
 ## Why plain HTML/CSS as the design format
 
 Designs are framework-neutral HTML/CSS composed from design-system components, not a proprietary canvas format. Any stack can implement them (the stack is chosen at G3), the browser renders them directly (Studio, screenshots, Impeccable and sloplint all read HTML), they diff cleanly in git, and HTML/CSS is what language models write best. The Studio adds the Figma/pencil.dev experience on top: pages, canvas, layers, inspector, direct edits and comments.
@@ -194,4 +196,5 @@ When you change `core/` or an adapter, run `npm run build` and bump `version` in
 
   Details, triggers and offline setup: [docs/impeccable-network.md](docs/impeccable-network.md).
 - Canvas drag and resize are constrained: you can reorder elements among their flex/grid siblings and resize with snapping to grid spans and tokens, but free-form absolute positioning is intentionally not supported (designs are responsive flow layouts that become real code). Other layout changes (new grid templates, moving into an empty container) go through comments or the code. Colors and typography are changed in the design system (tokens or masters), by Claude or by hand.
+- Penpot: tokens round-trip (`dfw tokens export --format penpot`, `dfw tokens import`); a screens bridge is planned. An MCP server for feedback is planned.
 - Penpot import/export is planned.

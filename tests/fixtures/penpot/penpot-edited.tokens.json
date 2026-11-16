@@ -1,0 +1,30 @@
+{
+  "base": {
+    "color": {
+      "blue": { "600": { "$value": "#0055dd", "$type": "color" } },
+      "ink": { "$value": "#1c1b1a", "$type": "color", "$description": "Body text" },
+      "accent": { "$value": "{color.blue.600}", "$type": "color" },
+      "brand": { "$value": "rgba(255, 102, 0, 0.5)", "$type": "color" },
+      "mix": { "$value": "hsl(210, 50%, 40%)", "$type": "color" }
+    },
+    "space": { "2": { "$value": "8", "$type": "spacing" }, "4": { "$value": "{space.2} * 2", "$type": "spacing" } },
+    "radius": { "md": { "$value": "8px", "$type": "borderRadius" } },
+    "font": {
+      "family": { "body": { "$value": "\"Source Sans 3\", sans-serif", "$type": "fontFamilies" } },
+      "weight": { "bold": { "$value": "Bold", "$type": "fontWeights" } },
+      "size": { "md": { "$value": "17", "$type": "fontSizes" } }
+    },
+    "duration": { "fast": { "$value": "150", "$type": "number" } },
+    "opacity": { "muted": { "$value": "45%", "$type": "opacity" } },
+    "flag": { "$value": "true", "$type": "boolean" }
+  },
+  "themes/dark": {
+    "color": { "ink": { "$value": "#eeeeee", "$type": "color" } }
+  },
+  "Brands/A": { "color": { "x": { "$value": "#000000", "$type": "color" } } },
+  "$themes": [
+    { "name": "default", "group": "dfw", "description": "", "isSource": false, "selectedTokenSets": { "base": "enabled" } },
+    { "name": "dark", "group": "dfw", "description": "", "isSource": false, "selectedTokenSets": { "base": "enabled", "themes/dark": "enabled" } }
+  ],
+  "$metadata": { "tokenSetOrder": ["base", "themes/dark", "Brands/A"], "activeThemes": ["dfw/default"], "activeSets": ["base"] }
+}

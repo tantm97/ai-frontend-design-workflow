@@ -14,6 +14,7 @@ import { loadState, saveState, newState, setPhase, approveGate, setMode, summari
 import { freezeDesign, reopenDesign, verifySnapshot } from './freeze.mjs';
 import { runChecks, formatReport } from './check.mjs';
 import { buildTokens } from './tokens.mjs';
+import { exportPenpotTokens, importPenpotTokens, formatExport, formatImport } from './penpot-tokens.mjs';
 import { detectStack } from './stack.mjs';
 import { addComment, allComments, updateComment, newSession } from './comments.mjs';
 import { languageStatus, setLanguage } from './lang.mjs';
@@ -76,6 +77,8 @@ Design system (built before any screen)
 Design workspace
   dfw tokens build                              DTCG tokens.json -> tokens.css (+ components.css)
   dfw tokens extract --url <u> [--out <file>]  Token seed (colours, fonts, sizes, radii, spacing) from a reference site or the running app
+  dfw tokens export --format penpot [--out <f>] Tokens + themes as a Penpot token file (sets/themes, aliases kept; unsupported types listed)
+  dfw tokens import <file|dir> [--from penpot] [--dry-run] [--prune]   Penpot token file -> design/tokens (diff summary; refused while frozen)
   dfw lint [files...] [--json]                  dfw design lint only (fast)
   dfw check [files...|--url <u>] [--states] [--themes] [--no-a11y] [--lighthouse] [--json] [--setup]   dfw lint + Impeccable + sloplint + axe (rendered a11y; whole design or URL); --lighthouse: performance/SEO of a running app (pinned, via npx)
   dfw studio start|stop|status [--port <n>]     Local Design Studio (canvas + click-to-comment)
@@ -673,7 +676,23 @@ export async function main(argv) {
         if (!browserStatus().installed) throw new DfwError('dfw tokens extract renders in Chrome/Edge/Chromium: none found (dfw setup --browser).');
         return out(await extractTokensToFile(root, a.url, a.out));
       }
-      if (cmd === 'tokens' && a._[1] !== 'build') throw new DfwError('Usage: dfw tokens build | dfw tokens extract --url <u>');
+      if (cmd === 'tokens' && a._[1] === 'export') {
+        if ((a.format || 'penpot') !== 'penpot') throw new DfwError(`Unknown --format "${a.format}" (supported: penpot).`);
+        const r = exportPenpotTokens(root, { out: a.out, optThemes: Boolean(a['opt-themes']) });
+        return a.json ? out({ file: r.file, report: r.report }, true) : out(formatExport(r, root));
+      }
+      if (cmd === 'tokens' && a._[1] === 'import') {
+        if (!a._[2]) throw new DfwError('Usage: dfw tokens import <penpot-tokens.json|folder> [--from penpot] [--dry-run] [--prune]');
+        if ((a.from || 'penpot') !== 'penpot') throw new DfwError(`Unknown --from "${a.from}" (supported: penpot).`);
+        const dryRun = Boolean(a['dry-run']);
+        const r = importPenpotTokens(root, a._[2], { state: loadState(root), dryRun, prune: Boolean(a.prune) });
+        if (r.written.length) {
+          buildTokens(root);
+          buildSystem(root);
+        }
+        return a.json ? out(r, true) : out(formatImport(r, { dryRun }));
+      }
+      if (cmd === 'tokens' && a._[1] !== 'build') throw new DfwError('Usage: dfw tokens build | extract --url <u> | export --format penpot [--out <file>] | import <file> [--from penpot] [--dry-run]');
       const r = buildTokens(root);
       const sys = buildSystem(root);
       return out(`Wrote ${path.relative(root, r.out)}${r.themes.length ? ` (themes: ${r.themes.join(', ')})` : ''}${sys.components ? `; ${sys.components} component(s) -> design/system/components.css` : ''}`);
