@@ -37,7 +37,8 @@ The workflow is called **dfw** (design-first workflow): `/dfw` in Claude Code, `
   - dfw lint, with AI-default tells, interface guidelines and missing states;
   - a rendered layout check, including 320px with text at 125%;
   - axe-core for rendered accessibility;
-  - Impeccable and Hallmark sloplint.
+  - Impeccable and Hallmark sloplint;
+  - `dfw diff` for a pixel diff of design vs. implementation screenshots (pixelmatch: % changed plus a diff image).
 
   A check that could not run is reported as NOT VERIFIED, never as passing. `npm run bench` measures the checks on seeded defects.
 - **Hard gates.** A PreToolUse hook blocks implementation files until the design is approved (G2) and you approved the stack (G3). Approved designs are frozen in `design/approved/vN/` with a sha256 lock.
@@ -184,8 +185,11 @@ When you change `core/` or an adapter, run `npm run build` and bump `version` in
 ## Known limitations
 
 - The write gate covers Edit/Write/MultiEdit/NotebookEdit. Shell commands could still write files; the skill forbids it, but it is not technically enforced.
-- Impeccable's direction catalog fetch (impeccable.style) still happens when its `shape`/new-design flow runs; it sends no project data.
-- Visual comparison of design vs. implementation is screenshot-based with Claude's judgement; there is no pixel-perfect diff.
+- Impeccable is not fully offline. dfw's checks (`impeccable detect`) make no network calls, and telemetry and update checks are off. Two calls remain:
+  - the one-time engine download (GitHub, sha256-verified);
+  - when Impeccable's own new-design flow runs, an anonymous card-catalog request to `impeccable.style/api/roll` that carries a random key and no project data.
+
+  Details, triggers and offline setup: [docs/impeccable-network.md](docs/impeccable-network.md).
 - Element source mapping in a *running app* (not the design studio) is not in the MVP; it is planned via code-inspector-plugin.
 - No free-form drag-and-drop or resizing on the canvas: layout changes go through comments or the code. Direct edits in the Studio cover text, component variant/size/props and spacing tokens; colors and typography are changed in the design system (tokens or masters), by Claude or by hand.
-- Penpot import/export and an MCP server for feedback are planned.
+- Penpot import/export is planned.
