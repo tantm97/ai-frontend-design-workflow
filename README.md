@@ -100,6 +100,7 @@ Review loop: Claude starts the Studio (`dfw studio start`, default http://127.0.
 | Pages | Design System, one page per module, Explorations, or **All pages** on one canvas |
 | Inspect | click an element (Cmd/Alt-click for the exact one): layers, tokens in use, component + variant, "Go to master" |
 | Edit directly | double-click text; change variant/size/props or spacing tokens in the inspector; Cmd/Ctrl+Z undoes |
+| Rearrange and resize | select an element with a `data-dfw-id`, then drag it among its flex/grid siblings (a blue line shows where it lands; the source is moved), or drag its handles: in a grid the width snaps to a column span (`span 2 / 4`), elsewhere to a `size.*` token or 25/33/50/67/75/100%, and the height to a `min-height` spacing/size token. Keyboard: Alt+arrows move, Alt+Shift+arrows step the size. Resizes go to a `<style data-dfw-layout>` block in the screen; in a narrower breakpoint frame they go inside `@media (max-width: <frame width>px)`, so they apply there and below. Edits are refused once the design is approved (G2) |
 | Clickable preview | **P** (or double-click a frame title) for full-window Present; **I** to interact on the canvas; ← → between screens. Present hides comment pins unless you press **Pins** (Shift+C) or comment |
 | Comment | **C**, click an element, write (Cmd/Ctrl+Enter). Claude receives it immediately; fixed comments appear under **To verify** where you resolve or reopen them |
 | Breakpoints and states | top-bar menus with checkboxes and **All** (default: all shown); only checked breakpoints/states get frames |
@@ -191,5 +192,5 @@ When you change `core/` or an adapter, run `npm run build` and bump `version` in
 
   Details, triggers and offline setup: [docs/impeccable-network.md](docs/impeccable-network.md).
 - Element source mapping in a *running app* (not the design studio) is not in the MVP; it is planned via code-inspector-plugin.
-- No free-form drag-and-drop or resizing on the canvas: layout changes go through comments or the code. Direct edits in the Studio cover text, component variant/size/props and spacing tokens; colors and typography are changed in the design system (tokens or masters), by Claude or by hand.
+- Canvas drag and resize are constrained: you can reorder elements among their flex/grid siblings and resize with snapping to grid spans and tokens, but free-form absolute positioning is intentionally not supported (designs are responsive flow layouts that become real code). Other layout changes (new grid templates, moving into an empty container) go through comments or the code. Colors and typography are changed in the design system (tokens or masters), by Claude or by hand.
 - Penpot import/export is planned.
