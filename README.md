@@ -109,6 +109,8 @@ Review loop: Claude starts the Studio (`dfw studio start`, default http://127.0.
 
 Useful commands (`dfw help` for all): `dfw status`, `dfw style match|show|apply`, `dfw system init|inventory|ref|options|choose|audit|list`, `dfw palette build`, `dfw type scale`, `dfw icons search|add`, `dfw fonts check`, `dfw check`, `dfw shoot --page <id> --states`, `dfw comments list|wait`, `dfw decisions`, `dfw pause|resume`.
 
+Review the running app (phase verify): `dfw review start --url http://localhost:5173` opens a local proxy (127.0.0.1 only; HMR passes through) with a **Comment** button (or C) on the app itself. Comments go to the same inbox as Studio comments, with the route, a screenshot, and the element's `file:line:col` when the project has [code-inspector-plugin](https://github.com/zh-lx/code-inspector) (MIT, dev builds only). dfw never adds that dependency silently: `dfw inspector setup` prints the pinned devDependency and the Vite/webpack/Next config change to propose at G3; `--write` applies it only after G3 approved it (other bundlers: printed instructions). Without it, comments carry selector + text.
+
 ## Why plain HTML/CSS as the design format
 
 Designs are framework-neutral HTML/CSS composed from design-system components, not a proprietary canvas format. Any stack can implement them (the stack is chosen at G3), the browser renders them directly (Studio, screenshots, Impeccable and sloplint all read HTML), they diff cleanly in git, and HTML/CSS is what language models write best. The Studio adds the Figma/pencil.dev experience on top: pages, canvas, layers, inspector, direct edits and comments.
@@ -191,6 +193,5 @@ When you change `core/` or an adapter, run `npm run build` and bump `version` in
   - when Impeccable's own new-design flow runs, an anonymous card-catalog request to `impeccable.style/api/roll` that carries a random key and no project data.
 
   Details, triggers and offline setup: [docs/impeccable-network.md](docs/impeccable-network.md).
-- Element source mapping in a *running app* (not the design studio) is not in the MVP; it is planned via code-inspector-plugin.
 - Canvas drag and resize are constrained: you can reorder elements among their flex/grid siblings and resize with snapping to grid spans and tokens, but free-form absolute positioning is intentionally not supported (designs are responsive flow layouts that become real code). Other layout changes (new grid templates, moving into an empty container) go through comments or the code. Colors and typography are changed in the design system (tokens or masters), by Claude or by hand.
 - Penpot import/export is planned.

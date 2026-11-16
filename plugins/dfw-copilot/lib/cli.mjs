@@ -36,6 +36,8 @@ import { kitRefs, kitRef, loadInventory, inventoryFindings, DS_GATE_RULES } from
 import { layoutCheck, changedScreens, markChecked } from './layout.mjs';
 import { buildPalette, typeScale } from './color.mjs';
 import { waitForComments, formatForClaude, undelivered, markDelivered } from './inbox.mjs';
+import { inspectorSetup, formatPlan, INSPECTOR } from './inspector.mjs';
+import { startLiveServer, assertLocalTarget } from './live.mjs';
 
 const HELP = `dfw - design-first workflow CLI
 
@@ -77,6 +79,9 @@ Design workspace
   dfw lint [files...] [--json]                  dfw design lint only (fast)
   dfw check [files...|--url <u>] [--states] [--themes] [--no-a11y] [--lighthouse] [--json] [--setup]   dfw lint + Impeccable + sloplint + axe (rendered a11y; whole design or URL); --lighthouse: performance/SEO of a running app (pinned, via npx)
   dfw studio start|stop|status [--port <n>]     Local Design Studio (canvas + click-to-comment)
+  dfw review start --url <dev server> [--port <n>] [--no-shots] | stop | status
+                                                Click-to-comment on the running app (local proxy; comments carry file:line with the inspector)
+  dfw inspector setup [--write] [--json]        Source mapping for review: code-inspector-plugin (dev-only); --write only after G3 approved it
   dfw shoot [--screen <id>|--page <id>] [--variant <id>] [--bp <ids>] [--state <s>|--states] [--theme <t>|--themes] [--system]
                                                 Screenshots in one browser run (your Chrome/Edge, headless); --url <u> --out <file> for any URL
   dfw diff <a.png|dirA> <b.png|dirB> [--out] [--threshold 0.1]   Pixel diff (pixelmatch): % changed + a diff image (red = changed)
@@ -140,7 +145,7 @@ function cmdInit(root, a) {
   fs.mkdirSync(p.reviews, { recursive: true });
   if (!fs.existsSync(p.config)) writeJson(p.config, { schema: 1 });
   if (!fs.existsSync(p.decisions)) fs.writeFileSync(p.decisions, '');
-  fs.writeFileSync(path.join(p.dfw, '.gitignore'), 'config.local.json\nstudio.json\nstudio.log\nshots/\nchecks/\n');
+  fs.writeFileSync(path.join(p.dfw, '.gitignore'), 'config.local.json\nstudio.json\nstudio.log\nreview.json\nreview.log\nshots/\nchecks/\n');
   const created = [];
   for (const doc of ['PRODUCT.md', 'DESIGN.md']) {
     if (!fs.existsSync(path.join(root, doc))) {
@@ -319,6 +324,53 @@ async function cmdStudio(root, a) {
   if (!(await waitFor(`${url}__dfw/api/manifest`))) throw new DfwError(`Studio did not start; see ${path.join(p.dfw, 'studio.log')}`);
   writeJson(p.studio, { pid: child.pid, port, url, startedAt: nowIso() });
   return out(`studio running: ${url}`);
+}
+
+async function cmdReview(root, a) {
+  const p = projectPaths(root);
+  const file = path.join(p.dfw, 'review.json');
+  const sub = a._[1] || 'status';
+  const info = readJson(file, null);
+  const running = info && isAlive(info.pid);
+  if (sub === 'status') return out(running ? `review running: ${info.url} -> ${info.target} (pid ${info.pid})` : 'review not running');
+  if (sub === 'stop') {
+    if (running) process.kill(info.pid);
+    if (fs.existsSync(file)) fs.unlinkSync(file);
+    return out('review stopped');
+  }
+  if (sub !== 'start') throw new DfwError('Usage: dfw review start --url <dev server url> [--port <n>] [--no-shots] | stop | status');
+  if (!a.url) throw new DfwError('dfw review start needs --url <the running app, e.g. http://localhost:5173>.');
+  const target = assertLocalTarget(String(a.url)).origin;
+  if (running) {
+    if (info.target === target) return out(`review already running: ${info.url} -> ${target}`);
+    process.kill(info.pid);
+  }
+  let port = Number(a.port || 4700);
+  for (let i = 0; i < 20 && !(await portFree(port)); i++) port++;
+  fs.mkdirSync(p.dfw, { recursive: true });
+  const log = fs.openSync(path.join(p.dfw, 'review.log'), 'a');
+  const self = selfCommand();
+  const args = [...self.args, '__review-server', '--root', root, '--url', target, '--port', String(port)];
+  if (a['no-shots']) args.push('--no-shots');
+  const child = spawn(self.cmd, args, { detached: true, stdio: ['ignore', log, log] });
+  child.unref();
+  const url = `http://127.0.0.1:${port}/`;
+  if (!(await waitFor(`${url}__dfw/api/live`))) throw new DfwError(`dfw review did not start; see ${path.join(p.dfw, 'review.log')}`);
+  writeJson(file, { pid: child.pid, port, url, target, startedAt: nowIso() });
+  const path0 = new URL(String(a.url)).pathname;
+  return out(`review running: ${url.replace(/\/$/, path0)}  (proxy of ${target})\nOpen it, press C (or "Comment"), click an element, write, Cmd/Ctrl+Enter. Comments arrive like Studio comments (dfw comments wait).`);
+}
+
+function cmdInspector(root, a) {
+  const sub = a._[1] || 'setup';
+  if (sub !== 'setup') throw new DfwError('Usage: dfw inspector setup [--write] [--json]');
+  const { plan, written } = inspectorSetup(root, { write: Boolean(a.write) });
+  if (a.json) return out({ ...plan, written }, true);
+  if (!a.write) return out(formatPlan(plan));
+  const pm = plan.packageManager || 'npm';
+  return out(written.length
+    ? `Wrote ${written.join(', ')} (${INSPECTOR.package}@${INSPECTOR.version}, dev-only). Now run: ${pm} install, restart the dev server, then "dfw review start --url <dev server>".`
+    : `${INSPECTOR.package}@${INSPECTOR.version} is already set up.`);
 }
 
 async function cmdShoot(root, a) {
@@ -538,6 +590,15 @@ export async function main(argv) {
     globalThis.__DFW_STUDIO_ARGV = argv.slice(1);
     await import('../studio/server.mjs');
     return;
+  }
+  // Internal: the live review proxy ("dfw review start" spawns it).
+  if (argv[0] === '__review-server') {
+    const r = parseArgs(argv.slice(1));
+    const root = path.resolve(r.root || process.cwd());
+    const log = (m) => console.error(`dfw review: ${m}`);
+    const { url } = await startLiveServer({ root, target: r.url, port: Number(r.port) || 4700, shots: !r['no-shots'], log });
+    console.log(`dfw review: ${url} -> ${r.url}  (project: ${root})`);
+    return; // the listening server keeps the process alive
   }
   const a = parseArgs(argv);
   const cmd = a._[0];
@@ -784,6 +845,10 @@ export async function main(argv) {
       return cmdStudio(root, a);
     case 'shoot':
       return cmdShoot(root, a);
+    case 'review':
+      return cmdReview(root, a);
+    case 'inspector':
+      return cmdInspector(root, a);
     case 'diff': {
       if (a._.length < 3) throw new DfwError('Usage: dfw diff <a.png|dirA> <b.png|dirB> [--out <file|dir>] [--threshold 0.1] [--json]');
       if (!browserStatus().installed) throw new DfwError('dfw diff renders in Chrome/Edge/Chromium: none found (dfw setup --browser).');

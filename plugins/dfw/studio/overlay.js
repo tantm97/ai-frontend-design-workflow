@@ -6,10 +6,12 @@
 (() => {
   if (window.__dfwOverlay) return;
   window.__dfwOverlay = true;
+  // dfw review (running app, see lib/live.mjs): only share the comment-target helpers with live.js.
+  const LIVE = Boolean(document.currentScript && document.currentScript.hasAttribute('data-dfw-live'));
   const params = new URLSearchParams(location.search);
-  if (params.get('theme')) document.documentElement.dataset.theme = params.get('theme');
-  if (params.get('state')) document.documentElement.dataset.state = params.get('state');
-  if (window.parent === window) return; // opened directly: plain page
+  if (!LIVE && params.get('theme')) document.documentElement.dataset.theme = params.get('theme');
+  if (!LIVE && params.get('state')) document.documentElement.dataset.state = params.get('state');
+  if (window.parent === window && !LIVE) return; // opened directly: plain page
 
   const post = (type, data = {}) => parent.postMessage({ type, ...data }, '*');
   let mode = 'select';
@@ -102,6 +104,11 @@
       styles: { color: cs.color, background: cs.backgroundColor, font: `${cs.fontWeight} ${cs.fontSize}/${cs.lineHeight} ${cs.fontFamily.split(',')[0]}`, padding: cs.padding, radius: cs.borderRadius },
       scroll: [Math.round(scrollX), Math.round(scrollY)],
     };
+  }
+
+  if (LIVE) {
+    window.__dfwTargetInfo = info;
+    return;
   }
 
   /* ---------- design tokens: reverse-map computed values to token names ---------- */

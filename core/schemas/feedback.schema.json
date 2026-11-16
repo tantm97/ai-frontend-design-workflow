@@ -22,8 +22,9 @@
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" },
         "designVersion": { "type": "string" },
-        "screen": { "type": ["string", "null"], "description": "Screen id from design/design.json" },
-        "variant": { "type": ["string", "null"] },
+        "screen": { "type": ["string", "null"], "description": "Screen id from design/design.json; for comments on the running app (provider dfw-live) the URL route" },
+        "variant": { "type": ["string", "null"], "description": "Design variant id; \"live\" for comments on the running app" },
+        "url": { "type": "string", "description": "Route (path + query + hash) of a comment on the running app (dfw review)" },
         "breakpoint": { "type": ["string", "null"] },
         "state": { "type": ["string", "null"] },
         "theme": { "type": ["string", "null"] },
@@ -34,7 +35,8 @@
             "dfwId": { "type": ["string", "null"], "description": "Stable element id (data-dfw-id)" },
             "exact": { "type": "boolean", "description": "true when an element without its own data-dfw-id was picked (Alt-click)" },
             "selector": { "type": "string", "description": "CSS selector, anchored on the nearest data-dfw-id" },
-            "source": { "type": ["string", "null"], "description": "file[:line] of the element in source" },
+            "source": { "type": ["string", "null"], "description": "file[:line[:col]] of the element in source: the design file line in the Studio; in the running app the project file from code-inspector-plugin's data-insp-path (null when the app has no inspector)" },
+            "inspPath": { "type": "string", "description": "Raw data-insp-path value (file:line:col:tag) the source was parsed from" },
             "tag": { "type": "string" },
             "bbox": { "type": "array", "items": { "type": "number" }, "minItems": 4, "maxItems": 4, "description": "[x, y, width, height] in document CSS px at the given breakpoint" },
             "viewportBbox": { "type": "array", "items": { "type": "number" }, "minItems": 4, "maxItems": 4 },
@@ -59,7 +61,7 @@
           "type": ["object", "null"],
           "properties": { "at": { "type": "string" }, "by": { "type": "string" }, "note": { "type": "string" }, "evidence": { "type": ["string", "null"] } }
         },
-        "provider": { "type": "string" }
+        "provider": { "type": "string", "description": "dfw-studio (design canvas), dfw-live (running app via dfw review), or an adapter" }
       }
     }
   }
