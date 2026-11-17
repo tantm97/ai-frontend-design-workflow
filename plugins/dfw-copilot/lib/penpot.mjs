@@ -8,7 +8,8 @@
 // Penpot components with instances.
 //
 // Import: the plugin sends back what the designer changed (texts, boxes, fills, added layers,
-// Penpot comments, token values). dfw never rewrites its HTML from that: the change set becomes
+// Penpot comments, token values), on the screen boards and on the main components of the
+// "dfw components" page (those become comments on the master file, design/system/components/). dfw never rewrites its HTML from that: the change set becomes
 // feedback comments (schemas/feedback.schema.json, provider "penpot") and a token diff, applied
 // by the agent through the normal review loop and gates.
 import fs from 'node:fs';
@@ -17,7 +18,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { projectPaths, readJson, writeJson, nowIso, toPosix, DfwError } from './util.mjs';
 import { loadConfig } from './config.mjs';
-import { buildComposed, buildSystem } from './compose.mjs';
+import { buildComposed, buildSystem, loadComponents } from './compose.mjs';
 import { studioPages } from '../studio/pages.mjs';
 import { flattenTokens, tokenToPenpot, parseColor, readDfwTokens, dfwToPenpot, importPenpotTokens, shortValue } from './penpot-tokens.mjs';
 import { addComment } from './comments.mjs';
@@ -538,7 +539,7 @@ const TOL = 1.5;
  * Compare what the plugin sent back with the export it was built from.
  * Returns { changes: [...], warnings: [...] }. Pure (no IO).
  */
-export function diffChanges(baseline, changes) {
+export function diffChanges(baseline, changes, { dims = [] } = {}) {
   if (changes?.schema !== CHANGES_SCHEMA) throw new DfwError(`Not a dfw Penpot change file (schema "${changes?.schema}", expected ${CHANGES_SCHEMA}).`);
   const boards = new Map(baseline.pages.flatMap((p) => p.boards).map((b) => [b.key, b]));
   const out = [];
@@ -614,12 +615,16 @@ export function diffChanges(baseline, changes) {
     for (const n of cb.layers || []) if (flat.has(n.path)) m.set(n.path, { ...flat.get(n.path), x: n.x, y: n.y, w: n.w, h: n.h });
     current.set(cb.key, m);
   }
+  const comps = componentsOf(baseline);
+  out.push(...diffComponents(baseline, changes, { dims, warnings }));
   for (const t of changes.comments || []) {
     const b = t.boardKey ? boards.get(t.boardKey) : null;
     const host = b ? deepestAt(current.get(b.key) || flattenLayers(b.layers), t.x, t.y) : null;
+    const comp = !b && t.componentKey ? comps.get(t.componentKey) : null;
     out.push({
       type: 'comment',
       ...(b ? where(b) : { board: null, screen: null, variant: null, breakpoint: null, file: null }),
+      ...(comp ? { component: compInfo(comp) } : {}),
       anchor: host?.anchor || host?.dfwId || null,
       bbox: host ? [host.x, host.y, host.w, host.h] : null,
       thread: t.seq ?? null,
@@ -628,6 +633,219 @@ export function diffChanges(baseline, changes) {
     });
   }
   return { changes: out, warnings };
+}
+
+/* ------------------------------------------------------------------ component masters (dfw components page) */
+
+/** Dimension tokens in px (aliases followed; rem = 16px), by role: radius, space, size, border. */
+export function dimensionTokenIndex(tree) {
+  const flat = flattenTokens(tree || {});
+  const resolve = (name, depth = 0) => {
+    const t = flat.get(name);
+    if (!t || depth > 10) return null;
+    const m = typeof t.value === 'string' && /^\{([^{}]+)\}$/.exec(t.value.trim());
+    return m ? resolve(m[1], depth + 1) : t;
+  };
+  const out = [];
+  for (const [name, t] of flat) {
+    if (t.type !== 'dimension' || /^font\./.test(name)) continue;
+    const v = resolve(name)?.value;
+    const px = v?.unit === 'px' ? v.value : v?.unit === 'rem' ? v.value * 16 : null;
+    if (typeof px !== 'number') continue;
+    const role = /(^|\.)radius(\.|$)/.test(name) ? 'radius' : /(border|stroke|focus)[.-]?width/.test(name) ? 'border' : /(^|\.)(space|spacing|gap|inset|padding)(\.|$)/.test(name) ? 'space' : /(^|\.)(size|sizing|width|height)(\.|$)/.test(name) ? 'size' : null;
+    if (role) out.push({ name, px, role, alias: typeof t.value === 'string' });
+  }
+  // Prefer semantic aliases over scale steps, like colours.
+  return out.sort((a, b) => Number(b.alias) - Number(a.alias));
+}
+
+const findDim = (dims, role, px) => (typeof px === 'number' ? dims.find((d) => d.role === role && Math.abs(d.px - px) < 0.5)?.name || null : null);
+const MAIN_PREFIX = /^main:[^#]*#/;
+const componentsOf = (baseline) => new Map((baseline.components || []).map((c) => [c.key, c]));
+const compInfo = (c) => ({ key: c.key, name: c.component, variant: c.variant || null, size: c.size || null, title: c.name });
+const colorToken = (baseline, c) => baseline.colors.find((t) => t.hex === String(c.color).toLowerCase() && Math.abs(t.opacity - (c.opacity ?? 1)) < 0.01)?.name || null;
+
+/** Insets of a frame's children: left/top from all children, right/bottom from non-text ones (Penpot's font metrics differ). */
+function insets(parent, kids) {
+  if (!kids.length) return null;
+  const boxes = kids.filter((k) => k.kind !== 'text');
+  return {
+    top: Math.min(...kids.map((k) => k.y)) - parent.y,
+    right: boxes.length ? parent.x + parent.w - Math.max(...boxes.map((k) => k.x + k.w)) : null,
+    bottom: boxes.length ? parent.y + parent.h - Math.max(...boxes.map((k) => k.y + k.h)) : null,
+    left: Math.min(...kids.map((k) => k.x)) - parent.x,
+  };
+}
+
+/**
+ * Edits on the "dfw components" page: each Penpot main component (keyed by the master, variant and size
+ * stored in its plugin data) compared with the master as exported. Pure (no IO).
+ */
+export function diffComponents(baseline, changes, { dims = [], warnings = [] } = {}) {
+  const comps = componentsOf(baseline);
+  const out = [];
+  const base = { board: null, screen: null, variant: null, breakpoint: null, file: null };
+  const seen = new Set();
+  for (const cc of changes.components || []) {
+    const c = comps.get(cc.key);
+    if (!c) {
+      warnings.push(`Component "${cc.name || cc.key}" is not in export ${baseline.id}: skipped.`);
+      continue;
+    }
+    seen.add(c.key);
+    const where = { ...base, component: compInfo(c) };
+    const flat = flattenLayers([c.root]);
+    const sent = new Map();
+    const added = [...(cc.added || [])];
+    for (const n of cc.layers || []) {
+      const p = n.root ? c.root.path : String(n.path ?? '').replace(MAIN_PREFIX, '');
+      if (flat.has(p)) sent.set(p, { ...n, path: p });
+      else {
+        warnings.push(`${c.name}: layer path ${n.path} unknown in the export; treated as added.`);
+        added.push(n);
+      }
+    }
+    const label = (l) => (l.path === c.root.path ? c.name : l.kind === 'text' ? `text "${norm(l.characters).slice(0, 40)}"` : l.name);
+    const target = (l) => ({ path: l.path, name: label(l), kind: l.kind, tag: l.tag || null, isRoot: l.path === c.root.path, bbox: [l.x, l.y, l.w, l.h] });
+    if (cc.name && norm(cc.name) !== norm(c.name)) out.push({ type: 'rename', ...where, ...target(c.root), from: c.name, to: cc.name });
+    for (const [p, l] of flat) {
+      const n = sent.get(p);
+      if (!n) continue;
+      const t = target(l);
+      if (l.kind === 'text' && n.characters !== undefined && norm(n.characters) !== norm(l.characters)) out.push({ type: 'text', ...where, ...t, from: l.characters, to: n.characters });
+      // Fill (text colour for text layers).
+      const before = l.kind === 'text' ? l.text?.color : l.fills?.[0];
+      const after = n.fills?.[0];
+      if (after && (!before ? l.kind !== 'text' : String(after.color).toLowerCase() !== String(before.hex || before.color).toLowerCase() || Math.abs((after.opacity ?? 1) - (before.opacity ?? 1)) > 0.01)) {
+        out.push({ type: 'fill', ...where, ...t, from: before ? { color: before.hex || before.color, opacity: before.opacity ?? 1, token: l.kind === 'text' ? l.text?.colorToken : before.token } : null, to: { color: String(after.color).toLowerCase(), opacity: after.opacity ?? 1, token: colorToken(baseline, after) } });
+      } else if (!after && before && l.kind !== 'text' && n.fills !== undefined) {
+        out.push({ type: 'fill', ...where, ...t, from: { color: before.color, opacity: before.opacity ?? 1, token: before.token }, to: null });
+      }
+      // Stroke (border): colour, width, added or removed.
+      const sb = l.strokes?.[0];
+      const sa = n.strokes?.[0];
+      if (n.strokes !== undefined && (sb || sa)) {
+        const colorChanged = sb && sa && (String(sa.color).toLowerCase() !== sb.color.toLowerCase() || Math.abs((sa.opacity ?? 1) - (sb.opacity ?? 1)) > 0.01);
+        const widthChanged = sb && sa && Math.abs((sa.width ?? 1) - sb.width) > 0.25;
+        if (!sb || !sa || colorChanged || widthChanged) {
+          out.push({
+            type: 'stroke',
+            ...where,
+            ...t,
+            from: sb ? { color: sb.color, opacity: sb.opacity ?? 1, width: sb.width, token: sb.token || null, widthToken: findDim(dims, 'border', sb.width) } : null,
+            to: sa ? { color: String(sa.color).toLowerCase(), opacity: sa.opacity ?? 1, width: sa.width ?? 1, token: colorToken(baseline, sa), widthToken: findDim(dims, 'border', sa.width ?? 1) } : null,
+          });
+        }
+      }
+      // Corner radius.
+      if (Array.isArray(n.radius) && l.kind !== 'text') {
+        const rb = l.radius || [0, 0, 0, 0];
+        if (n.radius.some((v, i) => Math.abs((v || 0) - (rb[i] || 0)) > 0.5)) {
+          const uniform = n.radius.every((v) => Math.abs((v || 0) - (n.radius[0] || 0)) < 0.01);
+          out.push({ type: 'radius', ...where, ...t, from: { radius: rb, token: l.radiusToken || null }, to: { radius: n.radius.map((v) => v || 0), token: uniform ? findDim(dims, 'radius', n.radius[0] || 0) : null } });
+        }
+      }
+      // Size (not for text: Penpot's font metrics differ).
+      if (l.kind !== 'text' && (Math.abs(n.w - l.w) > TOL || Math.abs(n.h - l.h) > TOL)) {
+        out.push({ type: 'size', ...where, ...t, from: [l.w, l.h], to: [n.w, n.h], tokens: { w: Math.abs(n.w - l.w) > TOL ? findDim(dims, 'size', n.w) : null, h: Math.abs(n.h - l.h) > TOL ? findDim(dims, 'size', n.h) : null } });
+      }
+      // Spacing: the insets of the children inside this frame (padding), compared side by side.
+      const kids = (l.children || []).filter((k) => sent.has(k.path));
+      if (kids.length) {
+        const ib = insets(l, kids);
+        const ia = insets(n, kids.map((k) => sent.get(k.path)));
+        const sw = sb ? sb.width : 0;
+        const sides = ['top', 'right', 'bottom', 'left'].filter((s) => ib[s] !== null && ia[s] !== null && Math.abs(ia[s] - ib[s]) > TOL);
+        if (sides.length) {
+          const tok = (v) => findDim(dims, 'space', v - sw) || findDim(dims, 'space', v);
+          out.push({ type: 'spacing', ...where, ...t, sides: Object.fromEntries(sides.map((s) => [s, { from: ib[s], to: ia[s], token: tok(ia[s]) }])), border: sw });
+        }
+      }
+      if (l.path !== c.root.path && n.name && n.name !== l.name) out.push({ type: 'rename', ...where, ...t, from: l.name, to: n.name });
+    }
+    for (const l of flat.values()) {
+      if (sent.has(l.path)) continue;
+      const parent = l.path.includes('.') ? l.path.slice(0, l.path.lastIndexOf('.')) : null;
+      if (parent && !sent.has(parent) && flat.has(parent)) continue;
+      out.push({ type: 'removed', ...where, ...target(l), text: l.characters });
+    }
+    for (const a of added) {
+      const cx = a.x + (a.w || 0) / 2;
+      const cy = a.y + (a.h || 0) / 2;
+      let host = c.root;
+      for (const l of flat.values()) if (l.kind !== 'text' && cx >= l.x && cx <= l.x + l.w && cy >= l.y && cy <= l.y + l.h && l.w * l.h <= host.w * host.h) host = l;
+      out.push({ type: 'added', ...where, ...target(host), kind: a.kind || a.type, layer: a.name, bbox: [a.x, a.y, a.w, a.h], characters: a.characters });
+    }
+  }
+  for (const key of changes.missingComponents || []) {
+    const c = comps.get(key);
+    if (c && !seen.has(key)) out.push({ type: 'component-removed', ...base, component: compInfo(c), path: c.root.path, name: c.name, kind: c.root.kind, isRoot: true, tag: c.root.tag || null });
+  }
+  return out;
+}
+
+const lineAt = (text, i) => text.slice(0, i).split('\n').length;
+const CSS_PROP = { fill: /background(-color)?/, textFill: /color/, stroke: /border(-color|-width|-style)?|outline/, radius: /border-radius|border-(top|bottom)-(left|right)-radius/, spacing: /padding(-top|-right|-bottom|-left|-inline|-block)?|gap/, size: /height|width|min-height|min-width|block-size|inline-size/ };
+
+/**
+ * design/system/components/<file>:<line> for a master change: the CSS rule that sets the property
+ * (variant/size rules first), else the element in the template (by tag/class), else the component tag.
+ */
+export function masterSource(root, change, lib = null) {
+  const comp = change.component;
+  if (!comp) return null;
+  let def = null;
+  try {
+    def = (lib || loadComponents(root)).get(comp.name) || null;
+  } catch {}
+  const rel = def?.file || `design/system/components/${comp.name}.html`;
+  const abs = path.join(root, rel);
+  if (!fs.existsSync(abs)) return { file: rel, source: null };
+  const text = fs.readFileSync(abs, 'utf8');
+  const start = Math.max(0, def?.line ? text.split('\n').slice(0, def.line - 1).join('\n').length : text.indexOf('<dfw-component'));
+  const endTag = text.indexOf('</dfw-component>', start);
+  const block = text.slice(0, endTag < 0 ? text.length : endTag);
+  const at = (i) => ({ file: rel, source: `${rel}:${lineAt(text, i)}` });
+  const prop = { fill: change.kind === 'text' ? CSS_PROP.textFill : CSS_PROP.fill, stroke: CSS_PROP.stroke, radius: CSS_PROP.radius, spacing: CSS_PROP.spacing, size: CSS_PROP.size }[change.type];
+  const cls = /^[a-z][\w-]*\.([\w-]+)$/i.exec(change.name || '')?.[1] || null;
+  if (prop) {
+    const styleAt = block.indexOf('<style', start);
+    const styleEnd = styleAt < 0 ? -1 : block.indexOf('</style>', styleAt);
+    if (styleAt >= 0 && styleEnd > 0) {
+      const css = block.slice(styleAt, styleEnd);
+      const decl = new RegExp(`(^|[;{\\s])(${prop.source})\\s*:`);
+      const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      let best = null;
+      for (const m of css.matchAll(/([^{}<>]+)\{([^{}]*)\}/g)) {
+        const sel = m[1].trim();
+        if (!decl.test(`{${m[2]}`) || /@/.test(sel)) continue;
+        let score = 0;
+        if (/:(hover|focus|focus-visible|focus-within|active|disabled|checked)|\[(aria|data)-/.test(sel)) score -= 10;
+        if (comp.variant && new RegExp(`(--|[-_.\\s="'])${esc(comp.variant)}\\b`).test(sel)) score += 4;
+        if (comp.size && new RegExp(`(--|[-_.\\s="'])${esc(comp.size)}\\b`).test(sel)) score += 2;
+        if (cls && sel.includes(`.${cls}`)) score += 1;
+        if (change.kind === 'text' && /\b(span|p|label|strong)\b/.test(sel)) score += 1;
+        if (!best || score > best.score) best = { score, i: styleAt + m.index + m[0].indexOf(sel) };
+      }
+      if (best && best.score > -10) return at(best.i);
+    }
+  }
+  const tplAt = block.indexOf('<template', start);
+  if (tplAt >= 0) {
+    const tpl = block.slice(tplAt, block.indexOf('</template>', tplAt) > 0 ? block.indexOf('</template>', tplAt) : block.length);
+    const first = /<(?!template\b)[a-z]/i.exec(tpl.slice(1));
+    if (change.type === 'text') {
+      const slot = tpl.indexOf('<dfw-slot');
+      if (slot >= 0) return at(tplAt + slot);
+    }
+    if (!change.isRoot) {
+      const re = cls ? new RegExp(`<[a-z][\\w-]*[^>]*class="[^"]*\\b${cls.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i') : change.tag ? new RegExp(`<${change.tag}\\b`, 'i') : null;
+      const m = re && re.exec(tpl);
+      if (m) return at(tplAt + m.index);
+    }
+    if (first) return at(tplAt + 1 + first.index);
+  }
+  return at(start);
 }
 
 const fmtColor = (c) => (c ? `${c.color}${c.opacity !== undefined && c.opacity < 1 ? ` @${Math.round(c.opacity * 100)}%` : ''}${c.token ? ` (${c.token})` : ''}` : 'none');
@@ -656,6 +874,42 @@ export function describeChange(c) {
       return c.type;
   }
 }
+
+const fmtPx = (v) => `${Math.round(v * 100) / 100}px`;
+const tokOr = (t, what) => (t ? ` (${t})` : ` (no ${what} token has this value: use a token or propose one)`);
+
+/** One line for a change on a component master (dfw components page). */
+export function describeComponentChange(c) {
+  switch (c.type) {
+    case 'text':
+      return `Example text changed: "${norm(c.from)}" -> "${norm(c.to)}" (slot/default content; screens pass their own text)`;
+    case 'fill':
+      return `${c.kind === 'text' ? 'Text colour' : 'Fill'} changed: ${fmtColor(c.from)} -> ${fmtColor(c.to)}${c.to && !c.to.token ? ' (no colour token has this value: use a token or propose one)' : ''}`;
+    case 'stroke':
+      if (!c.from) return `Border added: ${c.to.width}px ${fmtColor(c.to)}${c.to.token ? '' : ' (no colour token has this value)'}`;
+      if (!c.to) return `Border removed (was ${c.from.width}px ${fmtColor(c.from)})`;
+      return `Border changed: ${c.from.width}px ${fmtColor(c.from)} -> ${c.to.width}px ${fmtColor(c.to)}${c.to.token ? '' : ' (no colour token has this value)'}${c.to.width !== c.from.width && c.to.widthToken ? ` [width ${c.to.widthToken}]` : ''}`;
+    case 'radius':
+      return `Corner radius changed: ${c.from.radius.map(fmtPx).join(' ')}${c.from.token ? ` (${c.from.token})` : ''} -> ${c.to.radius.map(fmtPx).join(' ')}${c.to.radius.every((v) => v === c.to.radius[0]) ? tokOr(c.to.token, 'radius') : ''}`;
+    case 'size':
+      return `Size changed: ${Math.round(c.from[0])}x${Math.round(c.from[1])} -> ${Math.round(c.to[0])}x${Math.round(c.to[1])} px${c.tokens.w || c.tokens.h ? ` (${[c.tokens.w && `width ${c.tokens.w}`, c.tokens.h && `height ${c.tokens.h}`].filter(Boolean).join(', ')})` : ''}`;
+    case 'spacing':
+      return `Spacing (padding) changed: ${Object.entries(c.sides).map(([s, v]) => `${s} ${fmtPx(v.from)} -> ${fmtPx(v.to)}${tokOr(v.token, 'space')}`).join('; ')}${c.border ? ` (insets include the ${c.border}px border)` : ''}`;
+    case 'rename':
+      return c.isRoot ? `Component renamed "${c.from}" -> "${c.to}" (the master's name/variant ids stay; rename only if intended)` : `Layer renamed "${c.from}" -> "${c.to}"`;
+    case 'removed':
+      return `Removed in Penpot: ${c.kind} "${c.name}"${c.text ? ` ("${norm(c.text).slice(0, 60)}")` : ''}`;
+    case 'added':
+      return `Added in Penpot inside "${c.name}": ${c.kind} "${c.layer}" at ${c.bbox.map((v) => Math.round(v || 0)).join(', ')}${c.characters ? ` with text "${norm(c.characters).slice(0, 80)}"` : ''}`;
+    case 'component-removed':
+      return 'Main component deleted in Penpot (remove the variant only if intended: screens may use it)';
+    default:
+      return describeChange(c);
+  }
+}
+
+const masterNote = (comp, file) =>
+  `Change the master ${file} (component "${comp.name}"${comp.variant ? `, variant "${comp.variant}"` : ''}${comp.size ? `, size "${comp.size}"` : ''}): it affects every screen using it. Do not patch single screens.`;
 
 /** design/<file>:<line> of the element (data-dfw-id) or instance (<dfw-use id>) with this id. */
 export function sourceLine(root, file, id) {
@@ -697,7 +951,11 @@ export function importChanges(root, changes, { dryRun = false, state = null } = 
   const exportId = changes?.exportId;
   const baseline = (exportId && readJson(path.join(dir, 'exports', `${exportId}.json`), null)) || readJson(path.join(dir, 'export.json'), null);
   if (!baseline) throw new DfwError('No Penpot export found (.dfw/penpot/export.json). Run "dfw penpot export" first; the change file must come from boards built from it.');
-  const { changes: list, warnings } = diffChanges(baseline, changes);
+  let dims = [];
+  try {
+    dims = dimensionTokenIndex(readDfwTokens(root).base);
+  } catch {}
+  const { changes: list, warnings } = diffChanges(baseline, changes, { dims });
   if (exportId && baseline.id !== exportId) warnings.push(`Change file refers to export ${exportId}, which is not on disk; compared with the latest export ${baseline.id}.`);
   const frozen = Boolean(state?.design?.locked);
   const result = { baseline: baseline.id, changes: list, comments: [], skipped: 0, warnings, tokenDiff: null, tokenFile: null, frozen };
@@ -722,7 +980,7 @@ export function importChanges(root, changes, { dryRun = false, state = null } = 
   // Group design changes per element (board + anchor) into one comment each; Penpot comments stay separate.
   const groups = new Map();
   for (const c of list) {
-    const key = c.type === 'comment' ? `comment|${c.board}|${c.thread}|${c.messages.length}` : `${c.board}|${c.anchor || c.path || ''}`;
+    const key = c.type === 'comment' ? `comment|${c.board}|${c.thread}|${c.messages.length}` : c.component ? `component|${c.component.key}|${c.path}` : `${c.board}|${c.anchor || c.path || ''}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(c);
   }
@@ -730,15 +988,23 @@ export function importChanges(root, changes, { dryRun = false, state = null } = 
   const ledger = new Set(readJson(ledgerFile, []));
   const gateNote = frozen ? `\n(Design v${state.design.version} is approved and frozen: discuss with the user; applying this needs "dfw reopen".)` : '';
   const pending = [];
+  let lib = null;
+  try {
+    lib = loadComponents(root);
+  } catch {}
   for (const [key, cs] of groups) {
     const c0 = cs[0];
-    const fp = fingerprint(cs.map(({ type, board, path: p, anchor, from, to, messages, characters, bbox }) => ({ type, board, p, anchor, from, to, messages, characters, bbox })));
+    const fp = fingerprint(cs.map(({ type, board, path: p, anchor, from, to, messages, characters, bbox, component, sides, layer }) => ({ type, board, p, anchor, from, to, messages, characters, bbox, comp: component?.key, sides, layer })));
     if (ledger.has(fp)) {
       result.skipped++;
       continue;
     }
     if (c0.type === 'comment' && c0.resolved) {
       result.skipped++;
+      continue;
+    }
+    if (c0.component) {
+      pending.push([fp, componentComment(root, c0, cs, lib, gateNote), key]);
       continue;
     }
     const header = c0.type === 'comment' ? '[Penpot comment]' : `[Penpot] ${c0.anchor ? `"${c0.anchor}"` : c0.name ? `layer "${c0.name}"` : 'board'}:`;
@@ -785,11 +1051,47 @@ export function importChanges(root, changes, { dryRun = false, state = null } = 
   return result;
 }
 
+/** Feedback comment for changes on one element of a component master (or a Penpot comment on a main component). */
+function componentComment(root, c0, cs, lib, gateNote) {
+  const comp = c0.component;
+  const where = (c) => masterSource(root, c, lib) || { file: `design/system/components/${comp.name}.html`, source: null };
+  const loc = where(c0);
+  const isComment = c0.type === 'comment';
+  const header = isComment ? `[Penpot comment on master ${comp.title}]` : `[Penpot master] ${comp.title}${c0.isRoot ? '' : ` > ${c0.name}`}:`;
+  const body = isComment
+    ? describeChange(c0)
+    : cs
+        .map((c) => {
+          const s = where(c).source;
+          return `- ${describeComponentChange(c)}${s && s !== loc.source ? ` [${s}]` : ''}`;
+        })
+        .join('\n');
+  return {
+    comment: `${header}\n${body}\n${masterNote(comp, loc.file)}${gateNote}`,
+    screen: null,
+    variant: null,
+    breakpoint: null,
+    file: loc.file.replace(/^design\//, ''),
+    provider: 'penpot',
+    target: {
+      dfwId: null,
+      component: { name: comp.name, variant: comp.variant, size: comp.size },
+      source: loc.source || loc.file,
+      ...(isComment ? {} : { layer: c0.path, ...(c0.tag ? { tag: c0.tag } : {}) }),
+      ...(c0.bbox && c0.bbox.every((v) => typeof v === 'number') ? { bbox: c0.bbox.map((v) => Math.round(v)) } : {}),
+      ...(c0.type === 'text' ? { text: norm(c0.from) } : {}),
+    },
+  };
+}
+
 export function formatImportChanges(r, root, { dryRun = false } = {}) {
   const by = {};
-  for (const c of r.changes) by[c.type] = (by[c.type] || 0) + 1;
+  for (const c of r.changes) {
+    const k = c.component && c.type !== 'comment' ? `component ${c.type}` : c.type;
+    by[k] = (by[k] || 0) + 1;
+  }
   const lines = [`Compared with export ${r.baseline}: ${r.changes.length ? Object.entries(by).map(([k, v]) => `${v} ${k}`).join(', ') : 'no changes'}.`];
-  for (const c of r.comments) lines.push(`${c.id} ${[c.screen, c.variant, c.breakpoint].filter(Boolean).join('/') || '(design)'} -> ${c.target?.dfwId || '?'}\n    ${c.comment.split('\n').join('\n    ')}`);
+  for (const c of r.comments) lines.push(`${c.id} ${[c.screen, c.variant, c.breakpoint].filter(Boolean).join('/') || (c.target?.component ? 'master' : '(design)')} -> ${c.target?.dfwId || (c.target?.component ? [c.target.component.name, c.target.component.variant, c.target.component.size].filter(Boolean).join('/') : '?')}\n    ${c.comment.split('\n').join('\n    ')}`);
   if (r.skipped) lines.push(`${r.skipped} skipped (already imported, or a resolved Penpot thread).`);
   if (r.tokenDiff) {
     const n = Object.values(r.tokenDiff.diff).reduce((s, d) => s + d.changed.length + d.added.length, 0);

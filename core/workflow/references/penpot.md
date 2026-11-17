@@ -80,9 +80,20 @@ What comes back (`dfw penpot import`, or the plugin's Send): the plugin reports 
 - one comment per Penpot comment thread (author and replies), attached to the element under the pin; resolved threads are skipped;
 - token differences as one comment, and the Penpot sets as `.dfw/penpot/tokens.from-penpot.json` for `dfw tokens import ... --dry-run` (never applied automatically).
 
-Re-sending the same changes does not duplicate comments (`.dfw/penpot/imported.json`). dfw never edits `design/` from Penpot: the agent applies the comments in the normal review loop. When the design is frozen (G2) the comments say so: they are recorded, and applying them needs `dfw reopen`.
+### Component masters (the `dfw components` page)
 
-Not exported back: edits made on the `dfw components` page (comment on the instance instead), layer order, effects other than fill colour, and new pages.
+Each main component on the `dfw components` page carries the key of its dfw master (`component|variant|size`) in plugin data (`dfw-main`, on the main shape and on the library component), and every layer inside keeps its exported path. **Send changes** also reads every main component of the file's library (`library.local.components`, `component.mainInstance()`) with box, fill, stroke and corner radii per layer (coordinates relative to the main), plus main components that were deleted and Penpot comments pinned on a main. dfw compares them with the master as exported and writes, per master element (component + layer), one feedback comment:
+
+- `file` = the master file (`design/system/components/<name>.html`), no screen/variant/breakpoint; `target.component` = `{ name, variant, size }`, `target.layer` = the exported layer path; `target.source` = `file:line` of the CSS rule that sets the changed property (a rule naming the variant or size first, the base rule next, `:hover`/`:focus`/state rules last), else the element in the `<template>` (`<dfw-slot>` for text, by class or tag for children), else the `<dfw-component>` tag. Other lines of the same comment show their own rule when it differs;
+- the note "Change the master ... it affects every screen using it. Do not patch single screens.";
+- text changes in the example content (slot/default text), fill and text colours (with the matching colour token or "no colour token has this value"), stroke colour/width, added and removed borders, corner radius (with the `radius.*` token of that value), size (with a `size.*`/`width`/`height` token), spacing = the children's insets per side (padding; with the `space.*` token of that value, the border width subtracted first), component and layer renames, added layers (attached to the smallest element containing them), removed layers and deleted main components;
+- Penpot comment threads pinned on a main become comments on its master.
+
+Dimension tokens are matched by px value against the project's current `design/tokens/tokens.json` (rem counts as 16px). Text sizes are not compared (Penpot's font metrics differ), so right/bottom insets come only from non-text children. Masters are exported from their first rendered instance in the screens, so the example text is that instance's text.
+
+Re-sending the same changes does not duplicate comments (`.dfw/penpot/imported.json`), for screens and masters alike. dfw never edits `design/` from Penpot: the agent applies the comments in the normal review loop. When the design is frozen (G2) the comments say so: they are recorded, and applying them needs `dfw reopen`.
+
+Not exported back: layer order, effects other than fill/stroke colour (shadows, opacity, blur), typography changes (font, size, weight), variant/size additions made in Penpot, and new pages.
 
 ### Mechanism and why
 
@@ -102,7 +113,7 @@ Not exported back: edits made on the `dfw components` page (comment on the insta
 
 ### Not verified without a running Penpot
 
-The export, change mapping, Studio routes and CLI are tested on fixtures (`tests/unit/penpot-screens.test.mjs`). The plugin code (`studio/penpot/plugin.js`) follows the documented plugin API but was not run inside Penpot here. Points to check on first use: whether `appendChild` keeps absolute positions, instance child naming and plugin data copied into instances, `fonts.findByName` / `applyToText`, `openPage` while a plugin runs, comment thread positions (absolute vs board-relative), the `TokenSet`/`Token` fields read back, and token default properties when applied to text and boards.
+The export, change mapping (screens: `tests/unit/penpot-screens.test.mjs`; component masters: `tests/unit/penpot-components.test.mjs`), Studio routes and CLI are tested on fixtures. The plugin code (`studio/penpot/plugin.js`) follows the documented plugin API but was not run inside Penpot here. Points to check on first use: whether `appendChild` keeps absolute positions, instance child naming and plugin data copied into instances, `fonts.findByName` / `applyToText`, `openPage` while a plugin runs, comment thread positions (absolute vs board-relative), the `TokenSet`/`Token` fields read back, and token default properties when applied to text and boards. For component masters: whether `createComponent([shape])` keeps the shape (and its plugin data) as the main or wraps it (the key is also written on the library component and on `mainInstance()` to cover both), whether `LibraryComponent.setPluginData` is available, whether `library.local.components` lists every main of the file, the units of `borderRadiusTopLeft`... and `strokes[0].strokeWidth` read back, whether `CommentThread.board` is the main component when a pin sits on the `dfw components` page, and whether deleting a main removes it from `library.local.components` (reported as "main component deleted").
 
 ## Sources (checked 2026-11)
 
