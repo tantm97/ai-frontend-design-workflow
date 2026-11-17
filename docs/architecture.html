@@ -392,6 +392,7 @@ tests/unit, tests/e2e</div>
     </tbody>
   </table>
   <div class="note">Updating them: ask for <code>/dfw skills</code>. The skill-steward agent checks upstream, writes a compatibility and security report, and applies an update only after you approve it.</div>
+  <div class="note"><b>Network.</b> The only Impeccable command dfw runs (<code>impeccable detect</code>) makes no network call, and dfw sets <code>DO_NOT_TRACK=1</code>, <code>IMPECCABLE_NO_UPDATE_CHECK=1</code> and <code>IMPECCABLE_HOOK_DISABLED=1</code> (in <code>core/lib/config.mjs</code> and the overlay of <code>scripts/impeccable</code>). Two calls remain: the one-time engine download from GitHub (sha256-checked against a checksum file in the repo; dfw triggers it only from <code>dfw check --setup</code> / install), and, only when Impeccable's own new-design flow runs, an anonymous <code>GET impeccable.style/api/roll</code> with a random key and no project data. Known gap: the Windows launcher <code>scripts/impeccable.cmd</code> has no dfw overlay. Full audit: <a href="impeccable-network.md"><code>docs/impeccable-network.md</code></a>.</div>
 </section>
 
 <!-- 7 -->
@@ -405,8 +406,10 @@ tests/unit, tests/e2e</div>
     <div class="card"><span class="tag t-core">screens</span><h4>compose</h4><p>Expands <code>&lt;dfw-use&gt;</code> component instances into full HTML with tokens, so screens stay in sync with their masters.</p></div>
     <div class="card"><span class="tag t-core">quality</span><h4>lint · layout · check</h4><p><code>lint</code>: fast static rules. <code>layout</code>: renders screens at each breakpoint/state (also with grown lists) and finds overlap, clipping, overflow, missing anchors, voids. <code>check</code>: adds Impeccable, sloplint, copy-lint.</p></div>
     <div class="card"><span class="tag t-core">rendering</span><h4>cdp · runtime</h4><p>Drives your installed Chrome/Edge headless over the DevTools protocol; font cache; used by <code>shoot</code> and <code>layout</code>. See section 8.</p></div>
-    <div class="card"><span class="tag t-core">review</span><h4>comments · inbox · edit · locate</h4><p>Comment records and statuses, delivery to Claude via hooks, Studio direct edits written back to source, mapping a clicked element to its file and line.</p></div>
+    <div class="card"><span class="tag t-core">review</span><h4>comments · inbox · edit · locate</h4><p>Comment records and statuses, delivery to Claude via hooks, Studio direct edits written back to source (text, props, spacing, plus constrained <code>move</code> and <code>layout</code> ops; refused once G2 locks the design or in review-only), mapping a clicked element to its file and line.</p></div>
+    <div class="card"><span class="tag t-core">review</span><h4>live · inspector</h4><p><code>dfw review</code>: a 127.0.0.1 proxy in front of your local dev server that adds click-to-comment to the running app. <code>dfw inspector setup</code>: the pinned dev-only <code>code-inspector-plugin</code> that gives those comments a <code>file:line:col</code>.</p></div>
     <div class="card"><span class="tag t-core">code</span><h4>stack</h4><p>Detects the existing stack (package.json, frameworks, styling), stores the proposal for G3.</p></div>
+    <div class="card"><span class="tag t-core">bridge</span><h4>penpot-tokens · penpot</h4><p>Optional Penpot bridge: tokens to and from Penpot's token file; screens rendered into a layer tree for the Studio-served Penpot plugin, and Penpot edits turned into comments.</p></div>
     <div class="card"><span class="tag t-core">install</span><h4>install · binary · hooks</h4><p>Registers marketplace + plugins with Claude Code, downloads the binary and checks the browser; hook handlers.</p></div>
   </div>
 </section>
@@ -473,7 +476,10 @@ tests/unit, tests/e2e</div>
   <div class="grid">
     <div class="card"><h4>Canvas</h4><p>Every screen at every breakpoint and state side by side, plus the Design System page. Frames show the full page height by default (<b>Full height</b> toggle crops to the viewport). Pan, zoom, select layers, inspect styles and tokens.</p></div>
     <div class="card"><h4>Comments &amp; pins</h4><p>Pins mark commented elements. Click a pin to read the comment and thread. Toggle pins open → all → off with <kbd>Shift</kbd><kbd>C</kbd>.</p></div>
-    <div class="card"><h4>Direct edit</h4><p>Small text/style tweaks in the inspector are written back to the source file (undo with <kbd>⌘</kbd><kbd>Z</kbd>).</p></div>
+    <div class="card"><h4>Direct edit</h4><p>Small text/style tweaks in the inspector are written back to the source file (undo with <kbd>⌘</kbd><kbd>Z</kbd>). Refused once the design is approved (G2) or in review-only mode.</p></div>
+    <div class="card"><h4>Drag &amp; resize</h4><p>Drag a selected <code>data-dfw-id</code> element among its flex/grid siblings: its source moves. Handles resize with snapping: grid column span, <code>size.*</code> token or 25–100% width, <code>space.*</code>/<code>size.*</code> min-height, written to a <code>&lt;style data-dfw-layout&gt;</code> block; in a narrower breakpoint frame inside <code>@media (max-width: &lt;frame&gt;px)</code>. No free positioning.</p></div>
+    <div class="card"><h4>Running app</h4><p><code>dfw review start --url http://localhost:5173</code> (phase verify) proxies the app on 127.0.0.1 with a Comment button; HMR passes through. Comments land in the same inbox (<code>provider: "dfw-live"</code>, the route, a screenshot in <code>.dfw/shots/live/</code>) with <code>target.source</code> from <code>data-insp-path</code> when the inspector is installed.</p></div>
+    <div class="card"><h4>Penpot</h4><p>The Studio serves the "dfw bridge" Penpot plugin at <code>/__dfw/penpot/*</code>. It builds boards from <code>dfw penpot export</code>; designer edits and Penpot comments come back as dfw comments (<code>provider: "penpot"</code>), never as HTML. No Penpot token or cloud call. Tested on fixtures only, not inside a running Penpot.</p></div>
     <div class="card"><h4>Present</h4><p><kbd>P</kbd> shows one frame full-window like a prototype; <kbd>←</kbd> <kbd>→</kbd> step through the page. Pins are hidden by default.</p></div>
     <div class="card"><h4>Approve</h4><p>Gates can be approved from Studio as well as chat; it records the same <code>dfw approve</code>.</p></div>
   </div>
@@ -500,7 +506,9 @@ design/
   config.json              <span class="d">project settings</span>
   reviews/                 <span class="d">comments and threads per round</span>
   archive/                 <span class="d">frozen design snapshots</span>
-  shots/                   <span class="d">screenshots</span>
+  shots/                   <span class="d">screenshots (shots/live/: comments on the running app)</span>
+  review.json, review.log  <span class="d">dfw review proxy (pid, port, target) and its log</span>
+  penpot/                  <span class="d">Penpot bridge: export.json, tokens.penpot.json, tokens.from-penpot.json, imported.json</span>
   build/, layout-cache.json, studio.json, studio.log   <span class="d">caches and runtime files</span></div>
   <div class="note">Commit <code>PRODUCT.md</code>, <code>DESIGN.md</code>, <code>design/</code> and <code>.dfw/state.json</code>, <code>decisions.jsonl</code>, <code>reviews/</code>, <code>archive/</code>. Caches (<code>build/</code>, <code>shots/</code>, <code>layout-cache.json</code>, <code>studio.*</code>) can be ignored.</div>
 </section>
@@ -549,8 +557,8 @@ design/
     <li><b>Agree blueprints</b>For each screen: goal, layout, what's above the fold, data range. Confirm or adjust.</li>
     <li><b>Review screens in Studio</b>Screens appear page by page. Use <kbd>C</kbd> to comment, check breakpoints and states, use Present to click through. Claude fixes and marks comments "fixed"; you resolve or reopen.</li>
     <li><b>Approve the design (G2)</b>When every page is right: <i>"approve G2"</i>. The design is frozen as v1 and a handoff is generated.</li>
-    <li><b>Approve the stack (G3)</b>Claude detects or proposes the framework and dependencies. Approve or change.</li>
-    <li><b>Implementation and verification (G4)</b>Claude builds the app, then compares it with the design at each breakpoint and lists deviations. Accept to finish.</li>
+    <li><b>Approve the stack (G3)</b>Claude detects or proposes the framework and dependencies, for JavaScript projects including the dev-only <code>code-inspector-plugin</code> (for <code>file:line</code> in live comments). Approve or change.</li>
+    <li><b>Implementation and verification (G4)</b>Claude builds the app, then compares it with the design at each breakpoint and lists deviations. You can comment directly on the running app (<code>dfw review</code>). Accept to finish.</li>
   </ol>
   <div class="note">Check where you are at any time with <i>"dfw status"</i> in chat or <code>dfw status</code> in a terminal.</div>
 </section>
@@ -590,10 +598,16 @@ design/
       <tr><td><kbd>⌘</kbd>/<kbd>Ctrl</kbd> + scroll, pinch, <kbd>+</kbd> <kbd>-</kbd>, <kbd>0</kbd></td><td>Zoom at pointer / in / out / 100%</td></tr>
       <tr><td><kbd>Shift</kbd><kbd>1</kbd> / <kbd>Shift</kbd><kbd>2</kbd></td><td>Zoom to fit / to selection</td></tr>
       <tr><td><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd></td><td>Parent / first child / previous / next layer</td></tr>
-      <tr><td><kbd>⌘</kbd>/<kbd>Ctrl</kbd> <kbd>Z</kbd></td><td>Undo last Studio edit</td></tr>
+      <tr><td>Drag the selected element</td><td>Reorder it among its flex/grid siblings (blue line = drop position)</td></tr>
+      <tr><td>Drag the ▫ handles</td><td>Resize: grid column span, width (size token / %) or min-height (spacing token)</td></tr>
+      <tr><td><kbd>Alt</kbd> <kbd>←</kbd> <kbd>→</kbd> / <kbd>↑</kbd> <kbd>↓</kbd></td><td>Move the selected element before / after its sibling</td></tr>
+      <tr><td><kbd>Alt</kbd><kbd>Shift</kbd> <kbd>←</kbd> <kbd>→</kbd> / <kbd>↑</kbd> <kbd>↓</kbd></td><td>Step span or width / min-height to the previous / next snap</td></tr>
+      <tr><td><kbd>⌘</kbd>/<kbd>Ctrl</kbd> <kbd>Z</kbd></td><td>Undo last Studio edit (refused after G2)</td></tr>
       <tr><td><kbd>Esc</kbd> · <kbd>?</kbd></td><td>Deselect / close · shortcut sheet</td></tr>
     </tbody>
   </table>
+  <h3>Reviewing the running app</h3>
+  <p>In phase verify Claude runs <code>dfw review start --url &lt;dev server&gt;</code> and gives you a <code>http://127.0.0.1:4700/…</code> link. Press <b>Comment</b> (or <kbd>C</kbd>), click an element, write, <kbd>⌘</kbd>/<kbd>Ctrl</kbd> <kbd>Enter</kbd>. Claude opens <code>target.source</code> and fixes the code; HMR updates the page. Only local targets are accepted.</p>
   <h3>Writing comments that get fixed right</h3>
   <ul>
     <li>One change per comment, pinned on the element it's about.</li>
@@ -622,7 +636,9 @@ dfw system options a b c  →  dfw system choose &lt;one&gt;   # keeps edits mad
 dfw system audit
 dfw icons search &lt;words&gt; | add &lt;names…&gt;
 dfw fonts check "Be Vietnam Pro"
-dfw build                           # tokens.css + components.css</code></pre></details>
+dfw build                           # tokens.css + components.css
+dfw tokens export --format penpot   # → .dfw/penpot/tokens.penpot.json
+dfw tokens import &lt;file&gt; --dry-run  # Penpot token edits: diff; refused while frozen</code></pre></details>
   <details><summary>Screens and checks</summary><pre><code>dfw blueprint [&lt;screen&gt;]
 dfw lint [files…]                   # fast static rules
 dfw layout check [--screen a,b] [--states] [--changed]
@@ -635,7 +651,10 @@ dfw verify-snapshot [&lt;version&gt;]</code></pre></details>
 dfw comments [--status active]
 dfw comments show &lt;id&gt;
 dfw comments reply &lt;id&gt; --message "…"
-dfw comments resolve &lt;id&gt; --by user</code></pre></details>
+dfw comments resolve &lt;id&gt; --by user
+dfw review start --url http://localhost:5173 | status | stop   # comment on the running app
+dfw inspector setup [--write]       # code-inspector-plugin; --write only after G3 approved it
+dfw penpot export | plugin | import &lt;changes.json&gt;   # optional Penpot bridge</code></pre></details>
   <details><summary>Setup and maintenance</summary><pre><code>dfw doctor
 dfw version
 dfw setup --browser                 # only if no Chrome/Edge/Chromium
@@ -661,8 +680,18 @@ dfw config get &lt;key&gt; | set &lt;key&gt; &lt;value&gt; [--global|--project|-
       <tr><td>Binary behaves differently from source</td><td>Force Node with <code>DFW_NO_BINARY=1</code> to compare.</td></tr>
       <tr><td>macOS warns about the binary</td><td>It's ad-hoc signed, not notarized. Installing via <code>curl | sh</code> avoids the warning; a browser download triggers it.</td></tr>
       <tr><td>sloplint / copy-lint "unavailable"</td><td>Install Node 22+; dfw works without them.</td></tr>
+      <tr><td>Drag/resize refused</td><td>The element needs a <code>data-dfw-id</code> and a flex/grid parent; not after G2, in review-only, on the Design System page or in Present.</td></tr>
+      <tr><td>Live comments have no file:line</td><td>The app has no <code>code-inspector-plugin</code> (or runs a production build): <code>dfw inspector setup</code>.</td></tr>
     </tbody>
   </table>
+  <h3>Known limitations</h3>
+  <ul>
+    <li>The write gate covers Edit/Write/MultiEdit/NotebookEdit; shell commands could still write files (forbidden by the skill, not enforced).</li>
+    <li>Impeccable is not fully offline: the one-time engine download and, in Impeccable's own new-design flow, an anonymous card-catalog request (see section 6).</li>
+    <li>Drag and resize are constrained to sibling reordering and snapped sizes; no free-form positioning. Other layout changes go through comments or code; colours and type through the design system.</li>
+    <li>Penpot is an optional bridge, not a second source of truth. The plugin follows Penpot's documented API but is tested on fixtures only; edits on the <code>dfw components</code> page are not sent back.</li>
+    <li>Live review is tested with fixtures and a headless browser, not yet on real Vite/webpack/Next projects; <code>inspector setup --write</code> edits only Vite, webpack and Next configs.</li>
+  </ul>
 </section>
 
 <!-- 17 -->
@@ -670,7 +699,7 @@ dfw config get &lt;key&gt; | set &lt;key&gt; &lt;value&gt; [--global|--project|-
   <h2><small>Guide</small>17. Developing dfw</h2>
   <pre><code>node scripts/build.mjs              # core + adapter → plugins/dfw, notices
 node scripts/build.mjs --check      # verify plugins/ is up to date
-node --test tests/unit              # unit tests
+node --test tests/unit/*.test.mjs   # unit tests (npm test: 100 tests)
 node tests/e2e/studio.e2e.mjs       # Studio end-to-end (needs Playwright, dev only)
 node scripts/build-binary.mjs       # local binary in dist/ (official Node build for portability)
 git tag v0.4.0 &amp;&amp; git push origin v0.4.0   # CI builds and publishes binaries</code></pre>
