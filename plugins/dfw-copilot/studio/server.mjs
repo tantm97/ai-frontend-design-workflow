@@ -309,32 +309,73 @@ const server = http.createServer(async (req, res) => {
 });
 
 // Live reload: watch design/ and .dfw/reviews/ (debounced).
+// fs.watch misses events on some filesystems (CI runners, network drives, WSL, bind mounts), so a
+// light mtime poll backs it up: a file whose mtime changed without a watch event is queued the same way.
 let timer = null;
 const pending = new Set();
+const ignored = (file) => !file || String(file).startsWith('approved') || String(file).endsWith('.tmp');
+const seen = { design: new Map(), reviews: new Map() };
+function mtime(file) {
+  try {
+    return fs.statSync(file).mtimeMs;
+  } catch {
+    return -1;
+  }
+}
+function snapshot(dir, rel = '', out = new Map()) {
+  let entries = [];
+  try {
+    entries = fs.readdirSync(path.join(dir, rel), { withFileTypes: true });
+  } catch {
+    return out;
+  }
+  for (const e of entries) {
+    const r = rel ? path.join(rel, e.name) : e.name;
+    if (ignored(r)) continue;
+    if (e.isDirectory()) snapshot(dir, r, out);
+    else if (e.isFile()) out.set(r, mtime(path.join(dir, r)));
+  }
+  return out;
+}
+function poll(dir, kind) {
+  const now = snapshot(dir);
+  const before = seen[kind];
+  for (const [file, m] of now) if (before.get(file) !== m) queue(kind, file);
+  for (const file of before.keys()) if (!now.has(file)) queue(kind, file);
+  seen[kind] = now;
+}
+function queue(kind, file) {
+  pending.add(`${kind}:${file}`);
+  clearTimeout(timer);
+  timer = setTimeout(flush, 150);
+}
 function watch(dir, kind) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  seen[kind] = snapshot(dir);
+  setInterval(() => poll(dir, kind), 1000).unref();
+  if (process.env.DFW_STUDIO_WATCH === 'poll') return; // polling only (slow or unreliable filesystems)
   try {
     fs.watch(dir, { recursive: true }, (_e, file) => {
-      if (!file || String(file).startsWith('approved') || String(file).endsWith('.tmp')) return;
-      pending.add(`${kind}:${file}`);
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        const files = [...pending];
-        pending.clear();
-        if (files.some((f) => /^design:system[\\/]components[\\/]/.test(f))) {
-          try {
-            buildSystem(root);
-          } catch (e) {
-            console.error(`dfw studio: buildSystem: ${e.message}`);
-          }
-        }
-        if (files.some((f) => f.startsWith('design:'))) broadcast('design', { files: files.filter((f) => f.startsWith('design:')).map((f) => f.slice(7).split(path.sep).join('/')) });
-        if (files.some((f) => f.startsWith('reviews:'))) broadcast('comments', {});
-      }, 150);
+      if (ignored(file)) return;
+      seen[kind].set(String(file), mtime(path.join(dir, String(file)))); // the poll will not report it again
+      queue(kind, file);
     });
   } catch (e) {
-    console.error(`dfw studio: cannot watch ${dir}: ${e.message}`);
+    console.error(`dfw studio: cannot watch ${dir} (polling only): ${e.message}`);
   }
+}
+function flush() {
+  const files = [...pending];
+  pending.clear();
+  if (files.some((f) => /^design:system[\\/]components[\\/]/.test(f))) {
+    try {
+      buildSystem(root);
+    } catch (e) {
+      console.error(`dfw studio: buildSystem: ${e.message}`);
+    }
+  }
+  if (files.some((f) => f.startsWith('design:'))) broadcast('design', { files: [...new Set(files.filter((f) => f.startsWith('design:')).map((f) => f.slice(7).split(path.sep).join('/')))] });
+  if (files.some((f) => f.startsWith('reviews:'))) broadcast('comments', {});
 }
 try {
   buildSystem(root);

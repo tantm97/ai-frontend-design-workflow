@@ -75,6 +75,7 @@ Vendored plugins are built from pinned commits (`registry/skills.lock.json`) wit
 - Claude Code with a Claude subscription (no API key needed).
 - The `dfw` binary, or Node.js 22+. Node is still used for the vendored skills' own scripts (Hallmark sloplint, Taste copy-lint) when present; without it those optional checks report "unavailable". Python 3 (UI UX Pro Max search), git.
 - A Chromium-based browser for screenshots and the layout check: your installed Chrome / Edge / Chromium / Brave (driven headless over the DevTools protocol, no npm packages), `DFW_BROWSER=/path/to/chrome`, or `dfw setup --browser` (Google's chrome-headless-shell, once, into `~/.config/dfw/browser`). Web fonts used by designs are cached in `~/.config/dfw/cache/fonts`.
+- The Studio reloads frames and comment status when files change: it uses file-system events and also polls modification times every second, so it keeps working where file events are unreliable (CI runners, network drives, WSL, Docker bind mounts). `DFW_STUDIO_WATCH=poll` turns file events off and polls only.
 
 If you already installed any of these skills from their original marketplaces, disable those copies (`dfw doctor` warns about duplicates), otherwise both load.
 
