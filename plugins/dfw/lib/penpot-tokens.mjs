@@ -581,7 +581,7 @@ export function importPenpotTokens(root, file, { state = null, dryRun = false, p
   return result;
 }
 
-const short = (v) => {
+export const shortValue = (v) => {
   const s = typeof v === 'string' ? v : v && typeof v === 'object' && v.hex && Object.keys(v).length <= 4 ? v.hex + (v.alpha !== undefined ? `/${v.alpha}` : '') : v && typeof v === 'object' && 'unit' in v ? `${v.value}${v.unit}` : JSON.stringify(v);
   return s.length > 60 ? s.slice(0, 57) + '...' : s;
 };
@@ -592,8 +592,8 @@ export function formatImport(r, { dryRun = false } = {}) {
   for (const [set, d] of Object.entries(r.diff)) {
     const n = d.added.length + d.changed.length + d.removed.length;
     lines.push(`${set}: ${n ? `${d.changed.length} changed, ${d.added.length} added, ${d.removed.length} removed` : 'no changes'}${d.kept.length ? ` (${d.kept.length} missing in Penpot, kept; --prune removes them)` : ''}`);
-    for (const c of d.changed) lines.push(`  ~ ${c.token}: ${short(c.from)} -> ${short(c.to)}`);
-    for (const c of d.added) lines.push(`  + ${c.token} (${c.type}): ${short(c.value)}`);
+    for (const c of d.changed) lines.push(`  ~ ${c.token}: ${shortValue(c.from)} -> ${shortValue(c.to)}`);
+    for (const c of d.added) lines.push(`  + ${c.token} (${c.type}): ${shortValue(c.value)}`);
     for (const c of d.removed) lines.push(`  - ${c.token}`);
   }
   if (r.skippedSets.length) lines.push(`Skipped Penpot sets (name them "base" or "themes/<name>" to import): ${r.skippedSets.join(', ')}`);

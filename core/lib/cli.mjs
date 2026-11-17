@@ -15,6 +15,7 @@ import { freezeDesign, reopenDesign, verifySnapshot } from './freeze.mjs';
 import { runChecks, formatReport } from './check.mjs';
 import { buildTokens } from './tokens.mjs';
 import { exportPenpotTokens, importPenpotTokens, formatExport, formatImport } from './penpot-tokens.mjs';
+import { exportPenpot, exportSummary, importChanges, formatImportChanges } from './penpot.mjs';
 import { detectStack } from './stack.mjs';
 import { addComment, allComments, updateComment, newSession } from './comments.mjs';
 import { languageStatus, setLanguage } from './lang.mjs';
@@ -103,6 +104,11 @@ Feedback (contract: schemas/feedback.schema.json)
   dfw comments new-round
   dfw comments wait [--timeout <s>]             Block until the user posts a Studio comment (run in the background)
   dfw comments inbox [--peek]                   Undelivered comments (what the hooks inject)
+
+Penpot (optional bridge; dfw's HTML + tokens stay the source of truth; local only)
+  dfw penpot export [--page <id>] [--bp <ids>] [--out <f>]   Render screens -> .dfw/penpot/export.json for the dfw Penpot plugin (+ tokens file)
+  dfw penpot plugin                             Plugin manifest URL to install in Penpot (needs the Studio running)
+  dfw penpot import <changes.json> [--dry-run]  Designer changes from Penpot -> feedback comments (provider penpot) + token diff; never edits design/
 
 Stack and settings
   dfw stack detect [--write]                    Inspect the existing stack (.dfw/stack.json draft)
@@ -587,6 +593,34 @@ function cmdDoctor(root) {
   return out(rows.join('\n'));
 }
 
+async function cmdPenpot(root, a) {
+  const sub = a._[1];
+  if (sub === 'export') {
+    const r = await exportPenpot(root, { page: a.page || null, bp: a.bp || null, out: a.out || null });
+    if (r.doc.errors?.length) process.exitCode = 2;
+    return a.json ? out({ file: r.file, id: r.doc.id, errors: r.doc.errors }, true) : out(exportSummary(r.doc, r.file, root));
+  }
+  if (sub === 'import') {
+    if (!a._[2]) throw new DfwError('Usage: dfw penpot import <changes.json> [--dry-run] [--json]');
+    const changes = readJson(path.resolve(a._[2]), null);
+    if (!changes) throw new DfwError(`${a._[2]}: not found or not JSON.`);
+    const dryRun = Boolean(a['dry-run']);
+    const r = importChanges(root, changes, { dryRun, state: loadState(root) });
+    return a.json ? out(r, true) : out(formatImportChanges(r, root, { dryRun }));
+  }
+  if (sub === 'plugin') {
+    const info = readJson(projectPaths(root).studio, null);
+    const url = info && isAlive(info.pid) ? info.url : null;
+    const manifest = `${url || `http://127.0.0.1:${loadConfig(root).studio.port || 4600}/`}__dfw/penpot/manifest.json`;
+    return out(`${url ? '' : 'The Studio is not running: start it with "dfw studio start".\n'}Penpot plugin manifest: ${manifest}
+In Penpot: open a file, Plugins (Ctrl+Alt+P), paste the URL, Install, then open "dfw bridge".
+  Build boards: pulls the latest "dfw penpot export" from the Studio and creates pages, boards, components.
+  Send changes: sends edits and comments back to the Studio, which records them as dfw comments (provider "penpot").
+No Penpot API token is used: the plugin runs in your browser and only talks to 127.0.0.1.`);
+  }
+  throw new DfwError('Usage: dfw penpot export [--page <id>] [--bp <ids>] | plugin | import <changes.json> [--dry-run]');
+}
+
 export async function main(argv) {
   // Internal: the Studio server process ("dfw studio start" spawns it; same in the binary).
   if (argv[0] === '__studio-server') {
@@ -884,6 +918,8 @@ export async function main(argv) {
       if (problems.length) process.exitCode = 2;
       return out(problems.length ? `Snapshot ${v} was modified:\n${problems.join('\n')}` : `Snapshot ${v} intact.`);
     }
+    case 'penpot':
+      return cmdPenpot(root, a);
     case 'handoff':
       return cmdHandoff(root);
     case 'comments':

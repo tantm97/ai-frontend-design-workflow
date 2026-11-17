@@ -1,0 +1,15 @@
+<dfw-component name="button" variants="primary ghost" description="Fixture button.">
+<style>
+.btn { display: inline-flex; align-items: center; height: 40px; padding: 0 var(--space-4); border-radius: var(--radius-md); border: 1px solid transparent; font: inherit; }
+.btn--primary { background: var(--color-accent); color: var(--color-on-accent); }
+.btn--ghost { background: transparent; color: var(--color-ink); border-color: var(--color-border); }
+.btn:focus-visible { outline: 2px solid var(--color-accent); }
+</style>
+<template>
+<button class="btn btn--{{variant}}" type="button"><span><dfw-slot>Button</dfw-slot></span></button>
+</template>
+<dfw-examples>
+<dfw-use c="button" variant="primary">Save</dfw-use>
+<dfw-use c="button" variant="ghost">Cancel</dfw-use>
+</dfw-examples>
+</dfw-component>
