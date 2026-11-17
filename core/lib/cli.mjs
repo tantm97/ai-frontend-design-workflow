@@ -14,6 +14,8 @@ import { loadState, saveState, newState, setPhase, approveGate, setMode, summari
 import { freezeDesign, reopenDesign, verifySnapshot } from './freeze.mjs';
 import { runChecks, formatReport } from './check.mjs';
 import { buildTokens } from './tokens.mjs';
+import { exportPenpotTokens, importPenpotTokens, formatExport, formatImport } from './penpot-tokens.mjs';
+import { exportPenpot, exportSummary, importChanges, formatImportChanges } from './penpot.mjs';
 import { detectStack } from './stack.mjs';
 import { addComment, allComments, updateComment, newSession } from './comments.mjs';
 import { languageStatus, setLanguage } from './lang.mjs';
@@ -36,6 +38,8 @@ import { kitRefs, kitRef, loadInventory, inventoryFindings, DS_GATE_RULES } from
 import { layoutCheck, changedScreens, markChecked } from './layout.mjs';
 import { buildPalette, typeScale } from './color.mjs';
 import { waitForComments, formatForClaude, undelivered, markDelivered } from './inbox.mjs';
+import { inspectorSetup, formatPlan, INSPECTOR } from './inspector.mjs';
+import { startLiveServer, assertLocalTarget } from './live.mjs';
 
 const HELP = `dfw - design-first workflow CLI
 
@@ -74,9 +78,14 @@ Design system (built before any screen)
 Design workspace
   dfw tokens build                              DTCG tokens.json -> tokens.css (+ components.css)
   dfw tokens extract --url <u> [--out <file>]  Token seed (colours, fonts, sizes, radii, spacing) from a reference site or the running app
+  dfw tokens export --format penpot [--out <f>] Tokens + themes as a Penpot token file (sets/themes, aliases kept; unsupported types listed)
+  dfw tokens import <file|dir> [--from penpot] [--dry-run] [--prune]   Penpot token file -> design/tokens (diff summary; refused while frozen)
   dfw lint [files...] [--json]                  dfw design lint only (fast)
   dfw check [files...|--url <u>] [--states] [--themes] [--no-a11y] [--lighthouse] [--json] [--setup]   dfw lint + Impeccable + sloplint + axe (rendered a11y; whole design or URL); --lighthouse: performance/SEO of a running app (pinned, via npx)
   dfw studio start|stop|status [--port <n>]     Local Design Studio (canvas + click-to-comment)
+  dfw review start --url <dev server> [--port <n>] [--no-shots] | stop | status
+                                                Click-to-comment on the running app (local proxy; comments carry file:line with the inspector)
+  dfw inspector setup [--write] [--json]        Source mapping for review: code-inspector-plugin (dev-only); --write only after G3 approved it
   dfw shoot [--screen <id>|--page <id>] [--variant <id>] [--bp <ids>] [--state <s>|--states] [--theme <t>|--themes] [--system]
                                                 Screenshots in one browser run (your Chrome/Edge, headless); --url <u> --out <file> for any URL
   dfw diff <a.png|dirA> <b.png|dirB> [--out] [--threshold 0.1]   Pixel diff (pixelmatch): % changed + a diff image (red = changed)
@@ -95,6 +104,11 @@ Feedback (contract: schemas/feedback.schema.json)
   dfw comments new-round
   dfw comments wait [--timeout <s>]             Block until the user posts a Studio comment (run in the background)
   dfw comments inbox [--peek]                   Undelivered comments (what the hooks inject)
+
+Penpot (optional bridge; dfw's HTML + tokens stay the source of truth; local only)
+  dfw penpot export [--page <id>] [--bp <ids>] [--out <f>]   Render screens -> .dfw/penpot/export.json for the dfw Penpot plugin (+ tokens file)
+  dfw penpot plugin                             Plugin manifest URL to install in Penpot (needs the Studio running)
+  dfw penpot import <changes.json> [--dry-run]  Designer changes from Penpot -> feedback comments (provider penpot) + token diff; never edits design/
 
 Stack and settings
   dfw stack detect [--write]                    Inspect the existing stack (.dfw/stack.json draft)
@@ -140,7 +154,7 @@ function cmdInit(root, a) {
   fs.mkdirSync(p.reviews, { recursive: true });
   if (!fs.existsSync(p.config)) writeJson(p.config, { schema: 1 });
   if (!fs.existsSync(p.decisions)) fs.writeFileSync(p.decisions, '');
-  fs.writeFileSync(path.join(p.dfw, '.gitignore'), 'config.local.json\nstudio.json\nstudio.log\nshots/\nchecks/\n');
+  fs.writeFileSync(path.join(p.dfw, '.gitignore'), 'config.local.json\nstudio.json\nstudio.log\nreview.json\nreview.log\nshots/\nchecks/\n');
   const created = [];
   for (const doc of ['PRODUCT.md', 'DESIGN.md']) {
     if (!fs.existsSync(path.join(root, doc))) {
@@ -319,6 +333,53 @@ async function cmdStudio(root, a) {
   if (!(await waitFor(`${url}__dfw/api/manifest`))) throw new DfwError(`Studio did not start; see ${path.join(p.dfw, 'studio.log')}`);
   writeJson(p.studio, { pid: child.pid, port, url, startedAt: nowIso() });
   return out(`studio running: ${url}`);
+}
+
+async function cmdReview(root, a) {
+  const p = projectPaths(root);
+  const file = path.join(p.dfw, 'review.json');
+  const sub = a._[1] || 'status';
+  const info = readJson(file, null);
+  const running = info && isAlive(info.pid);
+  if (sub === 'status') return out(running ? `review running: ${info.url} -> ${info.target} (pid ${info.pid})` : 'review not running');
+  if (sub === 'stop') {
+    if (running) process.kill(info.pid);
+    if (fs.existsSync(file)) fs.unlinkSync(file);
+    return out('review stopped');
+  }
+  if (sub !== 'start') throw new DfwError('Usage: dfw review start --url <dev server url> [--port <n>] [--no-shots] | stop | status');
+  if (!a.url) throw new DfwError('dfw review start needs --url <the running app, e.g. http://localhost:5173>.');
+  const target = assertLocalTarget(String(a.url)).origin;
+  if (running) {
+    if (info.target === target) return out(`review already running: ${info.url} -> ${target}`);
+    process.kill(info.pid);
+  }
+  let port = Number(a.port || 4700);
+  for (let i = 0; i < 20 && !(await portFree(port)); i++) port++;
+  fs.mkdirSync(p.dfw, { recursive: true });
+  const log = fs.openSync(path.join(p.dfw, 'review.log'), 'a');
+  const self = selfCommand();
+  const args = [...self.args, '__review-server', '--root', root, '--url', target, '--port', String(port)];
+  if (a['no-shots']) args.push('--no-shots');
+  const child = spawn(self.cmd, args, { detached: true, stdio: ['ignore', log, log] });
+  child.unref();
+  const url = `http://127.0.0.1:${port}/`;
+  if (!(await waitFor(`${url}__dfw/api/live`))) throw new DfwError(`dfw review did not start; see ${path.join(p.dfw, 'review.log')}`);
+  writeJson(file, { pid: child.pid, port, url, target, startedAt: nowIso() });
+  const path0 = new URL(String(a.url)).pathname;
+  return out(`review running: ${url.replace(/\/$/, path0)}  (proxy of ${target})\nOpen it, press C (or "Comment"), click an element, write, Cmd/Ctrl+Enter. Comments arrive like Studio comments (dfw comments wait).`);
+}
+
+function cmdInspector(root, a) {
+  const sub = a._[1] || 'setup';
+  if (sub !== 'setup') throw new DfwError('Usage: dfw inspector setup [--write] [--json]');
+  const { plan, written } = inspectorSetup(root, { write: Boolean(a.write) });
+  if (a.json) return out({ ...plan, written }, true);
+  if (!a.write) return out(formatPlan(plan));
+  const pm = plan.packageManager || 'npm';
+  return out(written.length
+    ? `Wrote ${written.join(', ')} (${INSPECTOR.package}@${INSPECTOR.version}, dev-only). Now run: ${pm} install, restart the dev server, then "dfw review start --url <dev server>".`
+    : `${INSPECTOR.package}@${INSPECTOR.version} is already set up.`);
 }
 
 async function cmdShoot(root, a) {
@@ -532,12 +593,49 @@ function cmdDoctor(root) {
   return out(rows.join('\n'));
 }
 
+async function cmdPenpot(root, a) {
+  const sub = a._[1];
+  if (sub === 'export') {
+    const r = await exportPenpot(root, { page: a.page || null, bp: a.bp || null, out: a.out || null });
+    if (r.doc.errors?.length) process.exitCode = 2;
+    return a.json ? out({ file: r.file, id: r.doc.id, errors: r.doc.errors }, true) : out(exportSummary(r.doc, r.file, root));
+  }
+  if (sub === 'import') {
+    if (!a._[2]) throw new DfwError('Usage: dfw penpot import <changes.json> [--dry-run] [--json]');
+    const changes = readJson(path.resolve(a._[2]), null);
+    if (!changes) throw new DfwError(`${a._[2]}: not found or not JSON.`);
+    const dryRun = Boolean(a['dry-run']);
+    const r = importChanges(root, changes, { dryRun, state: loadState(root) });
+    return a.json ? out(r, true) : out(formatImportChanges(r, root, { dryRun }));
+  }
+  if (sub === 'plugin') {
+    const info = readJson(projectPaths(root).studio, null);
+    const url = info && isAlive(info.pid) ? info.url : null;
+    const manifest = `${url || `http://127.0.0.1:${loadConfig(root).studio.port || 4600}/`}__dfw/penpot/manifest.json`;
+    return out(`${url ? '' : 'The Studio is not running: start it with "dfw studio start".\n'}Penpot plugin manifest: ${manifest}
+In Penpot: open a file, Plugins (Ctrl+Alt+P), paste the URL, Install, then open "dfw bridge".
+  Build boards: pulls the latest "dfw penpot export" from the Studio and creates pages, boards, components.
+  Send changes: sends edits and comments back to the Studio, which records them as dfw comments (provider "penpot").
+No Penpot API token is used: the plugin runs in your browser and only talks to 127.0.0.1.`);
+  }
+  throw new DfwError('Usage: dfw penpot export [--page <id>] [--bp <ids>] | plugin | import <changes.json> [--dry-run]');
+}
+
 export async function main(argv) {
   // Internal: the Studio server process ("dfw studio start" spawns it; same in the binary).
   if (argv[0] === '__studio-server') {
     globalThis.__DFW_STUDIO_ARGV = argv.slice(1);
     await import('../studio/server.mjs');
     return;
+  }
+  // Internal: the live review proxy ("dfw review start" spawns it).
+  if (argv[0] === '__review-server') {
+    const r = parseArgs(argv.slice(1));
+    const root = path.resolve(r.root || process.cwd());
+    const log = (m) => console.error(`dfw review: ${m}`);
+    const { url } = await startLiveServer({ root, target: r.url, port: Number(r.port) || 4700, shots: !r['no-shots'], log });
+    console.log(`dfw review: ${url} -> ${r.url}  (project: ${root})`);
+    return; // the listening server keeps the process alive
   }
   const a = parseArgs(argv);
   const cmd = a._[0];
@@ -612,7 +710,23 @@ export async function main(argv) {
         if (!browserStatus().installed) throw new DfwError('dfw tokens extract renders in Chrome/Edge/Chromium: none found (dfw setup --browser).');
         return out(await extractTokensToFile(root, a.url, a.out));
       }
-      if (cmd === 'tokens' && a._[1] !== 'build') throw new DfwError('Usage: dfw tokens build | dfw tokens extract --url <u>');
+      if (cmd === 'tokens' && a._[1] === 'export') {
+        if ((a.format || 'penpot') !== 'penpot') throw new DfwError(`Unknown --format "${a.format}" (supported: penpot).`);
+        const r = exportPenpotTokens(root, { out: a.out, optThemes: Boolean(a['opt-themes']) });
+        return a.json ? out({ file: r.file, report: r.report }, true) : out(formatExport(r, root));
+      }
+      if (cmd === 'tokens' && a._[1] === 'import') {
+        if (!a._[2]) throw new DfwError('Usage: dfw tokens import <penpot-tokens.json|folder> [--from penpot] [--dry-run] [--prune]');
+        if ((a.from || 'penpot') !== 'penpot') throw new DfwError(`Unknown --from "${a.from}" (supported: penpot).`);
+        const dryRun = Boolean(a['dry-run']);
+        const r = importPenpotTokens(root, a._[2], { state: loadState(root), dryRun, prune: Boolean(a.prune) });
+        if (r.written.length) {
+          buildTokens(root);
+          buildSystem(root);
+        }
+        return a.json ? out(r, true) : out(formatImport(r, { dryRun }));
+      }
+      if (cmd === 'tokens' && a._[1] !== 'build') throw new DfwError('Usage: dfw tokens build | extract --url <u> | export --format penpot [--out <file>] | import <file> [--from penpot] [--dry-run]');
       const r = buildTokens(root);
       const sys = buildSystem(root);
       return out(`Wrote ${path.relative(root, r.out)}${r.themes.length ? ` (themes: ${r.themes.join(', ')})` : ''}${sys.components ? `; ${sys.components} component(s) -> design/system/components.css` : ''}`);
@@ -784,6 +898,10 @@ export async function main(argv) {
       return cmdStudio(root, a);
     case 'shoot':
       return cmdShoot(root, a);
+    case 'review':
+      return cmdReview(root, a);
+    case 'inspector':
+      return cmdInspector(root, a);
     case 'diff': {
       if (a._.length < 3) throw new DfwError('Usage: dfw diff <a.png|dirA> <b.png|dirB> [--out <file|dir>] [--threshold 0.1] [--json]');
       if (!browserStatus().installed) throw new DfwError('dfw diff renders in Chrome/Edge/Chromium: none found (dfw setup --browser).');
@@ -800,6 +918,8 @@ export async function main(argv) {
       if (problems.length) process.exitCode = 2;
       return out(problems.length ? `Snapshot ${v} was modified:\n${problems.join('\n')}` : `Snapshot ${v} intact.`);
     }
+    case 'penpot':
+      return cmdPenpot(root, a);
     case 'handoff':
       return cmdHandoff(root);
     case 'comments':

@@ -784,7 +784,9 @@ function renderInspector() {
     <dt>Tag</dt><dd><code>&lt;${esc(sel.target.tag)}&gt;</code></dd>
     <dt>Size</dt><dd>${Math.round(sel.rect[2])} × ${Math.round(sel.rect[3])}</dd>
     ${sel.target.a11y?.role ? `<dt>Role</dt><dd>${esc(sel.target.a11y.role)}${sel.target.a11y.name ? ` “${esc(sel.target.a11y.name.slice(0, 60))}”` : ''}</dd>` : ''}
-  </dl>${sel.textEditable && editable ? '<div class="btn-row"><button type="button" class="btn" data-act="edit-text">Edit text</button><span class="note" style="margin:0;align-self:center">or double-click it</span></div>' : ''}</div>`);
+  </dl>${sel.textEditable && editable ? '<div class="btn-row"><button type="button" class="btn" data-act="edit-text">Edit text</button><span class="note" style="margin:0;align-self:center">or double-click it</span></div>' : ''}${
+    editable && own.id ? `<p class="note">Layout: drag to reorder among flex/grid siblings (<kbd>Alt</kbd>+arrows); drag the handles to resize (<kbd>Alt</kbd><kbd>Shift</kbd>+arrows), snapped to grid columns or tokens${layoutScope(f).scope ? `. Resizes here apply at ${esc(layoutScope(f).scope)}` : ''}.</p>` : ''
+  }</div>`);
   if (own.comp) {
     const def = S.components.get(own.comp);
     const can = editable && own.id && def;
@@ -846,10 +848,20 @@ $('#inspector').addEventListener('change', async (e) => {
   if (t.dataset.edit === 'prop') return edit(f, { op: 'prop', id: sel.own.id, prop: t.dataset.prop, value: t.value });
 });
 
-async function edit(f, op) {
+/**
+ * Layout edit scope of a frame: resizing in the widest breakpoint writes the base rule; in a
+ * narrower frame it writes inside @media (max-width: <frame width>px), so it applies there and below.
+ */
+function layoutScope(f) {
+  const widest = Math.max(0, ...(S.manifest?.breakpoints || []).map((b) => b.width || 0));
+  if (!f?.bp || f.bp.width >= widest) return { maxWidth: 0, scope: '' };
+  return { maxWidth: f.bp.width, scope: `≤${f.bp.width}px` };
+}
+
+async function edit(f, op, label = '') {
   try {
     const r = await api('/__dfw/api/edit', { method: 'POST', body: JSON.stringify({ file: f.file, ...op }) });
-    toast(r.changed ? `Saved to ${r.file}:${r.line}  (⌘Z to undo)` : 'No change.');
+    toast(r.changed ? `${label ? `${label}. ` : ''}Saved to ${r.file}:${r.line}  (⌘Z to undo)` : 'No change.');
   } catch (e) {
     toast(e.message);
     reloadFrame(f);
@@ -900,6 +912,7 @@ window.addEventListener('message', (e) => {
       post(f, { type: 'dfw:mode', mode: S.mode });
       post(f, { type: 'dfw:tokens', vars: S.tokens });
       post(f, { type: 'dfw:pins', pins: pinsFor(f) });
+      post(f, { type: 'dfw:layout', enabled: !f.system && !!f.file, scope: layoutScope(f).scope });
       if (f.pendingSelect) {
         post(f, { type: 'dfw:select-id', ...f.pendingSelect });
         f.pendingSelect = null;
@@ -997,6 +1010,14 @@ window.addEventListener('message', (e) => {
     case 'dfw:edit-text':
       edit(f, { op: 'text', id: d.id, value: d.text });
       break;
+    case 'dfw:layout-op': {
+      if (f.present || f.system || !f.file) break;
+      const { type, label, ...op } = d;
+      // Resizes are breakpoint-aware; reordering changes the source order, so it applies at every width.
+      if (op.op === 'layout') op.maxWidth = layoutScope(f).maxWidth;
+      edit(f, op, label + (op.op === 'layout' && layoutScope(f).scope ? ` (${layoutScope(f).scope})` : ''));
+      break;
+    }
     case 'dfw:toast':
       toast(d.message);
       break;
@@ -1388,6 +1409,11 @@ function handleKey(d) {
   if (mod && (key === '=' || key === '+')) return zoomStep(1);
   if (mod && key === '-') return zoomStep(-1);
   if (mod && key === '0') return zoomCenter(1);
+  if (d.alt && !mod && key.startsWith('Arrow') && S.sel && S.mode === 'select') {
+    const f = S.frames.get(S.sel.key);
+    if (f && !f.system && f.file) post(f, { type: 'dfw:layout-key', key, shift: d.shift });
+    return;
+  }
   if (mod || d.alt) return;
   if (d.shift && (d.code === 'Digit1' || key === '!')) return zoomToFit();
   if (d.shift && (d.code === 'Digit2' || key === '@')) return zoomToSelection();

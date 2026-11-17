@@ -100,6 +100,7 @@ Review loop: Claude starts the Studio (`dfw studio start`, default http://127.0.
 | Pages | Design System, one page per module, Explorations, or **All pages** on one canvas |
 | Inspect | click an element (Cmd/Alt-click for the exact one): layers, tokens in use, component + variant, "Go to master" |
 | Edit directly | double-click text; change variant/size/props or spacing tokens in the inspector; Cmd/Ctrl+Z undoes |
+| Rearrange and resize | select an element with a `data-dfw-id`, then drag it among its flex/grid siblings (a blue line shows where it lands; the source is moved), or drag its handles: in a grid the width snaps to a column span (`span 2 / 4`), elsewhere to a `size.*` token or 25/33/50/67/75/100%, and the height to a `min-height` spacing/size token. Keyboard: Alt+arrows move, Alt+Shift+arrows step the size. Resizes go to a `<style data-dfw-layout>` block in the screen; in a narrower breakpoint frame they go inside `@media (max-width: <frame width>px)`, so they apply there and below. Edits are refused once the design is approved (G2) |
 | Clickable preview | **P** (or double-click a frame title) for full-window Present; **I** to interact on the canvas; ← → between screens. Present hides comment pins unless you press **Pins** (Shift+C) or comment |
 | Comment | **C**, click an element, write (Cmd/Ctrl+Enter). Claude receives it immediately; fixed comments appear under **To verify** where you resolve or reopen them |
 | Breakpoints and states | top-bar menus with checkboxes and **All** (default: all shown); only checked breakpoints/states get frames |
@@ -107,6 +108,12 @@ Review loop: Claude starts the Studio (`dfw studio start`, default http://127.0.
 | Comment pins | click a pin to read the comment and its thread, and resolve or reopen it in place. **Shift+C** (or the **Pins** chip) cycles open → all → off; resolved comments are hidden by default |
 
 Useful commands (`dfw help` for all): `dfw status`, `dfw style match|show|apply`, `dfw system init|inventory|ref|options|choose|audit|list`, `dfw palette build`, `dfw type scale`, `dfw icons search|add`, `dfw fonts check`, `dfw check`, `dfw shoot --page <id> --states`, `dfw comments list|wait`, `dfw decisions`, `dfw pause|resume`.
+
+Review the running app (phase verify): `dfw review start --url http://localhost:5173` opens a local proxy (127.0.0.1 only; HMR passes through) with a **Comment** button (or C) on the app itself. Comments go to the same inbox as Studio comments, with the route, a screenshot, and the element's `file:line:col` when the project has [code-inspector-plugin](https://github.com/zh-lx/code-inspector) (MIT, dev builds only). dfw never adds that dependency silently: `dfw inspector setup` prints the pinned devDependency and the Vite/webpack/Next config change to propose at G3; `--write` applies it only after G3 approved it (other bundlers: printed instructions). Without it, comments carry selector + text.
+
+Penpot (optional bridge; dfw's HTML and DTCG tokens stay the source of truth): `dfw tokens export --format penpot` writes a file for Penpot's Tokens panel (sets `base` + `themes/<name>`, themes, aliases); `dfw tokens import <file> [--dry-run]` brings Penpot token edits back with a diff summary (refused while the design is frozen). Mapping and limits: `plugins/dfw/skills/dfw/references/penpot.md`.
+
+Penpot (optional bridge; dfw's HTML and DTCG tokens stay the source of truth): `dfw tokens export --format penpot` writes a file for Penpot's Tokens panel (sets `base` + `themes/<name>`, themes, aliases); `dfw tokens import <file> [--dry-run]` brings Penpot token edits back with a diff summary (refused while the design is frozen). Screens: `dfw penpot export` renders every screen x breakpoint, and the **dfw bridge** Penpot plugin (served by the Studio on 127.0.0.1; `dfw penpot plugin` prints its URL) builds one board per screen x breakpoint, with `data-dfw-id` layer names, text layers, token-linked colours and component instances. Designer edits and Penpot comments come back as dfw comments (`provider: "penpot"`) and a token diff (`dfw penpot import <changes.json>` or the plugin's Send); dfw never overwrites its HTML from Penpot. No Penpot account token or cloud call is used. Mapping, data flow and limits: `plugins/dfw/skills/dfw/references/penpot.md`.
 
 ## Why plain HTML/CSS as the design format
 
@@ -190,6 +197,6 @@ When you change `core/` or an adapter, run `npm run build` and bump `version` in
   - when Impeccable's own new-design flow runs, an anonymous card-catalog request to `impeccable.style/api/roll` that carries a random key and no project data.
 
   Details, triggers and offline setup: [docs/impeccable-network.md](docs/impeccable-network.md).
-- Element source mapping in a *running app* (not the design studio) is not in the MVP; it is planned via code-inspector-plugin.
-- No free-form drag-and-drop or resizing on the canvas: layout changes go through comments or the code. Direct edits in the Studio cover text, component variant/size/props and spacing tokens; colors and typography are changed in the design system (tokens or masters), by Claude or by hand.
-- Penpot import/export is planned.
+- Canvas drag and resize are constrained: you can reorder elements among their flex/grid siblings and resize with snapping to grid spans and tokens, but free-form absolute positioning is intentionally not supported (designs are responsive flow layouts that become real code). Other layout changes (new grid templates, moving into an empty container) go through comments or the code. Colors and typography are changed in the design system (tokens or masters), by Claude or by hand.
+- Penpot: tokens round-trip (`dfw tokens export --format penpot`, `dfw tokens import`); a screens bridge is planned. An MCP server for feedback is planned.
+- Penpot is an optional bridge, not a second source of truth: Penpot edits return as comments for the agent to apply, not as HTML. The plugin follows Penpot's documented plugin API but is tested here on fixtures only (no running Penpot in CI); edits on the `dfw components` page are not sent back. An MCP server for feedback is planned.

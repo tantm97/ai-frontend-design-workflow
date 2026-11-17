@@ -159,3 +159,149 @@ test('studio pages: system first, declared pages, Screens + Explorations fallbac
   assert.deepEqual(p3[1].sections, sections);
   assert.deepEqual(p3[1].screens, ['c'], 'screen referenced only from a section belongs to the page');
 });
+
+/* ---------------------------------------------------------------- layout: reorder + resize */
+
+const GRID = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <style>.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4) }</style>
+</head>
+<body>
+  <main data-dfw-id="dash">
+    <section class="cards" data-dfw-id="dash.cards">
+      <div data-dfw-id="dash.a">A</div>
+      <article data-dfw-id="dash.b">
+        <h2 data-dfw-id="dash.b.title">B</h2>
+      </article>
+      <dfw-use c="button" id="dash.c">C</dfw-use>
+    </section>
+    <div class="row" data-dfw-id="dash.row"><span data-dfw-id="dash.x">x</span><span data-dfw-id="dash.y">y</span></div>
+  </main>
+</body>
+</html>`;
+
+function gridProject() {
+  const root = project();
+  fs.writeFileSync(path.join(root, 'design/screens/home/grid.html'), GRID);
+  const tokens = { ...TOKENS, size: { $type: 'dimension', sidebar: { $value: { value: 240, unit: 'px' } } } };
+  fs.writeFileSync(path.join(root, 'design/tokens/tokens.json'), JSON.stringify(tokens));
+  return root;
+}
+const G = 'screens/home/grid.html';
+const readG = (root) => read(root, `design/${G}`);
+
+test('move: reorders whole-line siblings by id and re-indents multi-line elements', () => {
+  const root = gridProject();
+  applyEdit(root, { file: G, op: 'move', id: 'dash.c', ref: 'dash.a', position: 'before' });
+  assert.match(readG(root), /<section class="cards" data-dfw-id="dash.cards">\n      <dfw-use c="button" id="dash.c">C<\/dfw-use>\n      <div data-dfw-id="dash.a">A<\/div>\n      <article/);
+  applyEdit(root, { file: G, op: 'move', id: 'dash.b', ref: 'dash.c', position: 'before' });
+  assert.match(readG(root), /cards">\n      <article data-dfw-id="dash.b">\n        <h2 data-dfw-id="dash.b.title">B<\/h2>\n      <\/article>\n      <dfw-use c="button" id="dash.c">C<\/dfw-use>\n      <div data-dfw-id="dash.a">A<\/div>\n    <\/section>/);
+  // Back to the original order: the file is byte-identical.
+  applyEdit(root, { file: G, op: 'move', id: 'dash.a', ref: 'dash.b', position: 'before' });
+  applyEdit(root, { file: G, op: 'move', id: 'dash.c', ref: 'dash.b', position: 'after' });
+  assert.equal(readG(root), GRID);
+  // Moving into another container re-indents to the new place.
+  applyEdit(root, { file: G, op: 'move', id: 'dash.b', ref: 'dash.row', position: 'after' });
+  assert.match(readG(root), /<\/div>\n    <article data-dfw-id="dash.b">\n      <h2 data-dfw-id="dash.b.title">B<\/h2>\n    <\/article>\n  <\/main>/);
+});
+
+test('move: inline siblings, no-op, and refusals', () => {
+  const root = gridProject();
+  applyEdit(root, { file: G, op: 'move', id: 'dash.y', ref: 'dash.x', position: 'before' });
+  assert.match(readG(root), /<span data-dfw-id="dash.y">y<\/span><span data-dfw-id="dash.x">x<\/span>/);
+  const same = applyEdit(root, { file: G, op: 'move', id: 'dash.y', ref: 'dash.x', position: 'before' });
+  assert.equal(same.changed, false, 'already there: idempotent');
+  const before = readG(root);
+  assert.throws(() => applyEdit(root, { file: G, op: 'move', id: 'dash.b', ref: 'dash.b.title', position: 'after' }), /into itself/);
+  assert.throws(() => applyEdit(root, { file: G, op: 'move', id: 'dash.b.title', ref: 'dash.b', position: 'after' }), /parent/);
+  assert.throws(() => applyEdit(root, { file: G, op: 'move', id: 'dash.a', ref: 'nope', position: 'after' }), /not found/);
+  assert.throws(() => applyEdit(root, { file: G, op: 'move', id: 'dash.a', ref: 'dash.b', position: 'inside' }), /before.*after/);
+  assert.equal(readG(root), before);
+});
+
+test('layout: grid-column span rule in a dfw layout block; update, media placement, removal', () => {
+  const root = gridProject();
+  applyEdit(root, { file: G, op: 'layout', id: 'dash.b', prop: 'grid-column', value: 'span 2' });
+  let t = readG(root);
+  assert.match(t, / {2}<style data-dfw-layout>\n {4}\/\* dfw Studio layout edits[^\n]*\*\/\n {4}\[data-dfw-id='dash.b'\] \{ grid-column: span 2; \}\n {2}<\/style>\n<\/head>/);
+  assert.equal(t.replace(/ {2}<style data-dfw-layout>[\s\S]*?<\/style>\n/, ''), GRID, 'nothing else changed');
+  // Same value again: no change (idempotent).
+  assert.equal(applyEdit(root, { file: G, op: 'layout', id: 'dash.b', prop: 'grid-column', value: 'span 2' }).changed, false);
+  applyEdit(root, { file: G, op: 'layout', id: 'dash.b', prop: 'grid-column', value: '3' });
+  applyEdit(root, { file: G, op: 'layout', id: 'dash.c', prop: 'grid-column', value: 'span 1', maxWidth: 834 });
+  applyEdit(root, { file: G, op: 'layout', id: 'dash.b', prop: 'grid-column', value: 'span 1', maxWidth: 390 });
+  applyEdit(root, { file: G, op: 'layout', id: 'dash.b', prop: 'grid-column', value: 'span 2', maxWidth: 834 });
+  t = readG(root);
+  const block = /<style data-dfw-layout>([\s\S]*?)<\/style>/.exec(t)[1];
+  assert.equal(
+    block.replace(/\/\*[^*]*\*\//, '/**/'),
+    `
+    /**/
+    [data-dfw-id='dash.b'] { grid-column: span 3; }
+    @media (max-width: 834px) {
+      [data-dfw-id='dash.c'] { grid-column: span 1; }
+      [data-dfw-id='dash.b'] { grid-column: span 2; }
+    }
+    @media (max-width: 390px) {
+      [data-dfw-id='dash.b'] { grid-column: span 1; }
+    }
+  `,
+    'base first, then media blocks widest first so narrower ones win',
+  );
+  // Removing every rule removes the block and restores the file.
+  for (const [id, mw] of [['dash.b', 0], ['dash.c', 834], ['dash.b', 390], ['dash.b', 834]]) applyEdit(root, { file: G, op: 'layout', id, prop: 'grid-column', value: null, maxWidth: mw });
+  assert.equal(readG(root), GRID);
+});
+
+test('layout: width / min-height snap to tokens or percentages; refusals; lint stays clean', async () => {
+  const root = gridProject();
+  applyEdit(root, { file: G, op: 'layout', id: 'dash.a', prop: 'width', value: '50%' });
+  applyEdit(root, { file: G, op: 'layout', id: 'dash.a', prop: 'min-height', value: 'space.4' });
+  applyEdit(root, { file: G, op: 'layout', id: 'dash.c', prop: 'width', value: '--size-sidebar' });
+  const t = readG(root);
+  assert.match(t, /\[data-dfw-id='dash.a'\] \{ width: 50%; min-height: var\(--space-4\); \}/);
+  assert.match(t, /\[data-dfw-id='dash.c'\] \{ width: var\(--size-sidebar\); \}/);
+  assert.throws(() => applyEdit(root, { file: G, op: 'layout', id: 'dash.a', prop: 'width', value: '37%' }), /snap/);
+  assert.throws(() => applyEdit(root, { file: G, op: 'layout', id: 'dash.a', prop: 'width', value: '300px' }), /token/);
+  assert.throws(() => applyEdit(root, { file: G, op: 'layout', id: 'dash.a', prop: 'min-height', value: 'color.ink' }), /token/);
+  assert.throws(() => applyEdit(root, { file: G, op: 'layout', id: 'dash.a', prop: 'grid-column', value: 'span 99' }), /span N/);
+  assert.throws(() => applyEdit(root, { file: G, op: 'layout', id: 'dash.a', prop: 'color', value: 'x' }), /not resizable/);
+  assert.throws(() => applyEdit(root, { file: G, op: 'layout', id: 'dash.a', prop: 'width', value: '50%', maxWidth: 'wide' }), /breakpoint/);
+  assert.throws(() => applyEdit(root, { file: G, op: 'layout', id: 'nope', prop: 'width', value: '50%' }), /not found/);
+  const { lintScreen, lintHtml } = await import('../../core/lib/lint.mjs');
+  const errors = [...lintHtml(`design/${G}`, t), ...lintScreen(root, `design/${G}`, t)].filter((i) => i.level === 'error');
+  assert.deepEqual(errors, [], 'no MUST findings (screen-visual-style clean; the rule selector is not a duplicate data-dfw-id)');
+  const { locateSource } = await import('../../core/lib/comments.mjs');
+  assert.equal(locateSource(root, G, 'dash.a'), `design/${G}:${t.split('\n').findIndex((l) => l.includes('<div data-dfw-id="dash.a"')) + 1}`, 'comment source line points at the element, not its layout rule');
+});
+
+test('layout: refuses to rewrite a hand-edited layout block; undo restores layout edits', () => {
+  const root = gridProject();
+  applyEdit(root, { file: G, op: 'layout', id: 'dash.b', prop: 'grid-column', value: 'span 2' });
+  applyEdit(root, { file: G, op: 'move', id: 'dash.c', ref: 'dash.a', position: 'before' });
+  undoEdit(root);
+  undoEdit(root);
+  assert.equal(readG(root), GRID);
+  fs.writeFileSync(path.join(root, 'design', G), GRID.replace('</head>', '<style data-dfw-layout>.cards > * { width: 1px }</style></head>'));
+  assert.throws(() => applyEdit(root, { file: G, op: 'layout', id: 'dash.b', prop: 'grid-column', value: 'span 2' }), /edited by hand/);
+});
+
+test('edits are refused once the design is approved and locked (G2) or in review-only mode', () => {
+  const root = gridProject();
+  const stateFile = path.join(root, '.dfw/state.json');
+  fs.mkdirSync(path.dirname(stateFile), { recursive: true });
+  fs.writeFileSync(stateFile, JSON.stringify({ schema: 1, mode: 'new-product', phase: 'stack', design: { version: 1, status: 'approved', locked: true, approved: [] } }));
+  for (const op of [
+    { file: G, op: 'move', id: 'dash.c', ref: 'dash.a', position: 'before' },
+    { file: G, op: 'layout', id: 'dash.b', prop: 'grid-column', value: 'span 2' },
+    { file: G, op: 'text', id: 'dash.a', value: 'Z' },
+  ]) assert.throws(() => applyEdit(root, op), /approved and locked \(G2\)/);
+  assert.throws(() => undoEdit(root), /locked/);
+  fs.writeFileSync(stateFile, JSON.stringify({ schema: 1, mode: 'review-only', design: { version: 1, locked: false } }));
+  assert.throws(() => applyEdit(root, { file: G, op: 'text', id: 'dash.a', value: 'Z' }), /review-only/);
+  fs.writeFileSync(stateFile, JSON.stringify({ schema: 1, mode: 'new-product', design: { version: 2, locked: false } }));
+  assert.equal(applyEdit(root, { file: G, op: 'text', id: 'dash.a', value: 'Z' }).changed, true, 'editable again after reopen');
+  assert.equal(readG(root), GRID.replace('>A<', '>Z<'));
+});

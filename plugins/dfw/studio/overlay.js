@@ -6,10 +6,12 @@
 (() => {
   if (window.__dfwOverlay) return;
   window.__dfwOverlay = true;
+  // dfw review (running app, see lib/live.mjs): only share the comment-target helpers with live.js.
+  const LIVE = Boolean(document.currentScript && document.currentScript.hasAttribute('data-dfw-live'));
   const params = new URLSearchParams(location.search);
-  if (params.get('theme')) document.documentElement.dataset.theme = params.get('theme');
-  if (params.get('state')) document.documentElement.dataset.state = params.get('state');
-  if (window.parent === window) return; // opened directly: plain page
+  if (!LIVE && params.get('theme')) document.documentElement.dataset.theme = params.get('theme');
+  if (!LIVE && params.get('state')) document.documentElement.dataset.state = params.get('state');
+  if (window.parent === window && !LIVE) return; // opened directly: plain page
 
   const post = (type, data = {}) => parent.postMessage({ type, ...data }, '*');
   let mode = 'select';
@@ -102,6 +104,11 @@
       styles: { color: cs.color, background: cs.backgroundColor, font: `${cs.fontWeight} ${cs.fontSize}/${cs.lineHeight} ${cs.fontFamily.split(',')[0]}`, padding: cs.padding, radius: cs.borderRadius },
       scroll: [Math.round(scrollX), Math.round(scrollY)],
     };
+  }
+
+  if (LIVE) {
+    window.__dfwTargetInfo = info;
+    return;
   }
 
   /* ---------- design tokens: reverse-map computed values to token names ---------- */
@@ -281,6 +288,7 @@
     sel.removeAllRanges();
     sel.addRange(range);
     t.el.addEventListener('blur', onEditBlur);
+    placeHandles();
     post('dfw:editing', { on: true, id: t.id });
   }
 
@@ -319,6 +327,7 @@
 
   function select(el, { inspectIt = true, scroll = false } = {}) {
     selected = el;
+    placeHandles();
     if (!el) return post('dfw:select', { target: null });
     if (scroll) el.scrollIntoView({ block: 'nearest' });
     post('dfw:select', { comment: mode === 'comment', ...selPayload(el, inspectIt && mode !== 'comment') });
@@ -326,6 +335,7 @@
 
   function reportSelection() {
     if (selected && selected.isConnected) post('dfw:sel-rect', { rect: rectOf(selected) });
+    placeHandles();
   }
 
   function reportPins() {
@@ -345,6 +355,257 @@
     post('dfw:size', { h: Math.max(d.scrollHeight, document.body ? document.body.scrollHeight : 0), title: document.title });
   }
 
+  /* ---------- layout: drag to reorder, resize with snapping (edit mode) ----------
+   * Constrained on purpose: no free positioning. Dragging reorders an element among the
+   * data-dfw-id children of a flex/grid container; resizing snaps to the grid (column span)
+   * or to tokens / fixed percentages. The Studio writes the change to the screen source. */
+
+  let layoutCfg = { enabled: false, scope: '' };
+  let drag = null; // { el, x, y, active, drop, prevOpacity, prevPointer }
+  let resize = null; // { el, axis, rect, pick, prop, prev }
+  let suppressClick = false;
+  let lengthCache = null;
+  const FLOW = /^(inline-)?(flex|grid)$/;
+  const isFlow = (el) => !!el && el.nodeType === 1 && FLOW.test(getComputedStyle(el).display);
+  const isGrid = (el) => /grid$/.test(getComputedStyle(el).display);
+  const idKids = (c) => [...c.children].filter((x) => x.dataset && x.dataset.dfwId && !x.hasAttribute('data-dfw-ui') && x.getClientRects().length);
+  const canLayout = (el) => layoutCfg.enabled && mode === 'select' && !editing && el && el.isConnected && !!el.dataset.dfwId && el !== document.body;
+  const canMove = (el) => canLayout(el) && isFlow(el.parentElement);
+  const PERCENTS = [25, 33.333, 50, 66.667, 75, 100];
+
+  const ui = document.createElement('div');
+  ui.setAttribute('data-dfw-ui', '');
+  ui.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2147483646;';
+  const mk = (css) => {
+    const d = document.createElement('div');
+    d.setAttribute('data-dfw-ui', '');
+    d.style.cssText = `position:fixed;display:none;box-sizing:border-box;${css}`;
+    ui.append(d);
+    return d;
+  };
+  const HANDLE = 'width:10px;height:10px;background:#fff;border:2px solid #0d99ff;border-radius:2px;pointer-events:auto;';
+  const hX = mk(`${HANDLE}cursor:ew-resize;`);
+  const hY = mk(`${HANDLE}cursor:ns-resize;`);
+  hX.dataset.dfwHandle = 'x';
+  hY.dataset.dfwHandle = 'y';
+  hX.title = 'Drag to resize the width (snaps to grid columns, size tokens or percentages). Alt+Shift+Left/Right';
+  hY.title = 'Drag to set a min-height (snaps to spacing/size tokens). Alt+Shift+Up/Down';
+  const line = mk('background:#0d99ff;border-radius:2px;');
+  const badge = mk('padding:2px 6px;border-radius:4px;background:#0d99ff;color:#fff;font:600 11px/16px system-ui,sans-serif;white-space:nowrap;');
+  const mountUi = () => !ui.isConnected && (document.body || document.documentElement).append(ui);
+
+  function placeHandles() {
+    const show = !drag?.active && !resize && selected && canLayout(selected) && selected.getClientRects().length;
+    hX.style.display = hY.style.display = show ? 'block' : 'none';
+    if (!show) return;
+    mountUi();
+    const r = selected.getBoundingClientRect();
+    hX.style.left = `${r.right - 5}px`;
+    hX.style.top = `${r.top + r.height / 2 - 5}px`;
+    hY.style.left = `${r.left + r.width / 2 - 5}px`;
+    hY.style.top = `${r.bottom - 5}px`;
+  }
+
+  function showBadge(text, x, y) {
+    mountUi();
+    badge.textContent = text;
+    badge.style.display = 'block';
+    badge.style.left = `${Math.min(x + 12, innerWidth - badge.offsetWidth - 4)}px`;
+    badge.style.top = `${Math.max(4, y - 28)}px`;
+  }
+  const hideFeedback = () => {
+    line.style.display = 'none';
+    badge.style.display = 'none';
+  };
+  const scoped = (t) => (layoutCfg.scope ? `${t} · ${layoutCfg.scope}` : t);
+
+  /** px value of every space.* / size.* dimension token (resolved in this document). */
+  function tokenLengths() {
+    const key = document.documentElement.dataset.theme || '';
+    if (lengthCache && lengthCache.key === key && lengthCache.n === tokenVars.length) return lengthCache.list;
+    const box = document.createElement('div');
+    box.setAttribute('data-dfw-ui', '');
+    box.style.cssText = 'position:absolute;left:-99999px;top:0;visibility:hidden;';
+    const cand = tokenVars.filter((t) => /^(space|size)\./.test(t.name) && t.type !== 'typography');
+    const probes = cand.map((t) => {
+      const d = document.createElement('div');
+      d.style.cssText = `width:var(${t.var});height:0;`;
+      box.append(d);
+      return d;
+    });
+    (document.body || document.documentElement).append(box);
+    const list = probes.map((d, i) => ({ name: cand[i].name, var: cand[i].var, px: d.getBoundingClientRect().width })).filter((t) => t.px > 0);
+    box.remove();
+    list.sort((a, b) => a.px - b.px || /\.\d/.test(a.name) - /\.\d/.test(b.name));
+    lengthCache = { key, n: tokenVars.length, list };
+    return list;
+  }
+
+  /** Snap options for a resize: [{ value (sent to the server), css (preview), label, px }] sorted by px. */
+  function snapOptions(el, axis) {
+    const p = el.parentElement;
+    if (axis === 'x' && isGrid(p)) {
+      const cs = getComputedStyle(p);
+      const tracks = cs.gridTemplateColumns.split(/\s+/).filter((t) => /px$/.test(t)).map(parseFloat);
+      const gap = parseFloat(cs.columnGap) || 0;
+      const n = Math.max(1, tracks.length);
+      const track = tracks.length ? tracks.reduce((a, b) => a + b, 0) / tracks.length : p.clientWidth;
+      return { prop: 'grid-column', list: Array.from({ length: n }, (_, i) => ({ value: `span ${i + 1}`, css: `span ${i + 1}`, label: `span ${i + 1} / ${n}`, px: (i + 1) * track + i * gap })) };
+    }
+    const toks = tokenLengths();
+    if (axis === 'x') {
+      const pcs = getComputedStyle(p);
+      const inner = p.clientWidth - parseFloat(pcs.paddingLeft) - parseFloat(pcs.paddingRight);
+      const pct = PERCENTS.map((v) => ({ value: `${v}%`, css: `${v}%`, label: `${Math.round(v)}%`, px: (inner * v) / 100 }));
+      const sizes = toks.filter((t) => t.name.startsWith('size.') && t.px <= inner).map((t) => ({ value: t.name, css: `var(${t.var})`, label: `${t.name} · ${Math.round(t.px)}px`, px: t.px }));
+      return { prop: 'width', list: [...pct, ...sizes].sort((a, b) => a.px - b.px) };
+    }
+    return { prop: 'min-height', list: toks.map((t) => ({ value: t.name, css: `var(${t.var})`, label: `${t.name} · ${Math.round(t.px)}px`, px: t.px })) };
+  }
+
+  const nearest = (list, px) => list.reduce((best, o) => (Math.abs(o.px - px) < Math.abs(best.px - px) ? o : best), list[0]);
+  const styleProp = { 'grid-column': 'gridColumn', width: 'width', 'min-height': 'minHeight' };
+
+  function startResize(axis, e) {
+    const el = selected;
+    const opts = snapOptions(el, axis);
+    if (!opts.list.length) return post('dfw:toast', { message: 'No size tokens to snap to.' });
+    resize = { el, axis, rect: el.getBoundingClientRect(), ...opts, pick: null, prev: el.style[styleProp[opts.prop]] };
+    placeHandles();
+    moveResize(e);
+  }
+
+  function moveResize(e) {
+    const r = resize;
+    const px = r.axis === 'x' ? e.clientX - r.rect.left : e.clientY - r.rect.top;
+    const o = nearest(r.list, px);
+    if (o !== r.pick) {
+      r.pick = o;
+      r.el.style[styleProp[r.prop]] = o.css;
+      reportSelection();
+    }
+    showBadge(scoped(r.prop === 'grid-column' ? o.label : `${r.prop} ${o.label}`), e.clientX, e.clientY);
+  }
+
+  function endResize(commit) {
+    const r = resize;
+    resize = null;
+    hideFeedback();
+    if (commit && r.pick) post('dfw:layout-op', { op: 'layout', id: r.el.dataset.dfwId, prop: r.prop, value: r.pick.value, label: r.pick.label });
+    else r.el.style[styleProp[r.prop]] = r.prev;
+    placeHandles();
+    reportSelection();
+  }
+
+  /** Where a dragged element would land: { ref, position, vertical } next to a data-dfw-id child of a flex/grid container. */
+  function dropAt(x, y) {
+    const d = drag.el;
+    let n = document.elementFromPoint(x, y);
+    let c = null;
+    const home = d.parentElement;
+    const hr = home.getBoundingClientRect();
+    if (x >= hr.left && x <= hr.right && y >= hr.top && y <= hr.bottom) c = home;
+    for (; !c && n && n !== document.documentElement; n = n.parentElement) {
+      if (isUi(n) || d.contains(n)) return null;
+      if (isFlow(n) && idKids(n).some((k) => k !== d)) c = n;
+    }
+    if (!c) return null;
+    const kids = idKids(c).filter((k) => k !== d);
+    if (!kids.length) return null;
+    const dist = (r) => Math.hypot(Math.max(r.left - x, 0, x - r.right), Math.max(r.top - y, 0, y - r.bottom));
+    let best = null;
+    for (const k of kids) {
+      const r = k.getBoundingClientRect();
+      const dd = dist(r);
+      if (!best || dd < best.dd) best = { k, r, dd };
+    }
+    const { k, r } = best;
+    let horizontal; // true: decide by x (items flow left-right)
+    if (isGrid(c)) horizontal = y >= r.top && y <= r.bottom;
+    else horizontal = getComputedStyle(c).flexDirection.startsWith('row');
+    const before = horizontal ? x < r.left + r.width / 2 : y < r.top + r.height / 2;
+    return { ref: k, position: before ? 'before' : 'after', vertical: horizontal, r };
+  }
+
+  function moveDrag(e) {
+    if (!drag.active) {
+      if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 5) return;
+      drag.active = true;
+      drag.prevOpacity = drag.el.style.opacity;
+      drag.prevPointer = drag.el.style.pointerEvents;
+      drag.el.style.opacity = '0.4';
+      drag.el.style.pointerEvents = 'none';
+      placeHandles();
+      post('dfw:hover', { rect: null });
+    }
+    const t = (drag.drop = dropAt(e.clientX, e.clientY));
+    mountUi();
+    if (!t) {
+      line.style.display = 'none';
+      return showBadge('Drop next to a sibling in a flex or grid container', e.clientX, e.clientY);
+    }
+    const { r } = t;
+    const edge = t.position === 'before' ? (t.vertical ? r.left : r.top) : t.vertical ? r.right : r.bottom;
+    Object.assign(line.style, t.vertical ? { left: `${edge - 2}px`, top: `${r.top}px`, width: '3px', height: `${r.height}px` } : { left: `${r.left}px`, top: `${edge - 2}px`, width: `${r.width}px`, height: '3px' });
+    line.style.display = 'block';
+    showBadge(`${t.position === 'before' ? 'Before' : 'After'} ${t.ref.dataset.dfwId}`, e.clientX, e.clientY);
+  }
+
+  function endDrag(commit) {
+    const g = drag;
+    drag = null;
+    hideFeedback();
+    if (!g?.active) return placeHandles();
+    g.el.style.opacity = g.prevOpacity;
+    g.el.style.pointerEvents = g.prevPointer;
+    suppressClick = true; // the click that ends the drag must not re-select (reset on the next mousedown)
+    const t = g.drop;
+    if (commit && t) {
+      const next = t.position === 'before' ? t.ref : t.ref.nextSibling;
+      if (next !== g.el && !(t.position === 'before' && g.el.nextElementSibling === t.ref) && !(t.position === 'after' && t.ref.nextElementSibling === g.el)) {
+        t.ref.parentElement.insertBefore(g.el, next); // optimistic; the frame reloads from the source
+        post('dfw:layout-op', { op: 'move', id: g.el.dataset.dfwId, ref: t.ref.dataset.dfwId, position: t.position, label: `Moved ${t.position} ${t.ref.dataset.dfwId}` });
+      }
+    }
+    placeHandles();
+    reportSelection();
+  }
+
+  /** Alt+Arrow: move among siblings; Alt+Shift+Arrow: step the span / width (Left/Right) or min-height (Up/Down). */
+  function layoutKey(key, shift) {
+    const el = selected;
+    if (!canLayout(el)) return post('dfw:toast', { message: 'Select an element with a data-dfw-id to move or resize it.' });
+    const back = key === 'ArrowLeft' || key === 'ArrowUp';
+    if (!shift) {
+      if (!canMove(el)) return post('dfw:toast', { message: 'Only children of a flex or grid container can be reordered.' });
+      const sibs = idKids(el.parentElement);
+      const i = sibs.indexOf(el);
+      const ref = sibs[back ? i - 1 : i + 1];
+      if (!ref) return post('dfw:toast', { message: back ? 'Already the first item.' : 'Already the last item.' });
+      const position = back ? 'before' : 'after';
+      ref.parentElement.insertBefore(el, back ? ref : ref.nextSibling);
+      reportSelection();
+      return post('dfw:layout-op', { op: 'move', id: el.dataset.dfwId, ref: ref.dataset.dfwId, position, label: `Moved ${position} ${ref.dataset.dfwId}` });
+    }
+    const axis = key === 'ArrowLeft' || key === 'ArrowRight' ? 'x' : 'y';
+    const { prop, list } = snapOptions(el, axis);
+    if (!list.length) return post('dfw:toast', { message: 'No size tokens to snap to.' });
+    let cur;
+    if (prop === 'grid-column') {
+      const m = /span\s+(\d+)/.exec(getComputedStyle(el).gridColumnEnd) || /span\s+(\d+)/.exec(getComputedStyle(el).gridColumnStart);
+      cur = list.findIndex((o) => o.value === `span ${m ? m[1] : 1}`);
+    } else {
+      const now = axis === 'x' ? el.getBoundingClientRect().width : parseFloat(getComputedStyle(el).minHeight) || 0;
+      cur = list.indexOf(nearest(list, now));
+      if (axis === 'y' && !now) cur = -1;
+    }
+    const o = list[Math.max(0, Math.min(list.length - 1, cur + (back ? -1 : 1)))];
+    if (cur >= 0 && o === list[cur]) return post('dfw:toast', { message: `Already ${o.label}.` });
+    el.style[styleProp[prop]] = o.css;
+    reportSelection();
+    post('dfw:layout-op', { op: 'layout', id: el.dataset.dfwId, prop, value: o.value, label: o.label });
+  }
+
   /* ---------- events ---------- */
 
   const capture = { capture: true };
@@ -356,6 +617,10 @@
     'mousemove',
     (e) => {
       if (midPan) return post('dfw:pan', { phase: 'move', sx: e.screenX, sy: e.screenY });
+      if (resize || drag) {
+        if (!(e.buttons & 1)) return resize ? endResize(false) : endDrag(false); // released outside the frame
+        return resize ? moveResize(e) : moveDrag(e);
+      }
       if (!interactive() || editing) return;
       const t = pick(e.target, e.metaKey || e.ctrlKey || e.altKey);
       if (t === hoverEl) return;
@@ -377,6 +642,7 @@
         midPan = true;
         return post('dfw:pan', { phase: 'start', sx: e.screenX, sy: e.screenY });
       }
+      suppressClick = false;
       if (inEdit(e.target)) return;
       if (editing) endEdit(true);
       if (interactive() && !isUi(e.target)) {
@@ -384,6 +650,13 @@
         e.stopPropagation();
       }
       post('dfw:focus');
+      if (e.button !== 0 || mode !== 'select') return;
+      if (e.target.dataset && e.target.dataset.dfwHandle && canLayout(selected)) {
+        e.preventDefault();
+        e.stopPropagation();
+        return startResize(e.target.dataset.dfwHandle, e);
+      }
+      if (selected && selected.contains(e.target) && canMove(selected) && !(e.metaKey || e.ctrlKey || e.altKey)) drag = { el: selected, x: e.clientX, y: e.clientY, active: false };
     },
     capture,
   );
@@ -395,6 +668,8 @@
         e.preventDefault();
         post('dfw:pan', { phase: 'end' });
       }
+      if (resize) endResize(true);
+      else if (drag) endDrag(true);
     },
     capture,
   );
@@ -406,6 +681,12 @@
   document.addEventListener(
     'click',
     (e) => {
+      if (suppressClick) {
+        suppressClick = false;
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       if (inEdit(e.target) || isUi(e.target)) return;
       if (!interactive()) return prototypeClick(e);
       e.preventDefault();
@@ -445,6 +726,10 @@
   document.addEventListener(
     'keydown',
     (e) => {
+      if ((resize || drag) && e.key === 'Escape') {
+        e.preventDefault();
+        return resize ? endResize(false) : endDrag(false);
+      }
       if (editing) {
         if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
@@ -518,6 +803,14 @@
           post('dfw:hover', { rect: null });
         }
         document.documentElement.style.cursor = mode === 'comment' ? 'crosshair' : '';
+        placeHandles();
+        break;
+      case 'dfw:layout':
+        layoutCfg = { enabled: !!d.enabled, scope: d.scope || '' };
+        placeHandles();
+        break;
+      case 'dfw:layout-key':
+        layoutKey(d.key, !!d.shift);
         break;
       case 'dfw:tokens':
         tokenVars = d.vars || [];
@@ -551,6 +844,7 @@
       case 'dfw:clear-selection':
         selected = null;
         if (editing) endEdit(false);
+        placeHandles();
         break;
       case 'dfw:reinspect':
         if (selected && selected.isConnected) select(selected);

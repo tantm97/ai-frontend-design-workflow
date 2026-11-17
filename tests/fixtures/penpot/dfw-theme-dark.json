@@ -1,0 +1,8 @@
+{
+  "color": {
+    "$type": "color",
+    "ink": { "$value": { "colorSpace": "srgb", "components": [0.9412, 0.9412, 0.949], "hex": "#f0f0f2" } },
+    "accent": { "$value": "{color.blue.600}" }
+  },
+  "shadow": { "sm": { "$type": "shadow", "$value": [{ "color": { "colorSpace": "srgb", "components": [0, 0, 0], "hex": "#000000", "alpha": 0.5 }, "offsetX": { "value": 0, "unit": "px" }, "offsetY": { "value": 2, "unit": "px" }, "blur": { "value": 4, "unit": "px" }, "spread": { "value": 0, "unit": "px" } }] } }
+}

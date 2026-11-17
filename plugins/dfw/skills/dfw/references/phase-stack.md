@@ -14,7 +14,11 @@ Mandatory before implementation. May be pulled forward when the stack constrains
 2. Then styling approach (CSS modules / plain CSS with tokens / Tailwind with tokens mapped / CSS-in-JS), UI component library (none / headless / full kit), and significant dependencies (charts, tables, forms, i18n). `emil-design-eng:pick-ui-library` can be used as the single support skill for library suggestions; its picks are recommendations (level 5).
 3. Do not pick for the user. If they say "you choose", make the recommendation, state it plainly, and ask for a one-word confirmation.
 
+## Dev tooling for live review (propose with the stack)
+For JavaScript projects served by a bundler, propose one dev-only dependency in the same G3 question: `code-inspector-plugin` (pinned by dfw, MIT). In development builds it tags every element with its source location (`data-insp-path="src/Foo.tsx:42:7:div"`), so comments the user leaves on the running app (`dfw review`, phase verify) point at file:line; it does nothing in production builds. Run `dfw inspector setup` and show its output (version, bundler, the exact config change). If the user declines, live review still works without file:line (selector + text). Never install it without approval: `dfw inspector setup --write` refuses until G3 is approved with the dependency listed.
+
 ## Record
 - `dfw stack set --json '{"kind":"javascript","framework":{"name":"..."},"styling":[{"name":"..."}],"uiLibraries":[...],"dependencies":[{"name":"...","purpose":"...","license":"..."}],"packageManager":"...","notes":"..."}'`
+- Dev tooling goes in the same `dependencies` list with `"dev":true`, e.g. `{"name":"code-inspector-plugin","version":"<from dfw inspector setup>","dev":true,"license":"MIT","purpose":"live review source mapping"}`.
 - After explicit approval: `dfw approve G3 --note "<framework, styling, libraries>"`.
 - Next: `dfw phase implement` (requires G2 too).

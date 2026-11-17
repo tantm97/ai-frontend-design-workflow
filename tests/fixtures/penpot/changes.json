@@ -1,0 +1,55 @@
+{
+  "schema": "dfw-penpot-changes/1",
+  "exportId": "(set by the test)",
+  "pushedAt": "2026-11-16T11:00:00.000Z",
+  "fileName": "Fixture",
+  "boards": [
+    {
+      "key": "items|a|desktop",
+      "name": "items / a @ desktop",
+      "layers": [
+        { "path": "0", "name": "items", "kind": "frame", "x": 0, "y": 0, "w": 1024, "h": 254.88 },
+        { "path": "0.0", "name": "items.title", "kind": "text", "x": 16, "y": 37.44, "w": 150, "h": 36, "characters": "Inventory" },
+        { "path": "0.1", "name": "items.add", "kind": "frame", "x": 168.03, "y": 35.94, "w": 97.14, "h": 40, "fills": [{ "color": "#0066ff", "opacity": 1 }] },
+        { "path": "0.1.0", "name": "text", "kind": "text", "x": 185.03, "y": 46.94, "w": 70, "h": 17, "characters": "Add stock", "fills": [{ "color": "#ffffff", "opacity": 1 }] },
+        { "path": "0.2", "name": "items.export", "kind": "frame", "x": 273.17, "y": 35.94, "w": 80.25, "h": 40 },
+        { "path": "0.2.0", "name": "text", "kind": "text", "x": 290.17, "y": 46.94, "w": 46.25, "h": 17, "characters": "Export", "fills": [{ "color": "#1c1b1a", "opacity": 1 }] },
+        { "path": "0.3", "name": "items.panel", "kind": "frame", "x": 16, "y": 135.88, "w": 992, "h": 127, "fills": [{ "color": "#F7F7F8", "opacity": 1 }] },
+        { "path": "0.3.0", "name": "items.summary", "kind": "frame", "x": 33, "y": 168.88, "w": 958, "h": 27 },
+        { "path": "0.3.0.0", "name": "text", "kind": "text", "x": 33, "y": 168.88, "w": 170.75, "h": 17, "characters": "12 items, 3 low on stock", "fills": [{ "color": "#1c1b1a", "opacity": 1 }] }
+      ],
+      "added": [
+        { "name": "Last audit", "kind": "text", "x": 33, "y": 211.88, "w": 160, "h": 17, "characters": "Last audit: 2 days ago" }
+      ]
+    }
+  ],
+  "missingBoards": [],
+  "comments": [
+    { "seq": 1, "resolved": false, "page": "Stock", "boardKey": "items|a|desktop", "x": 120, "y": 175, "comments": [{ "content": "Can low stock be more visible?", "user": "Designer", "date": "2026-11-16T10:30:00Z" }, { "content": "Maybe a badge.", "user": "Lead", "date": "2026-11-16T10:40:00Z" }] },
+    { "seq": 2, "resolved": true, "page": "Stock", "boardKey": "items|a|desktop", "x": 20, "y": 40, "comments": [{ "content": "Old note", "user": "Designer" }] }
+  ],
+  "tokens": {
+    "sets": [
+      {
+        "name": "base",
+        "active": true,
+        "tokens": [
+          { "name": "color.blue.600", "type": "color", "value": "#0055dd" },
+          { "name": "color.canvas", "type": "color", "value": "#f7f7f8" },
+          { "name": "color.surface", "type": "color", "value": "#ffffff" },
+          { "name": "color.ink", "type": "color", "value": "#1c1b1a" },
+          { "name": "color.border", "type": "color", "value": "#e4e4e7" },
+          { "name": "color.accent", "type": "color", "value": "{color.blue.600}" },
+          { "name": "color.on-accent", "type": "color", "value": "#ffffff" },
+          { "name": "space.2", "type": "spacing", "value": "8px" },
+          { "name": "space.4", "type": "spacing", "value": "16px" },
+          { "name": "radius.md", "type": "borderRadius", "value": "6px" },
+          { "name": "font.family.body", "type": "fontFamilies", "value": "Arial, sans-serif" },
+          { "name": "font.size.md", "type": "fontSizes", "value": "16px" }
+        ]
+      }
+    ],
+    "themes": [{ "name": "default", "group": "dfw", "sets": ["base"] }]
+  },
+  "warnings": []
+}
