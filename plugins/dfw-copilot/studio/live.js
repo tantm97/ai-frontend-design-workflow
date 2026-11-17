@@ -1,12 +1,33 @@
 // dfw review: click-to-comment on the running app (injected by lib/live.mjs next to overlay.js,
-// which provides window.__dfwTargetInfo). Press C or the "Comment" button, click an element,
-// write, Cmd/Ctrl+Enter. The comment carries the element's source (data-insp-path from
-// code-inspector-plugin) when the app has it, otherwise selector + text. All UI lives in a
-// shadow root on <html> so the app's styles and framework never touch it.
+// which provides window.__dfwTargetInfo). Click the "Comment" button or press the shortcut
+// (default Alt/Option+C, set by data-shortcut: "dfw config set review.shortcut <combo>" or
+// --shortcut; "off" = button only), click an element, write, Cmd/Ctrl+Enter. The shortcut never
+// fires while the app has focus in a field. The comment carries the element's source
+// (data-insp-path from code-inspector-plugin) when the app has it, otherwise selector + text. All
+// UI lives in a shadow root on <html> so the app's styles and framework never touch it; its CSS is
+// a constructed stylesheet, so the app's Content-Security-Policy style-src does not block it.
 (() => {
   if (window.__dfwLive || window.top !== window) return;
   window.__dfwLive = true;
   const ATTR = 'data-insp-path';
+  const MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+  const SHORTCUT = (() => {
+    const s = (document.currentScript && document.currentScript.dataset.shortcut) || 'alt+c';
+    if (s === 'off') return null;
+    const parts = s.toLowerCase().split('+');
+    const key = parts.pop();
+    return { key, alt: parts.includes('alt'), ctrl: parts.includes('ctrl'), shift: parts.includes('shift'), meta: parts.includes('meta') };
+  })();
+  const NAMES = MAC ? { ctrl: 'Ctrl', alt: 'Option', shift: 'Shift', meta: 'Cmd' } : { ctrl: 'Ctrl', alt: 'Alt', shift: 'Shift', meta: 'Meta' };
+  const shortcutLabel = SHORTCUT ? [...['ctrl', 'alt', 'shift', 'meta'].filter((m) => SHORTCUT[m]).map((m) => NAMES[m]), SHORTCUT.key.toUpperCase()].join('+') : '';
+  // event.code, not event.key: Option+C types "ç" on macOS.
+  const isShortcut = (e) =>
+    SHORTCUT &&
+    e.altKey === SHORTCUT.alt &&
+    e.ctrlKey === SHORTCUT.ctrl &&
+    e.shiftKey === SHORTCUT.shift &&
+    e.metaKey === SHORTCUT.meta &&
+    (e.code === (/\d/.test(SHORTCUT.key) ? 'Digit' : 'Key') + SHORTCUT.key.toUpperCase() || String(e.key).toLowerCase() === SHORTCUT.key);
   let on = false;
   let picked = null;
 
@@ -14,8 +35,7 @@
   host.setAttribute('data-dfw-ui', '');
   host.style.cssText = 'all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483647';
   const sh = host.attachShadow({ mode: 'open' });
-  sh.innerHTML = `<style>
-:host{font:13px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;color:#111}
+  const css = `:host{font:13px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;color:#111}
 *{box-sizing:border-box}
 .box{position:fixed;border:2px solid #2f6fed;background:rgba(47,111,237,.08);border-radius:2px;pointer-events:none}
 .tag{position:absolute;left:-2px;top:-22px;background:#2f6fed;color:#fff;font-size:11px;padding:2px 6px;border-radius:3px;white-space:nowrap;max-width:60vw;overflow:hidden;text-overflow:ellipsis}
@@ -30,13 +50,21 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
 .row{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}
 .row .ghost{background:#eef0f4;color:#111}
 .toast{position:fixed;left:50%;bottom:72px;transform:translateX(-50%);background:#111;color:#fff;padding:8px 14px;border-radius:6px;pointer-events:none}
-[hidden]{display:none!important}
-</style>
-<div class="box" hidden><span class="tag"></span></div>
-<div class="bar" role="toolbar" aria-label="dfw review"><b>dfw</b><button type="button" class="toggle" aria-pressed="false" title="Comment on an element (C)">Comment</button></div>
+[hidden]{display:none!important}`;
+  sh.innerHTML = `<div class="box" hidden><span class="tag"></span></div>
+<div class="bar" role="toolbar" aria-label="dfw review"><b>dfw</b><button type="button" class="toggle" aria-pressed="false" title="Comment on an element${shortcutLabel ? ` (${shortcutLabel})` : ''}">Comment</button></div>
 <form class="pop" hidden><span class="src"></span><textarea aria-label="Comment for Claude" placeholder="What should change?"></textarea>
 <div class="row"><button type="button" class="ghost cancel">Cancel</button><button type="submit" class="primary">Send to Claude</button></div></form>
 <div class="toast" role="status" hidden></div>`;
+  if (sh.adoptedStyleSheets && typeof CSSStyleSheet === 'function' && 'replaceSync' in CSSStyleSheet.prototype) {
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(css);
+    sh.adoptedStyleSheets = [sheet];
+  } else {
+    const st = document.createElement('style');
+    st.textContent = css;
+    sh.prepend(st);
+  }
   const $ = (s) => sh.querySelector(s);
   const box = $('.box');
   const toggle = $('.toggle');
@@ -167,11 +195,12 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
     'keydown',
     (e) => {
       if (ours(e)) return;
-      const typing = e.target.closest && e.target.closest('input, textarea, select, [contenteditable=""], [contenteditable=true], [contenteditable=plaintext-only]');
+      const t = e.composedPath()[0] || e.target; // the real target inside the app's own shadow roots
+      const typing = t && (t.isContentEditable || (t.closest && t.closest('input, textarea, select, [contenteditable]:not([contenteditable=false])')));
       if (e.key === 'Escape' && (on || !pop.hidden)) {
         closeComposer();
         setOn(false);
-      } else if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && (e.key === 'c' || e.key === 'C') && pop.hidden) {
+      } else if (!typing && !e.repeat && pop.hidden && isShortcut(e)) {
         e.preventDefault();
         e.stopPropagation();
         setOn(!on);

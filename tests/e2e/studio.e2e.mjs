@@ -2,6 +2,8 @@
 // Usage: node tests/e2e/studio.e2e.mjs [--keep] [--shots <dir>]
 // Dev-only: needs the "playwright" package (its click/keyboard API drives the Studio). It is
 // resolved from this repo's node_modules or from $DFW_RUNTIME_DIR (a folder with playwright installed).
+// The browser is Playwright's own Chromium, or $DFW_BROWSER / $CHROME_PATH (e.g. the CI runner's
+// Google Chrome, so no browser download is needed). With $CI set, a missing playwright fails.
 // dfw itself does not use Playwright (it renders through lib/cdp.mjs).
 import fs from 'node:fs';
 import os from 'node:os';
@@ -27,8 +29,9 @@ function loadPlaywright() {
 const pw = loadPlaywright();
 if (!pw) {
   console.log('SKIP: playwright not found (npm i -D playwright, or set DFW_RUNTIME_DIR).');
-  process.exit(0);
+  process.exit(process.env.CI ? 1 : 0);
 }
+if (shotsDir) fs.mkdirSync(shotsDir, { recursive: true });
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dfw-e2e-'));
 const env = { ...process.env, DFW_HOME: path.join(tmp, '.dfwhome') };
@@ -85,10 +88,12 @@ const port = 4700 + Math.floor(Math.random() * 200);
 const started = dfw('studio', 'start', '--port', String(port));
 const url = started.match(/http:\/\/\S+/)[0];
 const { chromium } = pw;
-const browser = await chromium.launch();
+const executablePath = process.env.DFW_BROWSER || process.env.CHROME_PATH || undefined;
+const browser = await chromium.launch(executablePath ? { executablePath } : {});
 let failed = false;
+let page = null;
 try {
-  const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
+  page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(url);
@@ -426,6 +431,7 @@ try {
 } catch (e) {
   failed = true;
   console.error('FAIL studio e2e:', e.message, (e.stack.match(/studio\.e2e\.mjs:\d+/) || [''])[0]);
+  if (shotsDir && page) await page.screenshot({ path: path.join(shotsDir, 'studio-failure.png'), fullPage: true }).catch(() => {});
 } finally {
   await browser.close();
   dfw('studio', 'stop');

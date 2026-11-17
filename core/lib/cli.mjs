@@ -39,7 +39,7 @@ import { layoutCheck, changedScreens, markChecked } from './layout.mjs';
 import { buildPalette, typeScale } from './color.mjs';
 import { waitForComments, formatForClaude, undelivered, markDelivered } from './inbox.mjs';
 import { inspectorSetup, formatPlan, INSPECTOR } from './inspector.mjs';
-import { startLiveServer, assertLocalTarget } from './live.mjs';
+import { startLiveServer, assertLocalTarget, normalizeShortcut, DEFAULT_SHORTCUT } from './live.mjs';
 
 const HELP = `dfw - design-first workflow CLI
 
@@ -83,7 +83,7 @@ Design workspace
   dfw lint [files...] [--json]                  dfw design lint only (fast)
   dfw check [files...|--url <u>] [--states] [--themes] [--no-a11y] [--lighthouse] [--json] [--setup]   dfw lint + Impeccable + sloplint + axe (rendered a11y; whole design or URL); --lighthouse: performance/SEO of a running app (pinned, via npx)
   dfw studio start|stop|status [--port <n>]     Local Design Studio (canvas + click-to-comment)
-  dfw review start --url <dev server> [--port <n>] [--no-shots] | stop | status
+  dfw review start --url <dev server> [--port <n>] [--shortcut <combo>] [--no-shots] | stop | status
                                                 Click-to-comment on the running app (local proxy; comments carry file:line with the inspector)
   dfw inspector setup [--write] [--json]        Source mapping for review: code-inspector-plugin (dev-only); --write only after G3 approved it
   dfw shoot [--screen <id>|--page <id>] [--variant <id>] [--bp <ids>] [--state <s>|--states] [--theme <t>|--themes] [--system]
@@ -347,9 +347,11 @@ async function cmdReview(root, a) {
     if (fs.existsSync(file)) fs.unlinkSync(file);
     return out('review stopped');
   }
-  if (sub !== 'start') throw new DfwError('Usage: dfw review start --url <dev server url> [--port <n>] [--no-shots] | stop | status');
+  if (sub !== 'start') throw new DfwError('Usage: dfw review start --url <dev server url> [--port <n>] [--shortcut <combo>] [--no-shots] | stop | status');
   if (!a.url) throw new DfwError('dfw review start needs --url <the running app, e.g. http://localhost:5173>.');
   const target = assertLocalTarget(String(a.url)).origin;
+  // Comment-mode key: --shortcut, else "dfw config set review.shortcut <combo>", else Alt/Option+C ("off": button only).
+  const shortcut = normalizeShortcut(a.shortcut !== undefined ? a.shortcut : (loadConfig(root).review?.shortcut ?? DEFAULT_SHORTCUT));
   if (running) {
     if (info.target === target) return out(`review already running: ${info.url} -> ${target}`);
     process.kill(info.pid);
@@ -360,14 +362,19 @@ async function cmdReview(root, a) {
   const log = fs.openSync(path.join(p.dfw, 'review.log'), 'a');
   const self = selfCommand();
   const args = [...self.args, '__review-server', '--root', root, '--url', target, '--port', String(port)];
+  args.push('--shortcut', shortcut);
   if (a['no-shots']) args.push('--no-shots');
   const child = spawn(self.cmd, args, { detached: true, stdio: ['ignore', log, log] });
   child.unref();
-  const url = `http://127.0.0.1:${port}/`;
-  if (!(await waitFor(`${url}__dfw/api/live`))) throw new DfwError(`dfw review did not start; see ${path.join(p.dfw, 'review.log')}`);
-  writeJson(file, { pid: child.pid, port, url, target, startedAt: nowIso() });
+  // Always bound on 127.0.0.1; served as http://localhost:<port>/ for a localhost app (its cookies then reach the proxy).
+  const probe = `http://127.0.0.1:${port}/__dfw/api/live`;
+  if (!(await waitFor(probe))) throw new DfwError(`dfw review did not start; see ${path.join(p.dfw, 'review.log')}`);
+  const url = (await (await fetch(probe)).json()).url || `http://127.0.0.1:${port}/`;
+  writeJson(file, { pid: child.pid, port, url, target, shortcut, startedAt: nowIso() });
   const path0 = new URL(String(a.url)).pathname;
-  return out(`review running: ${url.replace(/\/$/, path0)}  (proxy of ${target})\nOpen it, press C (or "Comment"), click an element, write, Cmd/Ctrl+Enter. Comments arrive like Studio comments (dfw comments wait).`);
+  const label = shortcut.split('+').map((k) => ({ alt: 'Alt/Option', meta: 'Cmd/Meta', ctrl: 'Ctrl', shift: 'Shift' })[k] || k.toUpperCase()).join('+');
+  const key = shortcut === 'off' ? '' : ` (or ${label})`;
+  return out(`review running: ${url.replace(/\/$/, path0)}  (proxy of ${target})\nOpen it, click "Comment"${key}, click an element, write, Cmd/Ctrl+Enter. Comments arrive like Studio comments (dfw comments wait).`);
 }
 
 function cmdInspector(root, a) {
@@ -633,7 +640,7 @@ export async function main(argv) {
     const r = parseArgs(argv.slice(1));
     const root = path.resolve(r.root || process.cwd());
     const log = (m) => console.error(`dfw review: ${m}`);
-    const { url } = await startLiveServer({ root, target: r.url, port: Number(r.port) || 4700, shots: !r['no-shots'], log });
+    const { url } = await startLiveServer({ root, target: r.url, port: Number(r.port) || 4700, shots: !r['no-shots'], shortcut: r.shortcut, log });
     console.log(`dfw review: ${url} -> ${r.url}  (project: ${root})`);
     return; // the listening server keeps the process alive
   }

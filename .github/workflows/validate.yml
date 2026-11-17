@@ -19,3 +19,34 @@ jobs:
         run: node scripts/build.mjs --check
       - name: Marketplace validation (structure, cross-references, no upstream hooks, conflict lint)
         run: node scripts/validate.mjs
+  e2e:
+    # Studio click-to-comment end to end (tests/e2e/studio.e2e.mjs). Playwright is a dev-only
+    # driver installed outside the repo (DFW_RUNTIME_DIR, no repo dependency, no browser download):
+    # it drives the runner's preinstalled Google Chrome.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      PLAYWRIGHT_VERSION: 1.64.1
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Playwright library (pinned) and the runner's Chrome
+        run: |
+          echo "DFW_RUNTIME_DIR=$RUNNER_TEMP/dfw-runtime" >> "$GITHUB_ENV"
+          npm install --prefix "$RUNNER_TEMP/dfw-runtime" --no-audit --no-fund --no-save "playwright@$PLAYWRIGHT_VERSION"
+          chrome="$(command -v google-chrome || command -v google-chrome-stable)"
+          "$chrome" --version
+          echo "DFW_BROWSER=$chrome" >> "$GITHUB_ENV"
+      - name: End-to-end (Studio)
+        run: node tests/e2e/studio.e2e.mjs --shots "$RUNNER_TEMP/e2e-shots"
+      - name: Upload screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-screenshots
+          path: ${{ runner.temp }}/e2e-shots
+          if-no-files-found: ignore
+          retention-days: 7
