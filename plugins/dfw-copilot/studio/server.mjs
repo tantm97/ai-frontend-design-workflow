@@ -13,6 +13,7 @@ import { composeHtml, loadComponents, buildSystem, escapeHtml } from '../lib/com
 import { applyEdit, undoEdit, loadTokenNames } from '../lib/edit.mjs';
 import { studioPages, screenFlows } from './pages.mjs';
 import { screenshot } from '../lib/runtime.mjs';
+import { exportPenpot, importChanges, formatImportChanges } from '../lib/penpot.mjs';
 
 // Started as "dfw __studio-server --root <dir> --port <n>" (works the same from source and in the binary).
 const HERE = path.join(PLUGIN_ROOT, 'studio');
@@ -205,6 +206,43 @@ function tokenList() {
   return out;
 }
 
+// Penpot bridge: Penpot (in the user's browser) fetches the plugin manifest and code cross-origin;
+// the plugin UI is served from here, so its data calls are same-origin. Writes accept only that origin.
+const PENPOT_STATIC = path.join(HERE, 'penpot');
+const PENPOT_CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET', 'Access-Control-Allow-Headers': 'content-type', 'Access-Control-Allow-Private-Network': 'true' };
+let penpotExporting = null;
+async function penpotRoute(req, res, p, url) {
+  const origin = `http://${host}:${port}`;
+  const rel = p.slice('/__dfw/penpot/'.length);
+  const cors = (code, body, type) => {
+    res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-store', ...PENPOT_CORS });
+    res.end(body);
+  };
+  if (req.method === 'OPTIONS') return cors(204, '', 'text/plain');
+  if (rel === 'manifest.json') {
+    const m = { name: 'dfw bridge', description: 'Build boards from a local dfw design and send designer changes back as dfw comments (local Studio on 127.0.0.1).', version: 2, code: 'plugin.js', icon: 'icon.svg', permissions: ['content:read', 'content:write', 'library:read', 'library:write', 'comment:read', 'allow:downloads'] };
+    return cors(200, JSON.stringify(m, null, 2), MIME['.json']);
+  }
+  if (rel === 'plugin.js') return cors(200, fs.readFileSync(path.join(PENPOT_STATIC, 'plugin.js'), 'utf8').replaceAll('__DFW_STUDIO_ORIGIN__', origin), MIME['.js']);
+  if (rel === 'icon.svg') return cors(200, fs.readFileSync(path.join(PENPOT_STATIC, 'icon.svg')), MIME['.svg']);
+  if (rel === 'ui.html') return send(res, 200, fs.readFileSync(path.join(PENPOT_STATIC, 'ui.html')), MIME['.html']);
+  if (rel === 'export.json' && req.method === 'GET') {
+    const file = path.join(P.dfw, 'penpot', 'export.json');
+    if (url.searchParams.get('refresh') === '1' || !fs.existsSync(file)) {
+      penpotExporting ||= exportPenpot(root, { page: url.searchParams.get('page') || null, bp: url.searchParams.get('bp') || null }).finally(() => (penpotExporting = null));
+      return send(res, 200, (await penpotExporting).doc);
+    }
+    return send(res, 200, fs.readFileSync(file), MIME['.json']);
+  }
+  if (rel === 'changes' && req.method === 'POST') {
+    const from = req.headers.origin;
+    if (from && from !== origin && from !== `http://localhost:${port}`) return send(res, 403, { error: `origin ${from} not allowed` });
+    const r = importChanges(root, await body(req), { state: loadState(root) });
+    return send(res, 200, { summary: formatImportChanges(r, root), comments: r.comments.map((c) => c.id), changes: r.changes.length });
+  }
+  return send(res, 404, { error: 'not found' });
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${host}:${port}`);
@@ -232,6 +270,7 @@ const server = http.createServer(async (req, res) => {
       if (!f || !f.endsWith('.png') || !fs.existsSync(f)) return send(res, 404, { error: 'not found' });
       return send(res, 200, fs.readFileSync(f), 'image/png');
     }
+    if (p.startsWith('/__dfw/penpot/')) return await penpotRoute(req, res, p, url);
     if (p === '/__dfw/api/manifest') return send(res, 200, manifest());
     if (p === '/__dfw/api/state') {
       const state = loadState(root);

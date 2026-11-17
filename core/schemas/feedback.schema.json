@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://dfw.local/schemas/feedback.schema.json",
   "title": "dfw review session (feedback contract)",
-  "description": "Tool-independent visual feedback contract. Any review provider (dfw studio overlay, future Agentation/Penpot adapters) writes this shape to .dfw/reviews/rv_<timestamp>.json.",
+  "description": "Tool-independent visual feedback contract. Any review provider (dfw studio overlay, the Penpot bridge with provider \"penpot\", a future Agentation adapter) writes this shape to .dfw/reviews/rv_<timestamp>.json.",
   "type": "object",
   "required": ["schema", "id", "startedAt", "designVersion", "comments"],
   "properties": {

@@ -1,0 +1,14 @@
+page stock "Stock"
+  board "items / a @ desktop" key=items|a|desktop 1024w background=color.canvas
+    frame items path=0
+      text items.title path=0.0 "Inventory" color=color.ink
+      frame items.add path=0.1 component=button|primary| fill=color.accent radius=radius.md
+        text text path=0.1.0 anchor=items.add "Add item" color=color.on-accent
+      frame items.export path=0.2 component=button|ghost| stroke=color.border radius=radius.md
+        text text path=0.2.0 anchor=items.export "Export" color=color.ink
+      frame items.panel path=0.3 fill=color.surface stroke=color.border radius=radius.md
+        frame items.summary path=0.3.0 borders=bottom
+          text text path=0.3.0.0 anchor=items.summary "12 items, 3 low on stock" color=color.ink
+        text items.note path=0.3.1 "Counted on Monday." color=color.ink
+component "button / primary" key=button|primary| sig=frame:button|primary|[text:text]
+component "button / ghost" key=button|ghost| sig=frame:button|ghost|[text:text]

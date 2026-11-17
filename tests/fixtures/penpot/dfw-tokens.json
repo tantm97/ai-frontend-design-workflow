@@ -1,0 +1,33 @@
+{
+  "$description": "Fixture: dfw tokens covering every type the Penpot bridge maps, plus unsupported ones.",
+  "color": {
+    "$type": "color",
+    "blue": { "600": { "$value": { "colorSpace": "srgb", "components": [0, 0.4, 1], "hex": "#0066ff" } } },
+    "ink": { "$value": { "colorSpace": "srgb", "components": [0.11, 0.106, 0.102], "hex": "#1c1b1a" }, "$description": "Body text" },
+    "accent": { "$value": "{color.blue.600}" },
+    "veil": { "$value": { "colorSpace": "srgb", "components": [0.06, 0.07, 0.09], "alpha": 0.4 } },
+    "soft": { "$value": { "colorSpace": "oklch", "components": [0.9, 0.05, 250] } }
+  },
+  "space": { "$type": "dimension", "2": { "$value": { "value": 8, "unit": "px" } }, "4": { "$value": { "value": 16, "unit": "px" } }, "gutter": { "$value": "{space.4}" } },
+  "radius": { "$type": "dimension", "md": { "$value": { "value": 6, "unit": "px" } } },
+  "border": { "width": { "$type": "dimension", "$value": { "value": 1, "unit": "px" } } },
+  "size": { "control": { "$type": "dimension", "$value": { "value": 40, "unit": "px" } } },
+  "font": {
+    "family": { "$type": "fontFamily", "body": { "$value": ["Inter", "Segoe UI", "sans-serif"] } },
+    "size": { "$type": "dimension", "md": { "$value": { "value": 16, "unit": "px" } }, "lg": { "$value": { "value": 1.25, "unit": "rem" } } },
+    "weight": { "$type": "fontWeight", "regular": { "$value": 400 }, "bold": { "$value": 700 } },
+    "leading": { "$type": "number", "body": { "$value": 1.5 } },
+    "tracking": { "$type": "dimension", "tight": { "$value": { "value": -0.02, "unit": "em" } } },
+    "eyebrow": { "case": { "$type": "string", "$value": "uppercase" }, "note": { "$type": "string", "$value": "free text" } }
+  },
+  "type": {
+    "body": { "$type": "typography", "$value": { "fontFamily": "{font.family.body}", "fontSize": "{font.size.md}", "fontWeight": "{font.weight.regular}", "letterSpacing": { "value": 0, "unit": "px" }, "lineHeight": "{font.leading.body}" } }
+  },
+  "shadow": {
+    "$type": "shadow",
+    "sm": { "$value": [{ "color": { "colorSpace": "srgb", "components": [0.06, 0.07, 0.09], "alpha": 0.06 }, "offsetX": { "value": 0, "unit": "px" }, "offsetY": { "value": 1, "unit": "px" }, "blur": { "value": 2, "unit": "px" }, "spread": { "value": 0, "unit": "px" } }] },
+    "inner": { "$value": { "color": "{color.ink}", "offsetX": { "value": 0, "unit": "px" }, "offsetY": { "value": 1, "unit": "px" }, "blur": { "value": 0, "unit": "px" }, "spread": { "value": 0, "unit": "px" }, "inset": true } }
+  },
+  "duration": { "$type": "duration", "fast": { "$value": { "value": 120, "unit": "ms" } } },
+  "easing": { "out": { "$type": "cubicBezier", "$value": [0.2, 0, 0, 1] } }
+}
