@@ -33,7 +33,10 @@ export function formatForClaude(comments) {
     const reopened = c.status === 'reopened' && last ? `\n    reopened by ${last.by}: "${last.message}"` : '';
     return `- ${c.id} [${c.status}] ${where} -> ${target}${c.target?.source ? ` (${c.target.source})` : ''}${c.target?.component ? ` component ${c.target.component}` : ''}\n    "${c.comment}"${reopened}`;
   });
-  return `${comments.length} new Studio comment(s) from the user:\n${lines.join('\n')}\nApply them now (references/phase-review.md > "Applying comments"): "dfw comments ack <id>", fix (prefer design-system fixes when the comment is about a component or token), check, then "dfw comments fixed <id> --message \\"<what changed>\\"". If a comment conflicts with an approved decision or is ambiguous, reply with "dfw comments reply <id> --message ..." and ask the user.`;
+  const live = comments.some((c) => c.provider === 'dfw-live')
+    ? '\nComments marked "live" are on the running app (dfw review): open target.source (file:line:col) and fix the implementation there; without a source, find the element by its selector and text (phase-verify).'
+    : '';
+  return `${comments.length} new Studio comment(s) from the user:\n${lines.join('\n')}${live}\nApply them now (references/phase-review.md > "Applying comments"): "dfw comments ack <id>", fix (prefer design-system fixes when the comment is about a component or token), check, then "dfw comments fixed <id> --message \\"<what changed>\\"". If a comment conflicts with an approved decision or is ambiguous, reply with "dfw comments reply <id> --message ..." and ask the user.`;
 }
 
 /** Block until undelivered comments exist (or timeout). Returns the comments (marked delivered). */

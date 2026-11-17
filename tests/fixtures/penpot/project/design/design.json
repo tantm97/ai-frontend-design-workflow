@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "product": "Fixture",
+  "breakpoints": [
+    { "id": "desktop", "width": 1024, "height": 640 },
+    { "id": "mobile", "width": 390, "height": 700 }
+  ],
+  "pages": [{ "id": "stock", "title": "Stock", "screens": ["items"] }],
+  "screens": [
+    { "id": "items", "title": "Items", "variants": [{ "id": "a", "file": "screens/items/a.html" }] }
+  ]
+}

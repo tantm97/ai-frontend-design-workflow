@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Items - Fixture</title>
+  <dfw-head></dfw-head>
+  <style>
+    body { margin: 0; background: var(--color-canvas); color: var(--color-ink); font-family: var(--font-family-body); font-size: var(--font-size-md); }
+    main { padding: var(--space-4); display: grid; gap: var(--space-4); }
+    .bar { display: flex; gap: var(--space-2); align-items: center; }
+    .panel { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); }
+    .rule { border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-2); }
+  </style>
+</head>
+<body>
+  <main data-dfw-id="items">
+    <div class="bar">
+      <h1 data-dfw-id="items.title">Inventory</h1>
+      <dfw-use c="button" variant="primary" id="items.add">Add item</dfw-use>
+      <dfw-use c="button" variant="ghost" id="items.export">Export</dfw-use>
+    </div>
+    <section class="panel" data-dfw-id="items.panel">
+      <p class="rule" data-dfw-id="items.summary">12 items, <strong>3</strong> low on stock</p>
+      <p data-dfw-id="items.note">Counted on Monday.</p>
+    </section>
+  </main>
+</body>
+</html>
