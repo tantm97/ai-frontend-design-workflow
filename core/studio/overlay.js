@@ -362,7 +362,7 @@
 
   let layoutCfg = { enabled: false, scope: '' };
   let drag = null; // { el, x, y, active, drop, prevOpacity, prevPointer }
-  let resize = null; // { el, axis, rect, pick, prop, prev }
+  let resize = null; // { el, axis, rect, x, y, moved, pick, prop, prev }
   let suppressClick = false;
   let lengthCache = null;
   const FLOW = /^(inline-)?(flex|grid)$/;
@@ -388,14 +388,15 @@
   const hY = mk(`${HANDLE}cursor:ns-resize;`);
   hX.dataset.dfwHandle = 'x';
   hY.dataset.dfwHandle = 'y';
-  hX.title = 'Drag to resize the width (snaps to grid columns, size tokens or percentages). Alt+Shift+Left/Right';
-  hY.title = 'Drag to set a min-height (snaps to spacing/size tokens). Alt+Shift+Up/Down';
+  hX.title = 'Drag to resize the width (snaps to grid columns, size tokens or percentages). Alt+Shift+Left/Right. Double-click: back to auto';
+  hY.title = 'Drag to set a min-height (snaps to spacing/size tokens). Alt+Shift+Up/Down. Double-click: back to auto';
   const line = mk('background:#0d99ff;border-radius:2px;');
+  const zone = mk('border:2px dashed #0d99ff;background:rgba(13,153,255,.12);border-radius:4px;'); // drop-into-container highlight
   const badge = mk('padding:2px 6px;border-radius:4px;background:#0d99ff;color:#fff;font:600 11px/16px system-ui,sans-serif;white-space:nowrap;');
   const mountUi = () => !ui.isConnected && (document.body || document.documentElement).append(ui);
 
   function placeHandles() {
-    const show = !drag?.active && !resize && selected && canLayout(selected) && selected.getClientRects().length;
+    const show = !drag?.active && !resize?.moved && selected && canLayout(selected) && selected.getClientRects().length;
     hX.style.display = hY.style.display = show ? 'block' : 'none';
     if (!show) return;
     mountUi();
@@ -415,6 +416,7 @@
   }
   const hideFeedback = () => {
     line.style.display = 'none';
+    zone.style.display = 'none';
     badge.style.display = 'none';
   };
   const scoped = (t) => (layoutCfg.scope ? `${t} · ${layoutCfg.scope}` : t);
@@ -470,13 +472,18 @@
     const el = selected;
     const opts = snapOptions(el, axis);
     if (!opts.list.length) return post('dfw:toast', { message: 'No size tokens to snap to.' });
-    resize = { el, axis, rect: el.getBoundingClientRect(), ...opts, pick: null, prev: el.style[styleProp[opts.prop]] };
+    resize = { el, axis, rect: el.getBoundingClientRect(), x: e.clientX, y: e.clientY, moved: false, ...opts, pick: null, prev: el.style[styleProp[opts.prop]] };
     placeHandles();
-    moveResize(e);
   }
 
   function moveResize(e) {
     const r = resize;
+    // A click (or the double-click that resets) on a handle is not a resize.
+    if (!r.moved && Math.hypot(e.clientX - r.x, e.clientY - r.y) < 3) return;
+    if (!r.moved) {
+      r.moved = true;
+      placeHandles();
+    }
     const px = r.axis === 'x' ? e.clientX - r.rect.left : e.clientY - r.rect.top;
     const o = nearest(r.list, px);
     if (o !== r.pick) {
@@ -491,18 +498,29 @@
     const r = resize;
     resize = null;
     hideFeedback();
-    if (commit && r.pick) post('dfw:layout-op', { op: 'layout', id: r.el.dataset.dfwId, prop: r.prop, value: r.pick.value, label: r.pick.label });
+    if (commit && r.moved && r.pick) post('dfw:layout-op', { op: 'layout', id: r.el.dataset.dfwId, prop: r.prop, value: r.pick.value, label: r.pick.label });
     else r.el.style[styleProp[r.prop]] = r.prev;
     placeHandles();
     reportSelection();
   }
 
-  /** Where a dragged element would land: { ref, position, vertical } next to a data-dfw-id child of a flex/grid container. */
+  /** An empty flex/grid container with a data-dfw-id: nothing in it but whitespace (and dfw UI). */
+  const isEmptyBox = (n) => n.dataset && n.dataset.dfwId && isFlow(n) && ![...n.children].some((k) => !k.hasAttribute('data-dfw-ui')) && !n.textContent.trim();
+
+  /**
+   * Where a dragged element would land: { ref, position, vertical } next to a data-dfw-id child of a flex/grid
+   * container, or { ref: container, position: 'inside' } over an empty flex/grid container that has a data-dfw-id.
+   */
   function dropAt(x, y) {
     const d = drag.el;
     let n = document.elementFromPoint(x, y);
     let c = null;
     const home = d.parentElement;
+    for (let e = n; e && e !== home && e !== document.documentElement; e = e.parentElement) {
+      if (isUi(e) || d.contains(e)) break;
+      if (isEmptyBox(e)) return { ref: e, position: 'inside', r: e.getBoundingClientRect() };
+      if (isFlow(e) && idKids(e).length) break;
+    }
     const hr = home.getBoundingClientRect();
     if (x >= hr.left && x <= hr.right && y >= hr.top && y <= hr.bottom) c = home;
     for (; !c && n && n !== document.documentElement; n = n.parentElement) {
@@ -541,10 +559,16 @@
     const t = (drag.drop = dropAt(e.clientX, e.clientY));
     mountUi();
     if (!t) {
-      line.style.display = 'none';
-      return showBadge('Drop next to a sibling in a flex or grid container', e.clientX, e.clientY);
+      line.style.display = zone.style.display = 'none';
+      return showBadge('Drop next to a sibling in a flex or grid container, or into an empty one', e.clientX, e.clientY);
     }
     const { r } = t;
+    if (t.position === 'inside') {
+      line.style.display = 'none';
+      Object.assign(zone.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${Math.max(r.height, 8)}px`, display: 'block' });
+      return showBadge(`Into ${t.ref.dataset.dfwId}`, e.clientX, e.clientY);
+    }
+    zone.style.display = 'none';
     const edge = t.position === 'before' ? (t.vertical ? r.left : r.top) : t.vertical ? r.right : r.bottom;
     Object.assign(line.style, t.vertical ? { left: `${edge - 2}px`, top: `${r.top}px`, width: '3px', height: `${r.height}px` } : { left: `${r.left}px`, top: `${edge - 2}px`, width: `${r.width}px`, height: '3px' });
     line.style.display = 'block';
@@ -560,7 +584,10 @@
     g.el.style.pointerEvents = g.prevPointer;
     suppressClick = true; // the click that ends the drag must not re-select (reset on the next mousedown)
     const t = g.drop;
-    if (commit && t) {
+    if (commit && t && t.position === 'inside') {
+      t.ref.append(g.el); // optimistic; the frame reloads from the source
+      post('dfw:layout-op', { op: 'move', id: g.el.dataset.dfwId, ref: t.ref.dataset.dfwId, position: 'inside', label: `Moved into ${t.ref.dataset.dfwId}` });
+    } else if (commit && t) {
       const next = t.position === 'before' ? t.ref : t.ref.nextSibling;
       if (next !== g.el && !(t.position === 'before' && g.el.nextElementSibling === t.ref) && !(t.position === 'after' && t.ref.nextElementSibling === g.el)) {
         t.ref.parentElement.insertBefore(g.el, next); // optimistic; the frame reloads from the source
@@ -571,10 +598,88 @@
     reportSelection();
   }
 
-  /** Alt+Arrow: move among siblings; Alt+Shift+Arrow: step the span / width (Left/Right) or min-height (Up/Down). */
+  /** Reset to auto: drop the element's layout rule (prop null: the whole rule) at this frame's breakpoint scope. */
+  function resetLayout(el, prop = null) {
+    for (const p of prop ? [prop] : Object.keys(styleProp)) el.style[styleProp[p]] = '';
+    reportSelection();
+    placeHandles();
+    post('dfw:layout-op', { op: 'layout', id: el.dataset.dfwId, prop, value: null, label: prop ? `${prop} reset to auto` : 'Size reset to auto' });
+  }
+
+  /** Style rules of a sheet (recursing into @media that matches now, @layer, @supports) for which pick(rule) is truthy. */
+  function rulesOf(rules, pick, out = []) {
+    for (const r of rules) {
+      if (r.cssRules && !r.selectorText) {
+        if (!r.media || matchMedia(r.media.mediaText).matches) rulesOf(r.cssRules, pick, out);
+      } else if (r.selectorText && pick(r)) out.push(r);
+    }
+    return out;
+  }
+
+  /**
+   * After a resize was written and the frame reloaded: check the element's computed value really changed.
+   * If a screen rule still wins (an id selector, inline style or !important), name it instead of failing silently.
+   */
+  function verifyLayout(d) {
+    const el = document.querySelector(`[data-dfw-id="${CSS.escape(d.id)}"]`);
+    const sheet = document.querySelector('style[data-dfw-layout]')?.sheet;
+    if (!el || !sheet || !styleProp[d.prop]) return;
+    const own = rulesOf(sheet.cssRules, (r) => r.style.getPropertyValue(d.prop) && el.matches(r.selectorText));
+    if (!own.length) return; // not at this width (or already reset)
+    const read = () => (d.prop === 'grid-column' ? ['gridColumnStart', 'gridColumnEnd'] : [styleProp[d.prop]]).map((k) => getComputedStyle(el)[k]).join(' / ');
+    const prev = el.style.getPropertyValue(d.prop);
+    const prevPrio = el.style.getPropertyPriority(d.prop);
+    const now = read();
+    el.style.setProperty(d.prop, own.at(-1).style.getPropertyValue(d.prop), 'important');
+    const ideal = read();
+    el.style.setProperty(d.prop, prev, prevPrio);
+    if (now === ideal) return;
+    const by = conflictFor(el, d.prop, sheet);
+    post('dfw:layout-conflict', { id: d.id, prop: d.prop, selector: by });
+    post('dfw:toast', {
+      message: `Saved, but ${d.id} did not change: ${by ? `"${by}"` : 'another rule'} still sets ${d.prop}${by === 'style attribute' ? '' : ' with higher priority'}. Remove ${d.prop} there (or ask Claude), then resize again.`,
+    });
+  }
+
+  const LONGHANDS = { 'grid-column': ['grid-column', 'grid-column-start', 'grid-column-end', 'grid-area'], width: ['width'], 'min-height': ['min-height'] };
+  /** Rough selector specificity [ids, classes/attributes/pseudo-classes, types], only to rank conflicting rules. */
+  function specificity(sel) {
+    const s = sel.replace(/:where\([^)]*\)/g, '').replace(/:(?:not|is|has)\(/g, '(').replace(/"[^"]*"|'[^']*'/g, '');
+    return [(s.match(/#[\w-]/g) || []).length, (s.match(/\.[\w-]|\[|:(?!:)[\w-]/g) || []).length, (s.replace(/[#.:][\w-]+|\[[^\]]*\]/g, ' ').match(/(^|[\s>+~(,])[a-z][\w-]*/gi) || []).length];
+  }
+  /** Selector of the rule that beats the dfw layout rule for prop on el (inline style, then !important, then specificity). */
+  function conflictFor(el, prop, dfwSheet) {
+    const names = LONGHANDS[prop];
+    if (names.some((n) => el.style.getPropertyValue(n))) return 'style attribute';
+    const hits = [];
+    const matches = (x) => {
+      try {
+        return el.matches(x);
+      } catch {
+        return false;
+      }
+    };
+    for (const sh of document.styleSheets) {
+      if (sh === dfwSheet) continue;
+      let rules = [];
+      try {
+        rules = rulesOf(sh.cssRules, (r) => names.some((n) => r.style.getPropertyValue(n)));
+      } catch {} // cross-origin sheet
+      for (const r of rules) {
+        const sel = r.selectorText.split(',').map((x) => x.trim()).find(matches);
+        const n = names.find((x) => r.style.getPropertyValue(x));
+        if (sel) hits.push({ sel, imp: r.style.getPropertyPriority(n) === 'important', sp: specificity(sel) });
+      }
+    }
+    hits.sort((a, b) => b.imp - a.imp || b.sp[0] - a.sp[0] || b.sp[1] - a.sp[1] || b.sp[2] - a.sp[2]);
+    return hits[0]?.sel || null;
+  }
+
+  /** Alt+Arrow: move among siblings; Alt+Shift+Arrow: step the span / width (Left/Right) or min-height (Up/Down); Alt+Shift+0: reset. */
   function layoutKey(key, shift) {
     const el = selected;
     if (!canLayout(el)) return post('dfw:toast', { message: 'Select an element with a data-dfw-id to move or resize it.' });
+    if (key === 'reset') return resetLayout(el);
     const back = key === 'ArrowLeft' || key === 'ArrowUp';
     if (!shift) {
       if (!canMove(el)) return post('dfw:toast', { message: 'Only children of a flex or grid container can be reordered.' });
@@ -704,6 +809,7 @@
       e.preventDefault();
       e.stopPropagation();
       const t = e.target;
+      if (t.dataset && t.dataset.dfwHandle && canLayout(selected)) return resetLayout(selected, snapOptions(selected, t.dataset.dfwHandle).prop);
       if (t.nodeType === 1 && !t.children.length && norm(t.textContent)) {
         select(t, { inspectIt: true });
         startEdit(t);
@@ -811,6 +917,9 @@
         break;
       case 'dfw:layout-key':
         layoutKey(d.key, !!d.shift);
+        break;
+      case 'dfw:layout-verify':
+        verifyLayout(d);
         break;
       case 'dfw:tokens':
         tokenVars = d.vars || [];

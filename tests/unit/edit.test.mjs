@@ -217,7 +217,7 @@ test('move: inline siblings, no-op, and refusals', () => {
   assert.throws(() => applyEdit(root, { file: G, op: 'move', id: 'dash.b', ref: 'dash.b.title', position: 'after' }), /into itself/);
   assert.throws(() => applyEdit(root, { file: G, op: 'move', id: 'dash.b.title', ref: 'dash.b', position: 'after' }), /parent/);
   assert.throws(() => applyEdit(root, { file: G, op: 'move', id: 'dash.a', ref: 'nope', position: 'after' }), /not found/);
-  assert.throws(() => applyEdit(root, { file: G, op: 'move', id: 'dash.a', ref: 'dash.b', position: 'inside' }), /before.*after/);
+  assert.throws(() => applyEdit(root, { file: G, op: 'move', id: 'dash.a', ref: 'dash.b', position: 'over' }), /before.*after.*inside/);
   assert.equal(readG(root), before);
 });
 
@@ -225,7 +225,7 @@ test('layout: grid-column span rule in a dfw layout block; update, media placeme
   const root = gridProject();
   applyEdit(root, { file: G, op: 'layout', id: 'dash.b', prop: 'grid-column', value: 'span 2' });
   let t = readG(root);
-  assert.match(t, / {2}<style data-dfw-layout>\n {4}\/\* dfw Studio layout edits[^\n]*\*\/\n {4}\[data-dfw-id='dash.b'\] \{ grid-column: span 2; \}\n {2}<\/style>\n<\/head>/);
+  assert.match(t, / {2}<style data-dfw-layout>\n {4}\/\* dfw Studio layout edits[^\n]*\*\/\n {4}\[data-dfw-id='dash.b'\]:not\(#dfw\) \{ grid-column: span 2; \}\n {2}<\/style>\n<\/head>/);
   assert.equal(t.replace(/ {2}<style data-dfw-layout>[\s\S]*?<\/style>\n/, ''), GRID, 'nothing else changed');
   // Same value again: no change (idempotent).
   assert.equal(applyEdit(root, { file: G, op: 'layout', id: 'dash.b', prop: 'grid-column', value: 'span 2' }).changed, false);
@@ -239,13 +239,13 @@ test('layout: grid-column span rule in a dfw layout block; update, media placeme
     block.replace(/\/\*[^*]*\*\//, '/**/'),
     `
     /**/
-    [data-dfw-id='dash.b'] { grid-column: span 3; }
+    [data-dfw-id='dash.b']:not(#dfw) { grid-column: span 3; }
     @media (max-width: 834px) {
-      [data-dfw-id='dash.c'] { grid-column: span 1; }
-      [data-dfw-id='dash.b'] { grid-column: span 2; }
+      [data-dfw-id='dash.c']:not(#dfw) { grid-column: span 1; }
+      [data-dfw-id='dash.b']:not(#dfw) { grid-column: span 2; }
     }
     @media (max-width: 390px) {
-      [data-dfw-id='dash.b'] { grid-column: span 1; }
+      [data-dfw-id='dash.b']:not(#dfw) { grid-column: span 1; }
     }
   `,
     'base first, then media blocks widest first so narrower ones win',
@@ -261,8 +261,8 @@ test('layout: width / min-height snap to tokens or percentages; refusals; lint s
   applyEdit(root, { file: G, op: 'layout', id: 'dash.a', prop: 'min-height', value: 'space.4' });
   applyEdit(root, { file: G, op: 'layout', id: 'dash.c', prop: 'width', value: '--size-sidebar' });
   const t = readG(root);
-  assert.match(t, /\[data-dfw-id='dash.a'\] \{ width: 50%; min-height: var\(--space-4\); \}/);
-  assert.match(t, /\[data-dfw-id='dash.c'\] \{ width: var\(--size-sidebar\); \}/);
+  assert.match(t, /\[data-dfw-id='dash.a'\]:not\(#dfw\) \{ width: 50%; min-height: var\(--space-4\); \}/);
+  assert.match(t, /\[data-dfw-id='dash.c'\]:not\(#dfw\) \{ width: var\(--size-sidebar\); \}/);
   assert.throws(() => applyEdit(root, { file: G, op: 'layout', id: 'dash.a', prop: 'width', value: '37%' }), /snap/);
   assert.throws(() => applyEdit(root, { file: G, op: 'layout', id: 'dash.a', prop: 'width', value: '300px' }), /token/);
   assert.throws(() => applyEdit(root, { file: G, op: 'layout', id: 'dash.a', prop: 'min-height', value: 'color.ink' }), /token/);
@@ -304,4 +304,94 @@ test('edits are refused once the design is approved and locked (G2) or in review
   fs.writeFileSync(stateFile, JSON.stringify({ schema: 1, mode: 'new-product', design: { version: 2, locked: false } }));
   assert.equal(applyEdit(root, { file: G, op: 'text', id: 'dash.a', value: 'Z' }).changed, true, 'editable again after reopen');
   assert.equal(readG(root), GRID.replace('>A<', '>Z<'));
+});
+
+test('layout: rules outrank class-based screen rules via :not(#dfw); older unsuffixed blocks still parse', () => {
+  const root = gridProject();
+  applyEdit(root, { file: G, op: 'layout', id: 'dash.a', prop: 'width', value: '50%' });
+  const rule = /(\[data-dfw-id='dash.a'\][^{]*)\{/.exec(readG(root))[1].trim();
+  assert.equal(rule, "[data-dfw-id='dash.a']:not(#dfw)", 'one id of specificity: (1,1,0) beats e.g. ".dash .card" (0,2,0) without !important');
+  // A block written before the suffix existed is read and rewritten in the current form.
+  fs.writeFileSync(path.join(root, 'design', G), GRID.replace('</head>', "  <style data-dfw-layout>\n    [data-dfw-id='dash.b'] { grid-column: span 2; }\n  </style>\n</head>"));
+  applyEdit(root, { file: G, op: 'layout', id: 'dash.c', prop: 'grid-column', value: 'span 1' });
+  assert.match(readG(root), /\[data-dfw-id='dash.b'\]:not\(#dfw\) \{ grid-column: span 2; \}\n {4}\[data-dfw-id='dash.c'\]:not\(#dfw\) \{ grid-column: span 1; \}/);
+});
+
+test('layout reset: value "auto" removes one property; no prop removes the rule at that scope only', () => {
+  const root = gridProject();
+  applyEdit(root, { file: G, op: 'layout', id: 'dash.a', prop: 'width', value: '50%' });
+  applyEdit(root, { file: G, op: 'layout', id: 'dash.a', prop: 'min-height', value: 'space.4' });
+  applyEdit(root, { file: G, op: 'layout', id: 'dash.a', prop: 'width', value: '25%', maxWidth: 390 });
+  applyEdit(root, { file: G, op: 'layout', id: 'dash.a', prop: 'width', value: 'auto' });
+  assert.match(readG(root), /\[data-dfw-id='dash.a'\]:not\(#dfw\) \{ min-height: var\(--space-4\); \}\n {4}@media/);
+  applyEdit(root, { file: G, op: 'layout', id: 'dash.a', maxWidth: 390 });
+  const t = readG(root);
+  assert.doesNotMatch(t, /@media/, 'empty media block removed');
+  assert.match(t, /min-height: var\(--space-4\)/, 'base rule kept');
+  assert.equal(applyEdit(root, { file: G, op: 'layout', id: 'dash.a', maxWidth: 390 }).changed, false, 'nothing to reset');
+  applyEdit(root, { file: G, op: 'layout', id: 'dash.a', prop: null, value: null });
+  assert.equal(readG(root), GRID, 'last rule removed: block removed, file restored');
+});
+
+test('move inside: drops into an empty container (own-line close tag, one-line empty, inline); refusals', () => {
+  const root = gridProject();
+  const withEmpty = GRID.replace(
+    '    <div class="row"',
+    '    <section class="cards" data-dfw-id="dash.empty">\n    </section>\n    <div class="cols" data-dfw-id="dash.cols"></div>\n    <div class="row"',
+  );
+  fs.writeFileSync(path.join(root, 'design', G), withEmpty);
+  applyEdit(root, { file: G, op: 'move', id: 'dash.b', ref: 'dash.empty', position: 'inside' });
+  assert.match(readG(root), /<section class="cards" data-dfw-id="dash.empty">\n      <article data-dfw-id="dash.b">\n        <h2 data-dfw-id="dash.b.title">B<\/h2>\n      <\/article>\n    <\/section>/);
+  applyEdit(root, { file: G, op: 'move', id: 'dash.a', ref: 'dash.cols', position: 'inside' });
+  assert.match(readG(root), /<div class="cols" data-dfw-id="dash.cols">\n      <div data-dfw-id="dash.a">A<\/div>\n    <\/div>/);
+  undoEdit(root);
+  undoEdit(root);
+  assert.equal(readG(root), withEmpty, 'undo restores the source byte for byte');
+  applyEdit(root, { file: G, op: 'move', id: 'dash.x', ref: 'dash.cols', position: 'inside' });
+  assert.match(readG(root), /<div class="cols" data-dfw-id="dash.cols"><span data-dfw-id="dash.x">x<\/span><\/div>/, 'inline element into an inline container');
+  assert.throws(() => applyEdit(root, { file: G, op: 'move', id: 'dash.cards', ref: 'dash.b.title', position: 'inside' }), /into itself/);
+  assert.throws(() => applyEdit(root, { file: G, op: 'move', id: 'dash.a', ref: 'dash.c', position: 'inside' }), /component instance/);
+});
+
+/* ---------------------------------------------------------------- containers built by a component template */
+
+const SHELL = `<dfw-component name="app-shell" description="App frame with a nav and a main slot">
+<template><div class="shell" data-dfw-id="shell.frame"><nav data-dfw-id="shell.nav">Nav</nav><main class="shell-main" data-dfw-id="shell.main"><dfw-slot name="main"></dfw-slot></main></div></template>
+</dfw-component>`;
+const SLOTTED = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+</head>
+<body>
+  <dfw-use c="app-shell" id="orders.shell">
+    <dfw-fill slot="main">
+      <section data-dfw-id="orders.summary">Summary</section>
+      <section data-dfw-id="orders.table">Table</section>
+      <aside data-dfw-id="orders.help">Help</aside>
+    </dfw-fill>
+  </dfw-use>
+</body>
+</html>`;
+
+test('slot content: screen elements reorder among slot siblings; master-only ids are refused with a hint to edit the master', async () => {
+  const root = gridProject();
+  fs.writeFileSync(path.join(root, 'design/system/components/app-shell.html'), SHELL);
+  const S = 'screens/home/slotted.html';
+  fs.writeFileSync(path.join(root, 'design', S), SLOTTED);
+  const { composeHtml } = await import('../../core/lib/compose.mjs');
+  assert.match(composeHtml(root, SLOTTED).html, /<main class="shell-main" data-dfw-id="shell.main">\s*<section data-dfw-id="orders.summary">/, 'slot children render inside the master-built container');
+  applyEdit(root, { file: S, op: 'move', id: 'orders.help', ref: 'orders.summary', position: 'before' });
+  assert.match(read(root, `design/${S}`), /<dfw-fill slot="main">\n      <aside data-dfw-id="orders.help">Help<\/aside>\n      <section data-dfw-id="orders.summary">/);
+  applyEdit(root, { file: S, op: 'layout', id: 'orders.table', prop: 'min-height', value: 'space.4' });
+  assert.match(read(root, `design/${S}`), /\[data-dfw-id='orders.table'\]:not\(#dfw\) \{ min-height: var\(--space-4\); \}/);
+  const before = read(root, `design/${S}`);
+  for (const op of [
+    { op: 'move', id: 'shell.nav', ref: 'orders.summary', position: 'after' },
+    { op: 'move', id: 'orders.table', ref: 'shell.nav', position: 'before' },
+    { op: 'move', id: 'orders.table', ref: 'shell.main', position: 'inside' },
+    { op: 'layout', id: 'shell.nav', prop: 'width', value: '25%' },
+  ]) assert.throws(() => applyEdit(root, { file: S, ...op }), /part of the component master "app-shell" \(design\/system\/components\/app-shell\.html\).*Edit the master/);
+  assert.throws(() => applyEdit(root, { file: S, op: 'move', id: 'orders.table', ref: 'nope', position: 'before' }), /was not found/);
+  assert.equal(read(root, `design/${S}`), before, 'refusals change nothing');
 });

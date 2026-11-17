@@ -1,9 +1,10 @@
 // Direct edits from the Studio, written back to the design SOURCE files.
 // Small, surgical changes only: element text, component instance attributes
 // (variant / size / declared props), layout spacing via space tokens, and
-// constrained layout manipulation: reordering an element next to a sibling
-// (moves its source) and resizing that snaps to the system (grid-column span,
-// width/min-height tokens) written to a dfw-owned <style data-dfw-layout> block.
+// constrained layout manipulation: reordering an element next to a sibling or
+// into an empty container (moves its source) and resizing that snaps to the
+// system (grid-column span, width/min-height tokens) written to a dfw-owned
+// <style data-dfw-layout> block (or reset to auto by removing the rule).
 // Every edit is journaled in .dfw/edits/<stamp>.json so it can be undone.
 //
 // Elements are located by data-dfw-id (or the id of a <dfw-use>/<dfw-icon>
@@ -146,8 +147,8 @@ const MAX_SPAN = 24;
 
 /** Validate a resize value and return the CSS to write (null = remove the declaration). */
 export function layoutValue(root, prop, value) {
-  if (value == null || value === '') return null;
-  const v = String(value).trim();
+  const v = String(value ?? '').trim();
+  if (!v || v === 'auto') return null; // reset to the screen's own layout
   if (prop === 'grid-column') {
     const m = /^(?:span\s+)?(\d+)$/.exec(v);
     if (!m || +m[1] < 1 || +m[1] > MAX_SPAN) throw new DfwError(`grid-column must be "span N" with N from 1 to ${MAX_SPAN}.`);
@@ -198,6 +199,43 @@ export function moveSource(text, el, ref, position) {
     : text.slice(0, at) + ins + text.slice(at, cut[0]) + text.slice(cut[1]);
 }
 
+/** Move the source of element `el` to the end of container `box` (drop into an empty flex/grid container). */
+export function moveInside(text, el, box) {
+  if (box.start >= el.start && box.end <= el.end) throw new DfwError('An element cannot be moved into itself.');
+  if (box.end === box.openEnd || box.innerStart == null) throw new DfwError(`<${box.tag}> cannot contain other elements.`);
+  if (box.isInstance) throw new DfwError('Dropping into a component instance is not supported; its content is defined by the master and its slots.');
+  const a = lineSpan(text, el.start, el.end);
+  const block = text.slice(el.start, el.end);
+  const inner = text.slice(box.innerStart, box.innerEnd);
+  const boxLine = lineSpan(text, box.start, box.start);
+  const closeLine = lineSpan(text, box.innerEnd, box.innerEnd);
+  const reindent = (to) => {
+    const lines = block.split('\n');
+    return [lines[0], ...lines.slice(1).map((l) => (l.startsWith(a.indent) ? to + l.slice(a.indent.length) : l))].join('\n');
+  };
+  let cut = [el.start, el.end];
+  let at = box.innerEnd;
+  let ins = block;
+  if (a.own) {
+    cut = [a.ls, Math.min(text.length, a.le + 1)];
+    if (/^[ \t]*$/.test(closeLine.indent) && closeLine.ls > box.innerStart) {
+      // The closing tag sits on its own line: insert a new line above it, one level deeper.
+      const ind = `${closeLine.indent}  `;
+      [at, ins] = [closeLine.ls, `${ind}${reindent(ind)}\n`];
+    } else if (!inner.trim() && /^[ \t]*$/.test(boxLine.indent)) {
+      // An empty one-line container: open it up.
+      const ind = `${boxLine.indent}  `;
+      [at, ins] = [box.innerStart, `\n${ind}${reindent(ind)}\n${boxLine.indent}`];
+    }
+  }
+  if (at > cut[0] && at < cut[1]) throw new DfwError('Cannot move the element there.');
+  // Whitespace-only content of a one-line container is replaced; otherwise nothing is removed.
+  const drop = at === box.innerStart && !inner.trim() ? box.innerEnd - box.innerStart : 0;
+  return at >= cut[1]
+    ? text.slice(0, cut[0]) + text.slice(cut[1], at) + ins + text.slice(at + drop)
+    : text.slice(0, at) + ins + text.slice(at + drop, cut[0]) + text.slice(cut[1]);
+}
+
 const LAYOUT_BLOCK = /<style\b[^>]*\bdata-dfw-layout\b[^>]*>([\s\S]*?)<\/style\s*>/gi;
 const HAND_EDITED =
   "The <style data-dfw-layout> block was edited by hand in a form the Studio cannot rewrite safely; fix it in code (one [data-dfw-id='...'] { ... } rule per element, optionally inside @media (max-width: Npx)).";
@@ -206,7 +244,8 @@ const HAND_EDITED =
 export function parseLayoutCss(css) {
   const model = new Map();
   // Single quotes on purpose: tools that look for data-dfw-id="<id>" (lint duplicates, comment source lines) must find the element, not this rule.
-  const RULE = /\[data-dfw-id=(['"])([^'"\\]+)\1\]\s*\{([^{}]*)\}/g;
+  // The :not(#dfw) suffix (see LAYOUT_SPECIFICITY) is optional so blocks written before it still parse.
+  const RULE = /\[data-dfw-id=(['"])([^'"\\]+)\1\](?::not\(#dfw\))?\s*\{([^{}]*)\}/g;
   const take = (chunk, key) =>
     chunk.replace(RULE, (_, _q, id, decls) => {
       if (!model.has(key)) model.set(key, new Map());
@@ -225,10 +264,18 @@ export function parseLayoutCss(css) {
   return model;
 }
 
+/**
+ * Every layout rule is `[data-dfw-id='x']:not(#dfw)`: the :not(#id) adds one id of specificity (1,1,0) without
+ * changing what matches, so a resize beats class/attribute/type screen rules (`.dash .card { grid-column: span 3 }`)
+ * wherever they sit, without !important. Rules that still win (id selectors, inline style, !important) are reported
+ * by the Studio after the write, naming the conflicting selector.
+ */
+export const LAYOUT_SPECIFICITY = ':not(#dfw)';
+
 function renderLayout(model, ind) {
   const pad = `${ind}  `;
-  const rule = (p, id, r) => `${p}[data-dfw-id='${id}'] { ${[...r].map(([k, v]) => `${k}: ${v};`).join(' ')} }`;
-  const out = [`${ind}<style data-dfw-layout>`, `${pad}/* dfw Studio layout edits (drag/resize): layout properties only, one rule per element. */`];
+  const rule = (p, id, r) => `${p}[data-dfw-id='${id}']${LAYOUT_SPECIFICITY} { ${[...r].map(([k, v]) => `${k}: ${v};`).join(' ')} }`;
+  const out = [`${ind}<style data-dfw-layout>`, `${pad}/* dfw Studio layout edits (drag/resize): layout properties only, one rule per element; :not(#dfw) lifts specificity over screen rules. */`];
   for (const [id, r] of model.get(0) || []) out.push(rule(pad, id, r));
   for (const w of [...model.keys()].filter(Boolean).sort((x, y) => y - x)) {
     out.push(`${pad}@media (max-width: ${w}px) {`);
@@ -240,7 +287,7 @@ function renderLayout(model, ind) {
 }
 
 /**
- * Set (cssValue != null) or remove one layout declaration for data-dfw-id `id` in the screen's
+ * Set (cssValue != null) or remove one layout declaration (prop == null: the element's whole rule) for data-dfw-id `id` in the screen's
  * <style data-dfw-layout> block (created before </head>, removed when empty). maxWidth > 0 scopes
  * it to @media (max-width: <maxWidth>px); media blocks are kept widest first so narrower ones win.
  */
@@ -251,7 +298,8 @@ export function setLayoutRule(text, id, prop, cssValue, maxWidth = 0) {
   const model = hit ? parseLayoutCss(hit[1]) : new Map();
   const rules = model.get(maxWidth) || new Map();
   const r = rules.get(id) || new Map();
-  if (cssValue == null) r.delete(prop);
+  if (prop == null) r.clear();
+  else if (cssValue == null) r.delete(prop);
   else r.set(prop, cssValue);
   if (r.size) rules.set(id, r);
   else rules.delete(id);
@@ -288,9 +336,30 @@ function componentDef(root, attrs) {
   return def;
 }
 
+/** Component master whose template declares data-dfw-id="id" (an element the screen source does not own). */
+export function masterOf(root, id) {
+  for (const def of loadComponents(root).values()) {
+    const scan = new RegExp(TAG_SCAN.source, 'gi'); // own lastIndex: locate() may run in between
+    let m;
+    while ((m = scan.exec(def.template))) if (m[2] && parseAttrs(m[3])['data-dfw-id'] === id) return def;
+  }
+  return null;
+}
+
+/** locate() that explains ids built by a component template (app-shell slots, layout masters). */
+function locateOwn(root, text, id) {
+  try {
+    return locate(text, id);
+  } catch (e) {
+    const def = id && /was not found/.test(e.message) ? masterOf(root, id) : null;
+    if (!def) throw e;
+    throw new DfwError(`"${id}" is part of the component master "${def.name}" (${def.file}), not of this screen, so the Studio cannot move or resize it here. Edit the master to change it, or leave a comment.`);
+  }
+}
+
 /** Pure transform: returns the new source text for an edit op (throws DfwError on refusal). */
 export function transform(root, text, op) {
-  const el = locate(text, op.id);
+  const el = locateOwn(root, text, op.id);
   const openTag = text.slice(el.start, el.openEnd);
   const replaceOpen = (tag) => text.slice(0, el.start) + tag + text.slice(el.openEnd);
   switch (op.op) {
@@ -327,16 +396,18 @@ export function transform(root, text, op) {
       return replaceOpen(setAttr(openTag, 'style', style || null));
     }
     case 'move': {
-      if (op.position !== 'before' && op.position !== 'after') throw new DfwError('Move position must be "before" or "after".');
-      if (!op.ref || op.ref === op.id) throw new DfwError('Move needs another element to drop next to.');
-      return moveSource(text, el, locate(text, op.ref), op.position);
+      if (!['before', 'after', 'inside'].includes(op.position)) throw new DfwError('Move position must be "before", "after" or "inside".');
+      if (!op.ref || op.ref === op.id) throw new DfwError('Move needs another element to drop next to (or a container to drop into).');
+      const ref = locateOwn(root, text, op.ref);
+      return op.position === 'inside' ? moveInside(text, el, ref) : moveSource(text, el, ref, op.position);
     }
     case 'layout': {
-      if (!LAYOUT_PROPS.includes(op.prop)) throw new DfwError(`"${op.prop}" is not resizable here; only ${LAYOUT_PROPS.join(', ')}.`);
+      // No prop: reset the element's whole rule at this breakpoint scope (back to the screen's own layout).
+      if (op.prop != null && !LAYOUT_PROPS.includes(op.prop)) throw new DfwError(`"${op.prop}" is not resizable here; only ${LAYOUT_PROPS.join(', ')}.`);
       if (/["'\\]/.test(op.id)) throw new DfwError(`"${op.id}" cannot be used in a layout rule.`);
       const mw = op.maxWidth == null || op.maxWidth === '' ? 0 : Number(op.maxWidth);
       if (!Number.isInteger(mw) || mw < 0 || mw > 10000) throw new DfwError(`Invalid breakpoint width "${op.maxWidth}".`);
-      return setLayoutRule(text, op.id, op.prop, layoutValue(root, op.prop, op.value), mw);
+      return setLayoutRule(text, op.id, op.prop ?? null, op.prop == null ? null : layoutValue(root, op.prop, op.value), mw);
     }
     default:
       throw new DfwError(`Unknown edit op "${op.op}".`);
