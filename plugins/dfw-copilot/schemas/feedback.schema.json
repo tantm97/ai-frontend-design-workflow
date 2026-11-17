@@ -36,6 +36,12 @@
             "exact": { "type": "boolean", "description": "true when an element without its own data-dfw-id was picked (Alt-click)" },
             "selector": { "type": "string", "description": "CSS selector, anchored on the nearest data-dfw-id" },
             "source": { "type": ["string", "null"], "description": "file[:line[:col]] of the element in source: the design file line in the Studio; in the running app the project file from code-inspector-plugin's data-insp-path (null when the app has no inspector)" },
+            "component": {
+              "type": "object",
+              "description": "Component master the comment is about (Penpot edits on the dfw components page): change design/system/components/<name>.html, which affects every screen using it",
+              "properties": { "name": { "type": "string" }, "variant": { "type": ["string", "null"] }, "size": { "type": ["string", "null"] } }
+            },
+            "layer": { "type": "string", "description": "Exported layer path inside the component master (Penpot bridge)" },
             "inspPath": { "type": "string", "description": "Raw data-insp-path value (file:line:col:tag) the source was parsed from" },
             "tag": { "type": "string" },
             "bbox": { "type": "array", "items": { "type": "number" }, "minItems": 4, "maxItems": 4, "description": "[x, y, width, height] in document CSS px at the given breakpoint" },

@@ -2,10 +2,12 @@
 // Served by the local dfw Studio (127.0.0.1) at /__dfw/penpot/plugin.js; its UI (ui.html) is served
 // by the same Studio, so the UI's data calls never leave the machine.
 //   Build boards : export (from "dfw penpot export") -> Penpot pages, boards, components, text layers.
-//   Send changes : boards built here + Penpot comments + token sets -> the Studio, which records them
-//                  as dfw feedback comments. dfw never overwrites its HTML from Penpot.
+//   Send changes : boards built here + main components on the "dfw components" page + Penpot comments
+//                  + token sets -> the Studio, which records them as dfw feedback comments (component
+//                  edits target the master file). dfw never overwrites its HTML from Penpot.
 // API used: penpot.ui, createPage/openPage, createBoard/createRectangle/createText/createShapeFromSvg,
-// uploadMediaData, library.local.createComponent / component.instance(), library.local.tokens,
+// uploadMediaData, library.local.createComponent / component.instance() / component.mainInstance(),
+// library.local.components, library.local.tokens,
 // fonts.findByName, Page.findCommentThreads, setPluginData/getPluginData (doc.plugins.penpot.app).
 /* global penpot */
 const STUDIO = '__DFW_STUDIO_ORIGIN__';
@@ -237,6 +239,15 @@ async function build(doc, images, options) {
       try {
         const comp = penpot.library.local.createComponent([shape]);
         comp.name = c.name;
+        // Key of the dfw master (component|variant|size): on the main shape and on the library component,
+        // so "Send changes" finds the main again whatever Penpot does with the shape on createComponent.
+        const mainMeta = JSON.stringify({ key: c.key, exportId: doc.id });
+        shape.setPluginData('dfw-main', mainMeta);
+        try {
+          comp.setPluginData('dfw-main', mainMeta);
+          const m = comp.mainInstance();
+          if (m && m.id !== shape.id) m.setPluginData('dfw-main', mainMeta);
+        } catch (e) {}
         ctx.mains.set(c.key, { comp, sig: c.sig });
         stats.components++;
       } catch (e) {
@@ -273,7 +284,7 @@ async function build(doc, images, options) {
     }
   }
   try {
-    penpot.currentFile.setPluginData('dfw-export', JSON.stringify({ id: doc.id, keys }));
+    penpot.currentFile.setPluginData('dfw-export', JSON.stringify({ id: doc.id, keys, components: [...ctx.mains.keys()] }));
   } catch (e) {}
   return stats;
 }
@@ -285,6 +296,20 @@ function fillOf(s) {
   return f && f.fillColor ? { color: String(f.fillColor).toLowerCase(), opacity: f.fillOpacity === undefined ? 1 : f.fillOpacity } : null;
 }
 
+function strokeOf(s) {
+  const k = Array.isArray(s.strokes) ? s.strokes[0] : null;
+  return k && k.strokeColor ? { color: String(k.strokeColor).toLowerCase(), opacity: k.strokeOpacity === undefined ? 1 : k.strokeOpacity, width: k.strokeWidth === undefined ? 1 : k.strokeWidth } : null;
+}
+
+/** Fill, stroke and corner radii of a shape, as sent back (strokes/radius only matter for component masters). */
+function paintOf(s) {
+  const fill = fillOf(s);
+  const stroke = strokeOf(s);
+  const out = { fills: fill ? [fill] : Array.isArray(s.fills) ? [] : undefined, strokes: stroke ? [stroke] : Array.isArray(s.strokes) ? [] : undefined };
+  if (s.type !== 'text' && typeof s.borderRadiusTopLeft === 'number') out.radius = [s.borderRadiusTopLeft, s.borderRadiusTopRight, s.borderRadiusBottomRight, s.borderRadiusBottomLeft].map((v) => v || 0);
+  return out;
+}
+
 function walk(shape, board, out) {
   for (const c of shape.children || []) {
     const meta = data(c, 'dfw');
@@ -292,7 +317,7 @@ function walk(shape, board, out) {
     const box = { x: c.x - board.x, y: c.y - board.y, w: c.width, h: c.height };
     const fill = fillOf(c);
     if (meta && meta.path !== undefined) {
-      out.layers.push({ path: meta.path, name: c.name, kind: meta.kind, ...box, characters: c.type === 'text' ? c.characters : undefined, fills: fill ? [fill] : undefined });
+      out.layers.push({ path: meta.path, name: c.name, kind: meta.kind, ...box, characters: c.type === 'text' ? c.characters : undefined, ...paintOf(c) });
       if (meta.kind === 'svg') continue;
     } else {
       out.added.push({ name: c.name, kind: c.type, ...box, characters: c.type === 'text' ? c.characters : undefined, fills: fill ? [fill] : undefined });
@@ -305,7 +330,7 @@ function walk(shape, board, out) {
 async function collect() {
   const file = penpot.currentFile;
   const ex = data(file, 'dfw-export');
-  const out = { schema: 'dfw-penpot-changes/1', exportId: ex ? ex.id : null, pushedAt: new Date().toISOString(), fileName: file ? file.name : null, boards: [], missingBoards: [], comments: [], tokens: null, warnings: [] };
+  const out = { schema: 'dfw-penpot-changes/1', exportId: ex ? ex.id : null, pushedAt: new Date().toISOString(), fileName: file ? file.name : null, boards: [], missingBoards: [], components: [], missingComponents: [], comments: [], tokens: null, warnings: [] };
   const seen = new Set();
   for (const page of file.pages) {
     const boards = new Map();
@@ -323,12 +348,14 @@ async function collect() {
       const threads = await page.findCommentThreads({ onlyYours: false, showResolved: true });
       for (const t of threads) {
         const bm = t.board ? data(t.board, 'dfw-board') : null;
+        const mm = t.board && !bm ? data(t.board, 'dfw-main') : null;
         const comments = await t.findComments();
         out.comments.push({
           seq: t.seqNumber,
           resolved: Boolean(t.resolved),
           page: page.name,
           boardKey: bm ? bm.key : null,
+          componentKey: mm ? mm.key : null,
           x: t.position.x - (t.board ? t.board.x : 0),
           y: t.position.y - (t.board ? t.board.y : 0),
           comments: comments.map((c) => ({ content: c.content, user: c.user ? c.user.name : null, date: c.date ? String(c.date) : null })),
@@ -339,6 +366,27 @@ async function collect() {
     }
   }
   if (ex && ex.keys) out.missingBoards = ex.keys.filter((k) => !seen.has(k));
+  // Main components (the dfw components page): coordinates relative to the main's own origin.
+  const mains = new Set();
+  try {
+    for (const comp of penpot.library.local.components || []) {
+      let main = null;
+      try {
+        main = comp.mainInstance();
+      } catch (e) {}
+      const meta = data(main, 'dfw-main') || data(comp, 'dfw-main');
+      if (!meta || !main || mains.has(meta.key)) continue;
+      mains.add(meta.key);
+      if (!out.exportId) out.exportId = meta.exportId;
+      const rootMeta = data(main, 'dfw');
+      const c = { key: meta.key, name: comp.name, layers: [{ root: true, path: rootMeta ? rootMeta.path : null, name: main.name, kind: rootMeta ? rootMeta.kind : 'frame', x: 0, y: 0, w: main.width, h: main.height, ...paintOf(main) }], added: [] };
+      walk(main, main, c);
+      out.components.push(c);
+    }
+  } catch (e) {
+    out.warnings.push(`components: ${e.message}`);
+  }
+  if (ex && ex.components) out.missingComponents = ex.components.filter((k) => !mains.has(k));
   try {
     const cat = penpot.library.local.tokens;
     out.tokens = {
