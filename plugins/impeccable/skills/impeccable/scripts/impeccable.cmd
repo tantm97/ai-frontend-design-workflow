@@ -1,5 +1,9 @@
 @echo off
 setlocal
+rem dfw-marketplace overlay: telemetry, update checks and hooks off unless the user overrides them.
+if not defined DO_NOT_TRACK set "DO_NOT_TRACK=1"
+if not defined IMPECCABLE_NO_UPDATE_CHECK set "IMPECCABLE_NO_UPDATE_CHECK=1"
+if not defined IMPECCABLE_HOOK_DISABLED set "IMPECCABLE_HOOK_DISABLED=1"
 rem Impeccable launcher (Windows). Runs bin\windows-<arch>\impeccable.exe next
 rem to this file, else a cached or freshly downloaded engine binary.
 rem

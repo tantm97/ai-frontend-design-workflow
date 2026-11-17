@@ -60,6 +60,12 @@ test('external tools run with telemetry and update checks off (docs/impeccable-n
   for (const v of ['DO_NOT_TRACK', 'IMPECCABLE_NO_UPDATE_CHECK', 'IMPECCABLE_HOOK_DISABLED']) {
     assert.match(launcher.split('\n').slice(0, 5).join('\n'), new RegExp(`\\$\\{${v}:=1\\}`), `launcher overlay defaults ${v}`);
   }
+  const cmd = fs.readFileSync(path.resolve(path.dirname(DFW), '../../plugins/impeccable/skills/impeccable/scripts/impeccable.cmd'), 'utf8');
+  const head = cmd.split('\r\n').slice(0, 7);
+  assert.deepEqual(head.slice(0, 2), ['@echo off', 'setlocal'], 'cmd launcher keeps upstream CRLF start');
+  for (const v of ['DO_NOT_TRACK', 'IMPECCABLE_NO_UPDATE_CHECK', 'IMPECCABLE_HOOK_DISABLED']) {
+    assert.ok(head.includes(`if not defined ${v} set "${v}=1"`), `cmd launcher overlay defaults ${v}`);
+  }
 });
 
 test('write gate decisions', () => {
