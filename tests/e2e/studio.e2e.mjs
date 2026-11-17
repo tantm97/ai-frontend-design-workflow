@@ -372,7 +372,8 @@ try {
 <head>
   <meta charset="utf-8"><title>Board</title>
   <link rel="stylesheet" href="../../tokens/tokens.css">
-  <style>.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4); padding: var(--space-8) } .cards > * { min-height: var(--space-16) }</style>
+  <style>.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4); padding: var(--space-8) } .cards > * { min-height: var(--space-16) }
+    main .cards > div { grid-column: span 1 } .cards > .pinned { grid-column: span 1 !important }</style>
 </head>
 <body>
   <main data-dfw-id="board.main">
@@ -381,6 +382,10 @@ try {
       <div data-dfw-id="board.two">Two</div>
       <div data-dfw-id="board.three">Three</div>
     </section>
+    <section class="cards" data-dfw-id="board.more">
+      <div class="pinned" data-dfw-id="board.pinned">Pinned</div>
+    </section>
+    <section class="cards" data-dfw-id="board.empty"></section>
   </main>
 </body>
 </html>`,
@@ -417,12 +422,94 @@ try {
   await page.mouse.move(b2.x + b2.width * 2.05, hx.y + hx.height / 2, { steps: 10 });
   if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-10-resize.png') });
   await page.mouse.up();
-  await waitBoard(/<style data-dfw-layout>[\s\S]*\[data-dfw-id='board.two'\] \{ grid-column: span 2; \}[\s\S]*<\/style>\n<\/head>/, 'resize wrote a grid-column span rule');
+  await waitBoard(/<style data-dfw-layout>[\s\S]*\[data-dfw-id='board.two'\]:not\(#dfw\) \{ grid-column: span 2; \}[\s\S]*<\/style>\n<\/head>/, 'resize wrote a grid-column span rule');
+  // The rule wins over the more specific class rule "main .cards > div { grid-column: span 1 }".
+  const span = (loc) => loc.evaluate((el) => getComputedStyle(el).gridColumnStart);
+  const waitSpan = async (loc, want, msg) => {
+    let got;
+    for (let i = 0; i < 60; i++) {
+      got = await span(loc).catch(() => null);
+      if (got === want) break;
+      await page.waitForTimeout(100);
+    }
+    assert.equal(got, want, msg);
+  };
+  await waitSpan(board.locator('[data-dfw-id="board.two"]'), 'span 2', 'layout rule beats the more specific screen rule');
   // Keyboard alternative: Alt+Shift+Right steps the span.
   await page.waitForTimeout(800);
   await board.locator('[data-dfw-id="board.two"]').click();
   await page.keyboard.press('Alt+Shift+ArrowRight');
-  await waitBoard(/\[data-dfw-id='board.two'\] \{ grid-column: span 3; \}/, 'Alt+Shift+Right widened the span');
+  await waitBoard(/\[data-dfw-id='board.two'\]:not\(#dfw\) \{ grid-column: span 3; \}/, 'Alt+Shift+Right widened the span');
+  await waitSpan(board.locator('[data-dfw-id="board.two"]'), 'span 3', 'computed span follows the keyboard step');
+
+  // Narrower breakpoint: a resize in the Mobile frame lands in @media (max-width: 390px) and only affects that width.
+  await page.click('#bp-menu summary');
+  await page.check('#breakpoints label:has-text("Mobile") input');
+  await page.click('#bp-menu summary');
+  await page.waitForSelector('.frame[data-key="board::a::mobile"]', { state: 'attached' });
+  // Select a frame by its title even when it is off-screen (titles select on mousedown).
+  const pickFrame = (key) => page.evaluate((k) => document.querySelector(`.frame[data-key="${k}"] .frame-title`).dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })), key);
+  await pickFrame('board::a::mobile');
+  await page.keyboard.press('Shift+2');
+  await page.waitForSelector('.frame[data-key="board::a::mobile"] iframe', { state: 'attached' });
+  await page.waitForTimeout(800);
+  const boardM = page.frameLocator('iframe[name="board::a::mobile"]');
+  await boardM.locator('[data-dfw-id="board.two"]').click();
+  await boardM.locator('[data-dfw-handle="x"]').waitFor({ state: 'visible' });
+  const m2b = await boardM.locator('[data-dfw-id="board.two"]').boundingBox();
+  const mhx = await boardM.locator('[data-dfw-handle="x"]').boundingBox();
+  await page.mouse.move(...center(mhx));
+  await page.mouse.down();
+  await page.mouse.move(m2b.x + m2b.width / 3, mhx.y + mhx.height / 2, { steps: 10 }); // ~1 of the 3 spanned columns
+  await page.mouse.up();
+  await waitBoard(/\[data-dfw-id='board.two'\]:not\(#dfw\) \{ grid-column: span 3; \}\n {4}@media \(max-width: 390px\) \{\n {6}\[data-dfw-id='board.two'\]:not\(#dfw\) \{ grid-column: span 1; \}\n {4}\}/, 'mobile resize went into the 390px media block; base rule kept');
+  await waitSpan(boardM.locator('[data-dfw-id="board.two"]'), 'span 1', 'mobile frame (390px) uses the media rule');
+  await waitSpan(board.locator('[data-dfw-id="board.two"]'), 'span 3', 'desktop frame (1440px) is unaffected');
+
+  // Reset to auto: Alt+Shift+0 in the Mobile frame drops only the 390px rule (and the empty @media block).
+  await page.waitForTimeout(800);
+  await boardM.locator('[data-dfw-id="board.two"]').click();
+  await page.keyboard.press('Alt+Shift+Digit0');
+  for (let i = 0; i < 50 && /@media/.test(fs.readFileSync(boardFile, 'utf8')); i++) await page.waitForTimeout(100);
+  assert.doesNotMatch(fs.readFileSync(boardFile, 'utf8'), /@media/, 'Alt+Shift+0 removed the media rule and its empty block');
+  await waitSpan(boardM.locator('[data-dfw-id="board.two"]'), 'span 3', 'mobile falls back to the base rule');
+  // Double-click the width handle in the Desktop frame: the base rule goes, and with it the whole block.
+  await pickFrame('board::a::desktop');
+  await page.keyboard.press('Shift+2');
+  await page.waitForTimeout(600);
+  await board.locator('[data-dfw-id="board.two"]').click();
+  await board.locator('[data-dfw-handle="x"]').waitFor({ state: 'visible' });
+  await board.locator('[data-dfw-handle="x"]').dblclick();
+  for (let i = 0; i < 50 && /data-dfw-layout/.test(fs.readFileSync(boardFile, 'utf8')); i++) await page.waitForTimeout(100);
+  assert.doesNotMatch(fs.readFileSync(boardFile, 'utf8'), /data-dfw-layout/, 'double-click on the handle reset the span; empty block removed');
+  await waitSpan(board.locator('[data-dfw-id="board.two"]'), 'span 1', 'back to the screen rule');
+
+  // Drop into an empty grid container with a data-dfw-id (dashed highlight while dragging).
+  await page.waitForTimeout(800);
+  await board.locator('[data-dfw-id="board.one"]').click();
+  const bOne = await board.locator('[data-dfw-id="board.one"]').boundingBox();
+  const bEmpty = await board.locator('[data-dfw-id="board.empty"]').boundingBox();
+  await page.mouse.move(...center(bOne));
+  await page.mouse.down();
+  await page.mouse.move(...center(bEmpty), { steps: 10 });
+  assert.equal(await board.locator('[data-dfw-ui]').evaluateAll((els) => els.some((e) => e.style.borderStyle === 'dashed' && e.style.display === 'block')), true, 'empty container highlighted');
+  if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-11-drop-inside.png') });
+  await page.mouse.up();
+  await waitBoard(/<section class="cards" data-dfw-id="board.empty">\n      <div data-dfw-id="board.one">One<\/div>\n    <\/section>/, 'dropped into the empty container (source moved and indented)');
+
+  // A rule that still wins (!important) is named instead of the resize silently doing nothing; the inspector resets it.
+  await page.waitForTimeout(800);
+  await board.locator('[data-dfw-id="board.pinned"]').click();
+  await page.keyboard.press('Alt+Shift+ArrowRight');
+  await waitBoard(/\[data-dfw-id='board.pinned'\]:not\(#dfw\) \{ grid-column: span 2; \}/, 'pinned resize written');
+  await page.waitForFunction(() => /did not change/.test(document.querySelector('#toast').textContent), null, { timeout: 8000 });
+  assert.match(await page.textContent('#toast'), /"\.cards > \.pinned" still sets grid-column/, 'toast names the conflicting selector');
+  assert.equal(await page.evaluate(() => window.__dfwStudio.layoutConflict?.selector), '.cards > .pinned');
+  await page.waitForTimeout(300);
+  await board.locator('[data-dfw-id="board.pinned"]').click();
+  await page.click('#inspector [data-act="layout-reset"]');
+  for (let i = 0; i < 50 && /data-dfw-layout/.test(fs.readFileSync(boardFile, 'utf8')); i++) await page.waitForTimeout(100);
+  assert.doesNotMatch(fs.readFileSync(boardFile, 'utf8'), /data-dfw-layout/, 'inspector "Reset size to auto" removed the rule');
   const lint = JSON.parse(spawnSync(process.execPath, [DFW, 'lint', 'design/screens/board/a.html', '--json'], { cwd: tmp, env, encoding: 'utf8' }).stdout);
   assert.equal(lint.tally.error, 0, `lint clean after layout edits: ${JSON.stringify(lint.results).slice(0, 400)}`);
 
