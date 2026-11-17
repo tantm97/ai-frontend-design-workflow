@@ -53,7 +53,7 @@ TLS bodies to the real hosts were not decrypted. The engine pins its own roots (
 
 | Variable | Effect (verified) | Set by dfw |
 |---|---|---|
-| `DO_NOT_TRACK=1` | roll sent with `x-impeccable-telemetry: off`; choice ping skipped; `telemetry status` → `off (DO_NOT_TRACK is set)` | yes: `core/lib/config.mjs:44-49`, and the dfw overlay at the top of `scripts/impeccable:2-4` (default unless the user overrides) |
+| `DO_NOT_TRACK=1` | roll sent with `x-impeccable-telemetry: off`; choice ping skipped; `telemetry status` → `off (DO_NOT_TRACK is set)` | yes: `core/lib/config.mjs:44-49`, and the dfw overlay at the top of both launchers, `scripts/impeccable:2-4` and `scripts/impeccable.cmd:3-6` (default unless the user overrides) |
 | `IMPECCABLE_NO_TELEMETRY=1` | identical to `DO_NOT_TRACK` (same header, same skip). Not needed in addition | no (redundant) |
 | `IMPECCABLE_NO_UPDATE_CHECK=1` | no `GET /api/version` | yes (both places) |
 | `IMPECCABLE_HOOK_DISABLED=1` | Impeccable's edit hooks do nothing (dfw runs `detect` itself) | yes (both places) |
@@ -62,8 +62,9 @@ TLS bodies to the real hosts were not decrypted. The engine pins its own roots (
 
 **Verdict:** dfw's environment leaks nothing. Every telemetry and update-check call is off with the variables dfw already sets, so no change to `core/lib/config.mjs` is needed. A unit test pins those variables (`tests/unit/dfw.test.mjs`).
 
+Both launchers carry the defaults, so they also apply when the model runs Impeccable directly (not through dfw). The sh launcher uses `: "${VAR:=1}"`; the Windows launcher uses `if not defined VAR set "VAR=1"` right after `setlocal`, so the engine process inherits them and the caller's shell is untouched. A value the user already set always wins. Both are overlay ops in `overlays/impeccable.json` (the `.cmd` one keeps upstream's CRLF line endings).
+
 **Known gaps:**
 
-1. The Windows launcher `scripts/impeccable.cmd` has no dfw overlay. When the model runs Impeccable commands directly on Windows (not through dfw), telemetry and the update check follow the user's own settings.
-2. If a user signs in to an Impeccable account, the account sync features are theirs to switch off.
-3. With `OPENAI_API_KEY` set, Impeccable's own visualize flow can call OpenAI.
+1. If a user signs in to an Impeccable account, the account sync features are theirs to switch off.
+2. With `OPENAI_API_KEY` set, Impeccable's own visualize flow can call OpenAI.
