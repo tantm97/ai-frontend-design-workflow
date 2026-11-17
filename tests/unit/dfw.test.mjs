@@ -50,6 +50,18 @@ test('state machine: system needs G1, concepts needs G1+DS, implement needs G2+G
   assert.ok(transitionBlockers(d, 'implement').some((r) => r.includes('does not include implementation')));
 });
 
+test('external tools run with telemetry and update checks off (docs/impeccable-network.md)', () => {
+  // DO_NOT_TRACK alone turns Impeccable's telemetry off (roll flagged off, choice ping skipped);
+  // IMPECCABLE_NO_UPDATE_CHECK stops GET impeccable.style/api/version.
+  assert.equal(DEFAULTS.env.DO_NOT_TRACK, '1');
+  assert.equal(DEFAULTS.env.IMPECCABLE_NO_UPDATE_CHECK, '1');
+  assert.equal(DEFAULTS.env.IMPECCABLE_HOOK_DISABLED, '1');
+  const launcher = fs.readFileSync(path.resolve(path.dirname(DFW), '../../plugins/impeccable/skills/impeccable/scripts/impeccable'), 'utf8');
+  for (const v of ['DO_NOT_TRACK', 'IMPECCABLE_NO_UPDATE_CHECK', 'IMPECCABLE_HOOK_DISABLED']) {
+    assert.match(launcher.split('\n').slice(0, 5).join('\n'), new RegExp(`\\$\\{${v}:=1\\}`), `launcher overlay defaults ${v}`);
+  }
+});
+
 test('write gate decisions', () => {
   const root = '/proj';
   const config = loadConfig(null);

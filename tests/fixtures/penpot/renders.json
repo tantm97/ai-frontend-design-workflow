@@ -1,0 +1,366 @@
+[
+ {
+  "page": {
+   "id": "stock",
+   "title": "Stock"
+  },
+  "screen": "items",
+  "variant": "a",
+  "breakpoint": {
+   "id": "desktop",
+   "width": 1024,
+   "height": 640
+  },
+  "file": "design/screens/items/a.html",
+  "snapshot": {
+   "width": 1024,
+   "height": 640,
+   "background": {
+    "hex": "#f7f7f8",
+    "opacity": 1
+   },
+   "children": [
+    {
+     "kind": "frame",
+     "name": "items",
+     "tag": "main",
+     "dfwId": "items",
+     "anchor": "items",
+     "x": 0,
+     "y": 0,
+     "w": 1024,
+     "h": 254.88,
+     "style": {},
+     "children": [
+      {
+       "kind": "frame",
+       "name": "div.bar",
+       "tag": "div",
+       "dfwId": null,
+       "anchor": "items",
+       "x": 16,
+       "y": 16,
+       "w": 992,
+       "h": 79.88,
+       "style": {},
+       "children": [
+        {
+         "kind": "text",
+         "name": "items.title",
+         "dfwId": "items.title",
+         "anchor": "items.title",
+         "x": 16,
+         "y": 37.44,
+         "w": 144.03,
+         "h": 36,
+         "characters": "Inventory",
+         "text": {
+          "fontFamily": "Arial",
+          "fontSize": 32,
+          "fontWeight": "700",
+          "fontStyle": "normal",
+          "lineHeight": 1.2,
+          "letterSpacing": 0,
+          "color": {
+           "hex": "#1c1b1a",
+           "opacity": 1
+          },
+          "align": "left",
+          "transform": null,
+          "decoration": null
+         },
+         "tag": "h1"
+        },
+        {
+         "kind": "frame",
+         "name": "items.add",
+         "tag": "button",
+         "dfwId": "items.add",
+         "anchor": "items.add",
+         "x": 168.03,
+         "y": 35.94,
+         "w": 97.14,
+         "h": 40,
+         "style": {
+          "fill": {
+           "hex": "#0066ff",
+           "opacity": 1
+          },
+          "radius": [
+           6,
+           6,
+           6,
+           6
+          ]
+         },
+         "children": [
+          {
+           "kind": "text",
+           "name": "text",
+           "dfwId": null,
+           "anchor": "items.add",
+           "x": 185.03,
+           "y": 46.94,
+           "w": 63.14,
+           "h": 17,
+           "characters": "Add item",
+           "text": {
+            "fontFamily": "Arial",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fontStyle": "normal",
+            "lineHeight": 1.2,
+            "letterSpacing": 0,
+            "color": {
+             "hex": "#ffffff",
+             "opacity": 1
+            },
+            "align": "center",
+            "transform": null,
+            "decoration": null
+           },
+           "tag": "span"
+          }
+         ],
+         "component": {
+          "name": "button",
+          "variant": "primary",
+          "size": null
+         }
+        },
+        {
+         "kind": "frame",
+         "name": "items.export",
+         "tag": "button",
+         "dfwId": "items.export",
+         "anchor": "items.export",
+         "x": 273.17,
+         "y": 35.94,
+         "w": 80.25,
+         "h": 40,
+         "style": {
+          "borders": [
+           {
+            "w": 1,
+            "color": {
+             "hex": "#e4e4e7",
+             "opacity": 1
+            },
+            "style": "solid"
+           },
+           {
+            "w": 1,
+            "color": {
+             "hex": "#e4e4e7",
+             "opacity": 1
+            },
+            "style": "solid"
+           },
+           {
+            "w": 1,
+            "color": {
+             "hex": "#e4e4e7",
+             "opacity": 1
+            },
+            "style": "solid"
+           },
+           {
+            "w": 1,
+            "color": {
+             "hex": "#e4e4e7",
+             "opacity": 1
+            },
+            "style": "solid"
+           }
+          ],
+          "radius": [
+           6,
+           6,
+           6,
+           6
+          ]
+         },
+         "children": [
+          {
+           "kind": "text",
+           "name": "text",
+           "dfwId": null,
+           "anchor": "items.export",
+           "x": 290.17,
+           "y": 46.94,
+           "w": 46.25,
+           "h": 17,
+           "characters": "Export",
+           "text": {
+            "fontFamily": "Arial",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fontStyle": "normal",
+            "lineHeight": 1.2,
+            "letterSpacing": 0,
+            "color": {
+             "hex": "#1c1b1a",
+             "opacity": 1
+            },
+            "align": "center",
+            "transform": null,
+            "decoration": null
+           },
+           "tag": "span"
+          }
+         ],
+         "component": {
+          "name": "button",
+          "variant": "ghost",
+          "size": null
+         }
+        }
+       ]
+      },
+      {
+       "kind": "frame",
+       "name": "items.panel",
+       "tag": "section",
+       "dfwId": "items.panel",
+       "anchor": "items.panel",
+       "x": 16,
+       "y": 111.88,
+       "w": 992,
+       "h": 127,
+       "style": {
+        "fill": {
+         "hex": "#ffffff",
+         "opacity": 1
+        },
+        "borders": [
+         {
+          "w": 1,
+          "color": {
+           "hex": "#e4e4e7",
+           "opacity": 1
+          },
+          "style": "solid"
+         },
+         {
+          "w": 1,
+          "color": {
+           "hex": "#e4e4e7",
+           "opacity": 1
+          },
+          "style": "solid"
+         },
+         {
+          "w": 1,
+          "color": {
+           "hex": "#e4e4e7",
+           "opacity": 1
+          },
+          "style": "solid"
+         },
+         {
+          "w": 1,
+          "color": {
+           "hex": "#e4e4e7",
+           "opacity": 1
+          },
+          "style": "solid"
+         }
+        ],
+        "radius": [
+         6,
+         6,
+         6,
+         6
+        ]
+       },
+       "children": [
+        {
+         "kind": "frame",
+         "name": "items.summary",
+         "tag": "p",
+         "dfwId": "items.summary",
+         "anchor": "items.summary",
+         "x": 33,
+         "y": 144.88,
+         "w": 958,
+         "h": 27,
+         "style": {
+          "borders": [
+           null,
+           null,
+           {
+            "w": 1,
+            "color": {
+             "hex": "#e4e4e7",
+             "opacity": 1
+            },
+            "style": "solid"
+           },
+           null
+          ]
+         },
+         "children": [
+          {
+           "kind": "text",
+           "name": "text",
+           "dfwId": null,
+           "anchor": "items.summary",
+           "x": 33,
+           "y": 144.88,
+           "w": 170.75,
+           "h": 17,
+           "characters": "12 items, 3 low on stock",
+           "text": {
+            "fontFamily": "Arial",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fontStyle": "normal",
+            "lineHeight": 1.2,
+            "letterSpacing": 0,
+            "color": {
+             "hex": "#1c1b1a",
+             "opacity": 1
+            },
+            "align": "left",
+            "transform": null,
+            "decoration": null
+           }
+          }
+         ]
+        },
+        {
+         "kind": "text",
+         "name": "items.note",
+         "dfwId": "items.note",
+         "anchor": "items.note",
+         "x": 33,
+         "y": 187.88,
+         "w": 147.36,
+         "h": 17,
+         "characters": "Counted on Monday.",
+         "text": {
+          "fontFamily": "Arial",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fontStyle": "normal",
+          "lineHeight": 1.2,
+          "letterSpacing": 0,
+          "color": {
+           "hex": "#1c1b1a",
+           "opacity": 1
+          },
+          "align": "left",
+          "transform": null,
+          "decoration": null
+         },
+         "tag": "p"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "title": "Items - Fixture"
+  }
+ }
+]

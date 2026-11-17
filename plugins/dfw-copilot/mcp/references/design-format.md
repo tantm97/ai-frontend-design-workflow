@@ -108,6 +108,7 @@ The hook regenerates `tokens.css` and `components.css` after every edit; `dfw bu
 - `<dfw-use c="..." variant size id ...>`: `id` becomes the instance's `data-dfw-id`; `class` is appended; other non-prop attributes (aria-*, disabled, href, role, checked) are copied to the root element.
 - `<dfw-icon name="search" size="16" label="...">` (decorative unless `label`). Find icons with `dfw icons search <words>`, add with `dfw icons add <names>`.
 - **Screens only do layout.** Setting color, background, border, font, shadow or radius in a screen is a MUST error (`screen-visual-style`). Need a new look? Add a variant to the master (design system first), or a token.
+- `<style data-dfw-layout>` (in the head) holds the user's Studio drag/resize edits: one `[data-dfw-id='<id>'] { grid-column | width | min-height }` rule per element, optionally inside `@media (max-width: Npx)`. Keep that format when you touch it (the Studio refuses to rewrite a block it cannot parse); fold it into the screen's own layout CSS only if the user asks.
 - Plain HTML elements are fine for structure (main, section, grids, text, tables inside `data-table`).
 - `data-dfw-id` on every meaningful element and instance (`id` attribute on `<dfw-use>`): lowercase, dot-separated, unique per file, stable.
 - Semantic HTML, realistic content and edge cases (long Vietnamese names, zero/huge numbers, empty, errors, permissions).

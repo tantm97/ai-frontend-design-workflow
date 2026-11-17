@@ -1,6 +1,6 @@
 // Visual feedback store: the tool-independent feedback contract (schemas/feedback.schema.json).
 // One JSON file per review session under .dfw/reviews/. Any provider (dfw studio
-// overlay, a future Agentation or Penpot adapter) writes the same shape.
+// overlay, the Penpot bridge in lib/penpot.mjs, a future Agentation adapter) writes the same shape.
 import fs from 'node:fs';
 import path from 'node:path';
 import { readJson, writeJson, nowIso, projectPaths, DfwError } from './util.mjs';
@@ -109,9 +109,18 @@ export function addComment(root, input) {
     resolution: null,
     provider: input.provider || 'dfw-studio',
   };
+  if (input.url) c.url = String(input.url); // comments on the running app (dfw review)
   session.comments.push(c);
   writeJson(file, session);
   return c;
+}
+
+/** Attach a screenshot taken after the comment was posted (dfw review shoots asynchronously). */
+export function setCommentScreenshot(root, id, file) {
+  const { file: f, session, comment } = findComment(root, id);
+  comment.screenshot = file;
+  writeJson(f, session);
+  return comment;
 }
 
 function findComment(root, id) {

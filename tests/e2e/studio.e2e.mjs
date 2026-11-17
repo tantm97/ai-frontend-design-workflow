@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 
@@ -142,6 +142,7 @@ try {
   // Screenshot all: every screen of every page (5 frames + Design System) -> PNG files under .dfw/shots/studio/<time>/.
   // The camera opens a picker (all screens checked by default); "Screenshot N" shoots the checked ones.
   await page.click('#shoot-btn');
+  await page.waitForFunction(() => /\d/.test(document.querySelector('#shoot-go').textContent)); // the menu renders on its (async) toggle event
   assert.equal(await page.textContent('#shoot-go'), 'Screenshot 6');
   await page.click('#shoot-go');
   await page.waitForFunction(() => /PNG saved/.test(document.querySelector('#toast').textContent), null, { timeout: 60000 });
@@ -160,10 +161,11 @@ try {
   await page.waitForFunction(() => /^2\/2 PNG saved/.test(document.querySelector('#toast').textContent), null, { timeout: 60000 });
   assert.equal(await page.evaluate(() => document.querySelector('#shoot-menu').open), false, 'menu closes after shooting');
   await page.click('#shoot-btn');
+  await page.waitForFunction(() => /\d/.test(document.querySelector('#shoot-go').textContent));
   assert.equal(await page.textContent('#shoot-go'), 'Screenshot 2', 'picked screens are remembered');
   await page.check('#shoot-items .ms-all input');
   await page.click('#shoot-btn');
-, { method: 'POST', body: JSON.stringify({ frames: [{ src: 'file:///etc/passwd' }] }) }).then((r) => r.status));
+  const bad = await page.evaluate(() => fetch('/__dfw/api/shoot', { method: 'POST', body: JSON.stringify({ frames: [{ src: 'file:///etc/passwd' }] }) }).then((r) => r.status));
   assert.equal(bad, 400, 'only Studio design URLs can be screenshotted');
   if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-1-canvas.png') });
 
@@ -355,11 +357,75 @@ try {
   assert.equal(await frame.locator('[data-dfw-id="home.title"]').textContent(), 'Good morning', 'frame reloaded after edit');
   if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-4-reloaded.png') });
 
+  // Constrained layout edits: drag to reorder grid items, drag the handle to change the column span.
+  const boardFile = path.join(tmp, 'design/screens/board/a.html');
+  fs.mkdirSync(path.dirname(boardFile), { recursive: true });
+  fs.writeFileSync(
+    boardFile,
+    `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><title>Board</title>
+  <link rel="stylesheet" href="../../tokens/tokens.css">
+  <style>.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4); padding: var(--space-8) } .cards > * { min-height: var(--space-16) }</style>
+</head>
+<body>
+  <main data-dfw-id="board.main">
+    <section class="cards" data-dfw-id="board.cards">
+      <div data-dfw-id="board.one">One</div>
+      <div data-dfw-id="board.two">Two</div>
+      <div data-dfw-id="board.three">Three</div>
+    </section>
+  </main>
+</body>
+</html>`,
+  );
+  const m2 = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
+  m2.screens.push({ id: 'board', title: 'Board', variants: [{ id: 'a', label: 'A', file: 'screens/board/a.html' }] });
+  fs.writeFileSync(manifestFile, JSON.stringify(m2, null, 2));
+  await page.waitForSelector('.frame[data-key="board::a::desktop"] iframe');
+  await page.click('.frame[data-key="board::a::desktop"] .frame-title');
+  await page.keyboard.press('Shift+2');
+  await page.waitForTimeout(300);
+  const board = page.frameLocator('iframe[name="board::a::desktop"]');
+  const waitBoard = async (re, msg) => {
+    for (let i = 0; i < 50 && !re.test(fs.readFileSync(boardFile, 'utf8')); i++) await page.waitForTimeout(100);
+    assert.match(fs.readFileSync(boardFile, 'utf8'), re, msg);
+  };
+  const center = (b) => [b.x + b.width / 2, b.y + b.height / 2];
+  await board.locator('[data-dfw-id="board.three"]').click();
+  await board.locator('[data-dfw-handle="x"]').waitFor({ state: 'visible' });
+  const b3 = await board.locator('[data-dfw-id="board.three"]').boundingBox();
+  const b1 = await board.locator('[data-dfw-id="board.one"]').boundingBox();
+  await page.mouse.move(...center(b3));
+  await page.mouse.down();
+  await page.mouse.move(b1.x + b1.width * 0.2, b1.y + b1.height / 2, { steps: 10 });
+  await page.mouse.up();
+  await waitBoard(/<section class="cards" data-dfw-id="board.cards">\n      <div data-dfw-id="board.three">Three<\/div>\n      <div data-dfw-id="board.one">One<\/div>\n      <div data-dfw-id="board.two">Two<\/div>\n    <\/section>/, 'drag reordered the source (indentation kept)');
+  await page.waitForTimeout(800); // live reload
+  await board.locator('[data-dfw-id="board.two"]').click();
+  await board.locator('[data-dfw-handle="x"]').waitFor({ state: 'visible' });
+  const b2 = await board.locator('[data-dfw-id="board.two"]').boundingBox();
+  const hx = await board.locator('[data-dfw-handle="x"]').boundingBox();
+  await page.mouse.move(...center(hx));
+  await page.mouse.down();
+  await page.mouse.move(b2.x + b2.width * 2.05, hx.y + hx.height / 2, { steps: 10 });
+  if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-10-resize.png') });
+  await page.mouse.up();
+  await waitBoard(/<style data-dfw-layout>[\s\S]*\[data-dfw-id='board.two'\] \{ grid-column: span 2; \}[\s\S]*<\/style>\n<\/head>/, 'resize wrote a grid-column span rule');
+  // Keyboard alternative: Alt+Shift+Right steps the span.
+  await page.waitForTimeout(800);
+  await board.locator('[data-dfw-id="board.two"]').click();
+  await page.keyboard.press('Alt+Shift+ArrowRight');
+  await waitBoard(/\[data-dfw-id='board.two'\] \{ grid-column: span 3; \}/, 'Alt+Shift+Right widened the span');
+  const lint = JSON.parse(spawnSync(process.execPath, [DFW, 'lint', 'design/screens/board/a.html', '--json'], { cwd: tmp, env, encoding: 'utf8' }).stdout);
+  assert.equal(lint.tally.error, 0, `lint clean after layout edits: ${JSON.stringify(lint.results).slice(0, 400)}`);
+
   assert.deepEqual(errors, [], `no page errors: ${errors.join('; ')}`);
   console.log('PASS studio e2e');
 } catch (e) {
   failed = true;
-  console.error('FAIL studio e2e:', e.message.split('\n')[0], (e.stack.match(/studio\.e2e\.mjs:\d+/) || [''])[0]);
+  console.error('FAIL studio e2e:', e.message, (e.stack.match(/studio\.e2e\.mjs:\d+/) || [''])[0]);
 } finally {
   await browser.close();
   dfw('studio', 'stop');
