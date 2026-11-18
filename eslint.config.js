@@ -1,0 +1,45 @@
+// ESLint flat config (docs/conventions/javascript.md J13): recommended rules plus no-unused-vars and
+// no-undef as errors; browser globals for the Studio code, Node globals for scripts and tests.
+import js from '@eslint/js';
+import globals from 'globals';
+
+export default [
+  {
+    ignores: [
+      'node_modules/**',
+      'plugins/**',
+      'native/target/**',
+      // The Node Studio server is being deleted (rust-core).
+      'core/studio/server.mjs',
+      'core/studio/pages.mjs',
+    ],
+  },
+  js.configs.recommended,
+  {
+    languageOptions: { ecmaVersion: 2024, sourceType: 'module' },
+    rules: {
+      'no-unused-vars': ['error', { args: 'after-used', caughtErrors: 'none', ignoreRestSiblings: true }],
+      // `catch {}` is how the browser code says "a failure here changes nothing".
+      'no-empty': ['error', { allowEmptyCatch: true }],
+      'no-undef': 'error',
+    },
+  },
+  {
+    files: ['core/studio/**/*.js'],
+    languageOptions: { globals: globals.browser },
+  },
+  {
+    // Runs in Penpot's plugin sandbox as a classic script; `penpot` (the plugin API) is declared in the file.
+    files: ['core/studio/penpot/plugin.js'],
+    languageOptions: { sourceType: 'script' },
+  },
+  {
+    files: ['scripts/**/*.{js,mjs}', 'tests/**/*.{js,mjs}', '*.config.js'],
+    languageOptions: { globals: globals.node },
+  },
+  {
+    // Functions passed to page.evaluate run in the browser.
+    files: ['tests/e2e/**/*.mjs'],
+    languageOptions: { globals: { ...globals.node, ...globals.browser } },
+  },
+];

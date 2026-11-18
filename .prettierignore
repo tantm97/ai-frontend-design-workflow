@@ -1,0 +1,11 @@
+# Generated, or not formatted yet.
+node_modules/
+plugins/
+native/
+# The Node Studio server is being deleted (rust-core); the Rust binary serves the Studio.
+core/studio/server.mjs
+core/studio/pages.mjs
+# Markup and styles keep their one-rule-per-line layout: Prettier would triple app.css and rewrap
+# inline SVG in app.html for no reader benefit. JavaScript, JSON and the tests are formatted.
+*.html
+*.css
