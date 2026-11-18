@@ -1,0 +1,255 @@
+//! Ports the path helpers of `core/lib/util.mjs`: plugin root, global and project directories,
+//! project root search, and the check every path built from an id or a request must pass.
+
+use std::env;
+use std::path::{Component, Path, PathBuf, MAIN_SEPARATOR};
+
+use super::error::DfwError;
+
+/// Manifest files a dfw plugin may carry: Claude Code format, a root `plugin.json` (Copilot and
+/// others), or `manifest.json` (`core/` in the development repository).
+pub const MANIFESTS: [&str; 3] = [".claude-plugin/plugin.json", "plugin.json", "manifest.json"];
+
+/// An environment variable that is set and not empty (what JavaScript treats as truthy).
+pub fn env_nonempty(name: &str) -> Option<String> {
+    env::var(name).ok().filter(|v| !v.is_empty())
+}
+
+/// `path.resolve(p)`: absolute and normalised without touching the file system.
+pub fn resolve(p: impl AsRef<Path>) -> PathBuf {
+    let p = p.as_ref();
+    let joined = if p.is_absolute() { p.to_path_buf() } else { env::current_dir().unwrap_or_default().join(p) };
+    let mut out = PathBuf::new();
+    for part in joined.components() {
+        match part {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                out.pop();
+            }
+            other => out.push(other.as_os_str()),
+        }
+    }
+    out
+}
+
+/// `toPosix`: the platform separator replaced by `/`.
+pub fn to_posix(p: &str) -> String {
+    p.split(MAIN_SEPARATOR).collect::<Vec<_>>().join("/")
+}
+
+/// Global dfw config directory (survives plugin uninstall): `DFW_HOME`, else
+/// `$XDG_CONFIG_HOME/dfw`, else `~/.config/dfw`.
+pub fn global_dir() -> PathBuf {
+    if let Some(home) = env_nonempty("DFW_HOME") {
+        return PathBuf::from(home);
+    }
+    let xdg = env_nonempty("XDG_CONFIG_HOME").map(PathBuf::from).unwrap_or_else(|| home_dir().join(".config"));
+    xdg.join("dfw")
+}
+
+/// Claude Code config directory (respects `CLAUDE_CONFIG_DIR`).
+pub fn claude_dir() -> PathBuf {
+    env_nonempty("CLAUDE_CONFIG_DIR").map(PathBuf::from).unwrap_or_else(|| home_dir().join(".claude"))
+}
+
+fn home_dir() -> PathBuf {
+    env::home_dir().unwrap_or_default()
+}
+
+/// Path of a plugin directory's manifest, or `None`.
+pub fn manifest_path(dir: &Path) -> Option<PathBuf> {
+    MANIFESTS.iter().map(|m| dir.join(m)).find(|f| f.exists())
+}
+
+/// The plugin folder (the one holding `bin/`, `studio/`, `templates/`...): `DFW_PLUGIN_ROOT` when
+/// set (the launcher passes it), else found from the executable: an ancestor that is a plugin
+/// folder, or an ancestor holding `core/` (a build inside the development repository).
+pub fn plugin_root() -> Option<PathBuf> {
+    if let Some(root) = env_nonempty("DFW_PLUGIN_ROOT") {
+        return Some(resolve(root));
+    }
+    let exe = env::current_exe().ok()?;
+    let exe = exe.canonicalize().unwrap_or(exe);
+    plugin_root_from(&exe)
+}
+
+/// The search of [`plugin_root`] from a given executable path. Six levels cover
+/// `<repo>/native/target/<triple>/<profile>/dfw` and stop a stray binary from adopting a far ancestor.
+pub fn plugin_root_from(exe: &Path) -> Option<PathBuf> {
+    for dir in exe.ancestors().skip(1).take(6) {
+        if is_plugin_dir(dir) {
+            return Some(dir.to_path_buf());
+        }
+        let core = dir.join("core");
+        if is_plugin_dir(&core) {
+            return Some(core);
+        }
+    }
+    None
+}
+
+fn is_plugin_dir(dir: &Path) -> bool {
+    dir.join("bin").join("dfw").is_file() && manifest_path(dir).is_some()
+}
+
+/// Find the project root: the nearest ancestor containing `.dfw/state.json`, else the nearest
+/// containing `.git`, else the start directory. `start` defaults to `CLAUDE_PROJECT_DIR`, then
+/// the working directory.
+pub fn find_project_root(start: Option<&Path>) -> PathBuf {
+    let start = match start {
+        Some(p) => resolve(p),
+        None => resolve(env_nonempty("CLAUDE_PROJECT_DIR").map(PathBuf::from).unwrap_or_else(|| env::current_dir().unwrap_or_default())),
+    };
+    let mut git_root: Option<PathBuf> = None;
+    for dir in start.ancestors() {
+        if dir.join(".dfw").join("state.json").exists() {
+            return dir.to_path_buf();
+        }
+        if git_root.is_none() && dir.join(".git").exists() {
+            git_root = Some(dir.to_path_buf());
+        }
+    }
+    git_root.unwrap_or(start)
+}
+
+/// Well-known files and folders of a project (`projectPaths`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectPaths {
+    pub root: PathBuf,
+    pub dfw: PathBuf,
+    pub state: PathBuf,
+    pub config: PathBuf,
+    pub config_local: PathBuf,
+    pub decisions: PathBuf,
+    pub reviews: PathBuf,
+    pub stack: PathBuf,
+    pub studio: PathBuf,
+    pub checks: PathBuf,
+    pub design: PathBuf,
+    pub manifest: PathBuf,
+    pub tokens: PathBuf,
+    pub approved: PathBuf,
+    pub handoff: PathBuf,
+}
+
+/// `projectPaths(root)`.
+pub fn project_paths(root: &Path) -> ProjectPaths {
+    let dfw = root.join(".dfw");
+    let design = root.join("design");
+    ProjectPaths {
+        root: root.to_path_buf(),
+        state: dfw.join("state.json"),
+        config: dfw.join("config.json"),
+        config_local: dfw.join("config.local.json"),
+        decisions: dfw.join("decisions.jsonl"),
+        reviews: dfw.join("reviews"),
+        stack: dfw.join("stack.json"),
+        studio: dfw.join("studio.json"),
+        checks: dfw.join("checks"),
+        manifest: design.join("design.json"),
+        tokens: design.join("tokens"),
+        approved: design.join("approved"),
+        handoff: design.join("handoff"),
+        dfw,
+        design,
+    }
+}
+
+/// Join a relative path that came from an id, a request or a file onto `root` and prove it stays
+/// inside: no absolute path, no `..`, and when the target (or its nearest existing ancestor)
+/// exists, its real path is still under the real root, so a symlink cannot lead out.
+pub fn resolve_inside(root: &Path, rel: &str) -> Result<PathBuf, DfwError> {
+    let outside = || DfwError::new(format!("Path \"{rel}\" is outside the project."));
+    let rel_path = Path::new(rel);
+    if rel.is_empty() || rel.contains('\0') || rel_path.components().any(|c| !matches!(c, Component::Normal(_) | Component::CurDir)) {
+        return Err(outside());
+    }
+    let target = root.join(rel_path);
+    let real_root = root.canonicalize().map_err(|_| outside())?;
+    let mut existing = target.as_path();
+    while !existing.exists() {
+        existing = existing.parent().ok_or_else(outside)?;
+    }
+    if !existing.canonicalize().map_err(|_| outside())?.starts_with(&real_root) {
+        return Err(outside());
+    }
+    Ok(target)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::util::test_dir;
+    use std::fs;
+
+    #[test]
+    fn resolve_normalises_without_the_file_system() {
+        let cwd = env::current_dir().unwrap();
+        assert_eq!(resolve("a/./b/../c"), cwd.join("a").join("c"));
+        assert_eq!(resolve(cwd.join("x").join("..")), cwd);
+    }
+
+    #[test]
+    fn to_posix_replaces_the_platform_separator() {
+        let native = ["design", "screens", "a.html"].join(std::path::MAIN_SEPARATOR_STR);
+        assert_eq!(to_posix(&native), "design/screens/a.html");
+    }
+
+    #[test]
+    fn project_paths_has_the_node_fields() {
+        let p = project_paths(Path::new("r"));
+        assert_eq!(p.state, Path::new("r").join(".dfw").join("state.json"));
+        assert_eq!(p.config_local, Path::new("r").join(".dfw").join("config.local.json"));
+        assert_eq!(p.decisions, Path::new("r").join(".dfw").join("decisions.jsonl"));
+        assert_eq!(p.manifest, Path::new("r").join("design").join("design.json"));
+        assert_eq!(p.approved, Path::new("r").join("design").join("approved"));
+        assert_eq!(p.handoff, Path::new("r").join("design").join("handoff"));
+    }
+
+    #[test]
+    fn project_root_prefers_dfw_state_then_git_then_start() {
+        let tmp = test_dir("root");
+        let deep = tmp.join("repo").join("app").join("src");
+        fs::create_dir_all(&deep).unwrap();
+        assert_eq!(find_project_root(Some(&deep)), deep, "nothing found: the start directory");
+        fs::create_dir_all(tmp.join("repo").join(".git")).unwrap();
+        assert_eq!(find_project_root(Some(&deep)), tmp.join("repo"));
+        fs::create_dir_all(tmp.join("repo").join("app").join(".dfw")).unwrap();
+        assert_eq!(find_project_root(Some(&deep)), tmp.join("repo"), ".dfw without state.json does not count");
+        fs::write(tmp.join("repo").join("app").join(".dfw").join("state.json"), "{}").unwrap();
+        assert_eq!(find_project_root(Some(&deep)), tmp.join("repo").join("app"));
+        fs::remove_dir_all(&tmp).unwrap();
+    }
+
+    #[test]
+    fn plugin_root_is_found_from_the_executable() {
+        let tmp = test_dir("plugin");
+        let exe = tmp.join("native").join("target").join("debug").join("dfw");
+        assert_eq!(plugin_root_from(&exe), None);
+        fs::create_dir_all(tmp.join("core").join("bin")).unwrap();
+        fs::write(tmp.join("core").join("bin").join("dfw"), "").unwrap();
+        assert_eq!(plugin_root_from(&exe), None, "a launcher without a manifest is not a plugin");
+        fs::write(tmp.join("core").join("manifest.json"), "{}").unwrap();
+        assert_eq!(plugin_root_from(&exe), Some(tmp.join("core")));
+        assert_eq!(plugin_root_from(&tmp.join("core").join("bin").join("dfw-native")), Some(tmp.join("core")));
+        fs::remove_dir_all(&tmp).unwrap();
+    }
+
+    #[test]
+    fn resolve_inside_refuses_what_leaves_the_root() {
+        let tmp = test_dir("inside");
+        fs::create_dir_all(tmp.join("project").join("design")).unwrap();
+        fs::create_dir_all(tmp.join("elsewhere")).unwrap();
+        let root = tmp.join("project");
+        assert_eq!(resolve_inside(&root, "design/new/a.html").unwrap(), root.join("design/new/a.html"));
+        for bad in ["", "../elsewhere/x", "design/../../x", "/etc/passwd"] {
+            assert!(resolve_inside(&root, bad).is_err(), "{bad}");
+        }
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(tmp.join("elsewhere"), root.join("design").join("link")).unwrap();
+            assert!(resolve_inside(&root, "design/link/x.html").is_err());
+        }
+        fs::remove_dir_all(&tmp).unwrap();
+    }
+}

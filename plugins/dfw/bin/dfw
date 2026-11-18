@@ -2,7 +2,8 @@
 # dfw launcher (Claude Code puts plugin bin/ on PATH; hooks of every host call it too).
 # Runs the single-file dfw binary for this plugin version when it is installed
 # ("dfw setup --binary", or install.sh), otherwise Node.js with bin/dfw.mjs.
-# DFW_NO_BINARY=1 forces Node.
+# DFW_NO_BINARY=1 forces Node. DFW_BIN=<executable> runs that binary instead (native port: tests
+# and development).
 # Resolve symlinks (e.g. ~/.local/bin/dfw -> <plugin>/bin/dfw) to find the plugin directory.
 SELF=$0
 while [ -L "$SELF" ]; do
@@ -14,6 +15,9 @@ while [ -L "$SELF" ]; do
 done
 DIR=$(CDPATH= cd -- "$(dirname -- "$SELF")" && pwd)
 ROOT=$(dirname -- "$DIR")
+if [ -n "$DFW_BIN" ] && [ -f "$DFW_BIN" ] && [ -x "$DFW_BIN" ]; then
+  DFW_PLUGIN_ROOT="$ROOT" exec "$DFW_BIN" "$@"
+fi
 if [ -z "$DFW_NO_BINARY" ]; then
   # Manifest: Claude Code format, or a root plugin.json (GitHub Copilot and other hosts).
   MANIFEST="$ROOT/.claude-plugin/plugin.json"

@@ -64,7 +64,7 @@ export function readJsonl(file) {
 }
 
 export function nowIso() {
-  return new Date().toISOString();
+  return process.env.DFW_NOW || new Date().toISOString(); // DFW_NOW: fixed clock for the conformance tests
 }
 
 export function sha256(buf) {

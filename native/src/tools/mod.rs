@@ -1,0 +1,8 @@
+//! External tools and installation.
+
+pub mod binary;
+pub mod check;
+pub mod inspector;
+pub mod install;
+pub mod lighthouse;
+pub mod mcp;

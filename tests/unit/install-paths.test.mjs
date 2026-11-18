@@ -62,6 +62,21 @@ test('launcher: nothing to run -> 127; DFW_NO_BINARY never falls back', posix, (
   assert.equal(r.stdout, '');
 });
 
+test('launcher: DFW_BIN names an executable -> it runs, before any installed binary or Node', { skip: process.platform === 'win32' }, () => {
+  const { plugin, run } = launcherFixture(['9.9.9']);
+  const bin = path.join(path.dirname(plugin), 'native-dfw');
+  fs.writeFileSync(bin, '#!/bin/sh\necho "native root=$DFW_PLUGIN_ROOT args=$*"\n', { mode: 0o755 });
+  const r = run({ DFW_BIN: bin });
+  assert.equal(r.status, 0);
+  const m = /^native root=(.+) args=version$/.exec(r.stdout.trim());
+  assert.ok(m, r.stdout);
+  assert.equal(fs.realpathSync(m[1]), fs.realpathSync(plugin));
+  assert.equal(r.stderr, '');
+  // Not an executable file (missing, a directory, no x bit): the launcher behaves as without DFW_BIN.
+  fs.chmodSync(bin, 0o644);
+  for (const DFW_BIN of [bin, path.join(plugin, 'missing'), plugin]) assert.match(run({ DFW_BIN }).stdout, /^fake 9\.9\.9 /);
+});
+
 test('install: Windows spawn plan quotes shell arguments and runs absolute executables directly', () => {
   assert.deepEqual(spawnPlan('C:\\Program Files\\nodejs\\node.exe', ['C:\\p\\dfw.mjs', 'doctor'], 'win32'), { bin: 'C:\\Program Files\\nodejs\\node.exe', args: ['C:\\p\\dfw.mjs', 'doctor'], shell: false });
   const p = spawnPlan('claude', ['plugin', 'marketplace', 'add', 'C:\\Users\\John Doe\\repo', '--scope', 'user'], 'win32');

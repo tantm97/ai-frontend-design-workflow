@@ -22,6 +22,41 @@ jobs:
         run: node scripts/build.mjs --check
       - name: Marketplace validation (structure, cross-references, no upstream hooks, conflict lint)
         run: node scripts/validate.mjs
+  native:
+    # The Rust port (native/): build, unit tests, lints, then the same command lines against the
+    # Node CLI and the binary (tests/conformance). Windows builds and runs the Rust tests only.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Rust toolchain (stable, from the runner's rustup)
+        run: rustup toolchain install stable --profile minimal --component clippy
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/registry
+            native/target
+          key: native-${{ runner.os }}-${{ hashFiles('native/Cargo.lock') }}
+      - name: Build
+        working-directory: native
+        run: cargo build
+      - name: Unit tests
+        working-directory: native
+        run: cargo test
+      - name: Clippy
+        working-directory: native
+        run: cargo clippy -- -D warnings
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        if: runner.os != 'Windows'
+        with:
+          node-version: 22
+      - name: Conformance (Node CLI and native binary give the same result)
+        if: runner.os != 'Windows'
+        run: node --test tests/conformance/
   e2e:
     # Studio click-to-comment end to end (tests/e2e/studio.e2e.mjs). Playwright is a dev-only
     # driver installed outside the repo (DFW_RUNTIME_DIR, no repo dependency, no browser download):
