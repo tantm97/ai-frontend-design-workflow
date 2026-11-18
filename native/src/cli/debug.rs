@@ -29,6 +29,7 @@ const SUBCOMMANDS: &[(&str, Subcommand)] = &[
     ("png-info", super::browser::debug_png_info),
     ("a11y", super::browser::debug_a11y),
     ("insp-path", super::tools::debug_insp_path),
+    ("telemetry-build", super::telemetry::debug_telemetry_build),
 ];
 
 /// The command of this file.

@@ -11,6 +11,7 @@ mod design;
 mod hook;
 mod penpot;
 mod studio;
+mod telemetry;
 mod tools;
 mod workflow;
 
@@ -23,8 +24,6 @@ use crate::core::paths::{env_nonempty, find_project_root, plugin_root};
 use crate::core::util::{out, plugin_manifest, Args};
 
 /// What a command handler receives.
-// No handler reads it yet: this allow goes with the first ported command group.
-#[allow(dead_code)]
 pub struct Ctx {
     /// The arguments as typed, without the program name.
     pub argv: Vec<String>,
@@ -32,8 +31,6 @@ pub struct Ctx {
     pub args: Args,
 }
 
-// See the allow on `Ctx`.
-#[allow(dead_code)]
 impl Ctx {
     /// The project the command works on: `--root`, else the search of `find_project_root`.
     pub fn root(&self) -> PathBuf {
@@ -76,6 +73,7 @@ pub fn commands() -> Vec<(&'static str, Handler)> {
     all.extend(browser::commands());
     all.extend(penpot::commands());
     all.extend(tools::commands());
+    all.extend(telemetry::commands());
     all.extend(debug::commands());
     all
 }
@@ -197,9 +195,11 @@ mod tests {
                 "{cmd} is missing from the command table"
             );
         }
-        // `__debug` is the one command the Node CLI does not have (hidden; see cli/debug.rs).
+        // `__debug` (hidden; see cli/debug.rs) and `telemetry` (new with the telemetry change)
+        // are the commands the Node CLI does not have.
         assert!(unique.contains("__debug") && !include_str!("help.txt").contains("__debug"));
-        assert_eq!(names.len(), 45, "a command the Node CLI does not have");
+        assert!(unique.contains("telemetry"));
+        assert_eq!(names.len(), 46, "a command the Node CLI does not have");
         for name in INTERNAL.iter().chain(BEFORE_HELP.iter()) {
             assert!(unique.contains(name));
         }

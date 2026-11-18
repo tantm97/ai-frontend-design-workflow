@@ -35,12 +35,12 @@ Set the status to `done` in the same commit that registers the commands as nativ
 | `core/lib/lint.mjs` | `design/lint` |  | design | todo |
 | `core/lib/live.mjs` | `studio/live_proxy` |  | studio | todo |
 | `core/lib/locate.mjs` | `review/locate` |  | review | done (no caller yet: check runner and doctor, tools group) |
-| `core/lib/mcp.mjs` | `tools/mcp` |  | tools | todo |
+| `core/lib/mcp.mjs` | `tools/mcp` | install and uninstall: tools/mcp_install | tools | done |
 | `core/lib/penpot-tokens.mjs` | `penpot/tokens` |  | penpot | todo |
 | `core/lib/penpot.mjs` | `penpot/export` | split by job: penpot/diff, penpot/import, penpot/live | penpot | todo |
 | `core/lib/pixeldiff.mjs` | `browser/pixeldiff` |  | browser | done (pixelmatch ported: no browser needed) |
 | `core/lib/runtime.mjs` | `browser/launch` | installBrowser: browser/download; screenshot: browser/screenshot | browser | done |
-| `core/lib/stack.mjs` | `workflow/stack` |  | workflow | done (its command, `stack`, is in `cli/tools.rs` and still forwards) |
+| `core/lib/stack.mjs` | `workflow/stack` |  | workflow | done |
 | `core/lib/state.mjs` | `workflow/state` | decision log entry: workflow/decisions | workflow | done |
 | `core/lib/style.mjs` | `design/style` |  | design | done |
 | `core/lib/system-page.mjs` | `design/system_page` |  | design | todo |
@@ -50,8 +50,10 @@ Set the status to `done` in the same commit that registers the commands as nativ
 | `core/studio/pages.mjs` | `studio/server` |  | studio | todo |
 | `core/studio/server.mjs` | `studio/server` | split by job: studio/watch, studio/sse, studio/penpot_routes | studio | todo |
 
-Rust modules with no Node file of their own: `design/html` (the tokenizer, design decision 2, owner design, done)
-and `assets` (embedded files, design decision 6, owner integrator).
+Rust modules with no Node file of their own: `design/html` (the tokenizer, design decision 2, owner design, done),
+`assets` (embedded files, design decision 6, owner integrator), `tools/handoff` (`cmdHandoff` of cli.mjs, owner tools, done)
+and `telemetry` (the `telemetry` change: events, otlp, spool, flush; with `build.rs` and `cli/telemetry.rs`; done except
+the doctor line and the check counts, see `README-telemetry.md`).
 
 ## Commands
 
@@ -68,6 +70,8 @@ and `assets` (embedded files, design decision 6, owner integrator).
 | `cli/browser.rs` | shoot, diff, layout (hidden: `__debug a11y`) | native |
 | `cli/penpot.rs` | penpot | forward |
 | `cli/tools.rs` | inspector, install, uninstall, setup, doctor | native |
-| `cli/tools.rs` | mcp, stack, handoff | forward |
+| `cli/tools.rs` | inspector, install, uninstall, setup (`--a11y` forwards), doctor | native |
+| `cli/tools.rs` | mcp, stack, handoff (`cmdHandoff` of cli.mjs is `tools/handoff`) | native |
+| `cli/telemetry.rs` | telemetry (new: status, on, off, endpoint, show, flush; hidden: `__debug telemetry-build`) | native; the Node CLI has no such command |
 
 The `HELP` text lives in `core/lib/cli.mjs` and in `src/cli/help.txt` until the Node CLI is deleted.
