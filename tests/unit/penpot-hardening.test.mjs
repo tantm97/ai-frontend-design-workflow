@@ -99,10 +99,12 @@ test('penpot import: a comment thread is imported once, even after the layer und
   for (const t of again.comments) t.x += 3;
   importChanges(root, again, {});
   assert.equal(threads(), 1, 'same thread, same messages: not a new comment');
-  // A reply in the thread is news.
+  // A reply in the thread continues the same dfw comment.
   again.comments[0].comments.push({ content: 'Agreed.', user: 'Designer' });
   importChanges(root, again, {});
-  assert.equal(threads(), 2);
+  assert.equal(threads(), 1);
+  const c = allComments(root).find((x) => x.comment.startsWith('[Penpot comment]'));
+  assert.deepEqual([c.thread.at(-1).by, c.thread.at(-1).message], ['user', 'Agreed.']);
 });
 
 test('penpot import: exportId cannot name a file outside .dfw/penpot/exports', () => {

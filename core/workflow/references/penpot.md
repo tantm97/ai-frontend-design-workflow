@@ -64,7 +64,14 @@ dfw penpot import <changes.json> [--dry-run] [--json]
 1. `dfw studio start`, then `dfw penpot plugin` prints the manifest URL (`http://127.0.0.1:<port>/__dfw/penpot/manifest.json`).
 2. In Penpot, open a file, import `.dfw/penpot/tokens.penpot.json` in the Tokens panel (so colours link to tokens), open the Plugin Manager (Ctrl+Alt+P), paste the URL, install, and open **dfw bridge**.
 3. **Build boards**: the plugin asks the Studio to render the design (or uses the last `dfw penpot export`) and creates one Penpot page per dfw page plus a `dfw components` page. Options in the plugin: dfw page id, breakpoints, render now.
-4. The designer edits and comments in Penpot. **Send changes to dfw** posts the change set to the Studio, which records it as dfw comments (the agent is notified like for Studio comments). **Download changes** saves the same JSON for `dfw penpot import <file>` (when the Studio is not running or the browser blocks 127.0.0.1).
+4. **Live comments** (on by default while the plugin panel is open): every few seconds the plugin sends the comment threads that sit on dfw boards and main components to the Studio. This is the same loop as Studio comments, inside Penpot:
+   - a new thread becomes one dfw comment (`provider: "penpot"`), and the agent is notified at once;
+   - what the agent does comes back as replies in the same thread, prefixed `[dfw]`: seen (`dfw comments ack`), fixed with the note, dismissed, or a question (`dfw comments reply`);
+   - a new message from the designer in the thread is added to the same dfw comment, and reopens it when it was fixed, resolved or dismissed;
+   - resolving the thread in Penpot accepts a fix (`resolved`, by the user), or dismisses a comment that was not fixed yet; un-resolving it reopens.
+   Threads elsewhere in the file are ignored. Replies are posted by the plugin as the Penpot user who has the panel open (Penpot has no bot identity), hence the `[dfw]` prefix. The link between a thread and its comment is kept in `.dfw/penpot/threads.json` (`<file id>#<thread number>`).
+5. **Update boards**: after a fix, the panel says the design changed; **Update boards** renders again and redraws the boards already in the file in place, so their comment threads stay. Layer edits in Penpot that were not sent to dfw are lost by the redraw. Main components already in the file are reused when their structure is unchanged; a new or changed master is drawn as plain layers until the next full **Build boards** in a fresh file.
+6. Layer edits (text, moves, fills, masters) are not live. **Send changes to dfw** posts the change set to the Studio, which records it as dfw comments (the agent is notified like for Studio comments). **Download changes** saves the same JSON for `dfw penpot import <file>` (when the Studio is not running or the browser blocks 127.0.0.1).
 
 What the export contains (`.dfw/penpot/export.json`, history in `.dfw/penpot/exports/<id>.json`):
 - one board per screen x variant x breakpoint, named `<screen> / <variant> @ <breakpoint>`, laid out per page (one row per breakpoint); board height = the rendered page height;

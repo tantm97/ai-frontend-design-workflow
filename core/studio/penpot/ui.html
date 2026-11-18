@@ -33,9 +33,15 @@
   <label><input id="components" type="checkbox" checked> Component masters as Penpot components</label>
   <div class="row">
     <button id="build" class="primary" type="button">Build boards</button>
+    <button id="update" type="button">Update boards</button>
     <button id="load" type="button">Load export file</button>
     <input id="file" type="file" accept="application/json" hidden>
   </div>
+</section>
+<section>
+  <label><input id="live" type="checkbox" checked> Live comments: threads on dfw boards go to Claude, its replies come back into the thread</label>
+  <p id="liveStatus" aria-live="polite">Waiting for the first check...</p>
+  <p id="stale" hidden>The dfw design changed since these boards were built: press <b>Update boards</b>.</p>
 </section>
 <section>
   <div class="row">
@@ -71,14 +77,14 @@
     return out;
   }
 
-  async function build(doc) {
-    log(`Building ${doc.pages.length} page(s)...`);
-    toPlugin({ type: 'build', export: doc, images: await images(doc), options: { components: document.getElementById('components').checked } });
+  async function build(doc, update = false) {
+    log(`${update ? 'Updating' : 'Building'} ${doc.pages.length} page(s)...`);
+    toPlugin({ type: 'build', export: doc, images: await images(doc), options: { components: document.getElementById('components').checked, update } });
   }
 
-  document.getElementById('build').addEventListener('click', async () => {
+  async function fromStudio(update) {
     const q = new URLSearchParams();
-    if (document.getElementById('refresh').checked) q.set('refresh', '1');
+    if (update || document.getElementById('refresh').checked) q.set('refresh', '1');
     const page = document.getElementById('page').value.trim();
     const bp = document.getElementById('bp').value.trim();
     if (page) q.set('page', page);
@@ -88,11 +94,43 @@
       const r = await fetch(`/__dfw/penpot/export.json?${q}`);
       const doc = await r.json();
       if (!r.ok) throw new Error(doc.error || r.statusText);
-      await build(doc);
+      await build(doc, update);
+      if (update) document.getElementById('stale').hidden = true;
     } catch (e) {
       log(`Could not get the export: ${e.message}. Is the dfw Studio running? Or use "Load export file".`, true);
     }
-  });
+  }
+  document.getElementById('build').addEventListener('click', () => fromStudio(false));
+  // Redraws the boards already in this file in place (comment threads stay); edits not sent to dfw yet are lost.
+  document.getElementById('update').addEventListener('click', () => fromStudio(true));
+
+  // Live comments: ask the plugin for the threads, send them to the Studio, post dfw's replies back.
+  const liveStatus = (t) => (document.getElementById('liveStatus').textContent = t);
+  let posted = [];
+  let busyAt = 0;
+  function tick() {
+    if (!document.getElementById('live').checked) return liveStatus('Live comments are off: use "Send changes to dfw".');
+    if (busyAt && Date.now() - busyAt < 30000) return;
+    busyAt = Date.now();
+    toPlugin({ type: 'threads' });
+  }
+  async function sync(data) {
+    try {
+      const r = await fetch('/__dfw/penpot/sync', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...data, posted }) });
+      const res = await r.json();
+      if (!r.ok) throw new Error(res.error || r.statusText);
+      posted = [];
+      document.getElementById('stale').hidden = !res.stale;
+      const news = [res.comments.length ? `${res.comments.length} new (${res.comments.join(', ')})` : '', res.updated.map((u) => `${u.id} ${u.status}`).join(', ')].filter(Boolean).join('; ');
+      liveStatus(`Live: ${data.threads.length} thread(s) on dfw boards, checked ${new Date().toLocaleTimeString()}${news ? `. ${news}` : ''}`);
+      if (res.replies.length) return toPlugin({ type: 'reply', replies: res.replies });
+    } catch (e) {
+      liveStatus(`Live comments paused: ${e.message}. Is the dfw Studio running, and were the boards built from it?`);
+    }
+    busyAt = 0;
+  }
+  setInterval(tick, 5000);
+  tick();
   document.getElementById('load').addEventListener('click', () => document.getElementById('file').click());
   document.getElementById('file').addEventListener('change', async (e) => {
     const f = e.target.files[0];
@@ -111,10 +149,22 @@
 
   window.addEventListener('message', async (e) => {
     const msg = e.data || {};
-    if (msg.type === 'error') return log(msg.message, true);
+    if (msg.type === 'error') {
+      if (msg.of === 'threads' || msg.of === 'reply') {
+        busyAt = 0;
+        return liveStatus(`Live comments paused: ${msg.message}`);
+      }
+      return log(msg.message, true);
+    }
+    if (msg.type === 'threads') return sync(msg.data);
+    if (msg.type === 'replied') {
+      posted = msg.done || [];
+      busyAt = 0;
+      return;
+    }
     if (msg.type === 'built') {
       const s = msg.stats;
-      return log(`Built ${s.pages} page(s), ${s.boards} board(s), ${s.layers} layer(s), ${s.components} component(s), ${s.instances} instance(s), ${s.tokenLinks} token link(s).${s.warnings.length ? `\n\n${s.warnings.slice(0, 20).join('\n')}` : ''}`);
+      return log(`Built ${s.pages} page(s), ${s.boards} board(s)${s.updated ? ` (${s.updated} updated in place)` : ''}, ${s.layers} layer(s), ${s.components} component(s), ${s.instances} instance(s), ${s.tokenLinks} token link(s).${s.warnings.length ? `\n\n${s.warnings.slice(0, 20).join('\n')}` : ''}`);
     }
     if (msg.type === 'changes') {
       const json = JSON.stringify(msg.data, null, 2);

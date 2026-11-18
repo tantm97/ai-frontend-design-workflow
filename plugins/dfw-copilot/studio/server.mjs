@@ -13,7 +13,7 @@ import { composeHtml, loadComponents, buildSystem, escapeHtml } from '../lib/com
 import { applyEdit, undoEdit, loadTokenNames } from '../lib/edit.mjs';
 import { studioPages, screenFlows } from './pages.mjs';
 import { screenshot } from '../lib/runtime.mjs';
-import { exportPenpot, importChanges, formatImportChanges } from '../lib/penpot.mjs';
+import { exportPenpot, importChanges, formatImportChanges, syncThreads } from '../lib/penpot.mjs';
 
 // Started as "dfw __studio-server --root <dir> --port <n>" (works the same from source and in the binary).
 const HERE = path.join(PLUGIN_ROOT, 'studio');
@@ -231,7 +231,7 @@ async function penpotRoute(req, res, p, url) {
   };
   if (req.method === 'OPTIONS') return cors(204, '', 'text/plain');
   if (rel === 'manifest.json') {
-    const m = { name: 'dfw bridge', description: 'Build boards from a local dfw design and send designer changes back as dfw comments (local Studio on 127.0.0.1).', version: 2, code: 'plugin.js', icon: 'icon.svg', permissions: ['content:read', 'content:write', 'library:read', 'library:write', 'comment:read', 'allow:downloads'] };
+    const m = { name: 'dfw bridge', description: 'Build boards from a local dfw design and send designer changes back as dfw comments (local Studio on 127.0.0.1).', version: 3, code: 'plugin.js', icon: 'icon.svg', permissions: ['content:read', 'content:write', 'library:read', 'library:write', 'comment:write', 'allow:downloads'] };
     return cors(200, JSON.stringify(m, null, 2), MIME['.json']);
   }
   if (rel === 'plugin.js') return cors(200, fs.readFileSync(path.join(PENPOT_STATIC, 'plugin.js'), 'utf8').replaceAll('__DFW_STUDIO_ORIGIN__', origin), MIME['.js']);
@@ -248,6 +248,12 @@ async function penpotRoute(req, res, p, url) {
   if (rel === 'changes' && req.method === 'POST') {
     const r = importChanges(root, await body(req), { state: loadState(root) });
     return send(res, 200, { summary: formatImportChanges(r, root), comments: r.comments.map((c) => c.id), changes: r.changes.length });
+  }
+  // Live comments: the plugin panel sends the file's threads every few seconds and posts dfw's replies back.
+  if (rel === 'sync' && req.method === 'POST') {
+    const r = syncThreads(root, await body(req), { state: loadState(root) });
+    if (r.comments.length || r.updated.length) broadcast('comments', {});
+    return send(res, 200, r);
   }
   return send(res, 404, { error: 'not found' });
 }

@@ -175,8 +175,8 @@ test('penpot studio routes: manifest/plugin over CORS (private network), writes 
     const m = await fetch(`${base}/__dfw/penpot/manifest.json`);
     assert.equal(m.headers.get('access-control-allow-origin'), '*');
     const manifest = await m.json();
-    assert.deepEqual([manifest.code, manifest.version], ['plugin.js', 2]);
-    assert.ok(manifest.permissions.includes('content:write') && manifest.permissions.includes('comment:read'));
+    assert.deepEqual([manifest.code, manifest.version], ['plugin.js', 3]);
+    assert.ok(manifest.permissions.includes('content:write') && manifest.permissions.includes('comment:write'));
     const pre = await fetch(`${base}/__dfw/penpot/plugin.js`, { method: 'OPTIONS' });
     assert.equal(pre.headers.get('access-control-allow-private-network'), 'true');
     const code = await (await fetch(`${base}/__dfw/penpot/plugin.js`)).text();

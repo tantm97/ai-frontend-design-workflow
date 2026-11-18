@@ -622,7 +622,9 @@ async function cmdPenpot(root, a) {
     return out(`${url ? '' : 'The Studio is not running: start it with "dfw studio start".\n'}Penpot plugin manifest: ${manifest}
 In Penpot: open a file, Plugins (Ctrl+Alt+P), paste the URL, Install, then open "dfw bridge".
   Build boards: pulls the latest "dfw penpot export" from the Studio and creates pages, boards, components.
-  Send changes: sends edits and comments back to the Studio, which records them as dfw comments (provider "penpot").
+  Live comments: while the panel is open, threads on dfw boards reach the agent like Studio comments; its replies come back into the thread.
+  Update boards: redraws the boards in place after the design changed (comment threads stay).
+  Send changes: sends layer edits and token changes back to the Studio, which records them as dfw comments (provider "penpot").
 No Penpot API token is used: the plugin runs in your browser and only talks to 127.0.0.1.`);
   }
   throw new DfwError('Usage: dfw penpot export [--page <id>] [--bp <ids>] | plugin | import <changes.json> [--dry-run]');
