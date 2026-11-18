@@ -4,9 +4,8 @@
 //!
 //! Split by job: `foundations` (tokens as palette, roles, type, spacing, shape), `concept` (the
 //! style guide and DESIGN.md), `components` (one section per master), `tokens` (lookups),
-//! `text` (the JavaScript text rules the page depends on) and `audit` (the review findings).
+//! `text` (the JavaScript text rules the page depends on).
 
-mod audit;
 mod components;
 mod concept;
 mod foundations;
@@ -23,7 +22,6 @@ use serde_json::{json, Value};
 #[allow(unused_imports)]
 pub use components::{describe_parts, describe_text, Parts};
 
-use self::audit::audit_design_system;
 use self::components::{comp_section, Inline};
 use self::text::encode_uri;
 use self::tokens::{load_tokens, Tokens, Vars};
@@ -32,6 +30,7 @@ use super::tokens::dir_names;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::project_paths;
+use crate::design::dsaudit::audit_design_system;
 
 /// The page's own styles (the literal of system-page.mjs, kept as a file).
 const CSS: &str = include_str!("../system_page.css");

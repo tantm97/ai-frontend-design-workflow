@@ -9,6 +9,8 @@ use std::path::{Path, PathBuf};
 use regex::Regex;
 use serde_json::{json, Value};
 
+use super::layout::{parse_layout_css, render_layout};
+use super::style::parse_style;
 use super::*;
 use crate::core::util::test_dir;
 use crate::design::compose::{compose_html, ComposeOptions};

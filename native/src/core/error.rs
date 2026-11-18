@@ -23,7 +23,9 @@ impl DfwError {
         }
     }
 
-    /// User-facing error with a specific exit code (`new DfwError(message, code)`).
+    /// User-facing error with a specific exit code (`new DfwError(message, code)`). No
+    /// command needs one yet; the tests pin how such an error exits.
+    #[cfg(test)]
     pub fn with_code(message: impl Into<String>, code: i32) -> Self {
         DfwError::User {
             message: message.into(),
@@ -92,7 +94,6 @@ mod tests {
         let e = DfwError::new("Unknown command \"x\". Run \"dfw help\".");
         assert_eq!(e.exit_code(), 1);
         assert_eq!(e.report(), "Unknown command \"x\". Run \"dfw help\".");
-        assert_eq!(DfwError::with_code("findings", 2).exit_code(), 2);
     }
 
     #[test]

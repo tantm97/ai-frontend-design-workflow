@@ -33,17 +33,6 @@ pub enum Status {
     Planned,
 }
 
-impl Status {
-    /// The word the Node table uses.
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Status::Supported => "supported",
-            Status::Internal => "internal",
-            Status::Planned => "planned",
-        }
-    }
-}
-
 /// One entry of `HOSTS`.
 #[derive(Debug)]
 pub struct Host {
@@ -53,6 +42,8 @@ pub struct Host {
     /// The host's command line program.
     pub cli: Option<&'static str>,
     /// Folder under `adapters/`.
+    // Read by the build scripts' twin of this table (host.mjs); kept so the rows match.
+    #[allow(dead_code)]
     pub adapter: Option<&'static str>,
     /// Hook events the host fires and whether a hook can add model context there.
     pub context: Option<&'static [(&'static str, bool)]>,
@@ -61,6 +52,8 @@ pub struct Host {
     /// Skills are named `plugin:skill` (else by the bare skill name).
     pub qualified_skill_names: bool,
     /// Reached through the dfw MCP server.
+    // Read by the build scripts' twin of this table (host.mjs); kept so the rows match.
+    #[allow(dead_code)]
     pub mcp: bool,
 }
 
@@ -497,7 +490,6 @@ mod tests {
         assert_eq!(supported_hosts(), ["claude", "copilot"]);
         for id in ["opencode", "codex", "cursor"] {
             assert_eq!(get_host(Some(id)).unwrap().status, Status::Planned);
-            assert_eq!(get_host(Some(id)).unwrap().status.as_str(), "planned");
         }
     }
 

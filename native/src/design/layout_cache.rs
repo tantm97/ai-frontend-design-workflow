@@ -73,9 +73,6 @@ pub struct Changed {
 
 impl Changed {
     /// Nothing to check again.
-    // Its callers are the layout command and the stop hook (browser group): this allow goes
-    // when they use this module instead of their stand-in.
-    #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         self.screens.is_empty() && self.changed_comps.is_empty() && !self.tokens_changed
     }
@@ -228,5 +225,34 @@ mod tests {
         );
         let after = changed_screens(&root).unwrap();
         assert!(after.is_empty());
+    }
+
+    #[rustfmt::skip]
+    /// A check is tied to the content it measured (the browser group's test of its stand-in).
+    #[test]
+    fn changed_screens_follow_content_hashes() {
+        let root = test_dir("layout-cache");
+        let write = |rel: &str, text: &str| {
+            let file = root.join(rel);
+            fs::create_dir_all(file.parent().unwrap()).unwrap();
+            fs::write(file, text).unwrap();
+        };
+        write("design/design.json", r#"{"screens":[{"id":"home","variants":[{"id":"a","file":"screens/home/a.html"},{"id":"gone","file":"screens/home/gone.html"}]}]}"#);
+        write("design/screens/home/a.html", "<p>a</p>");
+        write("design/system/components/button.html", "<b></b>");
+        write("design/tokens/tokens.json", "{}");
+        let first = changed_screens(&root).unwrap();
+        assert_eq!(first, Changed { screens: vec!["home".into()], changed_comps: vec!["button".into()], tokens_changed: true });
+        mark_checked(&root).unwrap();
+        assert!(changed_screens(&root).unwrap().is_empty());
+        let cache = fs::read_to_string(root.join(".dfw/layout-cache.json")).unwrap();
+        let keys: Vec<String> = serde_json::from_str::<Value>(&cache).unwrap().as_object().unwrap().keys().cloned().collect();
+        assert_eq!(keys, ["c:button.html", "t:tokens", "f:styles/base.css", "f:system/head.html", "s:screens/home/a.html", "s:screens/home/gone.html"]);
+        assert!(cache.contains("\"f:styles/base.css\": null") && cache.ends_with("}\n"));
+        write("design/styles/base.css", "body{}");
+        assert_eq!(changed_screens(&root).unwrap(), Changed { screens: vec!["home".into()], changed_comps: vec![], tokens_changed: true });
+        mark_checked(&root).unwrap();
+        write("design/system/components/button.html", "<i></i>");
+        assert_eq!(changed_screens(&root).unwrap(), Changed { screens: vec!["home".into()], changed_comps: vec!["button".into()], tokens_changed: false });
     }
 }

@@ -5,20 +5,17 @@
 //!   touch-target (SHOULD).
 //! The measuring itself is JavaScript that runs in the page: `layout_measure.js`, the same text
 //! as `measure` in layout.mjs. Thresholds are applied here.
-//!
-//! Over 800 lines with its tests: the check, its message texts and the stand-in for the layout
-//! cache (which moves to design/layout_cache at the merge) are one Node file.
+// Over 800 lines with its tests: the check and its message texts are one Node file.
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 use std::thread;
 
 use regex::{Captures, Regex};
 use serde::Deserialize;
-use serde_json::{json, Map, Value};
+use serde_json::{json, Value};
 
 use super::cdp::lock;
 use super::launch::{
@@ -27,12 +24,13 @@ use super::launch::{
 use crate::core::config::{load_config, studio_breakpoints, Breakpoint};
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::{plugin_root, project_paths, resolve, to_posix};
-use crate::core::util::{read_json, sha256, write_json};
+use crate::core::paths::{project_paths, resolve, to_posix};
+use crate::core::util::read_json;
 use crate::design::compose::{
     build_composed, build_system, compose_html, load_components, ComposeOptions,
 };
-use crate::design::tokens::{dir_names, relative_path};
+use crate::design::system_page::render_system_page;
+use crate::design::tokens::relative_path;
 
 /// `measure` of layout.mjs, byte for byte: it runs in the page and returns raw measurements.
 const MEASURE: &str = include_str!("layout_measure.js");
@@ -351,31 +349,6 @@ pub(crate) fn file_url(file: &Path) -> String {
     url
 }
 
-/// The Design System page as HTML (`renderSystemPage(root, { designBase: '../' })`).
-// TODO(merge): use design::system_page::render_system_page. Until that module is ported the
-// page comes from the Node module, the one place where this check still needs Node.
-fn render_system_page(root: &Path) -> Result<String, DfwError> {
-    const SCRIPT: &str = "const [lib, root] = process.argv.slice(1); const { renderSystemPage } = await import(lib); process.stdout.write(renderSystemPage(root, { designBase: '../' }));";
-    let lib = plugin_root()
-        .map(|dir| dir.join("lib").join("system-page.mjs"))
-        .filter(|f| f.is_file())
-        .ok_or_else(|| DfwError::new("The Design System page is still rendered by the Node.js module lib/system-page.mjs, which was not found. Set DFW_PLUGIN_ROOT to the dfw plugin folder, or pass --no-system."))?;
-    let run = Command::new("node")
-        .args(["--input-type=module", "-e", SCRIPT])
-        .arg(file_url(&lib))
-        .arg(root)
-        .output()
-        .map_err(|err| DfwError::new(format!("The Design System page is still rendered by Node.js, which could not start ({err}). Install Node.js 22 or newer, or pass --no-system.")))?;
-    if !run.status.success() {
-        let stderr = String::from_utf8_lossy(&run.stderr);
-        return Err(DfwError::internal(format!(
-            "could not render the Design System page: {}",
-            stderr.trim()
-        )));
-    }
-    Ok(String::from_utf8_lossy(&run.stdout).into_owned())
-}
-
 /// Write the composed Design System page to `.dfw/build/design/system/index.html` with its
 /// local CSS inlined, like `build_composed` does for screens.
 fn build_system_page(root: &Path) -> Result<PathBuf, DfwError> {
@@ -384,7 +357,7 @@ fn build_system_page(root: &Path) -> Result<PathBuf, DfwError> {
     let out_dir = p.dfw.join("build/design/system");
     let sys_out = out_dir.join("index.html");
     fs::create_dir_all(&out_dir)?;
-    let page = render_system_page(root)?;
+    let page = render_system_page(root, "../")?;
     let opts = ComposeOptions {
         lib: None,
         design_base: Some("../"),
@@ -733,93 +706,6 @@ fn findings_of(results: &[(RenderJob, Result<Measure, String>)]) -> Vec<Finding>
     findings
 }
 
-// ---------------------------------------------------------------------------------------------
-// TODO(merge): design::layout_cache. Stand-ins for `changedScreens` and `markChecked` of
-// layout.mjs, which another group ports; they are here only so that `layout check --changed`
-// and the stop hook build and can be tested.
-// ---------------------------------------------------------------------------------------------
-
-/// What changed since the last layout check (`changedScreens(root)`).
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub(crate) struct Changed {
-    pub screens: Vec<String>,
-    pub changed_comps: Vec<String>,
-    pub tokens_changed: bool,
-}
-
-impl Changed {
-    /// Nothing to check again.
-    pub fn is_empty(&self) -> bool {
-        self.screens.is_empty() && self.changed_comps.is_empty() && !self.tokens_changed
-    }
-}
-
-/// Files every screen loads besides the tokens.
-const SHARED: [&str; 2] = ["styles/base.css", "system/head.html"];
-
-/// Content hash of a file (null when it cannot be read), as the cache stores it.
-fn hash_of(file: &Path) -> Value {
-    fs::read(file).map_or(Value::Null, |bytes| json!(sha256(bytes)[..16]))
-}
-
-fn variant_files(manifest: &Value) -> Vec<(String, String)> {
-    let mut files = Vec::new();
-    for s in list(manifest, "screens") {
-        for v in list(s, "variants") {
-            files.push((js::to_string(s.get("id")), js::to_string(v.get("file"))));
-        }
-    }
-    files
-}
-
-pub(crate) fn changed_screens(root: &Path) -> Result<Changed, DfwError> {
-    let p = project_paths(root);
-    let cache = read_json(&p.dfw.join("layout-cache.json"), Some(json!({})))?;
-    let manifest = read_json(&p.manifest, Some(json!({})))?;
-    let comp_dir = p.design.join("system/components");
-    let mut changed = Changed::default();
-    for f in dir_names(&comp_dir)? {
-        if Some(&hash_of(&comp_dir.join(&f))) != cache.get(format!("c:{f}")) {
-            changed.changed_comps.push(f.replacen(".html", "", 1));
-        }
-    }
-    // tokens_changed also covers the other files every screen loads (base styles, shared head).
-    changed.tokens_changed = Some(&hash_of(&p.tokens.join("tokens.json"))) != cache.get("t:tokens")
-        || SHARED.iter().any(|f| {
-            hash_of(&p.design.join(f)) != *cache.get(format!("f:{f}")).unwrap_or(&Value::Null)
-        });
-    for (id, file) in variant_files(&manifest) {
-        let abs = p.design.join(&file);
-        // A changed master reaches a screen through other masters too, so any changed master
-        // re-checks every screen.
-        let stale = changed.tokens_changed
-            || !changed.changed_comps.is_empty()
-            || Some(&hash_of(&abs)) != cache.get(format!("s:{file}"));
-        if abs.exists() && stale && !changed.screens.contains(&id) {
-            changed.screens.push(id);
-        }
-    }
-    Ok(changed)
-}
-
-pub(crate) fn mark_checked(root: &Path) -> Result<(), DfwError> {
-    let p = project_paths(root);
-    let mut cache = Map::new();
-    let comp_dir = p.design.join("system/components");
-    for f in dir_names(&comp_dir)? {
-        cache.insert(format!("c:{f}"), hash_of(&comp_dir.join(&f)));
-    }
-    cache.insert("t:tokens".into(), hash_of(&p.tokens.join("tokens.json")));
-    for f in SHARED {
-        cache.insert(format!("f:{f}"), hash_of(&p.design.join(f)));
-    }
-    let manifest = read_json(&p.manifest, Some(json!({})))?;
-    for (_, file) in variant_files(&manifest) {
-        cache.insert(format!("s:{file}"), hash_of(&p.design.join(&file)));
-    }
-    write_json(&p.dfw.join("layout-cache.json"), &Value::Object(cache))
-}
-
 #[cfg(test)]
 #[rustfmt::skip]
 mod tests {
@@ -972,33 +858,5 @@ mod tests {
     fn file_urls_are_percent_encoded() {
         assert_eq!(file_url(Path::new("/tmp/a b/é#1?.html")), "file:///tmp/a%20b/%C3%A9%231%3F.html");
         assert_eq!(file_url(Path::new("/x/../y/100%.html")), "file:///y/100%25.html");
-    }
-
-    /// Stand-in for the layout cache: a check is tied to the content it measured.
-    #[test]
-    fn changed_screens_follow_content_hashes() {
-        let root = crate::core::util::test_dir("layout-cache");
-        let write = |rel: &str, text: &str| {
-            let file = root.join(rel);
-            fs::create_dir_all(file.parent().unwrap()).unwrap();
-            fs::write(file, text).unwrap();
-        };
-        write("design/design.json", r#"{"screens":[{"id":"home","variants":[{"id":"a","file":"screens/home/a.html"},{"id":"gone","file":"screens/home/gone.html"}]}]}"#);
-        write("design/screens/home/a.html", "<p>a</p>");
-        write("design/system/components/button.html", "<b></b>");
-        write("design/tokens/tokens.json", "{}");
-        let first = changed_screens(&root).unwrap();
-        assert_eq!(first, Changed { screens: vec!["home".into()], changed_comps: vec!["button".into()], tokens_changed: true });
-        mark_checked(&root).unwrap();
-        assert!(changed_screens(&root).unwrap().is_empty());
-        let cache = fs::read_to_string(root.join(".dfw/layout-cache.json")).unwrap();
-        let keys: Vec<String> = serde_json::from_str::<Value>(&cache).unwrap().as_object().unwrap().keys().cloned().collect();
-        assert_eq!(keys, ["c:button.html", "t:tokens", "f:styles/base.css", "f:system/head.html", "s:screens/home/a.html", "s:screens/home/gone.html"]);
-        assert!(cache.contains("\"f:styles/base.css\": null") && cache.ends_with("}\n"));
-        write("design/styles/base.css", "body{}");
-        assert_eq!(changed_screens(&root).unwrap(), Changed { screens: vec!["home".into()], changed_comps: vec![], tokens_changed: true });
-        mark_checked(&root).unwrap();
-        write("design/system/components/button.html", "<i></i>");
-        assert_eq!(changed_screens(&root).unwrap(), Changed { screens: vec!["home".into()], changed_comps: vec!["button".into()], tokens_changed: false });
     }
 }

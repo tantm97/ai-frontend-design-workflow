@@ -7,9 +7,7 @@ use serde_json::{json, Value};
 
 use super::{Ctx, Handler};
 use crate::browser::a11y::{a11y_check, A11yOptions};
-use crate::browser::layout_check::{
-    changed_screens, layout_check, mark_checked, LayoutOptions, LayoutResult,
-};
+use crate::browser::layout_check::{layout_check, LayoutOptions, LayoutResult};
 use crate::browser::pixeldiff::{decode_rgba, diff_images, diff_pairs, format_line, THRESHOLD};
 use crate::browser::screenshot::{screenshot, Job, CONCURRENCY};
 use crate::core::config::{load_config, studio_breakpoints, Breakpoint};
@@ -18,6 +16,7 @@ use crate::core::js;
 use crate::core::paths::{project_paths, resolve};
 use crate::core::process::is_alive;
 use crate::core::util::{out, read_json, sha256, to_json_pretty, ArgValue, Args};
+use crate::design::layout_cache::{changed_screens, mark_checked};
 
 /// The commands of this group.
 pub fn commands() -> Vec<(&'static str, Handler)> {
@@ -407,7 +406,6 @@ fn layout(ctx: &Ctx) -> Result<i32, DfwError> {
     let mut screens: Option<Vec<String>> = ids("screen");
     let mut system = !a.truthy("no-system");
     if a.truthy("changed") {
-        // TODO(merge): design::layout_cache (changed_screens, mark_checked)
         let ch = changed_screens(&root)?;
         if ch.is_empty() {
             out("Layout: nothing changed since the last check.");

@@ -5,12 +5,11 @@
 use serde_json::Value;
 
 use crate::browser::launch::browser_status;
-use crate::browser::layout_check::{
-    changed_screens, layout_check, mark_checked, Finding, LayoutOptions, LayoutResult,
-};
+use crate::browser::layout_check::{layout_check, Finding, LayoutOptions, LayoutResult};
 use crate::core::config::{checks_layout_on_stop, load_config};
 use crate::core::error::DfwError;
 use crate::core::host::{HookInput, HookResult};
+use crate::design::layout_cache::{changed_screens, mark_checked};
 use crate::workflow::state::load_state;
 
 use super::post_tool_use::Outcome;
@@ -39,7 +38,6 @@ pub fn stop(input: &HookInput) -> Result<Outcome, DfwError> {
     if !checks_layout_on_stop(&load_config(Some(&root))?) || !browser_status().installed() {
         return Ok(Outcome::Done(None));
     }
-    // TODO(merge): design::layout_cache (changed_screens, mark_checked)
     let ch = changed_screens(&root)?;
     if ch.is_empty() {
         return Ok(Outcome::Done(None));

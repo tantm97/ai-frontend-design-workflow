@@ -20,10 +20,6 @@
 
 // Over 800 lines with its tests: the tokenizer and the helpers built on it are one unit that
 // lint, edit and the Studio import as one module.
-// Half of this module is for the groups ported next (lint, edit, system page, Studio server):
-// this allow goes when they call it.
-#![allow(dead_code)]
-
 use crate::core::js;
 use std::ops::Range;
 
@@ -90,6 +86,7 @@ impl Tag {
             .find(|a| &src[a.name.clone()] == name)
     }
 
+    #[cfg(test)]
     /// The decoded value of attribute `name`: `None` when the attribute is missing, an empty
     /// string when it has no value.
     pub fn value(&self, src: &str, name: &str) -> Option<String> {
@@ -151,6 +148,7 @@ pub enum Token {
     RawText(Range<usize>),
 }
 
+#[cfg(test)]
 impl Token {
     /// The bytes of the source this token covers.
     pub fn range(&self) -> Range<usize> {
@@ -194,11 +192,6 @@ impl<'a> Tokenizer<'a> {
     pub fn seek(&mut self, pos: usize) {
         self.pos = pos;
         self.raw = None;
-    }
-
-    /// Where the next token starts.
-    pub fn pos(&self) -> usize {
-        self.pos
     }
 
     /// The raw text of the element whose opening tag was the previous token.
@@ -265,11 +258,6 @@ impl Iterator for Tokenizer<'_> {
         };
         Some(Token::Text(start..self.pos))
     }
-}
-
-/// All tokens of `src`.
-pub fn tokenize(src: &str) -> Vec<Token> {
-    Tokenizer::new(src).collect()
 }
 
 fn is_name_byte(b: u8) -> bool {
@@ -451,6 +439,7 @@ pub fn element_within(src: &str, start: usize, end: usize) -> Option<Element> {
     })
 }
 
+#[cfg(test)]
 /// Every opening tag that carries attribute `name` with the decoded value `value`.
 pub fn tags_with_attr(src: &str, name: &str, value: &str) -> Vec<Tag> {
     Tokenizer::new(src)
@@ -461,6 +450,7 @@ pub fn tags_with_attr(src: &str, name: &str, value: &str) -> Vec<Tag> {
         .collect()
 }
 
+#[cfg(test)]
 /// The first element that carries attribute `name` with the decoded value `value`
 /// (`find_by_attr(text, "data-dfw-id", "items.add")`).
 pub fn find_by_attr(src: &str, name: &str, value: &str) -> Option<Element> {
@@ -471,6 +461,7 @@ pub fn find_by_attr(src: &str, name: &str, value: &str) -> Option<Element> {
     element_at(src, tag.range.start)
 }
 
+#[cfg(test)]
 /// A direct child of an element.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Node {
@@ -482,6 +473,7 @@ pub enum Node {
     Text(Range<usize>),
 }
 
+#[cfg(test)]
 impl Node {
     /// The bytes of the source this child covers.
     pub fn range(&self) -> Range<usize> {
@@ -492,6 +484,7 @@ impl Node {
     }
 }
 
+#[cfg(test)]
 /// The direct children of an element in source order; their ranges cover `el.inner` exactly.
 pub fn children(src: &str, el: &Element) -> Vec<Node> {
     if el.open.is(src, "script") || el.open.is(src, "style") {
@@ -504,6 +497,7 @@ pub fn children(src: &str, el: &Element) -> Vec<Node> {
     nodes(src, el.inner.clone())
 }
 
+#[cfg(test)]
 /// The top-level nodes of `src[range]`, which must be ordinary content (not the inside of a
 /// tag, a comment, `<script>` or `<style>`); their ranges cover `range` exactly.
 pub fn nodes(src: &str, range: Range<usize>) -> Vec<Node> {

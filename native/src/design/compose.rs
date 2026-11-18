@@ -9,10 +9,6 @@
 //! a quoted attribute, `<script>` or `<style>` is no longer taken for a real one.
 // Over 800 lines with its tests: one Node module, kept whole so the two can be read side by side.
 
-// compose_file, build_composed, list_icons and design_base_for are for the groups ported next
-// (lint, check, system page, Studio server): this allow goes when they call them.
-#![allow(dead_code)]
-
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -1147,6 +1143,7 @@ fn compose_level(root: &Path, html: &str, lib: &Library, depth: usize) -> Result
     Ok(level)
 }
 
+#[cfg(test)]
 /// The result of [`compose_file`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComposedFile {
@@ -1155,6 +1152,7 @@ pub struct ComposedFile {
     pub needs_components_css: bool,
 }
 
+#[cfg(test)]
 /// `composeFile`: compose a design HTML file (path relative to the project root).
 pub fn compose_file(root: &Path, rel: &str) -> Result<ComposedFile, DfwError> {
     let text = js::read_text(&root.join(rel))?;

@@ -12,10 +12,6 @@
 //! `moves` (reordering), `layout` (the layout block); this file has the boundary checks, the
 //! edit operations and the journal.
 
-// The callers are the Studio server (ported next) and, until then, the `__debug` helpers and
-// the tests: this allow goes when the server calls the module.
-#![allow(dead_code, unused_imports)]
-
 mod layout;
 mod locate;
 mod moves;
@@ -29,14 +25,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::{json, Map, Value};
 
-pub use layout::{
-    parse_layout_css, render_layout, set_layout_rule, LayoutModel, LAYOUT_SPECIFICITY,
-};
-pub use locate::{locate, locate_own, locate_value, master_of, Located};
+pub use layout::set_layout_rule;
+pub use locate::{locate_own, locate_value, Located};
 pub use moves::{move_inside, move_source};
 pub use style::{
-    collect_tokens, layout_value, load_token_names, parse_style, set_style_prop, token_var,
-    TokenEntry, WIDTH_PERCENTS,
+    collect_tokens, layout_value, load_token_names, set_style_prop, token_var, TokenEntry,
 };
 
 use crate::core::error::DfwError;

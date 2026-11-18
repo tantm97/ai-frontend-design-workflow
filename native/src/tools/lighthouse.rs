@@ -4,9 +4,6 @@
 //! npm cache) against the Chrome dfw already uses. Accessibility is left to axe (dfw check).
 //! Error reporting stays off.
 
-// `dfw check` (tools/check) is the only caller and is not ported yet.
-#![allow(dead_code)]
-
 use std::io::Read;
 use std::path::Path;
 use std::process::{Command, Stdio};
