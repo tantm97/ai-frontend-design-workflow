@@ -100,7 +100,17 @@ function run(impl, args, opts = {}) {
   }
 }
 
-const run2 = (args, opts) => ({ node: run('node', args, opts), native: run('native', args, opts) });
+// The native doctor (also printed by install) has one row Node does not: telemetry, right after
+// the global config dir. It is checked here and removed, so everything else compares as is.
+const TELEMETRY_ROW = /^( *)(ok +global config dir - [^\n]*\n)\1ok +telemetry - [^\n]*\n/m;
+function run2(args, opts) {
+  const r = { node: run('node', args, opts), native: run('native', args, opts) };
+  if (/ok +global config dir - /.test(r.node.stdout)) {
+    assert.match(r.native.stdout, TELEMETRY_ROW, 'the native doctor has the telemetry row');
+    r.native.stdout = r.native.stdout.replace(TELEMETRY_ROW, '$1$2');
+  }
+  return r;
+}
 
 /** assertSame plus the collected extras. */
 function same(r, o) {

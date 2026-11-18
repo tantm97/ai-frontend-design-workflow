@@ -46,7 +46,7 @@ describe('skeleton', { skip: skipReason() }, () => {
     assertSame(both(['status'], { state: null }), { stderr: true });
   });
 
-  test('a forwarded command that writes: same file, same timestamp, same exit code on error', () => {
+  test('a command that writes: same file, same timestamp, same exit code on error', () => {
     const r = both(['decide', '--level', '2', '--topic', 'skeleton', 'keep', 'the', 'table']);
     assertSame(r, { stderr: true });
     assert.equal(r.native.files['.dfw/decisions.jsonl'], `{"at":"${NOW}","level":2,"topic":"skeleton","decision":"keep the table","by":"orchestrator"}\n`);
@@ -55,7 +55,7 @@ describe('skeleton', { skip: skipReason() }, () => {
     assert.equal(bad.native.code, 1);
   });
 
-  test('DFW_NATIVE=off forwards even the native commands', () => {
+  test('DFW_NATIVE=off hands every command to Node', () => {
     const r = both(['version'], { env: { DFW_NATIVE: 'off' } });
     assert.match(r.native.stdout, /^dfw \S+ \(<runtime>\)\n$/);
     assertSame(r);

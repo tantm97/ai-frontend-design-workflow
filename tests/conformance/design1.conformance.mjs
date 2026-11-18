@@ -272,7 +272,7 @@ describe('design commands', { skip: skipReason() }, () => {
     assert.equal(same(['blueprint']).stdout, 'items: NO BLUEPRINT\n');
   });
 
-  test('fonts: usage error without a network call; forwarded subcommands still answer', () => {
+  test('fonts: usage error without a network call; the other subcommands answer the same', () => {
     assertSame(both(['fonts']), { stderr: true });
     assertSame(both(['fonts', 'check']), { stderr: true });
     assertSame(both(['tokens', 'extract']), { stderr: true });

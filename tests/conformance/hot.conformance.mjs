@@ -105,7 +105,7 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
     assert.deepEqual(again.files, {});
   });
 
-  test('init without design/ is forwarded (the design template and the token build are not ported)', () => {
+  test('init without design/: the design template and the token build', () => {
     const r = same(['init', '--product', 'New'], { state: null, setup: (root) => fs.rmSync(path.join(root, 'design'), { recursive: true }) });
     assert.equal(r.code, 0);
     assert.ok('design/tokens/tokens.css' in r.files);
@@ -157,7 +157,7 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
     }
   });
 
-  test('status: the system phase before DS is forwarded; a broken state fails in both', () => {
+  test('status: the system phase before DS counts the masters; a broken state fails in both', () => {
     const system = st({ phase: 'system', gates: { ...MINIMAL_STATE.gates, G1: GATE } });
     assert.match(same(['status'], { state: system }).stdout, /\nnext: review the Design System page in the studio/);
     same(['status', '--json'], { state: system });
@@ -217,11 +217,14 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
       const args = ['phase', ...(to === undefined ? [] : [to])];
       const plain = same(args, { state });
       const forced = same([...args, '--force', '--reason', 'the user said so'], { state });
-      assert.equal(forced.code, 0, `${state.mode} -> ${to}`);
+      // 0.5.2: --force never writes a missing or unknown phase.
+      const known = to !== undefined && to !== 'nowhere';
+      assert.equal(forced.code, known ? 0 : 1, `${state.mode} -> ${to}`);
+      if (!known) assert.deepEqual(forced.files, {});
       if (plain.code === 1) {
         assert.match(plain.stderr, /^Cannot move to ".*":\n- /);
         assert.deepEqual(plain.files, {});
-        assert.match(forced.files['.dfw/state.json'], /"forced": \[/);
+        if (known) assert.match(forced.files['.dfw/state.json'], /"forced": \[/);
       }
     }
     same(['phase', 'direction', '--reason'], {});
@@ -237,10 +240,7 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
     const ok = [
       [['approve', 'G1', '--note', 'Direction A'], {}],
       [['approve', 'g1', '--note=Direction "B"'], { state: st({ phase: 'direction' }) }],
-      [['approve', 'G1', '--note'], {}],
       [['approve', 'G3', '--note', 'Vue 3 + plain CSS'], { state: FROZEN, setup: stack }],
-      [['approve', 'G3', '--note', 'x'], { state: FROZEN, setup: (root) => write(root, '.dfw/stack.json', 'null') }],
-      [['approve', 'G3', '--note', 'x'], { state: FROZEN, setup: (root) => write(root, '.dfw/stack.json', [1, 2]) }],
       [['approve', 'G4', '--note', 'Matches the design'], { state: verify }],
     ];
     for (const [args, opts] of ok) {
@@ -249,7 +249,7 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
       assert.match(r.files['.dfw/decisions.jsonl'], /"level":1,"topic":"gate:G\d"/);
       assert.match(r.files['.dfw/state.json'], /"event": "approve"/);
     }
-    assert.match(same(...ok[3]).files['.dfw/stack.json'], /"status": "approved",\n {2}"proposedAt": ".*",\n {2}"approvedAt": /);
+    assert.match(same(...ok[2]).files['.dfw/stack.json'], /"status": "approved",\n {2}"proposedAt": ".*",\n {2}"approvedAt": /);
     const bad = [
       [['approve', 'G1'], {}],
       [['approve', 'G1', '--note', ''], {}],
@@ -259,6 +259,10 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
       [['approve', 'G4', '--note', 'x'], { state: FROZEN }],
       [['approve', 'G1', '--note', 'x'], { state: null }],
       [['approve'], { state: null }],
+      // 0.5.2: a flag that takes a value needs one; G3 refuses a stack.json that is not an object.
+      [['approve', 'G1', '--note'], {}],
+      [['approve', 'G3', '--note', 'x'], { state: FROZEN, setup: (root) => write(root, '.dfw/stack.json', 'null') }],
+      [['approve', 'G3', '--note', 'x'], { state: FROZEN, setup: (root) => write(root, '.dfw/stack.json', [1, 2]) }],
     ];
     for (const [args, opts] of bad) {
       const r = same(args, opts);
@@ -269,7 +273,7 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
     assert.match(same(['approve', 'G1']).stderr, /^Approvals record what the user approved/);
   });
 
-  test('approve DS and G2 are forwarded whole (their checks are not ported)', () => {
+  test('approve DS and G2 run their gate checks first', () => {
     for (const gate of ['DS', 'G2', 'ds']) {
       for (const state of [st(), null]) {
         const r = same(['approve', gate], { state });
@@ -277,7 +281,7 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
         assert.deepEqual(r.files, {});
       }
     }
-    // DS on a project without a rationale is refused by the design-system audit, in Node for both.
+    // DS on a project without a rationale is refused by the design-system audit in both.
     const r = same(['approve', 'DS', '--note', 'x'], { state: st({ phase: 'system', gates: { ...MINIMAL_STATE.gates, G1: GATE } }) });
     assert.equal(r.code, 1);
     assert.match(r.stderr, /^DS blocked: /);
@@ -300,10 +304,12 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
       assert.deepEqual(r.files, {});
     }
     for (const cmd of ['pause', 'resume']) {
-      for (const args of [[], ['--reason', 'Hotfix first'], ['--reason'], ['--reason=']]) {
+      for (const args of [[], ['--reason', 'Hotfix first'], ['--reason=']]) {
         const r = same([cmd, ...args], { state: st({ active: cmd === 'pause' }) });
         assert.equal(JSON.parse(r.files['.dfw/state.json']).active, cmd === 'resume');
       }
+      // 0.5.2: --reason alone is refused ("--reason needs a value.").
+      assert.deepEqual(same([cmd, '--reason'], { state: st({ active: cmd === 'pause' }) }).files, {});
       assert.equal(same([cmd], { state: null }).code, 1);
     }
     assert.equal(same(['pause']).stdout, 'dfw paused (gates and hooks off) for <root>\n');
@@ -315,9 +321,8 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
       ['--level', '3', '--topic', 'type', '--overrides', 'd1', 'Inter for UI text'],
       ['--level', '2.5', '--text', 'From a flag'],
       ['--level=5', 'x'],
-      ['--level', '--topic', 't', 'the flag alone is level 1'],
       ['--level', '0x2', 'hex'],
-      ['--level', ' 4 ', '--text'],
+      ['--level', ' 4 ', 'padded'],
       ['words', 'first', '--level', '2'],
     ];
     for (const args of ok) {
@@ -326,7 +331,8 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
       assert.equal(r.files['.dfw/decisions.jsonl'], `${JSON.stringify(JSON.parse(r.stdout))}\n`);
     }
     assert.equal(same(['decide', '--level', '2', 'x'], { state: null }).code, 0, 'decide needs no workflow');
-    for (const args of [['x'], ['--level', '0', 'x'], ['--level', '6', 'x'], ['--level', 'two', 'x'], ['--level', '', 'x'], ['--level', '2'], ['--level', '2', '--text', '']]) {
+    // 0.5.2: --level and --text alone are refused, no longer read as level 1 and an empty text.
+    for (const args of [['x'], ['--level', '0', 'x'], ['--level', '6', 'x'], ['--level', 'two', 'x'], ['--level', '', 'x'], ['--level', '2'], ['--level', '2', '--text', ''], ['--level', '--topic', 't', 'x'], ['--level', ' 4 ', '--text']]) {
       const r = same(['decide', ...args]);
       assert.equal(r.code, 1, args.join(' '));
       assert.deepEqual(r.files, {});
@@ -358,9 +364,6 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
       [['studio.port', '4900', '--local'], '.dfw/config.local.json'],
       [['language.default', 'vi', '--global'], '.dfw/home/config.json'],
       [['studio.port', '4900', '--project'], '.dfw/config.json'],
-      [['a.b'], '.dfw/config.json'],
-      [['gate.allow'], '.dfw/config.json'],
-      [['schema'], '.dfw/config.json'],
     ];
     for (const [args, file] of sets) {
       for (const setup of [undefined, layers]) {
@@ -371,6 +374,13 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
     }
     assert.equal(same(['config', 'set', 'studio.port', '4700']).files['.dfw/config.json'], '{\n  "studio": {\n    "port": 4700\n  }\n}\n');
     assert.equal(sameButStderr(['config', 'set']).code, 1);
+    // 0.5.2: set without a value is a usage error and writes nothing.
+    for (const key of ['a.b', 'gate.allow', 'schema']) {
+      for (const setup of [undefined, layers]) {
+        const r = same(['config', 'set', key], { env, setup });
+        assert.deepEqual([r.code, r.files], [1, {}], key);
+      }
+    }
     for (const args of [['config'], ['config', 'unset', 'a']]) assert.equal(same(args).stderr, 'Usage: dfw config get [key] | set <key> <value> [--global|--project|--local]\n');
     assert.equal(sameButStderr(['config', 'get'], { setup: (root) => write(root, '.dfw/config.json', '{ nope') }).code, 1);
   });
@@ -472,7 +482,8 @@ describe('hot: comments', { skip: skipReason() }, () => {
         }
       }
     }
-    assert.equal(allowed, 35);
+    // 0.5.2: setting the status a comment already has is refused (it was a no-op change before).
+    assert.equal(allowed, 24);
     const at = (args) => same(['comments', ...args], { setup: withSession(MIXED) });
     assert.match(at(['resolve', 'fb_003']).stderr, /^Only the user resolves a comment/);
     assert.match(at(['fixed', 'fb_001']).stderr, /^Marking a comment fixed needs a short note/);
@@ -519,6 +530,8 @@ describe('hot: comments', { skip: skipReason() }, () => {
       { comment: 'x', file: 'screens/items/a.html', target: { dfwId: 'items.add', source: '' } },
       { comment: 'x', target: 'text', screen: 0, variant: '', theme: false, provider: '' },
       { comment: 'x', url: 42, extra: 'ignored' },
+      // 0.5.2: a file that is not a relative path inside design/ is stored as null.
+      { comment: 'x', file: 5 },
     ];
     for (const input of inputs) {
       const json = ['comments', 'add', '--json', JSON.stringify(input)];
@@ -540,7 +553,7 @@ describe('hot: comments', { skip: skipReason() }, () => {
       assert.deepEqual([r.code, r.stderr, r.files], [1, 'A comment needs text.\n', {}], input);
     }
     assert.equal(same(['comments', 'add', '--json']).stderr, 'A comment needs text.\n');
-    for (const args of [['--json', '{ nope'], [], ['--json', '{"comment":5}'], ['--json', '{"comment":"x","file":5}']]) assert.equal(sameButStderr(['comments', 'add', ...args], { setup: withSession(MIXED) }).code, 1);
+    for (const args of [['--json', '{ nope'], [], ['--json', '{"comment":5}']]) assert.equal(sameButStderr(['comments', 'add', ...args], { setup: withSession(MIXED) }).code, 1);
   });
 
   test('new-round closes the open session and starts one', () => {
@@ -830,7 +843,8 @@ describe('hot: hooks', { skip: skipReason() }, () => {
       assert.match(same(args, ss(json((root) => ({ cwd: root })))).stdout, /Session id for \\"dfw lang\\": unknown\./);
       same(args, ss(json((root) => ({ cwd: root, session_id: 42 }))));
       for (const stdin of ['', 'not json']) same(args, ss(stdin));
-      assert.equal(sameButStderr(args, ss('null')).stdout, '');
+      // 0.5.2: a payload that is not an object is an empty payload (the project comes from the environment).
+      same(args, ss('null'));
       for (const [rel, text] of [['.dfw/state.json', '{ nope'], ['.dfw/state.json', '{}'], ['.dfw/reviews/rv_1.json', '{ nope']]) {
         const broken = sameButStderr(args, ss(payload(), { setup: (root) => write(root, rel, text) }));
         assert.deepEqual([broken.code, broken.stdout], [0, ''], rel);
@@ -852,7 +866,7 @@ describe('hot: hooks', { skip: skipReason() }, () => {
     assert.deepEqual(same(['hook', 'session-start'], ss(payload(), { env: { DFW_HOME: '.dfw/home' }, setup: old })).files, { '.dfw/home/sessions/old.json': null });
   });
 
-  test('post-tool-use: nothing to check is native (comments for Copilot); a UI edit is forwarded to the checks', () => {
+  test('post-tool-use: nothing to check (comments for Copilot); a UI edit runs the checks', () => {
     const post = (rel, tool = 'Edit') => json((root) => ({ session_id: 's1', hook_event_name: 'PostToolUse', cwd: root, tool_name: tool, tool_input: { file_path: path.join(root, rel) }, tool_response: { success: true } }));
     const quiet = [post('src/a.ts'), post('README.md'), post('design/approved/v1/screens/a.html'), post('src/a.html', 'Read'), post('.dfw/notes.md'), post('design/notes.txt'), json((root) => ({ cwd: root, tool_name: 'Write', tool_input: { file_path: '/elsewhere/a.html' } })), json((root) => ({ cwd: root }))];
     for (const host of HOSTS) {
@@ -869,7 +883,7 @@ describe('hot: hooks', { skip: skipReason() }, () => {
       const off = (root) => write(root, '.dfw/config.json', { checks: { onEdit: false } });
       same(args, hookOpts(post('design/screens/items/a.html'), { setup: all(off, withSession(MIXED)) }));
       for (const state of [null, STATES.paused]) assert.deepEqual(same(args, hookOpts(post('design/screens/items/a.html'), { state, setup: withSession(MIXED) })).files, {});
-      // Forwarded: lint runs on the edited screen, tokens are rebuilt after a token edit.
+      // Lint runs on the edited screen, tokens are rebuilt after a token edit.
       for (const rel of ['design/screens/items/a.html', 'design/tokens/tokens.json', 'design/system/components/button.html', 'src/App.tsx', 'src/styles.css', 'design/design.json']) {
         same(args, hookOpts(post(rel, 'Write'), { setup: withSession(MIXED) }));
       }
@@ -877,7 +891,7 @@ describe('hot: hooks', { skip: skipReason() }, () => {
       const findings = same(args, hookOpts(post('design/screens/items/a.html'), { setup: bad }));
       assert.match(findings.stdout, /dfw checks on design\/screens\/items\/a\.html:/);
       const both = same(args, hookOpts(post('design/screens/items/a.html'), { setup: all(bad, withSession(MIXED)) }));
-      assert.equal(/new Studio comment/.test(both.stdout), host[1] === 'copilot', 'the forwarded call delivers the comments too');
+      assert.equal(/new Studio comment/.test(both.stdout), host[1] === 'copilot', 'the call with checks delivers the comments too');
       for (const [rel, text] of [['.dfw/state.json', '{ nope'], ['.dfw/config.json', '{ nope']]) {
         const broken = sameButStderr(args, hookOpts(post('design/screens/items/a.html'), { setup: (root) => write(root, rel, text) }));
         assert.deepEqual([broken.code, broken.stdout], [0, ''], rel);
@@ -886,7 +900,7 @@ describe('hot: hooks', { skip: skipReason() }, () => {
     }
   });
 
-  test('stop: comments block once; never loops; the layout check is forwarded when it applies', () => {
+  test('stop: comments block once; never loops; the layout check runs when it applies', () => {
     const payload = (active = false) => json((root) => ({ session_id: 's1', hook_event_name: 'Stop', cwd: root, stop_hook_active: active }));
     const concepts = st({ phase: 'concepts' });
     for (const host of HOSTS) {
@@ -903,7 +917,7 @@ describe('hot: hooks', { skip: skipReason() }, () => {
       // In a design phase the layout check runs unless it is switched off...
       const off = (root) => write(root, '.dfw/config.json', { checks: { layoutOnStop: false } });
       assert.deepEqual(same(args, hookOpts(payload(), { state: concepts, setup: off })).files, {});
-      // ...and is forwarded: here every screen was checked already, so Node finds nothing to render.
+      // ...here every screen was checked already, so there is nothing to render.
       for (const state of [concepts, st({ phase: 'system' })]) assert.deepEqual(same(args, hookOpts(payload(), { state, setup: (root) => markChecked(root) })).files, {});
       for (const [rel, text] of [['.dfw/state.json', '{ nope'], ['.dfw/reviews/rv_1.json', '{ nope']]) {
         const broken = sameButStderr(args, hookOpts(payload(), { setup: (root) => write(root, rel, text) }));
@@ -914,9 +928,9 @@ describe('hot: hooks', { skip: skipReason() }, () => {
   });
 });
 
-// Modules without a native command of their own yet: the Node module is called directly and
-// the binary through its hidden `__debug hot` command, each on its own copy of the fixture.
-describe('hot: freeze and stack detection (modules behind forwarded commands)', { skip: skipReason() }, () => {
+// The modules on their own: the Node module is called directly and the binary through its
+// hidden `__debug hot` command, each on its own copy of the fixture.
+describe('hot: freeze and stack detection (the modules, called directly)', { skip: skipReason() }, () => {
   const lib = (file) => JSON.stringify(pathToFileURL(path.join(REPO, 'core', 'lib', file)).href);
   const tree = (dir) => {
     const out = {};

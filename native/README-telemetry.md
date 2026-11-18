@@ -112,15 +112,11 @@ Maintainer: add the two secrets under Settings > Secrets and variables > Actions
 
 ## Left for the integrator
 
-- **`dfw doctor`**: the handler is in `cli/tools.rs` (tools group). Add after the "global config dir" row:
-  `ok("telemetry", true, &crate::telemetry::status_line());`
-  and remove the `#[allow(dead_code)]` on `telemetry::status_line`.
-- **Check counts**: `check` and `lint` still run in Node, so `dfw.checks` is defined and tested but
-  nothing records it. When `tools/check` is ported, call
-  `crate::telemetry::record(Event::Checks { tools })` with one `CheckCount` per result
-  (`CheckTool::new(result.tool)`), and remove the `#[allow(dead_code)]` on `telemetry::record`.
-- **Help text**: `telemetry` is not in `cli/help.txt` (the text is shared with `cli.mjs` until the Node
-  CLI is deleted). Add: `dfw telemetry status|on|off|endpoint <url>|show|flush`.
+Done at the merge: `dfw doctor` prints the telemetry row after the global config dir, `check` and
+`lint` record `dfw.checks` (one `CheckCount` per result whose tool is on the list), and the native
+help lists `dfw telemetry status|on|off|endpoint <url>|show|flush` (the conformance help test allows
+exactly that line). Still open:
+
 - **Docs** (tasks 4.1, 4.2 of the change): README privacy section and AGENTS.md rule 3.
 - `DFW_NATIVE=off` hands every command to Node before the hook dispatcher runs: such hook calls are not
   recorded.

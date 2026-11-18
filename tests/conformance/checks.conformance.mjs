@@ -30,11 +30,8 @@ const KIT = path.join(CORE, 'kits', 'base', 'components');
 const FIXTURE = path.join(REPO, 'tests', 'fixtures', 'penpot', 'project');
 const SCREEN = 'design/screens/items/a.html';
 
-// The native check runner follows the pull request "fix/impeccable-hardening" (verified engine
-// only, run directly, --strict, "unverified" in JSON, filtered project env). Until the Node
-// modules on this branch have that change, the cases where the two must differ are skipped.
-const NODE_IS_HARDENED = typeof nodeCheck.checkExitCode === 'function';
-const PENDING = NODE_IS_HARDENED ? false : 'Node on this branch predates fix/impeccable-hardening (verified engine, --strict, "unverified" in JSON, filtered project env): compare again when it is merged';
+// Both runners follow the hardening of 0.5.2 (verified engine only, run directly, --strict,
+// "unverified" in JSON, filtered project env): every case is compared.
 const POSIX_ONLY = process.platform === 'win32' ? 'the stand-in tools are sh scripts' : false;
 
 const write = (root, rel, data) => {
@@ -286,7 +283,7 @@ describe('checks: lint', { skip: skipReason() }, () => {
     assert.ok(died > 20, `shapes Node dies on are covered (${died})`);
   });
 
-  test('byte-identical --json', { skip: PENDING }, () => {
+  test('byte-identical --json', () => {
     for (const args of [['lint', '--json'], ['lint', SCREEN, '--json']]) assertSame(both(args, { setup: messy, normalize: parserWords }));
   });
 });
@@ -549,13 +546,12 @@ describe('checks: check', { skip: skipReason() || POSIX_ONLY }, () => {
     assert.deepEqual([r.code, r.stderr], [1, '--lighthouse needs --url <running app> (verify phase).\n']);
   });
 
-  // ---- where the native runner follows fix/impeccable-hardening: its own behaviour is tested
-  // here; the comparison with Node waits for that pull request.
+  // ---- the hardened runner (0.5.2): what the native runner does, and that Node does the same.
 
-  /** Two tests for one case: what the native runner does, and (pending) that Node does the same. */
+  /** Two tests for one case: what the native runner does, and that Node does the same. */
   const hardened = (name, args, opts, expectNative) => {
     test(`hardened runner: ${name}`, () => expectNative(both(args, opts()).native));
-    test(`hardened runner, same as Node: ${name}`, { skip: PENDING }, () => assertSame(both(args, opts())));
+    test(`hardened runner, same as Node: ${name}`, () => assertSame(both(args, opts())));
   };
 
   // The hardened Node code writes the page for the launcher before it looks for the plugin.
@@ -604,8 +600,9 @@ describe('checks: check', { skip: skipReason() || POSIX_ONLY }, () => {
     setup: (root) => write(path.dirname(root), 'home/config.json', { env: { IMPECCABLE_API_URL: 'http://mirror.internal', DO_NOT_TRACK: '0' } }),
   }), (r) => assert.match(r.stdout, /checked with api=http:\/\/mirror\.internal track=0/));
   hardened('--setup does not start the launcher when it would run an engine dfw cannot verify', ['check', '--setup'], () => withTools({ impeccable: 'not-downloaded' }, { env: (root, tmp) => ({ IMPECCABLE_BIN: ownBuild(root, tmp) }) }), (r) => {
-    assert.match(r.stdout, /^Impeccable setup stopped: the launcher would run an engine dfw cannot verify \(.*own\/impeccable\)\. Remove it or unset IMPECCABLE_BIN, or allow it: dfw config set impeccable\.allowUnverifiedEngine true --global\n$/);
-    assert.equal(r.code, 0);
+    // 0.5.2: a setup that was refused is an error (exit 1, the reason on stderr).
+    assert.match(r.stderr, /^Impeccable setup stopped: the launcher would run an engine dfw cannot verify \(.*own\/impeccable\)\. Remove it or unset IMPECCABLE_BIN, or allow it: dfw config set impeccable\.allowUnverifiedEngine true --global\n$/);
+    assert.deepEqual([r.code, r.stdout], [1, '']);
   });
 });
 

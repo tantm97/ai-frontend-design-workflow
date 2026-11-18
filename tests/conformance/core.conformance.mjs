@@ -100,9 +100,13 @@ describe('core: config', { skip: skipReason() }, () => {
     });
     assertSameConfig({ project: '{"gate":null,"skills":[["x"],"y"]}' });
     assertSameConfig({ project: '{"gate":"text","skills":7}', local: '{"skills":{"disabled":[["a"],["a"]]}}' });
-    // A layer that is not an object is replaced by the next one.
-    assertSameConfig({ project: '[1,2]', local: '{"a":{"b":1}}' });
-    assertSameConfig({ global: '"text"', project: '{}' });
+    // 0.5.2: a layer that is not an object is an error to fix, no longer replaced by the next one.
+    for (const layers of [{ project: '[1,2]', local: '{"a":{"b":1}}' }, { global: '"text"', project: '{}' }]) {
+      const { node, native } = loadBoth(layers);
+      assert.deepEqual([node.code, native.code], [1, 1]);
+      assert.match(native.stderr, /^Config file .*config\.json must hold a JSON object\. Fix it or delete it\.\n$/);
+      assert.match(node.stderr, /Config file .*config\.json must hold a JSON object\. Fix it or delete it\./);
+    }
   });
 
   test('broken JSON fails in both', () => {

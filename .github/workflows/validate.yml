@@ -34,28 +34,34 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Rust toolchain (stable, from the runner's rustup)
-        run: rustup toolchain install stable --profile minimal --component clippy
+        run: rustup toolchain install stable --profile minimal --component clippy,rustfmt
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cargo/registry
             native/target
           key: native-${{ runner.os }}-${{ hashFiles('native/Cargo.lock') }}
+      - name: Formatting
+        working-directory: native
+        run: cargo fmt --check
       - name: Build
         working-directory: native
         run: cargo build
       - name: Unit tests
         working-directory: native
         run: cargo test
-      - name: Clippy
+      - name: Clippy (tests included)
         working-directory: native
-        run: cargo clippy -- -D warnings
+        run: cargo clippy --all-targets -- -D warnings
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         if: runner.os != 'Windows'
         with:
           node-version: 22
       - name: Conformance (Node CLI and native binary give the same result)
         if: runner.os != 'Windows'
+        # A missing binary fails instead of skipping: a green run means the cases ran.
+        env:
+          DFW_REQUIRE_BIN: '1'
         run: node --test tests/conformance/
   e2e:
     # Studio click-to-comment end to end (tests/e2e/studio.e2e.mjs). Playwright is a dev-only
