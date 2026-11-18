@@ -26,10 +26,27 @@
   let pins = [];
 
   const LANDMARK_TAGS = new Set(['HEADER', 'NAV', 'MAIN', 'ASIDE', 'FOOTER', 'FORM', 'DIALOG']);
-  const LANDMARK_ROLES = new Set(['banner', 'navigation', 'main', 'complementary', 'contentinfo', 'region', 'search', 'form', 'dialog', 'alertdialog', 'toolbar', 'tablist']);
+  const LANDMARK_ROLES = new Set([
+    'banner',
+    'navigation',
+    'main',
+    'complementary',
+    'contentinfo',
+    'region',
+    'search',
+    'form',
+    'dialog',
+    'alertdialog',
+    'toolbar',
+    'tablist',
+  ]);
   const isUi = (el) => el && el.closest && el.closest('[data-dfw-ui]');
   const isLayer = (el) =>
-    el.hasAttribute('data-dfw-id') || el.hasAttribute('data-dfw-component') || LANDMARK_TAGS.has(el.tagName) || LANDMARK_ROLES.has(el.getAttribute('role')) || (el.tagName === 'SECTION' && (el.hasAttribute('aria-label') || el.hasAttribute('aria-labelledby')));
+    el.hasAttribute('data-dfw-id') ||
+    el.hasAttribute('data-dfw-component') ||
+    LANDMARK_TAGS.has(el.tagName) ||
+    LANDMARK_ROLES.has(el.getAttribute('role')) ||
+    (el.tagName === 'SECTION' && (el.hasAttribute('aria-label') || el.hasAttribute('aria-labelledby')));
 
   const rectOf = (el) => {
     const r = el.getBoundingClientRect();
@@ -72,7 +89,30 @@
     return parts.join(' > ');
   }
 
-  const IMPLICIT_ROLE = { BUTTON: 'button', A: 'link', INPUT: 'textbox', SELECT: 'combobox', TEXTAREA: 'textbox', NAV: 'navigation', HEADER: 'banner', FOOTER: 'contentinfo', MAIN: 'main', FORM: 'form', TABLE: 'table', IMG: 'img', H1: 'heading', H2: 'heading', H3: 'heading', H4: 'heading', DIALOG: 'dialog', UL: 'list', OL: 'list', LI: 'listitem', SECTION: 'region', ASIDE: 'complementary' };
+  const IMPLICIT_ROLE = {
+    BUTTON: 'button',
+    A: 'link',
+    INPUT: 'textbox',
+    SELECT: 'combobox',
+    TEXTAREA: 'textbox',
+    NAV: 'navigation',
+    HEADER: 'banner',
+    FOOTER: 'contentinfo',
+    MAIN: 'main',
+    FORM: 'form',
+    TABLE: 'table',
+    IMG: 'img',
+    H1: 'heading',
+    H2: 'heading',
+    H3: 'heading',
+    H4: 'heading',
+    DIALOG: 'dialog',
+    UL: 'list',
+    OL: 'list',
+    LI: 'listitem',
+    SECTION: 'region',
+    ASIDE: 'complementary',
+  };
 
   function a11y(el) {
     let role = el.getAttribute('role') || IMPLICIT_ROLE[el.tagName] || null;
@@ -81,7 +121,12 @@
       role = { checkbox: 'checkbox', radio: 'radio', search: 'searchbox', button: 'button', submit: 'button', range: 'slider' }[t] || role;
     }
     let name = el.getAttribute('aria-label') || el.getAttribute('alt') || el.getAttribute('title') || '';
-    if (!name && el.getAttribute('aria-labelledby')) name = el.getAttribute('aria-labelledby').split(/\s+/).map((id) => document.getElementById(id)?.textContent || '').join(' ');
+    if (!name && el.getAttribute('aria-labelledby'))
+      name = el
+        .getAttribute('aria-labelledby')
+        .split(/\s+/)
+        .map((id) => document.getElementById(id)?.textContent || '')
+        .join(' ');
     if (!name && el.id) name = document.querySelector(`label[for="${CSS.escape(el.id)}"]`)?.textContent || '';
     if (!name && el.getAttribute('placeholder')) name = el.getAttribute('placeholder');
     if (!name) name = el.textContent || '';
@@ -101,7 +146,13 @@
       viewportBbox: [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)],
       a11y: a11y(el),
       text: (el.innerText || el.value || '').replace(/\s+/g, ' ').trim().slice(0, 160),
-      styles: { color: cs.color, background: cs.backgroundColor, font: `${cs.fontWeight} ${cs.fontSize}/${cs.lineHeight} ${cs.fontFamily.split(',')[0]}`, padding: cs.padding, radius: cs.borderRadius },
+      styles: {
+        color: cs.color,
+        background: cs.backgroundColor,
+        font: `${cs.fontWeight} ${cs.fontSize}/${cs.lineHeight} ${cs.fontFamily.split(',')[0]}`,
+        padding: cs.padding,
+        radius: cs.borderRadius,
+      },
       scroll: [Math.round(scrollX), Math.round(scrollY)],
     };
   }
@@ -194,7 +245,8 @@
     const transparent = (c) => c === 'rgba(0, 0, 0, 0)' || c === 'transparent';
     row('color', 'color', cs.color, M.color);
     if (!transparent(cs.backgroundColor)) row('background-color', 'background-color', cs.backgroundColor, M.color);
-    if (parseFloat(cs.borderTopWidth) > 0 && cs.borderTopStyle !== 'none' && !transparent(cs.borderTopColor)) row('border-color', 'border-color', cs.borderTopColor, M.color);
+    if (parseFloat(cs.borderTopWidth) > 0 && cs.borderTopStyle !== 'none' && !transparent(cs.borderTopColor))
+      row('border-color', 'border-color', cs.borderTopColor, M.color);
     row('font-size', 'font-size', cs.fontSize, M.fontSize);
     row('font-weight', 'font-weight', cs.fontWeight, M.fontWeight);
     if (cs.lineHeight !== 'normal') row('line-height', 'line-height', cs.lineHeight, lineHeightMap(cs.fontSize));
@@ -221,7 +273,12 @@
       }
     }
     sides('margin', ['margin-top', 'margin-right', 'margin-bottom', 'margin-left']);
-    sides('border-radius', ['border-top-left-radius', 'border-top-right-radius', 'border-bottom-right-radius', 'border-bottom-left-radius']);
+    sides('border-radius', [
+      'border-top-left-radius',
+      'border-top-right-radius',
+      'border-bottom-right-radius',
+      'border-bottom-left-radius',
+    ]);
     if (cs.boxShadow !== 'none') row('box-shadow', 'box-shadow', cs.boxShadow, M.shadow);
     return rows;
   }
@@ -269,7 +326,8 @@
   const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
   function editTarget(el) {
     if (!el || el.children.length) return { error: 'Only text-only elements can be edited in place.' };
-    if (/^(INPUT|TEXTAREA|SELECT|IMG|SVG|svg)$/.test(el.tagName) || !norm(el.textContent)) return { error: 'This element has no text to edit.' };
+    if (/^(INPUT|TEXTAREA|SELECT|IMG|SVG|svg)$/.test(el.tagName) || !norm(el.textContent))
+      return { error: 'This element has no text to edit.' };
     if (el.dataset.dfwId) return { el, id: el.dataset.dfwId };
     const host = el.closest('[data-dfw-id]');
     if (host && host.dataset.dfwComponent && norm(host.textContent) === norm(el.textContent)) return { el, id: host.dataset.dfwId };
@@ -319,7 +377,12 @@
       rect: rectOf(el),
       label: labelOf(el),
       layer: layerNode.get(el)?.node.i ?? null,
-      own: { id: el.dataset.dfwId || null, comp: el.dataset.dfwComponent || null, variant: el.dataset.dfwVariant || null, size: el.dataset.dfwSize || null },
+      own: {
+        id: el.dataset.dfwId || null,
+        comp: el.dataset.dfwComponent || null,
+        variant: el.dataset.dfwVariant || null,
+        size: el.dataset.dfwSize || null,
+      },
       textEditable: !t.error,
       inspect: withInspect ? inspect(el) : null,
     };
@@ -343,7 +406,10 @@
     for (const p of pins) {
       let el = null;
       try {
-        el = (p.selector && document.querySelector(p.selector)) || (p.dfwId && document.querySelector(`[data-dfw-id="${CSS.escape(p.dfwId)}"]`)) || null;
+        el =
+          (p.selector && document.querySelector(p.selector)) ||
+          (p.dfwId && document.querySelector(`[data-dfw-id="${CSS.escape(p.dfwId)}"]`)) ||
+          null;
       } catch {}
       if (el && el.getClientRects().length) out.push({ id: p.id, rect: rectOf(el) });
     }
@@ -368,8 +434,10 @@
   const FLOW = /^(inline-)?(flex|grid)$/;
   const isFlow = (el) => !!el && el.nodeType === 1 && FLOW.test(getComputedStyle(el).display);
   const isGrid = (el) => /grid$/.test(getComputedStyle(el).display);
-  const idKids = (c) => [...c.children].filter((x) => x.dataset && x.dataset.dfwId && !x.hasAttribute('data-dfw-ui') && x.getClientRects().length);
-  const canLayout = (el) => layoutCfg.enabled && mode === 'select' && !editing && el && el.isConnected && !!el.dataset.dfwId && el !== document.body;
+  const idKids = (c) =>
+    [...c.children].filter((x) => x.dataset && x.dataset.dfwId && !x.hasAttribute('data-dfw-ui') && x.getClientRects().length);
+  const canLayout = (el) =>
+    layoutCfg.enabled && mode === 'select' && !editing && el && el.isConnected && !!el.dataset.dfwId && el !== document.body;
   const canMove = (el) => canLayout(el) && isFlow(el.parentElement);
   const PERCENTS = [25, 33.333, 50, 66.667, 75, 100];
 
@@ -388,11 +456,14 @@
   const hY = mk(`${HANDLE}cursor:ns-resize;`);
   hX.dataset.dfwHandle = 'x';
   hY.dataset.dfwHandle = 'y';
-  hX.title = 'Drag to resize the width (snaps to grid columns, size tokens or percentages). Alt+Shift+Left/Right. Double-click: back to auto';
+  hX.title =
+    'Drag to resize the width (snaps to grid columns, size tokens or percentages). Alt+Shift+Left/Right. Double-click: back to auto';
   hY.title = 'Drag to set a min-height (snaps to spacing/size tokens). Alt+Shift+Up/Down. Double-click: back to auto';
   const line = mk('background:#0d99ff;border-radius:2px;');
   const zone = mk('border:2px dashed #0d99ff;background:rgba(13,153,255,.12);border-radius:4px;'); // drop-into-container highlight
-  const badge = mk('padding:2px 6px;border-radius:4px;background:#0d99ff;color:#fff;font:600 11px/16px system-ui,sans-serif;white-space:nowrap;');
+  const badge = mk(
+    'padding:2px 6px;border-radius:4px;background:#0d99ff;color:#fff;font:600 11px/16px system-ui,sans-serif;white-space:nowrap;',
+  );
   const mountUi = () => !ui.isConnected && (document.body || document.documentElement).append(ui);
 
   function placeHandles() {
@@ -436,7 +507,9 @@
       return d;
     });
     (document.body || document.documentElement).append(box);
-    const list = probes.map((d, i) => ({ name: cand[i].name, var: cand[i].var, px: d.getBoundingClientRect().width })).filter((t) => t.px > 0);
+    const list = probes
+      .map((d, i) => ({ name: cand[i].name, var: cand[i].var, px: d.getBoundingClientRect().width }))
+      .filter((t) => t.px > 0);
     box.remove();
     list.sort((a, b) => a.px - b.px || /\.\d/.test(a.name) - /\.\d/.test(b.name));
     lengthCache = { key, n: tokenVars.length, list };
@@ -448,21 +521,37 @@
     const p = el.parentElement;
     if (axis === 'x' && isGrid(p)) {
       const cs = getComputedStyle(p);
-      const tracks = cs.gridTemplateColumns.split(/\s+/).filter((t) => /px$/.test(t)).map(parseFloat);
+      const tracks = cs.gridTemplateColumns
+        .split(/\s+/)
+        .filter((t) => /px$/.test(t))
+        .map(parseFloat);
       const gap = parseFloat(cs.columnGap) || 0;
       const n = Math.max(1, tracks.length);
       const track = tracks.length ? tracks.reduce((a, b) => a + b, 0) / tracks.length : p.clientWidth;
-      return { prop: 'grid-column', list: Array.from({ length: n }, (_, i) => ({ value: `span ${i + 1}`, css: `span ${i + 1}`, label: `span ${i + 1} / ${n}`, px: (i + 1) * track + i * gap })) };
+      return {
+        prop: 'grid-column',
+        list: Array.from({ length: n }, (_, i) => ({
+          value: `span ${i + 1}`,
+          css: `span ${i + 1}`,
+          label: `span ${i + 1} / ${n}`,
+          px: (i + 1) * track + i * gap,
+        })),
+      };
     }
     const toks = tokenLengths();
     if (axis === 'x') {
       const pcs = getComputedStyle(p);
       const inner = p.clientWidth - parseFloat(pcs.paddingLeft) - parseFloat(pcs.paddingRight);
       const pct = PERCENTS.map((v) => ({ value: `${v}%`, css: `${v}%`, label: `${Math.round(v)}%`, px: (inner * v) / 100 }));
-      const sizes = toks.filter((t) => t.name.startsWith('size.') && t.px <= inner).map((t) => ({ value: t.name, css: `var(${t.var})`, label: `${t.name} · ${Math.round(t.px)}px`, px: t.px }));
+      const sizes = toks
+        .filter((t) => t.name.startsWith('size.') && t.px <= inner)
+        .map((t) => ({ value: t.name, css: `var(${t.var})`, label: `${t.name} · ${Math.round(t.px)}px`, px: t.px }));
       return { prop: 'width', list: [...pct, ...sizes].sort((a, b) => a.px - b.px) };
     }
-    return { prop: 'min-height', list: toks.map((t) => ({ value: t.name, css: `var(${t.var})`, label: `${t.name} · ${Math.round(t.px)}px`, px: t.px })) };
+    return {
+      prop: 'min-height',
+      list: toks.map((t) => ({ value: t.name, css: `var(${t.var})`, label: `${t.name} · ${Math.round(t.px)}px`, px: t.px })),
+    };
   }
 
   const nearest = (list, px) => list.reduce((best, o) => (Math.abs(o.px - px) < Math.abs(best.px - px) ? o : best), list[0]);
@@ -472,7 +561,17 @@
     const el = selected;
     const opts = snapOptions(el, axis);
     if (!opts.list.length) return post('dfw:toast', { message: 'No size tokens to snap to.' });
-    resize = { el, axis, rect: el.getBoundingClientRect(), x: e.clientX, y: e.clientY, moved: false, ...opts, pick: null, prev: el.style[styleProp[opts.prop]] };
+    resize = {
+      el,
+      axis,
+      rect: el.getBoundingClientRect(),
+      x: e.clientX,
+      y: e.clientY,
+      moved: false,
+      ...opts,
+      pick: null,
+      prev: el.style[styleProp[opts.prop]],
+    };
     placeHandles();
   }
 
@@ -498,14 +597,16 @@
     const r = resize;
     resize = null;
     hideFeedback();
-    if (commit && r.moved && r.pick) post('dfw:layout-op', { op: 'layout', id: r.el.dataset.dfwId, prop: r.prop, value: r.pick.value, label: r.pick.label });
+    if (commit && r.moved && r.pick)
+      post('dfw:layout-op', { op: 'layout', id: r.el.dataset.dfwId, prop: r.prop, value: r.pick.value, label: r.pick.label });
     else r.el.style[styleProp[r.prop]] = r.prev;
     placeHandles();
     reportSelection();
   }
 
   /** An empty flex/grid container with a data-dfw-id: nothing in it but whitespace (and dfw UI). */
-  const isEmptyBox = (n) => n.dataset && n.dataset.dfwId && isFlow(n) && ![...n.children].some((k) => !k.hasAttribute('data-dfw-ui')) && !n.textContent.trim();
+  const isEmptyBox = (n) =>
+    n.dataset && n.dataset.dfwId && isFlow(n) && ![...n.children].some((k) => !k.hasAttribute('data-dfw-ui')) && !n.textContent.trim();
 
   /**
    * Where a dragged element would land: { ref, position, vertical } next to a data-dfw-id child of a flex/grid
@@ -565,12 +666,23 @@
     const { r } = t;
     if (t.position === 'inside') {
       line.style.display = 'none';
-      Object.assign(zone.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${Math.max(r.height, 8)}px`, display: 'block' });
+      Object.assign(zone.style, {
+        left: `${r.left}px`,
+        top: `${r.top}px`,
+        width: `${r.width}px`,
+        height: `${Math.max(r.height, 8)}px`,
+        display: 'block',
+      });
       return showBadge(`Into ${t.ref.dataset.dfwId}`, e.clientX, e.clientY);
     }
     zone.style.display = 'none';
     const edge = t.position === 'before' ? (t.vertical ? r.left : r.top) : t.vertical ? r.right : r.bottom;
-    Object.assign(line.style, t.vertical ? { left: `${edge - 2}px`, top: `${r.top}px`, width: '3px', height: `${r.height}px` } : { left: `${r.left}px`, top: `${edge - 2}px`, width: `${r.width}px`, height: '3px' });
+    Object.assign(
+      line.style,
+      t.vertical
+        ? { left: `${edge - 2}px`, top: `${r.top}px`, width: '3px', height: `${r.height}px` }
+        : { left: `${r.left}px`, top: `${edge - 2}px`, width: `${r.width}px`, height: '3px' },
+    );
     line.style.display = 'block';
     showBadge(`${t.position === 'before' ? 'Before' : 'After'} ${t.ref.dataset.dfwId}`, e.clientX, e.clientY);
   }
@@ -586,12 +698,28 @@
     const t = g.drop;
     if (commit && t && t.position === 'inside') {
       t.ref.append(g.el); // optimistic; the frame reloads from the source
-      post('dfw:layout-op', { op: 'move', id: g.el.dataset.dfwId, ref: t.ref.dataset.dfwId, position: 'inside', label: `Moved into ${t.ref.dataset.dfwId}` });
+      post('dfw:layout-op', {
+        op: 'move',
+        id: g.el.dataset.dfwId,
+        ref: t.ref.dataset.dfwId,
+        position: 'inside',
+        label: `Moved into ${t.ref.dataset.dfwId}`,
+      });
     } else if (commit && t) {
       const next = t.position === 'before' ? t.ref : t.ref.nextSibling;
-      if (next !== g.el && !(t.position === 'before' && g.el.nextElementSibling === t.ref) && !(t.position === 'after' && t.ref.nextElementSibling === g.el)) {
+      if (
+        next !== g.el &&
+        !(t.position === 'before' && g.el.nextElementSibling === t.ref) &&
+        !(t.position === 'after' && t.ref.nextElementSibling === g.el)
+      ) {
         t.ref.parentElement.insertBefore(g.el, next); // optimistic; the frame reloads from the source
-        post('dfw:layout-op', { op: 'move', id: g.el.dataset.dfwId, ref: t.ref.dataset.dfwId, position: t.position, label: `Moved ${t.position} ${t.ref.dataset.dfwId}` });
+        post('dfw:layout-op', {
+          op: 'move',
+          id: g.el.dataset.dfwId,
+          ref: t.ref.dataset.dfwId,
+          position: t.position,
+          label: `Moved ${t.position} ${t.ref.dataset.dfwId}`,
+        });
       }
     }
     placeHandles();
@@ -603,7 +731,13 @@
     for (const p of prop ? [prop] : Object.keys(styleProp)) el.style[styleProp[p]] = '';
     reportSelection();
     placeHandles();
-    post('dfw:layout-op', { op: 'layout', id: el.dataset.dfwId, prop, value: null, label: prop ? `${prop} reset to auto` : 'Size reset to auto' });
+    post('dfw:layout-op', {
+      op: 'layout',
+      id: el.dataset.dfwId,
+      prop,
+      value: null,
+      label: prop ? `${prop} reset to auto` : 'Size reset to auto',
+    });
   }
 
   /** Style rules of a sheet (recursing into @media that matches now, @layer, @supports) for which pick(rule) is truthy. */
@@ -626,7 +760,10 @@
     if (!el || !sheet || !styleProp[d.prop]) return;
     const own = rulesOf(sheet.cssRules, (r) => r.style.getPropertyValue(d.prop) && el.matches(r.selectorText));
     if (!own.length) return; // not at this width (or already reset)
-    const read = () => (d.prop === 'grid-column' ? ['gridColumnStart', 'gridColumnEnd'] : [styleProp[d.prop]]).map((k) => getComputedStyle(el)[k]).join(' / ');
+    const read = () =>
+      (d.prop === 'grid-column' ? ['gridColumnStart', 'gridColumnEnd'] : [styleProp[d.prop]])
+        .map((k) => getComputedStyle(el)[k])
+        .join(' / ');
     const prev = el.style.getPropertyValue(d.prop);
     const prevPrio = el.style.getPropertyPriority(d.prop);
     const now = read();
@@ -641,11 +778,22 @@
     });
   }
 
-  const LONGHANDS = { 'grid-column': ['grid-column', 'grid-column-start', 'grid-column-end', 'grid-area'], width: ['width'], 'min-height': ['min-height'] };
+  const LONGHANDS = {
+    'grid-column': ['grid-column', 'grid-column-start', 'grid-column-end', 'grid-area'],
+    width: ['width'],
+    'min-height': ['min-height'],
+  };
   /** Rough selector specificity [ids, classes/attributes/pseudo-classes, types], only to rank conflicting rules. */
   function specificity(sel) {
-    const s = sel.replace(/:where\([^)]*\)/g, '').replace(/:(?:not|is|has)\(/g, '(').replace(/"[^"]*"|'[^']*'/g, '');
-    return [(s.match(/#[\w-]/g) || []).length, (s.match(/\.[\w-]|\[|:(?!:)[\w-]/g) || []).length, (s.replace(/[#.:][\w-]+|\[[^\]]*\]/g, ' ').match(/(^|[\s>+~(,])[a-z][\w-]*/gi) || []).length];
+    const s = sel
+      .replace(/:where\([^)]*\)/g, '')
+      .replace(/:(?:not|is|has)\(/g, '(')
+      .replace(/"[^"]*"|'[^']*'/g, '');
+    return [
+      (s.match(/#[\w-]/g) || []).length,
+      (s.match(/\.[\w-]|\[|:(?!:)[\w-]/g) || []).length,
+      (s.replace(/[#.:][\w-]+|\[[^\]]*\]/g, ' ').match(/(^|[\s>+~(,])[a-z][\w-]*/gi) || []).length,
+    ];
   }
   /** Selector of the rule that beats the dfw layout rule for prop on el (inline style, then !important, then specificity). */
   function conflictFor(el, prop, dfwSheet) {
@@ -666,7 +814,10 @@
         rules = rulesOf(sh.cssRules, (r) => names.some((n) => r.style.getPropertyValue(n)));
       } catch {} // cross-origin sheet
       for (const r of rules) {
-        const sel = r.selectorText.split(',').map((x) => x.trim()).find(matches);
+        const sel = r.selectorText
+          .split(',')
+          .map((x) => x.trim())
+          .find(matches);
         const n = names.find((x) => r.style.getPropertyValue(x));
         if (sel) hits.push({ sel, imp: r.style.getPropertyPriority(n) === 'important', sp: specificity(sel) });
       }
@@ -690,7 +841,13 @@
       const position = back ? 'before' : 'after';
       ref.parentElement.insertBefore(el, back ? ref : ref.nextSibling);
       reportSelection();
-      return post('dfw:layout-op', { op: 'move', id: el.dataset.dfwId, ref: ref.dataset.dfwId, position, label: `Moved ${position} ${ref.dataset.dfwId}` });
+      return post('dfw:layout-op', {
+        op: 'move',
+        id: el.dataset.dfwId,
+        ref: ref.dataset.dfwId,
+        position,
+        label: `Moved ${position} ${ref.dataset.dfwId}`,
+      });
     }
     const axis = key === 'ArrowLeft' || key === 'ArrowRight' ? 'x' : 'y';
     const { prop, list } = snapOptions(el, axis);
@@ -731,7 +888,9 @@
       if (t === hoverEl) return;
       hoverEl = t;
       cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => post('dfw:hover', t ? { rect: rectOf(t), label: labelOf(t), comp: !!t.dataset.dfwComponent } : { rect: null }));
+      raf = requestAnimationFrame(() =>
+        post('dfw:hover', t ? { rect: rectOf(t), label: labelOf(t), comp: !!t.dataset.dfwComponent } : { rect: null }),
+      );
     },
     capture,
   );
@@ -761,7 +920,8 @@
         e.stopPropagation();
         return startResize(e.target.dataset.dfwHandle, e);
       }
-      if (selected && selected.contains(e.target) && canMove(selected) && !(e.metaKey || e.ctrlKey || e.altKey)) drag = { el: selected, x: e.clientX, y: e.clientY, active: false };
+      if (selected && selected.contains(e.target) && canMove(selected) && !(e.metaKey || e.ctrlKey || e.altKey))
+        drag = { el: selected, x: e.clientX, y: e.clientY, active: false };
     },
     capture,
   );
@@ -778,11 +938,7 @@
     },
     capture,
   );
-  document.addEventListener(
-    'auxclick',
-    (e) => e.button === 1 && e.preventDefault(),
-    capture,
-  );
+  document.addEventListener('auxclick', (e) => e.button === 1 && e.preventDefault(), capture);
   document.addEventListener(
     'click',
     (e) => {
@@ -809,7 +965,8 @@
       e.preventDefault();
       e.stopPropagation();
       const t = e.target;
-      if (t.dataset && t.dataset.dfwHandle && canLayout(selected)) return resetLayout(selected, snapOptions(selected, t.dataset.dfwHandle).prop);
+      if (t.dataset && t.dataset.dfwHandle && canLayout(selected))
+        return resetLayout(selected, snapOptions(selected, t.dataset.dfwHandle).prop);
       if (t.nodeType === 1 && !t.children.length && norm(t.textContent)) {
         select(t, { inspectIt: true });
         startEdit(t);
@@ -824,11 +981,20 @@
     (e) => {
       if (mode === 'present') return; // the presented page scrolls normally
       e.preventDefault();
-      post('dfw:wheel', { dx: e.deltaX, dy: e.deltaY, dm: e.deltaMode, ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey, x: e.clientX, y: e.clientY });
+      post('dfw:wheel', {
+        dx: e.deltaX,
+        dy: e.deltaY,
+        dm: e.deltaMode,
+        ctrl: e.ctrlKey || e.metaKey,
+        shift: e.shiftKey,
+        x: e.clientX,
+        y: e.clientY,
+      });
     },
     { passive: false, capture: true },
   );
-  const fwd = (e, type) => post('dfw:key', { phase: type, key: e.key, code: e.code, meta: e.metaKey, ctrl: e.ctrlKey, shift: e.shiftKey, alt: e.altKey });
+  const fwd = (e, type) =>
+    post('dfw:key', { phase: type, key: e.key, code: e.code, meta: e.metaKey, ctrl: e.ctrlKey, shift: e.shiftKey, alt: e.altKey });
   document.addEventListener(
     'keydown',
     (e) => {
@@ -930,7 +1096,7 @@
         reportPins();
         break;
       case 'dfw:layers':
-        post('dfw:layers', { tree: buildLayers(), selected: selected ? layerNode.get(selected)?.node.i ?? null : null });
+        post('dfw:layers', { tree: buildLayers(), selected: selected ? (layerNode.get(selected)?.node.i ?? null) : null });
         break;
       case 'dfw:layer-hover': {
         const el = layerEls[d.i];
@@ -944,7 +1110,9 @@
         if (!layerEls.length) buildLayers();
         let el = null;
         try {
-          el = (d.dfwId && document.querySelector(`[data-dfw-id="${CSS.escape(d.dfwId)}"]`)) || (d.selector && document.querySelector(d.selector));
+          el =
+            (d.dfwId && document.querySelector(`[data-dfw-id="${CSS.escape(d.dfwId)}"]`)) ||
+            (d.selector && document.querySelector(d.selector));
         } catch {}
         if (el) select(el, { scroll: !!d.scroll });
         else if (d.required) post('dfw:toast', { message: `Element ${d.dfwId || d.selector} not found in this frame.` });
@@ -961,9 +1129,15 @@
       case 'dfw:presence': {
         let el = null;
         try {
-          el = (d.dfwId && document.querySelector(`[data-dfw-id="${CSS.escape(d.dfwId)}"]`)) || (d.component && document.querySelector(`[data-dfw-component="${CSS.escape(d.component)}"]`)) || null;
+          el =
+            (d.dfwId && document.querySelector(`[data-dfw-id="${CSS.escape(d.dfwId)}"]`)) ||
+            (d.component && document.querySelector(`[data-dfw-component="${CSS.escape(d.component)}"]`)) ||
+            null;
         } catch {}
-        post('dfw:presence', el && el.getClientRects().length ? { rect: rectOf(el), label: labelOf(el) } : { rect: null, fallback: !!d.fallback });
+        post(
+          'dfw:presence',
+          el && el.getClientRects().length ? { rect: rectOf(el), label: labelOf(el) } : { rect: null, fallback: !!d.fallback },
+        );
         break;
       }
       case 'dfw:reinspect':
@@ -979,7 +1153,9 @@
         let next = null;
         if (!cur) break;
         const meta = layerNode.get(cur);
-        const sibs = meta.parent ? layerNode.get(meta.parent).node.children : [...layerNode.values()].filter((x) => !x.parent).map((x) => x.node);
+        const sibs = meta.parent
+          ? layerNode.get(meta.parent).node.children
+          : [...layerNode.values()].filter((x) => !x.parent).map((x) => x.node);
         const idx = sibs.findIndex((n) => layerEls[n.i] === cur);
         if (d.dir === 'up') next = cur !== selected ? cur : meta.parent;
         else if (d.dir === 'down') next = meta.node.children[0] ? layerEls[meta.node.children[0].i] : null;
@@ -1048,7 +1224,8 @@
       } else {
         while (i < olds.length && used.has(olds[i])) i++;
         // The same node a little further on (something was inserted or removed before it), else the next one of its kind.
-        for (let j = i; j < Math.min(olds.length, i + 8) && !match; j++) if (!used.has(olds[j]) && !keyOf(olds[j]) && olds[j].isEqualNode(n)) match = olds[j];
+        for (let j = i; j < Math.min(olds.length, i + 8) && !match; j++)
+          if (!used.has(olds[j]) && !keyOf(olds[j]) && olds[j].isEqualNode(n)) match = olds[j];
         if (!match && olds[i] && sameKind(olds[i], n) && !keyOf(olds[i])) match = olds[i];
       }
       if (match) used.add(match);
@@ -1122,9 +1299,21 @@
       if (selected && !selected.isConnected) selected = null;
       ready(true);
       // What changed, for the Studio to point at: the outermost changed elements that are on screen.
-      const els = [...changed].filter((el) => el.nodeType === 1 && el.isConnected && el !== document.body && !document.head.contains(el) && !isUi(el) && el.getClientRects().length);
+      const els = [...changed].filter(
+        (el) =>
+          el.nodeType === 1 &&
+          el.isConnected &&
+          el !== document.body &&
+          !document.head.contains(el) &&
+          !isUi(el) &&
+          el.getClientRects().length,
+      );
       const tops = els.filter((el) => !els.some((o) => o !== el && o.contains(el)));
-      post('dfw:changed', { agent: !!d.agent, count: tops.length, items: tops.slice(0, 4).map((el) => ({ rect: rectOf(el), label: labelOf(pick(el) || el) })) });
+      post('dfw:changed', {
+        agent: !!d.agent,
+        count: tops.length,
+        items: tops.slice(0, 4).map((el) => ({ rect: rectOf(el), label: labelOf(pick(el) || el) })),
+      });
     } catch {
       location.reload(); // anything unusual (scripts, parse problems): the plain reload is always right
     }
@@ -1132,11 +1321,12 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ready);
   else ready();
   addEventListener('load', reportSize);
-  if (document.fonts) document.fonts.ready.then(() => {
-    reportSize();
-    reportSelection();
-    if (pins.length) reportPins();
-  });
+  if (document.fonts)
+    document.fonts.ready.then(() => {
+      reportSize();
+      reportSelection();
+      if (pins.length) reportPins();
+    });
   if (window.ResizeObserver && document.documentElement) {
     let t = 0;
     new ResizeObserver(() => {

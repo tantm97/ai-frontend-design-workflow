@@ -18,8 +18,12 @@
     const key = parts.pop();
     return { key, alt: parts.includes('alt'), ctrl: parts.includes('ctrl'), shift: parts.includes('shift'), meta: parts.includes('meta') };
   })();
-  const NAMES = MAC ? { ctrl: 'Ctrl', alt: 'Option', shift: 'Shift', meta: 'Cmd' } : { ctrl: 'Ctrl', alt: 'Alt', shift: 'Shift', meta: 'Meta' };
-  const shortcutLabel = SHORTCUT ? [...['ctrl', 'alt', 'shift', 'meta'].filter((m) => SHORTCUT[m]).map((m) => NAMES[m]), SHORTCUT.key.toUpperCase()].join('+') : '';
+  const NAMES = MAC
+    ? { ctrl: 'Ctrl', alt: 'Option', shift: 'Shift', meta: 'Cmd' }
+    : { ctrl: 'Ctrl', alt: 'Alt', shift: 'Shift', meta: 'Meta' };
+  const shortcutLabel = SHORTCUT
+    ? [...['ctrl', 'alt', 'shift', 'meta'].filter((m) => SHORTCUT[m]).map((m) => NAMES[m]), SHORTCUT.key.toUpperCase()].join('+')
+    : '';
   // event.code, not event.key: Option+C types "ç" on macOS.
   const isShortcut = (e) =>
     SHORTCUT &&
@@ -129,7 +133,10 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
     const comment = text.value.trim();
     if (!picked || !comment) return;
     const el = picked;
-    const base = typeof window.__dfwTargetInfo === 'function' ? window.__dfwTargetInfo(el) : { tag: el.tagName.toLowerCase(), text: (el.innerText || '').trim().slice(0, 160) };
+    const base =
+      typeof window.__dfwTargetInfo === 'function'
+        ? window.__dfwTargetInfo(el)
+        : { tag: el.tagName.toLowerCase(), text: (el.innerText || '').trim().slice(0, 160) };
     const body = {
       comment,
       screen: location.pathname + location.search,
@@ -138,7 +145,11 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
       target: { ...base, insp: inspOf(el) },
     };
     try {
-      const res = await fetch('/__dfw/api/comments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const res = await fetch('/__dfw/api/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
       const c = await res.json();
       if (!res.ok) throw new Error(c.error || res.statusText);
       closeComposer();
@@ -196,7 +207,8 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
     (e) => {
       if (ours(e)) return;
       const t = e.composedPath()[0] || e.target; // the real target inside the app's own shadow roots
-      const typing = t && (t.isContentEditable || (t.closest && t.closest('input, textarea, select, [contenteditable]:not([contenteditable=false])')));
+      const typing =
+        t && (t.isContentEditable || (t.closest && t.closest('input, textarea, select, [contenteditable]:not([contenteditable=false])')));
       if (e.key === 'Escape' && (on || !pop.hidden)) {
         closeComposer();
         setOn(false);

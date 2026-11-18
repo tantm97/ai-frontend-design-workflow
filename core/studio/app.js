@@ -68,7 +68,22 @@ const hud = $('#hud');
 const ALL = '__all';
 const PKEY = '__present';
 // Presenter state: a pseudo-frame shown full-window.
-const P = { present: true, key: PKEY, open: false, loaded: false, pins: store.get('ppins', false), fit: store.get('pfit', true), scale: 1, screen: null, variant: null, bp: null, state: null, file: null, system: false, pinRects: [] };
+const P = {
+  present: true,
+  key: PKEY,
+  open: false,
+  loaded: false,
+  pins: store.get('ppins', false),
+  fit: store.get('pfit', true),
+  scale: 1,
+  screen: null,
+  variant: null,
+  bp: null,
+  state: null,
+  file: null,
+  system: false,
+  pinRects: [],
+};
 
 async function api(path, opts = {}) {
   const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
@@ -86,7 +101,8 @@ function toast(msg) {
 }
 
 const screenById = (id) => (S.manifest.screens || []).find((s) => s.id === id);
-const currentPage = () => (S.page === ALL ? { id: ALL, title: 'All pages', screens: [], all: true } : S.pages.find((p) => p.id === S.page) || S.pages[0]);
+const currentPage = () =>
+  S.page === ALL ? { id: ALL, title: 'All pages', screens: [], all: true } : S.pages.find((p) => p.id === S.page) || S.pages[0];
 const post = (f, msg) => f?.iframe?.contentWindow?.postMessage(msg, '*');
 const postAll = (msg) => S.frames.forEach((f) => f.loaded && post(f, msg));
 
@@ -96,8 +112,24 @@ const postAll = (msg) => S.frames.forEach((f) => f.loaded && post(f, msg));
 // row, a states row, or manifest-declared sections). A row may carry an
 // annotations panel (spec notes) at its left.
 
-const L = { FLOW_GAP: 480, PAD: 96, HEAD_GAP: 72, ROW_GAP: 240, FRAME_GAP: 80, GUTTER_NOTES: 420, GUTTER: 300, GUTTER_GAP: 80, SEC_GAP: 480 };
-const bpShort = (bp) => (bp ? bp.short || String(bp.label || bp.id).charAt(0).toUpperCase() : '');
+const L = {
+  FLOW_GAP: 480,
+  PAD: 96,
+  HEAD_GAP: 72,
+  ROW_GAP: 240,
+  FRAME_GAP: 80,
+  GUTTER_NOTES: 420,
+  GUTTER: 300,
+  GUTTER_GAP: 80,
+  SEC_GAP: 480,
+};
+const bpShort = (bp) =>
+  bp
+    ? bp.short ||
+      String(bp.label || bp.id)
+        .charAt(0)
+        .toUpperCase()
+    : '';
 const primaryVariant = (s) => (s.variants || []).find((v) => v.recommended) || (s.variants || [])[0];
 const bpShown = (id) => !S.activeBps || S.activeBps.includes(id);
 const activeBps = () => S.manifest.breakpoints.filter((b) => bpShown(b.id));
@@ -131,7 +163,17 @@ function makeSpec(s, v, bp, state) {
 }
 
 function systemSpec() {
-  return { key: 'system', system: true, screen: null, title: 'Design System', src: '/__dfw/system.html', w: 1440, h: 900, auto: true, bp: null };
+  return {
+    key: 'system',
+    system: true,
+    screen: null,
+    title: 'Design System',
+    src: '/__dfw/system.html',
+    w: 1440,
+    h: 900,
+    auto: true,
+    bp: null,
+  };
 }
 
 /** Resolve "screen" or "screen/variant" refs. */
@@ -163,7 +205,12 @@ function pageModel(page) {
   if (page.flow && primary) {
     // Rows of 4 at the first shown breakpoint, in link order (sources before targets).
     const specs = screens.map((s) => makeSpec(s, primaryVariant(s), primary, null));
-    for (let i = 0; i < specs.length; i += 4) rows.push({ title: i ? null : `Flow at ${primary.label || primary.id} ${primary.width}`, sub: i ? null : `${(S.manifest.flows || []).length} link(s)`, frames: specs.slice(i, i + 4) });
+    for (let i = 0; i < specs.length; i += 4)
+      rows.push({
+        title: i ? null : `Flow at ${primary.label || primary.id} ${primary.width}`,
+        sub: i ? null : `${(S.manifest.flows || []).length} link(s)`,
+        frames: specs.slice(i, i + 4),
+      });
     return { id: page.id, title: page.title, description: page.description || '', rows, flow: true };
   }
   if (page.sections && page.sections.length) {
@@ -184,32 +231,50 @@ function pageModel(page) {
         } else frames.push(makeSpec(s, v || primaryVariant(s), bp, null));
       }
       const defTitle = { breakpoint: `${bp.label || bp.id} ${bp.width}`, variants: 'Variants', states: 'States' }[kind] || '';
-      rows.push({ title: sec.title || defTitle, sub: kind === 'breakpoint' ? `${bp.width} × ${bp.height}` : `at ${bp.label || bp.id} ${bp.width}`, notes: sec.notes || null, frames });
+      rows.push({
+        title: sec.title || defTitle,
+        sub: kind === 'breakpoint' ? `${bp.width} × ${bp.height}` : `at ${bp.label || bp.id} ${bp.width}`,
+        notes: sec.notes || null,
+        frames,
+      });
     }
   } else if (primary) {
     for (const bp of bps) {
-      rows.push({ title: `${bp.label || bp.id} ${bp.width}`, sub: `${bp.width} × ${bp.height}`, frames: screens.map((s) => makeSpec(s, primaryVariant(s), bp, null)) });
+      rows.push({
+        title: `${bp.label || bp.id} ${bp.width}`,
+        sub: `${bp.width} × ${bp.height}`,
+        frames: screens.map((s) => makeSpec(s, primaryVariant(s), bp, null)),
+      });
     }
     const alt = screens.flatMap((s) => (s.variants || []).filter((v) => v !== primaryVariant(s)).map((v) => makeSpec(s, v, primary, null)));
     if (alt.length) rows.push({ title: 'Variants', sub: `Alternatives at ${primary.label || primary.id} ${primary.width}`, frames: alt });
     if (allStates().length) {
       const st = screens.flatMap((s) => shownStates(statesOf(s)).map((x) => makeSpec(s, primaryVariant(s), primary, x)));
       const names = [...new Set(st.map((f) => f.state))];
-      if (st.length) rows.push({ title: `States (${names.join(' · ')})`, sub: `at ${primary.label || primary.id} ${primary.width}`, frames: st });
+      if (st.length)
+        rows.push({ title: `States (${names.join(' · ')})`, sub: `at ${primary.label || primary.id} ${primary.width}`, frames: st });
     }
   }
   if (page.notes?.length) {
     if (!rows.length) rows.push({ title: null, frames: [] });
     rows[0].notes = [...page.notes, ...(rows[0].notes || [])];
   }
-  return { id: page.id, title: page.title, description: page.description || '', rows: rows.filter((r) => r.frames.length || r.notes?.length) };
+  return {
+    id: page.id,
+    title: page.title,
+    description: page.description || '',
+    rows: rows.filter((r) => r.frames.length || r.notes?.length),
+  };
 }
 
 const frameCount = (page) => pageModel(page).rows.reduce((n, r) => n + r.frames.length, 0);
 
 function notesHtml(title, sub, notes) {
   return `<div class="notes">${title ? `<h3>${esc(title)}</h3>` : ''}${sub ? `<p class="nsub">${esc(sub)}</p>` : ''}${notes
-    .map((g) => `<div class="ng">${g.title ? `<h4>${esc(g.title)}</h4>` : ''}<ul>${(g.items || []).map((i) => `<li>${esc(i)}</li>`).join('')}</ul></div>`)
+    .map(
+      (g) =>
+        `<div class="ng">${g.title ? `<h4>${esc(g.title)}</h4>` : ''}<ul>${(g.items || []).map((i) => `<li>${esc(i)}</li>`).join('')}</ul></div>`,
+    )
     .join('')}</div>`;
 }
 
@@ -248,7 +313,9 @@ function buildPage() {
         row.gut = document.createElement('div');
         row.gut.className = 'prow-gutter';
         row.gut.style.width = `${sec.gutter}px`;
-        row.gut.innerHTML = r.notes?.length ? notesHtml(r.title, r.sub, r.notes) : `<h2>${esc(r.title)}</h2>${r.sub ? `<p>${esc(r.sub)}</p>` : ''}`;
+        row.gut.innerHTML = r.notes?.length
+          ? notesHtml(r.title, r.sub, r.notes)
+          : `<h2>${esc(r.title)}</h2>${r.sub ? `<p>${esc(r.sub)}</p>` : ''}`;
         world.append(row.gut);
       }
       for (const spec of r.frames) {
@@ -339,7 +406,8 @@ function drawFlow() {
   svg.setAttribute('class', 'flow');
   svg.setAttribute('width', b[0] + b[2]);
   svg.setAttribute('height', b[1] + b[3]);
-  svg.innerHTML = '<defs><marker id="flow-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z"/></marker></defs>';
+  svg.innerHTML =
+    '<defs><marker id="flow-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z"/></marker></defs>';
   for (const e of S.manifest.flows || []) {
     const a = byScreen.get(e.from);
     const z = byScreen.get(e.to);
@@ -446,7 +514,9 @@ function zoomToFit({ initial = false } = {}) {
     // the first section with its header and first row filling the height.
     const [, vh] = vpSize();
     const sec = S.sections[0];
-    const firstH = sec ? L.PAD + sec.headH + L.HEAD_GAP + Math.max(0, ...sec.rows[0]?.frames.map((f) => f.h) || [0], sec.rows[0]?.gutH || 0) + 40 : b[3];
+    const firstH = sec
+      ? L.PAD + sec.headH + L.HEAD_GAP + Math.max(0, ...(sec.rows[0]?.frames.map((f) => f.h) || [0]), sec.rows[0]?.gutH || 0) + 40
+      : b[3];
     const z = Math.min(0.5, Math.max(0.12, (vh - 48) / firstH));
     S.cam = { z, x: 32 - b[0] * z, y: 24 - b[1] * z };
     applyCam();
@@ -570,15 +640,26 @@ function placePop() {
 
 const STATUS_COLOR = { open: '#c2410c', acknowledged: '#c2410c', reopened: '#c2410c', fixed: '#a16207', resolved: '#15803d' };
 
-const PIN_STATUSES = { active: ['open', 'acknowledged', 'reopened', 'fixed'], all: ['open', 'acknowledged', 'reopened', 'fixed', 'resolved'], off: [] };
+const PIN_STATUSES = {
+  active: ['open', 'acknowledged', 'reopened', 'fixed'],
+  all: ['open', 'acknowledged', 'reopened', 'fixed', 'resolved'],
+  off: [],
+};
 /** Presenter: pins only when toggled on, or while commenting. Canvas: the Pins setting. */
-const pinStatuses = (f) => (f?.present ? (P.pins || P.mode === 'comment' ? PIN_STATUSES.active : []) : PIN_STATUSES[S.pins] || PIN_STATUSES.active);
+const pinStatuses = (f) =>
+  f?.present ? (P.pins || P.mode === 'comment' ? PIN_STATUSES.active : []) : PIN_STATUSES[S.pins] || PIN_STATUSES.active;
 
 function pinsFor(f) {
   if (!f) return [];
   const show = pinStatuses(f);
   return S.comments
-    .filter((c) => show.includes(c.status) && (f.system ? c.screen === 'system' : f.screen && c.screen === f.screen.id && c.variant === f.variant?.id && (c.state || null) === (f.state || null)))
+    .filter(
+      (c) =>
+        show.includes(c.status) &&
+        (f.system
+          ? c.screen === 'system'
+          : f.screen && c.screen === f.screen.id && c.variant === f.variant?.id && (c.state || null) === (f.state || null)),
+    )
     .map((c) => ({ id: c.id, n: Number(c.id.replace('fb_', '')), selector: c.target?.selector, dfwId: c.target?.dfwId, status: c.status }));
 }
 
@@ -634,7 +715,9 @@ function renderPages() {
   list.append(all);
   for (const p of S.pages) {
     const n = p.system ? '' : frameCount(p);
-    const open = S.comments.filter((c) => ACTIVE.includes(c.status) && (p.system ? c.screen === 'system' : p.screens.includes(c.screen))).length;
+    const open = S.comments.filter(
+      (c) => ACTIVE.includes(c.status) && (p.system ? c.screen === 'system' : p.screens.includes(c.screen)),
+    ).length;
     const li = document.createElement('li');
     const inAll = S.page === ALL;
     li.innerHTML = `<button type="button" data-page="${esc(p.id)}" ${p.id === S.page ? 'aria-current="page"' : ''} title="${inAll ? 'Click: go to this section · Double-click: open the page alone' : ''}"><span>${esc(p.title)}</span>${open ? `<span class="c" title="Open comments">${open}</span>` : ''}<span class="n">${n}</span></button>`;
@@ -757,7 +840,8 @@ const spaceTokens = () =>
     .sort((a, b) => parseFloat(a.name.split('.')[1]) - parseFloat(b.name.split('.')[1]) || a.name.localeCompare(b.name));
 
 function frameInfoHtml(f) {
-  if (f.system) return `<div class="isec"><div class="ihead">Design System</div><p class="note">Generated from design/system/ and the tokens. Edit masters in <code>design/system/components/</code>.</p></div>`;
+  if (f.system)
+    return `<div class="isec"><div class="ihead">Design System</div><p class="note">Generated from design/system/ and the tokens. Edit masters in <code>design/system/components/</code>.</p></div>`;
   const s = f.screen;
   return `<div class="isec"><div class="ihead">${esc(s.title || s.id)}</div>${s.description ? `<p class="note">${esc(s.description)}</p>` : ''}</div>
   <div class="isec"><h3>Frame</h3><dl class="kv">
@@ -782,7 +866,9 @@ function renderInspector() {
   const own = sel.own || {};
   const editable = !f.system && !!f.file;
   const parts = [];
-  parts.push(`<div class="isec"><div class="ihead${own.comp ? ' comp' : ''}">${own.comp ? '◆' : '#'} ${esc(sel.label)}</div><p class="note">${esc(f.title)}${f.state ? ` · ${esc(f.state)}` : ''}</p></div>`);
+  parts.push(
+    `<div class="isec"><div class="ihead${own.comp ? ' comp' : ''}">${own.comp ? '◆' : '#'} ${esc(sel.label)}</div><p class="note">${esc(f.title)}${f.state ? ` · ${esc(f.state)}` : ''}</p></div>`,
+  );
   parts.push(`<div class="isec"><h3>Element</h3><dl class="kv">
     <dt>dfw-id</dt><dd>${own.id ? `<code>${esc(own.id)}</code>` : `<span class="muted">none${sel.target.dfwId ? ` (inside ${esc(sel.target.dfwId)})` : ''}</span>`}</dd>
     <dt>Tag</dt><dd><code>&lt;${esc(sel.target.tag)}&gt;</code></dd>
@@ -816,14 +902,23 @@ function renderInspector() {
         const cur = has ? r.tokens.find((t) => t.startsWith('space.')) : null;
         v = `<select data-space="${i}" title="Set ${esc(r.prop)} to a space token (writes var(--space-*) into the element's inline style)">${cur ? '' : `<option value="" selected>raw ${esc(r.value)}</option>`}${st.map((t) => `<option value="${esc(t.name)}" ${t.name === cur ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select>${has ? '' : '<span class="none">raw value (no token)</span>'}`;
       } else {
-        v = has ? `<span class="name" title="${esc(r.tokens.join(', '))}">${sw}${esc(r.tokens[0])}${r.tokens.length > 1 ? ` <span class="muted">+${r.tokens.length - 1}</span>` : ''}</span>` : `<span class="name">${sw}<span class="none">raw value (no token)</span></span>`;
+        v = has
+          ? `<span class="name" title="${esc(r.tokens.join(', '))}">${sw}${esc(r.tokens[0])}${r.tokens.length > 1 ? ` <span class="muted">+${r.tokens.length - 1}</span>` : ''}</span>`
+          : `<span class="name">${sw}<span class="none">raw value (no token)</span></span>`;
       }
-      const ask = COLORISH.has(r.group) || TYPE.has(r.group) || r.group === 'box-shadow' || r.group === 'border-radius' ? `<button type="button" class="ask" data-ask="${i}" title="Design-system decision: ask Claude to change it">Ask Claude</button>` : '';
+      const ask =
+        COLORISH.has(r.group) || TYPE.has(r.group) || r.group === 'box-shadow' || r.group === 'border-radius'
+          ? `<button type="button" class="ask" data-ask="${i}" title="Design-system decision: ask Claude to change it">Ask Claude</button>`
+          : '';
       return `<div class="tok"><span class="p">${esc(r.prop)}</span><span class="v">${v}<span class="raw" title="${esc(r.value)}">${esc(r.value)}</span></span>${ask || '<span></span>'}</div>`;
     })
     .join('');
-  parts.push(`<div class="isec"><h3>Design tokens in use</h3>${tokRows || '<p class="note">No styles to report.</p>'}${canSpace ? '<p class="note">Spacing is editable here; colours and typography are design-system decisions.</p>' : ''}</div>`);
-  parts.push(`<div class="isec"><div class="btn-row" style="margin:0"><button type="button" class="btn" data-act="comment">Comment on this</button></div></div>`);
+  parts.push(
+    `<div class="isec"><h3>Design tokens in use</h3>${tokRows || '<p class="note">No styles to report.</p>'}${canSpace ? '<p class="note">Spacing is editable here; colours and typography are design-system decisions.</p>' : ''}</div>`,
+  );
+  parts.push(
+    `<div class="isec"><div class="btn-row" style="margin:0"><button type="button" class="btn" data-act="comment">Comment on this</button></div></div>`,
+  );
   box.innerHTML = parts.join('');
 }
 
@@ -935,7 +1030,8 @@ window.addEventListener('message', (e) => {
       if (f.pendingSelect) {
         post(f, { type: 'dfw:select-id', ...f.pendingSelect });
         f.pendingSelect = null;
-      } else if (S.sel?.key === f.key) post(f, { type: 'dfw:select-id', dfwId: S.sel.own?.id || S.sel.target?.dfwId, selector: S.sel.target?.selector });
+      } else if (S.sel?.key === f.key)
+        post(f, { type: 'dfw:select-id', dfwId: S.sel.own?.id || S.sel.target?.dfwId, selector: S.sel.target?.selector });
       if (S.selKey === f.key) post(f, { type: 'dfw:layers' });
       break;
     case 'dfw:size': {
@@ -1022,7 +1118,15 @@ window.addEventListener('message', (e) => {
       break;
     case 'dfw:wheel':
       if (f.present) break;
-      onWheel({ dx: d.dx, dy: d.dy, dm: d.dm, ctrl: d.ctrl, shift: d.shift, x: (f.x + d.x) * S.cam.z + S.cam.x, y: (f.y + d.y) * S.cam.z + S.cam.y });
+      onWheel({
+        dx: d.dx,
+        dy: d.dy,
+        dm: d.dm,
+        ctrl: d.ctrl,
+        shift: d.shift,
+        x: (f.x + d.x) * S.cam.z + S.cam.x,
+        y: (f.y + d.y) * S.cam.z + S.cam.y,
+      });
       break;
     case 'dfw:pan':
       if (d.phase === 'start') startPan(d.sx, d.sy);
@@ -1096,7 +1200,14 @@ function drawAgent() {
     a.items.forEach((it, i) => {
       const r = toScreen(f, it.rect);
       const more = i === 0 && a.count > a.items.length ? ` +${a.count - a.items.length}` : '';
-      boxes.push({ r, phase: a.phase, label: i === 0 ? `Claude ${a.phase === 'editing' ? 'is editing' : 'changed'} ${it.whole ? 'this frame' : it.label || ''}${more}`.trim() : '' });
+      boxes.push({
+        r,
+        phase: a.phase,
+        label:
+          i === 0
+            ? `Claude ${a.phase === 'editing' ? 'is editing' : 'changed'} ${it.whole ? 'this frame' : it.label || ''}${more}`.trim()
+            : '',
+      });
       if (i === 0 && (key === S.agentLast || !cursorAt)) cursorAt = [r[0] + Math.min(r[2] - 4, 14), r[1] + Math.min(r[3] - 4, 14)];
     });
   }
@@ -1230,7 +1341,13 @@ function layoutPresent() {
 
 /** Does canvas frame f show what the presenter shows now? (ids, not objects: a live reload rebuilds them) */
 const presentMatches = (f) =>
-  f.system ? P.system : !P.system && f.screen?.id === P.screen?.id && f.variant?.id === P.variant?.id && f.bp?.id === P.bp?.id && (f.state || null) === (P.state || null);
+  f.system
+    ? P.system
+    : !P.system &&
+      f.screen?.id === P.screen?.id &&
+      f.variant?.id === P.variant?.id &&
+      f.bp?.id === P.bp?.id &&
+      (f.state || null) === (P.state || null);
 
 function presentIndex() {
   const list = presentList();
@@ -1246,17 +1363,25 @@ function renderPresentBar() {
   const list = presentList();
   const i = presentIndex();
   const s = P.screen;
-  $('#p-title').textContent = P.system ? 'Design System' : s ? `${s.title || s.id}${(s.variants || []).length > 1 ? ` · ${P.variant?.label || P.variant?.id}` : ''}` : P.file || '';
+  $('#p-title').textContent = P.system
+    ? 'Design System'
+    : s
+      ? `${s.title || s.id}${(s.variants || []).length > 1 ? ` · ${P.variant?.label || P.variant?.id}` : ''}`
+      : P.file || '';
   $('#p-count').textContent = i >= 0 ? `${i + 1} / ${list.length}` : `– / ${list.length}`;
   const bpSel = $('#p-bp');
-  bpSel.innerHTML = S.manifest.breakpoints.map((b) => `<option value="${esc(b.id)}" ${b.id === P.bp?.id ? 'selected' : ''}>${esc(b.label || b.id)} ${b.width}</option>`).join('');
+  bpSel.innerHTML = S.manifest.breakpoints
+    .map((b) => `<option value="${esc(b.id)}" ${b.id === P.bp?.id ? 'selected' : ''}>${esc(b.label || b.id)} ${b.width}</option>`)
+    .join('');
   bpSel.disabled = P.system;
   const states = s ? statesOf(s) : [];
-  $('#p-state').innerHTML = `<option value="">default</option>` + states.map((x) => `<option ${x === P.state ? 'selected' : ''}>${esc(x)}</option>`).join('');
+  $('#p-state').innerHTML =
+    `<option value="">default</option>` + states.map((x) => `<option ${x === P.state ? 'selected' : ''}>${esc(x)}</option>`).join('');
   $('#p-state').disabled = !states.length || P.system;
   const themes = S.manifest.themes || [];
   $('#p-theme-wrap').hidden = !themes.length;
-  $('#p-theme').innerHTML = `<option value="">default</option>` + themes.map((t) => `<option ${t === S.theme ? 'selected' : ''}>${esc(t)}</option>`).join('');
+  $('#p-theme').innerHTML =
+    `<option value="">default</option>` + themes.map((t) => `<option ${t === S.theme ? 'selected' : ''}>${esc(t)}</option>`).join('');
   $('#p-open').href = presentSrc();
   $('#p-comment').setAttribute('aria-pressed', String(P.mode === 'comment'));
   $('#p-pins').setAttribute('aria-pressed', String(P.pins));
@@ -1364,7 +1489,13 @@ function cyclePins() {
   if (S.pins === 'off') closePop();
   renderPinsToggle();
   syncPins();
-  toast(S.pins === 'off' ? 'Comment pins hidden (Shift+C shows them).' : S.pins === 'all' ? 'Showing every pin, closed comments too.' : 'Showing pins of open and to-verify comments.');
+  toast(
+    S.pins === 'off'
+      ? 'Comment pins hidden (Shift+C shows them).'
+      : S.pins === 'all'
+        ? 'Showing every pin, closed comments too.'
+        : 'Showing pins of open and to-verify comments.',
+  );
 }
 function renderPinsToggle() {
   const b = $('#pins-toggle');
@@ -1418,7 +1549,15 @@ viewport.addEventListener(
   (e) => {
     e.preventDefault();
     const r = viewport.getBoundingClientRect();
-    onWheel({ dx: e.deltaX, dy: e.deltaY, dm: e.deltaMode, ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey, x: e.clientX - r.left, y: e.clientY - r.top });
+    onWheel({
+      dx: e.deltaX,
+      dy: e.deltaY,
+      dm: e.deltaMode,
+      ctrl: e.ctrlKey || e.metaKey,
+      shift: e.shiftKey,
+      x: e.clientX - r.left,
+      y: e.clientY - r.top,
+    });
   },
   { passive: false },
 );
@@ -1577,7 +1716,8 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   const d = { phase: 'down', key: e.key, code: e.code, meta: e.metaKey, ctrl: e.ctrlKey, shift: e.shiftKey, alt: e.altKey };
-  if (e.key === ' ' || e.key.startsWith('Arrow') || ((e.metaKey || e.ctrlKey) && ['z', '=', '-', '0', '+'].includes(e.key))) e.preventDefault();
+  if (e.key === ' ' || e.key.startsWith('Arrow') || ((e.metaKey || e.ctrlKey) && ['z', '=', '-', '0', '+'].includes(e.key)))
+    e.preventDefault();
   handleKey(d);
 });
 document.addEventListener('keyup', (e) => {
@@ -1603,14 +1743,31 @@ function setMode(mode) {
 /* ---------------------------------------------------------------- comments */
 
 function statusLabel(s) {
-  return { open: 'Open · waiting for Claude', acknowledged: 'Claude is working', reopened: 'Reopened · waiting for Claude', fixed: 'Fixed · please verify', resolved: 'Resolved', dismissed: 'Dismissed' }[s] || s;
+  return (
+    {
+      open: 'Open · waiting for Claude',
+      acknowledged: 'Claude is working',
+      reopened: 'Reopened · waiting for Claude',
+      fixed: 'Fixed · please verify',
+      resolved: 'Resolved',
+      dismissed: 'Dismissed',
+    }[s] || s
+  );
 }
 
 function renderComments() {
   const list = $('#comment-list');
   const f = S.filter;
   const items = S.comments
-    .filter((c) => (f === 'active' ? ACTIVE.includes(c.status) : f === 'fixed' ? c.status === 'fixed' : f === 'closed' ? ['resolved', 'dismissed'].includes(c.status) : true))
+    .filter((c) =>
+      f === 'active'
+        ? ACTIVE.includes(c.status)
+        : f === 'fixed'
+          ? c.status === 'fixed'
+          : f === 'closed'
+            ? ['resolved', 'dismissed'].includes(c.status)
+            : true,
+    )
     .sort((a, b) => b.id.localeCompare(a.id));
   $('#open-count').textContent = S.comments.filter((c) => ACTIVE.includes(c.status) || c.status === 'fixed').length;
   list.innerHTML = items.length ? '' : `<li class="muted" style="padding:12px">Nothing here.</li>`;
@@ -1634,25 +1791,25 @@ function renderComments() {
 }
 
 function commentActions(c, actions) {
-    const btn = (label, cls, fn) => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.textContent = label;
-      if (cls) b.className = cls;
-      b.onclick = (e) => {
-        e.stopPropagation();
-        fn();
-      };
-      actions.append(b);
+  const btn = (label, cls, fn) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    if (cls) b.className = cls;
+    b.onclick = (e) => {
+      e.stopPropagation();
+      fn();
     };
-    if (c.status === 'fixed') {
-      btn('Looks right · resolve', 'ok', () => patch(c.id, { status: 'resolved', message: 'Verified in studio.' }));
-      btn('Not yet · reopen', '', () => askReason(actions, (msg) => patch(c.id, { status: 'reopened', message: msg })));
-    } else if (ACTIVE.includes(c.status)) {
-      btn('Dismiss', '', () => askReason(actions, (msg) => patch(c.id, { status: 'dismissed', message: msg })));
-    } else {
-      btn('Reopen', '', () => askReason(actions, (msg) => patch(c.id, { status: 'reopened', message: msg })));
-    }
+    actions.append(b);
+  };
+  if (c.status === 'fixed') {
+    btn('Looks right · resolve', 'ok', () => patch(c.id, { status: 'resolved', message: 'Verified in studio.' }));
+    btn('Not yet · reopen', '', () => askReason(actions, (msg) => patch(c.id, { status: 'reopened', message: msg })));
+  } else if (ACTIVE.includes(c.status)) {
+    btn('Dismiss', '', () => askReason(actions, (msg) => patch(c.id, { status: 'dismissed', message: msg })));
+  } else {
+    btn('Reopen', '', () => askReason(actions, (msg) => patch(c.id, { status: 'reopened', message: msg })));
+  }
 }
 
 function askReason(container, done) {
@@ -1690,8 +1847,13 @@ function focusComment(c) {
   if (!page) return toast('That screen is not on any page.');
   if (P.open) closePresent();
   if (S.page !== ALL && page.id !== S.page) setPage(page.id);
-  const fs = [...S.frames.values()].filter((f) => (c.screen === 'system' ? f.system : !f.system && f.screen.id === c.screen && f.variant.id === c.variant));
-  const f = fs.find((x) => x.bp?.id === c.breakpoint && (x.state || null) === (c.state || null)) || fs.find((x) => (x.state || null) === (c.state || null)) || fs[0];
+  const fs = [...S.frames.values()].filter((f) =>
+    c.screen === 'system' ? f.system : !f.system && f.screen.id === c.screen && f.variant.id === c.variant,
+  );
+  const f =
+    fs.find((x) => x.bp?.id === c.breakpoint && (x.state || null) === (c.state || null)) ||
+    fs.find((x) => (x.state || null) === (c.state || null)) ||
+    fs[0];
   if (!f) return toast('That frame is not visible (check breakpoints and States).');
   selectFrame(f.key);
   zoomToRect([f.x, f.y, f.w, f.h], { max: 1 });
@@ -1707,7 +1869,15 @@ function openComposer(sel, f, prefill) {
   const s = f.screen;
   S.pending = f.system
     ? { screen: 'system', variant: null, breakpoint: null, file: null, state: null, theme: S.theme || null, target: sel.target }
-    : { screen: s?.id || null, variant: f.variant?.id || null, breakpoint: f.bp?.id || null, file: f.file, state: f.state || null, theme: S.theme || null, target: sel.target };
+    : {
+        screen: s?.id || null,
+        variant: f.variant?.id || null,
+        breakpoint: f.bp?.id || null,
+        file: f.file,
+        state: f.state || null,
+        theme: S.theme || null,
+        target: sel.target,
+      };
   const where = f.system ? 'Design System' : [s?.id || f.file, f.variant?.id, f.bp?.id, f.state].filter(Boolean).join(' / ');
   $('#composer-target').textContent = `${where} → ${sel.target.dfwId || sel.target.selector}`;
   const r = toScreen(f, sel.rect || [0, 0, 0, 0]);
@@ -1793,27 +1963,45 @@ function renderToolbar() {
   const m = S.manifest;
   $('#product').textContent = m.product || 'Design Studio';
   const st = S.state;
-  $('#meta').textContent = [st ? `v${st.design.version} ${st.design.status}` : null, m.inferred ? 'manifest inferred' : null].filter(Boolean).join(' · ');
+  $('#meta').textContent = [st ? `v${st.design.version} ${st.design.status}` : null, m.inferred ? 'manifest inferred' : null]
+    .filter(Boolean)
+    .join(' · ');
   const bpName = (bp) => `${bp.label || bp.id} ${bp.width}`;
   const bpOn = activeBps();
-  $('#bp-menu summary').textContent = !S.activeBps ? 'All breakpoints' : bpOn.length <= 2 ? bpOn.map(bpName).join(', ') : `${bpOn.length} breakpoints`;
-  checkList($('#breakpoints'), m.breakpoints.map((bp) => ({ id: bp.id, label: bpName(bp) })), S.activeBps, (ids) => {
-    S.activeBps = ids && !ids.length ? [bpOn[0].id] : ids; // keep at least one breakpoint
-    store.set('bps3', S.activeBps);
-  });
+  $('#bp-menu summary').textContent = !S.activeBps
+    ? 'All breakpoints'
+    : bpOn.length <= 2
+      ? bpOn.map(bpName).join(', ')
+      : `${bpOn.length} breakpoints`;
+  checkList(
+    $('#breakpoints'),
+    m.breakpoints.map((bp) => ({ id: bp.id, label: bpName(bp) })),
+    S.activeBps,
+    (ids) => {
+      S.activeBps = ids && !ids.length ? [bpOn[0].id] : ids; // keep at least one breakpoint
+      store.set('bps3', S.activeBps);
+    },
+  );
   const states = allStates();
   $('#state-menu').hidden = !states.length;
   const stOn = shownStates(states);
-  $('#state-menu summary').textContent = `States: ${!S.activeStates ? 'all' : !stOn.length ? 'off' : stOn.length <= 2 ? stOn.join(', ') : stOn.length}`;
-  checkList($('#states'), states.map((x) => ({ id: x, label: x })), S.activeStates, (ids) => {
-    S.activeStates = ids;
-    store.set('states3', ids);
-  });
+  $('#state-menu summary').textContent =
+    `States: ${!S.activeStates ? 'all' : !stOn.length ? 'off' : stOn.length <= 2 ? stOn.join(', ') : stOn.length}`;
+  checkList(
+    $('#states'),
+    states.map((x) => ({ id: x, label: x })),
+    S.activeStates,
+    (ids) => {
+      S.activeStates = ids;
+      store.set('states3', ids);
+    },
+  );
   $('#full-toggle').setAttribute('aria-pressed', String(S.fullHeight));
   renderPinsToggle();
   const themes = m.themes || [];
   $('#theme-wrap').hidden = !themes.length;
-  $('#theme').innerHTML = `<option value="">default</option>` + themes.map((t) => `<option ${t === S.theme ? 'selected' : ''}>${esc(t)}</option>`).join('');
+  $('#theme').innerHTML =
+    `<option value="">default</option>` + themes.map((t) => `<option ${t === S.theme ? 'selected' : ''}>${esc(t)}</option>`).join('');
 }
 
 /** Checkbox list with an "All" row for a toolbar menu. checked: ids, or null = all. onChange gets ids or null (all). */
@@ -1902,8 +2090,19 @@ function renderShootMenu() {
   for (const g of groups) {
     const gOn = g.items.filter((i) => on(i.id)).length;
     const gIds = g.items.map((i) => i.id);
-    if (g.items.length > 1 || g.items[0].label !== g.title) box('shoot-page', g.title, gOn === g.items.length, gOn > 0 && gOn < g.items.length, (c) => set(c ? [...new Set([...ids.filter(on), ...gIds])] : ids.filter((id) => on(id) && !gIds.includes(id))));
-    for (const it of g.items) box(g.items.length > 1 || it.label !== g.title ? 'shoot-screen' : 'shoot-page', it.label, on(it.id), false, (c) => set(c ? [...ids.filter(on), it.id] : ids.filter((id) => on(id) && id !== it.id)), it.n);
+    if (g.items.length > 1 || g.items[0].label !== g.title)
+      box('shoot-page', g.title, gOn === g.items.length, gOn > 0 && gOn < g.items.length, (c) =>
+        set(c ? [...new Set([...ids.filter(on), ...gIds])] : ids.filter((id) => on(id) && !gIds.includes(id))),
+      );
+    for (const it of g.items)
+      box(
+        g.items.length > 1 || it.label !== g.title ? 'shoot-screen' : 'shoot-page',
+        it.label,
+        on(it.id),
+        false,
+        (c) => set(c ? [...ids.filter(on), it.id] : ids.filter((id) => on(id) && id !== it.id)),
+        it.n,
+      );
   }
   const frames = shootSelection().length;
   $('#shoot-count').textContent = `${frames} frame(s) · shown breakpoints/states`;
@@ -1918,8 +2117,17 @@ async function shootFrames(list, btn) {
   btn.disabled = true;
   toast(`Screenshotting ${list.length} screen(s)…`);
   try {
-    const name = (f) => (f.system ? 'design-system' : [f.screen?.id || f.file?.replace(/\.html$/, ''), f.variant?.id, f.bp?.id, S.theme, f.state].filter(Boolean).join('__').replace(/\//g, '__'));
-    const res = await api('/__dfw/api/shoot', { method: 'POST', body: JSON.stringify({ frames: list.map((f) => ({ src: f.src, w: f.w, h: f.h, name: name(f) })) }) });
+    const name = (f) =>
+      f.system
+        ? 'design-system'
+        : [f.screen?.id || f.file?.replace(/\.html$/, ''), f.variant?.id, f.bp?.id, S.theme, f.state]
+            .filter(Boolean)
+            .join('__')
+            .replace(/\//g, '__');
+    const res = await api('/__dfw/api/shoot', {
+      method: 'POST',
+      body: JSON.stringify({ frames: list.map((f) => ({ src: f.src, w: f.w, h: f.h, name: name(f) })) }),
+    });
     const ok = res.filter((r) => r.ok);
     if (ok.length === 1) {
       const a = document.createElement('a');
@@ -1928,10 +2136,16 @@ async function shootFrames(list, btn) {
       a.click();
     }
     const dir = ok[0]?.file.split('/').slice(0, -1).join('/');
-    toast(`${ok.length}/${res.length} PNG saved${dir ? ` in ${dir}` : ''}${ok.length < res.length ? ` · failed: ${res.find((r) => !r.ok).error}` : ''}`);
+    toast(
+      `${ok.length}/${res.length} PNG saved${dir ? ` in ${dir}` : ''}${ok.length < res.length ? ` · failed: ${res.find((r) => !r.ok).error}` : ''}`,
+    );
   } catch (e) {
     // A Studio server started before an update serves the new page but not the new API.
-    toast(e.message === 'not found' ? 'Screenshot needs a newer Studio server: run "dfw studio stop" then "dfw studio start", and reload.' : `Screenshot failed: ${e.message}`);
+    toast(
+      e.message === 'not found'
+        ? 'Screenshot needs a newer Studio server: run "dfw studio stop" then "dfw studio start", and reload.'
+        : `Screenshot failed: ${e.message}`,
+    );
   } finally {
     btn.disabled = false;
   }
@@ -1945,7 +2159,12 @@ function rebuildKeepCam() {
 }
 
 async function loadAll({ keepCam = false } = {}) {
-  const [manifest, st, tokens, comps] = await Promise.all([api('/__dfw/api/manifest'), api('/__dfw/api/state'), api('/__dfw/api/tokens').catch(() => []), api('/__dfw/api/components').catch(() => [])]);
+  const [manifest, st, tokens, comps] = await Promise.all([
+    api('/__dfw/api/manifest'),
+    api('/__dfw/api/state'),
+    api('/__dfw/api/tokens').catch(() => []),
+    api('/__dfw/api/components').catch(() => []),
+  ]);
   S.manifest = manifest;
   S.pages = manifest.studioPages || [{ id: 'system', title: 'Design System', system: true, screens: [] }];
   S.state = st.state;
@@ -1973,7 +2192,22 @@ $('#shoot-go').onclick = async () => {
 };
 // Present: the screen as shown (breakpoint, state, theme), full height.
 $('#p-shoot').onclick = () =>
-  shootFrames([{ src: presentSrc(), w: P.system ? 1440 : P.bp.width, h: P.system ? 900 : P.bp.height, system: P.system, screen: P.screen, variant: P.variant, file: P.file, bp: P.bp, state: P.state }], $('#p-shoot'));
+  shootFrames(
+    [
+      {
+        src: presentSrc(),
+        w: P.system ? 1440 : P.bp.width,
+        h: P.system ? 900 : P.bp.height,
+        system: P.system,
+        screen: P.screen,
+        variant: P.variant,
+        file: P.file,
+        bp: P.bp,
+        state: P.state,
+      },
+    ],
+    $('#p-shoot'),
+  );
 $('#zoom-in').onclick = () => zoomStep(1);
 $('#zoom-out').onclick = () => zoomStep(-1);
 $('#zoom-label').onclick = () => zoomToFit();
@@ -2019,7 +2253,8 @@ es.addEventListener('design', async (e) => {
   const { files = [] } = JSON.parse(e.data);
   if (files.some((f) => /(^|\/)design\.json$/.test(f))) return loadAll({ keepCam: true });
   if (files.some((f) => f.startsWith('tokens/'))) S.tokens = await api('/__dfw/api/tokens').catch(() => S.tokens);
-  if (files.some((f) => f.startsWith('system/'))) S.components = new Map((await api('/__dfw/api/components').catch(() => [])).map((c) => [c.name, c]));
+  if (files.some((f) => f.startsWith('system/')))
+    S.components = new Map((await api('/__dfw/api/components').catch(() => [])).map((c) => [c.name, c]));
   const screenOnly = files.every((f) => f.endsWith('.html') && !f.startsWith('system/') && !f.startsWith('components/'));
   for (const f of S.frames.values()) {
     if (!f.iframe) continue;
