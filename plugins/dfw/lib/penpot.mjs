@@ -1096,7 +1096,8 @@ function continueThread(root, threads, tk, c0, result) {
   if (c0.resolved && !link.resolved) {
     if (cur.status === 'fixed') [to, message] = ['resolved', text || 'Resolved in Penpot.'];
     else if (!done) [to, message] = ['dismissed', text || 'Thread resolved in Penpot before a fix.'];
-  } else if (!c0.resolved && (fresh.length || link.resolved) && done) {
+  } else if (((!c0.resolved && (fresh.length || link.resolved)) || (fresh.length && link.resolved)) && done) {
+    // A reply in a thread that stays resolved reopens the comment too: otherwise the agent never sees it.
     [to, message] = ['reopened', text || 'Thread reopened in Penpot.'];
   }
   try {
@@ -1123,7 +1124,7 @@ export function threadReplies(root, fileId) {
     const posted = new Set(link.posted || []);
     const seq = Number(tk.slice(prefix.length));
     const events = [];
-    if (c.status === 'acknowledged') events.push([`ack:${c.updatedAt}`, `[dfw] ${c.id} seen, working on it.`]);
+    if (c.status === 'acknowledged') events.push([`ack:${(c.thread || []).filter((e) => e.status === 'reopened').length}`, `[dfw] ${c.id} seen, working on it.`]);
     for (const e of c.thread || []) {
       if (e.by === 'user' || !e.message) continue;
       const text =

@@ -1109,6 +1109,8 @@
       const res = await fetch(location.href, { cache: 'no-store' });
       if (!res.ok) throw new Error(String(res.status));
       const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+      // A page script may have built DOM the source does not have: patching would remove it and not run the script again.
+      if ([...doc.scripts].some((s) => !s.hasAttribute('data-dfw-overlay'))) throw new Error('page script');
       const changed = new Set();
       morph(document.head, doc.head, changed);
       morph(document.body, doc.body, changed);

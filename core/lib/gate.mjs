@@ -13,7 +13,7 @@ const WRITE_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'Appl
 export function decideWrite({ root, state, config, absFile }) {
   if (!state || state.active === false) return { allow: true };
   const rel = toPosix(path.relative(root, path.resolve(root, absFile)));
-  if (rel.startsWith('..') || path.isAbsolute(rel)) return { allow: true }; // outside the project
+  if (rel === '..' || rel.startsWith('../') || path.isAbsolute(rel)) return { allow: true }; // outside the project ("..x.ts" is inside)
   const gate = config.gate || {};
 
   if (matchesAny(rel, gate.immutable || [])) {

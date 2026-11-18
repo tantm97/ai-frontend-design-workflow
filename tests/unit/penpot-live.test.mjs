@@ -218,3 +218,34 @@ test('penpot plugin: live threads are the ones on dfw boards; replies are posted
   assert.deepEqual(r.done, [{ seq: 1, key: 'k1' }]);
   assert.deepEqual(posted, [[1, '[dfw] fb_001 fixed: done']]);
 });
+
+test('penpot live: a reply in a thread that stays resolved reopens the comment and reaches the agent', () => {
+  const { root, doc } = project();
+  const base = { fileId: 'file-1', exportId: doc.id };
+  syncThreads(root, { ...base, threads: [thread(1, ['Make it red'])] });
+  syncThreads(root, { ...base, threads: [thread(1, ['Make it red'], { resolved: true })] });
+  assert.equal(one(root).status, 'dismissed');
+  assert.equal(undelivered(root).length, 0);
+  syncThreads(root, { ...base, threads: [thread(1, ['Make it red', 'Actually please do it'], { resolved: true })] });
+  assert.equal(one(root).status, 'reopened');
+  assert.match(formatForClaude(undelivered(root)), /Actually please do it/);
+  const again = syncThreads(root, { ...base, threads: [thread(1, ['Make it red', 'Actually please do it'], { resolved: true })] });
+  assert.deepEqual(again.updated, [], 'the same messages change nothing');
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('penpot live: "seen, working on it" is posted once, also after a later reply', async () => {
+  const { root, doc } = project();
+  const t = thread(1, ['Make it red']);
+  const base = { fileId: 'file-1', exportId: doc.id };
+  syncThreads(root, { ...base, threads: [t] });
+  const id = one(root).id;
+  updateComment(root, id, { status: 'acknowledged' });
+  const first = syncThreads(root, { ...base, threads: [t] }).replies;
+  assert.deepEqual(first.map((r) => r.text), [`[dfw] ${id} seen, working on it.`]);
+  await new Promise((res) => setTimeout(res, 5));
+  updateComment(root, id, { message: 'Which red: brand or status?' });
+  const next = syncThreads(root, { ...base, threads: [t], posted: first.map(({ seq, key }) => ({ seq, key })) }).replies;
+  assert.deepEqual(next.map((r) => r.text), [`[dfw] ${id}: Which red: brand or status?`]);
+  fs.rmSync(root, { recursive: true, force: true });
+});

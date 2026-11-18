@@ -106,3 +106,19 @@ test('design system page: components are documented in rows, in three text sizes
   assert.ok(![...sizes].some((n) => n < 12), `no documentation text under 12px (found ${[...sizes].join(', ')})`);
   fs.rmSync(root, { recursive: true, force: true });
 });
+
+test('presence: ids in HTML comments are skipped and single quotes are read', () => {
+  const { root, file } = project();
+  fs.writeFileSync(file, `<main data-dfw-id="page">\n<!-- <section data-dfw-id="old.hero"> removed -->\n<header data-dfw-id='nav'><a>Home</a></header>\n<section data-dfw-id='hero'><h1>Title</h1></section>\n<!-- <p data-dfw-id="never.closed">\n</main>\n`);
+  const at = (old) => notePresence(root, { tool_input: { old_string: old } }, file).dfwId;
+  assert.equal(at("<section data-dfw-id='hero'><h1>Title</h1>"), 'hero');
+  assert.equal(at('<a>Home</a>'), 'nav', 'the commented-out id before it is not an element');
+  assert.equal(at('</main>'), 'hero', 'an unclosed comment hides the rest');
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('design system page: a dot inside a meaning does not end it', () => {
+  const p = describeParts({ description: 'Text button. sm = 1.5rem tall; lg = 2.5rem tall. Never two primaries.', variants: [], sizes: ['sm', 'lg'], props: [] });
+  assert.deepEqual([...p.meaning], [['sm', '1.5rem tall'], ['lg', '2.5rem tall']]);
+  assert.deepEqual([p.summary, p.notes], ['Text button.', ['Never two primaries.']]);
+});

@@ -75,9 +75,13 @@ export function newSession(...args) {
 }
 
 function newSessionUnlocked(root, { designVersion } = {}) {
-  const now = new Date();
-  const stamp = now.toISOString().replace(/[-:]/g, '').replace(/\..+/, '');
-  const id = `rv_${stamp}`;
+  // The id is the time to the second: when that file exists, move on one second at a time until the
+  // name is free, so a second round in the same second never replaces the first.
+  let id;
+  for (let t = Date.now(); ; t += 1000) {
+    id = `rv_${new Date(t).toISOString().replace(/[-:]/g, '').replace(/\..+/, '')}`;
+    if (!fs.existsSync(path.join(projectPaths(root).reviews, `${id}.json`))) break;
+  }
   const state = readJson(projectPaths(root).state, {});
   for (const f of sessionFiles(root)) {
     const s = readJson(f);
@@ -110,9 +114,14 @@ function nextId(root) {
   return `fb_${String(max + 1).padStart(3, '0')}`;
 }
 
+/** A design file name from input (Studio body, Penpot JSON): relative, no ".." segment, no drive or NUL. */
+export function safeDesignFile(f) {
+  return typeof f === 'string' && f !== '' && !/^[\\/]|^[A-Za-z]:|\0/.test(f) && !f.split(/[\\/]/).includes('..');
+}
+
 /** Line number of data-dfw-id="<id>" in a design file, for source mapping. */
 export function locateSource(root, designFile, dfwId) {
-  if (!designFile) return null;
+  if (!safeDesignFile(designFile)) return null;
   const abs = path.join(projectPaths(root).design, designFile);
   if (!fs.existsSync(abs)) return null;
   const text = fs.readFileSync(abs, 'utf8');
@@ -141,7 +150,7 @@ function addCommentUnlocked(root, input) {
     breakpoint: input.breakpoint || null,
     state: input.state || null,
     theme: input.theme || null,
-    file: input.file ? `design/${input.file}` : null,
+    file: safeDesignFile(input.file) ? `design/${input.file}` : null,
     target,
     comment: input.comment.trim(),
     screenshot: input.screenshot || null,
@@ -184,7 +193,8 @@ export function updateComment(...args) {
 function updateCommentUnlocked(root, id, { status, message, by = 'claude', evidence } = {}) {
   const { file, session, comment } = findComment(root, id);
   const at = nowIso();
-  if (status && status !== comment.status) {
+  // The status the comment already has is not a transition: it is refused like any other one not in NEXT.
+  if (status) {
     if (!STATUSES.includes(status)) throw new DfwError(`Unknown status "${status}".`);
     if (!NEXT[comment.status].includes(status)) {
       throw new DfwError(`Comment ${id}: cannot go from "${comment.status}" to "${status}" (allowed: ${NEXT[comment.status].join(', ')}).`);

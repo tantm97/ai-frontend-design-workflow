@@ -2,7 +2,7 @@
 // Explicit user decisions live in .dfw/decisions.jsonl and are applied by the
 // orchestrator skill on top of this (they are not config values).
 import path from 'node:path';
-import { readJson, writeJson, deepMerge, globalDir, projectPaths, getPath, setPath } from './util.mjs';
+import { readJson, writeJson, deepMerge, globalDir, projectPaths, getPath, setPath, DfwError } from './util.mjs';
 
 export const DEFAULTS = {
   schema: 1,
@@ -79,15 +79,22 @@ export function filterProjectEnv(layer, file, warn) {
   return { ...layer, env };
 }
 
+/** A config file's content ({} when missing): anything but a JSON object is the user's error to fix. */
+function readLayer(file) {
+  const data = readJson(file, {});
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new DfwError(`Config file ${file} must hold a JSON object. Fix it or delete it.`);
+  return data;
+}
+
 export function loadConfig(root, { warn = (m) => process.stderr.write(`${m}\n`), globalFile = globalConfigPath() } = {}) {
   const p = root ? projectPaths(root) : null;
   const layers = [
     ['defaults', DEFAULTS],
-    ['global', readJson(globalFile, {})],
+    ['global', readLayer(globalFile)],
   ];
   if (p) {
-    layers.push(['project', filterProjectEnv(readJson(p.config, {}), p.config, warn)]);
-    layers.push(['local', filterProjectEnv(readJson(p.configLocal, {}), p.configLocal, warn)]);
+    layers.push(['project', filterProjectEnv(readLayer(p.config), p.config, warn)]);
+    layers.push(['local', filterProjectEnv(readLayer(p.configLocal), p.configLocal, warn)]);
   }
   let merged = {};
   for (const [, layer] of layers) merged = deepMerge(merged, layer);
@@ -120,7 +127,7 @@ export function configFileFor(scope, root) {
 
 export function setConfigValue(scope, root, key, value) {
   const file = configFileFor(scope, root);
-  const data = readJson(file, {});
+  const data = readLayer(file);
   setPath(data, key, value);
   writeJson(file, data);
   return file;
