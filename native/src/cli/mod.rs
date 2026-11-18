@@ -8,6 +8,7 @@ mod browser;
 mod comments;
 mod debug;
 mod design;
+mod edit;
 mod hook;
 mod penpot;
 mod studio;

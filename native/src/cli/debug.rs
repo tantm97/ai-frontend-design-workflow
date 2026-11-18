@@ -28,6 +28,11 @@ const SUBCOMMANDS: &[(&str, Subcommand)] = &[
     ("color", super::design::debug_color),
     ("png-info", super::browser::debug_png_info),
     ("insp-path", super::tools::debug_insp_path),
+    ("edit", super::edit::debug_edit),
+    ("undo", super::edit::debug_undo),
+    ("system-page", super::edit::debug_system_page),
+    ("changed-screens", super::edit::debug_changed_screens),
+    ("mark-checked", super::edit::debug_mark_checked),
 ];
 
 /// The command of this file.
