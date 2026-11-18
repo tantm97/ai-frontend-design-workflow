@@ -2,13 +2,16 @@
 // Served by the local dfw Studio (127.0.0.1) at /__dfw/penpot/plugin.js; its UI (ui.html) is served
 // by the same Studio, so the UI's data calls never leave the machine.
 //   Build boards : export (from "dfw penpot export") -> Penpot pages, boards, components, text layers.
+//   Update boards: redraw the boards already in the file from a new export, in place (comment threads stay).
+//   Live comments: every few seconds the panel asks for the comment threads on dfw boards; the Studio turns
+//                  new ones into dfw comments and answers with dfw's replies, posted into the threads here.
 //   Send changes : boards built here + main components on the "dfw components" page + Penpot comments
 //                  + token sets -> the Studio, which records them as dfw feedback comments (component
 //                  edits target the master file). dfw never overwrites its HTML from Penpot.
 // API used: penpot.ui, createPage/openPage, createBoard/createRectangle/createText/createShapeFromSvg,
 // uploadMediaData, library.local.createComponent / component.instance() / component.mainInstance(),
 // library.local.components, library.local.tokens,
-// fonts.findByName, Page.findCommentThreads, setPluginData/getPluginData (doc.plugins.penpot.app).
+// fonts.findByName, Page.findCommentThreads, CommentThread.findComments/reply, Shape.remove, setPluginData/getPluginData (doc.plugins.penpot.app).
 /* global penpot */
 const STUDIO = '__DFW_STUDIO_ORIGIN__';
 
@@ -18,8 +21,10 @@ penpot.ui.onMessage(async (msg) => {
   try {
     if (msg && msg.type === 'build') penpot.ui.sendMessage({ type: 'built', stats: await build(msg.export, msg.images || {}, msg.options || {}) });
     else if (msg && msg.type === 'collect') penpot.ui.sendMessage({ type: 'changes', data: await collect() });
+    else if (msg && msg.type === 'threads') penpot.ui.sendMessage({ type: 'threads', data: await liveThreads() });
+    else if (msg && msg.type === 'reply') penpot.ui.sendMessage({ type: 'replied', done: await reply(msg.replies || []) });
   } catch (e) {
-    penpot.ui.sendMessage({ type: 'error', message: String((e && e.message) || e) });
+    penpot.ui.sendMessage({ type: 'error', of: msg && msg.type, message: String((e && e.message) || e) });
   }
 });
 
@@ -220,11 +225,16 @@ function override(shape, l, ox, oy, ctx, prefix) {
 
 async function build(doc, images, options) {
   if (!doc || doc.schema !== 'dfw-penpot-export/1') throw new Error('Not a dfw Penpot export (run "dfw penpot export").');
-  const stats = { pages: 0, boards: 0, layers: 0, components: 0, instances: 0, tokenLinks: 0, warnings: [] };
+  const stats = { pages: 0, boards: 0, updated: 0, layers: 0, components: 0, instances: 0, tokenLinks: 0, warnings: [] };
   const ctx = { tokens: tokenIndex(), images, mains: new Map(), stats };
   if (!ctx.tokens.size) stats.warnings.push('No tokens in this file: import .dfw/penpot/tokens.penpot.json in the Tokens panel first to link colours to tokens.');
   const useInstances = options.components !== false;
-  if (useInstances && doc.components.length) {
+  const update = Boolean(options.update);
+  const old = update ? existing() : { boards: new Map(), pages: new Map(), mains: new Map() };
+  // Update: reuse the main components already in the file when their structure is unchanged;
+  // a new or changed master is drawn as plain layers (no second main is created).
+  if (update) for (const [k, m] of old.mains) ctx.mains.set(k, m);
+  if (!update && useInstances && doc.components.length) {
     const page = penpot.createPage();
     page.name = 'dfw components';
     await penpot.openPage(page);
@@ -241,7 +251,7 @@ async function build(doc, images, options) {
         comp.name = c.name;
         // Key of the dfw master (component|variant|size): on the main shape and on the library component,
         // so "Send changes" finds the main again whatever Penpot does with the shape on createComponent.
-        const mainMeta = JSON.stringify({ key: c.key, exportId: doc.id });
+        const mainMeta = JSON.stringify({ key: c.key, exportId: doc.id, sig: c.sig });
         shape.setPluginData('dfw-main', mainMeta);
         try {
           comp.setPluginData('dfw-main', mainMeta);
@@ -264,29 +274,120 @@ async function build(doc, images, options) {
   }
   const keys = [];
   for (const pg of doc.pages) {
-    const page = penpot.createPage();
-    page.name = pg.title;
+    let page = old.pages.get(pg.title);
+    if (!page) {
+      page = penpot.createPage();
+      page.name = pg.title;
+    }
     await penpot.openPage(page);
     stats.pages++;
     for (const b of pg.boards) {
-      const board = penpot.createBoard();
+      // An existing board keeps its place and identity, so comment threads stay on it.
+      let board = old.boards.get(b.key);
+      if (board) {
+        for (const child of [...(board.children || [])]) child.remove();
+        stats.updated++;
+      } else {
+        board = penpot.createBoard();
+        board.x = b.x;
+        board.y = b.y;
+      }
       board.name = b.name;
-      board.x = b.x;
-      board.y = b.y;
       board.resize(b.width, b.height);
       board.clipContent = true;
       board.fills = [{ fillColor: b.background.color, fillOpacity: b.background.opacity }];
       if (b.background.token) applyToken(ctx.tokens, b.background.token, board, stats);
       board.setPluginData('dfw-board', JSON.stringify({ key: b.key, exportId: doc.id, screen: b.screen, variant: b.variant, breakpoint: b.breakpoint }));
-      for (const l of b.layers) await draw(l, board, b.x, b.y, ctx, '', useInstances);
+      for (const l of b.layers) await draw(l, board, board.x, board.y, ctx, '', useInstances);
       keys.push(b.key);
       stats.boards++;
     }
   }
   try {
-    penpot.currentFile.setPluginData('dfw-export', JSON.stringify({ id: doc.id, keys, components: [...ctx.mains.keys()] }));
+    const before = data(penpot.currentFile, 'dfw-export');
+    const allKeys = update && before && before.keys ? [...new Set([...before.keys, ...keys])] : keys;
+    penpot.currentFile.setPluginData('dfw-export', JSON.stringify({ id: doc.id, keys: allKeys, components: [...ctx.mains.keys()] }));
   } catch (e) {}
   return stats;
+}
+
+/** What a previous build left in the file: boards by dfw key, pages by name, main components by key. */
+function existing() {
+  const out = { boards: new Map(), pages: new Map(), mains: new Map() };
+  for (const page of penpot.currentFile.pages) {
+    if (!out.pages.has(page.name)) out.pages.set(page.name, page);
+    for (const shape of (page.root && page.root.children) || []) {
+      const meta = data(shape, 'dfw-board');
+      if (meta && !out.boards.has(meta.key)) out.boards.set(meta.key, shape);
+    }
+  }
+  try {
+    for (const comp of penpot.library.local.components || []) {
+      let main = null;
+      try {
+        main = comp.mainInstance();
+      } catch (e) {}
+      const meta = data(main, 'dfw-main') || data(comp, 'dfw-main');
+      if (meta && meta.sig && !out.mains.has(meta.key)) out.mains.set(meta.key, { comp, sig: meta.sig });
+    }
+  } catch (e) {}
+  return out;
+}
+
+/* ------------------------------------------------------------ comment threads */
+
+/** Comment threads of one page: [{ thread, entry }] (entry is what goes to dfw). */
+async function pageThreads(page, warnings) {
+  const out = [];
+  try {
+    const threads = await page.findCommentThreads({ onlyYours: false, showResolved: true });
+    for (const t of threads) {
+      const bm = t.board ? data(t.board, 'dfw-board') : null;
+      const mm = t.board && !bm ? data(t.board, 'dfw-main') : null;
+      const comments = await t.findComments();
+      out.push({
+        thread: t,
+        entry: {
+          seq: t.seqNumber,
+          resolved: Boolean(t.resolved),
+          page: page.name,
+          boardKey: bm ? bm.key : null,
+          componentKey: mm ? mm.key : null,
+          x: t.position.x - (t.board ? t.board.x : 0),
+          y: t.position.y - (t.board ? t.board.y : 0),
+          comments: comments.map((c) => ({ content: c.content, user: c.user ? c.user.name : null, date: c.date ? String(c.date) : null })),
+        },
+      });
+    }
+  } catch (e) {
+    warnings.push(`comments on page ${page.name}: ${e.message}`);
+  }
+  return out;
+}
+
+/** Live comments: only threads on boards and main components built by dfw (other comments in the file are not dfw's). */
+async function liveThreads() {
+  const file = penpot.currentFile;
+  const ex = data(file, 'dfw-export');
+  const out = { fileId: file ? file.id : null, exportId: ex ? ex.id : null, threads: [], warnings: [] };
+  for (const page of file.pages) for (const x of await pageThreads(page, out.warnings)) if (x.entry.boardKey || x.entry.componentKey) out.threads.push(x.entry);
+  return out;
+}
+
+/** Post dfw's replies ("[dfw] fb_012 fixed: ...") into their threads; returns the ones posted. */
+async function reply(replies) {
+  const bySeq = new Map();
+  for (const page of penpot.currentFile.pages) for (const x of await pageThreads(page, [])) bySeq.set(x.entry.seq, x.thread);
+  const done = [];
+  for (const r of replies) {
+    const t = bySeq.get(r.seq);
+    if (!t) continue;
+    try {
+      await t.reply(String(r.text));
+      done.push({ seq: r.seq, key: r.key });
+    } catch (e) {}
+  }
+  return done;
 }
 
 /* ------------------------------------------------------------ collect (send changes) */
@@ -330,7 +431,7 @@ function walk(shape, board, out) {
 async function collect() {
   const file = penpot.currentFile;
   const ex = data(file, 'dfw-export');
-  const out = { schema: 'dfw-penpot-changes/1', exportId: ex ? ex.id : null, pushedAt: new Date().toISOString(), fileName: file ? file.name : null, boards: [], missingBoards: [], components: [], missingComponents: [], comments: [], tokens: null, warnings: [] };
+  const out = { schema: 'dfw-penpot-changes/1', fileId: file ? file.id : null, exportId: ex ? ex.id : null, pushedAt: new Date().toISOString(), fileName: file ? file.name : null, boards: [], missingBoards: [], components: [], missingComponents: [], comments: [], tokens: null, warnings: [] };
   const seen = new Set();
   for (const page of file.pages) {
     const boards = new Map();
@@ -344,26 +445,7 @@ async function collect() {
       walk(shape, shape, b);
       out.boards.push(b);
     }
-    try {
-      const threads = await page.findCommentThreads({ onlyYours: false, showResolved: true });
-      for (const t of threads) {
-        const bm = t.board ? data(t.board, 'dfw-board') : null;
-        const mm = t.board && !bm ? data(t.board, 'dfw-main') : null;
-        const comments = await t.findComments();
-        out.comments.push({
-          seq: t.seqNumber,
-          resolved: Boolean(t.resolved),
-          page: page.name,
-          boardKey: bm ? bm.key : null,
-          componentKey: mm ? mm.key : null,
-          x: t.position.x - (t.board ? t.board.x : 0),
-          y: t.position.y - (t.board ? t.board.y : 0),
-          comments: comments.map((c) => ({ content: c.content, user: c.user ? c.user.name : null, date: c.date ? String(c.date) : null })),
-        });
-      }
-    } catch (e) {
-      out.warnings.push(`comments on page ${page.name}: ${e.message}`);
-    }
+    for (const x of await pageThreads(page, out.warnings)) out.comments.push(x.entry);
   }
   if (ex && ex.keys) out.missingBoards = ex.keys.filter((k) => !seen.has(k));
   // Main components (the dfw components page): coordinates relative to the main's own origin.

@@ -13,7 +13,9 @@ const deliveredFile = (root) => path.join(projectPaths(root).dfw, 'reviews', '.d
 
 export function undelivered(root) {
   const seen = new Set(readJson(deliveredFile(root), []));
-  return allComments(root).filter((c) => ACTIVE.has(c.status) && !seen.has(key(c)));
+  // A follow-up from the user on a comment being worked on (e.g. a reply in its Penpot thread) is news too.
+  const followUp = (c) => c.status === 'acknowledged' && c.thread?.at(-1)?.by === 'user';
+  return allComments(root).filter((c) => (ACTIVE.has(c.status) || followUp(c)) && !seen.has(key(c)));
 }
 
 export function markDelivered(root, comments) {
@@ -30,7 +32,7 @@ export function formatForClaude(comments) {
     const where = [c.screen, c.variant, c.breakpoint, c.state, c.theme].filter(Boolean).join(' / ') || 'design system';
     const target = c.target?.dfwId || c.target?.selector || '?';
     const last = c.thread?.length ? c.thread.at(-1) : null;
-    const reopened = c.status === 'reopened' && last ? `\n    reopened by ${last.by}: "${last.message}"` : '';
+    const reopened = c.status === 'reopened' && last ? `\n    reopened by ${last.by}: "${last.message}"` : last?.by === 'user' ? `\n    follow-up by user: "${last.message}"` : '';
     return `- ${c.id} [${c.status}] ${where} -> ${target}${c.target?.source ? ` (${c.target.source})` : ''}${c.target?.component ? ` component ${c.target.component}` : ''}\n    "${c.comment}"${reopened}`;
   });
   const live = comments.some((c) => c.provider === 'dfw-live')

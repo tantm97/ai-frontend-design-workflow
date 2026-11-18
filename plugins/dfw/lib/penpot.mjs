@@ -16,12 +16,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { projectPaths, readJson, writeJson, nowIso, toPosix, DfwError } from './util.mjs';
+import { projectPaths, readJson, writeJson, nowIso, toPosix, listFiles, DfwError } from './util.mjs';
 import { loadConfig } from './config.mjs';
 import { buildComposed, buildSystem, loadComponents } from './compose.mjs';
 import { studioPages } from '../studio/pages.mjs';
 import { flattenTokens, tokenToPenpot, parseColor, readDfwTokens, dfwToPenpot, importPenpotTokens, shortValue, nest } from './penpot-tokens.mjs';
-import { addComment } from './comments.mjs';
+import { addComment, allComments, updateComment } from './comments.mjs';
 
 const EXPORT_SCHEMA = 'dfw-penpot-export/1';
 const CHANGES_SCHEMA = 'dfw-penpot-changes/1';
@@ -645,7 +645,8 @@ export function diffChanges(baseline, changes, { dims = [] } = {}) {
       bbox: host ? [host.x, host.y, host.w, host.h] : null,
       thread: t.seq ?? null,
       resolved: Boolean(t.resolved),
-      messages: (t.comments || []).map((c) => ({ author: c.user || 'designer', content: c.content, at: c.date || null })),
+      // Replies the plugin posted for dfw ("[dfw] ...") are not designer messages.
+      messages: (t.comments || []).filter((c) => !DFW_REPLY.test(String(c.content || ''))).map((c) => ({ author: c.user || 'designer', content: c.content, at: c.date || null })),
     });
   }
   return { changes: out, warnings };
@@ -932,6 +933,12 @@ function sourceLine(root, file, id) {
   return m ? `${file}:${text.slice(0, m.index).split('\n').length}` : file;
 }
 
+// Penpot comment threads linked to dfw comments (.dfw/penpot/threads.json):
+// { "<file id>#<thread number>": { comment: "fb_012", seen: <designer messages read>, resolved, posted: [reply keys] } }
+const DFW_REPLY = /^\s*\[dfw\]/i;
+const threadsFile = (root) => path.join(penpotDir(root), 'threads.json');
+const threadKey = (fileId, seq) => `${String(fileId || '')}#${seq}`;
+
 const fingerprint = (x) => crypto.createHash('sha256').update(JSON.stringify(x)).digest('hex').slice(0, 16);
 
 /** Penpot token sets sent by the plugin -> a Penpot token file (same shape as the Tokens panel export). */
@@ -950,7 +957,7 @@ export function tokensFromPlugin(t) {
  * Import a change file: write feedback comments (provider "penpot") and the token diff.
  * Never edits design/. Returns { baseline, changes, comments, tokenDiff, tokenFile, warnings, skipped }.
  */
-export function importChanges(root, changes, { dryRun = false, state = null } = {}) {
+export function importChanges(root, changes, { dryRun = false, state = null, live = false } = {}) {
   const dir = penpotDir(root);
   // The id names a file under exports/: only the shape dfw generates (never a path from the change file).
   const exportId = typeof changes?.exportId === 'string' && /^px_\w+$/.test(changes.exportId) ? changes.exportId : null;
@@ -963,10 +970,10 @@ export function importChanges(root, changes, { dryRun = false, state = null } = 
   const { changes: list, warnings } = diffChanges(baseline, changes, { dims });
   if (exportId && baseline.id !== exportId) warnings.push(`Change file refers to export ${exportId}, which is not on disk; compared with the latest export ${baseline.id}.`);
   const frozen = Boolean(state?.design?.locked);
-  const result = { baseline: baseline.id, changes: list, comments: [], skipped: 0, warnings, tokenDiff: null, tokenFile: null, frozen };
+  const result = { baseline: baseline.id, changes: list, comments: [], updated: [], skipped: 0, warnings, tokenDiff: null, tokenFile: null, frozen };
 
   // Token diff (dry run against design/tokens; never applied here).
-  const tdoc = tokensFromPlugin(changes.tokens) || (changes.tokenFile && typeof changes.tokenFile === 'object' ? changes.tokenFile : null);
+  const tdoc = live ? null : tokensFromPlugin(changes.tokens) || (changes.tokenFile && typeof changes.tokenFile === 'object' ? changes.tokenFile : null);
   if (tdoc) {
     const f = path.join(dir, 'tokens.from-penpot.json');
     if (!dryRun) writeJson(f, tdoc);
@@ -993,6 +1000,8 @@ export function importChanges(root, changes, { dryRun = false, state = null } = 
   const ledger = new Set(readJson(ledgerFile, []));
   const gateNote = frozen ? `\n(Design v${state.design.version} is approved and frozen: discuss with the user; applying this needs "dfw reopen".)` : '';
   const pending = [];
+  const threads = readJson(threadsFile(root), {});
+  const linked = [];
   let lib = null;
   try {
     lib = loadComponents(root);
@@ -1001,6 +1010,12 @@ export function importChanges(root, changes, { dryRun = false, state = null } = 
     const c0 = cs[0];
     // A Penpot thread is the same thread wherever the layer under its pin sits now: no bbox/anchor in its fingerprint.
     const fp = c0.type === 'comment' ? fingerprint({ type: 'comment', board: c0.board, comp: c0.component?.key, thread: c0.thread, messages: c0.messages }) : fingerprint(cs.map(({ type, board, path: p, anchor, from, to, messages, characters, bbox, component, sides, layer }) => ({ type, board, p, anchor, from, to, messages, characters, bbox, comp: component?.key, sides, layer })));
+    // A thread already linked to a dfw comment continues that comment (new messages, resolve, reopen).
+    const tk = c0.type === 'comment' && c0.thread != null ? threadKey(changes.fileId, c0.thread) : null;
+    if (tk && threads[tk]) {
+      linked.push([tk, c0]);
+      continue;
+    }
     if (ledger.has(fp)) {
       result.skipped++;
       continue;
@@ -1010,7 +1025,7 @@ export function importChanges(root, changes, { dryRun = false, state = null } = 
       continue;
     }
     if (c0.component) {
-      pending.push([fp, componentComment(root, c0, cs, lib, gateNote), key]);
+      pending.push([fp, componentComment(root, c0, cs, lib, gateNote), key, tk, c0.messages?.length || 0]);
       continue;
     }
     const header = c0.type === 'comment' ? '[Penpot comment]' : `[Penpot] ${c0.anchor ? `"${c0.anchor}"` : c0.name ? `layer "${c0.name}"` : 'board'}:`;
@@ -1031,7 +1046,7 @@ export function importChanges(root, changes, { dryRun = false, state = null } = 
         ...(c0.type === 'text' ? { text: norm(c0.from) } : {}),
       },
     };
-    pending.push([fp, input, key]);
+    pending.push([fp, input, key, tk, c0.messages?.length || 0]);
   }
   if (result.tokenDiff) {
     const lines = [];
@@ -1047,14 +1062,123 @@ export function importChanges(root, changes, { dryRun = false, state = null } = 
     }
   }
   if (!dryRun) {
-    for (const [fp, input] of pending) {
-      result.comments.push(addComment(root, input));
+    for (const [fp, input, , tk, seen] of pending) {
+      const c = addComment(root, input);
+      result.comments.push(c);
       ledger.add(fp);
+      if (tk) threads[tk] = { comment: c.id, seen, resolved: false, posted: [] };
     }
+    for (const [tk, c0] of linked) continueThread(root, threads, tk, c0, result);
     writeJson(ledgerFile, [...ledger]);
-    writeJson(path.join(dir, 'changes', `${String(changes.pushedAt || nowIso()).replace(/[^\dTZ]/g, '') || 'changes'}.json`), changes);
+    if (pending.some((x) => x[3]) || linked.length) writeJson(threadsFile(root), threads);
+    if (!live) writeJson(path.join(dir, 'changes', `${String(changes.pushedAt || nowIso()).replace(/[^\dTZ]/g, '') || 'changes'}.json`), changes);
   } else result.comments = pending.map(([, input]) => ({ id: '(dry run)', ...input }));
   return result;
+}
+
+/**
+ * A linked thread changed in Penpot: new designer messages are added to the dfw comment (and reopen
+ * it when it was fixed, resolved or dismissed); resolving the thread accepts a fix, or dismisses a
+ * comment that was not fixed yet. These are the user's own actions, like the Studio buttons.
+ */
+function continueThread(root, threads, tk, c0, result) {
+  const link = threads[tk];
+  const cur = allComments(root).find((c) => c.id === link.comment);
+  if (!cur) {
+    delete threads[tk]; // the dfw comment is gone: the thread is imported as new next time
+    return;
+  }
+  const fresh = (c0.messages || []).slice(link.seen || 0);
+  const text = fresh.map((m) => m.content).join('\n');
+  const done = ['fixed', 'resolved', 'dismissed'].includes(cur.status);
+  let to = null;
+  let message = text;
+  if (c0.resolved && !link.resolved) {
+    if (cur.status === 'fixed') [to, message] = ['resolved', text || 'Resolved in Penpot.'];
+    else if (!done) [to, message] = ['dismissed', text || 'Thread resolved in Penpot before a fix.'];
+  } else if (!c0.resolved && (fresh.length || link.resolved) && done) {
+    [to, message] = ['reopened', text || 'Thread reopened in Penpot.'];
+  }
+  try {
+    if (to || message) {
+      const c = updateComment(root, cur.id, { status: to || undefined, message, by: 'user' });
+      result.updated.push({ id: c.id, status: c.status });
+    }
+  } catch (e) {
+    result.warnings.push(`Thread #${c0.thread} (${cur.id}): ${e.message}`);
+  }
+  link.seen = (c0.messages || []).length;
+  link.resolved = Boolean(c0.resolved);
+}
+
+/** What dfw did with a linked comment, as replies for its Penpot thread: [{ seq, key, text }] not posted yet. */
+export function threadReplies(root, fileId) {
+  const threads = readJson(threadsFile(root), {});
+  const byId = new Map(allComments(root).map((c) => [c.id, c]));
+  const prefix = `${String(fileId || '')}#`;
+  const out = [];
+  for (const [tk, link] of Object.entries(threads)) {
+    const c = tk.startsWith(prefix) ? byId.get(link.comment) : null;
+    if (!c) continue;
+    const posted = new Set(link.posted || []);
+    const seq = Number(tk.slice(prefix.length));
+    const events = [];
+    if (c.status === 'acknowledged') events.push([`ack:${c.updatedAt}`, `[dfw] ${c.id} seen, working on it.`]);
+    for (const e of c.thread || []) {
+      if (e.by === 'user' || !e.message) continue;
+      const text =
+        e.status === 'fixed'
+          ? `[dfw] ${c.id} fixed: ${e.message}\nUpdate the boards to see it. Resolve this thread to accept, or reply here to reopen.`
+          : e.status === 'dismissed'
+            ? `[dfw] ${c.id} dismissed: ${e.message}\nReply here to reopen.`
+            : `[dfw] ${c.id}: ${e.message}`;
+      events.push([`${e.status || 'reply'}:${e.at}`, text]);
+    }
+    for (const [key, text] of events) if (!posted.has(key)) out.push({ seq, key, text });
+  }
+  return out;
+}
+
+/** The plugin posted these replies ([{ seq, key }]): do not send them again. */
+export function markPosted(root, fileId, list = []) {
+  if (!Array.isArray(list) || !list.length) return;
+  const threads = readJson(threadsFile(root), {});
+  let changed = false;
+  for (const p of list) {
+    const link = threads[threadKey(fileId, p?.seq)];
+    if (!link || typeof p.key !== 'string' || (link.posted ||= []).includes(p.key)) continue;
+    link.posted = [...link.posted, p.key].slice(-200);
+    changed = true;
+  }
+  if (changed) writeJson(threadsFile(root), threads);
+}
+
+/** True when a design file changed after the latest export was rendered (the Penpot boards are behind). */
+export function exportStale(root) {
+  const doc = readJson(path.join(penpotDir(root), 'export.json'), null);
+  const at = Date.parse(doc?.generatedAt || '');
+  if (!at) return false;
+  const design = projectPaths(root).design;
+  for (const rel of listFiles(design, { exclude: ['approved', 'handoff'] })) {
+    try {
+      if (fs.statSync(path.join(design, rel)).mtimeMs > at) return true;
+    } catch {}
+  }
+  return false;
+}
+
+/**
+ * Live comment loop with the Penpot plugin (the same loop as the Studio, without pressing "Send changes"):
+ * the plugin sends the file's comment threads every few seconds; new threads become dfw comments, linked
+ * threads continue theirs, and the answer carries dfw's replies for the plugin to post in the threads.
+ * payload: { fileId, exportId, threads: [...], posted: [{ seq, key }] }
+ */
+export function syncThreads(root, payload = {}, { state = null } = {}) {
+  const fileId = typeof payload.fileId === 'string' ? payload.fileId.slice(0, 80) : '';
+  markPosted(root, fileId, payload.posted);
+  const threads = Array.isArray(payload.threads) ? payload.threads.slice(0, 500) : [];
+  const r = importChanges(root, { schema: CHANGES_SCHEMA, exportId: payload.exportId, fileId, comments: threads, boards: [], components: [] }, { state, live: true });
+  return { comments: r.comments.map((c) => c.id), updated: r.updated, replies: threadReplies(root, fileId), stale: exportStale(root), warnings: r.warnings };
 }
 
 /** Feedback comment for changes on one element of a component master (or a Penpot comment on a main component). */
