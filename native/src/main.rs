@@ -44,11 +44,16 @@ fn run(argv: Vec<String>) -> Result<i32, DfwError> {
     // reaches its switch, which does not know them.
     let misplaced = cli::INTERNAL.contains(&name.as_str()) && argv.first() != Some(&name);
     let table = cli::commands();
-    let handler = table.iter().find(|(n, _)| *n == name && !misplaced).map(|(_, h)| h);
+    let handler = table
+        .iter()
+        .find(|(n, _)| *n == name && !misplaced)
+        .map(|(_, h)| h);
     match handler {
         Some(Handler::Native(run)) => run(&Ctx { argv, args }),
         Some(Handler::Forward) => cli::forward(&argv),
-        None => Err(DfwError::new(format!("Unknown command \"{name}\". Run \"dfw help\"."))),
+        None => Err(DfwError::new(format!(
+            "Unknown command \"{name}\". Run \"dfw help\"."
+        ))),
     }
 }
 
@@ -88,11 +93,19 @@ mod tests {
         assert_eq!(name(&["help"]), "help");
         assert_eq!(name(&["status", "--help"]), "help");
         assert_eq!(name(&["status", "--json"]), "status");
-        assert_eq!(name(&["--root", "/p", "status"]), "status", "a flag's value is not the command");
+        assert_eq!(
+            name(&["--root", "/p", "status"]),
+            "status",
+            "a flag's value is not the command"
+        );
         assert_eq!(name(&["status", "--version"]), "version");
         assert_eq!(name(&["--version"]), "version");
         assert_eq!(name(&["--version="]), "help", "an empty value is falsy");
-        assert_eq!(name(&["mcp", "--help"]), "mcp", "mcp, install and uninstall are decided before --help");
+        assert_eq!(
+            name(&["mcp", "--help"]),
+            "mcp",
+            "mcp, install and uninstall are decided before --help"
+        );
         assert_eq!(name(&["install", "--help"]), "install");
         assert_eq!(name(&["hook", "stop", "--help"]), "help");
         assert_eq!(name(&["__studio-server", "--help"]), "__studio-server");

@@ -17,12 +17,18 @@ pub enum DfwError {
 impl DfwError {
     /// User-facing error with exit code 1 (`new DfwError(message)`).
     pub fn new(message: impl Into<String>) -> Self {
-        DfwError::User { message: message.into(), code: 1 }
+        DfwError::User {
+            message: message.into(),
+            code: 1,
+        }
     }
 
     /// User-facing error with a specific exit code (`new DfwError(message, code)`).
     pub fn with_code(message: impl Into<String>, code: i32) -> Self {
-        DfwError::User { message: message.into(), code }
+        DfwError::User {
+            message: message.into(),
+            code,
+        }
     }
 
     /// Unexpected error (a plain `Error` in the Node code).

@@ -64,7 +64,17 @@ pub struct Host {
 }
 
 const fn planned(id: &'static str, name: &'static str, cli: &'static str) -> Host {
-    Host { id, name, status: Status::Planned, cli: Some(cli), adapter: None, context: None, text: None, qualified_skill_names: false, mcp: true }
+    Host {
+        id,
+        name,
+        status: Status::Planned,
+        cli: Some(cli),
+        adapter: None,
+        context: None,
+        text: None,
+        qualified_skill_names: false,
+        mcp: true,
+    }
 }
 
 /// `HOSTS`, in the order of the Node table.
@@ -151,7 +161,10 @@ impl Host {
 
     /// `host.context[event]`: `None` for an event the table does not list.
     pub fn context(&self, event: &str) -> Option<bool> {
-        self.context?.iter().find(|(e, _)| *e == event).map(|(_, can)| *can)
+        self.context?
+            .iter()
+            .find(|(e, _)| *e == event)
+            .map(|(_, can)| *can)
     }
 
     /// `installedPluginDirs?.() || []`: folders holding the installed marketplace plugins.
@@ -182,27 +195,48 @@ pub struct CopilotPluginDirs {
 /// local directory is used in place (`<dir>/plugins/<dir name>`); a GitHub one is copied to
 /// `installed-plugins/`.
 pub fn copilot_plugin_dirs() -> CopilotPluginDirs {
-    let home = env_nonempty("COPILOT_HOME").map(PathBuf::from).unwrap_or_else(|| env::home_dir().unwrap_or_default().join(".copilot"));
+    let home = env_nonempty("COPILOT_HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| env::home_dir().unwrap_or_default().join(".copilot"));
     copilot_plugin_dirs_in(&home)
 }
 
 /// [`copilot_plugin_dirs`] for a given Copilot home, so tests need no environment variable.
 fn copilot_plugin_dirs_in(home: &Path) -> CopilotPluginDirs {
     // An unreadable or broken settings file means "not a local marketplace", as in Node.
-    let settings: Option<Value> = fs::read_to_string(home.join("settings.json")).ok().and_then(|text| serde_json::from_str(&text).ok());
-    let source = settings.as_ref().and_then(|s| s.get("extraKnownMarketplaces")?.get(MARKETPLACE_NAME)?.get("source"));
-    let local = source.filter(|s| s.get("source").and_then(Value::as_str) == Some("directory")).and_then(|s| s.get("path")?.as_str()).filter(|p| !p.is_empty());
+    let settings: Option<Value> = fs::read_to_string(home.join("settings.json"))
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok());
+    let source = settings.as_ref().and_then(|s| {
+        s.get("extraKnownMarketplaces")?
+            .get(MARKETPLACE_NAME)?
+            .get("source")
+    });
+    let local = source
+        .filter(|s| s.get("source").and_then(Value::as_str) == Some("directory"))
+        .and_then(|s| s.get("path")?.as_str())
+        .filter(|p| !p.is_empty());
     if let Some(dir) = local {
         let root = Path::new(dir).join("plugins");
-        return CopilotPluginDirs { dfw: root.join("dfw-copilot"), root };
+        return CopilotPluginDirs {
+            dfw: root.join("dfw-copilot"),
+            root,
+        };
     }
     let root = home.join("installed-plugins").join(MARKETPLACE_NAME);
-    CopilotPluginDirs { dfw: root.join("dfw"), root }
+    CopilotPluginDirs {
+        dfw: root.join("dfw"),
+        root,
+    }
 }
 
 /// `SUPPORTED_HOSTS`: ids of the hosts a plugin ships for.
 pub fn supported_hosts() -> Vec<&'static str> {
-    HOSTS.iter().filter(|h| h.status == Status::Supported).map(|h| h.id).collect()
+    HOSTS
+        .iter()
+        .filter(|h| h.status == Status::Supported)
+        .map(|h| h.id)
+        .collect()
 }
 
 /// `getHost(id)`: no id (or an empty one) is Claude Code; an unknown id is an error.
@@ -211,7 +245,10 @@ pub fn get_host(id: Option<&str>) -> Result<&'static Host, DfwError> {
     HOSTS.iter().find(|h| h.id == id).ok_or_else(|| {
         let known: Vec<&str> = HOSTS.iter().map(|h| h.id).collect();
         // A plain Error in Node (not a DfwError), so it is reported the same way here.
-        DfwError::internal(format!("Unknown host \"{id}\". Known: {}", known.join(", ")))
+        DfwError::internal(format!(
+            "Unknown host \"{id}\". Known: {}",
+            known.join(", ")
+        ))
     })
 }
 
@@ -220,7 +257,10 @@ pub fn current_host(flag: Option<&ArgValue>) -> Result<&'static Host, DfwError> 
     current_host_from(flag, env_nonempty("DFW_HOST").as_deref())
 }
 
-fn current_host_from(flag: Option<&ArgValue>, env_host: Option<&str>) -> Result<&'static Host, DfwError> {
+fn current_host_from(
+    flag: Option<&ArgValue>,
+    env_host: Option<&str>,
+) -> Result<&'static Host, DfwError> {
     match flag {
         // `--host` without a value is `true` in Node, which no host is called.
         Some(ArgValue::Flag) => get_host(Some("true")),
@@ -263,7 +303,9 @@ pub struct HookInput {
 fn parse_maybe_json(v: Option<Value>) -> Value {
     match v {
         // e.g. a raw apply_patch body
-        Some(Value::String(text)) => serde_json::from_str(&text).unwrap_or_else(|_| json!({ "input": text })),
+        Some(Value::String(text)) => {
+            serde_json::from_str(&text).unwrap_or_else(|_| json!({ "input": text }))
+        }
         Some(other) if js_truthy(&other) => other,
         _ => json!({}),
     }
@@ -275,7 +317,9 @@ fn parse_maybe_json(v: Option<Value>) -> Value {
 pub fn normalize_hook_input(raw: &Value) -> Result<HookInput, DfwError> {
     if raw.is_null() {
         // The TypeError of Node; the hook command reports it and lets the session go on.
-        return Err(DfwError::internal("Cannot read properties of null (reading 'tool_name')"));
+        return Err(DfwError::internal(
+            "Cannot read properties of null (reading 'tool_name')",
+        ));
     }
     let src = js_spread(Some(raw));
     // `raw.a ?? raw.b`: `None` is JavaScript's undefined.
@@ -283,17 +327,29 @@ pub fn normalize_hook_input(raw: &Value) -> Result<HookInput, DfwError> {
         Some(v) if !v.is_null() => Some(v.clone()),
         _ => src.get(b).cloned(),
     };
-    let tool = either("tool_name", "toolName").filter(js_truthy).map(|tool| {
-        let alias = tool.as_str().and_then(|name| TOOL_ALIASES.iter().find(|(from, _)| *from == name));
-        alias.map_or(tool.clone(), |(_, to)| Value::String(to.to_string()))
-    });
+    let tool = either("tool_name", "toolName")
+        .filter(js_truthy)
+        .map(|tool| {
+            let alias = tool
+                .as_str()
+                .and_then(|name| TOOL_ALIASES.iter().find(|(from, _)| *from == name));
+            alias.map_or(tool.clone(), |(_, to)| Value::String(to.to_string()))
+        });
     let fields = [
         ("event", either("hook_event_name", "hookEventName")),
         ("session_id", either("session_id", "sessionId")),
         ("cwd", src.get("cwd").cloned()),
         ("tool_name", tool),
-        ("tool_input", Some(parse_maybe_json(either("tool_input", "toolArgs")))),
-        ("stop_hook_active", Some(Value::Bool(either("stop_hook_active", "stopHookActive").is_some_and(|v| js_truthy(&v))))),
+        (
+            "tool_input",
+            Some(parse_maybe_json(either("tool_input", "toolArgs"))),
+        ),
+        (
+            "stop_hook_active",
+            Some(Value::Bool(
+                either("stop_hook_active", "stopHookActive").is_some_and(|v| js_truthy(&v)),
+            )),
+        ),
         ("prompt", src.get("prompt").cloned()),
     ];
     let mut out = src.clone();
@@ -345,7 +401,11 @@ impl HookResult {
 
 /// `formatHookOutput(hostId, event, result)`: turn a neutral hook result (`{ context }`,
 /// `{ deny }`, `{ block }` or null) into the host's output JSON; `None` when nothing is printed.
-pub fn format_hook_output(host_id: &str, event: &str, result: &Value) -> Result<Option<Value>, DfwError> {
+pub fn format_hook_output(
+    host_id: &str,
+    event: &str,
+    result: &Value,
+) -> Result<Option<Value>, DfwError> {
     if !js_truthy(result) {
         return Ok(None);
     }
@@ -364,7 +424,9 @@ pub fn format_hook_output(host_id: &str, event: &str, result: &Value) -> Result<
     if let Some(context) = field("context") {
         if host.context.is_none() {
             // Node reads `host.context[event]` of a host without the table: kept as the same error.
-            return Err(DfwError::internal(format!("Cannot read properties of undefined (reading '{event}')")));
+            return Err(DfwError::internal(format!(
+                "Cannot read properties of undefined (reading '{event}')"
+            )));
         }
         if host.context(event) == Some(false) {
             return Ok(None);
@@ -390,21 +452,36 @@ fn regex(pattern: &str) -> Result<Regex, DfwError> {
 pub fn render_text(text: &str, host_id: &str) -> Result<String, DfwError> {
     let host = get_host(Some(host_id))?;
     // JS: /<!--\s*host:([\w,]+)\s*-->\n?([\s\S]*?)<!--\s*\/host\s*-->\n?/g
-    let blocks = regex(&format!(r"<!--{JS_SPACE}*host:([A-Za-z0-9_,]+){JS_SPACE}*-->\n?((?s:.*?))<!--{JS_SPACE}*/host{JS_SPACE}*-->\n?"))?;
-    let out = blocks.replace_all(text, |c: &Captures| if c[1].split(',').any(|id| id == host.id) { c[2].to_string() } else { String::new() });
+    let blocks = regex(&format!(
+        r"<!--{JS_SPACE}*host:([A-Za-z0-9_,]+){JS_SPACE}*-->\n?((?s:.*?))<!--{JS_SPACE}*/host{JS_SPACE}*-->\n?"
+    ))?;
+    let out = blocks.replace_all(text, |c: &Captures| {
+        if c[1].split(',').any(|id| id == host.id) {
+            c[2].to_string()
+        } else {
+            String::new()
+        }
+    });
     // JS: /\{\{([A-Z_]+)\}\}/g
     let placeholders = regex(r"\{\{([A-Z_]+)\}\}")?;
     if host.text.is_none() {
         if let Some(c) = placeholders.captures(&out) {
             // Node evaluates `k in host.text` for a host without texts: kept as the same error.
-            return Err(DfwError::internal(format!("Cannot use 'in' operator to search for '{}' in undefined", &c[1])));
+            return Err(DfwError::internal(format!(
+                "Cannot use 'in' operator to search for '{}' in undefined",
+                &c[1]
+            )));
         }
     }
-    let out = placeholders.replace_all(&out, |c: &Captures| host.text(&c[1]).unwrap_or(&c[0]).to_string());
+    let out = placeholders.replace_all(&out, |c: &Captures| {
+        host.text(&c[1]).unwrap_or(&c[0]).to_string()
+    });
     if host.qualified_skill_names {
         return Ok(out.into_owned());
     }
-    let qualified = regex(r"`(?:frontend-design|ux-research|ui-ux-pro-max|impeccable|emil-design-eng|hallmark|taste-reference|dfw):([a-z0-9-]+)`")?;
+    let qualified = regex(
+        r"`(?:frontend-design|ux-research|ui-ux-pro-max|impeccable|emil-design-eng|hallmark|taste-reference|dfw):([a-z0-9-]+)`",
+    )?;
     Ok(qualified.replace_all(&out, "`${1}`").into_owned())
 }
 
@@ -439,9 +516,16 @@ mod tests {
         assert_eq!(camel.tool_name.as_deref(), Some("Write"));
         assert_eq!(camel.tool_input, json!({ "path": "src/a.ts" }));
         assert!(camel.stop_hook_active);
-        assert_eq!(normalize_hook_input(&json!({ "toolName": "str_replace_editor" })).unwrap().tool_name.as_deref(), Some("Edit"));
+        assert_eq!(
+            normalize_hook_input(&json!({ "toolName": "str_replace_editor" }))
+                .unwrap()
+                .tool_name
+                .as_deref(),
+            Some("Edit")
+        );
         let body = "*** Begin Patch\n*** Add File: src/x.ts\n*** Update File: design/a.html\n*** End Patch";
-        let patch = normalize_hook_input(&json!({ "toolName": "apply_patch", "toolArgs": body })).unwrap();
+        let patch =
+            normalize_hook_input(&json!({ "toolName": "apply_patch", "toolArgs": body })).unwrap();
         assert_eq!(patch.tool_name.as_deref(), Some("ApplyPatch"));
         assert_eq!(patch.tool_input, json!({ "input": body }));
     }
@@ -451,12 +535,26 @@ mod tests {
     fn output_formats_per_host() {
         assert_eq!(
             format("claude", "PreToolUse", json!({ "deny": "no" })),
-            Some(json!({ "hookSpecificOutput": { "hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": "no" } }))
+            Some(
+                json!({ "hookSpecificOutput": { "hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": "no" } })
+            )
         );
-        assert_eq!(format("copilot", "PreToolUse", json!({ "deny": "no" })), Some(json!({ "permissionDecision": "deny", "permissionDecisionReason": "no" })));
-        assert_eq!(format("copilot", "SessionStart", json!({ "context": "c" })), Some(json!({ "additionalContext": "c" })));
-        assert_eq!(format("copilot", "UserPromptSubmit", json!({ "context": "c" })), None);
-        assert_eq!(format("copilot", "Stop", json!({ "block": "r" })), Some(json!({ "decision": "block", "reason": "r" })));
+        assert_eq!(
+            format("copilot", "PreToolUse", json!({ "deny": "no" })),
+            Some(json!({ "permissionDecision": "deny", "permissionDecisionReason": "no" }))
+        );
+        assert_eq!(
+            format("copilot", "SessionStart", json!({ "context": "c" })),
+            Some(json!({ "additionalContext": "c" }))
+        );
+        assert_eq!(
+            format("copilot", "UserPromptSubmit", json!({ "context": "c" })),
+            None
+        );
+        assert_eq!(
+            format("copilot", "Stop", json!({ "block": "r" })),
+            Some(json!({ "decision": "block", "reason": "r" }))
+        );
         assert_eq!(format("claude", "Stop", Value::Null), None);
     }
 
@@ -481,11 +579,31 @@ mod tests {
 
     #[test]
     fn render_text_edge_cases() {
-        assert_eq!(render_text("{{NOPE}} {{lower}} {{HOST_NAME}}", "mcp").unwrap(), "{{NOPE}} {{lower}} your AI coding tool (through the dfw MCP server)");
-        assert_eq!(render_text("a<!--host:mcp,copilot-->x<!--/host-->b<!-- host:claude -->y<!-- /host -->", "copilot").unwrap(), "axb");
+        assert_eq!(
+            render_text("{{NOPE}} {{lower}} {{HOST_NAME}}", "mcp").unwrap(),
+            "{{NOPE}} {{lower}} your AI coding tool (through the dfw MCP server)"
+        );
+        assert_eq!(
+            render_text(
+                "a<!--host:mcp,copilot-->x<!--/host-->b<!-- host:claude -->y<!-- /host -->",
+                "copilot"
+            )
+            .unwrap(),
+            "axb"
+        );
         // A planned host has no texts: blocks still render, a placeholder is Node's TypeError.
-        assert_eq!(render_text("<!-- host:codex -->\nonly\n<!-- /host -->\n`dfw:x`", "codex").unwrap(), "only\n`x`");
-        assert_eq!(render_text("{{ASK_TOOL}}", "codex").unwrap_err().message(), "Cannot use 'in' operator to search for 'ASK_TOOL' in undefined");
+        assert_eq!(
+            render_text(
+                "<!-- host:codex -->\nonly\n<!-- /host -->\n`dfw:x`",
+                "codex"
+            )
+            .unwrap(),
+            "only\n`x`"
+        );
+        assert_eq!(
+            render_text("{{ASK_TOOL}}", "codex").unwrap_err().message(),
+            "Cannot use 'in' operator to search for 'ASK_TOOL' in undefined"
+        );
         assert!(render_text("x", "nope").is_err());
     }
 
@@ -493,33 +611,71 @@ mod tests {
     fn get_host_and_current_host() {
         assert_eq!(get_host(None).unwrap().id, "claude");
         assert_eq!(get_host(Some("")).unwrap().id, "claude");
-        assert_eq!(get_host(Some("nope")).unwrap_err().report(), "Error: Unknown host \"nope\". Known: claude, copilot, mcp, opencode, codex, cursor");
+        assert_eq!(
+            get_host(Some("nope")).unwrap_err().report(),
+            "Error: Unknown host \"nope\". Known: claude, copilot, mcp, opencode, codex, cursor"
+        );
         let text = |t: &str| ArgValue::Text(t.to_string());
-        assert_eq!(current_host_from(Some(&text("copilot")), Some("mcp")).unwrap().id, "copilot");
-        assert_eq!(current_host_from(None, Some("copilot")).unwrap().id, "copilot");
-        assert_eq!(current_host_from(Some(&text("")), Some("copilot")).unwrap().id, "copilot", "an empty flag is falsy");
+        assert_eq!(
+            current_host_from(Some(&text("copilot")), Some("mcp"))
+                .unwrap()
+                .id,
+            "copilot"
+        );
+        assert_eq!(
+            current_host_from(None, Some("copilot")).unwrap().id,
+            "copilot"
+        );
+        assert_eq!(
+            current_host_from(Some(&text("")), Some("copilot"))
+                .unwrap()
+                .id,
+            "copilot",
+            "an empty flag is falsy"
+        );
         assert_eq!(current_host_from(None, None).unwrap().id, "claude");
-        assert!(current_host_from(Some(&ArgValue::Flag), Some("copilot")).unwrap_err().message().starts_with("Unknown host \"true\""));
+        assert!(current_host_from(Some(&ArgValue::Flag), Some("copilot"))
+            .unwrap_err()
+            .message()
+            .starts_with("Unknown host \"true\""));
         assert!(current_host_from(None, Some("nope")).is_err());
     }
 
     #[test]
     fn host_table_matches_node() {
         let ids: Vec<&str> = HOSTS.iter().map(|h| h.id).collect();
-        assert_eq!(ids, ["claude", "copilot", "mcp", "opencode", "codex", "cursor"]);
+        assert_eq!(
+            ids,
+            ["claude", "copilot", "mcp", "opencode", "codex", "cursor"]
+        );
         let copilot = get_host(Some("copilot")).unwrap();
-        assert_eq!((copilot.name, copilot.cli, copilot.adapter), ("GitHub Copilot", Some("copilot"), Some("copilot")));
+        assert_eq!(
+            (copilot.name, copilot.cli, copilot.adapter),
+            ("GitHub Copilot", Some("copilot"), Some("copilot"))
+        );
         assert_eq!(copilot.context("UserPromptSubmit"), Some(false));
         assert_eq!(copilot.context("Stop"), None);
         assert_eq!(copilot.text("SKILL_DIR"), Some("."));
-        assert_eq!(get_host(Some("claude")).unwrap().adapter, Some("claude-code"));
-        assert!(get_host(Some("claude")).unwrap().installed_plugin_dirs().is_empty());
+        assert_eq!(
+            get_host(Some("claude")).unwrap().adapter,
+            Some("claude-code")
+        );
+        assert!(get_host(Some("claude"))
+            .unwrap()
+            .installed_plugin_dirs()
+            .is_empty());
         assert_eq!(get_host(Some("claude")).unwrap().dfw_plugin_dir(), None);
         let mcp = get_host(Some("mcp")).unwrap();
-        assert_eq!((mcp.status, mcp.cli, mcp.mcp), (Status::Internal, None, false));
+        assert_eq!(
+            (mcp.status, mcp.cli, mcp.mcp),
+            (Status::Internal, None, false)
+        );
         assert_eq!(mcp.text("SKILL_DIR"), Some("__DFW_SKILL_DIR__"));
         let cursor = get_host(Some("cursor")).unwrap();
-        assert_eq!((cursor.name, cursor.cli, cursor.mcp, cursor.text("ASK_TOOL")), ("Cursor", Some("cursor-agent"), true, None));
+        assert_eq!(
+            (cursor.name, cursor.cli, cursor.mcp, cursor.text("ASK_TOOL")),
+            ("Cursor", Some("cursor-agent"), true, None)
+        );
     }
 
     #[test]
@@ -530,52 +686,132 @@ mod tests {
             r#"{"hook_event_name":"PreToolUse","tool_name":"Bash","cwd":"/p","extra":1,"prompt":"hi","event":"PreToolUse","tool_input":{},"stop_hook_active":false}"#,
             "a null session_id with no sessionId is undefined: not printed"
         );
-        assert_eq!((n.event.as_deref(), n.cwd.as_deref(), n.prompt.as_deref(), n.session_id), (Some("PreToolUse"), Some("/p"), Some("hi"), None));
+        assert_eq!(
+            (
+                n.event.as_deref(),
+                n.cwd.as_deref(),
+                n.prompt.as_deref(),
+                n.session_id
+            ),
+            (Some("PreToolUse"), Some("/p"), Some("hi"), None)
+        );
         let camel = normalize_hook_input(&json!({ "hookEventName": "Stop", "sessionId": 7, "stopHookActive": "false", "toolArgs": "" })).unwrap();
-        assert_eq!(to_json_compact(&camel.raw), r#"{"hookEventName":"Stop","sessionId":7,"stopHookActive":"false","toolArgs":"","event":"Stop","session_id":7,"tool_input":{"input":""},"stop_hook_active":true}"#);
+        assert_eq!(
+            to_json_compact(&camel.raw),
+            r#"{"hookEventName":"Stop","sessionId":7,"stopHookActive":"false","toolArgs":"","event":"Stop","session_id":7,"tool_input":{"input":""},"stop_hook_active":true}"#
+        );
         assert_eq!(camel.session_id, None, "typed fields hold text only");
         // Arguments that parse as JSON are used as parsed, whatever they are; falsy ones are {}.
-        assert_eq!(normalize_hook_input(&json!({ "toolArgs": "[1]" })).unwrap().tool_input, json!([1]));
-        assert_eq!(normalize_hook_input(&json!({ "tool_input": 0, "toolArgs": "{\"a\":1}" })).unwrap().tool_input, json!({}));
-        assert_eq!(normalize_hook_input(&json!({ "tool_input": null, "toolArgs": "{\"a\":1}" })).unwrap().tool_input, json!({ "a": 1 }));
-        assert_eq!(normalize_hook_input(&json!({ "tool_name": "", "toolName": "edit" })).unwrap().tool_name, None, "an empty name is not nullish");
-        assert_eq!(normalize_hook_input(&json!({ "tool_name": "Bash" })).unwrap().tool_name.as_deref(), Some("Bash"));
-        assert_eq!(to_json_compact(&normalize_hook_input(&json!(5)).unwrap().raw), r#"{"tool_input":{},"stop_hook_active":false}"#);
+        assert_eq!(
+            normalize_hook_input(&json!({ "toolArgs": "[1]" }))
+                .unwrap()
+                .tool_input,
+            json!([1])
+        );
+        assert_eq!(
+            normalize_hook_input(&json!({ "tool_input": 0, "toolArgs": "{\"a\":1}" }))
+                .unwrap()
+                .tool_input,
+            json!({})
+        );
+        assert_eq!(
+            normalize_hook_input(&json!({ "tool_input": null, "toolArgs": "{\"a\":1}" }))
+                .unwrap()
+                .tool_input,
+            json!({ "a": 1 })
+        );
+        assert_eq!(
+            normalize_hook_input(&json!({ "tool_name": "", "toolName": "edit" }))
+                .unwrap()
+                .tool_name,
+            None,
+            "an empty name is not nullish"
+        );
+        assert_eq!(
+            normalize_hook_input(&json!({ "tool_name": "Bash" }))
+                .unwrap()
+                .tool_name
+                .as_deref(),
+            Some("Bash")
+        );
+        assert_eq!(
+            to_json_compact(&normalize_hook_input(&json!(5)).unwrap().raw),
+            r#"{"tool_input":{},"stop_hook_active":false}"#
+        );
         assert!(normalize_hook_input(&Value::Null).is_err());
     }
 
     #[test]
     fn output_format_edge_cases() {
         // block wins over deny, deny over context; empty text is no result.
-        assert_eq!(format("claude", "Stop", json!({ "context": "c", "deny": "d", "block": "b" })), Some(json!({ "decision": "block", "reason": "b" })));
-        assert_eq!(format("copilot", "PreToolUse", json!({ "context": "c", "deny": "d", "block": "" })), Some(json!({ "permissionDecision": "deny", "permissionDecisionReason": "d" })));
+        assert_eq!(
+            format(
+                "claude",
+                "Stop",
+                json!({ "context": "c", "deny": "d", "block": "b" })
+            ),
+            Some(json!({ "decision": "block", "reason": "b" }))
+        );
+        assert_eq!(
+            format(
+                "copilot",
+                "PreToolUse",
+                json!({ "context": "c", "deny": "d", "block": "" })
+            ),
+            Some(json!({ "permissionDecision": "deny", "permissionDecisionReason": "d" }))
+        );
         assert_eq!(format("claude", "Stop", json!({ "context": "" })), None);
         assert_eq!(format("claude", "Stop", json!({})), None);
         assert_eq!(
-            to_json_compact(&format("claude", "Stop", HookResult::Context("c".into()).to_value()).unwrap()),
+            to_json_compact(
+                &format("claude", "Stop", HookResult::Context("c".into()).to_value()).unwrap()
+            ),
             r#"{"hookSpecificOutput":{"hookEventName":"Stop","additionalContext":"c"}}"#,
             "an event outside the table still gets context"
         );
-        assert_eq!(format("", "PreToolUse", HookResult::Deny("d".into()).to_value()), format("claude", "PreToolUse", json!({ "deny": "d" })));
-        assert_eq!(format("cursor", "Stop", HookResult::Block("b".into()).to_value()), Some(json!({ "decision": "block", "reason": "b" })));
+        assert_eq!(
+            format("", "PreToolUse", HookResult::Deny("d".into()).to_value()),
+            format("claude", "PreToolUse", json!({ "deny": "d" }))
+        );
+        assert_eq!(
+            format("cursor", "Stop", HookResult::Block("b".into()).to_value()),
+            Some(json!({ "decision": "block", "reason": "b" }))
+        );
         // No result is decided before the host is looked up.
         assert_eq!(format("nope", "Stop", Value::Null), None);
         assert!(format_hook_output("nope", "Stop", &json!({})).is_err());
-        assert_eq!(format_hook_output("mcp", "SessionStart", &json!({ "context": "c" })).unwrap_err().report(), "Error: Cannot read properties of undefined (reading 'SessionStart')");
+        assert_eq!(
+            format_hook_output("mcp", "SessionStart", &json!({ "context": "c" }))
+                .unwrap_err()
+                .report(),
+            "Error: Cannot read properties of undefined (reading 'SessionStart')"
+        );
     }
 
     #[test]
     fn copilot_plugin_dirs_follow_the_marketplace_source() {
         let home = test_dir("copilot-home");
         let installed = home.join("installed-plugins").join("dfw-marketplace");
-        assert_eq!(copilot_plugin_dirs_in(&home), CopilotPluginDirs { dfw: installed.join("dfw"), root: installed.clone() });
+        assert_eq!(
+            copilot_plugin_dirs_in(&home),
+            CopilotPluginDirs {
+                dfw: installed.join("dfw"),
+                root: installed.clone()
+            }
+        );
         fs::write(home.join("settings.json"), "{ broken").unwrap();
         assert_eq!(copilot_plugin_dirs_in(&home).root, installed);
         fs::write(home.join("settings.json"), r#"{"extraKnownMarketplaces":{"dfw-marketplace":{"source":{"source":"github","repo":"x/y"}}}}"#).unwrap();
         assert_eq!(copilot_plugin_dirs_in(&home).root, installed);
         fs::write(home.join("settings.json"), r#"{"extraKnownMarketplaces":{"dfw-marketplace":{"source":{"source":"directory","path":"/repo"}}}}"#).unwrap();
         let local = Path::new("/repo").join("plugins");
-        assert_eq!(copilot_plugin_dirs_in(&home), CopilotPluginDirs { dfw: local.join("dfw-copilot"), root: local });
+        assert_eq!(
+            copilot_plugin_dirs_in(&home),
+            CopilotPluginDirs {
+                dfw: local.join("dfw-copilot"),
+                root: local
+            }
+        );
         fs::remove_dir_all(&home).unwrap();
     }
 }

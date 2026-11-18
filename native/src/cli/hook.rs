@@ -5,7 +5,5 @@ use super::Handler;
 
 /// The commands of this group; `Forward` until ported.
 pub fn commands() -> Vec<(&'static str, Handler)> {
-    vec![
-        ("hook", Handler::Forward),
-    ]
+    vec![("hook", Handler::Forward)]
 }

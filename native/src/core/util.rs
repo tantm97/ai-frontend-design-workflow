@@ -34,7 +34,14 @@ pub fn read_json(file: &Path, fallback: Option<Value>) -> Result<Value, DfwError
         Ok(text) => text,
         Err(err) => {
             return match fallback {
-                Some(value) if matches!(err.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory) => Ok(value),
+                Some(value)
+                    if matches!(
+                        err.kind(),
+                        io::ErrorKind::NotFound | io::ErrorKind::NotADirectory
+                    ) =>
+                {
+                    Ok(value)
+                }
                 _ => Err(DfwError::internal(format!("{}: {}", file.display(), err))),
             };
         }
@@ -63,7 +70,10 @@ pub fn append_jsonl(file: &Path, entry: &Value) -> Result<(), DfwError> {
     if let Some(dir) = file.parent() {
         fs::create_dir_all(dir)?;
     }
-    let mut f = fs::OpenOptions::new().create(true).append(true).open(file)?;
+    let mut f = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(file)?;
     f.write_all((to_json_compact(entry) + "\n").as_bytes())?;
     Ok(())
 }
@@ -73,7 +83,11 @@ pub fn read_jsonl(file: &Path) -> Result<Vec<Value>, DfwError> {
     if !file.exists() {
         return Ok(Vec::new());
     }
-    fs::read_to_string(file)?.split('\n').filter(|l| !l.trim().is_empty()).map(|l| serde_json::from_str(l).map_err(DfwError::from)).collect()
+    fs::read_to_string(file)?
+        .split('\n')
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| serde_json::from_str(l).map_err(DfwError::from))
+        .collect()
 }
 
 /// `JSON.stringify(value, null, 2)`.
@@ -105,11 +119,19 @@ impl<F: Formatter> Formatter for JsFormatter<F> {
         w.write_all(js_number(v).as_bytes())
     }
     fn write_u64<W: ?Sized + Write>(&mut self, w: &mut W, v: u64) -> io::Result<()> {
-        let text = if v > MAX_SAFE_INTEGER { js_number(v as f64) } else { v.to_string() };
+        let text = if v > MAX_SAFE_INTEGER {
+            js_number(v as f64)
+        } else {
+            v.to_string()
+        };
         w.write_all(text.as_bytes())
     }
     fn write_i64<W: ?Sized + Write>(&mut self, w: &mut W, v: i64) -> io::Result<()> {
-        let text = if v.unsigned_abs() > MAX_SAFE_INTEGER { js_number(v as f64) } else { v.to_string() };
+        let text = if v.unsigned_abs() > MAX_SAFE_INTEGER {
+            js_number(v as f64)
+        } else {
+            v.to_string()
+        };
         w.write_all(text.as_bytes())
     }
     fn begin_array<W: ?Sized + Write>(&mut self, w: &mut W) -> io::Result<()> {
@@ -179,7 +201,9 @@ pub fn js_number(v: f64) -> String {
 /// `deepMerge(base, over)` for config layering: objects merge, arrays and scalars replace.
 /// (The JavaScript `undefined` case, "no override", is the caller not calling this.)
 pub fn deep_merge(base: Value, over: Value) -> Value {
-    let Value::Object(over) = over else { return over };
+    let Value::Object(over) = over else {
+        return over;
+    };
     let mut out = match base {
         Value::Object(map) => map,
         _ => Map::new(),
@@ -232,7 +256,10 @@ pub fn now_iso() -> String {
     if let Some(fixed) = env_nonempty("DFW_NOW") {
         return fixed;
     }
-    let ms = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0);
+    let ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0);
     iso_from_millis(ms)
 }
 
@@ -250,12 +277,21 @@ pub fn iso_from_millis(ms: i64) -> String {
     let day = doy - (153 * mp + 2) / 5 + 1;
     let month = if mp < 10 { mp + 3 } else { mp - 9 };
     let year = yoe + era * 400 + i64::from(month <= 2);
-    format!("{year:04}-{month:02}-{day:02}T{:02}:{:02}:{:02}.{:03}Z", rem / 3_600_000, rem / 60_000 % 60, rem / 1000 % 60, rem % 1000)
+    format!(
+        "{year:04}-{month:02}-{day:02}T{:02}:{:02}:{:02}.{:03}Z",
+        rem / 3_600_000,
+        rem / 60_000 % 60,
+        rem / 1000 % 60,
+        rem % 1000
+    )
 }
 
 /// `sha256(buf)`: lowercase hex digest.
 pub fn sha256(data: impl AsRef<[u8]>) -> String {
-    Sha256::digest(data.as_ref()).iter().map(|b| format!("{b:02x}")).collect()
+    Sha256::digest(data.as_ref())
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -278,8 +314,15 @@ fn walk(abs: &Path, rel: &str, exclude: &[&str], out: &mut Vec<String>) -> Resul
     for entry in fs::read_dir(abs)? {
         let entry = entry?;
         let name = entry.file_name().to_string_lossy().into_owned();
-        let r = if rel.is_empty() { name } else { format!("{rel}/{name}") };
-        if exclude.iter().any(|e| r == *e || r.starts_with(&format!("{e}/"))) {
+        let r = if rel.is_empty() {
+            name
+        } else {
+            format!("{rel}/{name}")
+        };
+        if exclude
+            .iter()
+            .any(|e| r == *e || r.starts_with(&format!("{e}/")))
+        {
             continue;
         }
         let kind = entry.file_type()?;
@@ -354,12 +397,17 @@ pub fn glob_to_regex(glob: &str) -> Result<Regex, DfwError> {
         }
         i += 1;
     }
-    Regex::new(&format!("^{re}$")).map_err(|err| DfwError::internal(format!("Invalid glob \"{glob}\": {err}")))
+    Regex::new(&format!("^{re}$"))
+        .map_err(|err| DfwError::internal(format!("Invalid glob \"{glob}\": {err}")))
 }
 
 /// `matchesAny(rel, globs)`.
 pub fn matches_any<S: AsRef<str>>(rel: &str, globs: &[S]) -> bool {
-    globs.iter().any(|g| glob_to_regex(g.as_ref()).map(|re| re.is_match(rel)).unwrap_or(false))
+    globs.iter().any(|g| {
+        glob_to_regex(g.as_ref())
+            .map(|re| re.is_match(rel))
+            .unwrap_or(false)
+    })
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -417,7 +465,10 @@ pub fn parse_args<S: AsRef<str>>(argv: &[S]) -> Args {
     while i < argv.len() {
         let a = argv[i].as_ref();
         if let Some(body) = a.strip_prefix("--") {
-            let next = argv.get(i + 1).map(AsRef::as_ref).filter(|n| !n.starts_with("--"));
+            let next = argv
+                .get(i + 1)
+                .map(AsRef::as_ref)
+                .filter(|n| !n.starts_with("--"));
             let (key, value) = match (body.split_once('='), next) {
                 (Some((k, inline)), _) => (k, ArgValue::Text(inline.to_string())),
                 (None, Some(n)) => {
@@ -450,7 +501,10 @@ pub fn read_stdin() -> Result<String, DfwError> {
 /// not an error.
 pub fn out(text: &str) {
     let mut stdout = io::stdout().lock();
-    let _ = stdout.write_all(text.as_bytes()).and_then(|()| stdout.write_all(b"\n")).and_then(|()| stdout.flush());
+    let _ = stdout
+        .write_all(text.as_bytes())
+        .and_then(|()| stdout.write_all(b"\n"))
+        .and_then(|()| stdout.flush());
 }
 
 /// A fresh directory for one test, under the system temporary directory.
@@ -458,7 +512,11 @@ pub fn out(text: &str) {
 pub fn test_dir(label: &str) -> std::path::PathBuf {
     use std::sync::atomic::{AtomicU32, Ordering};
     static NEXT: AtomicU32 = AtomicU32::new(0);
-    let dir = std::env::temp_dir().join(format!("dfw-native-{label}-{}-{}", std::process::id(), NEXT.fetch_add(1, Ordering::Relaxed)));
+    let dir = std::env::temp_dir().join(format!(
+        "dfw-native-{label}-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
     fs::create_dir_all(&dir).unwrap();
     // macOS reaches its temporary directory through a symlink; tests compare real paths.
     dir.canonicalize().unwrap()
@@ -472,8 +530,12 @@ mod tests {
     /// glob matching (tests/unit/dfw.test.mjs)
     #[test]
     fn glob_matching() {
-        assert!(glob_to_regex("design/**").unwrap().is_match("design/screens/a.html"));
-        assert!(glob_to_regex("design/approved/**").unwrap().is_match("design/approved/v1/x.html"));
+        assert!(glob_to_regex("design/**")
+            .unwrap()
+            .is_match("design/screens/a.html"));
+        assert!(glob_to_regex("design/approved/**")
+            .unwrap()
+            .is_match("design/approved/v1/x.html"));
         assert!(!glob_to_regex("design/**").unwrap().is_match("src/design/x"));
         assert!(glob_to_regex("PRODUCT.md").unwrap().is_match("PRODUCT.md"));
     }
@@ -482,9 +544,18 @@ mod tests {
     fn glob_translation_matches_the_node_function() {
         // Expected sources printed by globToRegExp(...).source, with `.` spelled out.
         let dot = r"[^\n\r\u{2028}\u{2029}]";
-        assert_eq!(glob_to_regex("**/*.test.?s").unwrap().as_str(), format!(r"^(?:{dot}*/)?[^/]*\.test\.[^/]s$"));
-        assert_eq!(glob_to_regex("src/**").unwrap().as_str(), format!(r"^src/{dot}*$"));
-        assert_eq!(glob_to_regex("a+(b)[c]{d}|^$\\").unwrap().as_str(), r"^a\+\(b\)\[c\]\{d\}\|\^\$\\$");
+        assert_eq!(
+            glob_to_regex("**/*.test.?s").unwrap().as_str(),
+            format!(r"^(?:{dot}*/)?[^/]*\.test\.[^/]s$")
+        );
+        assert_eq!(
+            glob_to_regex("src/**").unwrap().as_str(),
+            format!(r"^src/{dot}*$")
+        );
+        assert_eq!(
+            glob_to_regex("a+(b)[c]{d}|^$\\").unwrap().as_str(),
+            r"^a\+\(b\)\[c\]\{d\}\|\^\$\\$"
+        );
         assert!(!glob_to_regex("PRODUCT.md").unwrap().is_match("PRODUCTxmd"));
         assert!(!glob_to_regex("*.html").unwrap().is_match("a/b.html"));
         assert!(glob_to_regex("**/b.html").unwrap().is_match("b.html"));
@@ -496,7 +567,18 @@ mod tests {
 
     #[test]
     fn parse_args_follows_the_node_rules() {
-        let a = parse_args(&["comments", "--status", "open", "--json", "--message=a=b", "show", "--empty=", "--force", "--x", "-y"]);
+        let a = parse_args(&[
+            "comments",
+            "--status",
+            "open",
+            "--json",
+            "--message=a=b",
+            "show",
+            "--empty=",
+            "--force",
+            "--x",
+            "-y",
+        ]);
         assert_eq!(a.positionals, ["comments", "show"]);
         assert_eq!(a.text("status"), Some("open"));
         assert_eq!(a.get("json"), Some(&ArgValue::Flag));
@@ -515,19 +597,35 @@ mod tests {
         let v: Value = serde_json::from_str(r#"{"z":1,"a":{"n":1.0,"f":0.5,"big":1e21,"small":1e-7,"neg":-0.0,"list":[],"obj":{}},"s":"é\n\u0001\"","arr":[1,[2,3],{"k":null}],"t":true}"#).unwrap();
         let expected = "{\n  \"z\": 1,\n  \"a\": {\n    \"n\": 1,\n    \"f\": 0.5,\n    \"big\": 1e+21,\n    \"small\": 1e-7,\n    \"neg\": 0,\n    \"list\": [],\n    \"obj\": {}\n  },\n  \"s\": \"é\\n\\u0001\\\"\",\n  \"arr\": [\n    1,\n    [\n      2,\n      3\n    ],\n    {\n      \"k\": null\n    }\n  ],\n  \"t\": true\n}";
         assert_eq!(to_json_pretty(&v), expected);
-        assert_eq!(to_json_compact(&json!({"b": [1, 2.50], "a": "x"})), r#"{"b":[1,2.5],"a":"x"}"#);
+        assert_eq!(
+            to_json_compact(&json!({"b": [1, 2.50], "a": "x"})),
+            r#"{"b":[1,2.5],"a":"x"}"#
+        );
     }
 
     #[test]
     fn numbers_print_like_javascript() {
         for (v, s) in [
-            (0.0, "0"), (1.0, "1"), (-1.5, "-1.5"), (100.0, "100"), (1e20, "100000000000000000000"), (1e21, "1e+21"),
-            (1.5e22, "1.5e+22"), (0.000001, "0.000001"), (0.0000001, "1e-7"), (1.25e-9, "1.25e-9"), (0.1 + 0.2, "0.30000000000000004"),
-            (123456.789, "123456.789"), (9007199254740993.0, "9007199254740992"),
+            (0.0, "0"),
+            (1.0, "1"),
+            (-1.5, "-1.5"),
+            (100.0, "100"),
+            (1e20, "100000000000000000000"),
+            (1e21, "1e+21"),
+            (1.5e22, "1.5e+22"),
+            (0.000001, "0.000001"),
+            (0.0000001, "1e-7"),
+            (1.25e-9, "1.25e-9"),
+            (0.1 + 0.2, "0.30000000000000004"),
+            (123456.789, "123456.789"),
+            (9007199254740993.0, "9007199254740992"),
         ] {
             assert_eq!(js_number(v), s);
         }
-        assert_eq!(to_json_compact(&json!(9007199254740993u64)), "9007199254740992");
+        assert_eq!(
+            to_json_compact(&json!(9007199254740993u64)),
+            "9007199254740992"
+        );
     }
 
     #[test]
@@ -535,17 +633,37 @@ mod tests {
         let dir = test_dir("json");
         let file = dir.join("deep").join("state.json");
         assert_eq!(read_json(&file, Some(Value::Null)).unwrap(), Value::Null);
-        assert!(read_json(&file, None).is_err(), "no fallback: a missing file is an error");
+        assert!(
+            read_json(&file, None).is_err(),
+            "no fallback: a missing file is an error"
+        );
         write_json(&file, &json!({"schema": 1, "product": ""})).unwrap();
-        assert_eq!(fs::read_to_string(&file).unwrap(), "{\n  \"schema\": 1,\n  \"product\": \"\"\n}\n");
-        assert_eq!(fs::read_dir(dir.join("deep")).unwrap().count(), 1, "no temporary file is left");
+        assert_eq!(
+            fs::read_to_string(&file).unwrap(),
+            "{\n  \"schema\": 1,\n  \"product\": \"\"\n}\n"
+        );
+        assert_eq!(
+            fs::read_dir(dir.join("deep")).unwrap().count(),
+            1,
+            "no temporary file is left"
+        );
         assert_eq!(read_json(&file, None).unwrap()["schema"], 1);
         // A path below a file is "missing" too (ENOTDIR).
-        assert_eq!(read_json(&file.join("x.json"), Some(json!([]))).unwrap(), json!([]));
+        assert_eq!(
+            read_json(&file.join("x.json"), Some(json!([]))).unwrap(),
+            json!([])
+        );
         fs::write(&file, "{ nope").unwrap();
         let err = read_json(&file, Some(Value::Null)).unwrap_err();
-        assert!(err.message().starts_with(&format!("Invalid JSON in {}: ", file.display())), "{err}");
-        assert!(!read_json(&file, None).unwrap_err().message().starts_with("Invalid JSON in"));
+        assert!(
+            err.message()
+                .starts_with(&format!("Invalid JSON in {}: ", file.display())),
+            "{err}"
+        );
+        assert!(!read_json(&file, None)
+            .unwrap_err()
+            .message()
+            .starts_with("Invalid JSON in"));
         fs::remove_dir_all(&dir).unwrap();
     }
 
@@ -556,27 +674,51 @@ mod tests {
         assert!(read_jsonl(&file).unwrap().is_empty());
         append_jsonl(&file, &json!({"at": "t", "level": 1})).unwrap();
         append_jsonl(&file, &json!({"at": "u", "level": 2.0})).unwrap();
-        assert_eq!(fs::read_to_string(&file).unwrap(), "{\"at\":\"t\",\"level\":1}\n{\"at\":\"u\",\"level\":2}\n");
+        assert_eq!(
+            fs::read_to_string(&file).unwrap(),
+            "{\"at\":\"t\",\"level\":1}\n{\"at\":\"u\",\"level\":2}\n"
+        );
         fs::write(&file, "{\"a\":1}\n\n  \n{\"a\":2}").unwrap();
-        assert_eq!(read_jsonl(&file).unwrap(), vec![json!({"a": 1}), json!({"a": 2})]);
+        assert_eq!(
+            read_jsonl(&file).unwrap(),
+            vec![json!({"a": 1}), json!({"a": 2})]
+        );
         fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]
     fn iso_time_has_the_javascript_shape() {
         assert_eq!(iso_from_millis(0), "1970-01-01T00:00:00.000Z");
-        assert_eq!(iso_from_millis(1_709_164_799_999), "2024-02-28T23:59:59.999Z");
-        assert_eq!(iso_from_millis(1_709_210_096_007), "2024-02-29T12:34:56.007Z");
-        assert_eq!(iso_from_millis(1_794_960_000_000), "2026-11-18T00:00:00.000Z");
+        assert_eq!(
+            iso_from_millis(1_709_164_799_999),
+            "2024-02-28T23:59:59.999Z"
+        );
+        assert_eq!(
+            iso_from_millis(1_709_210_096_007),
+            "2024-02-29T12:34:56.007Z"
+        );
+        assert_eq!(
+            iso_from_millis(1_794_960_000_000),
+            "2026-11-18T00:00:00.000Z"
+        );
         assert_eq!(iso_from_millis(-1), "1969-12-31T23:59:59.999Z");
         let now = now_iso();
-        assert!(std::env::var("DFW_NOW").is_ok() || (now.len() == 24 && now.ends_with('Z')), "{now}");
+        assert!(
+            std::env::var("DFW_NOW").is_ok() || (now.len() == 24 && now.ends_with('Z')),
+            "{now}"
+        );
     }
 
     #[test]
     fn sha256_is_lowercase_hex() {
-        assert_eq!(sha256("abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
-        assert_eq!(sha256(b""), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+        assert_eq!(
+            sha256("abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+        assert_eq!(
+            sha256(b""),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
     }
 
     #[test]
@@ -584,8 +726,14 @@ mod tests {
         let base = json!({"studio": {"port": 4600, "open": true}, "globs": ["a"], "x": 1});
         let over = json!({"studio": {"port": 4700}, "globs": ["b"], "x": null, "new": {"k": 1}});
         let merged = deep_merge(base, over);
-        assert_eq!(merged, json!({"studio": {"port": 4700, "open": true}, "globs": ["b"], "x": null, "new": {"k": 1}}));
-        assert_eq!(to_json_compact(&merged), r#"{"studio":{"port":4700,"open":true},"globs":["b"],"x":null,"new":{"k":1}}"#);
+        assert_eq!(
+            merged,
+            json!({"studio": {"port": 4700, "open": true}, "globs": ["b"], "x": null, "new": {"k": 1}})
+        );
+        assert_eq!(
+            to_json_compact(&merged),
+            r#"{"studio":{"port":4700,"open":true},"globs":["b"],"x":null,"new":{"k":1}}"#
+        );
         assert_eq!(deep_merge(json!([1]), json!({"a": 1})), json!({"a": 1}));
         assert_eq!(deep_merge(json!({"a": 1}), json!("s")), json!("s"));
     }
@@ -597,7 +745,10 @@ mod tests {
         assert_eq!(get_path(&v, "a.missing.c"), None);
         set_path(&mut v, "s.deep.k", json!(true));
         set_path(&mut v, "a.c", json!(1));
-        assert_eq!(v, json!({"a": {"b": [10, 20], "c": 1}, "s": {"deep": {"k": true}}}));
+        assert_eq!(
+            v,
+            json!({"a": {"b": [10, 20], "c": 1}, "s": {"deep": {"k": true}}})
+        );
         assert_eq!(parse_value("42"), json!(42));
         assert_eq!(parse_value("[1]"), json!([1]));
         assert_eq!(parse_value("vi"), json!("vi"));
@@ -607,17 +758,43 @@ mod tests {
     fn list_files_sorts_excludes_and_copy_dir_copies() {
         let dir = test_dir("list");
         let src = dir.join("src");
-        for f in ["b.txt", "a/z.txt", "a/b/c.txt", "approved/v1/x.html", "approved.txt", "Z.txt"] {
+        for f in [
+            "b.txt",
+            "a/z.txt",
+            "a/b/c.txt",
+            "approved/v1/x.html",
+            "approved.txt",
+            "Z.txt",
+        ] {
             let p = src.join(f);
             fs::create_dir_all(p.parent().unwrap()).unwrap();
             fs::write(p, f).unwrap();
         }
-        assert_eq!(list_files(&src, &[]).unwrap(), ["Z.txt", "a/b/c.txt", "a/z.txt", "approved.txt", "approved/v1/x.html", "b.txt"]);
-        assert_eq!(list_files(&src, &["approved", "a/b"]).unwrap(), ["Z.txt", "a/z.txt", "approved.txt", "b.txt"]);
+        assert_eq!(
+            list_files(&src, &[]).unwrap(),
+            [
+                "Z.txt",
+                "a/b/c.txt",
+                "a/z.txt",
+                "approved.txt",
+                "approved/v1/x.html",
+                "b.txt"
+            ]
+        );
+        assert_eq!(
+            list_files(&src, &["approved", "a/b"]).unwrap(),
+            ["Z.txt", "a/z.txt", "approved.txt", "b.txt"]
+        );
         assert!(list_files(&dir.join("missing"), &[]).unwrap().is_empty());
         copy_dir(&src, &dir.join("dest"), &["approved"]).unwrap();
-        assert_eq!(list_files(&dir.join("dest"), &[]).unwrap(), ["Z.txt", "a/b/c.txt", "a/z.txt", "approved.txt", "b.txt"]);
-        assert_eq!(fs::read_to_string(dir.join("dest").join("a").join("z.txt")).unwrap(), "a/z.txt");
+        assert_eq!(
+            list_files(&dir.join("dest"), &[]).unwrap(),
+            ["Z.txt", "a/b/c.txt", "a/z.txt", "approved.txt", "b.txt"]
+        );
+        assert_eq!(
+            fs::read_to_string(dir.join("dest").join("a").join("z.txt")).unwrap(),
+            "a/z.txt"
+        );
         fs::remove_dir_all(&dir).unwrap();
     }
 
@@ -625,11 +802,23 @@ mod tests {
     fn plugin_manifest_reads_any_host_format() {
         let dir = test_dir("manifest");
         assert_eq!(plugin_manifest(Some(&dir)).unwrap(), json!({}));
-        fs::write(dir.join("plugin.json"), r#"{"name":"dfw","version":"9.9.9"}"#).unwrap();
+        fs::write(
+            dir.join("plugin.json"),
+            r#"{"name":"dfw","version":"9.9.9"}"#,
+        )
+        .unwrap();
         assert_eq!(plugin_manifest(Some(&dir)).unwrap()["version"], "9.9.9");
         fs::create_dir_all(dir.join(".claude-plugin")).unwrap();
-        fs::write(dir.join(".claude-plugin").join("plugin.json"), r#"{"version":"1.0.0"}"#).unwrap();
-        assert_eq!(plugin_manifest(Some(&dir)).unwrap()["version"], "1.0.0", "the Claude Code manifest wins");
+        fs::write(
+            dir.join(".claude-plugin").join("plugin.json"),
+            r#"{"version":"1.0.0"}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            plugin_manifest(Some(&dir)).unwrap()["version"],
+            "1.0.0",
+            "the Claude Code manifest wins"
+        );
         fs::remove_dir_all(&dir).unwrap();
     }
 }

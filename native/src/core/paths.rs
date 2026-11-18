@@ -18,7 +18,11 @@ pub fn env_nonempty(name: &str) -> Option<String> {
 /// `path.resolve(p)`: absolute and normalised without touching the file system.
 pub fn resolve(p: impl AsRef<Path>) -> PathBuf {
     let p = p.as_ref();
-    let joined = if p.is_absolute() { p.to_path_buf() } else { env::current_dir().unwrap_or_default().join(p) };
+    let joined = if p.is_absolute() {
+        p.to_path_buf()
+    } else {
+        env::current_dir().unwrap_or_default().join(p)
+    };
     let mut out = PathBuf::new();
     for part in joined.components() {
         match part {
@@ -43,13 +47,17 @@ pub fn global_dir() -> PathBuf {
     if let Some(home) = env_nonempty("DFW_HOME") {
         return PathBuf::from(home);
     }
-    let xdg = env_nonempty("XDG_CONFIG_HOME").map(PathBuf::from).unwrap_or_else(|| home_dir().join(".config"));
+    let xdg = env_nonempty("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| home_dir().join(".config"));
     xdg.join("dfw")
 }
 
 /// Claude Code config directory (respects `CLAUDE_CONFIG_DIR`).
 pub fn claude_dir() -> PathBuf {
-    env_nonempty("CLAUDE_CONFIG_DIR").map(PathBuf::from).unwrap_or_else(|| home_dir().join(".claude"))
+    env_nonempty("CLAUDE_CONFIG_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| home_dir().join(".claude"))
 }
 
 fn home_dir() -> PathBuf {
@@ -98,7 +106,11 @@ fn is_plugin_dir(dir: &Path) -> bool {
 pub fn find_project_root(start: Option<&Path>) -> PathBuf {
     let start = match start {
         Some(p) => resolve(p),
-        None => resolve(env_nonempty("CLAUDE_PROJECT_DIR").map(PathBuf::from).unwrap_or_else(|| env::current_dir().unwrap_or_default())),
+        None => resolve(
+            env_nonempty("CLAUDE_PROJECT_DIR")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| env::current_dir().unwrap_or_default()),
+        ),
     };
     let mut git_root: Option<PathBuf> = None;
     for dir in start.ancestors() {
@@ -161,7 +173,12 @@ pub fn project_paths(root: &Path) -> ProjectPaths {
 pub fn resolve_inside(root: &Path, rel: &str) -> Result<PathBuf, DfwError> {
     let outside = || DfwError::new(format!("Path \"{rel}\" is outside the project."));
     let rel_path = Path::new(rel);
-    if rel.is_empty() || rel.contains('\0') || rel_path.components().any(|c| !matches!(c, Component::Normal(_) | Component::CurDir)) {
+    if rel.is_empty()
+        || rel.contains('\0')
+        || rel_path
+            .components()
+            .any(|c| !matches!(c, Component::Normal(_) | Component::CurDir))
+    {
         return Err(outside());
     }
     let target = root.join(rel_path);
@@ -170,7 +187,11 @@ pub fn resolve_inside(root: &Path, rel: &str) -> Result<PathBuf, DfwError> {
     while !existing.exists() {
         existing = existing.parent().ok_or_else(outside)?;
     }
-    if !existing.canonicalize().map_err(|_| outside())?.starts_with(&real_root) {
+    if !existing
+        .canonicalize()
+        .map_err(|_| outside())?
+        .starts_with(&real_root)
+    {
         return Err(outside());
     }
     Ok(target)
@@ -199,9 +220,18 @@ mod tests {
     fn project_paths_has_the_node_fields() {
         let p = project_paths(Path::new("r"));
         assert_eq!(p.state, Path::new("r").join(".dfw").join("state.json"));
-        assert_eq!(p.config_local, Path::new("r").join(".dfw").join("config.local.json"));
-        assert_eq!(p.decisions, Path::new("r").join(".dfw").join("decisions.jsonl"));
-        assert_eq!(p.manifest, Path::new("r").join("design").join("design.json"));
+        assert_eq!(
+            p.config_local,
+            Path::new("r").join(".dfw").join("config.local.json")
+        );
+        assert_eq!(
+            p.decisions,
+            Path::new("r").join(".dfw").join("decisions.jsonl")
+        );
+        assert_eq!(
+            p.manifest,
+            Path::new("r").join("design").join("design.json")
+        );
         assert_eq!(p.approved, Path::new("r").join("design").join("approved"));
         assert_eq!(p.handoff, Path::new("r").join("design").join("handoff"));
     }
@@ -211,12 +241,24 @@ mod tests {
         let tmp = test_dir("root");
         let deep = tmp.join("repo").join("app").join("src");
         fs::create_dir_all(&deep).unwrap();
-        assert_eq!(find_project_root(Some(&deep)), deep, "nothing found: the start directory");
+        assert_eq!(
+            find_project_root(Some(&deep)),
+            deep,
+            "nothing found: the start directory"
+        );
         fs::create_dir_all(tmp.join("repo").join(".git")).unwrap();
         assert_eq!(find_project_root(Some(&deep)), tmp.join("repo"));
         fs::create_dir_all(tmp.join("repo").join("app").join(".dfw")).unwrap();
-        assert_eq!(find_project_root(Some(&deep)), tmp.join("repo"), ".dfw without state.json does not count");
-        fs::write(tmp.join("repo").join("app").join(".dfw").join("state.json"), "{}").unwrap();
+        assert_eq!(
+            find_project_root(Some(&deep)),
+            tmp.join("repo"),
+            ".dfw without state.json does not count"
+        );
+        fs::write(
+            tmp.join("repo").join("app").join(".dfw").join("state.json"),
+            "{}",
+        )
+        .unwrap();
         assert_eq!(find_project_root(Some(&deep)), tmp.join("repo").join("app"));
         fs::remove_dir_all(&tmp).unwrap();
     }
@@ -228,10 +270,17 @@ mod tests {
         assert_eq!(plugin_root_from(&exe), None);
         fs::create_dir_all(tmp.join("core").join("bin")).unwrap();
         fs::write(tmp.join("core").join("bin").join("dfw"), "").unwrap();
-        assert_eq!(plugin_root_from(&exe), None, "a launcher without a manifest is not a plugin");
+        assert_eq!(
+            plugin_root_from(&exe),
+            None,
+            "a launcher without a manifest is not a plugin"
+        );
         fs::write(tmp.join("core").join("manifest.json"), "{}").unwrap();
         assert_eq!(plugin_root_from(&exe), Some(tmp.join("core")));
-        assert_eq!(plugin_root_from(&tmp.join("core").join("bin").join("dfw-native")), Some(tmp.join("core")));
+        assert_eq!(
+            plugin_root_from(&tmp.join("core").join("bin").join("dfw-native")),
+            Some(tmp.join("core"))
+        );
         fs::remove_dir_all(&tmp).unwrap();
     }
 
@@ -241,13 +290,17 @@ mod tests {
         fs::create_dir_all(tmp.join("project").join("design")).unwrap();
         fs::create_dir_all(tmp.join("elsewhere")).unwrap();
         let root = tmp.join("project");
-        assert_eq!(resolve_inside(&root, "design/new/a.html").unwrap(), root.join("design/new/a.html"));
+        assert_eq!(
+            resolve_inside(&root, "design/new/a.html").unwrap(),
+            root.join("design/new/a.html")
+        );
         for bad in ["", "../elsewhere/x", "design/../../x", "/etc/passwd"] {
             assert!(resolve_inside(&root, bad).is_err(), "{bad}");
         }
         #[cfg(unix)]
         {
-            std::os::unix::fs::symlink(tmp.join("elsewhere"), root.join("design").join("link")).unwrap();
+            std::os::unix::fs::symlink(tmp.join("elsewhere"), root.join("design").join("link"))
+                .unwrap();
             assert!(resolve_inside(&root, "design/link/x.html").is_err());
         }
         fs::remove_dir_all(&tmp).unwrap();

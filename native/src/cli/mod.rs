@@ -37,7 +37,13 @@ pub struct Ctx {
 impl Ctx {
     /// The project the command works on: `--root`, else the search of `find_project_root`.
     pub fn root(&self) -> PathBuf {
-        find_project_root(self.args.text("root").filter(|r| !r.is_empty()).map(PathBuf::from).as_deref())
+        find_project_root(
+            self.args
+                .text("root")
+                .filter(|r| !r.is_empty())
+                .map(PathBuf::from)
+                .as_deref(),
+        )
     }
 }
 
@@ -58,7 +64,10 @@ pub const BEFORE_HELP: [&str; 3] = ["mcp", "install", "uninstall"];
 
 /// Every command of the CLI.
 pub fn commands() -> Vec<(&'static str, Handler)> {
-    let mut all: Vec<(&'static str, Handler)> = vec![("version", Handler::Native(version)), ("help", Handler::Native(help))];
+    let mut all: Vec<(&'static str, Handler)> = vec![
+        ("version", Handler::Native(version)),
+        ("help", Handler::Native(help)),
+    ];
     all.extend(workflow::commands());
     all.extend(hook::commands());
     all.extend(comments::commands());
@@ -75,10 +84,16 @@ pub fn commands() -> Vec<(&'static str, Handler)> {
 /// version this binary was built as.
 pub fn dfw_version() -> String {
     let manifest = plugin_manifest(None).ok();
-    let from_manifest = manifest.as_ref().and_then(|m| m.get("version")).and_then(|v| v.as_str()).filter(|v| !v.is_empty());
+    let from_manifest = manifest
+        .as_ref()
+        .and_then(|m| m.get("version"))
+        .and_then(|v| v.as_str())
+        .filter(|v| !v.is_empty());
     match from_manifest {
         Some(v) => v.to_string(),
-        None => env_nonempty("DFW_VERSION").unwrap_or_else(|| env!("CARGO_PKG_VERSION").to_string()),
+        None => {
+            env_nonempty("DFW_VERSION").unwrap_or_else(|| env!("CARGO_PKG_VERSION").to_string())
+        }
     }
 }
 
@@ -132,12 +147,55 @@ mod tests {
         assert_eq!(names.len(), unique.len(), "{names:?}");
         // The switch of cli.mjs and the cases before it.
         for cmd in [
-            "version", "help", "hook", "mcp", "install", "uninstall", "__studio-server", "__review-server", "init", "status", "mode", "phase",
-            "approve", "reopen", "pause", "resume", "decide", "decisions", "build", "tokens", "system", "style", "type", "palette",
-            "blueprint", "layout", "icons", "fonts", "lint", "check", "studio", "shoot", "review", "inspector", "diff", "verify-snapshot",
-            "penpot", "handoff", "comments", "stack", "lang", "config", "doctor", "setup",
+            "version",
+            "help",
+            "hook",
+            "mcp",
+            "install",
+            "uninstall",
+            "__studio-server",
+            "__review-server",
+            "init",
+            "status",
+            "mode",
+            "phase",
+            "approve",
+            "reopen",
+            "pause",
+            "resume",
+            "decide",
+            "decisions",
+            "build",
+            "tokens",
+            "system",
+            "style",
+            "type",
+            "palette",
+            "blueprint",
+            "layout",
+            "icons",
+            "fonts",
+            "lint",
+            "check",
+            "studio",
+            "shoot",
+            "review",
+            "inspector",
+            "diff",
+            "verify-snapshot",
+            "penpot",
+            "handoff",
+            "comments",
+            "stack",
+            "lang",
+            "config",
+            "doctor",
+            "setup",
         ] {
-            assert!(unique.contains(cmd), "{cmd} is missing from the command table");
+            assert!(
+                unique.contains(cmd),
+                "{cmd} is missing from the command table"
+            );
         }
         // `__debug` is the one command the Node CLI does not have (hidden; see cli/debug.rs).
         assert!(unique.contains("__debug") && !include_str!("help.txt").contains("__debug"));

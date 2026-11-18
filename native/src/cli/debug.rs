@@ -19,7 +19,11 @@ use crate::core::util::{out, read_stdin, to_json_compact};
 type Subcommand = fn(&Ctx) -> Result<i32, DfwError>;
 
 /// Every debug subcommand: one line per subcommand, the function lives with its owner group.
-const SUBCOMMANDS: &[(&str, Subcommand)] = &[("config", config), ("host-format", host_format), ("host-render", host_render)];
+const SUBCOMMANDS: &[(&str, Subcommand)] = &[
+    ("config", config),
+    ("host-format", host_format),
+    ("host-render", host_render),
+];
 
 /// The command of this file.
 pub fn commands() -> Vec<(&'static str, Handler)> {
@@ -32,14 +36,19 @@ fn run(ctx: &Ctx) -> Result<i32, DfwError> {
         Some((_, sub)) => sub(ctx),
         None => {
             let known: Vec<&str> = SUBCOMMANDS.iter().map(|(n, _)| *n).collect();
-            Err(DfwError::new(format!("Unknown debug subcommand \"{name}\". Known: {}", known.join(", "))))
+            Err(DfwError::new(format!(
+                "Unknown debug subcommand \"{name}\". Known: {}",
+                known.join(", ")
+            )))
         }
     }
 }
 
 /// `__debug config [root]`: `JSON.stringify(loadConfig(root))`.
 fn config(ctx: &Ctx) -> Result<i32, DfwError> {
-    out(&to_json_compact(&load_config(ctx.args.pos(2).map(Path::new))?));
+    out(&to_json_compact(&load_config(
+        ctx.args.pos(2).map(Path::new),
+    )?));
     Ok(0)
 }
 
@@ -47,14 +56,25 @@ fn config(ctx: &Ctx) -> Result<i32, DfwError> {
 /// null), `JSON.stringify(formatHookOutput(host, event, result))` on stdout.
 fn host_format(ctx: &Ctx) -> Result<i32, DfwError> {
     let stdin = read_stdin()?;
-    let result: Value = if stdin.trim().is_empty() { Value::Null } else { serde_json::from_str(&stdin)? };
-    let formatted = format_hook_output(ctx.args.pos(2).unwrap_or_default(), ctx.args.pos(3).unwrap_or_default(), &result)?;
+    let result: Value = if stdin.trim().is_empty() {
+        Value::Null
+    } else {
+        serde_json::from_str(&stdin)?
+    };
+    let formatted = format_hook_output(
+        ctx.args.pos(2).unwrap_or_default(),
+        ctx.args.pos(3).unwrap_or_default(),
+        &result,
+    )?;
     out(&to_json_compact(&formatted.unwrap_or(Value::Null)));
     Ok(0)
 }
 
 /// `__debug host-render <host>`: text on stdin, `renderText(text, host)` and a newline on stdout.
 fn host_render(ctx: &Ctx) -> Result<i32, DfwError> {
-    out(&render_text(&read_stdin()?, ctx.args.pos(2).unwrap_or_default())?);
+    out(&render_text(
+        &read_stdin()?,
+        ctx.args.pos(2).unwrap_or_default(),
+    )?);
     Ok(0)
 }
