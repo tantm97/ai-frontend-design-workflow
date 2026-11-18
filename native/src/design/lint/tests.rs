@@ -1,4 +1,6 @@
 //! Tests of the lint: the cases of tests/unit that cover lint.mjs, and the rules one by one.
+// Over 800 lines: every rule has its inputs and the expected findings written out, next to
+// the ported JavaScript cases.
 
 use std::fs;
 use std::path::{Path, PathBuf};
