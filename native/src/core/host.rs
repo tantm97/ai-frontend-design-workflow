@@ -18,7 +18,6 @@ use std::path::{Path, PathBuf};
 use regex::{Captures, Regex};
 use serde_json::{json, Map, Value};
 
-use super::config::js_truthy;
 use super::error::DfwError;
 use super::paths::env_nonempty;
 use super::util::{ArgValue, MARKETPLACE_NAME};
@@ -308,7 +307,7 @@ fn parse_maybe_json(v: Option<Value>) -> Value {
         Some(Value::String(text)) => {
             serde_json::from_str(&text).unwrap_or_else(|_| json!({ "input": text }))
         }
-        Some(other) if js_truthy(&other) => other,
+        Some(other) if js::truthy(&other) => other,
         _ => json!({}),
     }
 }
@@ -346,7 +345,7 @@ pub fn normalize_hook_input(raw: &Value) -> Result<HookInput, DfwError> {
         (
             "stop_hook_active",
             Some(Value::Bool(
-                either("stop_hook_active", "stopHookActive").is_some_and(|v| js_truthy(&v)),
+                either("stop_hook_active", "stopHookActive").is_some_and(|v| js::truthy(&v)),
             )),
         ),
         ("prompt", src.get("prompt").cloned()),
@@ -405,11 +404,11 @@ pub fn format_hook_output(
     event: &str,
     result: &Value,
 ) -> Result<Option<Value>, DfwError> {
-    if !js_truthy(result) {
+    if !js::truthy(result) {
         return Ok(None);
     }
     let host = get_host(Some(host_id))?;
-    let field = |key: &str| result.get(key).filter(|v| js_truthy(v));
+    let field = |key: &str| result.get(key).filter(|v| js::truthy(v));
     if let Some(block) = field("block") {
         return Ok(Some(json!({ "decision": "block", "reason": block })));
     }
@@ -435,7 +434,8 @@ pub fn format_hook_output(
 }
 
 /// JavaScript's `\s`, which is not the `\s` of the regex crate (U+FEFF is in, U+0085 is out).
-const JS_SPACE: &str = r"[\t\n\x0B\x0C\r \u{A0}\u{1680}\u{2000}-\u{200A}\u{2028}\u{2029}\u{202F}\u{205F}\u{3000}\u{FEFF}]";
+use crate::core::js;
+use crate::core::js::SPACE_CLASS as JS_SPACE;
 
 fn regex(pattern: &str) -> Result<Regex, DfwError> {
     Regex::new(pattern).map_err(|err| DfwError::internal(err.to_string()))

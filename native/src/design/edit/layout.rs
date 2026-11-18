@@ -1,12 +1,12 @@
 //! The dfw-owned `<style data-dfw-layout>` block of a screen: `parseLayoutCss`, `renderLayout`
 //! and `setLayoutRule` of `edit.mjs`.
 
-use super::js_regex as regex;
 use super::moves::{line_start, own_lines, starts_line};
 use super::style::parse_style;
 use crate::core::error::DfwError;
+use crate::core::js;
+use crate::core::js::regex::with_js_classes as regex;
 use crate::design::html::{Token, Tokenizer};
-use crate::design::tokens::js;
 
 /// `LAYOUT_SPECIFICITY`: every layout rule is `[data-dfw-id='x']:not(#dfw)`. The `:not(#id)`
 /// adds one id of specificity (1,1,0) without changing what matches, so a resize beats class,

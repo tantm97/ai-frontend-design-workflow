@@ -1,6 +1,7 @@
 //! The diff cases of tests/unit/penpot-screens.test.mjs and penpot-components.test.mjs.
 
 use super::*;
+use crate::core::js;
 use crate::penpot::export::tests::{draft, fixture_export, project, read};
 
 fn dims() -> Vec<Dim> {
@@ -33,9 +34,9 @@ fn change_set_maps_layers_to_ids() {
         changes
             .iter()
             .map(|c| {
-                let anchor =
-                    jv::truthy_value(c.get("anchor")).map_or("-".into(), |a| jv::text(Some(a)));
-                format!("{}:{anchor}", jv::text(c.get("type")))
+                let anchor = js::truthy_value(c.get("anchor"))
+                    .map_or("-".into(), |a| js::to_string(Some(a)));
+                format!("{}:{anchor}", js::to_string(c.get("type")))
             })
             .collect(),
     );
@@ -118,11 +119,12 @@ fn main_component_edits_map_to_the_master() {
         changes
             .iter()
             .map(|c| {
-                let path = js::present(c.get("path")).map_or("-".into(), |p| jv::text(Some(p)));
+                let path =
+                    js::present(c.get("path")).map_or("-".into(), |p| js::to_string(Some(p)));
                 format!(
                     "{}:{}:{path}",
-                    jv::text(c.get("type")),
-                    jv::text(c["component"].get("key"))
+                    js::to_string(c.get("type")),
+                    js::to_string(c["component"].get("key"))
                 )
             })
             .collect(),

@@ -2,6 +2,7 @@
 //! The CLI case is in native/tests/penpot.rs (it needs the binary).
 
 use super::*;
+use crate::core::js;
 use crate::core::util::test_dir;
 use crate::design::tokens::tokens_to_declarations;
 use std::path::PathBuf;
@@ -70,7 +71,7 @@ fn import(root: &Path, file: &Path, prune: bool) -> TokenImport {
 }
 
 fn names(list: &[Value]) -> Vec<String> {
-    let mut names: Vec<String> = list.iter().map(|c| jv::text(c.get("token"))).collect();
+    let mut names: Vec<String> = list.iter().map(|c| js::to_string(c.get("token"))).collect();
     names.sort();
     names
 }
@@ -362,7 +363,7 @@ fn export_structure_sets_themes_metadata() {
     fn walk(n: &Value, types: &mut Vec<String>) {
         let Value::Object(map) = n else { return };
         if map.contains_key("$value") {
-            types.push(jv::text(map.get("$type")));
+            types.push(js::to_string(map.get("$type")));
         } else {
             map.values().for_each(|v| walk(v, types));
         }
@@ -566,7 +567,7 @@ fn exact_round_trip_for_every_starter_preset() {
             .report
             .unsupported
             .iter()
-            .map(|u| jv::text(u.get("type")))
+            .map(|u| js::to_string(u.get("type")))
             .collect();
         assert_eq!(types, ["cubicBezier"], "{f}");
         let r = import(&root, &export.file, false);
@@ -597,7 +598,7 @@ fn reserved_names_in_a_token_or_set_name_are_refused() {
     let r = import(&root, &file, false);
     assert!(diff_of(&r, "in").added.is_empty());
     assert_eq!(names(&r.unsupported), ["__proto__", "color.constructor"]);
-    assert!(jv::text(r.unsupported[0].get("reason")).contains("reserved name"));
+    assert!(js::to_string(r.unsupported[0].get("reason")).contains("reserved name"));
     // Nothing of the reserved subtrees reached the tokens.
     let text = fs::read_to_string(root.join("design/tokens/tokens.json")).unwrap();
     assert!(!text.contains("zzz") && !text.contains("yyy") && !text.contains("__proto__"));
@@ -702,10 +703,10 @@ fn a_description_edited_in_penpot_keeps_the_exact_dfw_value() {
 /// Values the Node code read with JavaScript's rules.
 #[test]
 fn javascript_value_rules() {
-    assert_eq!(jv::slice16("héllo wörld", 1, 4), "éll");
-    assert_eq!(jv::norm(Some(&json!("  a \n\t b\u{a0}c "))), "a b c");
-    assert_eq!(jv::norm(None), "");
-    let ordered = jv::js_key_order(vec![
+    assert_eq!(js::slice16("héllo wörld", 1, 4), "éll");
+    assert_eq!(js::norm(Some(&json!("  a \n\t b\u{a0}c "))), "a b c");
+    assert_eq!(js::norm(None), "");
+    let ordered = js::key_order_pairs(vec![
         ("b".to_string(), 1),
         ("10".to_string(), 2),
         ("2".to_string(), 3),

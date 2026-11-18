@@ -40,25 +40,12 @@ pub use style::{
 };
 
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::{project_paths, resolve, to_posix};
 use crate::core::util::{now_iso, read_json, to_json_compact};
 use crate::design::compose::{load_components, ComponentDef};
-use crate::design::html::{is_js_space, set_attr, Splice};
-use crate::design::tokens::{dir_names, js, relative_path};
-
-/// `\s` of a JavaScript regular expression as a character class for the regex crate (whose
-/// own `\s` is the Unicode property, a different set).
-pub(crate) const JS_SPACE: &str = r"[\t\n\x0B\x0C\r \x{a0}\x{1680}\x{2000}-\x{200a}\x{2028}\x{2029}\x{202f}\x{205f}\x{3000}\x{feff}]";
-
-/// A regular expression written with the JavaScript classes: `\s`, `\d` and `\w` mean what
-/// they mean in the Node code (the regex crate reads them as Unicode properties).
-pub(crate) fn js_regex(pattern: &str) -> Result<regex::Regex, DfwError> {
-    let pattern = pattern
-        .replace(r"\s", JS_SPACE)
-        .replace(r"\d", "[0-9]")
-        .replace(r"\w", "[A-Za-z0-9_]");
-    regex::Regex::new(&pattern).map_err(|err| DfwError::internal(err.to_string()))
-}
+use crate::design::html::{set_attr, Splice};
+use crate::design::tokens::{dir_names, relative_path};
 
 /// `SPACING_PROPS`: what a spacing edit may set in an inline style.
 pub const SPACING_PROPS: [&str; 17] = [
@@ -204,9 +191,9 @@ fn component_def(root: &Path, el: &Located) -> Result<ComponentDef, DfwError> {
 fn one_line(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
-    while let Some(start) = rest.find(is_js_space) {
+    while let Some(start) = rest.find(js::is_space) {
         let run_len = rest[start..]
-            .find(|c: char| !is_js_space(c))
+            .find(|c: char| !js::is_space(c))
             .unwrap_or(rest.len() - start);
         let run = &rest[start..start + run_len];
         out.push_str(&rest[..start]);
@@ -264,8 +251,8 @@ pub fn transform(root: &Path, text: &str, op: &Value) -> Result<String, DfwError
                 return Err(DfwError::new("Text cannot be empty."));
             }
             // The white space around the old text stays (all of it leads when there is no text).
-            let lead = inner.len() - inner.trim_start_matches(is_js_space).len();
-            let trail = inner[lead..].len() - inner[lead..].trim_end_matches(is_js_space).len();
+            let lead = inner.len() - inner.trim_start_matches(js::is_space).len();
+            let trail = inner[lead..].len() - inner[lead..].trim_end_matches(js::is_space).len();
             let splice = Splice {
                 range: el.inner_start + lead..el.inner_end - trail,
                 text: esc_text(&value),

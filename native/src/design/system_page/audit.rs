@@ -6,13 +6,13 @@ use std::path::Path;
 
 use serde_json::{json, Map, Value};
 
-use super::text::{alias, bullets, has_heading, hex_field, md_parts, part_body, slice_utf16};
+use super::text::{alias, bullets, has_heading, hex_field, md_parts, part_body};
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::project_paths;
 use crate::design::color::{audit_colors, audit_type_scale, hex_to_oklch};
 use crate::design::edit::{collect_tokens, TokenEntry};
 use crate::design::inventory::inventory_findings;
-use crate::design::tokens::js;
 
 /// `auditDesignSystem` of `core/lib/dsaudit.mjs`, for the "Senior review" section: the
 /// findings as `{level, message}` in the order the Node code reports them.
@@ -74,7 +74,7 @@ pub(super) fn audit_design_system(root: &Path) -> Result<Vec<Value>, DfwError> {
     let hex = |name: &str| -> Option<String> {
         let t = get(&by_name, name, 0)?;
         match &t.value {
-            Value::String(s) => s.starts_with('#').then(|| slice_utf16(s, 7)),
+            Value::String(s) => s.starts_with('#').then(|| js::slice16(s, 0, 7)),
             other => hex_field(other),
         }
     };

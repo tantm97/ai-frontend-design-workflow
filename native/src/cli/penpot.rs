@@ -9,12 +9,13 @@ use serde_json::{json, Map, Value};
 use super::{Ctx, Handler};
 use crate::core::config::load_config;
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::{project_paths, resolve};
 use crate::core::util::{
     get_path, out, read_json, read_stdin, to_json_compact, to_json_pretty, ArgValue,
 };
 use crate::design::compose::build_system;
-use crate::design::tokens::{build_tokens, js};
+use crate::design::tokens::build_tokens;
 use crate::penpot::export::{
     build_export, export_penpot, export_summary, ExportInput, ExportOptions,
 };

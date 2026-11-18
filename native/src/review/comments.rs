@@ -13,11 +13,11 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde_json::{json, Map, Value};
 
-use crate::core::config::{js_spread, js_truthy};
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::project_paths;
-use crate::core::util::{iso_from_millis, js_number, now_iso, read_json, write_json};
-use crate::workflow::state::{js_str, js_to_number, js_trim, object, truthy, type_error};
+use crate::core::util::{iso_from_millis, now_iso, read_json, write_json};
+use crate::workflow::state::type_error;
 
 /// Every status a comment can have.
 pub const STATUSES: [&str; 6] = [
@@ -112,7 +112,7 @@ fn read_session(file: &Path) -> Result<Value, DfwError> {
 pub fn current_session(root: &Path, create: bool) -> Result<Option<Session>, DfwError> {
     if let Some(last) = session_files(root)?.pop() {
         let session = read_session(&last)?;
-        if truthy(session.get("closedAt")).is_none() {
+        if js::truthy_value(session.get("closedAt")).is_none() {
             return Ok(Some(Session {
                 file: last,
                 session,
@@ -156,7 +156,7 @@ fn new_session_unlocked(root: &Path, design_version: Option<&str>) -> Result<Ses
     }
     for file in session_files(root)? {
         let mut session = read_session(&file)?;
-        if truthy(session.get("closedAt")).is_none() {
+        if js::truthy_value(session.get("closedAt")).is_none() {
             if let Value::Object(map) = &mut session {
                 map.insert("closedAt".into(), now_iso().into());
             }
@@ -170,7 +170,7 @@ fn new_session_unlocked(root: &Path, design_version: Option<&str>) -> Result<Ses
                 .get("design")
                 .and_then(|d| d.get("version"))
                 .filter(|v| !v.is_null());
-            format!("v{}", v.map_or("1".to_string(), |v| js_str(Some(v))))
+            format!("v{}", v.map_or("1".to_string(), |v| js::to_string(Some(v))))
         }
     };
     let session = json!({
@@ -210,7 +210,7 @@ pub fn all_comments(root: &Path) -> Result<Vec<Value>, DfwError> {
     for file in session_files(root)? {
         let session = read_session(&file)?;
         for c in comments_of(&session)? {
-            let mut c = js_spread(Some(c));
+            let mut c = js::spread(Some(c));
             match session.get("id") {
                 Some(id) => {
                     c.insert("session".into(), id.clone());
@@ -228,13 +228,13 @@ pub fn all_comments(root: &Path) -> Result<Vec<Value>, DfwError> {
 fn next_id(root: &Path) -> Result<String, DfwError> {
     let mut max = 0.0_f64;
     for c in all_comments(root)? {
-        let id = js_str(c.get("id"));
-        let n = js_to_number(id.strip_prefix("fb_").unwrap_or(&id));
+        let id = js::to_string(c.get("id"));
+        let n = js::str_to_number(id.strip_prefix("fb_").unwrap_or(&id));
         if n > max {
             max = n;
         }
     }
-    Ok(format!("fb_{:0>3}", js_number(max + 1.0)))
+    Ok(format!("fb_{:0>3}", js::number(max + 1.0)))
 }
 
 /// `safeDesignFile(f)`: a design file name from input (Studio body, Penpot JSON): relative, no
@@ -286,7 +286,7 @@ pub fn add_comment(root: &Path, input: &Value) -> Result<Value, DfwError> {
 fn add_comment_unlocked(root: &Path, input: &Value) -> Result<Value, DfwError> {
     let text = match input.get("comment") {
         None | Some(Value::Null) => "",
-        Some(Value::String(text)) => js_trim(text),
+        Some(Value::String(text)) => js::trim(text),
         Some(_) => return Err(DfwError::internal("input?.comment?.trim is not a function")),
     };
     if text.is_empty() {
@@ -299,14 +299,18 @@ fn add_comment_unlocked(root: &Path, input: &Value) -> Result<Value, DfwError> {
         .get("file")
         .and_then(Value::as_str)
         .filter(|f| safe_design_file(f));
-    let mut target = js_spread(truthy(input.get("target")));
-    if truthy(target.get("source")).is_none() {
-        let dfw_id = truthy(target.get("dfwId")).map(|id| js_str(Some(id)));
+    let mut target = js::spread(js::truthy_value(input.get("target")));
+    if js::truthy_value(target.get("source")).is_none() {
+        let dfw_id = js::truthy_value(target.get("dfwId")).map(|id| js::to_string(Some(id)));
         let source = locate_source(root, design_file, dfw_id.as_deref())?;
         target.insert("source".into(), source.map_or(Value::Null, Value::String));
     }
-    let or_null = |key: &str| truthy(input.get(key)).cloned().unwrap_or(Value::Null);
-    let mut c = object(vec![
+    let or_null = |key: &str| {
+        js::truthy_value(input.get(key))
+            .cloned()
+            .unwrap_or(Value::Null)
+    };
+    let mut c = js::object(vec![
         ("id", Some(next_id(root)?.into())),
         ("createdAt", Some(now_iso().into())),
         ("designVersion", session.get("designVersion").cloned()),
@@ -328,15 +332,15 @@ fn add_comment_unlocked(root: &Path, input: &Value) -> Result<Value, DfwError> {
         (
             "provider",
             Some(
-                truthy(input.get("provider"))
+                js::truthy_value(input.get("provider"))
                     .cloned()
                     .unwrap_or_else(|| "dfw-studio".into()),
             ),
         ),
     ]);
     // Comments on the running app (dfw review) carry the page they were made on.
-    if let Some(url) = truthy(input.get("url")) {
-        c["url"] = js_str(Some(url)).into();
+    if let Some(url) = js::truthy_value(input.get("url")) {
+        c["url"] = js::to_string(Some(url)).into();
     }
     match session.get_mut("comments") {
         Some(Value::Array(comments)) => comments.push(c.clone()),
@@ -434,7 +438,7 @@ fn update_comment_unlocked(
     let comment = found.comment()?;
     let at = now_iso();
     let status = update.status.as_deref().filter(|s| !s.is_empty());
-    let message = update.message.clone().filter(js_truthy);
+    let message = update.message.clone().filter(|v| js::truthy(v));
     let by = update.by.clone().unwrap_or_else(|| "claude".into());
     let current = comment.get("status").cloned();
     // The status the comment already has is not a transition: it is refused like any other one
@@ -452,7 +456,7 @@ fn update_comment_unlocked(
         if !allowed.contains(&status) {
             return Err(DfwError::new(format!(
                 "Comment {id}: cannot go from \"{}\" to \"{status}\" (allowed: {}).",
-                js_str(current.as_ref()),
+                js::to_string(current.as_ref()),
                 allowed.join(", ")
             )));
         }
@@ -466,7 +470,7 @@ fn update_comment_unlocked(
         }
         comment.insert("status".into(), status.into());
         if status == "fixed" {
-            let evidence = update.evidence.clone().filter(js_truthy);
+            let evidence = update.evidence.clone().filter(|v| js::truthy(v));
             comment.insert(
                 "resolution".into(),
                 json!({ "at": at, "by": by, "note": message, "evidence": evidence }),
@@ -474,7 +478,7 @@ fn update_comment_unlocked(
         }
     }
     if let Some(message) = message {
-        let line = object(vec![
+        let line = js::object(vec![
             ("at", Some(at.clone().into())),
             ("by", Some(by)),
             ("message", Some(message)),

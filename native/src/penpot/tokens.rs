@@ -20,127 +20,11 @@ use regex::Regex;
 use serde_json::{json, Map, Value};
 
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::{project_paths, resolve};
 use crate::core::util::{to_json_compact, write_json};
 use crate::design::color::{oklch_to_hex, Oklch};
-use crate::design::tokens::{dir_names, js, relative_path};
-
-/// JavaScript value rules the Penpot modules need on untrusted JSON: property reads that may be
-/// missing, coercions, strings measured in UTF-16 units.
-pub(super) mod jv {
-    use serde_json::{Map, Value};
-
-    use crate::core::util::to_json_compact;
-    use crate::design::html::is_js_space;
-    use crate::design::tokens::js;
-
-    /// `\s` of a JavaScript regular expression, as the inside of a character class.
-    pub const SPACE: &str = r"\t\n\x0B\x0C\r \x{A0}\x{1680}\x{2000}-\x{200A}\x{2028}\x{2029}\x{202F}\x{205F}\x{3000}\x{FEFF}";
-
-    /// An object built from the pairs whose value exists (`undefined` fields are not written).
-    /// A later pair with the name of an earlier one replaces its value and keeps its place,
-    /// like a spread followed by the same key.
-    pub fn obj(pairs: Vec<(&str, Option<Value>)>) -> Value {
-        let mut map = Map::new();
-        for (key, value) in pairs {
-            match value {
-                Some(value) => {
-                    map.insert(key.to_string(), value);
-                }
-                None => {
-                    map.shift_remove(key);
-                }
-            }
-        }
-        Value::Object(map)
-    }
-
-    /// Truthiness; `None` is `undefined`.
-    pub fn truthy(value: Option<&Value>) -> bool {
-        js::truthy(value)
-    }
-
-    /// The value when it is truthy (`value || fallback` keeps it).
-    pub fn truthy_value(value: Option<&Value>) -> Option<&Value> {
-        value.filter(|v| js::truthy(Some(v)))
-    }
-
-    /// `value || null`.
-    pub fn or_null(value: Option<&Value>) -> Value {
-        truthy_value(value).cloned().unwrap_or(Value::Null)
-    }
-
-    /// `Number(value)`.
-    pub fn num(value: Option<&Value>) -> f64 {
-        js::to_number(value)
-    }
-
-    /// `String(value)`.
-    pub fn text(value: Option<&Value>) -> String {
-        js::to_string(value)
-    }
-
-    /// `JSON.stringify(value)`; `undefined` prints as the word.
-    pub fn stringify(value: Option<&Value>) -> String {
-        value.map_or_else(|| "undefined".to_string(), to_json_compact)
-    }
-
-    /// `a === b` for values out of JSON: primitives by value, objects and arrays never (two
-    /// parsed objects are two objects).
-    pub fn strict_eq(a: Option<&Value>, b: Option<&Value>) -> bool {
-        match (a, b) {
-            (None, None) | (Some(Value::Null), Some(Value::Null)) => true,
-            (Some(Value::String(a)), Some(Value::String(b))) => a == b,
-            (Some(Value::Bool(a)), Some(Value::Bool(b))) => a == b,
-            (Some(Value::Number(a)), Some(Value::Number(b))) => a.as_f64() == b.as_f64(),
-            _ => false,
-        }
-    }
-
-    /// `text.length`.
-    pub fn len16(text: &str) -> usize {
-        text.encode_utf16().count()
-    }
-
-    /// `text.slice(start, end)` for indexes that are not negative.
-    pub fn slice16(text: &str, start: usize, end: usize) -> String {
-        if text.is_ascii() {
-            let end = end.min(text.len());
-            return text[start.min(end)..end].to_string();
-        }
-        let units: Vec<u16> = text.encode_utf16().collect();
-        let end = end.min(units.len());
-        String::from_utf16_lossy(&units[start.min(end)..end])
-    }
-
-    /// `String(value ?? '').replace(/\s+/g, ' ').trim()`.
-    pub fn norm(value: Option<&Value>) -> String {
-        let text = match value {
-            None | Some(Value::Null) => String::new(),
-            other => js::to_string(other),
-        };
-        text.split(is_js_space)
-            .filter(|w| !w.is_empty())
-            .collect::<Vec<_>>()
-            .join(" ")
-    }
-
-    /// The keys of an object in the order JavaScript lists them, for a list of pairs that
-    /// stands for an object: integer-like keys first, ascending, then the others as inserted.
-    pub fn js_key_order<T>(pairs: Vec<(String, T)>) -> Vec<(String, T)> {
-        let index = |key: &str| -> Option<u32> {
-            let canonical = key == "0" || (!key.starts_with('0') && !key.is_empty());
-            if !canonical || key.len() > 10 || !key.bytes().all(|b| b.is_ascii_digit()) {
-                return None;
-            }
-            key.parse::<u32>().ok().filter(|n| *n < u32::MAX)
-        };
-        let (mut indexed, named): (Vec<_>, Vec<_>) =
-            pairs.into_iter().partition(|(k, _)| index(k).is_some());
-        indexed.sort_by_key(|(k, _)| index(k));
-        indexed.into_iter().chain(named).collect()
-    }
-}
+use crate::design::tokens::{dir_names, relative_path};
 
 const BASE_SET: &str = "base";
 const THEME_PREFIX: &str = "themes/";
@@ -189,28 +73,28 @@ pattern!(
     RGB_COLOR,
     format!(
         r"(?i)^rgba?\([{s}]*([0-9.]+)[{s},]+([0-9.]+)[{s},]+([0-9.]+)(?:[{s}]*[,/][{s}]*([0-9.]+%?))?[{s}]*\)$",
-        s = jv::SPACE
+        s = js::SPACE
     )
 );
 pattern!(
     HSL_COLOR,
     format!(
         r"(?i)^hsla?\([{s}]*([0-9.]+)(?:deg)?[{s},]+([0-9.]+)%[{s},]+([0-9.]+)%(?:[{s}]*[,/][{s}]*([0-9.]+%?))?[{s}]*\)$",
-        s = jv::SPACE
+        s = js::SPACE
     )
 );
 pattern!(
     DIMENSION,
     format!(
         r"(?i)^[{s}]*(-?[0-9]*\.?[0-9]+)[{s}]*(px|rem|em)?[{s}]*$",
-        s = jv::SPACE
+        s = js::SPACE
     )
 );
 pattern!(
     NUMBER,
     format!(
         r"^[{s}]*(-?[0-9]*\.?[0-9]+)[{s}]*(%)?[{s}]*$",
-        s = jv::SPACE
+        s = js::SPACE
     )
 );
 pattern!(THEME_SET, r"^themes?/([^\n\r\x{2028}\x{2029}]+)$");
@@ -337,7 +221,7 @@ pub fn flatten_tokens(tree: &Value) -> Flat {
         let Value::Object(map) = node else {
             return;
         };
-        let ty = jv::truthy_value(map.get("$type")).or(ty);
+        let ty = js::truthy_value(map.get("$type")).or(ty);
         if let Some(value) = map.get("$value") {
             out.set(
                 trail.join("."),
@@ -398,7 +282,7 @@ fn parse_int16(text: &str) -> f64 {
 fn hex_channels(hex: &str) -> Vec<f64> {
     [1, 3, 5]
         .iter()
-        .map(|i| parse_int16(&jv::slice16(hex, *i, i + 2)))
+        .map(|i| parse_int16(&js::slice16(hex, *i, i + 2)))
         .collect()
 }
 
@@ -406,13 +290,13 @@ fn color_out(v: Option<&Value>, note: Note) -> Result<Value, String> {
     let v = match v {
         Some(Value::String(s)) => return Ok(Value::String(s.clone())),
         Some(v @ (Value::Object(_) | Value::Array(_))) => v,
-        other => return Err(format!("not a colour: {}", jv::stringify(other))),
+        other => return Err(format!("not a colour: {}", js::stringify(other))),
     };
     let alpha = js::present(v.get("alpha"));
     let opaque = alpha.is_none_or(|a| a.as_f64() == Some(1.0));
     let space = v.get("colorSpace").and_then(Value::as_str);
     let components = v.get("components");
-    let hex = jv::truthy_value(v.get("hex"));
+    let hex = js::truthy_value(v.get("hex"));
     let numbers = |list: &Vec<Value>| list.iter().all(Value::is_number);
     let rgb: Vec<f64> = if let Some(list) = components
         .and_then(Value::as_array)
@@ -424,7 +308,7 @@ fn color_out(v: Option<&Value>, note: Note) -> Result<Value, String> {
             _ => {}
         }
         list.iter()
-            .map(|x| js::round(js::min(1.0, js::max(0.0, jv::num(Some(x)))) * 255.0))
+            .map(|x| js::round(js::min(1.0, js::max(0.0, js::to_number(Some(x)))) * 255.0))
             .collect()
     } else if space == Some("oklch") && js::present(components).is_some() {
         let Some(list) = components.and_then(Value::as_array) else {
@@ -434,9 +318,9 @@ fn color_out(v: Option<&Value>, note: Note) -> Result<Value, String> {
             return hex_fallback(v, hex, opaque, note);
         }
         let hex = oklch_to_hex(Oklch {
-            l: jv::num(list.first()),
-            c: jv::num(list.get(1)),
-            h: jv::num(list.get(2)),
+            l: js::to_number(list.first()),
+            c: js::to_number(list.get(1)),
+            h: js::to_number(list.get(2)),
         });
         note(format!("oklch converted to sRGB {hex}"));
         if opaque {
@@ -451,7 +335,7 @@ fn color_out(v: Option<&Value>, note: Note) -> Result<Value, String> {
 
 /// The last two branches of `colorOut`: another colour space goes through its `hex`.
 fn hex_fallback(v: &Value, hex: Option<&Value>, opaque: bool, note: Note) -> Result<Value, String> {
-    let space = jv::text(v.get("colorSpace"));
+    let space = js::to_string(v.get("colorSpace"));
     let Some(hex) = hex else {
         return Err(format!(
             "colour space \"{space}\" has no sRGB form (add a \"hex\" fallback)"
@@ -480,7 +364,11 @@ fn rgb_text(rgb: &[f64], opaque: bool, alpha: Option<&Value>) -> String {
         return format!("#{}", rgb.iter().map(|x| hex2(*x)).collect::<String>());
     }
     let channels: Vec<String> = rgb.iter().map(|x| js::number(*x)).collect();
-    format!("rgba({}, {})", channels.join(", "), fmt(jv::num(alpha)))
+    format!(
+        "rgba({}, {})",
+        channels.join(", "),
+        fmt(js::to_number(alpha))
+    )
 }
 
 /// dfw wraps Penpot math in `calc()` so the CSS stays valid; Penpot gets the bare expression.
@@ -501,19 +389,19 @@ fn is_expression(value: &Value) -> bool {
 
 fn dim_out(v: Option<&Value>, note: Note, bare: bool) -> Result<String, String> {
     match v {
-        Some(Value::String(_) | Value::Number(_)) => Ok(uncalc(&jv::text(v))),
+        Some(Value::String(_) | Value::Number(_)) => Ok(uncalc(&js::to_string(v))),
         Some(Value::Object(map)) if map.get("value").is_some_and(Value::is_number) => {
-            let value = fmt(jv::num(map.get("value")));
+            let value = fmt(js::to_number(map.get("value")));
             if map.get("unit").and_then(Value::as_str) == Some("px") {
                 return Ok(if bare { value } else { format!("{value}px") });
             }
-            let unit = jv::text(map.get("unit"));
+            let unit = js::to_string(map.get("unit"));
             note(format!(
                 "unit \"{unit}\": Penpot works in px; check the value after import"
             ));
             Ok(format!("{value}{unit}"))
         }
-        other => Err(format!("not a dimension: {}", jv::stringify(other))),
+        other => Err(format!("not a dimension: {}", js::stringify(other))),
     }
 }
 
@@ -538,7 +426,7 @@ fn shadow_out(v: &Value, note: Note) -> Result<Value, String> {
             "offsetY": offset_y,
             "blur": blur,
             "spread": spread,
-            "inset": jv::truthy(s.get("inset")),
+            "inset": js::truthy(s.get("inset")),
         }))
     }
     match v {
@@ -638,7 +526,7 @@ impl Converted {
                 ty,
                 value,
                 description,
-            } => jv::obj(vec![
+            } => js::object(vec![
                 ("type", Some(ty.clone())),
                 ("value", Some(value.clone())),
                 ("description", description.clone()),
@@ -652,14 +540,14 @@ fn res(ty: impl Into<Value>, value: impl Into<Value>, description: Option<&Value
     Converted::Token {
         ty: ty.into(),
         value: value.into(),
-        description: jv::truthy_value(description).cloned(),
+        description: js::truthy_value(description).cloned(),
     }
 }
 
 fn families_out(value: &Value) -> String {
     match value {
         Value::Array(items) => js::join(items, ", "),
-        other => jv::text(Some(other)),
+        other => js::to_string(Some(other)),
     }
 }
 
@@ -699,8 +587,8 @@ fn to_penpot(name: &str, token: &Token, note: Note) -> Result<Converted, String>
             done(ty, text.into())
         }
         Some("fontFamily") => done("fontFamilies", families_out(value).into()),
-        Some("fontWeight") => done("fontWeights", jv::text(Some(value)).into()),
-        Some("number") => done("number", uncalc(&jv::text(Some(value))).into()),
+        Some("fontWeight") => done("fontWeights", js::to_string(Some(value)).into()),
+        Some("number") => done("number", uncalc(&js::to_string(Some(value))).into()),
         Some("duration") => {
             note(
                 "duration exported as a Penpot \"number\" token in ms (Penpot has no duration type)"
@@ -709,11 +597,11 @@ fn to_penpot(name: &str, token: &Token, note: Note) -> Result<Converted, String>
             match value {
                 Value::Null => Err("Cannot read properties of null (reading 'unit')".to_string()),
                 Value::Object(_) | Value::Array(_) => {
-                    let n = jv::num(value.get("value"));
+                    let n = js::to_number(value.get("value"));
                     let seconds = value.get("unit").and_then(Value::as_str) == Some("s");
                     done("number", fmt(if seconds { n * 1000.0 } else { n }).into())
                 }
-                other => done("number", uncalc(&jv::text(Some(other))).into()),
+                other => done("number", uncalc(&js::to_string(Some(other))).into()),
             }
         }
         Some("string") => match value.as_str() {
@@ -745,7 +633,7 @@ fn to_penpot(name: &str, token: &Token, note: Note) -> Result<Converted, String>
                 } else if key == "fontSize" || key == "letterSpacing" || !is_primitive(sub) {
                     dim_out(Some(sub), note, false)?.into()
                 } else {
-                    jv::text(Some(sub)).into()
+                    js::to_string(Some(sub)).into()
                 };
                 v.insert(penpot_key.to_string(), out);
             }
@@ -753,7 +641,7 @@ fn to_penpot(name: &str, token: &Token, note: Note) -> Result<Converted, String>
         }
         _ => Ok(Converted::Unsupported(format!(
             "Penpot has no \"{}\" token type",
-            jv::text(token.ty.as_ref())
+            js::to_string(token.ty.as_ref())
         ))),
     }
 }
@@ -803,12 +691,12 @@ pub fn nest(entries: &[NestEntry]) -> Value {
         if let Value::Object(map) = node {
             map.insert(
                 (*leaf).to_string(),
-                jv::obj(vec![
+                js::object(vec![
                     ("$value", entry.value.clone()),
                     ("$type", entry.ty.clone()),
                     (
                         "$description",
-                        jv::truthy_value(entry.description.as_ref()).cloned(),
+                        js::truthy_value(entry.description.as_ref()).cloned(),
                     ),
                 ]),
             );
@@ -850,10 +738,10 @@ pub fn dfw_to_penpot(base: Option<&Value>, themes: &Map<String, Value>) -> (Valu
     let theme_names: Vec<&String> = js::entries(themes).into_iter().map(|(k, _)| k).collect();
     let mut sets: Vec<(String, &Value)> = vec![(
         BASE_SET.to_string(),
-        jv::truthy_value(base).unwrap_or(&empty),
+        js::truthy_value(base).unwrap_or(&empty),
     )];
     for name in &theme_names {
-        let tree = jv::truthy_value(themes.get(*name)).unwrap_or(&empty);
+        let tree = js::truthy_value(themes.get(*name)).unwrap_or(&empty);
         sets.push((format!("{THEME_PREFIX}{name}"), tree));
     }
     for (set, tree) in &sets {
@@ -868,7 +756,7 @@ pub fn dfw_to_penpot(base: Option<&Value>, themes: &Map<String, Value>) -> (Valu
                     .push(json!({ "set": set, "token": name, "note": note }));
             }
             match converted {
-                Converted::Unsupported(reason) => report.unsupported.push(jv::obj(vec![
+                Converted::Unsupported(reason) => report.unsupported.push(js::object(vec![
                     ("set", Some(set.as_str().into())),
                     ("token", Some(name.into())),
                     ("type", token.ty.clone()),
@@ -1011,7 +899,7 @@ pub fn parse_dimension(value: Option<&Value>) -> Option<Value> {
     if let Some(n @ Value::Number(_)) = value {
         return Some(json!({ "value": n, "unit": "px" }));
     }
-    let text = jv::text(value);
+    let text = js::to_string(value);
     let m = DIMENSION.captures(&text)?;
     let unit = m
         .get(2)
@@ -1023,7 +911,7 @@ fn parse_number(value: Option<&Value>) -> Option<Value> {
     if let Some(n @ Value::Number(_)) = value {
         return Some(n.clone());
     }
-    let text = jv::text(value);
+    let text = js::to_string(value);
     let m = NUMBER.captures(&text)?;
     let n = js::str_to_number(&m[1]);
     Some(js::num(if m.get(2).is_some() {
@@ -1037,7 +925,7 @@ fn parse_weight(value: Option<&Value>, warn: Note) -> Option<Value> {
     if let Some(n @ Value::Number(_)) = value {
         return Some(n.clone());
     }
-    let text = jv::text(value);
+    let text = js::to_string(value);
     let t = js::trim(&text);
     if !t.is_empty() && t.bytes().all(|b| b.is_ascii_digit()) {
         return Some(js::num(js::str_to_number(t)));
@@ -1045,7 +933,7 @@ fn parse_weight(value: Option<&Value>, warn: Note) -> Option<Value> {
     let key: String = t
         .to_lowercase()
         .chars()
-        .filter(|c| !(crate::design::html::is_js_space(*c) || *c == '_' || *c == '-'))
+        .filter(|c| !(crate::core::js::is_space(*c) || *c == '_' || *c == '-'))
         .collect();
     let italic = key.ends_with("italic");
     let base = key.strip_suffix("italic").unwrap_or(&key);
@@ -1065,8 +953,8 @@ fn parse_weight(value: Option<&Value>, warn: Note) -> Option<Value> {
 
 fn split_families(value: &Value) -> Value {
     let items: Vec<String> = match value {
-        Value::Array(items) => items.iter().map(|x| jv::text(Some(x))).collect(),
-        other => jv::text(Some(other))
+        Value::Array(items) => items.iter().map(|x| js::to_string(Some(x))).collect(),
+        other => js::to_string(Some(other))
             .split(',')
             .map(str::to_string)
             .collect(),
@@ -1127,19 +1015,19 @@ pub fn token_from_penpot(
     let ty = token.type_name();
     // A number token named like a duration is a dfw duration (Penpot has no duration type).
     let duration = json!("duration");
-    let mut prefer = jv::truthy_value(prefer);
+    let mut prefer = js::truthy_value(prefer);
     if prefer.is_none() && ty == Some("number") && DURATION_NAME.is_match(name) {
         prefer = Some(&duration);
     }
     let unsupported = || {
         Converted::Unsupported(format!(
             "Penpot type \"{}\" has no dfw equivalent",
-            jv::text(token.ty.as_ref())
+            js::to_string(token.ty.as_ref())
         ))
     };
     let raw = |t: &str, why: &str, warn: Note| {
         if matches!(t, "dimension" | "number" | "duration") && is_expression(value) {
-            let text = jv::text(Some(value));
+            let text = js::to_string(Some(value));
             warn(format!(
                 "math expression kept as calc({text}) (check that the CSS is what you expect)"
             ));
@@ -1168,7 +1056,7 @@ pub fn token_from_penpot(
     }
     let wants_duration = prefer.and_then(Value::as_str) == Some("duration");
     Ok(match ty {
-        Some("color") => match parse_color(&jv::text(Some(value))) {
+        Some("color") => match parse_color(&js::to_string(Some(value))) {
             Some(c) => res("color", c, description),
             None => raw(
                 "color",
@@ -1199,7 +1087,9 @@ pub fn token_from_penpot(
                 res("number", n, description)
             }
         },
-        Some("textCase" | "textDecoration") => res("string", jv::text(Some(value)), description),
+        Some("textCase" | "textDecoration") => {
+            res("string", js::to_string(Some(value)), description)
+        }
         Some("shadow" | "boxShadow") => match value {
             Value::String(_) => raw("shadow", "shadow given as a string", warn),
             Value::Array(items) => {
@@ -1246,12 +1136,12 @@ fn shadow_in(s: &Value) -> Result<Value, DfwError> {
     let color = if is_alias(color) {
         color.cloned()
     } else {
-        parse_color(&jv::text(color)).or_else(|| color.cloned())
+        parse_color(&js::to_string(color)).or_else(|| color.cloned())
     };
     let either = |a: &str, b: &str| js::present(s.get(a)).or(s.get(b));
     let inset =
-        jv::truthy(s.get("inset")) || s.get("type").and_then(Value::as_str) == Some("innerShadow");
-    Ok(jv::obj(vec![
+        js::truthy(s.get("inset")) || s.get("type").and_then(Value::as_str) == Some("innerShadow");
+    Ok(js::object(vec![
         ("color", color),
         ("offsetX", Some(d(either("offsetX", "x")))),
         ("offsetY", Some(d(either("offsetY", "y")))),
@@ -1334,8 +1224,8 @@ fn walk_set(tree: &Value, reserved: &mut Vec<String>) -> Flat {
         let Value::Object(map) = node else {
             return;
         };
-        let ty = jv::truthy_value(map.get("$type"))
-            .or_else(|| jv::truthy_value(map.get("type")))
+        let ty = js::truthy_value(map.get("$type"))
+            .or_else(|| js::truthy_value(map.get("type")))
             .or(ty);
         let legacy = map.contains_key("value") && map.contains_key("type") && !trail.is_empty();
         if map.contains_key("$value") || legacy {
@@ -1508,7 +1398,7 @@ pub fn parse_penpot_json(doc: Value, fallback_name: &str) -> Result<PenpotFile, 
         return Ok(single(Value::Object(map)));
     }
     let or =
-        |key: &str, fallback: Value| jv::truthy_value(map.get(key)).cloned().unwrap_or(fallback);
+        |key: &str, fallback: Value| js::truthy_value(map.get(key)).cloned().unwrap_or(fallback);
     let (themes, metadata) = (or("$themes", json!([])), or("$metadata", json!({})));
     let sets = js::entries(&map)
         .into_iter()
@@ -1551,7 +1441,7 @@ impl SetMap {
 /// `mapSets`: `base` feeds tokens.json, `themes/<n>` (or `theme/<n>`) feeds a theme, the rest
 /// is skipped.
 pub fn map_sets(parsed: &PenpotFile) -> Result<SetMap, DfwError> {
-    let listed: Vec<String> = match jv::truthy_value(parsed.metadata.get("tokenSetOrder")) {
+    let listed: Vec<String> = match js::truthy_value(parsed.metadata.get("tokenSetOrder")) {
         None => Vec::new(),
         Some(Value::Array(items)) => items
             .iter()
@@ -1617,7 +1507,7 @@ fn inherited_type_at<'a>(tree: &'a Value, parts: &[&str]) -> Option<&'a Value> {
         let Some(n) = node.filter(|n| n.is_object() || n.is_array()) else {
             return ty;
         };
-        if let Some(t) = jv::truthy_value(n.get("$type")) {
+        if let Some(t) = js::truthy_value(n.get("$type")) {
             ty = Some(t);
         }
         node = n.get(*part);
@@ -1678,7 +1568,7 @@ fn set_token(
         .cloned()
         .unwrap_or_default();
     match ty {
-        Some(ty) if !jv::strict_eq(Some(ty), inherited.as_ref()) => {
+        Some(ty) if !js::strict_eq(Some(ty), inherited.as_ref()) => {
             next.insert("$type".into(), ty.clone());
         }
         _ => {
@@ -1686,7 +1576,7 @@ fn set_token(
         }
     }
     next.insert("$value".into(), value.clone());
-    match jv::truthy_value(description) {
+    match js::truthy_value(description) {
         Some(d) => {
             next.insert("$description".into(), d.clone());
         }
@@ -1771,7 +1661,7 @@ pub struct Merged {
 
 /// `(a || undefined) === (b || undefined)` for two descriptions.
 fn same_description(a: Option<&Value>, b: Option<&Value>) -> bool {
-    jv::strict_eq(jv::truthy_value(a), jv::truthy_value(b))
+    js::strict_eq(js::truthy_value(a), js::truthy_value(b))
 }
 
 /// `mergeSet`: merge one Penpot set into a dfw tree. A token whose Penpot value equals what dfw
@@ -1783,7 +1673,7 @@ pub fn merge_set(
     prune: bool,
 ) -> Result<Merged, DfwError> {
     let empty = json!({});
-    let current = jv::truthy_value(current).unwrap_or(&empty);
+    let current = js::truthy_value(current).unwrap_or(&empty);
     let mut tree = current.clone();
     let cur = flatten_tokens(current);
     let mut reserved = Vec::new();
@@ -1812,7 +1702,7 @@ pub fn merge_set(
                     &c.value,
                     pt.description.as_ref(),
                 );
-                diff.changed.push(jv::obj(vec![
+                diff.changed.push(js::object(vec![
                     ("token", Some(name.into())),
                     ("type", c.ty.clone()),
                     ("from", Some(c.value.clone())),
@@ -1836,7 +1726,7 @@ pub fn merge_set(
                 description,
             } => (ty, value, description),
             Converted::Unsupported(reason) => {
-                unsupported.push(jv::obj(vec![
+                unsupported.push(js::object(vec![
                     ("set", Some(set.into())),
                     ("token", Some(name.into())),
                     ("type", pt.ty.clone()),
@@ -1847,7 +1737,7 @@ pub fn merge_set(
         };
         if let Some(c) = c {
             if same(&c.value, &value)
-                && jv::strict_eq(c.ty.as_ref(), Some(&ty))
+                && js::strict_eq(c.ty.as_ref(), Some(&ty))
                 && same_description(c.description.as_ref(), description.as_ref())
             {
                 continue;
@@ -1872,7 +1762,7 @@ pub fn merge_set(
             continue;
         }
         let entry = |with_value: bool| {
-            jv::obj(vec![
+            js::object(vec![
                 ("token", Some(name.into())),
                 ("type", c.ty.clone()),
                 ("value", with_value.then(|| c.value.clone())),
@@ -1999,10 +1889,10 @@ pub fn import_penpot_tokens(
     prune: bool,
 ) -> Result<TokenImport, DfwError> {
     let design = state.and_then(|s| s.get("design"));
-    if !dry_run && jv::truthy(design.and_then(|d| d.get("locked"))) {
+    if !dry_run && js::truthy(design.and_then(|d| d.get("locked"))) {
         return Err(DfwError::new(format!(
             "Design v{} is approved and frozen (G2): token changes from Penpot are not applied. Show them with --dry-run, and if the user wants them, run \"dfw reopen --reason <why>\" first.",
-            jv::text(design.and_then(|d| d.get("version")))
+            js::to_string(design.and_then(|d| d.get("version")))
         )));
     }
     if !dry_run && state.and_then(|s| s.get("mode")).and_then(Value::as_str) == Some("review-only")
@@ -2056,7 +1946,7 @@ pub fn import_penpot_tokens(
         result.unsupported.extend(merged.unsupported);
         result.warnings.extend(merged.warnings);
     }
-    result.diff = jv::js_key_order(std::mem::take(&mut result.diff));
+    result.diff = js::key_order_pairs(std::mem::take(&mut result.diff));
     if !dry_run {
         for (file, tree) in &writes {
             write_json(file, tree)?;
@@ -2069,27 +1959,35 @@ pub fn import_penpot_tokens(
 /// `shortValue`: a token value on one line of at most 60 characters.
 pub fn short_value(v: Option<&Value>) -> String {
     let object = v.and_then(Value::as_object);
-    let hex = object.and_then(|m| jv::truthy_value(m.get("hex")).filter(|_| m.len() <= 4));
+    let hex = object.and_then(|m| js::truthy_value(m.get("hex")).filter(|_| m.len() <= 4));
     let s = match (v, object, hex) {
         (Some(Value::String(s)), _, _) => s.clone(),
         (_, Some(m), Some(hex)) => match m.get("alpha") {
-            Some(alpha) => format!("{}/{}", jv::text(Some(hex)), jv::text(Some(alpha))),
-            None => jv::text(Some(hex)),
+            Some(alpha) => format!(
+                "{}/{}",
+                js::to_string(Some(hex)),
+                js::to_string(Some(alpha))
+            ),
+            None => js::to_string(Some(hex)),
         },
         (_, Some(m), None) if m.contains_key("unit") => {
-            format!("{}{}", jv::text(m.get("value")), jv::text(m.get("unit")))
+            format!(
+                "{}{}",
+                js::to_string(m.get("value")),
+                js::to_string(m.get("unit"))
+            )
         }
-        _ => jv::stringify(v),
+        _ => js::stringify(v),
     };
-    if jv::len16(&s) > 60 {
-        format!("{}...", jv::slice16(&s, 0, 57))
+    if js::len16(&s) > 60 {
+        format!("{}...", js::slice16(&s, 0, 57))
     } else {
         s
     }
 }
 
 fn field(v: &Value, key: &str) -> String {
-    jv::text(v.get(key))
+    js::to_string(v.get(key))
 }
 
 /// `formatImport`: the summary the CLI prints.
@@ -2117,7 +2015,7 @@ pub fn format_import(r: &TokenImport, dry_run: bool) -> String {
         };
         lines.push(format!("{set}: {counts}{kept}"));
         for c in &d.changed {
-            lines.push(if jv::truthy(c.get("descriptionOnly")) {
+            lines.push(if js::truthy(c.get("descriptionOnly")) {
                 format!(
                     "  ~ {}: description changed (value kept)",
                     field(c, "token")

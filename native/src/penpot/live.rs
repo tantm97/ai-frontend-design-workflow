@@ -16,11 +16,12 @@ use serde_json::{json, Value};
 use super::diff::list;
 use super::export::{penpot_dir, CHANGES_SCHEMA};
 use super::import::{import_changes, ImportOptions};
-use super::tokens::jv;
+
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::project_paths;
 use crate::core::util::{list_files, read_json, write_json};
-use crate::design::tokens::js;
+
 use crate::review::comments::{all_comments, update_comment, Update};
 
 /// `.dfw/penpot/threads.json`.
@@ -30,8 +31,8 @@ pub(super) fn threads_file(root: &Path) -> PathBuf {
 
 /// The key of a thread: the Penpot file's id and the thread's number in it.
 pub(super) fn thread_key(file_id: Option<&Value>, seq: Option<&Value>) -> String {
-    let file_id = jv::truthy_value(file_id).map_or(String::new(), |f| jv::text(Some(f)));
-    format!("{file_id}#{}", jv::text(seq))
+    let file_id = js::truthy_value(file_id).map_or(String::new(), |f| js::to_string(Some(f)));
+    format!("{file_id}#{}", js::to_string(seq))
 }
 
 /// `continueThread`: a linked thread changed in Penpot. New designer messages are added to the
@@ -50,7 +51,7 @@ pub(super) fn continue_thread(
     let comments = all_comments(root)?;
     let Some(cur) = comments
         .iter()
-        .find(|c| jv::strict_eq(c.get("id"), link.get("comment")))
+        .find(|c| js::strict_eq(c.get("id"), link.get("comment")))
     else {
         // The dfw comment is gone: the thread is imported as new next time.
         if let Value::Object(links) = threads {
@@ -59,7 +60,7 @@ pub(super) fn continue_thread(
         return Ok(());
     };
     let messages = list(c0.get("messages"));
-    let seen = jv::truthy_value(link.get("seen")).map_or(0.0, |s| jv::num(Some(s)));
+    let seen = js::truthy_value(link.get("seen")).map_or(0.0, |s| js::to_number(Some(s)));
     let from = if seen.is_nan() {
         0
     } else if seen < 0.0 {
@@ -76,8 +77,8 @@ pub(super) fn continue_thread(
     let status = cur.get("status").and_then(Value::as_str);
     let done = matches!(status, Some("fixed" | "resolved" | "dismissed"));
     let (thread_resolved, link_resolved) = (
-        jv::truthy(c0.get("resolved")),
-        jv::truthy(link.get("resolved")),
+        js::truthy(c0.get("resolved")),
+        js::truthy(link.get("resolved")),
     );
     let or = |fallback: &str| {
         if text.is_empty() {
@@ -111,14 +112,14 @@ pub(super) fn continue_thread(
             evidence: None,
         };
         match update_comment(root, id, &update) {
-            Ok(c) => updated.push(jv::obj(vec![
+            Ok(c) => updated.push(js::object(vec![
                 ("id", c.get("id").cloned()),
                 ("status", c.get("status").cloned()),
             ])),
             Err(err) => warnings.push(format!(
                 "Thread #{} ({}): {}",
-                jv::text(c0.get("thread")),
-                jv::text(cur.get("id")),
+                js::to_string(c0.get("thread")),
+                js::to_string(cur.get("id")),
                 err.message()
             )),
         }
@@ -146,36 +147,36 @@ pub fn thread_replies(root: &Path, file_id: &str) -> Result<Vec<Value>, DfwError
         let Some(c) = comments
             .iter()
             .rev()
-            .find(|c| jv::strict_eq(c.get("id"), link.get("comment")))
+            .find(|c| js::strict_eq(c.get("id"), link.get("comment")))
         else {
             continue;
         };
-        let posted = list(jv::truthy_value(link.get("posted")));
+        let posted = list(js::truthy_value(link.get("posted")));
         let seq = js::num(js::str_to_number(number));
-        let id = jv::text(c.get("id"));
+        let id = js::to_string(c.get("id"));
         let mut events: Vec<(String, String)> = Vec::new();
         if c.get("status").and_then(Value::as_str) == Some("acknowledged") {
             events.push((
-                format!("ack:{}", jv::text(c.get("updatedAt"))),
+                format!("ack:{}", js::to_string(c.get("updatedAt"))),
                 format!("[dfw] {id} seen, working on it."),
             ));
         }
-        for e in list(jv::truthy_value(c.get("thread"))) {
-            let message = jv::truthy_value(e.get("message"));
+        for e in list(js::truthy_value(c.get("thread"))) {
+            let message = js::truthy_value(e.get("message"));
             let (Some(message), false) =
                 (message, e.get("by").and_then(Value::as_str) == Some("user"))
             else {
                 continue;
             };
-            let message = jv::text(Some(message));
+            let message = js::to_string(Some(message));
             let text = match e.get("status").and_then(Value::as_str) {
                 Some("fixed") => format!("[dfw] {id} fixed: {message}\nUpdate the boards to see it. Resolve this thread to accept, or reply here to reopen."),
                 Some("dismissed") => format!("[dfw] {id} dismissed: {message}\nReply here to reopen."),
                 _ => format!("[dfw] {id}: {message}"),
             };
-            let status = jv::truthy_value(e.get("status"))
-                .map_or("reply".to_string(), |s| jv::text(Some(s)));
-            events.push((format!("{status}:{}", jv::text(e.get("at"))), text));
+            let status = js::truthy_value(e.get("status"))
+                .map_or("reply".to_string(), |s| js::to_string(Some(s)));
+            events.push((format!("{status}:{}", js::to_string(e.get("at"))), text));
         }
         for (key, text) in events {
             if !posted.iter().any(|p| p.as_str() == Some(&key)) {
@@ -196,14 +197,14 @@ pub fn mark_posted(root: &Path, file_id: &str, posted: Option<&Value>) -> Result
     let mut changed = false;
     for p in posted {
         let tk = thread_key(Some(&file_id.into()), p.get("seq"));
-        let Some(link) = threads.get_mut(&tk).filter(|l| jv::truthy(Some(l))) else {
+        let Some(link) = threads.get_mut(&tk).filter(|l| js::truthy(Some(l))) else {
             continue;
         };
         let (Some(key), Value::Object(link)) = (p.get("key").and_then(Value::as_str), link) else {
             continue;
         };
         let slot = link.entry("posted").or_insert(Value::Null);
-        if !jv::truthy(Some(slot)) {
+        if !js::truthy(&*slot) {
             *slot = json!([]);
         }
         let Value::Array(list) = slot else {
@@ -290,7 +291,7 @@ fn parse_iso_ms(text: &str) -> Option<f64> {
 /// Penpot boards are behind).
 pub fn export_stale(root: &Path) -> Result<bool, DfwError> {
     let doc = read_json(&penpot_dir(root).join("export.json"), Some(Value::Null))?;
-    let generated_at = jv::truthy_value(doc.get("generatedAt")).and_then(Value::as_str);
+    let generated_at = js::truthy_value(doc.get("generatedAt")).and_then(Value::as_str);
     let Some(at) = generated_at.and_then(parse_iso_ms).filter(|at| *at != 0.0) else {
         return Ok(false);
     };
@@ -322,14 +323,14 @@ pub fn sync_threads(
     let file_id = payload
         .get("fileId")
         .and_then(Value::as_str)
-        .map_or(String::new(), |id| jv::slice16(id, 0, 80));
+        .map_or(String::new(), |id| js::slice16(id, 0, 80));
     mark_posted(root, &file_id, payload.get("posted"))?;
     let threads: Vec<Value> = list(payload.get("threads"))
         .iter()
         .take(500)
         .cloned()
         .collect();
-    let mut changes = jv::obj(vec![
+    let mut changes = js::object(vec![
         ("schema", Some(CHANGES_SCHEMA.into())),
         ("exportId", payload.get("exportId").cloned()),
         ("fileId", Some(file_id.as_str().into())),

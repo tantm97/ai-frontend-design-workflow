@@ -19,10 +19,11 @@ use serde_json::{json, Value};
 
 use crate::core::config::load_config;
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::{find_project_root, plugin_root, resolve};
 use crate::core::util::{plugin_manifest, to_json_compact};
 use crate::workflow::gates::decide_write;
-use crate::workflow::state::{js_str, js_trim, load_state, truthy};
+use crate::workflow::state::load_state;
 
 /// Rendered into `mcp/` at build time (host.mjs "mcp").
 const SKILL_DIR_MARK: &str = "__DFW_SKILL_DIR__";
@@ -89,10 +90,10 @@ fn topics() -> Vec<String> {
 /// `guide(topic)`: the main guide, or one topic file. The path must stay inside the guide folder.
 fn guide(topic: Option<&Value>) -> Result<String, ToolError> {
     // The parameter default applies to `undefined` only: a null topic prints as "null".
-    let shown = topic.map_or(String::new(), |t| js_str(Some(t)));
+    let shown = topic.map_or(String::new(), |t| js::to_string(Some(t)));
     let unknown = || format!("Unknown topic \"{shown}\". Topics: {}", topics().join(", "));
     let dir = guide_dir().ok_or_else(unknown)?;
-    let rel = if truthy(topic).is_some() {
+    let rel = if js::truthy_value(topic).is_some() {
         shown.trim_start_matches('/')
     } else {
         "SKILL.md"
@@ -109,7 +110,7 @@ fn guide(topic: Option<&Value>) -> Result<String, ToolError> {
 /// A `cwd` argument: the path given, else this process's working directory. Node passes a
 /// truthy value that is not a string on and fails with a `TypeError`; the wording is its own.
 fn base_dir(cwd: Option<&Value>, what: &str) -> Result<PathBuf, ToolError> {
-    match truthy(cwd) {
+    match js::truthy_value(cwd) {
         None => Ok(env::current_dir().unwrap_or_default()),
         Some(Value::String(dir)) => Ok(PathBuf::from(dir)),
         Some(_) => Err(format!("The \"{what}\" argument must be of type string.")),
@@ -201,7 +202,7 @@ fn run_dfw(args: Option<&Value>, cwd: Option<&Value>) -> Result<ToolResult, Tool
     let code = status.and_then(|s| s.code());
     let all = output.lock().map(|all| all.clone()).unwrap_or_default();
     let printed = String::from_utf8_lossy(&all);
-    let text = match js_trim(&printed) {
+    let text = match js::trim(&printed) {
         "" => format!(
             "(exit {})",
             code.map_or("null".to_string(), |c| c.to_string())
@@ -316,11 +317,11 @@ fn param<'a>(params: Option<&'a Value>, key: &str) -> Result<Option<&'a Value>, 
 fn handle(method: Option<&Value>, params: Option<&Value>) -> Result<Value, RpcError> {
     match method.and_then(Value::as_str) {
         Some("initialize") => {
-            let protocol = truthy(param(params, "protocolVersion")?)
+            let protocol = js::truthy_value(param(params, "protocolVersion")?)
                 .cloned()
                 .unwrap_or_else(|| json!("2025-06-18"));
             let manifest = plugin_manifest(None).unwrap_or(Value::Null);
-            let version = truthy(manifest.get("version"))
+            let version = js::truthy_value(manifest.get("version"))
                 .cloned()
                 .unwrap_or_else(|| json!("0.0.0"));
             Ok(json!({
@@ -333,7 +334,7 @@ fn handle(method: Option<&Value>, params: Option<&Value>) -> Result<Value, RpcEr
         Some("ping") => Ok(json!({})),
         Some("tools/list") => Ok(json!({ "tools": tools() })),
         Some("tools/call") => {
-            let a = truthy(param(params, "arguments")?);
+            let a = js::truthy_value(param(params, "arguments")?);
             let arg = |key: &str| a.and_then(|a| a.get(key));
             let name = param(params, "name")?;
             let result = match name.and_then(Value::as_str) {
@@ -346,7 +347,7 @@ fn handle(method: Option<&Value>, params: Option<&Value>) -> Result<Value, RpcEr
                 _ => {
                     return Err(RpcError::invalid_params(format!(
                         "Unknown tool {}",
-                        js_str(name)
+                        js::to_string(name)
                     )))
                 }
             };
@@ -364,7 +365,7 @@ fn handle(method: Option<&Value>, params: Option<&Value>) -> Result<Value, RpcEr
             if name.and_then(Value::as_str) != Some("dfw") {
                 return Err(RpcError::invalid_params(format!(
                     "Unknown prompt {}",
-                    js_str(name)
+                    js::to_string(name)
                 )));
             }
             let text = guide(None).map_err(|message| RpcError {
@@ -377,14 +378,14 @@ fn handle(method: Option<&Value>, params: Option<&Value>) -> Result<Value, RpcEr
         }
         _ => Err(RpcError {
             code: -32601,
-            message: format!("Method not found: {}", js_str(method)),
+            message: format!("Method not found: {}", js::to_string(method)),
         }),
     }
 }
 
 /// The reply to one input line, or `None` when it needs none (blank line, notification).
 fn reply_to(line: &str) -> Option<Value> {
-    let line = js_trim(line);
+    let line = js::trim(line);
     if line.is_empty() {
         return None;
     }

@@ -9,10 +9,11 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{json, Value};
 
-use super::html::{is_js_space, Quote, Tag, Token, Tokenizer};
+use super::html::{Quote, Tag, Token, Tokenizer};
 use super::icons::plugin_dir;
-use super::tokens::{dir_names, js, relative_path};
+use super::tokens::{dir_names, relative_path};
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::project_paths;
 use crate::core::util::write_json;
 
@@ -98,7 +99,7 @@ fn norm(text: &str) -> String {
     }
     plain.push_str(rest);
     plain
-        .split(is_js_space)
+        .split(js::is_space)
         .filter(|w| !w.is_empty())
         .collect::<Vec<_>>()
         .join(" ")

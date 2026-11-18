@@ -5,9 +5,8 @@
 //! `x * x * x`; `Math.hypot` is V8's scaled sum) to round the same way.
 // Over 800 lines with its tests: one Node module, kept whole so the two read side by side.
 
+use crate::core::js;
 use serde_json::{json, Map, Value};
-
-use super::tokens::js;
 
 // ------------------------------------------------------------------ conversions
 
@@ -29,7 +28,7 @@ fn to_gam(v: f64) -> f64 {
 
 /// `parseInt(text, 16)`: the longest hexadecimal prefix, `NaN` when there is none.
 fn parse_int_hex(text: &str) -> f64 {
-    let t = text.trim_start_matches(super::html::is_js_space);
+    let t = text.trim_start_matches(crate::core::js::is_space);
     let (sign, t) = match t.strip_prefix('-') {
         Some(rest) => (-1.0, rest),
         None => (1.0, t.strip_prefix('+').unwrap_or(t)),

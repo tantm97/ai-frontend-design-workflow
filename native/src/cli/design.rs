@@ -13,6 +13,7 @@ use serde_json::{json, Map, Value};
 use super::{forward, Ctx, Handler};
 use crate::core::config::env_map;
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::{project_paths, resolve};
 use crate::core::util::{out, to_json_compact, to_json_pretty, write_json, ArgValue, Args};
 use crate::design::color::{self, Names, Oklch, Ramp, Seeds, Signature};
@@ -32,7 +33,7 @@ use crate::design::style::{
 use crate::design::system::{
     list_presets, system_choose, system_init, system_options, system_summary, InitOptions,
 };
-use crate::design::tokens::{build_tokens, dir_names, js, relative_path};
+use crate::design::tokens::{build_tokens, dir_names, relative_path};
 use crate::tools::check::engine::{check_config, impeccable_engine};
 use crate::tools::check::{
     check_exit_code, format_report, launch, run_checks, setup_engine, CheckOptions,

@@ -13,8 +13,9 @@ use std::path::{Path, PathBuf};
 use serde_json::{json, Map, Value};
 
 use super::{forward, Ctx, Handler};
-use crate::core::config::{get_config_value, js_truthy, load_config, set_config_value, Scope};
+use crate::core::config::{get_config_value, load_config, set_config_value, Scope};
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::{plugin_root, project_paths};
 use crate::core::util::{
     now_iso, out, parse_value, read_json, to_json_compact, to_json_pretty, write_json, ArgValue,
@@ -32,9 +33,8 @@ use crate::workflow::freeze::{freeze_design, reopen_design, verify_snapshot};
 use crate::workflow::lang::{language_status, set_language};
 use crate::workflow::stack::detect_stack;
 use crate::workflow::state::{
-    approve_gate, arg_raw, arg_truthy, current_approval, gate_title, js_str, js_to_number,
-    load_state, mode_info, new_state, object, push_history, save_state, set_field, set_mode,
-    set_phase, summarize, truthy, type_error,
+    approve_gate, arg_raw, arg_truthy, current_approval, gate_title, load_state, mode_info,
+    new_state, push_history, save_state, set_field, set_mode, set_phase, summarize, type_error,
 };
 
 /// The commands of this group.
@@ -85,10 +85,10 @@ fn init(ctx: &Ctx) -> Result<i32, DfwError> {
             p.state.display()
         )));
     }
-    let mode = arg_truthy(a, "mode").map_or("new-product".to_string(), |m| js_str(Some(&m)));
+    let mode = arg_truthy(a, "mode").map_or("new-product".to_string(), |m| js::to_string(Some(&m)));
     let product = arg_truthy(a, "product").unwrap_or_else(|| "".into());
     let mut state = new_state(&mode, product)?;
-    let mode = js_str(state.get("mode"));
+    let mode = js::to_string(state.get("mode"));
     if mode_info(&mode).is_some_and(|m| m.requires_approved_design) {
         return Err(DfwError::new(format!("Mode \"{mode}\" needs an existing approved design; initialize with another mode first.")));
     }
@@ -172,7 +172,7 @@ fn status(ctx: &Ctx) -> Result<i32, DfwError> {
     let as_json = a.truthy("json");
     let designing_system = state.as_ref().is_some_and(|s| {
         s.get("phase").and_then(Value::as_str) == Some("system")
-            && truthy(s.get("gates").and_then(|g| g.get("DS"))).is_none()
+            && js::truthy_value(s.get("gates").and_then(|g| g.get("DS"))).is_none()
     });
     if !as_json && designing_system {
         // The next step depends on how many component masters exist (design group).
@@ -198,7 +198,7 @@ fn status(ctx: &Ctx) -> Result<i32, DfwError> {
         count(&["resolved"]),
     );
     let studio = read_json(&p.studio, Some(Value::Null))?;
-    let studio = if js_truthy(&studio) {
+    let studio = if js::truthy(&studio) {
         match is_alive(studio.get("pid").unwrap_or(&Value::Null)) {
             Some(true) => studio,
             Some(false) => Value::Null,
@@ -225,7 +225,7 @@ fn status(ctx: &Ctx) -> Result<i32, DfwError> {
     let mut lines = vec![summarize(state.as_ref())?];
     if let Some(state) = &state {
         let gates = state.get("gates").ok_or_else(|| type_error("G3"))?;
-        let gate = |g: &str| truthy(gates.get(g)).is_some();
+        let gate = |g: &str| js::truthy_value(gates.get(g)).is_some();
         lines.push(format!(
             "comments: {active} active, {fixed} awaiting user verification, {resolved} resolved"
         ));
@@ -234,16 +234,16 @@ fn status(ctx: &Ctx) -> Result<i32, DfwError> {
             if studio.is_null() {
                 "not running".to_string()
             } else {
-                js_str(studio.get("url"))
+                js::to_string(studio.get("url"))
             }
         ));
         lines.push(format!(
             "stack: {}",
-            if js_truthy(&stack) {
-                let name = truthy(stack.get("framework").and_then(|f| f.get("name")));
+            if js::truthy(&stack) {
+                let name = js::truthy_value(stack.get("framework").and_then(|f| f.get("name")));
                 format!(
                     "{}{}",
-                    name.map_or("?".to_string(), |n| js_str(Some(n))),
+                    name.map_or("?".to_string(), |n| js::to_string(Some(n))),
                     if gate("G3") {
                         " (approved)"
                     } else {
@@ -392,7 +392,7 @@ fn approve(ctx: &Ctx) -> Result<i32, DfwError> {
         if file.exists() && !stack.is_object() {
             return Err(DfwError::new("G3 needs a stack proposal: .dfw/stack.json must hold a JSON object (run: dfw stack set ... or dfw stack detect --write)."));
         }
-        if js_truthy(&stack) {
+        if js::truthy(&stack) {
             if let Value::Object(map) = &mut stack {
                 map.insert("status".into(), "approved".into());
                 map.insert("approvedAt".into(), now_iso().into());
@@ -425,7 +425,7 @@ fn pause_resume(ctx: &Ctx) -> Result<i32, DfwError> {
     set_field(&mut state, "active", Some(resume.into()))?;
     push_history(
         &mut state,
-        object(vec![
+        js::object(vec![
             ("at", Some(now_iso().into())),
             ("event", Some(cmd.into())),
             ("reason", arg_raw(&ctx.args, "reason")),
@@ -449,7 +449,7 @@ fn decide_cmd(ctx: &Ctx) -> Result<i32, DfwError> {
     // `Number(a.level)`: the flag alone is `true`, which is 1.
     let level = match a.get("level") {
         Some(ArgValue::Flag) => 1.0,
-        Some(ArgValue::Text(text)) => js_to_number(text),
+        Some(ArgValue::Text(text)) => js::str_to_number(text),
         None => f64::NAN,
     };
     let words = a.positionals.get(1..).unwrap_or_default().join(" ");
@@ -535,8 +535,9 @@ fn lang(ctx: &Ctx) -> Result<i32, DfwError> {
 fn verify_snapshot_cmd(ctx: &Ctx) -> Result<i32, DfwError> {
     let root = ctx.root();
     let state = require_state(&root)?;
-    let version_of =
-        |v: Option<&Value>| truthy(v.and_then(|v| v.get("version"))).map(|v| js_str(Some(v)));
+    let version_of = |v: Option<&Value>| {
+        js::truthy_value(v.and_then(|v| v.get("version"))).map(|v| js::to_string(Some(v)))
+    };
     let named = ctx
         .args
         .pos(1)

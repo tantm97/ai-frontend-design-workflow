@@ -6,8 +6,9 @@ use std::path::Path;
 use serde_json::Value;
 
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::project_paths;
-use crate::design::tokens::{css_var_name, js};
+use crate::design::tokens::css_var_name;
 
 /// `WIDTH_PERCENTS`: the widths a resize may snap to.
 pub const WIDTH_PERCENTS: [&str; 6] = ["25%", "33.333%", "50%", "66.667%", "75%", "100%"];
@@ -206,7 +207,7 @@ pub fn layout_value(
         return Ok(None);
     }
     if prop == "grid-column" {
-        let span = super::js_regex(r"^(?:span\s+)?(\d+)$")?;
+        let span = crate::core::js::regex::with_js_classes(r"^(?:span\s+)?(\d+)$")?;
         let n = span
             .captures(v)
             .map(|m| js::str_to_number(&m[1]))

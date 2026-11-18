@@ -10,14 +10,16 @@ use serde_json::{json, Map, Value};
 
 use super::pages::{screen_flows, studio_pages};
 use crate::browser::screenshot::{screenshot, Job, CONCURRENCY};
-use crate::core::config::{js_spread, js_truthy};
+use crate::core::js;
+
 use crate::core::error::DfwError;
+use crate::core::js::regex::with_js_classes;
 use crate::core::paths::{project_paths, resolve_inside, to_posix};
 use crate::core::util::{get_path, list_files, read_json};
 use crate::design::compose::{compose_html, escape_html, load_components, ComposeOptions};
-use crate::design::edit::{js_regex, load_token_names};
+use crate::design::edit::load_token_names;
 use crate::design::system_page::render_system_page;
-use crate::design::tokens::{js, relative_path};
+use crate::design::tokens::relative_path;
 
 /// URL prefix under which `design/` is served.
 pub const DESIGN_BASE: &str = "/design/";
@@ -89,12 +91,12 @@ pub fn manifest(root: &Path, config: &Value) -> Result<Value, DfwError> {
     }
     base.insert("themes".into(), json!([]));
     base.insert("states".into(), json!([]));
-    if js_truthy(&m) {
+    if js::truthy(&m) {
         let mut out = base.clone();
-        for (k, v) in js_spread(Some(&m)) {
+        for (k, v) in js::spread(Some(&m)) {
             out.insert(k, v);
         }
-        match m.get("breakpoints").filter(|b| js_truthy(b)) {
+        match m.get("breakpoints").filter(|b| js::truthy(b)) {
             Some(b) => {
                 out.insert("breakpoints".into(), b.clone());
             }
@@ -202,7 +204,10 @@ pub fn token_list(root: &Path) -> Result<Value, DfwError> {
                 }
             }
         } else {
-            let ty = t.ty.clone().filter(js_truthy).unwrap_or(Value::Null);
+            let ty =
+                t.ty.clone()
+                    .filter(|v| js::truthy(v))
+                    .unwrap_or(Value::Null);
             out.push(json!({ "name": t.name, "var": var, "type": ty }));
         }
     }
@@ -212,7 +217,7 @@ pub fn token_list(root: &Path) -> Result<Value, DfwError> {
     let css = project_paths(root).tokens.join("tokens.css");
     if css.exists() {
         let text = js::read_text(&css)?;
-        let decl = js_regex(r"(--[\w-]+)\s*:")?;
+        let decl = with_js_classes(r"(--[\w-]+)\s*:")?;
         for c in decl.captures_iter(&text) {
             let Some(name) = c.get(1).map(|m| m.as_str()) else {
                 continue;
@@ -365,7 +370,7 @@ pub fn shoot_frames(root: &Path, port: u16, body: &Value) -> Result<Value, DfwEr
         .cloned()
         .unwrap_or_default();
     // `fullPage = true` as a default parameter: only a missing value becomes true.
-    let full_page = body.get("fullPage").is_none_or(js_truthy);
+    let full_page = body.get("fullPage").is_none_or(js::truthy);
     let list: Vec<&Value> = frames
         .iter()
         .filter(|f| {
@@ -389,7 +394,7 @@ pub fn shoot_frames(root: &Path, port: u16, body: &Value) -> Result<Value, DfwEr
         .map(|f| {
             let name = js::to_string(
                 f.get("name")
-                    .filter(|n| js_truthy(n))
+                    .filter(|n| js::truthy(n))
                     .or(Some(&json!("frame"))),
             );
             Job {

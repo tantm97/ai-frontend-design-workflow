@@ -9,11 +9,12 @@ use serde_json::{json, Value};
 
 use crate::core::config::load_config;
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::{plugin_root, project_paths};
 use crate::core::util::{get_path, list_files, read_json};
 use crate::review::comments::all_comments;
 use crate::workflow::gates::relative;
-use crate::workflow::state::{current_approval, js_str, load_state, truthy, type_error};
+use crate::workflow::state::{current_approval, load_state, type_error};
 
 /// `text.replaceAll(needle, replacement)` with a string pattern: `$$`, `$&`, `` $` `` and `$'`
 /// in the replacement mean what JavaScript says, so a product name or a comment with a dollar
@@ -51,7 +52,7 @@ fn js_replace_all(text: &str, needle: &str, replacement: &str) -> String {
 
 /// `(value || []).map(...)`: the items of a list that may be missing.
 fn items<'a>(value: Option<&'a Value>, what: &str) -> Result<&'a [Value], DfwError> {
-    match truthy(value) {
+    match js::truthy_value(value) {
         None => Ok(&[]),
         Some(Value::Array(list)) => Ok(list),
         Some(_) => Err(DfwError::internal(format!(
@@ -64,17 +65,19 @@ fn items<'a>(value: Option<&'a Value>, what: &str) -> Result<&'a [Value], DfwErr
 fn names(value: Option<&Value>, what: &str) -> Result<String, DfwError> {
     let parts: Vec<String> = items(value, what)?
         .iter()
-        .map(|item| match truthy(item.get("name")).unwrap_or(item) {
-            Value::Null => String::new(),
-            other => js_str(Some(other)),
-        })
+        .map(
+            |item| match js::truthy_value(item.get("name")).unwrap_or(item) {
+                Value::Null => String::new(),
+                other => js::to_string(Some(other)),
+            },
+        )
         .collect();
     Ok(parts.join(", "))
 }
 
 /// `value || fallback` in a template literal.
 fn text_or(value: Option<&Value>, fallback: &str) -> String {
-    truthy(value).map_or_else(|| fallback.to_string(), |v| js_str(Some(v)))
+    js::truthy_value(value).map_or_else(|| fallback.to_string(), |v| js::to_string(Some(v)))
 }
 
 /// `lines.join('\n') || fallback`.
@@ -101,15 +104,15 @@ fn screen_rows(m: &Value, version: &str) -> Result<Vec<String>, DfwError> {
             .or_else(|| {
                 variants
                     .iter()
-                    .find(|v| truthy(v.get("recommended")).is_some())
+                    .find(|v| js::truthy_value(v.get("recommended")).is_some())
             })
             .or_else(|| variants.first());
         screens.push(format!(
             "| `{}` | {} | `{}` (`design/approved/{version}/{}`) | {} |",
-            js_str(s.get("id")),
+            js::to_string(s.get("id")),
             text_or(s.get("title"), ""),
-            js_str(chosen.and_then(|c| c.get("id"))),
-            js_str(chosen.and_then(|c| c.get("file"))),
+            js::to_string(chosen.and_then(|c| c.get("id"))),
+            js::to_string(chosen.and_then(|c| c.get("file"))),
             text_or(s.get("route"), "TBD"),
         ));
     }
@@ -118,7 +121,7 @@ fn screen_rows(m: &Value, version: &str) -> Result<Vec<String>, DfwError> {
 
 /// The stack in one line, and whether G3 approved it.
 fn stack_line(stack: &Value, state: &Value) -> Result<String, DfwError> {
-    if truthy(Some(stack)).is_none() {
+    if js::truthy_value(Some(stack)).is_none() {
         return Ok("NOT SET - gate G3 required".to_string());
     }
     let or = |text: String, fallback: &str| {
@@ -128,7 +131,7 @@ fn stack_line(stack: &Value, state: &Value) -> Result<String, DfwError> {
             text
         }
     };
-    let approved = truthy(state.get("gates").and_then(|g| g.get("G3"))).is_some();
+    let approved = js::truthy_value(state.get("gates").and_then(|g| g.get("G3"))).is_some();
     Ok(format!(
         "{}; styling: {}; UI libraries: {} ({})",
         text_or(stack.get("framework").and_then(|f| f.get("name")), "TBD"),
@@ -160,7 +163,7 @@ pub fn write_handoff(root: &Path) -> Result<String, DfwError> {
             "Handoff is generated from an approved design (G2).",
         ));
     };
-    let version = js_str(appr.get("version"));
+    let version = js::to_string(appr.get("version"));
     let dir = p.approved.join(&version);
     let m = read_json(&dir.join("design.json"), Some(json!({})))?;
     let stack = read_json(&p.stack, Some(Value::Null))?;
@@ -202,7 +205,7 @@ pub fn write_handoff(root: &Path) -> Result<String, DfwError> {
     let screens = screen_rows(&m, &version)?;
     let stack_text = stack_line(&stack, &state)?;
     let config;
-    let breakpoints = match truthy(m.get("breakpoints")) {
+    let breakpoints = match js::truthy_value(m.get("breakpoints")) {
         Some(own) => Some(own),
         None => {
             config = load_config(Some(root))?;
@@ -211,7 +214,13 @@ pub fn write_handoff(root: &Path) -> Result<String, DfwError> {
     };
     let breakpoints: Vec<String> = items(breakpoints, "m.breakpoints")?
         .iter()
-        .map(|b| format!("{} {}px", js_str(b.get("id")), js_str(b.get("width"))))
+        .map(|b| {
+            format!(
+                "{} {}px",
+                js::to_string(b.get("id")),
+                js::to_string(b.get("width"))
+            )
+        })
         .collect();
     let components = comps
         .iter()
@@ -227,19 +236,20 @@ pub fn write_handoff(root: &Path) -> Result<String, DfwError> {
         .map(|c| {
             format!(
                 "- {}: {} -> {}",
-                js_str(c.get("id")),
-                js_str(c.get("comment")),
+                js::to_string(c.get("id")),
+                js::to_string(c.get("comment")),
                 text_or(c.get("resolution").and_then(|r| r.get("note")), "")
             )
         })
         .collect();
-    let product = truthy(m.get("product")).or_else(|| truthy(state.get("product")));
+    let product =
+        js::truthy_value(m.get("product")).or_else(|| js::truthy_value(state.get("product")));
     let mut body = tpl;
     for (mark, value) in [
         ("{{version}}", version.clone()),
-        ("{{hash}}", js_str(appr.get("hash"))),
+        ("{{hash}}", js::to_string(appr.get("hash"))),
         ("{{product}}", text_or(product, "")),
-        ("{{approvedAt}}", js_str(appr.get("at"))),
+        ("{{approvedAt}}", js::to_string(appr.get("at"))),
         ("{{stack}}", stack_text),
         ("{{screens}}", or_text(screens, "| | | | |")),
         ("{{components}}", or_text(components, "- (none extracted)")),

@@ -13,8 +13,9 @@ use crate::browser::layout_check::{
 };
 use crate::browser::pixeldiff::{decode_rgba, diff_images, diff_pairs, format_line, THRESHOLD};
 use crate::browser::screenshot::{screenshot, Job, CONCURRENCY};
-use crate::core::config::{js_truthy, load_config, studio_breakpoints, Breakpoint};
+use crate::core::config::{load_config, studio_breakpoints, Breakpoint};
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::{project_paths, resolve};
 use crate::core::util::{out, read_json, sha256, to_json_pretty, ArgValue, Args};
 
@@ -164,7 +165,7 @@ fn query(theme: Option<&str>, state: Option<&str>) -> String {
 fn breakpoints(a: &Args, root: &Path) -> Result<Vec<Breakpoint>, DfwError> {
     let config = load_config(Some(root))?;
     let manifest = read_json(&project_paths(root).manifest, Some(json!({})))?;
-    let all = match manifest.get("breakpoints").filter(|b| js_truthy(b)) {
+    let all = match manifest.get("breakpoints").filter(|b| js::truthy(b)) {
         Some(list) => list
             .as_array()
             .into_iter()
@@ -246,13 +247,13 @@ fn text<'a>(v: &'a Value, key: &str) -> &'a str {
 fn studio_jobs(a: &Args, root: &Path, bps: &[Breakpoint]) -> Result<Vec<Job>, DfwError> {
     let p = project_paths(root);
     let info = read_json(&p.studio, Some(Value::Null))?;
-    if !js_truthy(&info) || !is_alive(info.get("pid")) {
+    if !js::truthy(&info) || !is_alive(info.get("pid")) {
         return Err(DfwError::new(
             "Start the studio first (dfw studio start) or pass --url.",
         ));
     }
     let m = read_json(&p.manifest, Some(Value::Null))?;
-    if !js_truthy(&m) {
+    if !js::truthy(&m) {
         return Err(DfwError::new("design/design.json not found."));
     }
     // TODO(merge): use workflow::state::load_state
@@ -331,7 +332,10 @@ fn studio_jobs(a: &Args, root: &Path, bps: &[Breakpoint]) -> Result<Vec<Job>, Df
             continue;
         }
         let states: Vec<Option<String>> = if a.truthy("states") {
-            let own = s.get("states").filter(|v| js_truthy(v)).or(m.get("states"));
+            let own = s
+                .get("states")
+                .filter(|v| js::truthy(v))
+                .or(m.get("states"));
             std::iter::once(None)
                 .chain(strings(own).into_iter().map(Some))
                 .collect()

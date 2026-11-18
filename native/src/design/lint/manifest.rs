@@ -6,9 +6,9 @@ use serde_json::Value;
 
 use super::{finding, is_private, item, list, malformed};
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::project_paths;
 use crate::core::util::read_json;
-use crate::design::tokens::js;
 
 /// `Set.prototype.has` for values read from JSON: text, numbers, booleans and null are equal
 /// by value, an object or an array only to itself (so never to another entry).

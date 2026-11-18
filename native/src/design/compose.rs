@@ -18,9 +18,10 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{json, Map, Value};
 
-use super::html::{element_at, is_js_space, line_of, parse_attrs, Attr, Tag, Token, Tokenizer};
-use super::tokens::{dir_names, js, relative_path};
+use super::html::{element_at, line_of, parse_attrs, Attr, Tag, Token, Tokenizer};
+use super::tokens::{dir_names, relative_path};
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::{project_paths, resolve, to_posix};
 
 /// Attributes of `<dfw-use>` that are not props and are not copied to the root element.
@@ -235,7 +236,7 @@ fn prop_list(text: Option<&str>) -> Vec<String> {
         if t.is_empty() {
             return vec![String::new()];
         }
-        t.split(is_js_space)
+        t.split(js::is_space)
             .filter(|p| !p.is_empty())
             .map(str::to_string)
             .collect()
@@ -324,7 +325,7 @@ pub fn parse_component_file(text: &str, rel: &str) -> Vec<ComponentDef> {
         let template = template.map(|t| {
             let mut t = js::trim(t);
             while let Some(len) = t.strip_prefix("<!--").and_then(|rest| rest.find("-->")) {
-                t = t[4 + len + 3..].trim_start_matches(is_js_space);
+                t = t[4 + len + 3..].trim_start_matches(js::is_space);
             }
             t.to_string()
         });
@@ -419,7 +420,7 @@ struct Cursor<'a> {
 impl<'a> Cursor<'a> {
     fn space(&mut self) {
         let rest = &self.text[self.pos..];
-        self.pos += rest.len() - rest.trim_start_matches(is_js_space).len();
+        self.pos += rest.len() - rest.trim_start_matches(js::is_space).len();
     }
 
     /// `[\w-]+`
@@ -471,7 +472,7 @@ fn replace_placeholders(text: &str, mut read: impl FnMut(&mut Cursor) -> Option<
 fn slot_shape(tag: &str) -> Option<(Option<&str>, bool)> {
     let mut rest = tag.strip_prefix("<dfw-slot")?;
     let mut name = None;
-    let unspaced = rest.trim_start_matches(is_js_space);
+    let unspaced = rest.trim_start_matches(js::is_space);
     if unspaced.len() < rest.len() {
         if let Some(after) = unspaced.strip_prefix("name=\"") {
             let end = after.find('"')?;
@@ -487,7 +488,7 @@ fn slot_shape(tag: &str) -> Option<(Option<&str>, bool)> {
             rest = &after[end + 1..];
         }
     }
-    match rest.trim_start_matches(is_js_space) {
+    match rest.trim_start_matches(js::is_space) {
         "/>" => Some((name, true)),
         ">" => Some((name, false)),
         _ => None,
@@ -583,11 +584,11 @@ fn fill_template(def: &ComponentDef, props: &Attrs, slots: &Attrs) -> String {
         let cut = if condition_holds(&cond, props) {
             // Keep the element, drop the attribute and the white space before it. A bare value
             // runs to the next white space, as the Node pattern removed it (`=mode==x`).
-            let lead = out[tag.name.end..attr.span.start].trim_end_matches(is_js_space);
+            let lead = out[tag.name.end..attr.span.start].trim_end_matches(js::is_space);
             let mut end = attr.span.end;
             if attr.quote == super::html::Quote::Bare {
                 let rest = &out[end..tag.range.end - 1];
-                end += rest.find(is_js_space).unwrap_or(rest.len());
+                end += rest.find(js::is_space).unwrap_or(rest.len());
             }
             tag.name.end + lead.len()..end
         } else {
@@ -634,7 +635,7 @@ fn fill_template(def: &ComponentDef, props: &Attrs, slots: &Attrs) -> String {
 
 /// Rewrite the first tag of `html` with `class` appended and the `extra` attributes set.
 fn annotate_root(html: &str, extra: &[(String, Option<String>)], class: Option<&str>) -> String {
-    let start = html.len() - html.trim_start_matches(is_js_space).len();
+    let start = html.len() - html.trim_start_matches(js::is_space).len();
     let Some(Token::Open(tag)) = Tokenizer::at(html, start).next() else {
         return html.to_string();
     };
@@ -730,7 +731,7 @@ fn expand_icon(
     if let Some(start) = svg.find("<?xml") {
         if let Some(len) = svg[start..].find('>') {
             let after = svg[start + len + 1..]
-                .trim_start_matches(is_js_space)
+                .trim_start_matches(js::is_space)
                 .to_string();
             svg.truncate(start);
             svg.push_str(&after);
@@ -778,7 +779,7 @@ pub fn expand_head(root: &Path, html: &str, design_base: &str) -> Result<String,
     ));
     let mut end = tag.range.end;
     let after = &html[end..];
-    let unspaced = after.trim_start_matches(is_js_space);
+    let unspaced = after.trim_start_matches(js::is_space);
     if unspaced.starts_with("</dfw-head>") {
         end += after.len() - unspaced.len() + "</dfw-head>".len();
     }

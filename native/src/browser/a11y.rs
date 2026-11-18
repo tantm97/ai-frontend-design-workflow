@@ -23,10 +23,10 @@ use super::launch::{
 use super::layout_check::{file_url, head, manifest_breakpoints, states_of, Finding};
 use crate::core::config::load_config;
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::{global_dir, project_paths};
 use crate::core::util::read_json;
 use crate::design::compose::{build_composed, build_system};
-use crate::workflow::state::js_str;
 
 /// The pinned axe-core release (`AXE`).
 pub const AXE_VERSION: &str = "4.14.0";
@@ -237,7 +237,7 @@ fn screen_jobs(root: &Path, opts: &A11yOptions) -> Result<Vec<Job>, DfwError> {
         items
             .into_iter()
             .flatten()
-            .map(|v| js_str(Some(v)))
+            .map(|v| js::to_string(Some(v)))
             .collect()
     };
     let mut themes = vec![None];
@@ -247,7 +247,7 @@ fn screen_jobs(root: &Path, opts: &A11yOptions) -> Result<Vec<Job>, DfwError> {
     let mut jobs = Vec::new();
     let screens = manifest.get("screens").and_then(Value::as_array);
     for s in screens.into_iter().flatten() {
-        let id = js_str(s.get("id"));
+        let id = js::to_string(s.get("id"));
         if opts
             .screens
             .as_ref()
@@ -271,8 +271,8 @@ fn screen_jobs(root: &Path, opts: &A11yOptions) -> Result<Vec<Job>, DfwError> {
                     let state = truthy(st).map(|t| format!(" [{t}]")).unwrap_or_default();
                     let theme = truthy(th).map(|t| format!(" {{{t}}}")).unwrap_or_default();
                     jobs.push(Job {
-                        rel: format!("design/{}", js_str(v.get("file"))),
-                        label: format!("{id}/{}{state}{theme}", js_str(v.get("id"))),
+                        rel: format!("design/{}", js::to_string(v.get("file"))),
+                        label: format!("{id}/{}{state}{theme}", js::to_string(v.get("id"))),
                         state: st.clone(),
                         theme: th.clone(),
                         width: bp.width,
@@ -413,7 +413,7 @@ fn check_page(renderer: &Renderer, job: &Job, url: Option<&str>, axe_src: &str) 
             page.send("Runtime.evaluate", json!({ "expression": axe_src }))?;
             let violations = page.evaluate(RUN_AXE.trim_end(), None)?;
             for v in violations.as_array().into_iter().flatten() {
-                let text = |key: &str| js_str(v.get(key));
+                let text = |key: &str| js::to_string(v.get(key));
                 let summary = text("summary");
                 let summary = if summary.is_empty() {
                     String::new()
@@ -434,7 +434,7 @@ fn check_page(renderer: &Renderer, job: &Job, url: Option<&str>, axe_src: &str) 
             if job.live {
                 let dead = page.evaluate(DEAD_CONTROLS.trim_end(), None)?;
                 for name in dead.as_array().into_iter().flatten() {
-                    add("warn", "dead-control".into(), format!("control \"{}\" announces a state (aria-pressed/expanded/selected/sort) but clicking it changes nothing.", js_str(Some(name))));
+                    add("warn", "dead-control".into(), format!("control \"{}\" announces a state (aria-pressed/expanded/selected/sort) but clicking it changes nothing.", js::to_string(Some(name))));
                 }
             }
             Ok(())

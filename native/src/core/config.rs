@@ -9,15 +9,14 @@
 //!
 //! Over 800 lines only with its tests (the ported cases of the JavaScript tests sit next to the code).
 
+use crate::core::js;
 use std::path::{Path, PathBuf};
 
 use serde_json::{json, Map, Value};
 
 use super::error::DfwError;
 use super::paths::{global_dir, project_paths};
-use super::util::{
-    deep_merge, get_path, js_number, read_json, set_path, to_json_compact, write_json,
-};
+use super::util::{deep_merge, get_path, read_json, set_path, write_json};
 
 /// `DEFAULTS`: the plugin's own layer.
 pub fn defaults() -> Value {
@@ -172,10 +171,10 @@ fn load_config_from(
     // Some lists are unions across layers rather than replacements, so a project can add to the
     // defaults without accidentally dropping them.
     let union = |group: &str, key: &str| union_of(layers.iter(), group, key);
-    let mut skills = js_spread(merged.get("skills"));
+    let mut skills = js::spread(merged.get("skills"));
     skills.insert("disabled".into(), union("skills", "disabled"));
     merged.insert("skills".into(), Value::Object(skills));
-    let mut gate = js_spread(merged.get("gate"));
+    let mut gate = js::spread(merged.get("gate"));
     gate.insert("allow".into(), union("gate", "allow"));
     gate.insert("immutable".into(), union("gate", "immutable"));
     merged.insert("gate".into(), Value::Object(gate));
@@ -201,7 +200,7 @@ fn union_of<'a>(layers: impl Iterator<Item = &'a Value>, group: &str, key: &str)
         match found {
             Some(Value::Array(items)) => items.iter().for_each(&mut add),
             // flatMap keeps a value that is not an array as one entry ("allow": "docs/**").
-            Some(other) if js_truthy(other) => add(other),
+            Some(other) if js::truthy(other) => add(other),
             _ => {}
         }
     }
@@ -213,50 +212,6 @@ fn same_value_zero(a: &Value, b: &Value) -> bool {
     match (a, b) {
         (Value::Number(x), Value::Number(y)) => x.as_f64() == y.as_f64(),
         _ => a == b,
-    }
-}
-
-/// JavaScript truthiness of a JSON value.
-pub fn js_truthy(value: &Value) -> bool {
-    match value {
-        Value::Null => false,
-        Value::Bool(b) => *b,
-        Value::Number(n) => n.as_f64().is_some_and(|f| f != 0.0),
-        Value::String(s) => !s.is_empty(),
-        Value::Array(_) | Value::Object(_) => true,
-    }
-}
-
-/// `{ ...value }`: an object's own keys, an array's or a string's indexes, nothing for the rest.
-pub fn js_spread(value: Option<&Value>) -> Map<String, Value> {
-    match value {
-        Some(Value::Object(map)) => map.clone(),
-        Some(Value::Array(items)) => items
-            .iter()
-            .enumerate()
-            .map(|(i, v)| (i.to_string(), v.clone()))
-            .collect(),
-        // JavaScript indexes a string by UTF-16 unit; half of a surrogate pair has no JSON text here.
-        Some(Value::String(s)) => s
-            .encode_utf16()
-            .enumerate()
-            .map(|(i, unit)| {
-                (
-                    i.to_string(),
-                    Value::String(String::from_utf16_lossy(&[unit])),
-                )
-            })
-            .collect(),
-        _ => Map::new(),
-    }
-}
-
-/// `String(value)` for a JSON scalar; an array or object as compact JSON.
-fn js_string(value: &Value) -> String {
-    match value {
-        Value::String(s) => s.clone(),
-        Value::Number(n) => n.as_f64().map(js_number).unwrap_or_else(|| n.to_string()),
-        other => to_json_compact(other),
     }
 }
 
@@ -431,7 +386,7 @@ pub fn checks_layout_on_stop(config: &Value) -> bool {
 pub fn review_shortcut(config: &Value) -> Option<String> {
     get_path(config, "review.shortcut")
         .filter(|v| !v.is_null())
-        .map(js_string)
+        .map(js::to_string)
 }
 
 /// `env`: variables applied to every external tool dfw launches, in file order.
@@ -441,14 +396,14 @@ pub fn env_map(config: &Value) -> Vec<(String, String)> {
     };
     env.iter()
         .filter(|(_, v)| !v.is_object() && !v.is_array())
-        .map(|(k, v)| (k.clone(), js_string(v)))
+        .map(|(k, v)| (k.clone(), js::to_string(v)))
         .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::util::test_dir;
+    use crate::core::util::{test_dir, to_json_compact};
     use std::fs;
 
     /// A project folder with the given `.dfw/config.json` and `.dfw/config.local.json`.

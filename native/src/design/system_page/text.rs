@@ -4,43 +4,11 @@
 use serde_json::Value;
 
 use crate::core::error::DfwError;
-use crate::design::edit::js_regex;
-use crate::design::html::is_js_space;
-use crate::design::tokens::js;
+use crate::core::js;
+use crate::core::js::regex::with_js_classes;
 
 /// `.` of a JavaScript regular expression: anything but a line terminator.
 pub(super) const DOT: &str = r"[^\n\r\x{2028}\x{2029}]";
-
-/// `value || ''` then `String(...)`: the text of a truthy value, else nothing.
-pub(super) fn text_or_empty(value: Option<&Value>) -> String {
-    if js::truthy(value) {
-        js::to_string(value)
-    } else {
-        String::new()
-    }
-}
-
-pub(super) fn utf16_len(s: &str) -> usize {
-    s.encode_utf16().count()
-}
-
-/// `s.slice(0, n)`: the first `n` UTF-16 units. A character cut in half becomes U+FFFD, which
-/// is what Node writes for the lone surrogate.
-pub(super) fn slice_utf16(s: &str, n: usize) -> String {
-    let mut out = String::new();
-    let mut used = 0;
-    for c in s.chars() {
-        if used + c.len_utf16() > n {
-            if used < n {
-                out.push('\u{fffd}');
-            }
-            break;
-        }
-        used += c.len_utf16();
-        out.push(c);
-    }
-    out
-}
 
 pub(super) fn is_line_end(c: char) -> bool {
     matches!(c, '\n' | '\r' | '\u{2028}' | '\u{2029}')
@@ -81,7 +49,7 @@ pub(super) fn has_heading(part: &str, names: &[&str]) -> bool {
                 return false;
             };
             // `\s*$`: the white space runs to the end, or holds a line terminator to stop at.
-            let after = rest.trim_start_matches(is_js_space);
+            let after = rest.trim_start_matches(js::is_space);
             after.is_empty() || rest[..rest.len() - after.len()].contains(is_line_end)
         })
     })
@@ -101,7 +69,7 @@ pub(super) fn bullets(text: &str, min: usize) -> Vec<&str> {
         if at < done {
             continue;
         }
-        let rest = text[at..].trim_start_matches(is_js_space);
+        let rest = text[at..].trim_start_matches(js::is_space);
         let Some(item) = rest
             .strip_prefix(['-', '*'])
             .and_then(|r| r.strip_prefix(' '))
@@ -109,7 +77,7 @@ pub(super) fn bullets(text: &str, min: usize) -> Vec<&str> {
             continue;
         };
         let item = &item[..item.find(is_line_end).unwrap_or(item.len())];
-        if utf16_len(item) >= min.max(1) {
+        if js::len16(item) >= min.max(1) {
             done = text.len() - rest.len() + 2 + item.len();
             out.push(item);
         }
@@ -126,13 +94,13 @@ pub(super) fn sentences(text: &str) -> Vec<&str> {
     let mut prev: Option<char> = None;
     let mut chars = text.char_indices().peekable();
     while let Some((i, c)) = chars.next() {
-        if !is_js_space(c) || !matches!(prev, Some('.' | '!' | '?')) {
+        if !js::is_space(c) || !matches!(prev, Some('.' | '!' | '?')) {
             prev = Some(c);
             continue;
         }
         let mut end = i + c.len_utf8();
         let mut last_space = i;
-        while let Some((j, d)) = chars.peek().copied().filter(|(_, d)| is_js_space(*d)) {
+        while let Some((j, d)) = chars.peek().copied().filter(|(_, d)| js::is_space(*d)) {
             last_space = j;
             end = j + d.len_utf8();
             chars.next();
@@ -200,6 +168,6 @@ pub(super) fn slice_inner(v: &str) -> &str {
 
 /// `text.replace(/\s*<marker>.*$/, '')`: cut a note that runs to the end of the text.
 pub(super) fn cut_note(text: &str, marker: &str) -> Result<String, DfwError> {
-    let re = js_regex(&format!(r"\s*{}{DOT}*$", regex::escape(marker)))?;
+    let re = with_js_classes(&format!(r"\s*{}{DOT}*$", regex::escape(marker)))?;
     Ok(re.replace(text, "").into_owned())
 }

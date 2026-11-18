@@ -4,7 +4,7 @@
 
 use super::locate::Located;
 use crate::core::error::DfwError;
-use crate::design::tokens::js;
+use crate::core::js;
 
 /// Line facts for a source range.
 struct LineSpan<'a> {

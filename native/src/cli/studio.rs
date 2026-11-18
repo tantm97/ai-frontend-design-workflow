@@ -11,8 +11,9 @@ use std::time::{Duration, Instant};
 use serde_json::{json, Value};
 
 use super::{Ctx, Handler};
-use crate::core::config::{js_truthy, load_config, studio_port};
+use crate::core::config::{load_config, studio_port};
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::{project_paths, resolve};
 use crate::core::util::{now_iso, out, read_json, write_json, ArgValue, Args};
 use crate::studio::live_proxy::{
@@ -170,8 +171,8 @@ fn studio(ctx: &Ctx) -> Result<i32, DfwError> {
     let p = project_paths(&root);
     let sub = a.pos(1).filter(|s| !s.is_empty()).unwrap_or("status");
     let info = read_json(&p.studio, Some(Value::Null))?;
-    let alive = js_truthy(&info) && is_alive(info.get("pid"));
-    let text = |k: &str| crate::design::tokens::js::to_string(info.get(k));
+    let alive = js::truthy(&info) && is_alive(info.get("pid"));
+    let text = |k: &str| crate::core::js::to_string(info.get(k));
     match sub {
         "status" => {
             out(&if alive {
@@ -243,8 +244,8 @@ fn review(ctx: &Ctx) -> Result<i32, DfwError> {
     let file = p.dfw.join("review.json");
     let sub = a.pos(1).filter(|s| !s.is_empty()).unwrap_or("status");
     let info = read_json(&file, Some(Value::Null))?;
-    let running = js_truthy(&info) && is_alive(info.get("pid"));
-    let text = |k: &str| crate::design::tokens::js::to_string(info.get(k));
+    let running = js::truthy(&info) && is_alive(info.get("pid"));
+    let text = |k: &str| crate::core::js::to_string(info.get(k));
     match sub {
         "status" => {
             out(&if running {

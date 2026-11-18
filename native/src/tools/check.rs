@@ -23,15 +23,16 @@ use serde_json::{json, Map, Value};
 use self::engine::{impeccable_engine, launcher_command, node_platform, Engine, LauncherCommand};
 pub use self::report::{check_exit_code, format_report};
 use self::run::{node_executable, plain, run, Ran};
-use crate::core::config::{env_map, js_truthy};
+use crate::core::config::env_map;
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::{project_paths, resolve, to_posix};
 use crate::core::util::read_json;
 use crate::design::compose::{build_composed, build_system};
 use crate::design::dsaudit::audit_design_system;
-use crate::design::lint::jsre::utf16_prefix;
+
 use crate::design::lint::lint_design;
-use crate::design::tokens::{js, relative_path};
+use crate::design::tokens::relative_path;
 use crate::review::locate::{sloplint_script, taste_copy_lint_script};
 
 /// `UI_EXT`: the files the checks look at.
@@ -99,13 +100,13 @@ fn error_detail(ran: &Ran) -> String {
     } else {
         &ran.stderr
     };
-    utf16_prefix(text, 400).to_string()
+    js::slice16(text, 0, 400).to_string()
 }
 
 /// `toPosix(path.relative(root, path.resolve(root, file || '')))`: a tool's file, project-relative.
 fn finding_file(root: &Path, file: Option<&Value>) -> String {
     let file = file
-        .filter(|f| js_truthy(f))
+        .filter(|f| js::truthy(f))
         .map(|f| js::to_string(Some(f)))
         .unwrap_or_default();
     to_posix(&relative_path(root, &resolve(root.join(file))))
@@ -115,14 +116,14 @@ fn finding_file(root: &Path, file: Option<&Value>) -> String {
 fn finding_line(finding: &Value) -> Value {
     finding
         .get("line")
-        .filter(|l| js_truthy(l))
+        .filter(|l| js::truthy(l))
         .cloned()
         .unwrap_or_else(|| json!(1))
 }
 
 /// `${value}${fix ? ` | fix: ${fix}` : ''}`.
 fn with_fix(text: String, finding: &Value) -> String {
-    match finding.get("fix").filter(|f| js_truthy(f)) {
+    match finding.get("fix").filter(|f| js::truthy(f)) {
         Some(fix) => format!("{text} | fix: {}", js::to_string(Some(fix))),
         None => text,
     }
@@ -277,15 +278,15 @@ pub fn run_impeccable(
                 Some("info" | "advisory") => "info",
                 _ => "warn",
             };
-            let level = if f.get("advisory").is_some_and(js_truthy) {
+            let level = if f.get("advisory").is_some_and(js::truthy) {
                 "info"
             } else {
                 severity
             };
             let snippet = f
                 .get("snippet")
-                .filter(|s| js_truthy(s))
-                .map(|s| format!(" [{}]", utf16_prefix(&js::to_string(Some(s)), 80)))
+                .filter(|s| js::truthy(s))
+                .map(|s| format!(" [{}]", js::slice16(&js::to_string(Some(s)), 0, 80)))
                 .unwrap_or_default();
             json!({
                 "level": level,
@@ -376,7 +377,7 @@ pub fn setup_engine(
     .unwrap_or_default();
     Ok(Setup {
         ok: false,
-        text: format!("Impeccable setup failed: {}", utf16_prefix(&why, 500)),
+        text: format!("Impeccable setup failed: {}", js::slice16(&why, 0, 500)),
     })
 }
 
@@ -427,7 +428,7 @@ pub fn run_taste_copy_lint(
             if sev == Some("INFO") {
                 continue;
             }
-            let text = f.get("msg").filter(|m| js_truthy(m)).or(f.get("id"));
+            let text = f.get("msg").filter(|m| js::truthy(m)).or(f.get("id"));
             findings.push(json!({
                 // Reference-mode skill: never a hard blocker.
                 "level": if sev == Some("FAIL") { "warn" } else { "info" },
@@ -556,7 +557,7 @@ fn remap(mut res: Value, composed: &[(String, String)]) -> Value {
     for f in list.into_iter().flatten() {
         let k = to_posix(
             &f.get("file")
-                .filter(|v| js_truthy(v))
+                .filter(|v| js::truthy(v))
                 .map(|v| js::to_string(Some(v)))
                 .unwrap_or_default(),
         );
@@ -676,7 +677,7 @@ pub fn run_checks_with(
     if want("sloplint") && setting("sloplint") != Some(&Value::Bool(false)) {
         results.push(remap(run_sloplint(root, &tool_targets, run_opts, lookup)?));
     }
-    if want("taste") && setting("tasteCopyLint").is_some_and(js_truthy) {
+    if want("taste") && setting("tasteCopyLint").is_some_and(js::truthy) {
         results.push(remap(run_taste_copy_lint(
             root,
             &tool_targets,

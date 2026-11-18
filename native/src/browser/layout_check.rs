@@ -24,15 +24,15 @@ use super::cdp::lock;
 use super::launch::{
     browser_status, fonts_ready, open_renderer_with, BrowserStatus, LaunchOptions, Renderer,
 };
-use crate::core::config::{js_truthy, load_config, studio_breakpoints, Breakpoint};
+use crate::core::config::{load_config, studio_breakpoints, Breakpoint};
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::{plugin_root, project_paths, resolve, to_posix};
 use crate::core::util::{read_json, sha256, write_json};
 use crate::design::compose::{
     build_composed, build_system, compose_html, load_components, ComposeOptions,
 };
-use crate::design::tokens::{dir_names, js, relative_path};
-use crate::workflow::state::js_str;
+use crate::design::tokens::{dir_names, relative_path};
 
 /// `measure` of layout.mjs, byte for byte: it runs in the page and returns raw measurements.
 const MEASURE: &str = include_str!("layout_measure.js");
@@ -272,19 +272,19 @@ fn list<'a>(value: &'a Value, key: &str) -> impl Iterator<Item = &'a Value> {
 
 /// `s.states || m.states || []`, as text.
 pub(crate) fn states_of(screen: &Value, manifest: &Value) -> Vec<String> {
-    let own = screen.get("states").filter(|v| js_truthy(v));
-    let states = own.or_else(|| manifest.get("states").filter(|v| js_truthy(v)));
+    let own = screen.get("states").filter(|v| js::truthy(v));
+    let states = own.or_else(|| manifest.get("states").filter(|v| js::truthy(v)));
     states
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
-        .map(|s| js_str(Some(s)))
+        .map(|s| js::to_string(Some(s)))
         .collect()
 }
 
 /// `m.breakpoints || config.studio.breakpoints`.
 pub(crate) fn manifest_breakpoints(manifest: &Value, config: &Value) -> Vec<Breakpoint> {
-    match manifest.get("breakpoints").filter(|b| js_truthy(b)) {
+    match manifest.get("breakpoints").filter(|b| js::truthy(b)) {
         Some(all) => all
             .as_array()
             .into_iter()
@@ -298,7 +298,7 @@ pub(crate) fn manifest_breakpoints(manifest: &Value, config: &Value) -> Vec<Brea
 fn screen_jobs(manifest: &Value, bps: &[Breakpoint], opts: &LayoutOptions) -> Vec<RenderJob> {
     let mut jobs = Vec::new();
     for s in list(manifest, "screens") {
-        let id = js_str(s.get("id"));
+        let id = js::to_string(s.get("id"));
         if opts
             .screens
             .as_ref()
@@ -314,8 +314,8 @@ fn screen_jobs(manifest: &Value, bps: &[Breakpoint], opts: &LayoutOptions) -> Ve
             let job =
                 |bp: &Breakpoint, state: Option<String>, stress: bool, reflow: bool| RenderJob {
                     screen: id.clone(),
-                    variant: js_str(v.get("id")),
-                    rel: format!("design/{}", js_str(v.get("file"))),
+                    variant: js::to_string(v.get("id")),
+                    rel: format!("design/{}", js::to_string(v.get("file"))),
                     bp: bp.clone(),
                     state,
                     stress,
@@ -766,7 +766,7 @@ fn variant_files(manifest: &Value) -> Vec<(String, String)> {
     let mut files = Vec::new();
     for s in list(manifest, "screens") {
         for v in list(s, "variants") {
-            files.push((js_str(s.get("id")), js_str(v.get("file"))));
+            files.push((js::to_string(s.get("id")), js::to_string(v.get("file"))));
         }
     }
     files

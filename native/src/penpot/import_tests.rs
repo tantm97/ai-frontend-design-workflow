@@ -2,6 +2,7 @@
 //! penpot-hardening.test.mjs.
 
 use super::*;
+use crate::core::js;
 use crate::design::tokens::dir_names;
 use crate::penpot::export::tests::{
     design_hash, draft, fixture_export, project, read, with_export,

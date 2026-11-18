@@ -6,9 +6,9 @@ use std::path::Path;
 use serde_json::Value;
 
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::design::compose::{attrs_of, load_components, Attrs, ComponentDef};
 use crate::design::html::{element_at, Tag, Token, Tokenizer};
-use crate::design::tokens::js;
 
 /// An element found by [`locate`], with the byte offsets an edit splices at.
 #[derive(Debug, Clone, PartialEq, Eq)]

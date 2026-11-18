@@ -1,14 +1,13 @@
 //! The system page cases of `tests/unit/system.test.mjs`, `studio-presence.test.mjs` and
 //! `audit-fixes.test.mjs`; each test's doc comment is the title of the JS test it ports.
 
+use crate::core::js;
 use std::fs;
 use std::path::PathBuf;
 
 use regex::Regex;
 
-use super::text::{
-    alias, bullets, encode_uri, has_heading, md_parts, part_body, sentences, slice_utf16,
-};
+use super::text::{alias, bullets, encode_uri, has_heading, md_parts, part_body, sentences};
 use super::*;
 use crate::core::util::{copy_dir, test_dir};
 use crate::design::compose::{build_system, compose_html, ComposeOptions};
@@ -257,8 +256,8 @@ fn javascript_text_rules() {
     assert!(!has_heading(parts[2], &["Rationale"]));
     assert!(has_heading(parts[3], &["Rationale"]));
     assert_eq!(part_body(parts[3]), "- y");
-    assert_eq!(slice_utf16("ab\u{1F600}c", 3), "ab\u{fffd}");
-    assert_eq!(slice_utf16("ab\u{1F600}c", 4), "ab\u{1F600}");
+    assert_eq!(js::slice16("ab\u{1F600}c", 0, 3), "ab\u{fffd}");
+    assert_eq!(js::slice16("ab\u{1F600}c", 0, 4), "ab\u{1F600}");
     assert_eq!(encode_uri("a b/ảnh(1)#.png"), "a%20b/%E1%BA%A3nh(1)#.png");
     assert_eq!(alias(&json!("{color.ink}")), Some("color.ink"));
     assert_eq!(alias(&json!("{a}b}")), None);

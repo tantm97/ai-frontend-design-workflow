@@ -5,13 +5,13 @@ use std::path::Path;
 
 use serde_json::{json, Map, Value};
 
-use crate::core::config::js_truthy;
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::{project_paths, resolve};
 use crate::core::util::{copy_dir, list_files, now_iso, read_json, sha256, write_json};
 
 use super::gates::relative;
-use super::state::{approve_gate, js_str, object, push_history, save_state, type_error};
+use super::state::{approve_gate, push_history, save_state, type_error};
 
 const EXCLUDE: [&str; 2] = ["approved", "handoff"];
 
@@ -72,14 +72,14 @@ fn design_of(state: &mut Value) -> Result<&mut Map<String, Value>, DfwError> {
 /// lock file, lock the design and record G2.
 pub fn freeze_design(root: &Path, state: &mut Value, note: Option<Value>) -> Result<(), DfwError> {
     let p = project_paths(root);
-    let note = note.filter(js_truthy);
+    let note = note.filter(|v| js::truthy(v));
     if !p.manifest.exists() {
         return Err(DfwError::new(
             "Cannot freeze: design/design.json does not exist.",
         ));
     }
     let design = design_of(state)?;
-    let version = format!("v{}", js_str(design.get("version")));
+    let version = format!("v{}", js::to_string(design.get("version")));
     if design.get("status").and_then(Value::as_str) == Some("approved") {
         return Err(DfwError::new(format!(
             "Version {version} is already approved. Use \"dfw reopen\" to start a new version."
@@ -106,7 +106,7 @@ pub fn freeze_design(root: &Path, state: &mut Value, note: Option<Value>) -> Res
         .iter()
         .map(|f| json!({ "path": f.path, "sha256": f.sha256 }))
         .collect();
-    let lock = object(vec![
+    let lock = js::object(vec![
         ("version", Some(version.clone().into())),
         ("approvedAt", Some(at.clone().into())),
         ("hash", Some(hash.clone().into())),
@@ -116,7 +116,7 @@ pub fn freeze_design(root: &Path, state: &mut Value, note: Option<Value>) -> Res
     write_json(&dest.join("approval.lock.json"), &lock)?;
     design.insert("status".into(), "approved".into());
     design.insert("locked".into(), true.into());
-    let entry = object(vec![
+    let entry = js::object(vec![
         ("version", Some(version.clone().into())),
         ("hash", Some(hash.clone().into())),
         ("at", Some(at.into())),
@@ -150,7 +150,7 @@ pub fn verify_snapshot(root: &Path, version: &str) -> Result<Vec<String>, DfwErr
     check_snapshot_name(version)?;
     let dir = project_paths(root).approved.join(version);
     let lock = read_json(&dir.join("approval.lock.json"), Some(Value::Null))?;
-    if !js_truthy(&lock) {
+    if !js::truthy(&lock) {
         return Err(DfwError::new(format!(
             "No approval.lock.json in {}",
             dir.display()
@@ -190,7 +190,7 @@ pub fn reopen_design(
     state: &mut Value,
     reason: Option<Value>,
 ) -> Result<(), DfwError> {
-    let Some(reason) = reason.filter(js_truthy) else {
+    let Some(reason) = reason.filter(|v| js::truthy(v)) else {
         return Err(DfwError::new(
             "Re-opening an approved design needs --reason (it is recorded as a change proposal).",
         ));
@@ -208,7 +208,7 @@ pub fn reopen_design(
             Some(i) => Value::from(i + 1),
             None => Value::from(n.as_f64().unwrap_or(f64::NAN) + 1.0),
         },
-        other => Value::String(format!("{}1", js_str(other.as_ref()))),
+        other => Value::String(format!("{}1", js::to_string(other.as_ref()))),
     };
     design.insert("version".into(), next.clone());
     design.insert("status".into(), "draft".into());
@@ -232,8 +232,8 @@ pub fn reopen_design(
         json!({
             "at": now_iso(),
             "event": "reopen",
-            "from": format!("v{}", js_str(from.as_ref())),
-            "to": format!("v{}", js_str(Some(&next))),
+            "from": format!("v{}", js::to_string(from.as_ref())),
+            "to": format!("v{}", js::to_string(Some(&next))),
             "reason": reason,
         }),
     )?;

@@ -6,9 +6,9 @@ use serde_json::Value;
 use super::components::Inline;
 use super::text::{bullets, has_heading, md_parts, part_body};
 use crate::core::error::DfwError;
+use crate::core::js;
+use crate::core::js::regex::with_js_classes;
 use crate::design::compose::escape_html as esc;
-use crate::design::edit::js_regex;
-use crate::design::tokens::js;
 
 /// The strings of a JSON array (`(list || []).map(...)`); anything else is no list.
 fn items(value: Option<&Value>) -> Vec<String> {
@@ -20,7 +20,7 @@ fn items(value: Option<&Value>) -> Vec<String> {
 
 /// The section for style guide `style`; `md` is the text of DESIGN.md (empty without one).
 pub(super) fn concept(style: &Value, md: &str, inline: &Inline) -> Result<String, DfwError> {
-    let comment = js_regex(r"(?s)<!--.*?-->")?;
+    let comment = with_js_classes(r"(?s)<!--.*?-->")?;
     let section = |h: &str| -> String {
         match md_parts(md)
             .into_iter()
@@ -32,7 +32,7 @@ pub(super) fn concept(style: &Value, md: &str, inline: &Inline) -> Result<String
     };
     // `split(/\n\s*\n/)[0]`: the first paragraph.
     let direction = section("Direction");
-    let blank_line = js_regex(r"\n\s*\n")?;
+    let blank_line = with_js_classes(r"\n\s*\n")?;
     let direction = blank_line.split(&direction).next().unwrap_or_default();
     let rationale = section("Rationale");
     let project_why = bullets(&rationale, 1);

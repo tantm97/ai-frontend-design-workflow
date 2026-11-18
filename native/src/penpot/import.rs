@@ -25,13 +25,14 @@ use super::diff::{
 use super::export::penpot_dir;
 use super::live::{continue_thread, thread_key, threads_file};
 use super::tokens::{
-    import_penpot_tokens, jv, nest, read_dfw_tokens, short_value, NestEntry, TokenImport, RESERVED,
+    import_penpot_tokens, nest, read_dfw_tokens, short_value, NestEntry, TokenImport, RESERVED,
 };
-use crate::core::config::js_spread;
+
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::util::{now_iso, read_json, sha256, to_json_compact, write_json};
 use crate::design::compose::{load_components, Library};
-use crate::design::tokens::{js, relative_path};
+use crate::design::tokens::relative_path;
 use crate::review::comments::add_comment;
 
 static EXPORT_ID: LazyLock<Regex> =
@@ -54,7 +55,7 @@ pub fn tokens_from_plugin(t: Option<&Value>) -> Result<Option<Value>, DfwError> 
         Some(Value::String(s)) if !s.is_empty() => {
             return Err(DfwError::internal("t.sets.filter is not a function"))
         }
-        Some(Value::Object(sets)) if jv::truthy(sets.get("length")) => {
+        Some(Value::Object(sets)) if js::truthy(sets.get("length")) => {
             return Err(DfwError::internal("t.sets.filter is not a function"))
         }
         _ => return Ok(None),
@@ -64,37 +65,37 @@ pub fn tokens_from_plugin(t: Option<&Value>) -> Result<Option<Value>, DfwError> 
     for s in all {
         walkable(s.get("tokens"), Some("name"), true)?;
     }
-    for th in list(jv::truthy_value(t.get("themes"))) {
+    for th in list(js::truthy_value(t.get("themes"))) {
         walkable(th.get("sets"), None, true)?;
     }
     // Set and token names are untrusted: reserved names are left out, as `nest` does for
     // token paths.
     let sets: Vec<&Value> = all
         .iter()
-        .filter(|s| !RESERVED.contains(&jv::text(s.get("name")).as_str()))
+        .filter(|s| !RESERVED.contains(&js::to_string(s.get("name")).as_str()))
         .collect();
     let mut doc = Map::new();
     for s in &sets {
-        let entries: Vec<NestEntry> = list(jv::truthy_value(s.get("tokens")))
+        let entries: Vec<NestEntry> = list(js::truthy_value(s.get("tokens")))
             .iter()
             .map(|tok| NestEntry {
-                name: jv::text(tok.get("name")),
+                name: js::to_string(tok.get("name")),
                 value: tok.get("value").cloned(),
                 ty: tok.get("type").cloned(),
                 description: tok.get("description").cloned(),
             })
             .collect();
-        doc.insert(jv::text(s.get("name")), nest(&entries));
+        doc.insert(js::to_string(s.get("name")), nest(&entries));
     }
-    let or_empty = |v: Option<&Value>| jv::truthy_value(v).cloned().unwrap_or_else(|| "".into());
-    let themes: Vec<Value> = list(jv::truthy_value(t.get("themes")))
+    let or_empty = |v: Option<&Value>| js::truthy_value(v).cloned().unwrap_or_else(|| "".into());
+    let themes: Vec<Value> = list(js::truthy_value(t.get("themes")))
         .iter()
         .map(|th| {
-            let selected: Map<String, Value> = list(jv::truthy_value(th.get("sets")))
+            let selected: Map<String, Value> = list(js::truthy_value(th.get("sets")))
                 .iter()
-                .map(|s| (jv::text(Some(s)), Value::from("enabled")))
+                .map(|s| (js::to_string(Some(s)), Value::from("enabled")))
                 .collect();
-            jv::obj(vec![
+            js::object(vec![
                 ("name", th.get("name").cloned()),
                 ("group", Some(or_empty(th.get("group")))),
                 ("description", Some(or_empty(th.get("description")))),
@@ -106,7 +107,7 @@ pub fn tokens_from_plugin(t: Option<&Value>) -> Result<Option<Value>, DfwError> 
     doc.insert("$themes".into(), Value::Array(themes));
     let names = |active_only: bool| -> Vec<Value> {
         sets.iter()
-            .filter(|s| !active_only || jv::truthy(s.get("active")))
+            .filter(|s| !active_only || js::truthy(s.get("active")))
             .map(|s| s.get("name").cloned().unwrap_or(Value::Null))
             .collect()
     };
@@ -148,7 +149,7 @@ pub struct ChangeImport {
 impl ChangeImport {
     /// The result as the object the Node code printed.
     pub fn to_json(&self) -> Value {
-        jv::obj(vec![
+        js::object(vec![
             ("baseline", self.baseline.clone()),
             ("changes", Some(Value::Array(self.changes.clone()))),
             ("comments", Some(Value::Array(self.comments.clone()))),
@@ -181,18 +182,18 @@ struct Pending {
 /// `design/<file>:<line>` of the element (`data-dfw-id`) or instance (`<dfw-use id>`) with this
 /// id; the file alone when the id is not found.
 fn source_line(root: &Path, file: Option<&Value>, id: Option<&Value>) -> Value {
-    let Some(file) = jv::truthy_value(file) else {
+    let Some(file) = js::truthy_value(file) else {
         return Value::Null;
     };
-    let name = jv::text(Some(file));
+    let name = js::to_string(Some(file));
     let abs = root.join(&name);
-    let Some(id) = jv::truthy_value(id).filter(|_| abs.exists()) else {
+    let Some(id) = js::truthy_value(id).filter(|_| abs.exists()) else {
         return file.clone();
     };
     let found = js::read_text(&abs).ok().and_then(|text| {
         let re = Regex::new(&format!(
             r#"(?:data-dfw-id|<dfw-use(?-u:\b)[^>]*(?-u:\b)id)="{}""#,
-            regex::escape(&jv::text(Some(id)))
+            regex::escape(&js::to_string(Some(id)))
         ))
         .ok()?;
         let m = re.find(&text)?;
@@ -211,11 +212,11 @@ fn design_relative(file: &str) -> &str {
 
 /// `bbox` of a comment target: only a box of four numbers, rounded.
 fn rounded_bbox(c: &Value) -> Option<Value> {
-    let bbox = jv::truthy_value(c.get("bbox"))?.as_array()?;
+    let bbox = js::truthy_value(c.get("bbox"))?.as_array()?;
     bbox.iter().all(Value::is_number).then(|| {
         Value::Array(
             bbox.iter()
-                .map(|v| js::num(js::round(jv::num(Some(v)))))
+                .map(|v| js::num(js::round(js::to_number(Some(v)))))
                 .collect(),
         )
     })
@@ -235,7 +236,7 @@ fn group_fingerprint(cs: &[Value]) -> String {
     let c0 = &cs[0];
     let comp_key = |c: &Value| c.get("component").and_then(|comp| comp.get("key")).cloned();
     if is_comment(c0) {
-        return fingerprint(&jv::obj(vec![
+        return fingerprint(&js::object(vec![
             ("type", Some("comment".into())),
             ("board", c0.get("board").cloned()),
             ("comp", comp_key(c0)),
@@ -246,7 +247,7 @@ fn group_fingerprint(cs: &[Value]) -> String {
     let items: Vec<Value> = cs
         .iter()
         .map(|c| {
-            jv::obj(vec![
+            js::object(vec![
                 ("type", c.get("type").cloned()),
                 ("board", c.get("board").cloned()),
                 ("p", c.get("path").cloned()),
@@ -268,7 +269,7 @@ fn group_fingerprint(cs: &[Value]) -> String {
 /// The key that groups design changes per element (board + anchor) into one comment each;
 /// Penpot comments stay separate.
 fn group_key(c: &Value) -> String {
-    let s = |key: &str| jv::text(c.get(key));
+    let s = |key: &str| js::to_string(c.get(key));
     if is_comment(c) {
         return format!(
             "comment|{}|{}|{}",
@@ -277,25 +278,25 @@ fn group_key(c: &Value) -> String {
             message_count(c)
         );
     }
-    if let Some(comp) = jv::truthy_value(c.get("component")) {
-        return format!("component|{}|{}", jv::text(comp.get("key")), s("path"));
+    if let Some(comp) = js::truthy_value(c.get("component")) {
+        return format!("component|{}|{}", js::to_string(comp.get("key")), s("path"));
     }
-    let element = jv::truthy_value(c.get("anchor"))
-        .or(jv::truthy_value(c.get("path")))
-        .map_or(String::new(), |v| jv::text(Some(v)));
+    let element = js::truthy_value(c.get("anchor"))
+        .or(js::truthy_value(c.get("path")))
+        .map_or(String::new(), |v| js::to_string(Some(v)));
     format!("{}|{element}", s("board"))
 }
 
 /// The feedback input for changes on one element of a screen board.
 fn screen_comment(root: &Path, cs: &[Value], gate_note: &str) -> Value {
     let c0 = &cs[0];
-    let anchor = jv::truthy_value(c0.get("anchor"));
+    let anchor = js::truthy_value(c0.get("anchor"));
     let header = if is_comment(c0) {
         "[Penpot comment]".to_string()
     } else {
-        let what = match (anchor, jv::truthy_value(c0.get("name"))) {
-            (Some(anchor), _) => format!("\"{}\"", jv::text(Some(anchor))),
-            (None, Some(name)) => format!("layer \"{}\"", jv::text(Some(name))),
+        let what = match (anchor, js::truthy_value(c0.get("name"))) {
+            (Some(anchor), _) => format!("\"{}\"", js::to_string(Some(anchor))),
+            (None, Some(name)) => format!("layer \"{}\"", js::to_string(Some(name))),
             (None, None) => "board".to_string(),
         };
         format!("[Penpot] {what}:")
@@ -308,11 +309,11 @@ fn screen_comment(root: &Path, cs: &[Value], gate_note: &str) -> Value {
             .collect::<Vec<_>>()
             .join("\n")
     };
-    let file = jv::truthy_value(c0.get("file"));
+    let file = js::truthy_value(c0.get("file"));
     let exact =
-        anchor.is_some() && jv::truthy(c0.get("dfwId")) && jv::strict_eq(anchor, c0.get("dfwId"));
+        anchor.is_some() && js::truthy(c0.get("dfwId")) && js::strict_eq(anchor, c0.get("dfwId"));
     let is_text = c0.get("type").and_then(Value::as_str) == Some("text");
-    jv::obj(vec![
+    js::object(vec![
         (
             "comment",
             Some(format!("{header}\n{body}{gate_note}").into()),
@@ -322,21 +323,23 @@ fn screen_comment(root: &Path, cs: &[Value], gate_note: &str) -> Value {
         ("breakpoint", c0.get("breakpoint").cloned()),
         (
             "file",
-            Some(file.map_or(Value::Null, |f| design_relative(&jv::text(Some(f))).into())),
+            Some(file.map_or(Value::Null, |f| {
+                design_relative(&js::to_string(Some(f))).into()
+            })),
         ),
         ("provider", Some("penpot".into())),
         (
             "target",
-            Some(jv::obj(vec![
-                ("dfwId", Some(jv::or_null(anchor))),
+            Some(js::object(vec![
+                ("dfwId", Some(js::or_null(anchor))),
                 ("source", Some(source_line(root, c0.get("file"), anchor))),
                 ("exact", Some(exact.into())),
                 (
                     "selector",
-                    anchor.map(|a| format!("[data-dfw-id=\"{}\"]", jv::text(Some(a))).into()),
+                    anchor.map(|a| format!("[data-dfw-id=\"{}\"]", js::to_string(Some(a))).into()),
                 ),
                 ("bbox", rounded_bbox(c0)),
-                ("text", is_text.then(|| jv::norm(c0.get("from")).into())),
+                ("text", is_text.then(|| js::norm(c0.get("from")).into())),
             ])),
         ),
     ])
@@ -348,7 +351,7 @@ fn component_comment(root: &Path, cs: &[Value], lib: Option<&Library>, gate_note
     let c0 = &cs[0];
     let null = Value::Null;
     let comp = c0.get("component").unwrap_or(&null);
-    let part = |key: &str| jv::text(comp.get(key));
+    let part = |key: &str| js::to_string(comp.get(key));
     let location = |c: &Value| {
         master_source(root, c, lib).unwrap_or_else(|| MasterSource {
             file: format!("design/system/components/{}.html", part("name")),
@@ -359,13 +362,13 @@ fn component_comment(root: &Path, cs: &[Value], lib: Option<&Library>, gate_note
     let comment = is_comment(c0);
     let header = if comment {
         format!("[Penpot comment on master {}]", part("title"))
-    } else if jv::truthy(c0.get("isRoot")) {
+    } else if js::truthy(c0.get("isRoot")) {
         format!("[Penpot master] {}:", part("title"))
     } else {
         format!(
             "[Penpot master] {} > {}:",
             part("title"),
-            jv::text(c0.get("name"))
+            js::to_string(c0.get("name"))
         )
     };
     let body = if comment {
@@ -383,8 +386,8 @@ fn component_comment(root: &Path, cs: &[Value], lib: Option<&Library>, gate_note
             .join("\n")
     };
     let named = |key: &str, word: &str| {
-        jv::truthy_value(comp.get(key)).map_or(String::new(), |v| {
-            format!(", {word} \"{}\"", jv::text(Some(v)))
+        js::truthy_value(comp.get(key)).map_or(String::new(), |v| {
+            format!(", {word} \"{}\"", js::to_string(Some(v)))
         })
     };
     let master_note = format!(
@@ -395,7 +398,7 @@ fn component_comment(root: &Path, cs: &[Value], lib: Option<&Library>, gate_note
         named("size", "size")
     );
     let is_text = c0.get("type").and_then(Value::as_str) == Some("text");
-    jv::obj(vec![
+    js::object(vec![
         (
             "comment",
             Some(format!("{header}\n{body}\n{master_note}{gate_note}").into()),
@@ -407,11 +410,11 @@ fn component_comment(root: &Path, cs: &[Value], lib: Option<&Library>, gate_note
         ("provider", Some("penpot".into())),
         (
             "target",
-            Some(jv::obj(vec![
+            Some(js::object(vec![
                 ("dfwId", Some(Value::Null)),
                 (
                     "component",
-                    Some(jv::obj(vec![
+                    Some(js::object(vec![
                         ("name", comp.get("name").cloned()),
                         ("variant", comp.get("variant").cloned()),
                         ("size", comp.get("size").cloned()),
@@ -429,12 +432,12 @@ fn component_comment(root: &Path, cs: &[Value], lib: Option<&Library>, gate_note
                 ("layer", c0.get("path").filter(|_| !comment).cloned()),
                 (
                     "tag",
-                    jv::truthy_value(c0.get("tag"))
+                    js::truthy_value(c0.get("tag"))
                         .filter(|_| !comment)
                         .cloned(),
                 ),
                 ("bbox", rounded_bbox(c0)),
-                ("text", is_text.then(|| jv::norm(c0.get("from")).into())),
+                ("text", is_text.then(|| js::norm(c0.get("from")).into())),
             ])),
         ),
     ])
@@ -450,11 +453,11 @@ fn load_baseline(dir: &Path, export_id: Option<&str>) -> Result<Value, DfwError>
         )?,
         None => Value::Null,
     };
-    if jv::truthy(Some(&named)) {
+    if js::truthy(Some(&named)) {
         return Ok(named);
     }
     let latest = read_json(&dir.join("export.json"), Some(Value::Null))?;
-    if jv::truthy(Some(&latest)) {
+    if js::truthy(Some(&latest)) {
         return Ok(latest);
     }
     Err(DfwError::new("No Penpot export found (.dfw/penpot/export.json). Run \"dfw penpot export\" first; the change file must come from boards built from it."))
@@ -493,11 +496,11 @@ fn token_diff(
 
 /// The lines of the comment that reports token values changed in Penpot.
 fn token_lines(diff: &TokenImport) -> Vec<String> {
-    let s = |c: &Value, key: &str| jv::text(c.get(key));
+    let s = |c: &Value, key: &str| js::to_string(c.get(key));
     let mut lines = Vec::new();
     for (set, d) in &diff.diff {
         for c in &d.changed {
-            if !jv::truthy(c.get("descriptionOnly")) {
+            if !js::truthy(c.get("descriptionOnly")) {
                 lines.push(format!(
                     "- {set} {}: {} -> {}",
                     s(c, "token"),
@@ -551,12 +554,12 @@ pub fn import_changes(
         if baseline_id.and_then(Value::as_str) != Some(id) {
             warnings.push(format!(
                 "Change file refers to export {id}, which is not on disk; compared with the latest export {}.",
-                jv::text(baseline_id)
+                js::to_string(baseline_id)
             ));
         }
     }
     let design = opts.state.and_then(|s| s.get("design"));
-    let frozen = jv::truthy(design.and_then(|d| d.get("locked")));
+    let frozen = js::truthy(design.and_then(|d| d.get("locked")));
     let mut result = ChangeImport {
         baseline: baseline_id.cloned(),
         changes: diff.changes,
@@ -609,7 +612,7 @@ pub fn import_changes(
     let gate_note = if frozen {
         format!(
             "\n(Design v{} is approved and frozen: discuss with the user; applying this needs \"dfw reopen\".)",
-            jv::text(design.and_then(|d| d.get("version")))
+            js::to_string(design.and_then(|d| d.get("version")))
         )
     } else {
         String::new()
@@ -627,16 +630,16 @@ pub fn import_changes(
             .filter(|_| is_comment(c0))
             .map(|seq| thread_key(changes.get("fileId"), Some(seq)));
         if let Some(tk) = &thread {
-            if jv::truthy(threads.get(tk)) {
+            if js::truthy(threads.get(tk)) {
                 linked.push((tk.clone(), c0.clone()));
                 continue;
             }
         }
-        if ledger_has(&ledger, &fp) || (is_comment(c0) && jv::truthy(c0.get("resolved"))) {
+        if ledger_has(&ledger, &fp) || (is_comment(c0) && js::truthy(c0.get("resolved"))) {
             result.skipped += 1;
             continue;
         }
-        let input = if jv::truthy(c0.get("component")) {
+        let input = if js::truthy(c0.get("component")) {
             component_comment(root, cs, lib.as_ref(), &gate_note)
         } else {
             screen_comment(root, cs, &gate_note)
@@ -684,7 +687,7 @@ pub fn import_changes(
             .map(|p| {
                 let mut c = Map::new();
                 c.insert("id".into(), "(dry run)".into());
-                c.extend(js_spread(Some(&p.input)));
+                c.extend(js::spread(Some(&p.input)));
                 Value::Object(c)
             })
             .collect();
@@ -699,7 +702,7 @@ pub fn import_changes(
         if let (Some(tk), Value::Object(links)) = (&p.thread, &mut threads) {
             links.insert(
                 tk.clone(),
-                jv::obj(vec![
+                js::object(vec![
                     ("comment", c.get("id").cloned()),
                     ("seen", Some(p.seen.into())),
                     ("resolved", Some(Value::Bool(false))),
@@ -725,8 +728,8 @@ pub fn import_changes(
     }
     if !opts.live {
         // The archive name comes from the change file: digits, T and Z only.
-        let pushed_at =
-            jv::truthy_value(changes.get("pushedAt")).map_or_else(now_iso, |p| jv::text(Some(p)));
+        let pushed_at = js::truthy_value(changes.get("pushedAt"))
+            .map_or_else(now_iso, |p| js::to_string(Some(p)));
         let stamp: String = pushed_at
             .chars()
             .filter(|c| c.is_ascii_digit() || *c == 'T' || *c == 'Z')
@@ -741,8 +744,8 @@ pub fn import_changes(
 pub fn format_import_changes(r: &ChangeImport, dry_run: bool) -> String {
     let mut by: Vec<(String, usize)> = Vec::new();
     for c in &r.changes {
-        let ty = jv::text(c.get("type"));
-        let key = if jv::truthy(c.get("component")) && !is_comment(c) {
+        let ty = js::to_string(c.get("type"));
+        let key = if js::truthy(c.get("component")) && !is_comment(c) {
             format!("component {ty}")
         } else {
             ty
@@ -755,7 +758,7 @@ pub fn format_import_changes(r: &ChangeImport, dry_run: bool) -> String {
     let counts = if r.changes.is_empty() {
         "no changes".to_string()
     } else {
-        jv::js_key_order(by)
+        js::key_order_pairs(by)
             .iter()
             .map(|(k, n)| format!("{n} {k}"))
             .collect::<Vec<_>>()
@@ -763,19 +766,19 @@ pub fn format_import_changes(r: &ChangeImport, dry_run: bool) -> String {
     };
     let mut lines = vec![format!(
         "Compared with export {}: {counts}.",
-        jv::text(r.baseline.as_ref())
+        js::to_string(r.baseline.as_ref())
     )];
     let joined = |values: Vec<Option<&Value>>| -> String {
         values
             .into_iter()
-            .filter_map(jv::truthy_value)
-            .map(|v| jv::text(Some(v)))
+            .filter_map(js::truthy_value)
+            .map(|v| js::to_string(Some(v)))
             .collect::<Vec<_>>()
             .join("/")
     };
     for c in &r.comments {
         let target = c.get("target");
-        let component = jv::truthy_value(target.and_then(|t| t.get("component")));
+        let component = js::truthy_value(target.and_then(|t| t.get("component")));
         let mut place = joined(vec![c.get("screen"), c.get("variant"), c.get("breakpoint")]);
         if place.is_empty() {
             place = if component.is_some() {
@@ -786,10 +789,10 @@ pub fn format_import_changes(r: &ChangeImport, dry_run: bool) -> String {
             .to_string();
         }
         let element = match (
-            jv::truthy_value(target.and_then(|t| t.get("dfwId"))),
+            js::truthy_value(target.and_then(|t| t.get("dfwId"))),
             component,
         ) {
-            (Some(id), _) => jv::text(Some(id)),
+            (Some(id), _) => js::to_string(Some(id)),
             (None, Some(comp)) => joined(vec![
                 comp.get("name"),
                 comp.get("variant"),
@@ -799,8 +802,8 @@ pub fn format_import_changes(r: &ChangeImport, dry_run: bool) -> String {
         };
         lines.push(format!(
             "{} {place} -> {element}\n    {}",
-            jv::text(c.get("id")),
-            jv::text(c.get("comment"))
+            js::to_string(c.get("id")),
+            js::to_string(c.get("comment"))
                 .split('\n')
                 .collect::<Vec<_>>()
                 .join("\n    ")

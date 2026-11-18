@@ -7,11 +7,13 @@ use std::path::Path;
 use regex::{Captures, Regex};
 use serde_json::{json, Value};
 
-use super::text::{alias, hex_field, slice_inner, text_or_empty};
+use super::text::{alias, hex_field, slice_inner};
 use crate::core::error::DfwError;
+use crate::core::js;
+use crate::core::js::regex::with_js_classes;
 use crate::core::paths::project_paths;
-use crate::design::edit::{collect_tokens, js_regex, TokenEntry};
-use crate::design::tokens::{dir_names, js, tokens_to_declarations};
+use crate::design::edit::{collect_tokens, TokenEntry};
+use crate::design::tokens::{dir_names, tokens_to_declarations};
 
 /// `loadTokens`: the tokens of every `design/tokens/*.json`.
 pub(super) fn load_tokens(root: &Path) -> Result<Vec<TokenEntry>, DfwError> {
@@ -45,7 +47,7 @@ impl Vars {
         };
         Ok(Vars {
             map: tokens_to_declarations(&tree)?.into_iter().collect(),
-            var: js_regex(r"var\((--[\w-]+)\)")?,
+            var: with_js_classes(r"var\((--[\w-]+)\)")?,
         })
     }
 
@@ -120,7 +122,7 @@ impl<'a> Tokens<'a> {
     }
 
     pub(super) fn description(&self, name: &str) -> String {
-        text_or_empty(self.get(name).and_then(|t| t.description.as_ref()))
+        js::or_empty(self.get(name).and_then(|t| t.description.as_ref()))
     }
 
     /// `byName.get('font.size.<k>')?.value?.value`.

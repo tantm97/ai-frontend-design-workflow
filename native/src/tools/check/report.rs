@@ -1,11 +1,9 @@
 //! The report of the checks: `flatten`, `formatReport` and `checkExitCode` of check.mjs.
 
+use crate::core::js;
 use std::cmp::Ordering;
 
 use serde_json::{json, Value};
-
-use crate::core::config::js_truthy;
-use crate::design::tokens::js;
 
 /// `flatten(results)`: every finding of every tool.
 pub fn flatten(results: &[Value]) -> Vec<Value> {
@@ -138,7 +136,7 @@ pub fn format_report(results: &[Value], max: usize) -> Report {
     };
     let detail = |r: &Value| {
         r.get("detail")
-            .filter(|d| js_truthy(d))
+            .filter(|d| js::truthy(d))
             .map(|d| js::to_string(Some(d)))
     };
     let unverified: Vec<&Value> = results.iter().filter(did_not_run).collect();

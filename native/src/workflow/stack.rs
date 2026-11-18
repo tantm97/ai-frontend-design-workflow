@@ -6,8 +6,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::{json, Map, Value};
 
-use crate::core::config::{js_spread, js_truthy};
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::util::{iso_from_millis, read_json};
 
 const FRAMEWORKS: [(&str, &str); 13] = [
@@ -85,7 +85,7 @@ fn found(deps: &Map<String, Value>, table: &[(&str, &str)]) -> Vec<Value> {
     table
         .iter()
         .filter_map(|(dep, name)| {
-            let version = deps.get(*dep).filter(|v| js_truthy(v))?;
+            let version = deps.get(*dep).filter(|v| js::truthy(v))?;
             Some(json!({ "name": name, "package": dep, "version": version }))
         })
         .collect()
@@ -109,8 +109,8 @@ pub fn detect_stack(root: &Path) -> Result<Value, DfwError> {
     let pkg_path = root.join("package.json");
     if pkg_path.exists() {
         let pkg = read_json(&pkg_path, Some(json!({})))?;
-        let mut deps = js_spread(pkg.get("dependencies"));
-        deps.extend(js_spread(pkg.get("devDependencies")));
+        let mut deps = js::spread(pkg.get("dependencies"));
+        deps.extend(js::spread(pkg.get("devDependencies")));
         kind = "javascript";
         evidence.push("package.json".into());
         framework = found(&deps, &FRAMEWORKS)
@@ -123,7 +123,7 @@ pub fn detect_stack(root: &Path) -> Result<Value, DfwError> {
             ui_libraries.push(json!({ "name": "shadcn/ui", "package": "components.json" }));
             evidence.push("components.json".into());
         }
-        let typescript = deps.get("typescript").is_some_and(js_truthy);
+        let typescript = deps.get("typescript").is_some_and(js::truthy);
         language = if typescript || root.join("tsconfig.json").exists() {
             "TypeScript"
         } else {

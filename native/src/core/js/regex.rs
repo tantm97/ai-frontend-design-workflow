@@ -20,7 +20,7 @@ use regex::Regex;
 
 use crate::core::error::DfwError;
 
-const WS: &str = r"\t\n\x0B\x0C\r \x{a0}\x{1680}\x{2000}-\x{200a}\x{2028}\x{2029}\x{202f}\x{205f}\x{3000}\x{feff}";
+const WS: &str = super::SPACE;
 const DOT: &str = r"[^\n\r\x{2028}\x{2029}]";
 const ANY: &str = r"[\s\S]";
 
@@ -154,6 +154,17 @@ pub fn js_regex(source: &str, flags: &str) -> Result<Regex, DfwError> {
         .map_err(|err| DfwError::internal(format!("regular expression /{source}/{flags}: {err}")))
 }
 
+/// A `regex` crate expression whose `\s`, `\d` and `\w` mean what they mean in JavaScript (the
+/// crate reads them as Unicode properties). Unlike [`js_regex`], the rest is the crate's own
+/// syntax (inline flags such as `(?i)` or `(?s)`): for expressions the port wrote by hand.
+pub fn with_js_classes(pattern: &str) -> Result<Regex, DfwError> {
+    let pattern = pattern
+        .replace(r"\s", super::SPACE_CLASS)
+        .replace(r"\d", "[0-9]")
+        .replace(r"\w", "[A-Za-z0-9_]");
+    Regex::new(&pattern).map_err(|err| DfwError::internal(err.to_string()))
+}
+
 /// A constant expression, compiled on first use.
 macro_rules! js_re {
     ($name:ident, $source:expr) => {
@@ -164,42 +175,11 @@ macro_rules! js_re {
             // The source is a literal of this crate and the unit tests of its module compile
             // every one of them (`patterns_compile`), so this cannot fail at run time.
             #[allow(clippy::expect_used)]
-            $crate::design::lint::jsre::js_regex($source, $flags)
-                .expect("constant regular expression")
+            $crate::core::js::regex::js_regex($source, $flags).expect("constant regular expression")
         });
     };
 }
 pub(crate) use js_re;
-
-/// `s.length`: the number of UTF-16 units.
-pub fn utf16_len(s: &str) -> usize {
-    s.chars().map(char::len_utf16).sum()
-}
-
-/// `s.slice(0, n)`. A character cut in half by the limit is left out (JavaScript keeps half of
-/// it, a lone surrogate, which no expression here matches and Rust text cannot hold).
-pub fn utf16_prefix(s: &str, n: usize) -> &str {
-    let mut units = 0;
-    for (at, c) in s.char_indices() {
-        units += c.len_utf16();
-        if units > n {
-            return &s[..at];
-        }
-    }
-    s
-}
-
-/// `s.slice(-n)` for `n > 0`, with the same rule for a character cut in half.
-pub fn utf16_suffix(s: &str, n: usize) -> &str {
-    let mut units = 0;
-    for (at, c) in s.char_indices().rev() {
-        units += c.len_utf16();
-        if units > n {
-            return &s[at + c.len_utf8()..];
-        }
-    }
-    s
-}
 
 /// Every character but `\n` replaced by spaces of the same byte length, so offsets and line
 /// numbers of the text around it stay valid (`s.replace(/[^\n]/g, ' ')`).
@@ -296,23 +276,5 @@ mod tests {
         ] {
             assert!(translate(source, flags).is_err(), "{source}");
         }
-    }
-
-    #[test]
-    fn utf16_slices() {
-        assert_eq!(utf16_len("a🚀"), 3);
-        assert_eq!(utf16_prefix("a🚀b", 2), "a");
-        assert_eq!(utf16_prefix("a🚀b", 3), "a🚀");
-        assert_eq!(utf16_prefix("ab", 9), "ab");
-        assert_eq!(utf16_suffix("a🚀b", 2), "b");
-        assert_eq!(utf16_suffix("a🚀b", 3), "🚀b");
-        assert_eq!(
-            blank_css_comments("a/* é\nx */b/* open"),
-            "a     \n    b/* open"
-        );
-        assert_eq!(
-            blank_matches("a<b>c", &js_regex("<[^>]*>", "").unwrap()),
-            "a   c"
-        );
     }
 }

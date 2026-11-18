@@ -1,10 +1,10 @@
 //! Generic-AI tells ("slop") and the interface-guideline rules checkable in CSS: `slopHtml`,
 //! `slopCss` and `guidelineCss` of lint.mjs.
 
-use super::jsre::{blank_matches, js_re};
 use super::{style_blocks, Add};
+use crate::core::js;
+use crate::core::js::regex::{blank_matches, js_re};
 use crate::design::color::hex_to_oklch;
-use crate::design::html::is_js_space;
 
 /// Colours AI-generated UIs default to. Exact values only: a brand that really uses one keeps
 /// it with a recorded decision.
@@ -194,7 +194,7 @@ fn emoji_in_icon_class(markup: &str, body: usize, add: &mut Add) {
         let mut end = first.start();
         let mut units = 0;
         for ch in markup[first.start()..].chars() {
-            if is_js_space(ch) || units + ch.len_utf16() > 4 {
+            if js::is_space(ch) || units + ch.len_utf16() > 4 {
                 break;
             }
             units += ch.len_utf16();

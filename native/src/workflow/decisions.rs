@@ -6,14 +6,15 @@ use std::path::Path;
 use serde_json::{json, Value};
 
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::project_paths;
 use crate::core::util::{append_jsonl, now_iso, read_jsonl};
 
-use super::state::{js_str, object, type_error};
+use super::state::type_error;
 
 /// The entry `approveGate` appends: a level 1 (user) decision named after the gate.
 pub fn gate_entry(at: &str, gate: &str, title: &str, note: Option<&Value>) -> Value {
-    let note = note.map_or(String::new(), |n| format!(" - {}", js_str(Some(n))));
+    let note = note.map_or(String::new(), |n| format!(" - {}", js::to_string(Some(n))));
     json!({
         "at": at,
         "level": 1,
@@ -40,7 +41,7 @@ pub fn decide(
     let Some(text) = text else {
         return Err(DfwError::new("Decision text is required."));
     };
-    let entry = object(vec![
+    let entry = js::object(vec![
         ("at", Some(Value::String(now_iso()))),
         ("level", Some(Value::from(level))),
         ("topic", Some(topic.unwrap_or_else(|| "general".into()))),
@@ -77,9 +78,9 @@ pub fn format_decisions(list: &[Value]) -> Result<String, DfwError> {
             Ok(format!(
                 "{} L{} [{}] {}",
                 String::from_utf16_lossy(&units),
-                js_str(d.get("level")),
-                js_str(d.get("topic")),
-                js_str(d.get("decision"))
+                js::to_string(d.get("level")),
+                js::to_string(d.get("topic")),
+                js::to_string(d.get("decision"))
             ))
         })
         .collect();

@@ -6,5 +6,6 @@
 pub mod config;
 pub mod error;
 pub mod host;
+pub mod js;
 pub mod paths;
 pub mod util;

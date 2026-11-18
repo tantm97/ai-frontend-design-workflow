@@ -10,10 +10,11 @@ use serde_json::{json, Map, Value};
 
 use super::launch::{fonts_ready, open_renderer_with, LaunchOptions};
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::resolve;
 use crate::core::util::{now_iso, to_json_pretty};
 use crate::design::color::{hex_to_oklch, hex_to_rgb, Oklch};
-use crate::design::tokens::{js, relative_path};
+use crate::design::tokens::relative_path;
 
 /// `collect` of extract.mjs, byte for byte: it runs in the page and counts style values over
 /// visible elements (backgrounds weighted by area).

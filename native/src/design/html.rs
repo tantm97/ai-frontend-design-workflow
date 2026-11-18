@@ -24,6 +24,7 @@
 // this allow goes when they call it.
 #![allow(dead_code)]
 
+use crate::core::js;
 use std::ops::Range;
 
 /// Elements that never have content or a closing tag (`VOID` in compose.mjs).
@@ -31,21 +32,6 @@ pub const VOID: [&str; 13] = [
     "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track",
     "wbr",
 ];
-
-/// `\s` of a JavaScript regular expression (also what `String.prototype.trim` removes).
-pub fn is_js_space(c: char) -> bool {
-    matches!(
-        c,
-        '\t' | '\n' | '\u{b}' | '\u{c}' | '\r' | ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'
-            ..='\u{200a}'
-                | '\u{2028}'
-                | '\u{2029}'
-                | '\u{202f}'
-                | '\u{205f}'
-                | '\u{3000}'
-                | '\u{feff}'
-    )
-}
 
 /// How an attribute value is written.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -319,7 +305,7 @@ fn parse_tag(src: &str, at: usize) -> Option<(Tag, bool)> {
             _ => i += 1,
         }
     };
-    let trimmed = src[name_end..gt].trim_end_matches(is_js_space);
+    let trimmed = src[name_end..gt].trim_end_matches(js::is_space);
     let self_closing = trimmed.ends_with('/');
     let attrs_end = if self_closing {
         name_end + trimmed.len() - 1
@@ -351,12 +337,12 @@ pub fn open_tag_at(src: &str, at: usize) -> Option<Tag> {
 /// The attributes written in `src[range]` (the part of a tag after its name), as `ATTR_RE` of
 /// compose.mjs reads them.
 pub fn parse_attrs(src: &str, range: Range<usize>) -> Vec<Attr> {
-    let name_stop = |c: char| is_js_space(c) || matches!(c, '"' | '\'' | '<' | '>' | '/' | '=');
-    let bare_stop = |c: char| is_js_space(c) || matches!(c, '"' | '\'' | '=' | '<' | '>' | '`');
+    let name_stop = |c: char| js::is_space(c) || matches!(c, '"' | '\'' | '<' | '>' | '/' | '=');
+    let bare_stop = |c: char| js::is_space(c) || matches!(c, '"' | '\'' | '=' | '<' | '>' | '`');
     let end = range.end;
     let skip_space = |from: usize| {
         src[from..end]
-            .find(|c: char| !is_js_space(c))
+            .find(|c: char| !js::is_space(c))
             .map_or(end, |i| from + i)
     };
     let mut attrs = Vec::new();
@@ -578,7 +564,7 @@ pub fn set_attr(src: &str, tag: &Tag, name: &str, value: Option<&str>) -> Option
     // The white space in front of an attribute goes with it.
     let space_before = |at: usize| {
         let lead = &src[tag.name.end..at];
-        tag.name.end + lead.trim_end_matches(is_js_space).len()
+        tag.name.end + lead.trim_end_matches(js::is_space).len()
     };
     let existing = tag
         .attrs

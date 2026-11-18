@@ -18,8 +18,7 @@ use serde_json::{json, Value};
 
 use crate::browser::cdp::lock;
 use crate::browser::launch::find_browser;
-use crate::core::config::js_truthy;
-use crate::core::util::js_number;
+use crate::core::js;
 
 const LIGHTHOUSE_VERSION: &str = "13.6.0";
 
@@ -152,16 +151,6 @@ fn run_with_timeout(mut command: Command, timeout_ms: u64) -> (Option<String>, S
     (Some(text(&out)), text(&err), error)
 }
 
-/// `${value}` for the JSON values a Lighthouse report holds in a title or display value.
-fn js_text(value: Option<&Value>) -> String {
-    match value {
-        None => "undefined".into(),
-        Some(Value::String(s)) => s.clone(),
-        Some(Value::Number(n)) => n.as_f64().map(js_number).unwrap_or_default(),
-        Some(other) => other.to_string(),
-    }
-}
-
 /// `Object.values(value || {})`.
 fn values(value: Option<&Value>) -> Vec<&Value> {
     match value {
@@ -195,9 +184,9 @@ pub fn lighthouse_report(stdout: Option<&str>, url: &str, error_detail: &str) ->
             let score = c.get("score").and_then(Value::as_f64).map_or_else(
                 || "n/a".to_string(),
                 // Math.round: halves go up.
-                |s| js_number((s * 100.0 + 0.5).floor()),
+                |s| js::number((s * 100.0 + 0.5).floor()),
             );
-            format!("{} {score}", js_text(c.get("title")))
+            format!("{} {score}", js::to_string(c.get("title")))
         })
         .collect();
     let mut findings = Vec::new();
@@ -210,7 +199,7 @@ pub fn lighthouse_report(stdout: Option<&str>, url: &str, error_detail: &str) ->
             let Some(a) = lhr
                 .get("audits")
                 .and_then(|audits| audits.get(id))
-                .filter(|a| js_truthy(a))
+                .filter(|a| js::truthy(a))
             else {
                 continue;
             };
@@ -218,7 +207,7 @@ pub fn lighthouse_report(stdout: Option<&str>, url: &str, error_detail: &str) ->
                 .get("scoreDisplayMode")
                 .and_then(Value::as_str)
                 .unwrap_or_default();
-            let weighted = audit_ref.get("weight").is_some_and(js_truthy);
+            let weighted = audit_ref.get("weight").is_some_and(js::truthy);
             let score = match a.get("score").and_then(Value::as_f64) {
                 Some(score)
                     if score < 0.9
@@ -229,18 +218,18 @@ pub fn lighthouse_report(stdout: Option<&str>, url: &str, error_detail: &str) ->
                 }
                 _ => continue,
             };
-            let display = a.get("displayValue").filter(|v| js_truthy(v));
+            let display = a.get("displayValue").filter(|v| js::truthy(v));
             findings.push(json!({
                 "level": if score < 0.5 { "warn" } else { "info" },
-                "rule": format!("lighthouse-{}", js_text(a.get("id"))),
+                "rule": format!("lighthouse-{}", js::to_string(a.get("id"))),
                 "file": url,
                 "line": 1,
                 "source": "lighthouse",
                 "message": format!(
                     "{}: {}{}",
-                    js_text(cat.get("title")),
-                    js_text(a.get("title")),
-                    display.map(|d| format!(" ({})", js_text(Some(d)))).unwrap_or_default()
+                    js::to_string(cat.get("title")),
+                    js::to_string(a.get("title")),
+                    display.map(|d| format!(" ({})", js::to_string(Some(d)))).unwrap_or_default()
                 ),
             }));
         }

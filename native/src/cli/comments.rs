@@ -4,12 +4,13 @@ use serde_json::Value;
 
 use super::{Ctx, Handler};
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::util::{out, to_json_pretty, ArgValue};
 use crate::review::comments::{add_comment, all_comments, new_session, update_comment, Update};
 use crate::review::inbox::{
     format_for_claude, mark_delivered, undelivered, wait_for_comments, WaitOptions,
 };
-use crate::workflow::state::{arg_truthy, js_str, js_to_number, truthy};
+use crate::workflow::state::arg_truthy;
 
 /// The commands of this group: every subcommand runs here.
 pub fn commands() -> Vec<(&'static str, Handler)> {
@@ -120,7 +121,7 @@ fn list(ctx: &Ctx) -> Result<i32, DfwError> {
     let mut list = all_comments(&ctx.root())?;
     let status_of = |c: &Value| c.get("status").and_then(Value::as_str).map(str::to_string);
     if let Some(filter) = arg_truthy(a, "status") {
-        let filter = js_str(Some(&filter));
+        let filter = js::to_string(Some(&filter));
         let wanted: Vec<&str> = if filter == "active" {
             vec!["open", "acknowledged", "reopened"]
         } else {
@@ -140,15 +141,15 @@ fn list(ctx: &Ctx) -> Result<i32, DfwError> {
         .map(|c| {
             let place: Vec<String> = ["screen", "variant", "breakpoint"]
                 .iter()
-                .filter_map(|k| truthy(c.get(k)))
-                .map(|v| js_str(Some(v)))
+                .filter_map(|k| js::truthy_value(c.get(k)))
+                .map(|v| js::to_string(Some(v)))
                 .collect();
-            let of_target = |k: &str| truthy(c.get("target").and_then(|t| t.get(k)));
+            let of_target = |k: &str| js::truthy_value(c.get("target").and_then(|t| t.get(k)));
             let target = of_target("dfwId")
                 .or(of_target("selector"))
-                .map_or("?".to_string(), |t| js_str(Some(t)));
-            let source =
-                of_target("source").map_or(String::new(), |s| format!(" ({})", js_str(Some(s))));
+                .map_or("?".to_string(), |t| js::to_string(Some(t)));
+            let source = of_target("source")
+                .map_or(String::new(), |s| format!(" ({})", js::to_string(Some(s))));
             let last = c
                 .get("thread")
                 .and_then(Value::as_array)
@@ -156,16 +157,16 @@ fn list(ctx: &Ctx) -> Result<i32, DfwError> {
             let last = last.map_or(String::new(), |l| {
                 format!(
                     "\n    last: {}: {}",
-                    js_str(l.get("by")),
-                    js_str(l.get("message"))
+                    js::to_string(l.get("by")),
+                    js::to_string(l.get("message"))
                 )
             });
             format!(
                 "{} [{}] {} -> {target}{source}\n    \"{}\"{last}",
-                js_str(c.get("id")),
-                js_str(c.get("status")),
+                js::to_string(c.get("id")),
+                js::to_string(c.get("status")),
                 place.join("/"),
-                js_str(c.get("comment")),
+                js::to_string(c.get("comment")),
             )
         })
         .collect();
@@ -178,7 +179,7 @@ fn wait(ctx: &Ctx) -> Result<i32, DfwError> {
     // `(Number(a.timeout) || 3600) * 1000`: the flag alone is `true`, which is 1.
     let seconds = match ctx.args.get("timeout") {
         Some(ArgValue::Flag) => 1.0,
-        Some(ArgValue::Text(text)) => js_to_number(text),
+        Some(ArgValue::Text(text)) => js::str_to_number(text),
         None => f64::NAN,
     };
     let seconds = Some(seconds)

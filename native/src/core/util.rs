@@ -7,6 +7,7 @@
 //!
 //! Over 800 lines only with its tests (the ported cases of the JavaScript tests sit next to the code).
 
+use crate::core::js;
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self, IsTerminal, Read, Write};
@@ -118,11 +119,11 @@ struct JsFormatter<F>(F);
 
 impl<F: Formatter> Formatter for JsFormatter<F> {
     fn write_f64<W: ?Sized + Write>(&mut self, w: &mut W, v: f64) -> io::Result<()> {
-        w.write_all(js_number(v).as_bytes())
+        w.write_all(js::number(v).as_bytes())
     }
     fn write_u64<W: ?Sized + Write>(&mut self, w: &mut W, v: u64) -> io::Result<()> {
         let text = if v > MAX_SAFE_INTEGER {
-            js_number(v as f64)
+            js::number(v as f64)
         } else {
             v.to_string()
         };
@@ -130,7 +131,7 @@ impl<F: Formatter> Formatter for JsFormatter<F> {
     }
     fn write_i64<W: ?Sized + Write>(&mut self, w: &mut W, v: i64) -> io::Result<()> {
         let text = if v.unsigned_abs() > MAX_SAFE_INTEGER {
-            js_number(v as f64)
+            js::number(v as f64)
         } else {
             v.to_string()
         };
@@ -162,41 +163,6 @@ impl<F: Formatter> Formatter for JsFormatter<F> {
     }
     fn end_object_value<W: ?Sized + Write>(&mut self, w: &mut W) -> io::Result<()> {
         self.0.end_object_value(w)
-    }
-}
-
-/// `String(number)` as ECMAScript defines it (Number::toString), for finite values.
-pub fn js_number(v: f64) -> String {
-    if v == 0.0 || !v.is_finite() {
-        // JSON has no NaN or Infinity; JSON.stringify prints them as null.
-        return if v == 0.0 { "0".into() } else { "null".into() };
-    }
-    // `{:e}` gives the shortest digits that read back as the same double: "d.ddde<exp>".
-    let sci = format!("{:e}", v.abs());
-    let (mantissa, exp) = sci.split_once('e').unwrap_or((&sci, "0"));
-    let digits: String = mantissa.chars().filter(|c| *c != '.').collect();
-    let k = digits.len() as i32;
-    let n = exp.parse::<i32>().unwrap_or(0) + 1;
-    let body = if k <= n && n <= 21 {
-        format!("{digits}{}", "0".repeat((n - k) as usize))
-    } else if 0 < n && n <= 21 {
-        format!("{}.{}", &digits[..n as usize], &digits[n as usize..])
-    } else if -6 < n && n <= 0 {
-        format!("0.{}{digits}", "0".repeat((-n) as usize))
-    } else {
-        let e = n - 1;
-        let sign = if e < 0 { '-' } else { '+' };
-        let (first, rest) = digits.split_at(1);
-        if rest.is_empty() {
-            format!("{first}e{sign}{}", e.abs())
-        } else {
-            format!("{first}.{rest}e{sign}{}", e.abs())
-        }
-    };
-    if v < 0.0 {
-        format!("-{body}")
-    } else {
-        body
     }
 }
 
@@ -830,7 +796,7 @@ mod tests {
             (123456.789, "123456.789"),
             (9007199254740993.0, "9007199254740992"),
         ] {
-            assert_eq!(js_number(v), s);
+            assert_eq!(js::number(v), s);
         }
         assert_eq!(
             to_json_compact(&json!(9007199254740993u64)),

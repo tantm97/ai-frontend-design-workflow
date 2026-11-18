@@ -18,13 +18,14 @@ use super::http::{
 use super::sse::Clients;
 use super::{penpot_routes, watch};
 use crate::assets::studio_file;
-use crate::core::config::{js_truthy, load_config, studio_port};
+use crate::core::config::{load_config, studio_port};
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::project_paths;
 use crate::core::util::to_json_compact;
 use crate::design::compose::build_system;
 use crate::design::edit::{apply_edit, undo_edit};
-use crate::design::tokens::js;
+
 use crate::review::comments::{
     add_comment, all_comments, current_session, new_session, update_comment, Update,
 };
@@ -206,7 +207,7 @@ impl Studio {
             let summary = summarize(state.as_ref())?;
             let session = current_session(root, false)?
                 .and_then(|s| s.session.get("id").cloned())
-                .filter(js_truthy)
+                .filter(|v| js::truthy(v))
                 .unwrap_or(Value::Null);
             let body = json!({ "state": state, "summary": summary, "session": session });
             return Ok(Response::json(200, &body));
@@ -226,7 +227,7 @@ impl Studio {
             let update = Update {
                 status: b
                     .get("status")
-                    .filter(|s| js_truthy(s))
+                    .filter(|s| js::truthy(s))
                     .map(|s| js::to_string(Some(s))),
                 message: b.get("message").cloned(),
                 by: Some(json!("user")),

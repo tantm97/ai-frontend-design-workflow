@@ -22,10 +22,10 @@ pub use proxy::{start_live_server, LiveOptions};
 
 use crate::core::config::{load_config, review_shortcut};
 use crate::core::error::DfwError;
+use crate::core::js;
+use crate::core::js::regex::with_js_classes;
 use crate::core::paths::project_paths;
 use crate::core::util::{get_path, read_json};
-use crate::design::edit::js_regex;
-use crate::workflow::state::js_trim;
 
 const LOCAL_HOSTS: [&str; 5] = ["localhost", "127.0.0.1", "::1", "[::1]", "0.0.0.0"];
 
@@ -36,7 +36,7 @@ pub const DEFAULT_SHORTCUT: &str = "alt+c";
 /// "off") in `ctrl+alt+shift+meta+<key>` order. One letter or digit plus optional modifiers;
 /// "off" disables it.
 pub fn normalize_shortcut(raw: &str) -> Result<String, DfwError> {
-    let s = js_trim(raw).to_lowercase();
+    let s = js::trim(raw).to_lowercase();
     if s.is_empty() || s == "off" || s == "none" || s == "false" {
         return Ok("off".into());
     }
@@ -52,7 +52,7 @@ pub fn normalize_shortcut(raw: &str) -> Result<String, DfwError> {
     let mut mods: Vec<&str> = Vec::new();
     let mut key: Option<String> = None;
     let mut bad = false;
-    for part in s.split('+').map(js_trim) {
+    for part in s.split('+').map(js::trim) {
         if let Some(m) = modifier(part) {
             mods.push(m);
         } else if part.len() == 1
@@ -233,12 +233,10 @@ pub fn patch_csp(value: &str, origin: &str, nonce: Option<&str>) -> String {
         .map(|policy| {
             let mut dirs: Vec<(String, Vec<String>)> = policy
                 .split(';')
-                .map(js_trim)
+                .map(js::trim)
                 .filter(|d| !d.is_empty())
                 .map(|d| {
-                    let mut words = d
-                        .split(crate::design::html::is_js_space)
-                        .filter(|w| !w.is_empty());
+                    let mut words = d.split(crate::core::js::is_space).filter(|w| !w.is_empty());
                     let name = words.next().unwrap_or_default().to_lowercase();
                     (name, words.map(str::to_string).collect())
                 })
@@ -311,10 +309,10 @@ pub fn patch_csp(value: &str, origin: &str, nonce: Option<&str>) -> String {
 /// `patchMetaCsp(html, opts)`: the same for `<meta http-equiv="Content-Security-Policy">`.
 pub fn patch_meta_csp(html: &str, origin: &str, nonce: Option<&str>) -> String {
     let (Ok(meta), Ok(content)) = (
-        js_regex(
+        with_js_classes(
             r#"(?i)<meta(?-u:\b)[^>]*http-equiv\s*=\s*["']?content-security-policy["']?[^>]*>"#,
         ),
-        js_regex(r#"(?i)(?-u:\b)content\s*=\s*(?:"([^"]*)"|'([^']*)')"#),
+        with_js_classes(r#"(?i)(?-u:\b)content\s*=\s*(?:"([^"]*)"|'([^']*)')"#),
     ) else {
         return html.to_string();
     };
@@ -339,7 +337,7 @@ pub fn patch_meta_csp(html: &str, origin: &str, nonce: Option<&str>) -> String {
 /// than the one the browser uses (127.0.0.1 vs localhost).
 pub fn fix_set_cookie(cookies: &[String], host: &str) -> Vec<String> {
     let h = host.to_lowercase();
-    let Ok(domain) = js_regex(r"(?i);\s*domain\s*=\s*\.?([^;]*)") else {
+    let Ok(domain) = with_js_classes(r"(?i);\s*domain\s*=\s*\.?([^;]*)") else {
         return cookies.to_vec();
     };
     cookies
@@ -347,7 +345,7 @@ pub fn fix_set_cookie(cookies: &[String], host: &str) -> Vec<String> {
         .map(|c| {
             domain
                 .replace_all(c, |m: &Captures| {
-                    let dom = js_trim(&m[1]).to_lowercase();
+                    let dom = js::trim(&m[1]).to_lowercase();
                     if LOCAL_HOSTS.contains(&dom.as_str()) && dom != h {
                         String::new()
                     } else {
@@ -384,7 +382,7 @@ pub fn nearest_breakpoint(root: &Path, width: f64) -> Result<Option<Value>, DfwE
     let manifest = read_json(&project_paths(root).manifest, Some(serde_json::json!({})))?;
     let mut bps = manifest
         .get("breakpoints")
-        .filter(|b| crate::core::config::js_truthy(b))
+        .filter(|b| crate::core::js::truthy(b))
         .cloned();
     if bps.is_none() {
         let config = load_config(Some(root))?;
@@ -398,7 +396,7 @@ pub fn nearest_breakpoint(root: &Path, width: f64) -> Result<Option<Value>, DfwE
     if list.is_empty() || width == 0.0 || width.is_nan() {
         return Ok(None);
     }
-    let dist = |b: &Value| (crate::design::tokens::js::to_number(b.get("width")) - width).abs();
+    let dist = |b: &Value| (crate::core::js::to_number(b.get("width")) - width).abs();
     let mut best = &list[0];
     for b in &list[1..] {
         // NaN compares false, as in the reduce of live.mjs.

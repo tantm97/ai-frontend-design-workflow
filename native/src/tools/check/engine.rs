@@ -17,10 +17,10 @@ use serde_json::{json, Map, Value};
 
 use crate::core::config::{defaults, global_config_path, load_config};
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::{global_dir, project_paths};
 use crate::core::util::{deep_merge, read_json, sha256, write_json};
-use crate::design::html::is_js_space;
-use crate::design::tokens::js;
+
 use crate::review::locate::plugin_root_of;
 
 /// The Impeccable engine of an installed plugin: what to run, or why nothing may run.
@@ -163,7 +163,7 @@ pub struct EngineQuery<'a> {
 }
 
 fn fields(line: &str) -> Vec<&str> {
-    line.split(is_js_space).filter(|f| !f.is_empty()).collect()
+    line.split(js::is_space).filter(|f| !f.is_empty()).collect()
 }
 
 /// `resolveEngine(...)`: find the Impeccable engine dfw may run for the skill in `skill_dir`.

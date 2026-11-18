@@ -10,11 +10,11 @@ use std::path::Path;
 use serde_json::{json, Map, Value};
 
 use super::color::{audit_colors, audit_type_scale, hex_to_oklch};
-use super::html::is_js_space;
+
 use super::inventory::inventory_findings;
-use super::lint::jsre::{utf16_len, utf16_prefix};
-use super::tokens::js;
+
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::project_paths;
 use crate::core::util::read_json;
 
@@ -134,7 +134,7 @@ impl<'a> Resolver<'a> {
     /// of a colour object.
     fn hex(&self, name: &str) -> Option<Value> {
         match self.get(name)?.value? {
-            Value::String(s) => s.starts_with('#').then(|| json!(utf16_prefix(s, 7))),
+            Value::String(s) => s.starts_with('#').then(|| json!(js::slice16(s, 0, 7))),
             other => other.get("hex").filter(|h| js::truthy(Some(h))).cloned(),
         }
     }
@@ -257,7 +257,7 @@ fn rationale_body(text: &str) -> String {
             .find(|tail| {
                 // `\s*$` with the m flag: only white space up to the end, or up to a line end
                 // (a lone "\r" is one, and is white space itself).
-                let space = tail.len() - tail.trim_start_matches(is_js_space).len();
+                let space = tail.len() - tail.trim_start_matches(js::is_space).len();
                 space == tail.len() || tail[..space].contains(is_line_end)
             });
         if after_title.is_some() {
@@ -279,7 +279,7 @@ fn count_decisions(body: &str) -> usize {
         let (at, c) = chars[i];
         if at_line_start && matches!(c, '-' | '*') && body[at + 1..].starts_with(' ') {
             let line = body[at + 2..].split(is_line_end).next().unwrap_or_default();
-            if utf16_len(line) >= 20 {
+            if js::len16(line) >= 20 {
                 count += 1;
                 // The match runs to the end of the line.
                 let end = at + 2 + line.len();
@@ -292,7 +292,7 @@ fn count_decisions(body: &str) -> usize {
         }
         if is_line_end(c) {
             at_line_start = true;
-        } else if !is_js_space(c) {
+        } else if !js::is_space(c) {
             at_line_start = false;
         }
         i += 1;

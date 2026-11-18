@@ -8,11 +8,10 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{json, Value};
 
-use crate::core::config::{js_spread, js_truthy};
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::{env_nonempty, plugin_root};
 use crate::core::util::{to_json_compact, to_json_pretty};
-use crate::workflow::state::{js_trim, truthy};
 
 /// How a tool's config file holds its MCP servers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -136,9 +135,9 @@ fn collapse_blank_lines(text: &str) -> String {
 
 /// `text.replace(/\s*$/, '\n')`: JavaScript's white space at the end becomes one newline.
 fn end_with_newline(text: &str) -> String {
-    // A mark in front keeps js_trim from touching the start.
+    // A mark in front keeps js::trim from touching the start.
     let marked = format!("x{text}");
-    format!("{}\n", &js_trim(&marked)[1..])
+    format!("{}\n", &js::trim(&marked)[1..])
 }
 
 /// `mcpConfigText(format, current, { remove, command })`: new text of a tool's config with the
@@ -158,7 +157,7 @@ pub fn mcp_config_text(
             None => current.to_string(),
         };
         let rest = end_with_newline(&collapse_blank_lines(&without));
-        let empty = js_trim(&rest).is_empty();
+        let empty = js::trim(&rest).is_empty();
         if remove {
             return Ok(if empty { String::new() } else { rest });
         }
@@ -175,7 +174,7 @@ pub fn mcp_config_text(
             format!("{rest}\n{block}")
         });
     }
-    let mut data = if js_trim(current).is_empty() {
+    let mut data = if js::trim(current).is_empty() {
         json!({})
     } else {
         serde_json::from_str::<Value>(current).map_err(|err| {
@@ -188,7 +187,7 @@ pub fn mcp_config_text(
     let key = if opencode { "mcp" } else { "mcpServers" };
     match &mut data {
         Value::Object(map) => {
-            let mut servers = js_spread(truthy(map.get(key)));
+            let mut servers = js::spread(js::truthy_value(map.get(key)));
             if remove {
                 servers.shift_remove("dfw");
             } else if opencode {
@@ -200,7 +199,7 @@ pub fn mcp_config_text(
                 servers.insert("dfw".into(), json!({ "command": cmd[0], "args": cmd[1..] }));
             }
             map.insert(key.into(), Value::Object(servers));
-            if opencode && truthy(map.get("$schema")).is_none() {
+            if opencode && js::truthy_value(map.get("$schema")).is_none() {
                 map.insert("$schema".into(), json!("https://opencode.ai/config.json"));
             }
         }
@@ -230,7 +229,7 @@ fn installed_in(format: Format, file: &Path) -> bool {
     };
     serde_json::from_str::<Value>(&text)
         .ok()
-        .and_then(|v| v.get(key)?.get("dfw").map(js_truthy))
+        .and_then(|v| v.get(key)?.get("dfw").map(js::truthy))
         .unwrap_or(false)
 }
 

@@ -8,8 +8,8 @@ use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
-use super::tokens::js;
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::{plugin_root, project_paths};
 
 /// The plugin folder that holds `assets/` and `kits/` (`PLUGIN_ROOT` in util.mjs).

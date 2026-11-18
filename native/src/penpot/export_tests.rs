@@ -2,6 +2,7 @@
 //! the fixtures the other Penpot tests share.
 
 use super::*;
+use crate::core::js;
 use crate::core::util::{copy_dir, list_files, test_dir};
 use crate::design::tokens::build_tokens;
 
@@ -123,7 +124,10 @@ fn structure_snapshot() {
         .unwrap();
     assert_eq!(add["sig"], main["sig"]);
     let root = &doc["components"][0]["root"];
-    assert_eq!((jv::num(root.get("x")), jv::num(root.get("y"))), (0.0, 0.0));
+    assert_eq!(
+        (js::to_number(root.get("x")), js::to_number(root.get("y"))),
+        (0.0, 0.0)
+    );
 }
 
 /// penpot export: layout wrappers are hoisted, signatures ignore text
@@ -164,7 +168,13 @@ fn real_render_of_the_fixture_project_matches_the_snapshot() {
         .as_array()
         .unwrap()
         .iter()
-        .map(|b| json!([b["key"], jv::num(b.get("x")), jv::num(b.get("y")) > 0.0]))
+        .map(|b| {
+            json!([
+                b["key"],
+                js::to_number(b.get("x")),
+                js::to_number(b.get("y")) > 0.0
+            ])
+        })
         .collect();
     assert_eq!(
         to_json_compact(&json!(boards)),

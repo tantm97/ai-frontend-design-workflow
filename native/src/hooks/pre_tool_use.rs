@@ -11,15 +11,16 @@ use serde_json::{json, Value};
 use crate::core::config::load_config;
 use crate::core::error::DfwError;
 use crate::core::host::{HookInput, HookResult};
+use crate::core::js;
 use crate::core::paths::{env_nonempty, find_project_root, project_paths, resolve};
 use crate::core::util::{now_iso, write_json};
 use crate::workflow::gates::{decide_write, files_from_tool_input, relative};
-use crate::workflow::state::{js_str, load_state, truthy};
+use crate::workflow::state::load_state;
 
 /// The session's working directory from the payload, else the process's. A `cwd` that is not
 /// text is an error, as Node cannot resolve a path against it.
 fn session_cwd(input: &HookInput) -> Result<PathBuf, DfwError> {
-    match truthy(input.raw.get("cwd")) {
+    match js::truthy_value(input.raw.get("cwd")) {
         Some(Value::String(cwd)) => Ok(PathBuf::from(cwd)),
         Some(_) => Err(DfwError::internal(
             "The \"paths[0]\" argument must be of type string.",
@@ -93,9 +94,9 @@ pub fn note_presence(
         .get("edits")
         .and_then(|e| e.get(0))
         .and_then(|e| e.get("old_string"));
-    let old = truthy(tool_input.get("old_string"))
-        .or(truthy(first_edit))
-        .map(|o| js_str(Some(o)))
+    let old = js::truthy_value(tool_input.get("old_string"))
+        .or(js::truthy_value(first_edit))
+        .map(|o| js::to_string(Some(o)))
         .unwrap_or_default();
     let mut dfw_id = None;
     if !old.is_empty() && rel.ends_with(".html") && abs_file.exists() {

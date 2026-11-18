@@ -8,10 +8,10 @@ use std::path::Path;
 
 use serde_json::{json, Map, Value};
 
-use crate::core::config::js_truthy;
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::project_paths;
-use crate::core::util::{append_jsonl, js_number, now_iso, read_json, write_json, ArgValue, Args};
+use crate::core::util::{append_jsonl, now_iso, read_json, write_json, ArgValue, Args};
 
 use super::decisions::gate_entry;
 
@@ -113,90 +113,6 @@ pub fn gate_title(gate: &str) -> Option<&'static str> {
 // JavaScript value rules the state, comment and command code depend on
 // ---------------------------------------------------------------------------------------------
 
-/// A value in a template literal (`${value}`); `None` is `undefined`.
-pub fn js_str(value: Option<&Value>) -> String {
-    match value {
-        None => "undefined".into(),
-        Some(Value::Null) => "null".into(),
-        Some(Value::String(s)) => s.clone(),
-        Some(Value::Bool(b)) => b.to_string(),
-        Some(Value::Number(n)) => n.as_f64().map(js_number).unwrap_or_else(|| n.to_string()),
-        // Array.prototype.join: null and undefined items are empty.
-        Some(Value::Array(items)) => items
-            .iter()
-            .map(|v| match v {
-                Value::Null => String::new(),
-                other => js_str(Some(other)),
-            })
-            .collect::<Vec<_>>()
-            .join(","),
-        Some(Value::Object(_)) => "[object Object]".into(),
-    }
-}
-
-/// The value when JavaScript treats it as true (`value || fallback` keeps it).
-pub fn truthy(value: Option<&Value>) -> Option<&Value> {
-    value.filter(|v| js_truthy(v))
-}
-
-fn is_js_space(c: char) -> bool {
-    matches!(
-        c,
-        '\t' | '\n' | '\u{0B}' | '\u{0C}' | '\r' | ' ' | '\u{A0}' | '\u{1680}' | '\u{2000}'
-            ..='\u{200A}'
-                | '\u{2028}'
-                | '\u{2029}'
-                | '\u{202F}'
-                | '\u{205F}'
-                | '\u{3000}'
-                | '\u{FEFF}'
-    )
-}
-
-/// `String.prototype.trim`: JavaScript's white space is not Rust's (U+FEFF is in, U+0085 is out).
-pub fn js_trim(text: &str) -> &str {
-    text.trim_matches(is_js_space)
-}
-
-/// `Number(text)`: decimal, `0x`/`0o`/`0b` and `Infinity`; blank is 0, anything else NaN.
-pub fn js_to_number(text: &str) -> f64 {
-    let t = js_trim(text);
-    if t.is_empty() {
-        return 0.0;
-    }
-    for (prefix, radix) in [
-        ("0x", 16),
-        ("0X", 16),
-        ("0o", 8),
-        ("0O", 8),
-        ("0b", 2),
-        ("0B", 2),
-    ] {
-        if let Some(digits) = t.strip_prefix(prefix) {
-            // from_str_radix would accept a sign here; JavaScript does not.
-            let plain = !digits.is_empty() && digits.chars().all(|c| c.is_digit(radix));
-            return match u64::from_str_radix(digits, radix) {
-                Ok(n) if plain => n as f64,
-                _ => f64::NAN,
-            };
-        }
-    }
-    match t.strip_prefix(['+', '-']).unwrap_or(t) {
-        "Infinity" if t.starts_with('-') => return f64::NEG_INFINITY,
-        "Infinity" => return f64::INFINITY,
-        _ => {}
-    }
-    // Rust also reads "inf", "nan" and "infinity": only digits, a point, an exponent and signs pass.
-    let numeric = t
-        .chars()
-        .all(|c| c.is_ascii_digit() || matches!(c, '.' | 'e' | 'E' | '+' | '-'));
-    if numeric {
-        t.parse().unwrap_or(f64::NAN)
-    } else {
-        f64::NAN
-    }
-}
-
 /// A flag as the JavaScript value `parseArgs` gives it: `true` alone, else its text.
 pub fn arg_raw(args: &Args, key: &str) -> Option<Value> {
     match args.get(key) {
@@ -208,7 +124,7 @@ pub fn arg_raw(args: &Args, key: &str) -> Option<Value> {
 
 /// A flag when it is truthy (`a.key || undefined`): given alone, or with a non-empty text.
 pub fn arg_truthy(args: &Args, key: &str) -> Option<Value> {
-    arg_raw(args, key).filter(js_truthy)
+    arg_raw(args, key).filter(|v| js::truthy(v))
 }
 
 /// The `TypeError` JavaScript throws when a property is read from `undefined`.
@@ -216,15 +132,6 @@ pub fn type_error(property: &str) -> DfwError {
     DfwError::internal(format!(
         "Cannot read properties of undefined (reading '{property}')"
     ))
-}
-
-/// An object built from the pairs whose value exists (`undefined` fields are not written).
-pub fn object(pairs: Vec<(&str, Option<Value>)>) -> Value {
-    let map: Map<String, Value> = pairs
-        .into_iter()
-        .filter_map(|(k, v)| v.map(|v| (k.to_string(), v)))
-        .collect();
-    Value::Object(map)
 }
 
 /// `value.key` of something that must be there: an error where JavaScript would throw.
@@ -282,7 +189,7 @@ pub fn set_field(state: &mut Value, key: &str, value: Option<Value>) -> Result<(
 /// `loadState(root)`: the state, or `None` when the project has no workflow.
 pub fn load_state(root: &Path) -> Result<Option<Value>, DfwError> {
     let state = read_json(&project_paths(root).state, Some(Value::Null))?;
-    Ok(Some(state).filter(js_truthy))
+    Ok(Some(state).filter(|v| js::truthy(v)))
 }
 
 /// `saveState(root, state)`: stamps `updatedAt` and writes `.dfw/state.json`.
@@ -335,7 +242,7 @@ pub fn new_state(mode: &str, product: Value) -> Result<Value, DfwError> {
 
 /// `gatePassed(state, gate)`: approved or waived.
 pub fn gate_passed(state: &Value, gate: &str) -> bool {
-    let has = |key: &str| truthy(state.get(key).and_then(|g| g.get(gate))).is_some();
+    let has = |key: &str| js::truthy_value(state.get(key).and_then(|g| g.get(gate))).is_some();
     has("gates") || has("waived")
 }
 
@@ -350,7 +257,7 @@ pub fn current_approval(state: &Value) -> Result<Option<Value>, DfwError> {
         .get("approved")
         .and_then(Value::as_array)
         .ok_or_else(|| type_error("at"))?;
-    Ok(truthy(approved.last()).cloned())
+    Ok(js::truthy_value(approved.last()).cloned())
 }
 
 fn state_mode(state: &Value) -> Result<&'static Mode, DfwError> {
@@ -413,7 +320,7 @@ pub fn transition_blockers(state: &Value, to: Option<&str>) -> Result<Vec<String
             if !after_implement && mode.name != "implement-approved" {
                 reasons.push(format!(
                     "Verification follows implementation (current phase is {}).",
-                    js_str(state.get("phase"))
+                    js::to_string(state.get("phase"))
                 ));
             }
         }
@@ -456,13 +363,13 @@ pub fn set_phase(
     let forced = (!blockers.is_empty()).then(|| Value::from(blockers));
     push_history(
         state,
-        object(vec![
+        js::object(vec![
             ("at", Some(Value::String(now_iso()))),
             ("event", Some("phase".into())),
             ("from", from),
             ("to", to),
             ("forced", forced),
-            ("reason", reason.filter(js_truthy)),
+            ("reason", reason.filter(|v| js::truthy(v))),
         ]),
     )?;
     save_state(root, state)
@@ -484,7 +391,7 @@ pub fn approve_gate(
             names.join(", ")
         )));
     };
-    let note = note.filter(js_truthy);
+    let note = note.filter(|v| js::truthy(v));
     let p = project_paths(root);
     let phase = state.get("phase").and_then(Value::as_str);
     if gate == "G1" && phase == Some("discovery") && note.is_none() {
@@ -533,7 +440,7 @@ pub fn set_mode(root: &Path, state: &mut Value, mode: Option<&str>) -> Result<()
     set_field(state, "waived", Some(waived_by(info)))?;
     push_history(
         state,
-        object(vec![
+        js::object(vec![
             ("at", Some(Value::String(now_iso()))),
             ("event", Some("mode".into())),
             ("from", from),
@@ -550,9 +457,9 @@ pub fn summarize(state: Option<&Value>) -> Result<String, DfwError> {
     };
     let gates = required(state, "gates", "G1")?;
     let g = |k: &str| {
-        if truthy(gates.get(k)).is_some() {
+        if js::truthy_value(gates.get(k)).is_some() {
             "approved"
-        } else if truthy(state.get("waived").and_then(|w| w.get(k))).is_some() {
+        } else if js::truthy_value(state.get("waived").and_then(|w| w.get(k))).is_some() {
             "waived"
         } else {
             "open"
@@ -560,25 +467,26 @@ pub fn summarize(state: Option<&Value>) -> Result<String, DfwError> {
     };
     let design = required(state, "design", "version")?;
     let appr = current_approval(state)?;
-    let product = truthy(state.get("product")).map_or("(unnamed)".to_string(), |p| js_str(Some(p)));
+    let product = js::truthy_value(state.get("product"))
+        .map_or("(unnamed)".to_string(), |p| js::to_string(Some(p)));
     Ok([
         format!(
             "dfw: product=\"{product}\" mode={} phase={}",
-            js_str(state.get("mode")),
-            js_str(state.get("phase"))
+            js::to_string(state.get("mode")),
+            js::to_string(state.get("phase"))
         ),
         format!(
             "design: v{} {}{}{}",
-            js_str(design.get("version")),
-            js_str(design.get("status")),
-            if truthy(design.get("locked")).is_some() {
+            js::to_string(design.get("version")),
+            js::to_string(design.get("status")),
+            if js::truthy_value(design.get("locked")).is_some() {
                 " (locked)"
             } else {
                 ""
             },
             appr.as_ref().map_or(String::new(), |a| format!(
                 ", approved {}",
-                js_str(a.get("version"))
+                js::to_string(a.get("version"))
             )),
         ),
         format!(
@@ -771,17 +679,17 @@ mod tests {
 
     #[test]
     fn javascript_value_rules() {
-        assert_eq!(js_str(None), "undefined");
-        assert_eq!(js_str(Some(&json!(1.0))), "1");
-        assert_eq!(js_str(Some(&json!([1, null, "a"]))), "1,,a");
-        assert_eq!(js_trim("\u{FEFF} a\u{85} \n"), "a\u{85}");
-        assert_eq!(js_to_number(" 12 "), 12.0);
-        assert_eq!(js_to_number(""), 0.0);
-        assert_eq!(js_to_number("0x10"), 16.0);
-        assert_eq!(js_to_number("1e3"), 1000.0);
-        assert_eq!(js_to_number("-Infinity"), f64::NEG_INFINITY);
+        assert_eq!(js::to_string(None::<&Value>), "undefined");
+        assert_eq!(js::to_string(Some(&json!(1.0))), "1");
+        assert_eq!(js::to_string(Some(&json!([1, null, "a"]))), "1,,a");
+        assert_eq!(js::trim("\u{FEFF} a\u{85} \n"), "a\u{85}");
+        assert_eq!(js::str_to_number(" 12 "), 12.0);
+        assert_eq!(js::str_to_number(""), 0.0);
+        assert_eq!(js::str_to_number("0x10"), 16.0);
+        assert_eq!(js::str_to_number("1e3"), 1000.0);
+        assert_eq!(js::str_to_number("-Infinity"), f64::NEG_INFINITY);
         for bad in ["abc", "inf", "nan", "0x", "0x-1", "1 2", "--1"] {
-            assert!(js_to_number(bad).is_nan(), "{bad}");
+            assert!(js::str_to_number(bad).is_nan(), "{bad}");
         }
     }
 }

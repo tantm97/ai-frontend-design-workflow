@@ -13,8 +13,9 @@ use super::compose::{build_system, load_components};
 use super::icons::plugin_dir;
 use super::inventory::ensure_inventory;
 use super::style::{apply_style, get_style, head_for, is_style, style_tokens};
-use super::tokens::{build_tokens, dir_names, js};
+use super::tokens::{build_tokens, dir_names};
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::project_paths;
 use crate::core::util::write_json;
 

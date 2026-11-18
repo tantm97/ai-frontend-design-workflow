@@ -8,12 +8,10 @@ use std::time::{Duration, SystemTime};
 
 use serde_json::{json, Map, Value};
 
-use crate::core::config::js_spread;
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::{env_nonempty, global_dir};
 use crate::core::util::{now_iso, read_json, write_json};
-
-use super::state::{js_trim, truthy};
 
 const SESSION_TTL_DAYS: u64 = 30;
 
@@ -48,7 +46,7 @@ fn empty() -> Value {
 
 fn last_used_in(home: &Path) -> Result<Value, DfwError> {
     let config = read_json(&home.join("config.json"), Some(empty()))?;
-    let last = truthy(config.get("language").and_then(|l| l.get("lastUsed")));
+    let last = js::truthy_value(config.get("language").and_then(|l| l.get("lastUsed")));
     Ok(last.cloned().unwrap_or_else(|| "en".into()))
 }
 
@@ -70,7 +68,7 @@ fn language_status_in(home: &Path, id: Option<&str>) -> Result<Value, DfwError> 
         return Ok(json!({ "session": null, "chosen": false, "language": null, "lastUsed": last }));
     };
     let session = read_json(&session_file(home, id), Some(Value::Null))?;
-    let language = truthy(session.get("language")).cloned();
+    let language = js::truthy_value(session.get("language")).cloned();
     Ok(json!({
         "session": id,
         "chosen": language.is_some(),
@@ -87,7 +85,7 @@ pub fn set_language(code: Option<&str>, explicit_session: Option<&str>) -> Resul
 
 fn set_language_in(home: &Path, code: Option<&str>, id: Option<&str>) -> Result<Value, DfwError> {
     let code = code.filter(|c| !c.is_empty()).unwrap_or("en");
-    let mut lang = js_trim(code).to_lowercase();
+    let mut lang = js::trim(code).to_lowercase();
     if lang.is_empty() {
         lang = "en".into();
     }
@@ -100,7 +98,7 @@ fn set_language_in(home: &Path, code: Option<&str>, id: Option<&str>) -> Result<
     let file = home.join("config.json");
     let mut config = read_json(&file, Some(empty()))?;
     if let Value::Object(map) = &mut config {
-        let mut language = js_spread(truthy(map.get("language")));
+        let mut language = js::spread(js::truthy_value(map.get("language")));
         language.insert("lastUsed".into(), lang.clone().into());
         map.insert("language".into(), Value::Object(language));
     }

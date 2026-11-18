@@ -4,12 +4,11 @@
 //! - Declared `manifest.pages` `[{id,title,description,notes,sections,screens}]` plus `screen.page`.
 //! - Unassigned screens go to "Screens"; ids starting with "_" go to "Explorations".
 
+use crate::core::js;
 use std::collections::HashMap;
 
 use regex::Regex;
 use serde_json::{json, Map, Value};
-
-use crate::design::tokens::js;
 
 /// A pattern of this file. One that did not compile would be a typo the tests catch; callers
 /// then take their "no match" path.
@@ -50,7 +49,7 @@ fn link_label(inner: &str) -> String {
     let mut out = String::new();
     let mut space = false;
     for c in text.chars() {
-        if crate::design::html::is_js_space(c) {
+        if crate::core::js::is_space(c) {
             space = true;
         } else {
             if space && !out.is_empty() {

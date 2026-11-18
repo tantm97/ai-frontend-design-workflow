@@ -13,9 +13,10 @@ use serde_json::{json, Value};
 use super::{Ctx, Handler};
 use crate::browser::download::install_browser;
 use crate::browser::launch::{browser_status, BrowserStatus};
-use crate::core::config::{js_truthy, set_config_value, Scope};
+use crate::core::config::{set_config_value, Scope};
 use crate::core::error::DfwError;
 use crate::core::host::{Status, HOSTS};
+use crate::core::js;
 use crate::core::paths::{
     claude_dir, global_dir, manifest_path, plugin_root, project_paths, resolve,
 };
@@ -235,7 +236,7 @@ fn verify_snapshot(root: &Path, version: &str) -> Result<Vec<String>, DfwError> 
     crate::workflow::freeze::check_snapshot_name(version)?;
     let dir = project_paths(root).approved.join(version);
     let lock = read_json(&dir.join("approval.lock.json"), Some(Value::Null))?;
-    if !js_truthy(&lock) {
+    if !js::truthy(&lock) {
         return Err(DfwError::new(format!(
             "No approval.lock.json in {}",
             dir.display()
@@ -301,7 +302,7 @@ fn mcp_installed(id: &str) -> bool {
             .is_ok_and(|header| header.is_match(&text)),
         Some(key) => serde_json::from_str::<Value>(&text)
             .ok()
-            .and_then(|v| v.get(key)?.get("dfw").map(js_truthy))
+            .and_then(|v| v.get(key)?.get("dfw").map(js::truthy))
             .unwrap_or(false),
     }
 }
@@ -407,7 +408,7 @@ fn doctor(ctx: &Ctx) -> Result<i32, DfwError> {
     // Duplicate installs of the same upstream skills from other marketplaces load twice.
     let installed_file = claude_dir().join("plugins").join("installed_plugins.json");
     let installed = read_json(&installed_file, Some(Value::Null))?;
-    let plugins = installed.get("plugins").filter(|p| js_truthy(p));
+    let plugins = installed.get("plugins").filter(|p| js::truthy(p));
     match plugins {
         Some(plugins) => {
             let ours = [
@@ -450,7 +451,7 @@ fn doctor(ctx: &Ctx) -> Result<i32, DfwError> {
         Some(other) => other.to_string(),
         None => "undefined".to_string(),
     };
-    if js_truthy(&state) {
+    if js::truthy(&state) {
         ok(
             "project workflow",
             true,
@@ -504,7 +505,7 @@ fn doctor(ctx: &Ctx) -> Result<i32, DfwError> {
             read_json(&installed_file, Some(json!({})))?
                 .get("plugins")
                 .and_then(|p| p.get("dfw@dfw-marketplace"))
-                .is_some_and(js_truthy)
+                .is_some_and(js::truthy)
         } else {
             h.dfw_plugin_dir()
                 .is_some_and(|dir| dir.join("bin").join("dfw").exists())
@@ -550,13 +551,12 @@ fn version_of_plain(bin: &str) -> (bool, String, String) {
 
 /* ---------------------------------------------------------------- mcp, stack, handoff */
 
-use crate::core::config::js_spread;
 use crate::core::util::{now_iso, write_json};
 use crate::tools::handoff::write_handoff;
 use crate::tools::mcp::serve_mcp;
 use crate::tools::mcp_install::{mcp_install, which_tool};
 use crate::workflow::stack::detect_stack;
-use crate::workflow::state::{load_state, push_history, save_state, truthy, type_error};
+use crate::workflow::state::{load_state, push_history, save_state, type_error};
 
 /// `dfw mcp`: the server on stdio; `dfw mcp install|uninstall <tool|all> [--print]`.
 fn mcp(ctx: &Ctx) -> Result<i32, DfwError> {
@@ -586,7 +586,7 @@ fn stack(ctx: &Ctx) -> Result<i32, DfwError> {
         Some("detect") => {
             let detected = detect_stack(&root)?;
             if a.truthy("write") {
-                let mut data = js_spread(Some(&detected));
+                let mut data = js::spread(Some(&detected));
                 data.insert("status".into(), json!("proposed"));
                 data.insert("source".into(), json!("detected"));
                 write_json(&file, &Value::Object(data))?;
@@ -607,7 +607,7 @@ fn stack(ctx: &Ctx) -> Result<i32, DfwError> {
                 (_, _, Some(ArgValue::Text(t))) if !t.is_empty() => serde_json::from_str(t)?,
                 _ => json!({}),
             };
-            let mut data = js_spread(Some(&given));
+            let mut data = js::spread(Some(&given));
             data.insert("status".into(), json!("proposed"));
             data.insert("proposedAt".into(), json!(now_iso()));
             write_json(&file, &Value::Object(data))?;
@@ -616,7 +616,7 @@ fn stack(ctx: &Ctx) -> Result<i32, DfwError> {
                     .get_mut("gates")
                     .filter(|g| !g.is_null())
                     .ok_or_else(|| type_error("G3"))?;
-                if truthy(gates.get("G3")).is_some() {
+                if js::truthy_value(gates.get("G3")).is_some() {
                     gates["G3"] = Value::Null;
                     push_history(
                         &mut state,

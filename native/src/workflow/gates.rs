@@ -7,10 +7,11 @@ use serde_json::Value;
 
 use crate::core::config::{gate_allow, gate_design_paths, gate_immutable};
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::resolve;
 use crate::core::util::matches_any;
 
-use super::state::{current_approval, gate_passed, js_str, js_trim, truthy};
+use super::state::{current_approval, gate_passed};
 
 /// Canonical (normalized by `core::host`) names of tools that write files.
 const WRITE_TOOLS: [&str; 5] = ["Edit", "Write", "MultiEdit", "NotebookEdit", "ApplyPatch"];
@@ -81,8 +82,8 @@ pub fn decide_write(
     }
     if matches_any(&rel, &gate_design_paths(config)) {
         let design = state.get("design");
-        if truthy(design.and_then(|d| d.get("locked"))).is_some() {
-            return Ok(Decision::deny(format!("dfw gate: design v{} is approved and locked. Visual changes to an approved design need user approval: ask the user, then run \"dfw reopen --reason <why>\".", js_str(design.and_then(|d| d.get("version"))))));
+        if js::truthy_value(design.and_then(|d| d.get("locked"))).is_some() {
+            return Ok(Decision::deny(format!("dfw gate: design v{} is approved and locked. Visual changes to an approved design need user approval: ask the user, then run \"dfw reopen --reason <why>\".", js::to_string(design.and_then(|d| d.get("version"))))));
         }
         return Ok(Decision::allow());
     }
@@ -102,7 +103,7 @@ pub fn decide_write(
     ) {
         missing.push(format!(
             "phase \"implement\" (current: \"{}\")",
-            js_str(phase)
+            js::to_string(phase)
         ));
     }
     if !missing.is_empty() {
@@ -124,7 +125,7 @@ pub fn files_from_patch(text: &str) -> Vec<String> {
     text.split(['\n', '\r', '\u{2028}', '\u{2029}'])
         .filter_map(|line| HEADERS.iter().find_map(|h| line.strip_prefix(h)))
         .filter(|path| !path.is_empty())
-        .map(|path| js_trim(path).to_string())
+        .map(|path| js::trim(path).to_string())
         .collect()
 }
 
@@ -142,10 +143,10 @@ pub fn files_from_tool_input(
             "Cannot read properties of null (reading 'input')",
         ));
     }
-    let first = |keys: &[&str]| keys.iter().find_map(|k| truthy(input.get(k)));
+    let first = |keys: &[&str]| keys.iter().find_map(|k| js::truthy_value(input.get(k)));
     if tool == "ApplyPatch" {
         let body = first(&["input", "patch", "content"]);
-        return Ok(body.map_or(Vec::new(), |b| files_from_patch(&js_str(Some(b)))));
+        return Ok(body.map_or(Vec::new(), |b| files_from_patch(&js::to_string(Some(b)))));
     }
     match first(&["file_path", "notebook_path", "path", "filePath"]) {
         None => Ok(Vec::new()),

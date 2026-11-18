@@ -3,10 +3,10 @@
 use serde_json::{Map, Value};
 
 use super::finding;
-use super::jsre::js_re;
 use super::slop::ai_default_color;
+use crate::core::js;
+use crate::core::js::regex::js_re;
 use crate::design::color::{hex_to_oklch, Oklch};
-use crate::design::tokens::js;
 
 js_re!(ALIAS, r"\{([^{}]+)\}");
 js_re!(HEX6, "^#[0-9a-f]{6}$", "i");

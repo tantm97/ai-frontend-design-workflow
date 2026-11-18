@@ -13,7 +13,6 @@
 //! guideline rules), `tokens` (the token tree), `manifest` (design.json), this file (HTML,
 //! screens, masters, CSS and the walk over the workspace).
 
-pub(crate) mod jsre;
 mod manifest;
 mod slop;
 #[cfg(test)]
@@ -24,14 +23,15 @@ use std::path::Path;
 
 use serde_json::{json, Value};
 
-use self::jsre::{blank_css_comments, js_re, js_regex, utf16_suffix};
 pub use self::manifest::lint_manifest;
 use self::slop::{slop_css, slop_html};
 pub use self::tokens::lint_tokens;
 use super::compose::{compose_html, design_base_for, load_components, ComposeOptions, Library};
 use super::html::{element_at, line_of};
-use super::tokens::{js, relative_path};
+use super::tokens::relative_path;
 use crate::core::error::DfwError;
+use crate::core::js;
+use crate::core::js::regex::{blank_css_comments, js_re, js_regex};
 use crate::core::paths::{project_paths, resolve, to_posix};
 use crate::core::util::{list_files, read_json};
 
@@ -141,7 +141,7 @@ fn hardcoded_colors<'a>(block: &StyleBlock<'a>) -> Vec<(usize, &'a str)> {
     COLOR
         .find_iter(block.css)
         // The 80 characters before the colour decide: `--name: ... <colour>` defines a token.
-        .filter(|m| !CUSTOM_PROPERTY_BEFORE.is_match(utf16_suffix(&block.css[..m.start()], 80)))
+        .filter(|m| !CUSTOM_PROPERTY_BEFORE.is_match(js::suffix16(&block.css[..m.start()], 80)))
         .map(|m| (block.offset + m.start(), m.as_str()))
         .collect()
 }

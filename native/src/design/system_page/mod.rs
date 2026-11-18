@@ -28,8 +28,9 @@ use self::components::{comp_section, Inline};
 use self::text::encode_uri;
 use self::tokens::{load_tokens, Tokens, Vars};
 use super::compose::{escape_html as esc, list_icons, load_components, ComponentDef};
-use super::tokens::{dir_names, js};
+use super::tokens::dir_names;
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::project_paths;
 
 /// The page's own styles (the literal of system-page.mjs, kept as a file).

@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 use serde_json::{json, Map, Value};
 
 use crate::core::error::DfwError;
-use crate::core::util::js_number;
+use crate::core::js;
 
 /// Default `threshold` of "dfw diff": the largest OKLab HyAB distance still counted as equal.
 pub const THRESHOLD: f64 = 0.1;
@@ -267,7 +267,7 @@ pub fn format_line(result: &DiffResult, out: &str) -> String {
 /// half up (Rust's own formatting rounds an exact half to even).
 fn to_fixed2(x: f64) -> String {
     if !x.is_finite() || x < 0.0 {
-        return js_number(x);
+        return js::number(x);
     }
     // 60 decimals show a double of this size exactly enough to see which way the third goes.
     let exact = format!("{x:.60}");

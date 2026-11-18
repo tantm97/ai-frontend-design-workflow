@@ -13,9 +13,9 @@ use std::time::{Duration, Instant};
 use serde_json::{json, Value};
 
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::project_paths;
 use crate::core::util::{read_json, write_json};
-use crate::workflow::state::{js_str, truthy};
 
 use super::comments::all_comments;
 
@@ -24,12 +24,12 @@ const MAX_DELIVERED: usize = 2000;
 
 /// What identifies one state of a comment: a change of status or a new thread line is news.
 fn key(c: &Value) -> String {
-    let at = truthy(c.get("updatedAt")).or(c.get("createdAt"));
+    let at = js::truthy_value(c.get("updatedAt")).or(c.get("createdAt"));
     format!(
         "{}:{}:{}",
-        js_str(c.get("id")),
-        js_str(c.get("status")),
-        js_str(at)
+        js::to_string(c.get("id")),
+        js::to_string(c.get("status")),
+        js::to_string(at)
     )
 }
 
@@ -94,8 +94,8 @@ pub fn format_for_claude(comments: &[Value]) -> String {
         .map(|c| {
             let place: Vec<String> = ["screen", "variant", "breakpoint", "state", "theme"]
                 .iter()
-                .filter_map(|k| truthy(c.get(k)))
-                .map(|v| js_str(Some(v)))
+                .filter_map(|k| js::truthy_value(c.get(k)))
+                .map(|v| js::to_string(Some(v)))
                 .collect();
             let place = place.join(" / ");
             let place = if place.is_empty() {
@@ -103,15 +103,19 @@ pub fn format_for_claude(comments: &[Value]) -> String {
             } else {
                 &place
             };
-            let of_target = |k: &str| truthy(c.get("target").and_then(|t| t.get(k)));
+            let of_target = |k: &str| js::truthy_value(c.get("target").and_then(|t| t.get(k)));
             let target = of_target("dfwId")
                 .or(of_target("selector"))
-                .map_or("?".to_string(), |t| js_str(Some(t)));
+                .map_or("?".to_string(), |t| js::to_string(Some(t)));
             let last = last_of_thread(c);
-            let said = |l: &Value| js_str(l.get("message"));
+            let said = |l: &Value| js::to_string(l.get("message"));
             let reopened = match last {
                 Some(l) if c.get("status") == Some(&json!("reopened")) => {
-                    format!("\n    reopened by {}: \"{}\"", js_str(l.get("by")), said(l))
+                    format!(
+                        "\n    reopened by {}: \"{}\"",
+                        js::to_string(l.get("by")),
+                        said(l)
+                    )
                 }
                 Some(l) if l.get("by") == Some(&json!("user")) => {
                     format!("\n    follow-up by user: \"{}\"", said(l))
@@ -120,12 +124,15 @@ pub fn format_for_claude(comments: &[Value]) -> String {
             };
             format!(
                 "- {} [{}] {place} -> {target}{}{}\n    \"{}\"{reopened}",
-                js_str(c.get("id")),
-                js_str(c.get("status")),
-                of_target("source").map_or(String::new(), |s| format!(" ({})", js_str(Some(s)))),
-                of_target("component")
-                    .map_or(String::new(), |s| format!(" component {}", js_str(Some(s)))),
-                js_str(c.get("comment")),
+                js::to_string(c.get("id")),
+                js::to_string(c.get("status")),
+                of_target("source")
+                    .map_or(String::new(), |s| format!(" ({})", js::to_string(Some(s)))),
+                of_target("component").map_or(String::new(), |s| format!(
+                    " component {}",
+                    js::to_string(Some(s))
+                )),
+                js::to_string(c.get("comment")),
             )
         })
         .collect();

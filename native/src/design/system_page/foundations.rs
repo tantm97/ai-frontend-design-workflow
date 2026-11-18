@@ -3,13 +3,15 @@
 
 use serde_json::Value;
 
-use super::text::{cut_note, dim, text_or_empty, DOT};
+use super::text::{cut_note, dim, DOT};
 use super::tokens::Tokens;
 use crate::core::error::DfwError;
+use crate::core::js;
+use crate::core::js::regex::with_js_classes;
 use crate::design::color::contrast;
 use crate::design::compose::escape_html as esc;
-use crate::design::edit::{js_regex, TokenEntry};
-use crate::design::tokens::{css_var_name, js};
+use crate::design::edit::TokenEntry;
+use crate::design::tokens::css_var_name;
 
 const ROLE_GROUPS: [(&str, &[&str]); 5] = [
     (
@@ -67,7 +69,7 @@ pub(super) fn palette(all: &[TokenEntry], tokens: &Tokens) -> Result<String, Dfw
         key: String,
         token: &'a TokenEntry,
     }
-    let step_re = js_regex(&format!(r"^({DOT}*)-(\d+)$"))?;
+    let step_re = with_js_classes(&format!(r"^({DOT}*)-(\d+)$"))?;
     let mut ramps: Vec<(String, Vec<Step>)> = Vec::new();
     for t in all
         .iter()
@@ -109,7 +111,7 @@ pub(super) fn palette(all: &[TokenEntry], tokens: &Tokens) -> Result<String, Dfw
         let intent = list
             .iter()
             .find(|x| x.step == "500")
-            .map(|x| text_or_empty(x.token.description.as_ref()))
+            .map(|x| js::or_empty(x.token.description.as_ref()))
             .unwrap_or_default();
         let intent = cut_note(&cut_note(&intent, "Used for:")?, "Reserve step")?;
         let mut chips = String::new();
@@ -254,7 +256,7 @@ pub(super) fn families(all: &[TokenEntry], tokens: &Tokens) -> String {
             };
             let name = match &fam.value {
                 Value::Array(list) => js::to_string(list.first()),
-                other => text_or_empty(Some(other)),
+                other => js::or_empty(Some(other)),
             };
             family_html.push_str(&format!(
                 "<div class=\"ds-fam\"><span class=\"ds-fam__aa\" style=\"font-family:var(--font-family-{n})\">Aa</span><b>{}</b><small>{}</small></div>",

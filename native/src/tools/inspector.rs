@@ -13,10 +13,10 @@ use std::path::Path;
 use regex::Regex;
 use serde_json::{json, Map, Value};
 
-use crate::core::config::{js_spread, js_truthy};
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::{project_paths, resolve};
-use crate::core::util::{js_number, read_json, to_json_pretty};
+use crate::core::util::{read_json, to_json_pretty};
 
 /// The npm package.
 pub const PACKAGE: &str = "code-inspector-plugin";
@@ -108,8 +108,8 @@ pub fn parse_insp_path(value: &str, root: Option<&str>) -> Option<InspPath> {
         file = rest.to_string();
     }
     let source = match column {
-        Some(c) => format!("{file}:{}:{}", js_number(line), js_number(c)),
-        None => format!("{file}:{}", js_number(line)),
+        Some(c) => format!("{file}:{}:{}", js::number(line), js::number(c)),
+        None => format!("{file}:{}", js::number(line)),
     };
     Some(InspPath {
         file,
@@ -233,18 +233,6 @@ const CONFIGS: [(&str, &[&str]); 9] = [
     ("vue-cli", &["vue.config.js"]),
 ];
 
-/// `String(value || '')` for the JSON values a package.json holds in these places.
-fn js_text(value: Option<&Value>) -> String {
-    match value {
-        Some(Value::String(s)) => s.clone(),
-        Some(Value::Number(n)) if js_truthy(&Value::Number(n.clone())) => {
-            n.as_f64().map(js_number).unwrap_or_default()
-        }
-        Some(Value::Bool(true)) => "true".into(),
-        _ => String::new(),
-    }
-}
-
 /// `major(v)`: the first "major[.minor]" in a version range.
 fn major(v: &str) -> Option<(u64, u64)> {
     let m = re(r"([0-9]+)(?:\.([0-9]+))?")?.captures(v)?;
@@ -267,9 +255,9 @@ pub struct Bundler {
 /// `detectBundler(root)`: which bundler serves the app in development, and its config file.
 pub fn detect_bundler(root: &Path) -> Result<Bundler, DfwError> {
     let pkg = read_json(&root.join("package.json"), Some(json!({})))?;
-    let mut deps = js_spread(pkg.get("dependencies"));
-    deps.extend(js_spread(pkg.get("devDependencies")));
-    let has = |d: &str| deps.get(d).is_some_and(js_truthy);
+    let mut deps = js::spread(pkg.get("dependencies"));
+    deps.extend(js::spread(pkg.get("devDependencies")));
+    let has = |d: &str| deps.get(d).is_some_and(js::truthy);
     let order = [
         ("next", has("next")),
         ("nuxt", has("nuxt")),
@@ -306,8 +294,8 @@ pub fn detect_bundler(root: &Path) -> Result<Bundler, DfwError> {
         next_mode: None,
     };
     if bundler == Some("next") {
-        let v = major(&js_text(deps.get("next")));
-        let dev = js_text(pkg.get("scripts").and_then(|s| s.get("dev")));
+        let v = major(&js::or_empty(deps.get("next")));
+        let dev = js::or_empty(pkg.get("scripts").and_then(|s| s.get("dev")));
         let turbo = is_match(r"--turbo(pack)?(?-u:\b)", &dev);
         out.next_version = deps.get("next").cloned();
         // Next 16 develops with Turbopack by default; 15.3+ with --turbopack; otherwise webpack.
@@ -567,11 +555,11 @@ fn stack_hint(root: &Path) -> Result<(Option<&'static str>, Option<&'static str>
     let pkg_path = root.join("package.json");
     if pkg_path.exists() {
         let pkg = read_json(&pkg_path, Some(json!({})))?;
-        let mut deps = js_spread(pkg.get("dependencies"));
-        deps.extend(js_spread(pkg.get("devDependencies")));
+        let mut deps = js::spread(pkg.get("dependencies"));
+        deps.extend(js::spread(pkg.get("devDependencies")));
         let framework = FRAMEWORKS
             .iter()
-            .find(|(dep, _)| deps.get(*dep).is_some_and(js_truthy))
+            .find(|(dep, _)| deps.get(*dep).is_some_and(js::truthy))
             .map(|(_, name)| *name);
         let manager = LOCKS
             .iter()
@@ -734,7 +722,7 @@ fn g3_passed(root: &Path) -> Result<bool, DfwError> {
         state
             .get(group)
             .and_then(|g| g.get("G3"))
-            .is_some_and(js_truthy)
+            .is_some_and(js::truthy)
     };
     Ok(set("gates") || set("waived"))
 }
@@ -803,7 +791,7 @@ pub fn inspector_setup(root: &Path, write: bool) -> Result<(Value, Vec<String>),
         .and_then(Value::as_str)
         == Some(VERSION);
     if let (false, Some(top)) = (pinned, pkg.as_object_mut()) {
-        let mut dev = js_spread(top.get("devDependencies"));
+        let mut dev = js::spread(top.get("devDependencies"));
         dev.insert(PACKAGE.into(), json!(VERSION));
         top.insert("devDependencies".into(), Value::Object(dev));
         // The file's own indentation: the first indented line that starts a key.

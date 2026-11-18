@@ -3,13 +3,12 @@
 
 use regex::Regex;
 
-use super::text::{sentences, slice_utf16, utf16_len, DOT};
+use super::text::{sentences, DOT};
 use super::tokens::Vars;
 use crate::core::error::DfwError;
+use crate::core::js;
+use crate::core::js::regex::with_js_classes;
 use crate::design::compose::{escape_html as esc, ComponentDef};
-use crate::design::edit::js_regex;
-use crate::design::html::is_js_space;
-use crate::design::tokens::js;
 
 /// What [`describe_parts`] makes of a master's description.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -49,15 +48,15 @@ pub fn describe_parts(def: &ComponentDef) -> Result<Parts, DfwError> {
 /// [`describe_parts`] on the description and the names (variants, then sizes, then props).
 pub fn describe_text(description: &str, names: &[&str]) -> Result<Parts, DfwError> {
     let words: Vec<&str> = description
-        .split(is_js_space)
+        .split(js::is_space)
         .filter(|w| !w.is_empty())
         .collect();
     let mut text = format!(" {}", words.join(" "));
     let mut parts = Parts::default();
     let mut names = names.to_vec();
-    names.sort_by_key(|n| std::cmp::Reverse(utf16_len(n)));
+    names.sort_by_key(|n| std::cmp::Reverse(js::len16(n)));
     for name in names {
-        let re = js_regex(&format!(
+        let re = with_js_classes(&format!(
             r"([\s;.(]){}\s*=\s*((?:\([^)]*\)|[^;.()])+)[;.]?",
             regex::escape(name)
         ))?;
@@ -76,14 +75,14 @@ pub fn describe_text(description: &str, names: &[&str]) -> Result<Parts, DfwErro
     let mut found = sentences(&text).into_iter().filter_map(|s| {
         let s = js::trim(s);
         let s = match s.strip_prefix([';', ',']) {
-            Some(rest) => rest.trim_start_matches(is_js_space),
+            Some(rest) => rest.trim_start_matches(js::is_space),
             None => s,
         };
         let weight: String = s
             .chars()
-            .filter(|c| !is_js_space(*c) && !matches!(c, ';' | '.' | ','))
+            .filter(|c| !js::is_space(*c) && !matches!(c, ';' | '.' | ','))
             .collect();
-        (utf16_len(&weight) > 1).then(|| s.to_string())
+        (js::len16(&weight) > 1).then(|| s.to_string())
     });
     parts.summary = found.next().unwrap_or_default();
     parts.notes = found.collect();
@@ -104,20 +103,20 @@ pub(super) fn spec_line(def: &ComponentDef, vars: &Vars) -> Result<String, DfwEr
         "font-size",
         "border",
     ];
-    let class = js_regex(r#"class="([\w-]+)"#)?;
+    let class = with_js_classes(r#"class="([\w-]+)"#)?;
     let Some(cls) = class.captures(&def.template) else {
         return Ok(String::new());
     };
-    let rule = js_regex(&format!(
+    let rule = with_js_classes(&format!(
         r"(?:^|[}}\s,])\.{}\s*\{{([^}}]*)\}}",
         regex::escape(&cls[1])
     ))?;
     let Some(rule) = rule.captures(&def.styles) else {
         return Ok(String::new());
     };
-    let font_tail = js_regex(&format!(r#""[^"]*",{DOT}*$"#))?;
-    let space = js_regex(r"\s+")?;
-    let var = js_regex(r"var\(--([\w-]+)\)")?;
+    let font_tail = with_js_classes(&format!(r#""[^"]*",{DOT}*$"#))?;
+    let space = with_js_classes(r"\s+")?;
+    let var = with_js_classes(r"var\(--([\w-]+)\)")?;
     let mut parts = String::new();
     for d in rule[1].split(';') {
         let Some((prop, val)) = d.split_once(':') else {
@@ -138,7 +137,7 @@ pub(super) fn spec_line(def: &ComponentDef, vars: &Vars) -> Result<String, DfwEr
         parts.push_str(&format!(
             "<tr><td><code>{}</code></td><td>{}</td><td>{}</td></tr>",
             esc(prop),
-            esc(&slice_utf16(js::trim(&resolved), 48)),
+            esc(&js::slice16(js::trim(&resolved), 0, 48)),
             if names.is_empty() {
                 String::new()
             } else {
@@ -196,11 +195,11 @@ fn split_lead(t: &str) -> Option<(&str, &str)> {
         .find([':', '.', ';'])
         .filter(|i| t[*i..].starts_with(':'))?;
     let label = &t[..colon];
-    if !(2..=40).contains(&utf16_len(label)) {
+    if !(2..=40).contains(&js::len16(label)) {
         return None;
     }
     let after = &t[colon + 1..];
-    let rest = after.trim_start_matches(is_js_space);
+    let rest = after.trim_start_matches(js::is_space);
     if rest.len() == after.len() {
         return None;
     }
@@ -222,9 +221,9 @@ pub(super) struct Inline {
 impl Inline {
     pub(super) fn new() -> Result<Inline, DfwError> {
         Ok(Inline {
-            bold: js_regex(r"\*\*([^*]+)\*\*")?,
-            code: js_regex(r"`([^`]+)`")?,
-            because: js_regex(r"(?s)^(.*?)\s+(?:[-–—]\s+)?(?i-u:because)\s+(.*)$")?,
+            bold: with_js_classes(r"\*\*([^*]+)\*\*")?,
+            code: with_js_classes(r"`([^`]+)`")?,
+            because: with_js_classes(r"(?s)^(.*?)\s+(?:[-–—]\s+)?(?i-u:because)\s+(.*)$")?,
         })
     }
 

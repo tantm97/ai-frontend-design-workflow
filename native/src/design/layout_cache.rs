@@ -7,8 +7,9 @@ use std::path::Path;
 
 use serde_json::{Map, Value};
 
-use super::tokens::{dir_names, js};
+use super::tokens::dir_names;
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::{project_paths, resolve, ProjectPaths};
 use crate::core::util::{read_json, sha256, write_json};
 

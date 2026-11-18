@@ -18,16 +18,17 @@ use regex::Regex;
 use serde_json::{json, Map, Value};
 
 use super::tokens::{
-    dfw_to_penpot, flatten_tokens, jv, parse_color, read_dfw_tokens, token_to_penpot_quiet,
-    DfwTokens, Flat, Token,
+    dfw_to_penpot, flatten_tokens, parse_color, read_dfw_tokens, token_to_penpot_quiet, DfwTokens,
+    Flat, Token,
 };
 use crate::browser::launch::{browser_status, fonts_ready, open_renderer, Renderer};
-use crate::core::config::{js_spread, load_config};
+use crate::core::config::load_config;
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::{project_paths, resolve, to_posix};
 use crate::core::util::{get_path, now_iso, read_json, sha256, to_json_compact, write_json};
 use crate::design::compose::{build_composed, build_system};
-use crate::design::tokens::{dir_names, js, relative_path};
+use crate::design::tokens::{dir_names, relative_path};
 
 pub(super) const EXPORT_SCHEMA: &str = "dfw-penpot-export/1";
 pub(super) const CHANGES_SCHEMA: &str = "dfw-penpot-changes/1";
@@ -54,17 +55,17 @@ fn style<'a>(n: &'a Value, key: &str) -> Option<&'a Value> {
 fn painted(n: &Value) -> bool {
     ["fill", "borders", "shadows"]
         .iter()
-        .any(|k| jv::truthy(style(n, k)))
+        .any(|k| js::truthy(style(n, k)))
 }
 
 fn is_wrapper(n: &Value) -> bool {
     n.get("kind").and_then(Value::as_str) == Some("frame")
-        && !jv::truthy(n.get("dfwId"))
-        && !jv::truthy(n.get("component"))
+        && !js::truthy(n.get("dfwId"))
+        && !js::truthy(n.get("component"))
         && !painted(n)
-        && !jv::truthy(style(n, "clip"))
+        && !js::truthy(style(n, "clip"))
         && style(n, "opacity").is_none()
-        && !jv::truthy(style(n, "backgroundImage"))
+        && !js::truthy(style(n, "backgroundImage"))
 }
 
 fn has_children(n: &Value) -> bool {
@@ -78,7 +79,7 @@ fn has_children(n: &Value) -> bool {
 pub fn simplify(nodes: Vec<Value>) -> Vec<Value> {
     let mut out = Vec::new();
     for mut n in nodes {
-        if let Some(children) = n.get_mut("children").filter(|c| jv::truthy(Some(c))) {
+        if let Some(children) = n.get_mut("children").filter(|c| js::truthy(Some(c))) {
             let kids = match children.take() {
                 Value::Array(kids) => kids,
                 _ => Vec::new(),
@@ -91,8 +92,8 @@ pub fn simplify(nodes: Vec<Value>) -> Vec<Value> {
             }
         } else if n.get("kind").and_then(Value::as_str) == Some("frame")
             && !has_children(&n)
-            && !jv::truthy(n.get("dfwId"))
-            && !jv::truthy(n.get("component"))
+            && !js::truthy(n.get("dfwId"))
+            && !js::truthy(n.get("component"))
             && !painted(&n)
         {
             continue;
@@ -147,7 +148,7 @@ pub(super) struct ColorToken {
 /// Colour tokens resolved to hex and opacity (aliases followed), most semantic name first.
 fn color_token_index(tree: Option<&Value>) -> Vec<ColorToken> {
     let empty = json!({});
-    let flat = flatten_tokens(jv::truthy_value(tree).unwrap_or(&empty));
+    let flat = flatten_tokens(js::truthy_value(tree).unwrap_or(&empty));
     let mut out = Vec::new();
     for (name, t) in flat.iter() {
         if t.type_name() != Some("color") {
@@ -157,7 +158,10 @@ fn color_token_index(tree: Option<&Value>) -> Vec<ColorToken> {
             continue;
         };
         let penpot = token_to_penpot_quiet(name, resolved);
-        let Some(c) = penpot.value().and_then(|v| parse_color(&jv::text(Some(v)))) else {
+        let Some(c) = penpot
+            .value()
+            .and_then(|v| parse_color(&js::to_string(Some(v))))
+        else {
             continue;
         };
         let alias = t.value.is_string();
@@ -167,8 +171,8 @@ fn color_token_index(tree: Option<&Value>) -> Vec<ColorToken> {
             + name.split('.').count() as f64 * 0.1;
         out.push(ColorToken {
             name: name.to_string(),
-            hex: jv::text(c.get("hex")),
-            opacity: js::present(c.get("alpha")).map_or(1.0, |a| jv::num(Some(a))),
+            hex: js::to_string(c.get("hex")),
+            opacity: js::present(c.get("alpha")).map_or(1.0, |a| js::to_number(Some(a))),
             score,
         });
     }
@@ -179,7 +183,7 @@ fn color_token_index(tree: Option<&Value>) -> Vec<ColorToken> {
 /// Radius tokens in px: name and value.
 fn radius_token_index(tree: Option<&Value>) -> Vec<(String, Value)> {
     let empty = json!({});
-    let flat = flatten_tokens(jv::truthy_value(tree).unwrap_or(&empty));
+    let flat = flatten_tokens(js::truthy_value(tree).unwrap_or(&empty));
     flat.iter()
         .filter(|(name, t)| {
             t.type_name() == Some("dimension")
@@ -192,12 +196,12 @@ fn radius_token_index(tree: Option<&Value>) -> Vec<(String, Value)> {
 
 /// Token with exactly this colour; text colours prefer ink/text/on-* names, fills the others.
 fn find_color_token(index: &[ColorToken], c: Option<&Value>, text_role: bool) -> Value {
-    let Some(c) = jv::truthy_value(c) else {
+    let Some(c) = js::truthy_value(c) else {
         return Value::Null;
     };
     let (hex, opacity) = (
         c.get("hex").and_then(Value::as_str),
-        jv::num(c.get("opacity")),
+        js::to_number(c.get("opacity")),
     );
     let hits: Vec<&ColorToken> = index
         .iter()
@@ -314,16 +318,16 @@ impl Linker<'_> {
         put("kind", n.get("kind").cloned());
         put("name", n.get("name").cloned());
         put("path", Some(path.into()));
-        put("dfwId", Some(jv::or_null(n.get("dfwId"))));
-        put("anchor", Some(jv::or_null(n.get("anchor"))));
+        put("dfwId", Some(js::or_null(n.get("dfwId"))));
+        put("anchor", Some(js::or_null(n.get("anchor"))));
         for key in ["x", "y", "w", "h"] {
             put(key, n.get(key).cloned());
         }
-        put("tag", jv::truthy_value(n.get("tag")).cloned());
-        if let Some(fill) = jv::truthy_value(st("fill")) {
+        put("tag", js::truthy_value(n.get("tag")).cloned());
+        if let Some(fill) = js::truthy_value(st("fill")) {
             put(
                 "fills",
-                Some(json!([jv::obj(vec![
+                Some(json!([js::object(vec![
                     ("color", fill.get("hex").cloned()),
                     ("opacity", fill.get("opacity").cloned()),
                     (
@@ -333,7 +337,7 @@ impl Linker<'_> {
                 ])])),
             );
         }
-        if let Some(borders) = jv::truthy_value(st("borders")) {
+        if let Some(borders) = js::truthy_value(st("borders")) {
             let sides: &[Value] = borders.as_array().map_or(&[], Vec::as_slice);
             let top = sides.first();
             fn hex(b: Option<&Value>) -> Option<&Value> {
@@ -341,9 +345,9 @@ impl Linker<'_> {
             }
             let uniform = !sides.is_empty()
                 && sides.iter().all(|x| {
-                    jv::truthy(Some(x))
-                        && jv::strict_eq(x.get("w"), top.and_then(|t| t.get("w")))
-                        && jv::strict_eq(hex(Some(x)), hex(top))
+                    js::truthy(Some(x))
+                        && js::strict_eq(x.get("w"), top.and_then(|t| t.get("w")))
+                        && js::strict_eq(hex(Some(x)), hex(top))
                 });
             if uniform {
                 let color = top.and_then(|t| t.get("color"));
@@ -353,7 +357,7 @@ impl Linker<'_> {
                     .unwrap_or("solid");
                 put(
                     "strokes",
-                    Some(json!([jv::obj(vec![
+                    Some(json!([js::object(vec![
                         ("color", hex(top).cloned()),
                         ("opacity", color.and_then(|c| c.get("opacity")).cloned()),
                         ("width", top.and_then(|t| t.get("w")).cloned()),
@@ -365,7 +369,7 @@ impl Linker<'_> {
                 // Penpot strokes are uniform: these are drawn as thin rectangles.
                 put(
                     "sideBorders",
-                    Some(jv::obj(vec![
+                    Some(js::object(vec![
                         ("top", sides.first().cloned()),
                         ("right", sides.get(1).cloned()),
                         ("bottom", sides.get(2).cloned()),
@@ -374,25 +378,25 @@ impl Linker<'_> {
                 );
             }
         }
-        if let Some(radius) = jv::truthy_value(st("radius")) {
+        if let Some(radius) = js::truthy_value(st("radius")) {
             put("radius", Some(radius.clone()));
             let corners: &[Value] = radius.as_array().map_or(&[], Vec::as_slice);
             let first = corners.first();
-            if corners.iter().all(|x| jv::strict_eq(Some(x), first)) {
+            if corners.iter().all(|x| js::strict_eq(Some(x), first)) {
                 let token = self
                     .radii
                     .iter()
-                    .find(|(_, px)| jv::strict_eq(Some(px), first))
+                    .find(|(_, px)| js::strict_eq(Some(px), first))
                     .filter(|(name, _)| !name.is_empty());
                 put("radiusToken", token.map(|(name, _)| name.as_str().into()));
             }
         }
-        if let Some(shadows) = jv::truthy_value(st("shadows")).and_then(Value::as_array) {
+        if let Some(shadows) = js::truthy_value(st("shadows")).and_then(Value::as_array) {
             let list: Vec<Value> = shadows
                 .iter()
                 .map(|s| {
-                    let mut shadow = js_spread(Some(s));
-                    let color = jv::truthy_value(s.get("color"))
+                    let mut shadow = js::spread(Some(s));
+                    let color = js::truthy_value(s.get("color"))
                         .cloned()
                         .unwrap_or_else(|| json!({ "hex": "#000000", "opacity": 0.25 }));
                     shadow.insert("color".into(), color);
@@ -402,9 +406,9 @@ impl Linker<'_> {
             put("shadows", Some(Value::Array(list)));
         }
         put("opacity", st("opacity").cloned());
-        put("clip", jv::truthy(st("clip")).then_some(Value::Bool(true)));
-        if let Some(image) = jv::truthy_value(st("backgroundImage")) {
-            let shown = jv::slice16(&jv::text(Some(image)), 0, 60);
+        put("clip", js::truthy(st("clip")).then_some(Value::Bool(true)));
+        if let Some(image) = js::truthy_value(st("backgroundImage")) {
+            let shown = js::slice16(&js::to_string(Some(image)), 0, 60);
             put(
                 "note",
                 Some(format!("background-image not exported ({shown})").into()),
@@ -414,7 +418,7 @@ impl Linker<'_> {
             put("characters", n.get("characters").cloned());
             let text = n.get("text");
             let color = text.and_then(|t| t.get("color"));
-            let mut t = js_spread(text);
+            let mut t = js::spread(text);
             match color {
                 Some(c) => {
                     t.insert("color".into(), c.clone());
@@ -430,19 +434,19 @@ impl Linker<'_> {
             put("text", Some(Value::Object(t)));
             put(
                 "placeholder",
-                jv::truthy(n.get("placeholder")).then_some(Value::Bool(true)),
+                js::truthy(n.get("placeholder")).then_some(Value::Bool(true)),
             );
         }
         if kind == Some("svg") {
             put("svg", n.get("svg").cloned());
-            put("icon", jv::truthy_value(n.get("icon")).cloned());
+            put("icon", js::truthy_value(n.get("icon")).cloned());
         }
         if kind == Some("image") {
             put("alt", n.get("alt").cloned());
             put("src", Some(self.image_src(n.get("src"))));
         }
-        if let Some(component) = jv::truthy_value(n.get("component")) {
-            let mut c = js_spread(Some(component));
+        if let Some(component) = js::truthy_value(n.get("component")) {
+            let mut c = js::spread(Some(component));
             c.insert("key".into(), component_key(component).into());
             put("component", Some(Value::Object(c)));
         }
@@ -466,7 +470,7 @@ impl Linker<'_> {
     /// Where the plugin loads an image from: a file under `design/` through the Studio, or a
     /// web address as it is.
     fn image_src(&self, src: Option<&Value>) -> Value {
-        let Some(src) = jv::truthy_value(src).and_then(Value::as_str) else {
+        let Some(src) = js::truthy_value(src).and_then(Value::as_str) else {
             return Value::Null;
         };
         match self.project_root {
@@ -486,11 +490,11 @@ impl Linker<'_> {
 }
 
 fn component_key(c: &Value) -> String {
-    let part = |key: &str| jv::truthy_value(c.get(key)).map(|v| jv::text(Some(v)));
+    let part = |key: &str| js::truthy_value(c.get(key)).map(|v| js::to_string(Some(v)));
     // The name is joined as it is (a missing one is empty), variant and size only when set.
     let name = match c.get("name") {
         None | Some(Value::Null) => String::new(),
-        name => jv::text(name),
+        name => js::to_string(name),
     };
     [
         name,
@@ -503,9 +507,9 @@ fn component_key(c: &Value) -> String {
 /// `signature`: the structure of a layer (kinds, names, child structure; not text, positions
 /// or colours).
 pub fn signature(l: &Value) -> String {
-    let own = match jv::truthy_value(l.get("component")) {
-        Some(c) => jv::text(c.get("key")),
-        None => jv::text(l.get("name")),
+    let own = match js::truthy_value(l.get("component")) {
+        Some(c) => js::to_string(c.get("key")),
+        None => js::to_string(l.get("name")),
     };
     let children: Vec<String> = l
         .get("children")
@@ -514,21 +518,30 @@ pub fn signature(l: &Value) -> String {
         .flatten()
         .map(|c| match c.get("sig") {
             Some(Value::Null) => String::new(),
-            Some(sig) => jv::text(Some(sig)),
-            None => format!("{}:{}", jv::text(c.get("kind")), jv::text(c.get("name"))),
+            Some(sig) => js::to_string(Some(sig)),
+            None => format!(
+                "{}:{}",
+                js::to_string(c.get("kind")),
+                js::to_string(c.get("name"))
+            ),
         })
         .collect();
-    format!("{}:{own}[{}]", jv::text(l.get("kind")), children.join(","))
+    format!(
+        "{}:{own}[{}]",
+        js::to_string(l.get("kind")),
+        children.join(",")
+    )
 }
 
 /// Rebase a subtree to its own origin (component main).
 fn rebase(l: &Value, ox: f64, oy: f64) -> Value {
-    let mut c = js_spread(Some(l));
-    let moved =
-        |v: Option<&Value>, origin: f64| js::num(js::round((jv::num(v) - origin) * 100.0) / 100.0);
+    let mut c = js::spread(Some(l));
+    let moved = |v: Option<&Value>, origin: f64| {
+        js::num(js::round((js::to_number(v) - origin) * 100.0) / 100.0)
+    };
     c.insert("x".into(), moved(l.get("x"), ox));
     c.insert("y".into(), moved(l.get("y"), oy));
-    if let Some(children) = jv::truthy_value(l.get("children")).and_then(Value::as_array) {
+    if let Some(children) = js::truthy_value(l.get("children")).and_then(Value::as_array) {
         let kids = children.iter().map(|ch| rebase(ch, ox, oy)).collect();
         c.insert("children".into(), Value::Array(kids));
     }
@@ -565,11 +578,11 @@ pub fn build_export(input: &ExportInput) -> Value {
     for r in input.renders {
         let page = r.get("page");
         let page_id = page.and_then(|p| p.get("id"));
-        let page_key = jv::stringify(page_id);
+        let page_key = js::stringify(page_id);
         if !pages.iter().any(|(k, _, _)| *k == page_key) {
-            let title = jv::truthy_value(page.and_then(|p| p.get("title"))).or(page_id);
+            let title = js::truthy_value(page.and_then(|p| p.get("title"))).or(page_id);
             let Value::Object(head) =
-                jv::obj(vec![("id", page_id.cloned()), ("title", title.cloned())])
+                js::object(vec![("id", page_id.cloned()), ("title", title.cloned())])
             else {
                 continue;
             };
@@ -587,27 +600,27 @@ pub fn build_export(input: &ExportInput) -> Value {
         let background = snapshot.and_then(|s| s.get("background"));
         let key = format!(
             "{}|{}|{}",
-            jv::text(r.get("screen")),
-            jv::text(r.get("variant")),
-            jv::text(bp("id"))
+            js::to_string(r.get("screen")),
+            js::to_string(r.get("variant")),
+            js::to_string(bp("id"))
         );
         let height = js::max(
-            jv::num(bp("height")),
-            jv::num(snapshot.and_then(|s| s.get("height"))).ceil(),
+            js::to_number(bp("height")),
+            js::to_number(snapshot.and_then(|s| s.get("height"))).ceil(),
         );
         for l in &layers {
             visit_components(l, &key, &mut components);
         }
-        let board = jv::obj(vec![
+        let board = js::object(vec![
             ("key", Some(key.as_str().into())),
             (
                 "name",
                 Some(
                     format!(
                         "{} / {} @ {}",
-                        jv::text(r.get("screen")),
-                        jv::text(r.get("variant")),
-                        jv::text(bp("id"))
+                        js::to_string(r.get("screen")),
+                        js::to_string(r.get("variant")),
+                        js::to_string(bp("id"))
                     )
                     .into(),
                 ),
@@ -621,7 +634,7 @@ pub fn build_export(input: &ExportInput) -> Value {
             ("viewportHeight", bp("height").cloned()),
             (
                 "background",
-                Some(jv::obj(vec![
+                Some(js::object(vec![
                     ("color", background.and_then(|b| b.get("hex")).cloned()),
                     (
                         "opacity",
@@ -656,7 +669,7 @@ pub fn build_export(input: &ExportInput) -> Value {
     let pages = Value::Array(pages);
     let id = format!(
         "px_{}_{}",
-        jv::slice16(&stamp, 0, 14),
+        js::slice16(&stamp, 0, 14),
         &sha256(to_json_compact(&pages))[..8]
     );
     json!({
@@ -680,15 +693,15 @@ pub fn build_export(input: &ExportInput) -> Value {
 
 /// The first instance of every component becomes its main, rebased to its own origin.
 fn visit_components(l: &Value, board_key: &str, components: &mut Vec<(String, Value)>) {
-    if let Some(component) = jv::truthy_value(l.get("component")) {
-        let key = jv::stringify(component.get("key"));
+    if let Some(component) = js::truthy_value(l.get("component")) {
+        let key = js::stringify(component.get("key"));
         if !components.iter().any(|(k, _)| *k == key) {
             let name: Vec<String> = ["name", "variant", "size"]
                 .iter()
-                .filter_map(|k| jv::truthy_value(component.get(*k)))
-                .map(|v| jv::text(Some(v)))
+                .filter_map(|k| js::truthy_value(component.get(*k)))
+                .map(|v| js::to_string(Some(v)))
                 .collect();
-            let main = jv::obj(vec![
+            let main = js::object(vec![
                 ("key", component.get("key").cloned()),
                 ("name", Some(name.join(" / ").into())),
                 ("component", component.get("name").cloned()),
@@ -697,11 +710,15 @@ fn visit_components(l: &Value, board_key: &str, components: &mut Vec<(String, Va
                 ("sig", l.get("sig").cloned()),
                 (
                     "from",
-                    Some(format!("{board_key}#{}", jv::text(l.get("path"))).into()),
+                    Some(format!("{board_key}#{}", js::to_string(l.get("path"))).into()),
                 ),
                 (
                     "root",
-                    Some(rebase(l, jv::num(l.get("x")), jv::num(l.get("y")))),
+                    Some(rebase(
+                        l,
+                        js::to_number(l.get("x")),
+                        js::to_number(l.get("y")),
+                    )),
                 ),
             ]);
             components.push((key, main));
@@ -720,7 +737,7 @@ fn visit_components(l: &Value, board_key: &str, components: &mut Vec<(String, Va
 fn lay_out(boards: &mut [Value]) {
     let mut rows: Vec<String> = Vec::new();
     for b in boards.iter() {
-        let bp = jv::stringify(b.get("breakpoint"));
+        let bp = js::stringify(b.get("breakpoint"));
         if !rows.contains(&bp) {
             rows.push(bp);
         }
@@ -730,9 +747,12 @@ fn lay_out(boards: &mut [Value]) {
         let (mut x, mut row_height) = (0.0, 0.0);
         for b in boards
             .iter_mut()
-            .filter(|b| jv::stringify(b.get("breakpoint")) == bp)
+            .filter(|b| js::stringify(b.get("breakpoint")) == bp)
         {
-            let (width, height) = (jv::num(b.get("width")), jv::num(b.get("height")));
+            let (width, height) = (
+                js::to_number(b.get("width")),
+                js::to_number(b.get("height")),
+            );
             b["x"] = js::num(x);
             b["y"] = js::num(y);
             x += width + BOARD_GAP_X;
@@ -749,7 +769,7 @@ fn lay_out(boards: &mut [Value]) {
 // TODO(merge): use studio::pages::studio_pages
 fn screen_pages(manifest: &Value) -> Vec<(String, Value, Vec<String>)> {
     let list = |v: Option<&Value>| -> Vec<Value> {
-        jv::truthy_value(v)
+        js::truthy_value(v)
             .and_then(Value::as_array)
             .cloned()
             .unwrap_or_default()
@@ -757,7 +777,7 @@ fn screen_pages(manifest: &Value) -> Vec<(String, Value, Vec<String>)> {
     let id_of = |s: &Value| s.get("id").and_then(Value::as_str).map(str::to_string);
     let screens: Vec<Value> = list(manifest.get("screens"))
         .into_iter()
-        .filter(|s| !jv::truthy(s.get("archived")))
+        .filter(|s| !js::truthy(s.get("archived")))
         .collect();
     let ids: Vec<String> = screens.iter().filter_map(id_of).collect();
     let mut pages: Vec<(String, Value, Vec<String>)> = Vec::new();
@@ -770,7 +790,7 @@ fn screen_pages(manifest: &Value) -> Vec<(String, Value, Vec<String>)> {
         if let Some(i) = pages.iter().position(|(p, _, _)| p == id) {
             return i;
         }
-        let title = jv::truthy_value(title)
+        let title = js::truthy_value(title)
             .cloned()
             .unwrap_or_else(|| id.into());
         pages.push((id.to_string(), title, Vec::new()));
@@ -785,7 +805,7 @@ fn screen_pages(manifest: &Value) -> Vec<(String, Value, Vec<String>)> {
         true
     };
     for p in list(manifest.get("pages")) {
-        let Some(id) = jv::truthy_value(p.get("id")).and_then(Value::as_str) else {
+        let Some(id) = js::truthy_value(p.get("id")).and_then(Value::as_str) else {
             continue;
         };
         if id == "system" {
@@ -802,7 +822,7 @@ fn screen_pages(manifest: &Value) -> Vec<(String, Value, Vec<String>)> {
         // Screens referenced only from sections ("id" or "id/variant") belong to the page too.
         for section in list(p.get("sections")) {
             for reference in list(section.get("screens")) {
-                let reference = jv::text(Some(&reference));
+                let reference = js::to_string(Some(&reference));
                 let sid = reference.split('/').next().unwrap_or_default();
                 if add(&mut pages, page, sid) {
                     assigned.push(sid.to_string());
@@ -813,7 +833,7 @@ fn screen_pages(manifest: &Value) -> Vec<(String, Value, Vec<String>)> {
     for s in &screens {
         let (Some(id), Some(page)) = (
             id_of(s),
-            jv::truthy_value(s.get("page")).and_then(Value::as_str),
+            js::truthy_value(s.get("page")).and_then(Value::as_str),
         ) else {
             continue;
         };
@@ -857,13 +877,13 @@ fn select_renders(
 ) -> Result<(Value, Vec<Value>), DfwError> {
     let p = project_paths(root);
     let m = read_json(&p.manifest, Some(Value::Null))?;
-    if !jv::truthy(Some(&m)) {
+    if !js::truthy(Some(&m)) {
         return Err(DfwError::new("design/design.json not found."));
     }
     let list = |v: Option<&Value>| -> Vec<Value> {
         v.and_then(Value::as_array).cloned().unwrap_or_default()
     };
-    let all_bps = match jv::truthy_value(m.get("breakpoints")) {
+    let all_bps = match js::truthy_value(m.get("breakpoints")) {
         Some(bps) => list(Some(bps)),
         None => list(get_path(&load_config(Some(root))?, "studio.breakpoints")),
     };
@@ -912,16 +932,16 @@ fn select_renders(
                 .iter()
                 .rev()
                 .find(|s| s.get("id").and_then(Value::as_str) == Some(sid));
-            for v in list(screen.and_then(|s| jv::truthy_value(s.get("variants")))) {
+            for v in list(screen.and_then(|s| js::truthy_value(s.get("variants")))) {
                 for b in &bps {
-                    jobs.push(jv::obj(vec![
+                    jobs.push(js::object(vec![
                         ("page", Some(json!({ "id": id, "title": title }))),
                         ("screen", Some(sid.as_str().into())),
                         ("variant", v.get("id").cloned()),
                         ("breakpoint", Some(b.clone())),
                         (
                             "file",
-                            Some(format!("design/{}", jv::text(v.get("file"))).into()),
+                            Some(format!("design/{}", js::to_string(v.get("file"))).into()),
                         ),
                     ]));
                 }
@@ -944,7 +964,7 @@ pub struct ExportOptions {
 
 fn snapshot(renderer: &Renderer, job: &Value, file: Option<&PathBuf>) -> Result<Value, DfwError> {
     let size = |key: &str| {
-        let n = jv::num(job.get("breakpoint").and_then(|b| b.get(key)));
+        let n = js::to_number(job.get("breakpoint").and_then(|b| b.get(key)));
         if n.is_finite() && n >= 0.0 {
             n as u32
         } else {
@@ -983,14 +1003,14 @@ pub fn export_penpot(root: &Path, opts: &ExportOptions) -> Result<(PathBuf, Valu
     build_system(root)?;
     let mut rels: Vec<String> = Vec::new();
     for job in &jobs {
-        let rel = jv::text(job.get("file"));
+        let rel = js::to_string(job.get("file"));
         if !rels.contains(&rel) {
             rels.push(rel);
         }
     }
     let files = build_composed(root, &rels)?;
     let file_of = |job: &Value| {
-        let rel = jv::text(job.get("file"));
+        let rel = js::to_string(job.get("file"));
         files.iter().find(|f| f.rel == rel).map(|f| &f.out)
     };
     let renderer = open_renderer()?;
@@ -1022,15 +1042,15 @@ pub fn export_penpot(root: &Path, opts: &ExportOptions) -> Result<(PathBuf, Valu
         let result = result.unwrap_or_else(|| Err(DfwError::internal("render worker stopped")));
         match result {
             Ok(snapshot) => {
-                let mut render = js_spread(Some(job));
+                let mut render = js::spread(Some(job));
                 render.insert("snapshot".into(), snapshot);
                 renders.push(Value::Object(render));
             }
             Err(err) => errors.push(Value::String(format!(
                 "{}/{}@{}: {}",
-                jv::text(job.get("screen")),
-                jv::text(job.get("variant")),
-                jv::text(job.get("breakpoint").and_then(|b| b.get("id"))),
+                js::to_string(job.get("screen")),
+                js::to_string(job.get("variant")),
+                js::to_string(job.get("breakpoint").and_then(|b| b.get("id"))),
                 err.message()
             ))),
         }
@@ -1041,12 +1061,12 @@ pub fn export_penpot(root: &Path, opts: &ExportOptions) -> Result<(PathBuf, Valu
     let mut doc = build_export(&ExportInput {
         renders: &renders,
         tokens: tokens.as_ref(),
-        product: jv::truthy_value(manifest.get("product"))
+        product: js::truthy_value(manifest.get("product"))
             .cloned()
             .unwrap_or_else(|| "".into()),
         design_version: format!(
             "v{}",
-            version.map_or("1".to_string(), |v| jv::text(Some(v)))
+            version.map_or("1".to_string(), |v| js::to_string(Some(v)))
         ),
         project_root: Some(root),
         generated_at: now_iso(),
@@ -1055,7 +1075,7 @@ pub fn export_penpot(root: &Path, opts: &ExportOptions) -> Result<(PathBuf, Valu
     let dir = penpot_dir(root);
     write_json(
         &dir.join("exports")
-            .join(format!("{}.json", jv::text(doc.get("id")))),
+            .join(format!("{}.json", js::to_string(doc.get("id")))),
         &doc,
     )?;
     prune_exports(&dir, KEEP_EXPORTS)?;
@@ -1064,7 +1084,7 @@ pub fn export_penpot(root: &Path, opts: &ExportOptions) -> Result<(PathBuf, Valu
         None => resolve(dir.join("export.json")),
     };
     write_json(&file, &doc)?;
-    if let Some(tokens) = jv::truthy_value(doc.get("tokens")) {
+    if let Some(tokens) = js::truthy_value(doc.get("tokens")) {
         write_json(&dir.join("tokens.penpot.json"), tokens)?;
     }
     Ok((file, doc))
@@ -1106,12 +1126,12 @@ pub fn export_structure(doc: &Value) -> Vec<String> {
     fn bit(v: Option<&Value>) -> String {
         match v {
             None | Some(Value::Null) => String::new(),
-            v => jv::text(v),
+            v => js::to_string(v),
         }
     }
     let token_or = |v: Option<&Value>, other: &str| {
-        let token = jv::truthy_value(v.and_then(|v| v.get("token")));
-        jv::text(token.or(v.and_then(|v| v.get(other))))
+        let token = js::truthy_value(v.and_then(|v| v.get("token")));
+        js::to_string(token.or(v.and_then(|v| v.get(other))))
     };
     fn row(
         l: &Value,
@@ -1122,41 +1142,41 @@ pub fn export_structure(doc: &Value) -> Vec<String> {
         let mut bits = vec![
             bit(l.get("kind")),
             bit(l.get("name")),
-            format!("path={}", jv::text(l.get("path"))),
+            format!("path={}", js::to_string(l.get("path"))),
         ];
-        if let Some(anchor) = jv::truthy_value(l.get("anchor")) {
-            if !jv::strict_eq(Some(anchor), l.get("name")) {
-                bits.push(format!("anchor={}", jv::text(Some(anchor))));
+        if let Some(anchor) = js::truthy_value(l.get("anchor")) {
+            if !js::strict_eq(Some(anchor), l.get("name")) {
+                bits.push(format!("anchor={}", js::to_string(Some(anchor))));
             }
         }
-        if let Some(c) = jv::truthy_value(l.get("component")) {
-            bits.push(format!("component={}", jv::text(c.get("key"))));
+        if let Some(c) = js::truthy_value(l.get("component")) {
+            bits.push(format!("component={}", js::to_string(c.get("key"))));
         }
-        if let Some(characters) = jv::truthy_value(l.get("characters")) {
+        if let Some(characters) = js::truthy_value(l.get("characters")) {
             bits.push(to_json_compact(characters));
         }
-        let first = |key: &str| jv::truthy_value(l.get(key).and_then(|v| v.get(0)));
+        let first = |key: &str| js::truthy_value(l.get(key).and_then(|v| v.get(0)));
         if let Some(fill) = first("fills") {
             bits.push(format!("fill={}", token_or(Some(fill), "color")));
         }
         if let Some(stroke) = first("strokes") {
             bits.push(format!("stroke={}", token_or(Some(stroke), "color")));
         }
-        if let Some(Value::Object(sides)) = jv::truthy_value(l.get("sideBorders")) {
+        if let Some(Value::Object(sides)) = js::truthy_value(l.get("sideBorders")) {
             let present: Vec<&str> = js::entries(sides)
                 .into_iter()
-                .filter(|(_, v)| jv::truthy(Some(v)))
+                .filter(|(_, v)| js::truthy(Some(v)))
                 .map(|(k, _)| k.as_str())
                 .collect();
             bits.push(format!("borders={}", present.join("+")));
         }
-        if let Some(token) = jv::truthy_value(l.get("radiusToken")) {
-            bits.push(format!("radius={}", jv::text(Some(token))));
+        if let Some(token) = js::truthy_value(l.get("radiusToken")) {
+            bits.push(format!("radius={}", js::to_string(Some(token))));
         }
-        if let Some(text) = jv::truthy_value(l.get("text")) {
-            let token = jv::truthy_value(text.get("colorToken"));
+        if let Some(text) = js::truthy_value(l.get("text")) {
+            let token = js::truthy_value(text.get("colorToken"));
             let hex = text.get("color").and_then(|c| c.get("hex"));
-            bits.push(format!("color={}", jv::text(token.or(hex))));
+            bits.push(format!("color={}", js::to_string(token.or(hex))));
         }
         lines.push(format!("{indent}{}", bits.join(" ")));
         for c in list(l.get("children")) {
@@ -1167,15 +1187,15 @@ pub fn export_structure(doc: &Value) -> Vec<String> {
     for p in list(doc.get("pages")) {
         lines.push(format!(
             "page {} \"{}\"",
-            jv::text(p.get("id")),
-            jv::text(p.get("title"))
+            js::to_string(p.get("id")),
+            js::to_string(p.get("title"))
         ));
         for b in list(p.get("boards")) {
             lines.push(format!(
                 "  board \"{}\" key={} {}w background={}",
-                jv::text(b.get("name")),
-                jv::text(b.get("key")),
-                jv::text(b.get("width")),
+                js::to_string(b.get("name")),
+                js::to_string(b.get("key")),
+                js::to_string(b.get("width")),
                 token_or(b.get("background"), "color")
             ));
             for l in list(b.get("layers")) {
@@ -1186,9 +1206,9 @@ pub fn export_structure(doc: &Value) -> Vec<String> {
     for c in list(doc.get("components")) {
         lines.push(format!(
             "component \"{}\" key={} sig={}",
-            jv::text(c.get("name")),
-            jv::text(c.get("key")),
-            jv::text(c.get("sig"))
+            js::to_string(c.get("name")),
+            js::to_string(c.get("key")),
+            js::to_string(c.get("sig"))
         ));
     }
     lines
@@ -1215,18 +1235,18 @@ pub fn export_summary(doc: &Value, file: &Path, root: &Path) -> String {
         format!(
             "Wrote {} ({}): {} page(s), {boards} board(s), {layers} layer(s), {} component(s).",
             relative_path(root, file),
-            jv::text(doc.get("id")),
+            js::to_string(doc.get("id")),
             pages.len(),
             list(doc.get("components")).len()
         ),
-        if jv::truthy(doc.get("tokens")) {
+        if js::truthy(doc.get("tokens")) {
             "Tokens for Penpot: .dfw/penpot/tokens.penpot.json (Tokens panel > Tools > Import, before building the boards, so colours link to tokens).".to_string()
         } else {
             "No design/tokens/tokens.json: colours are not linked to tokens.".to_string()
         },
     ];
     for e in list(doc.get("errors")) {
-        lines.push(format!("Render failed: {}", jv::text(Some(&e))));
+        lines.push(format!("Render failed: {}", js::to_string(Some(&e))));
     }
     lines.push("In Penpot: start the Studio (dfw studio start), open Plugins (Ctrl+Alt+P), install the manifest from \"dfw penpot plugin\", run \"dfw bridge\" > Build boards.".to_string());
     lines.join("\n")

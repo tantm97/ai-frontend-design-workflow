@@ -24,11 +24,12 @@ use super::{
 use crate::assets::studio_file;
 use crate::browser::cdp::encoding::base64_encode;
 use crate::browser::screenshot::{screenshot, Job};
-use crate::core::config::{js_spread, js_truthy};
+use crate::core::js;
+
 use crate::core::error::DfwError;
 use crate::core::paths::{project_paths, to_posix};
 use crate::core::util::to_json_compact;
-use crate::design::tokens::{js, relative_path};
+use crate::design::tokens::relative_path;
 use crate::review::comments::{add_comment, set_comment_screenshot};
 use crate::studio::http::{
     drain, http_version, no_timeouts, node_headers, read_body, read_head, url_pathname, write_head,
@@ -242,7 +243,7 @@ impl LiveServer {
 
     /// `postComment`: a comment as live.js posts it, stored like a Studio comment.
     fn post_comment(&self, b: &Value) -> Result<Value, DfwError> {
-        let mut target = js_spread(b.get("target").filter(|t| js_truthy(t)));
+        let mut target = js::spread(b.get("target").filter(|t| js::truthy(t)));
         let insp = target
             .get("insp")
             .and_then(Value::as_str)

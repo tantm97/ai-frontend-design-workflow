@@ -13,8 +13,9 @@ use regex::Regex;
 use serde_json::{json, Map, Value};
 
 use super::icons::plugin_dir;
-use super::tokens::{dir_names, js};
+use super::tokens::dir_names;
 use crate::core::error::DfwError;
+use crate::core::js;
 use crate::core::paths::{project_paths, resolve};
 use crate::core::util::write_json;
 
@@ -545,7 +546,7 @@ pub fn motif_component(g: &Value) -> Option<String> {
 }
 
 /// White space and "any character" as JavaScript regular expressions define them.
-const WS: &str = r"[\t\n\x0B\x0C\r \x{a0}\x{1680}\x{2000}-\x{200a}\x{2028}\x{2029}\x{202f}\x{205f}\x{3000}\x{feff}]";
+const WS: &str = crate::core::js::SPACE_CLASS;
 const DOT: &str = r"[^\n\r\x{2028}\x{2029}]";
 
 fn pattern(source: &str) -> Result<Regex, DfwError> {
