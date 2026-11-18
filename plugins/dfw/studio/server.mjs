@@ -125,7 +125,18 @@ async function body(req) {
 
 function safeJoin(base, rel) {
   const abs = path.resolve(base, '.' + path.posix.normalize('/' + rel));
-  return abs.startsWith(base) ? abs : null;
+  return abs === base || abs.startsWith(base + path.sep) ? abs : null;
+}
+
+// The Studio is for the local user only. A web page the user visits could otherwise post comments
+// (which the agent reads as the user's words) or edits to it, and a DNS-rebinding page could read it:
+// the Host must be this server, and a request that changes something must not come from another origin.
+const SELF_HOSTS = new Set([`${host}:${port}`, `localhost:${port}`]);
+function foreign(req) {
+  if (!SELF_HOSTS.has(String(req.headers.host || '').toLowerCase())) return `host ${req.headers.host || '(none)'} not allowed`;
+  const from = req.headers.origin;
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && from && !SELF_HOSTS.has(from.replace(/^http:\/\//, ''))) return `origin ${from} not allowed`;
+  return null;
 }
 
 const OVERLAY_TAG = '<script src="/__dfw/overlay.js" data-dfw-overlay></script>';
@@ -235,8 +246,6 @@ async function penpotRoute(req, res, p, url) {
     return send(res, 200, fs.readFileSync(file), MIME['.json']);
   }
   if (rel === 'changes' && req.method === 'POST') {
-    const from = req.headers.origin;
-    if (from && from !== origin && from !== `http://localhost:${port}`) return send(res, 403, { error: `origin ${from} not allowed` });
     const r = importChanges(root, await body(req), { state: loadState(root) });
     return send(res, 200, { summary: formatImportChanges(r, root), comments: r.comments.map((c) => c.id), changes: r.changes.length });
   }
@@ -245,6 +254,8 @@ async function penpotRoute(req, res, p, url) {
 
 const server = http.createServer(async (req, res) => {
   try {
+    const refused = foreign(req);
+    if (refused) return send(res, 403, { error: refused });
     const url = new URL(req.url, `http://${host}:${port}`);
     const p = decodeURIComponent(url.pathname);
     if (p === '/' || p === '/index.html') return send(res, 200, fs.readFileSync(path.join(HERE, 'app.html')), MIME['.html']);
@@ -313,7 +324,7 @@ const server = http.createServer(async (req, res) => {
 // light mtime poll backs it up: a file whose mtime changed without a watch event is queued the same way.
 let timer = null;
 const pending = new Set();
-const ignored = (file) => !file || String(file).startsWith('approved') || String(file).endsWith('.tmp');
+const ignored = (file) => !file || String(file).startsWith('approved') || String(file).endsWith('.tmp') || String(file) === '.lock';
 const seen = { design: new Map(), reviews: new Map() };
 function mtime(file) {
   try {

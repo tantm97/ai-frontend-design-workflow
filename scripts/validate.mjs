@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { REPO_ROOT, readJson, loadRegistry, loadLock } from './lib/build.mjs';
-import { xrefCheck, hooksCheck, conflictLint } from './lib/checks.mjs';
+import { xrefCheck, hooksCheck, leftoverCheck, conflictLint } from './lib/checks.mjs';
 import { createHash } from 'node:crypto';
 import { unwrap } from './knowledge.mjs';
 
@@ -73,6 +73,7 @@ for (const k of registry.knowledge || []) {
 errors.push(...xrefCheck());
 // 4. Hooks invariant.
 errors.push(...hooksCheck());
+errors.push(...leftoverCheck());
 // 5. Skill frontmatter sanity.
 for (const p of mp.plugins) {
   const dir = path.join(REPO_ROOT, p.source);

@@ -29,17 +29,35 @@ const escText = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').re
 const escAttr = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 const lineAt = (text, i) => text.slice(0, i).split('\n').length;
 
+/** Canonical path (symlinks and letter case as the file system has them); also works for a path that does not exist yet. */
+function realPath(p) {
+  const rest = [];
+  for (let cur = p; ; ) {
+    try {
+      return path.join(fs.realpathSync.native(cur), ...rest);
+    } catch {
+      const up = path.dirname(cur);
+      if (up === cur) return p;
+      rest.unshift(path.basename(cur));
+      cur = up;
+    }
+  }
+}
+
 /** Resolve a design file (relative to design/ or to the project root) and enforce the edit boundary. */
 export function resolveDesignFile(root, file) {
   if (!file || typeof file !== 'string') throw new DfwError('No source file for this frame.');
   const P = projectPaths(root);
   const rel = file.replace(/^\/+/, '').replace(/^design\//, '');
-  const abs = path.resolve(P.design, rel);
-  if (!abs.startsWith(P.design + path.sep)) throw new DfwError('Edits are limited to files under design/.');
-  if (abs === P.approved || abs.startsWith(P.approved + path.sep)) throw new DfwError('design/approved/ is frozen; edits there are refused.');
+  // Canonical paths: on a case-insensitive file system "Approved/x.html" IS the frozen file, and a symlink may leave design/.
+  const design = realPath(P.design);
+  const approved = realPath(P.approved);
+  const abs = realPath(path.resolve(P.design, rel));
+  if (!abs.startsWith(design + path.sep)) throw new DfwError('Edits are limited to files under design/.');
+  if (abs === approved || abs.startsWith(approved + path.sep)) throw new DfwError('design/approved/ is frozen; edits there are refused.');
   if (!abs.endsWith('.html')) throw new DfwError('Only HTML design files can be edited from the Studio.');
   if (!fs.existsSync(abs)) throw new DfwError(`design/${toPosix(rel)} does not exist.`);
-  return { abs, rel: `design/${toPosix(path.relative(P.design, abs))}` };
+  return { abs, rel: `design/${toPosix(path.relative(design, abs))}` };
 }
 
 /** Locate the unique element with data-dfw-id="id" (or <dfw-use|dfw-icon id="id">) in source text. */
@@ -87,7 +105,9 @@ export function parseStyle(style) {
   let cur = '';
   const flush = () => {
     const i = cur.indexOf(':');
-    if (i > 0) out.push({ prop: cur.slice(0, i).trim().toLowerCase(), value: cur.slice(i + 1).trim() });
+    const prop = cur.slice(0, i).trim();
+    // Custom properties are case-sensitive (--colW is not --colw); other names are normalised.
+    if (i > 0) out.push({ prop: prop.startsWith('--') ? prop : prop.toLowerCase(), value: cur.slice(i + 1).trim() });
     cur = '';
   };
   for (const ch of style || '') {
@@ -422,6 +442,7 @@ function writeAtomic(file, data) {
 }
 
 const editsDir = (root) => path.join(projectPaths(root).dfw, 'edits');
+export const MAX_JOURNAL = 200; // undo depth; each record holds two full copies of the file
 let seq = 0;
 
 /** Apply one edit op {file, op, id, value, prop}; journals it for undo. */
@@ -435,6 +456,8 @@ export function applyEdit(root, op) {
   const stamp = `${String(Date.now()).padStart(14, '0')}-${String(seq++ % 10000).padStart(4, '0')}`;
   const record = { at: nowIso(), file: rel, op: { op: op.op, id: op.id, prop: op.prop, value: op.value, ref: op.ref, position: op.position, maxWidth: op.maxWidth }, before, after };
   writeAtomic(path.join(editsDir(root), `${stamp}.json`), JSON.stringify(record));
+  const journal = fs.readdirSync(editsDir(root)).filter((f) => f.endsWith('.json')).sort();
+  for (const f of journal.slice(0, Math.max(0, journal.length - MAX_JOURNAL))) fs.rmSync(path.join(editsDir(root), f), { force: true });
   return { file: rel, changed: true, line: lineAt(after, locate(after, op.id).start) };
 }
 
@@ -443,9 +466,16 @@ export function undoEdit(root) {
   assertEditable(root);
   const dir = editsDir(root);
   const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.json')).sort() : [];
+  let recFile;
+  let rec;
+  // An edit to a file that was deleted since cannot be undone and must not block the older edits behind it.
+  for (; files.length; files.pop()) {
+    recFile = path.join(dir, files.at(-1));
+    rec = JSON.parse(fs.readFileSync(recFile, 'utf8'));
+    if (fs.existsSync(path.join(root, rec.file))) break;
+    fs.unlinkSync(recFile);
+  }
   if (!files.length) throw new DfwError('Nothing to undo.');
-  const recFile = path.join(dir, files.at(-1));
-  const rec = JSON.parse(fs.readFileSync(recFile, 'utf8'));
   const { abs } = resolveDesignFile(root, rec.file);
   if (fs.readFileSync(abs, 'utf8') !== rec.after) {
     throw new DfwError(`${rec.file} changed after that edit (by Claude or an editor); undo refused to avoid losing work.`);

@@ -3,6 +3,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Pull requests opened by the upstream bot (GITHUB_TOKEN) do not fire pull_request:
+  # scripts/ci-upstream.mjs starts this workflow on the bot branch instead.
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:

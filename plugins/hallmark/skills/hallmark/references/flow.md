@@ -94,7 +94,7 @@ Two edge cases: the archive has written nothing yet (say so and wait; do not sta
 
 ## Edit-time linting
 
-On Claude Code, `node <skill-dir>/scripts/install-hook.mjs` wires sloplint as a PostToolUse hook that reports Floor findings the moment an artifact is written and stays quiet otherwise; Step 7 still runs.
+Disabled in dfw-marketplace: no edit-time hook is installed and the installer script is not shipped (dfw policy R10). The dfw workflow runs sloplint itself through `dfw check` after edits and at its gates; Step 7 still runs.
 
 ## Comp before build (signal 9)
 
@@ -107,7 +107,7 @@ Hallmark is tuned for Claude Code, Codex CLI and OpenCode. This section tunes ex
 | Lever | Claude Code | Codex CLI | OpenCode |
 | --- | --- | --- | --- |
 | Skill path | `~/.claude/skills/hallmark`, `/hallmark` | `~/.agents/skills/hallmark`, `$hallmark` (implicit invocation on) | `~/.config/opencode/skills` plus the Claude and Codex paths; `/hallmark` |
-| Edit-time hook | PostToolUse via `install-hook.mjs` | none; Step 7 sloplint is the only mechanical sweep | none; same |
+| Edit-time hook | none in dfw-marketplace; `dfw check` runs sloplint | none; Step 7 sloplint is the only mechanical sweep | none; same |
 | Subagents | yes | none; the fresh-context review runs in-thread and says so | yes (`@general`); parallel work allowed |
 | Questions | AskUserQuestion | plain chat text, once, then wait | plain chat text, once, then wait |
 | Browser preview | preview pane | none; relay paths | none; relay paths |

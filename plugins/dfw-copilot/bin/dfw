@@ -31,6 +31,18 @@ fi
 if command -v node >/dev/null 2>&1; then
   exec node "$DIR/dfw.mjs" "$@"
 fi
+# No Node and no binary for this plugin version (the plugin was updated before the matching
+# release was installed): run the newest installed binary rather than losing every hook.
+if [ -z "$DFW_NO_BINARY" ] && [ -d "$HOME_DIR/bin" ]; then
+  for V in $(ls -1 "$HOME_DIR/bin" 2>/dev/null | sort -t. -k1,1nr -k2,2nr -k3,3nr); do
+    for B in "$HOME_DIR/bin/$V/dfw" "$HOME_DIR/bin/$V/dfw.exe"; do
+      if [ -x "$B" ]; then
+        echo "dfw: no binary for plugin version ${VER:-unknown} and no Node.js; running binary $V. Update: dfw setup --binary (or install.sh)." >&2
+        DFW_PLUGIN_ROOT="$ROOT" exec "$B" "$@"
+      fi
+    done
+  done
+fi
 echo "dfw: needs the dfw binary or Node.js 22+." >&2
 echo "  Install the binary: curl -fsSL https://raw.githubusercontent.com/tantm97/ai-frontend-design-workflow/main/install.sh | sh" >&2
 exit 127

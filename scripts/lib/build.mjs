@@ -117,7 +117,8 @@ export function assembleAdapter(agent = 'claude-code', { root = REPO_ROOT, outRo
   const dest = path.join(outRoot, spec.plugin);
   fs.rmSync(dest, { recursive: true, force: true });
   fs.mkdirSync(dest, { recursive: true });
-  for (const c of spec.copy) {
+  const coreCopy = readJson(path.join(root, 'adapters', 'core-copy.json')).copy;
+  for (const c of [...coreCopy, ...spec.copy]) {
     const from = path.join(root, c.from);
     if (!fs.existsSync(from)) throw new Error(`assemble ${agent}: ${c.from} does not exist`);
     copyEntry(from, path.join(dest, c.to));
@@ -177,7 +178,7 @@ export function writeNotices(registry, lock, { root = REPO_ROOT } = {}) {
     '',
     'The `dfw` plugin, scripts, overlays and policies are original work under the MIT license (see LICENSE).',
     '',
-    'The single-file `dfw` binaries attached to GitHub releases embed the official Node.js runtime (MIT; its bundled third-party licenses: https://github.com/nodejs/node/blob/main/LICENSE) and are built with esbuild (MIT) and postject (MIT). dfw drives an already-installed Chromium-based browser; `dfw setup --browser` downloads Google\'s chrome-headless-shell (Chrome for Testing, BSD-3-Clause and its own notices) only on request.',
+    'The single-file `dfw` binaries attached to GitHub releases embed the official Node.js runtime (MIT; its bundled third-party licenses: https://github.com/nodejs/node/blob/main/LICENSE) and are built with esbuild (MIT) and postject (MIT). dfw drives an already-installed Chromium-based browser; Google\'s chrome-headless-shell (Chrome for Testing, BSD-3-Clause and its own notices) is downloaded only by `dfw setup --browser`, or by `dfw install` when no Chromium-based browser is found (`--no-runtime` skips it).',
     '',
   );
   fs.writeFileSync(path.join(root, 'THIRD_PARTY_NOTICES.md'), lines.join('\n'));

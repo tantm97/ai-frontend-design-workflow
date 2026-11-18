@@ -232,19 +232,22 @@ export function changedScreens(root) {
   const compDir = path.join(p.design, 'system', 'components');
   const changedComps = new Set();
   if (fs.existsSync(compDir)) for (const f of fs.readdirSync(compDir)) if (hashOf(path.join(compDir, f)) !== cache[`c:${f}`]) changedComps.add(f.replace('.html', ''));
-  const tokensChanged = hashOf(path.join(p.tokens, 'tokens.json')) !== cache['t:tokens'];
+  // tokensChanged also covers the other files every screen loads (base styles, shared head).
+  const tokensChanged = hashOf(path.join(p.tokens, 'tokens.json')) !== cache['t:tokens'] || SHARED.some((f) => hashOf(path.join(p.design, f)) !== (cache[`f:${f}`] ?? null));
   const out = [];
   for (const s of m.screens || []) {
     for (const v of s.variants || []) {
       const abs = path.join(p.design, v.file);
       if (!fs.existsSync(abs)) continue;
-      const text = fs.readFileSync(abs, 'utf8');
-      const uses = [...text.matchAll(/<dfw-use\b[^>]*\bc="([\w-]+)"/g)].map((x) => x[1]);
-      if (tokensChanged || hashOf(abs) !== cache[`s:${v.file}`] || uses.some((u) => changedComps.has(u))) out.push(s.id);
+      // A changed master reaches a screen through other masters too (card -> button), so any changed master re-checks every screen.
+      if (tokensChanged || changedComps.size || hashOf(abs) !== cache[`s:${v.file}`]) out.push(s.id);
     }
   }
   return { screens: [...new Set(out)], changedComps: [...changedComps], tokensChanged };
 }
+
+// Files every screen loads besides the tokens.
+const SHARED = ['styles/base.css', 'system/head.html'];
 
 // Content hashes, not mtimes: a checkout or touch that does not change a file does not invalidate its check,
 // and an edit always does (the "receipt" of a check is tied to the exact content that was measured).
@@ -262,6 +265,7 @@ export function markChecked(root) {
   const compDir = path.join(p.design, 'system', 'components');
   if (fs.existsSync(compDir)) for (const f of fs.readdirSync(compDir)) cache[`c:${f}`] = hashOf(path.join(compDir, f));
   cache['t:tokens'] = hashOf(path.join(p.tokens, 'tokens.json'));
+  for (const f of SHARED) cache[`f:${f}`] = hashOf(path.join(p.design, f));
   for (const s of readJson(p.manifest, {}).screens || []) for (const v of s.variants || []) cache[`s:${v.file}`] = hashOf(path.join(p.design, v.file));
   writeJson(path.join(p.dfw, 'layout-cache.json'), cache);
 }

@@ -6,7 +6,7 @@ Loaded on a custom run. A catalog theme has already named its faces; do not read
 
 ## The rule
 
-One display face and one body face, or one family for both; an optional outlier carries exactly one role (a wordmark, a headline figure, code). A custom run picks a display face no catalog theme sets: `node <skill-dir>/scripts/theme.mjs check --face "<face>"` refuses the ones in use, so run it before writing the token. The lists below already leave those faces out. Choose the class the idea calls for, then two or three faces from it, and decide on the real headline set in each, by shape and colour on the page; a face's name, its reputation or a subject association is not a reason. Free faces only unless the user has confirmed a licence; variable fonts preferred.
+One display face and one body face, or one family for both; an optional outlier carries exactly one role (a wordmark, a headline figure, code). A custom run picks a display face no catalog theme sets: `node ${CLAUDE_SKILL_DIR}/scripts/theme.mjs check --face "<face>"` refuses the ones in use, so run it before writing the token. The lists below already leave those faces out. Choose the class the idea calls for, then two or three faces from it, and decide on the real headline set in each, by shape and colour on the page; a face's name, its reputation or a subject association is not a reason. Free faces only unless the user has confirmed a licence; variable fonts preferred.
 
 ## Banned as a default
 

@@ -32,7 +32,7 @@ The depths do not blend: a polish that finds the concept wrong says so and recom
 2. Record the page as it stands:
 
 ```
-node <skill-dir>/scripts/sloplint.mjs <target> --genre <genre> --render --before [--url <route> ...] [--scope app]
+node ${CLAUDE_SKILL_DIR}/scripts/sloplint.mjs <target> --genre <genre> --render --before [--url <route> ...] [--scope app]
 ```
 
 It prints the findings grouped by gate and writes them to `.hallmark/before.txt`, the screenshots to `.hallmark/before/` and the record to `.hallmark/before.json`: every link, form, field, inline handler, test hook, script tag, selector a script queries, heading and figure. Git ignores the folder's screenshots and records.

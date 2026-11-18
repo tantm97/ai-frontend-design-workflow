@@ -1,0 +1,82 @@
+{
+  "$comment": "Core files copied into every host plugin, in this order, before the adapter's own copy list (adapters/<host>/assemble.json). One list so a new core directory cannot be missing from one host.",
+  "copy": [
+    {
+      "from": "core/bin",
+      "to": "bin"
+    },
+    {
+      "from": "core/lib",
+      "to": "lib"
+    },
+    {
+      "from": "core/studio",
+      "to": "studio"
+    },
+    {
+      "from": "core/schemas",
+      "to": "schemas"
+    },
+    {
+      "from": "core/templates",
+      "to": "templates"
+    },
+    {
+      "from": "core/assets",
+      "to": "assets"
+    },
+    {
+      "from": "core/kits",
+      "to": "kits"
+    },
+    {
+      "from": "core/workflow/SKILL.md",
+      "to": "skills/dfw/SKILL.md",
+      "render": "text"
+    },
+    {
+      "from": "core/workflow/references",
+      "to": "skills/dfw/references",
+      "render": "text"
+    },
+    {
+      "from": "core/workflow/policies",
+      "to": "skills/dfw/policies",
+      "render": "text"
+    },
+    {
+      "from": "core/workflow/stacks",
+      "to": "skills/dfw/stacks",
+      "render": "text"
+    },
+    {
+      "from": "core/workflow/agents",
+      "to": "agents",
+      "render": "agent"
+    },
+    {
+      "from": "core/workflow/SKILL.md",
+      "to": "mcp/SKILL.md",
+      "render": "text",
+      "host": "mcp"
+    },
+    {
+      "from": "core/workflow/references",
+      "to": "mcp/references",
+      "render": "text",
+      "host": "mcp"
+    },
+    {
+      "from": "core/workflow/policies",
+      "to": "mcp/policies",
+      "render": "text",
+      "host": "mcp"
+    },
+    {
+      "from": "core/workflow/stacks",
+      "to": "mcp/stacks",
+      "render": "text",
+      "host": "mcp"
+    }
+  ]
+}

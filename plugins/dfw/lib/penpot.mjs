@@ -20,15 +20,16 @@ import { projectPaths, readJson, writeJson, nowIso, toPosix, DfwError } from './
 import { loadConfig } from './config.mjs';
 import { buildComposed, buildSystem, loadComponents } from './compose.mjs';
 import { studioPages } from '../studio/pages.mjs';
-import { flattenTokens, tokenToPenpot, parseColor, readDfwTokens, dfwToPenpot, importPenpotTokens, shortValue } from './penpot-tokens.mjs';
+import { flattenTokens, tokenToPenpot, parseColor, readDfwTokens, dfwToPenpot, importPenpotTokens, shortValue, nest } from './penpot-tokens.mjs';
 import { addComment } from './comments.mjs';
 
-export const EXPORT_SCHEMA = 'dfw-penpot-export/1';
-export const CHANGES_SCHEMA = 'dfw-penpot-changes/1';
+const EXPORT_SCHEMA = 'dfw-penpot-export/1';
+const CHANGES_SCHEMA = 'dfw-penpot-changes/1';
 const BOARD_GAP_X = 160;
 const BOARD_GAP_Y = 240;
+const KEEP_EXPORTS = 20;
 
-export function penpotDir(root) {
+function penpotDir(root) {
   return path.join(projectPaths(root).dfw, 'penpot');
 }
 
@@ -36,7 +37,7 @@ export function penpotDir(root) {
 
 // Runs inside the rendered page (self-contained: no closures). Returns a raw layer tree with
 // page coordinates, colours normalised to { hex, opacity } and box-shadows parsed.
-export function snapshotPage() {
+function snapshotPage() {
   const round = (n) => Math.round(n * 100) / 100;
   const px = (v) => parseFloat(v) || 0;
   const cv = document.createElement('canvas');
@@ -224,19 +225,21 @@ export function simplify(nodes) {
   return out;
 }
 
+/** The token a name ends at, aliases followed ("{a.b}" -> a.b -> ...); null when missing or circular. */
+function resolveAlias(flat, name, depth = 0) {
+  const t = flat.get(name);
+  if (!t || depth > 10) return null;
+  const m = typeof t.value === 'string' && /^\{([^{}]+)\}$/.exec(t.value.trim());
+  return m ? resolveAlias(flat, m[1], depth + 1) : t;
+}
+
 /** Colour tokens resolved to { hex, opacity } (aliases followed), most semantic name first. */
-export function colorTokenIndex(tree) {
+function colorTokenIndex(tree) {
   const flat = flattenTokens(tree || {});
-  const resolve = (name, depth = 0) => {
-    const t = flat.get(name);
-    if (!t || depth > 10) return null;
-    const m = typeof t.value === 'string' && /^\{([^{}]+)\}$/.exec(t.value.trim());
-    return m ? resolve(m[1], depth + 1) : t;
-  };
   const out = [];
   for (const [name, t] of flat) {
     if (t.type !== 'color') continue;
-    const r = resolve(name);
+    const r = resolveAlias(flat, name);
     if (!r) continue;
     const p = tokenToPenpot(name, r);
     const c = p.unsupported ? null : parseColor(p.value);
@@ -249,7 +252,7 @@ export function colorTokenIndex(tree) {
   return out.sort((a, b) => a.score - b.score);
 }
 
-export function radiusTokenIndex(tree) {
+function radiusTokenIndex(tree) {
   const out = [];
   for (const [name, t] of flattenTokens(tree || {})) {
     if (t.type === 'dimension' && /(^|\.)radius(\.|$)/.test(name) && t.value?.unit === 'px') out.push({ name, px: t.value.value });
@@ -259,7 +262,7 @@ export function radiusTokenIndex(tree) {
 
 const TEXTISH = /(^|[.-])(ink|text|on|fg|foreground|muted|subtle)([.-]|$)/;
 /** Token with exactly this colour; text colours prefer ink/text/on-* names, fills the others. */
-export function findColorToken(idx, c, role = 'fill') {
+function findColorToken(idx, c, role = 'fill') {
   if (!c) return null;
   const hits = idx.filter((t) => t.hex === c.hex && Math.abs(t.opacity - c.opacity) < 0.01);
   const pref = hits.find((t) => (role === 'text') === TEXTISH.test(t.name));
@@ -267,7 +270,7 @@ export function findColorToken(idx, c, role = 'fill') {
 }
 
 /** Turn raw snapshot nodes into export layers: board-relative boxes, fills/strokes with token links, paths. */
-export function toLayers(nodes, { colors = [], radii = [], projectRoot = null } = {}) {
+function toLayers(nodes, { colors = [], radii = [], projectRoot = null } = {}) {
   const layer = (n, p) => {
     const st = n.style || {};
     const l = { kind: n.kind, name: n.name, path: p, dfwId: n.dfwId || null, anchor: n.anchor || null, x: n.x, y: n.y, w: n.w, h: n.h };
@@ -306,14 +309,14 @@ export function toLayers(nodes, { colors = [], radii = [], projectRoot = null } 
       } else if (n.src && /^https?:/.test(n.src)) l.src = n.src;
     }
     if (n.component) l.component = { ...n.component, key: componentKey(n.component) };
-    if (n.children?.length) l.children = n.children.map((c, i) => layer(c, p === '' ? String(i) : `${p}.${i}`));
+    if (n.children?.length) l.children = n.children.map((c, i) => layer(c, `${p}.${i}`));
     if (l.children || l.kind === 'frame') l.sig = signature(l);
     return l;
   };
   return nodes.map((n, i) => layer(n, String(i)));
 }
 
-export const componentKey = (c) => [c.name, c.variant || '', c.size || ''].join('|');
+const componentKey =(c) => [c.name, c.variant || '', c.size || ''].join('|');
 
 /** Structural signature (kinds, names, child structure; not text, positions or colours). */
 export function signature(l) {
@@ -395,7 +398,7 @@ export function buildExport({ renders, tokens, product = '', designVersion = 'v1
 
 /* ------------------------------------------------------------------ export (render + write) */
 
-export function selectRenders(root, { page = null, bp = null } = {}) {
+function selectRenders(root, { page = null, bp = null } = {}) {
   const p = projectPaths(root);
   const m = readJson(p.manifest, null);
   if (!m) throw new DfwError('design/design.json not found.');
@@ -462,10 +465,23 @@ export async function exportPenpot(root, { page = null, bp = null, out = null } 
   doc.errors = errors;
   const dir = penpotDir(root);
   writeJson(path.join(dir, 'exports', `${doc.id}.json`), doc);
+  pruneExports(dir);
   const file = path.resolve(root, out || path.join('.dfw', 'penpot', 'export.json'));
   writeJson(file, doc);
   if (doc.tokens) writeJson(path.join(dir, 'tokens.penpot.json'), doc.tokens);
   return { file, doc };
+}
+
+/**
+ * Keep the newest exports in .dfw/penpot/exports/ (every render writes a full copy; the plugin
+ * renders on each "Build boards"). Ids start with the render time, so name order is age order.
+ */
+export function pruneExports(dir, keep = KEEP_EXPORTS) {
+  const d = path.join(dir, 'exports');
+  if (!fs.existsSync(d)) return [];
+  const old = fs.readdirSync(d).filter((f) => /^px_\w+\.json$/.test(f)).sort().slice(0, -keep);
+  for (const f of old) fs.rmSync(path.join(d, f), { force: true });
+  return old;
 }
 
 /** Geometry-free outline of an export (stable across platforms and fonts): used by tests and --outline. */
@@ -516,7 +532,7 @@ export function exportSummary(doc, file, root) {
 
 const norm = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
 
-export function flattenLayers(layers, out = new Map()) {
+function flattenLayers(layers, out = new Map()) {
   for (const l of layers || []) {
     out.set(l.path, l);
     flattenLayers(l.children, out);
@@ -585,7 +601,7 @@ export function diffChanges(baseline, changes, { dims = [] } = {}) {
       const before = l.kind === 'text' ? l.text?.color : l.fills?.[0];
       const after = n.fills?.[0];
       if (after && before && (String(after.color).toLowerCase() !== String(before.hex || before.color).toLowerCase() || Math.abs((after.opacity ?? 1) - (before.opacity ?? 1)) > 0.01)) {
-        const tokenNow = baseline.colors.find((c) => c.hex === String(after.color).toLowerCase() && Math.abs(c.opacity - (after.opacity ?? 1)) < 0.01)?.name || null;
+        const tokenNow = colorToken(baseline, after);
         out.push({ type: 'fill', ...where(b), ...target, from: { color: before.hex || before.color, opacity: before.opacity ?? 1, token: l.kind === 'text' ? l.text?.colorToken : l.fills?.[0]?.token }, to: { color: String(after.color).toLowerCase(), opacity: after.opacity ?? 1, token: tokenNow } });
       } else if (after && !before && l.kind !== 'text') {
         out.push({ type: 'fill', ...where(b), ...target, from: null, to: { color: String(after.color).toLowerCase(), opacity: after.opacity ?? 1 } });
@@ -640,16 +656,10 @@ export function diffChanges(baseline, changes, { dims = [] } = {}) {
 /** Dimension tokens in px (aliases followed; rem = 16px), by role: radius, space, size, border. */
 export function dimensionTokenIndex(tree) {
   const flat = flattenTokens(tree || {});
-  const resolve = (name, depth = 0) => {
-    const t = flat.get(name);
-    if (!t || depth > 10) return null;
-    const m = typeof t.value === 'string' && /^\{([^{}]+)\}$/.exec(t.value.trim());
-    return m ? resolve(m[1], depth + 1) : t;
-  };
   const out = [];
   for (const [name, t] of flat) {
     if (t.type !== 'dimension' || /^font\./.test(name)) continue;
-    const v = resolve(name)?.value;
+    const v = resolveAlias(flat, name)?.value;
     const px = v?.unit === 'px' ? v.value : v?.unit === 'rem' ? v.value * 16 : null;
     if (typeof px !== 'number') continue;
     const role = /(^|\.)radius(\.|$)/.test(name) ? 'radius' : /(border|stroke|focus)[.-]?width/.test(name) ? 'border' : /(^|\.)(space|spacing|gap|inset|padding)(\.|$)/.test(name) ? 'space' : /(^|\.)(size|sizing|width|height)(\.|$)/.test(name) ? 'size' : null;
@@ -681,7 +691,7 @@ function insets(parent, kids) {
  * Edits on the "dfw components" page: each Penpot main component (keyed by the master, variant and size
  * stored in its plugin data) compared with the master as exported. Pure (no IO).
  */
-export function diffComponents(baseline, changes, { dims = [], warnings = [] } = {}) {
+function diffComponents(baseline, changes, { dims = [], warnings = [] } = {}) {
   const comps = componentsOf(baseline);
   const out = [];
   const base = { board: null, screen: null, variant: null, breakpoint: null, file: null };
@@ -850,7 +860,7 @@ export function masterSource(root, change, lib = null) {
 
 const fmtColor = (c) => (c ? `${c.color}${c.opacity !== undefined && c.opacity < 1 ? ` @${Math.round(c.opacity * 100)}%` : ''}${c.token ? ` (${c.token})` : ''}` : 'none');
 
-export function describeChange(c) {
+function describeChange(c) {
   switch (c.type) {
     case 'text':
       return `${c.placeholder ? 'Placeholder' : 'Text'} changed: "${norm(c.from)}" -> "${norm(c.to)}"`;
@@ -879,7 +889,7 @@ const fmtPx = (v) => `${Math.round(v * 100) / 100}px`;
 const tokOr = (t, what) => (t ? ` (${t})` : ` (no ${what} token has this value: use a token or propose one)`);
 
 /** One line for a change on a component master (dfw components page). */
-export function describeComponentChange(c) {
+function describeComponentChange(c) {
   switch (c.type) {
     case 'text':
       return `Example text changed: "${norm(c.from)}" -> "${norm(c.to)}" (slot/default content; screens pass their own text)`;
@@ -912,7 +922,7 @@ const masterNote = (comp, file) =>
   `Change the master ${file} (component "${comp.name}"${comp.variant ? `, variant "${comp.variant}"` : ''}${comp.size ? `, size "${comp.size}"` : ''}): it affects every screen using it. Do not patch single screens.`;
 
 /** design/<file>:<line> of the element (data-dfw-id) or instance (<dfw-use id>) with this id. */
-export function sourceLine(root, file, id) {
+function sourceLine(root, file, id) {
   if (!file) return null;
   const abs = path.join(root, file);
   if (!id || !fs.existsSync(abs)) return file;
@@ -928,17 +938,11 @@ const fingerprint = (x) => crypto.createHash('sha256').update(JSON.stringify(x))
 export function tokensFromPlugin(t) {
   if (!t?.sets?.length) return null;
   const doc = {};
-  for (const s of t.sets) {
-    const set = (doc[s.name] = {});
-    for (const tok of s.tokens || []) {
-      const parts = String(tok.name).split('.');
-      let node = set;
-      for (const p of parts.slice(0, -1)) node = node[p] ??= {};
-      node[parts.at(-1)] = { $value: tok.value, $type: tok.type, ...(tok.description ? { $description: tok.description } : {}) };
-    }
-  }
+  // Set and token names are untrusted: nest() leaves out reserved path segments (__proto__, ...).
+  const sets = t.sets.filter((s) => !['__proto__', 'constructor', 'prototype'].includes(String(s.name)));
+  for (const s of sets) doc[s.name] = nest((s.tokens || []).map((tok) => [String(tok.name), tok]));
   doc.$themes = (t.themes || []).map((th) => ({ name: th.name, group: th.group || '', description: th.description || '', isSource: false, selectedTokenSets: Object.fromEntries((th.sets || []).map((s) => [s, 'enabled'])) }));
-  doc.$metadata = { tokenSetOrder: t.sets.map((s) => s.name), activeSets: t.sets.filter((s) => s.active).map((s) => s.name) };
+  doc.$metadata = { tokenSetOrder: sets.map((s) => s.name), activeSets: sets.filter((s) => s.active).map((s) => s.name) };
   return doc;
 }
 
@@ -948,7 +952,8 @@ export function tokensFromPlugin(t) {
  */
 export function importChanges(root, changes, { dryRun = false, state = null } = {}) {
   const dir = penpotDir(root);
-  const exportId = changes?.exportId;
+  // The id names a file under exports/: only the shape dfw generates (never a path from the change file).
+  const exportId = typeof changes?.exportId === 'string' && /^px_\w+$/.test(changes.exportId) ? changes.exportId : null;
   const baseline = (exportId && readJson(path.join(dir, 'exports', `${exportId}.json`), null)) || readJson(path.join(dir, 'export.json'), null);
   if (!baseline) throw new DfwError('No Penpot export found (.dfw/penpot/export.json). Run "dfw penpot export" first; the change file must come from boards built from it.');
   let dims = [];
@@ -994,7 +999,8 @@ export function importChanges(root, changes, { dryRun = false, state = null } = 
   } catch {}
   for (const [key, cs] of groups) {
     const c0 = cs[0];
-    const fp = fingerprint(cs.map(({ type, board, path: p, anchor, from, to, messages, characters, bbox, component, sides, layer }) => ({ type, board, p, anchor, from, to, messages, characters, bbox, comp: component?.key, sides, layer })));
+    // A Penpot thread is the same thread wherever the layer under its pin sits now: no bbox/anchor in its fingerprint.
+    const fp = c0.type === 'comment' ? fingerprint({ type: 'comment', board: c0.board, comp: c0.component?.key, thread: c0.thread, messages: c0.messages }) : fingerprint(cs.map(({ type, board, path: p, anchor, from, to, messages, characters, bbox, component, sides, layer }) => ({ type, board, p, anchor, from, to, messages, characters, bbox, comp: component?.key, sides, layer })));
     if (ledger.has(fp)) {
       result.skipped++;
       continue;
@@ -1030,7 +1036,7 @@ export function importChanges(root, changes, { dryRun = false, state = null } = 
   if (result.tokenDiff) {
     const lines = [];
     for (const [set, d] of Object.entries(result.tokenDiff.diff)) {
-      for (const c of d.changed) lines.push(`- ${set} ${c.token}: ${shortValue(c.from)} -> ${shortValue(c.to)}`);
+      for (const c of d.changed) if (!c.descriptionOnly) lines.push(`- ${set} ${c.token}: ${shortValue(c.from)} -> ${shortValue(c.to)}`);
       for (const c of d.added) lines.push(`- ${set} ${c.token} added (${c.type}): ${shortValue(c.value)}`);
     }
     if (lines.length) {
@@ -1046,7 +1052,7 @@ export function importChanges(root, changes, { dryRun = false, state = null } = 
       ledger.add(fp);
     }
     writeJson(ledgerFile, [...ledger]);
-    writeJson(path.join(dir, 'changes', `${(changes.pushedAt || nowIso()).replace(/[-:.]/g, '')}.json`), changes);
+    writeJson(path.join(dir, 'changes', `${String(changes.pushedAt || nowIso()).replace(/[^\dTZ]/g, '') || 'changes'}.json`), changes);
   } else result.comments = pending.map(([, input]) => ({ id: '(dry run)', ...input }));
   return result;
 }

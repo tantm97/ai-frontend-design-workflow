@@ -58,11 +58,13 @@ export function findElement(html, start) {
   const tag = open[1].toLowerCase();
   const openEnd = start + open[0].length;
   if (VOID.has(tag) || /\/\s*$/.test(open[2])) return { tag, attrs: open[2].replace(/\/\s*$/, ''), openEnd, innerStart: openEnd, innerEnd: openEnd, end: openEnd };
-  const re = new RegExp(`<(/?)${tag.replace(/[-]/g, '\\-')}\\b((?:[^>"']|"[^"]*"|'[^']*')*)>`, 'gi');
+  // Comments are skipped: a tag mentioned inside <!-- ... --> is not part of the element tree.
+  const re = new RegExp(`<!--[\\s\\S]*?-->|<(/?)${tag.replace(/[-]/g, '\\-')}\\b((?:[^>"']|"[^"]*"|'[^']*')*)>`, 'gi');
   re.lastIndex = openEnd;
   let depth = 1;
   let m;
   while ((m = re.exec(html))) {
+    if (m[0].startsWith('<!--')) continue;
     if (m[1]) depth--;
     else if (!/\/\s*$/.test(m[2])) depth++;
     if (depth === 0) return { tag, attrs: open[2], openEnd, innerStart: openEnd, innerEnd: m.index, end: m.index + m[0].length };
@@ -147,7 +149,8 @@ export function parseComponentFile(text, rel) {
       preview: a.preview || '',
       accepts: list(a.accepts),
       styles,
-      template: tpl ? tpl[1].trim() : '',
+      // Leading comments are dropped so the root element comes first (annotateRoot stamps id/class on it).
+      template: tpl ? tpl[1].trim().replace(/^(?:<!--[\s\S]*?-->\s*)+/, '') : '',
       examples: ex ? ex[1].trim() : '',
     });
     i = el.end;
@@ -197,7 +200,7 @@ function fillTemplate(def, props, slots) {
       keep = neg ? !truthy : truthy;
     }
     if (!keep) out = out.slice(0, start) + out.slice(el.end);
-    else out = out.slice(0, start) + out.slice(start, el.openEnd).replace(/\s*data-dfw-if\s*=\s*"[^"]*"/, '') + out.slice(el.openEnd);
+    else out = out.slice(0, start) + out.slice(start, el.openEnd).replace(/\s*data-dfw-if\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/, '') + out.slice(el.openEnd);
   }
   // {{prop==value?text}}: text when the prop equals value (e.g. aria-current in a shared app shell).
   out = out.replace(/\{\{\s*([\w-]+)\s*==\s*([\w-]+)\s*\?\s*([^}]*)\}\}/g, (_, n, v, t) => (String(props[n] ?? '') === v ? escapeHtml(t) : ''));
@@ -269,12 +272,18 @@ export function composeHtml(root, html, { lib = loadComponents(root), depth = 0,
   }
   let out = '';
   let i = 0;
-  const re = /<dfw-(use|icon)\b/g;
+  const re = /<!--[\s\S]*?-->|<dfw-(use|icon)\b/g;
   let m;
   while ((m = re.exec(html))) {
+    if (!m[1]) continue; // a comment: copied through untouched
     const start = m.index;
     const el = findElement(html, start);
     if (!el) break;
+    if (el.unclosed) {
+      // Without its closing tag the instance would swallow the rest of the page: report it and leave the rest as written.
+      issues.push({ level: 'error', rule: 'component-unclosed', index: start, message: `<dfw-${m[1]}> has no closing </dfw-${m[1]}> tag.` });
+      break;
+    }
     out += html.slice(i, start);
     const attrs = parseAttrs(el.attrs);
     if (m[1] === 'icon') {
@@ -304,9 +313,10 @@ export function composeHtml(root, html, { lib = loadComponents(root), depth = 0,
         // whose fills belong to the nested component.
         let rest = '';
         let pos = 0;
-        const tagRe = /<dfw-(use|fill)\b/g;
+        const tagRe = /<!--[\s\S]*?-->|<dfw-(use|fill)\b/g;
         let t;
         while ((t = tagRe.exec(inner))) {
+          if (!t[1]) continue;
           const f = findElement(inner, t.index);
           if (!f) break;
           if (t[1] === 'use') {

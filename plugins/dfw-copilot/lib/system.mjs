@@ -47,6 +47,7 @@ export function systemInit(root, { preset = 'crisp', style = null, fonts = 'vi',
   fs.mkdirSync(path.join(sys, 'components'), { recursive: true });
   const inventoryCreated = ensureInventory(root);
   if (style) {
+    if (!force && !isPlaceholderTokens(path.join(p.tokens, 'tokens.json'))) throw new DfwError('design/tokens/tokens.json already holds a design system; a style guide replaces its tokens, fonts and motif master. Pass --force to replace them.');
     applyStyle(root, style, { fonts });
     buildTokens(root);
     buildSystem(root);
@@ -70,6 +71,8 @@ export function systemInit(root, { preset = 'crisp', style = null, fonts = 'vi',
 /** Write presets as token themes "opt-<name>" so the same screens can be compared in the Studio. */
 export function systemOptions(root, names, { fonts = 'vi' } = {}) {
   if (names.length < 2 || names.length > 3) throw new DfwError('Give 2-3 style guides or presets to compare, e.g. dfw system options industrial-utility swiss-grid ops-dense');
+  // Validate every name before touching the current options: a typo must not leave half the themes replaced.
+  for (const n of names) isStyle(n) ? getStyle(n) : presetFiles(n);
   const p = projectPaths(root);
   const themesDir = path.join(p.tokens, 'themes');
   fs.mkdirSync(themesDir, { recursive: true });

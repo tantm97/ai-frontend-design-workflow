@@ -23,7 +23,7 @@ npx github:tantm97/ai-frontend-design-workflow
 
 Both add the `dfw-marketplace` to Claude Code, install `dfw` (its plugin dependencies pull in the seven design skills), set up the Impeccable engine (telemetry off) and run `dfw doctor`. Screenshots and the layout check use the Chrome, Edge or Chromium already on your machine; only when none is found does the installer download Google's headless Chrome once. Options: `--scope project` (share via `.claude/settings.json`), `--no-runtime`, `--no-binary`, `uninstall`. Then restart Claude Code (or `/reload-plugins`) and type `/dfw`.
 
-How dfw runs: the plugin's `bin/dfw` launcher starts the `dfw` binary for its version (`~/.config/dfw/bin/<version>/`) when present, otherwise Node.js. `dfw setup --binary` fetches the binary later; `DFW_NO_BINARY=1` forces Node.
+How dfw runs: the plugin's `bin/dfw` launcher starts the `dfw` binary for its version (`~/.config/dfw/bin/<version>/`) when present, otherwise Node.js; with neither, it runs the newest installed binary and says so on stderr. `dfw setup --binary` fetches the binary later; `DFW_NO_BINARY=1` forces Node.
 
 The installer registers dfw with every supported tool it finds (`--host claude|copilot|all` to choose). Without the installer: Claude Code `claude plugin marketplace add tantm97/ai-frontend-design-workflow` then `claude plugin install dfw@dfw-marketplace`; GitHub Copilot CLI `copilot plugin marketplace add tantm97/ai-frontend-design-workflow` then `copilot plugin install dfw@dfw-marketplace` (and the seven skills the same way). OpenCode, Codex, Cursor: `dfw mcp install opencode|codex|cursor|all` adds dfw's MCP server (workflow guide, CLI and a write-gate check) to that tool's config (`--print` to preview). MCP cannot block the tool's own file writes, so the approval gates are advisory there.
 
@@ -145,6 +145,7 @@ core/                     agent-agnostic workflow core
   lib/host.mjs            everything that differs between AI tools (hook formats, skill wording, install paths)
   lib/mcp.mjs             "dfw mcp": MCP server + config install for tools without a dfw plugin
   manifest.json           name, version, dependencies: source of every host's plugin manifest
+adapters/core-copy.json   core files copied into every host plugin (one list for all hosts)
 adapters/claude-code/     Claude Code packaging: hooks + assemble.json -> plugins/dfw
 adapters/copilot/         GitHub Copilot packaging: hooks + assemble.json -> plugins/dfw-copilot
 plugins/                  GENERATED marketplace plugins (dfw, dfw-copilot, vendored skills); do not edit by hand

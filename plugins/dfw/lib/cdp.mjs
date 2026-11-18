@@ -11,7 +11,7 @@ import { globalDir, DfwError } from './util.mjs';
 
 /* ---------------------------------------------------------------- finding a browser */
 
-export function browserDir() {
+function browserDir() {
   return path.join(globalDir(), 'browser');
 }
 
@@ -62,8 +62,9 @@ export function browserStatus() {
 /* ---------------------------------------------------------------- protocol */
 
 class Connection {
-  constructor(ws) {
+  constructor(ws, { commandTimeoutMs = 120000 } = {}) {
     this.ws = ws;
+    this.commandTimeoutMs = commandTimeoutMs;
     this.seq = 0;
     this.pending = new Map();
     this.listeners = new Map(); // sessionId ('' = browser) -> Set(fn(method, params))
@@ -71,7 +72,10 @@ class Connection {
     ws.addEventListener('message', (e) => this.onMessage(typeof e.data === 'string' ? e.data : Buffer.from(e.data).toString('utf8')));
     ws.addEventListener('close', () => {
       this.closed = true;
-      for (const { reject } of this.pending.values()) reject(new Error('browser connection closed'));
+      for (const { reject, timer } of this.pending.values()) {
+        clearTimeout(timer);
+        reject(new Error('browser connection closed'));
+      }
       this.pending.clear();
     });
   }
@@ -82,6 +86,7 @@ class Connection {
       const p = this.pending.get(m.id);
       if (!p) return;
       this.pending.delete(m.id);
+      clearTimeout(p.timer);
       if (m.error) p.reject(new Error(`${p.method}: ${m.error.message}`));
       else p.resolve(m.result || {});
       return;
@@ -93,7 +98,13 @@ class Connection {
     if (this.closed) return Promise.reject(new Error('browser connection closed'));
     const id = ++this.seq;
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject, method });
+      // A page stuck in a loop or a server that never answers must not hang dfw for ever.
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new Error(`${method}: no reply from the browser within ${this.commandTimeoutMs} ms`));
+      }, this.commandTimeoutMs);
+      timer.unref();
+      this.pending.set(id, { resolve, reject, method, timer });
       this.ws.send(JSON.stringify(sessionId ? { id, method, params, sessionId } : { id, method, params }));
     });
   }
@@ -112,7 +123,7 @@ class Connection {
 // never waits on the network after the first one (each page paid ~2 s for fonts before).
 const FONT_PATTERNS = [{ urlPattern: 'https://fonts.googleapis.com/*' }, { urlPattern: 'https://fonts.gstatic.com/*' }];
 
-export function fontCacheDir() {
+function fontCacheDir() {
   return path.join(globalDir(), 'cache', 'fonts');
 }
 
@@ -197,11 +208,10 @@ class Page {
 
   async goto(url, { timeout = 30000 } = {}) {
     const loaded = this.waitFor('Page.loadEventFired', timeout);
-    const r = await this.send('Page.navigate', { url });
-    if (r.errorText) {
-      loaded.catch(() => {});
-      throw new Error(`cannot open ${url}: ${r.errorText}`);
-    }
+    loaded.catch(() => {}); // handled below; never an unhandled rejection while Page.navigate is still pending
+    // Page.navigate only answers once the server responds: the load timeout covers that wait too.
+    const r = await Promise.race([this.send('Page.navigate', { url }), loaded.then(() => ({}))]);
+    if (r.errorText) throw new Error(`cannot open ${url}: ${r.errorText}`);
     await loaded;
   }
 
@@ -272,10 +282,11 @@ class Context {
 }
 
 class Browser {
-  constructor(proc, conn, dataDir) {
+  constructor(proc, conn, dataDir, unguard = () => {}) {
     this.proc = proc;
     this.conn = conn;
     this.dataDir = dataDir;
+    this.unguard = unguard;
   }
 
   async newContext(opts = {}) {
@@ -302,11 +313,41 @@ class Browser {
     try {
       fs.rmSync(this.dataDir, { recursive: true, force: true, maxRetries: 3 });
     } catch {}
+    this.unguard();
   }
 }
 
+/**
+ * Kill the browser and remove its profile when this process ends without Browser.close()
+ * (crash, process.exit, SIGTERM from "dfw studio stop" or the MCP tool timeout). Returns the undo.
+ */
+function guardProcess(proc, dataDir) {
+  const cleanup = () => {
+    try {
+      proc.kill();
+    } catch {}
+    try {
+      fs.rmSync(dataDir, { recursive: true, force: true });
+    } catch {}
+  };
+  const signals = ['SIGTERM', 'SIGINT', 'SIGHUP'].map((sig) => {
+    const fn = () => {
+      cleanup();
+      // Nobody else handles the signal: end the way the default action would have.
+      if (process.listenerCount(sig) === 0) process.kill(process.pid, sig);
+    };
+    process.once(sig, fn);
+    return [sig, fn];
+  });
+  process.once('exit', cleanup);
+  return () => {
+    process.off('exit', cleanup);
+    for (const [sig, fn] of signals) process.off(sig, fn);
+  };
+}
+
 /** Start a headless browser and connect to it. */
-export async function launch({ timeoutMs = 20000 } = {}) {
+export async function launch({ timeoutMs = 20000, commandTimeoutMs } = {}) {
   if (typeof WebSocket !== 'function') throw new DfwError(`dfw renders need Node.js 22 or newer (found ${process.versions.node}), or the dfw binary (dfw setup --binary).`);
   const b = findBrowser();
   if (!b) throw new DfwError('No Chrome, Edge or Chromium found. Install one, set DFW_BROWSER=/path/to/chrome, or run: dfw setup --browser');
@@ -344,6 +385,24 @@ export async function launch({ timeoutMs = 20000 } = {}) {
     'about:blank',
   ];
   const proc = spawn(b.path, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+  const unguard = guardProcess(proc, dataDir);
+  try {
+    const ws = await connect(proc, b, timeoutMs);
+    return new Browser(proc, new Connection(ws, commandTimeoutMs ? { commandTimeoutMs } : {}), dataDir, unguard);
+  } catch (e) {
+    // Never leave a browser or its temporary profile behind when the start fails.
+    unguard();
+    try {
+      proc.kill();
+    } catch {}
+    try {
+      fs.rmSync(dataDir, { recursive: true, force: true, maxRetries: 3 });
+    } catch {}
+    throw e;
+  }
+}
+
+async function connect(proc, b, timeoutMs) {
   const wsUrl = await new Promise((resolve, reject) => {
     let buf = '';
     const t = setTimeout(() => done(new Error(`browser did not start within ${timeoutMs} ms (${b.path})`)), timeoutMs);
@@ -371,10 +430,11 @@ export async function launch({ timeoutMs = 20000 } = {}) {
   proc.stderr.resume(); // keep draining so the browser never blocks on a full pipe
   const ws = new WebSocket(wsUrl);
   await new Promise((resolve, reject) => {
-    ws.addEventListener('open', resolve, { once: true });
-    ws.addEventListener('error', () => reject(new Error('cannot connect to the browser')), { once: true });
+    const t = setTimeout(() => reject(new Error(`cannot connect to the browser within ${timeoutMs} ms`)), timeoutMs);
+    ws.addEventListener('open', () => (clearTimeout(t), resolve()), { once: true });
+    ws.addEventListener('error', () => (clearTimeout(t), reject(new Error('cannot connect to the browser'))), { once: true });
   });
-  return new Browser(proc, new Connection(ws), dataDir);
+  return ws;
 }
 
 /** Wait until web fonts are in (bounded: a missing font must not stall a check). */
@@ -394,6 +454,21 @@ function cftPlatform() {
   return null;
 }
 
+/**
+ * The archive is unpacked and run: accept it only over https from Google's storage host, whatever
+ * the index says. Returns the URL, or throws.
+ */
+export function checkedDownloadUrl(url) {
+  let u = null;
+  try {
+    u = new URL(url);
+  } catch {}
+  if (!u || u.protocol !== 'https:' || u.hostname !== 'storage.googleapis.com' || u.username || u.password) {
+    throw new DfwError(`refusing to download a browser from ${JSON.stringify(url)}: expected https://storage.googleapis.com/...`);
+  }
+  return u.href;
+}
+
 /** Download Google's chrome-headless-shell (Chrome for Testing, stable) into ~/.config/dfw/browser. */
 export async function installBrowser({ log = console.error } = {}) {
   const plat = cftPlatform();
@@ -402,13 +477,16 @@ export async function installBrowser({ log = console.error } = {}) {
   const stable = index.channels?.Stable;
   const dl = stable?.downloads?.['chrome-headless-shell']?.find((d) => d.platform === plat);
   if (!dl) throw new DfwError(`Chrome for Testing has no headless shell for ${plat}.`);
+  const from = checkedDownloadUrl(dl.url);
+  if (!/^\d+(\.\d+)*$/.test(String(stable.version))) throw new DfwError(`unexpected Chrome version ${JSON.stringify(stable.version)} in the Chrome for Testing index.`);
   const dir = path.join(browserDir(), stable.version);
   const exe = path.join(dir, `chrome-headless-shell-${plat}`, plat.startsWith('win') ? 'chrome-headless-shell.exe' : 'chrome-headless-shell');
   if (!fs.existsSync(exe)) {
     fs.mkdirSync(dir, { recursive: true });
     const zip = path.join(dir, 'download.zip');
-    log(`Downloading headless Chrome ${stable.version} (${plat}) from ${new URL(dl.url).host} ...`);
-    const res = await fetch(dl.url);
+    log(`Downloading headless Chrome ${stable.version} (${plat}) from ${new URL(from).host} ...`);
+    const res = await fetch(from);
+    checkedDownloadUrl(res.url || from); // a redirect must stay on the same host
     if (!res.ok) throw new DfwError(`download failed: HTTP ${res.status}`);
     fs.writeFileSync(zip, Buffer.from(await res.arrayBuffer()));
     const { spawnSync } = await import('node:child_process');
