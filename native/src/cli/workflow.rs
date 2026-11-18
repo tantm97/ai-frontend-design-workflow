@@ -17,6 +17,7 @@ use crate::core::config::{get_config_value, load_config, set_config_value, Scope
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{plugin_root, project_paths};
+use crate::core::process::is_alive;
 use crate::core::util::{
     now_iso, out, parse_value, read_json, to_json_compact, to_json_pretty, write_json, ArgValue,
     Args,
@@ -26,7 +27,6 @@ use crate::design::dsaudit::audit_design_system;
 use crate::design::inventory::DS_GATE_RULES;
 use crate::design::tokens::dir_names;
 use crate::review::comments::{add_comment, all_comments};
-use crate::tools::check::engine::check_config;
 use crate::tools::check::{format_report, run_checks, CheckOptions};
 use crate::workflow::decisions::{decide, format_decisions, read_decisions};
 use crate::workflow::freeze::{freeze_design, reopen_design, verify_snapshot};
@@ -34,7 +34,8 @@ use crate::workflow::lang::{language_status, set_language};
 use crate::workflow::stack::detect_stack;
 use crate::workflow::state::{
     approve_gate, arg_raw, arg_truthy, current_approval, gate_title, load_state, mode_info,
-    new_state, push_history, save_state, set_field, set_mode, set_phase, summarize, type_error,
+    new_state, push_history, require_state, save_state, set_field, set_mode, set_phase, summarize,
+    type_error,
 };
 
 /// The commands of this group.
@@ -59,16 +60,6 @@ pub fn commands() -> Vec<(&'static str, Handler)> {
 fn print_json(value: &Value) -> Result<i32, DfwError> {
     out(&to_json_pretty(value));
     Ok(0)
-}
-
-/// `requireState(root)`.
-fn require_state(root: &Path) -> Result<Value, DfwError> {
-    load_state(root)?.ok_or_else(|| {
-        DfwError::new(format!(
-            "No dfw workflow in {}. Run \"dfw init\" first.",
-            root.display()
-        ))
-    })
 }
 
 fn init(ctx: &Ctx) -> Result<i32, DfwError> {
@@ -130,40 +121,6 @@ fn init(ctx: &Ctx) -> Result<i32, DfwError> {
     Ok(0)
 }
 
-/// `Number.isInteger(pid) && pid > 0`: a pid that names one process (`1.0` is an integer too).
-pub(super) fn positive_pid(pid: &Value) -> Option<u64> {
-    pid.as_u64().filter(|p| *p > 0).or_else(|| {
-        pid.as_f64()
-            .filter(|f| *f >= 1.0 && f.fract() == 0.0 && *f <= u32::MAX as f64)
-            .map(|f| f as u64)
-    })
-}
-
-/// `isAlive(pid)`: whether a process of this user with that id exists.
-#[cfg(unix)]
-fn is_alive(pid: &Value) -> Option<bool> {
-    // Only a positive integer names one process: 0 and negative numbers address process groups.
-    let Some(pid) = positive_pid(pid) else {
-        return Some(false);
-    };
-    // std has no kill(2); `kill -0` asks the same question and only runs when a Studio is recorded.
-    let status = std::process::Command::new("kill")
-        .args(["-0", &pid.to_string()])
-        .stderr(std::process::Stdio::null())
-        .status();
-    Some(status.is_ok_and(|s| s.success()))
-}
-
-/// Not known here without a platform call: the caller forwards the command.
-#[cfg(not(unix))]
-fn is_alive(pid: &Value) -> Option<bool> {
-    if positive_pid(pid).is_some() {
-        None
-    } else {
-        Some(false)
-    }
-}
-
 fn status(ctx: &Ctx) -> Result<i32, DfwError> {
     let a = &ctx.args;
     let root = ctx.root();
@@ -199,10 +156,10 @@ fn status(ctx: &Ctx) -> Result<i32, DfwError> {
     );
     let studio = read_json(&p.studio, Some(Value::Null))?;
     let studio = if js::truthy(&studio) {
-        match is_alive(studio.get("pid").unwrap_or(&Value::Null)) {
-            Some(true) => studio,
-            Some(false) => Value::Null,
-            None => return forward(&ctx.argv),
+        if is_alive(studio.get("pid")) {
+            studio
+        } else {
+            Value::Null
         }
     } else {
         Value::Null
@@ -331,7 +288,7 @@ fn approve_ds(root: &Path, a: &Args) -> Result<(), DfwError> {
         return Err(DfwError::new("DS needs a design system: component masters in design/system/components/, designed from design/system/inventory.json (start with \"dfw system init\")."));
     }
     build_system(root)?;
-    let config = check_config(root)?;
+    let config = load_config(Some(root))?;
     let p = project_paths(root);
     let mut targets = vec!["design/tokens/tokens.json".to_string()];
     let masters = dir_names(&p.design.join("system").join("components"))?;

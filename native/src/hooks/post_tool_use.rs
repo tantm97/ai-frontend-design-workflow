@@ -10,13 +10,13 @@ use std::path::PathBuf;
 
 use serde_json::Value;
 
+use crate::core::config::load_config;
 use crate::core::config::{checks_max_findings, checks_on_edit, checks_timeout_ms, OnEdit};
 use crate::core::error::DfwError;
 use crate::core::host::{HookInput, HookResult, Host};
 use crate::core::paths::resolve;
 use crate::design::compose::build_system;
 use crate::design::tokens::build_tokens;
-use crate::tools::check::engine::check_config;
 use crate::tools::check::{extname, format_report, run_checks, CheckOptions, UI_EXT};
 use crate::workflow::gates::relative;
 use crate::workflow::state::load_state;
@@ -62,7 +62,7 @@ fn edited(input: &HookInput) -> Result<Option<Edited>, DfwError> {
     if state.get("active") == Some(&Value::Bool(false)) {
         return Ok(None);
     }
-    let config = check_config(&root)?;
+    let config = load_config(Some(&root))?;
     if checks_on_edit(&config) == OnEdit::Off {
         return Ok(None);
     }

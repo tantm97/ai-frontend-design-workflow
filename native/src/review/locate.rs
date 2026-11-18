@@ -1,9 +1,6 @@
 //! Ports `core/lib/locate.mjs`: locate sibling plugins (Impeccable, Hallmark, Taste reference)
 //! and the external tools they ship.
 
-// Some callers (the check runner, tools/check) are not ported yet: this allow goes with them.
-#![allow(dead_code)]
-
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -11,11 +8,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde_json::{json, Map, Value};
 
 use crate::core::config::{allow_unverified_engine, global_config_path};
-
 use crate::core::error::DfwError;
 use crate::core::host::HOSTS;
+use crate::core::js;
 use crate::core::paths::{claude_dir, global_dir, manifest_path, plugin_root, resolve};
+use crate::core::process::{quote_for_cmd, Spawn};
 use crate::core::util::{read_json, sha256, write_json, MARKETPLACE_NAME};
+use crate::tools::binary::{node_arch, node_platform};
 
 /// The most recently changed folder directly under `dir`.
 fn newest_dir(dir: &Path) -> Option<PathBuf> {
@@ -98,7 +97,7 @@ fn plugin_root_in(
 }
 
 /// The Impeccable engine dfw may run (`resolveEngine` of locate.mjs).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Engine {
     /// The upstream launcher (`impeccable`, `impeccable.cmd` on Windows): used only to download.
     pub launcher: PathBuf,
@@ -139,20 +138,10 @@ pub struct EngineLookup {
 impl EngineLookup {
     /// This machine, this process's environment and the global opt-in.
     pub fn current(skill_dir: PathBuf) -> Result<EngineLookup, DfwError> {
-        let platform = match std::env::consts::OS {
-            "macos" => "darwin",
-            "windows" => "win32",
-            other => other,
-        };
-        let arch = match std::env::consts::ARCH {
-            "aarch64" => "arm64",
-            "x86_64" => "x64",
-            other => other,
-        };
         Ok(EngineLookup {
             skill_dir,
-            platform: platform.into(),
-            arch: arch.into(),
+            platform: node_platform().into(),
+            arch: node_arch().into(),
             env: std::env::vars().collect(),
             home: std::env::home_dir().unwrap_or_default(),
             stamp_file: global_dir().join("engine-verified.json"),
@@ -264,21 +253,27 @@ pub fn resolve_engine(o: &EngineLookup) -> Engine {
     let exe = if win { ".exe" } else { "" };
     let launcher = scripts.join(if win { "impeccable.cmd" } else { "impeccable" });
     let read = |name: &str| fs::read_to_string(scripts.join(name)).unwrap_or_default();
-    let version = read("VERSION")
-        .split_whitespace()
+    // `.trim().split(/\s+/)[0]`: JavaScript's white space, not Rust's.
+    let words = |line: &str| -> Vec<String> {
+        line.split(js::is_space)
+            .filter(|w| !w.is_empty())
+            .map(str::to_string)
+            .collect()
+    };
+    let version = words(&read("VERSION"))
+        .into_iter()
         .next()
-        .unwrap_or_default()
-        .to_string();
+        .unwrap_or_default();
     let assets = engine_assets(&o.platform, &o.arch);
     let digests: Vec<String> = read("engine-checksums.txt")
         .lines()
         .filter_map(|line| {
-            let mut parts = line.split_whitespace();
-            let (v, asset, sum) = (parts.next()?, parts.next()?, parts.next()?);
+            let parts = words(line);
+            let (v, asset, sum) = (parts.first()?, parts.get(1)?, parts.get(2)?);
             let hex =
                 sum.len() == 64 && sum.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'));
-            (!version.is_empty() && v == version && assets.iter().any(|a| a == asset) && hex)
-                .then(|| sum.to_string())
+            (!version.is_empty() && *v == version && assets.iter().any(|a| a == asset) && hex)
+                .then(|| sum.clone())
         })
         .collect();
     let impeccable_home = o
@@ -377,6 +372,20 @@ pub fn resolve_engine(o: &EngineLookup) -> Engine {
     });
     engine.unverified = before.into_iter().chain(on_path).collect();
     engine
+}
+
+/// `launcherCommand(launcher, args, { platform })`: how to start the upstream launcher (only to
+/// download the engine). No sh on Windows: a .cmd file cannot be spawned directly, so cmd.exe
+/// gets the whole command line in one quoted string.
+pub fn launcher_command(launcher: &str, args: &[String], platform: &str) -> Spawn {
+    if platform != "win32" {
+        return Spawn::direct(launcher, args.to_vec());
+    }
+    Spawn {
+        cmd: quote_for_cmd(launcher, true),
+        args: args.iter().map(|a| quote_for_cmd(a, true)).collect(),
+        shell: true,
+    }
 }
 
 /// `impeccableEngine()`: the engine for the installed Impeccable plugin, or `None` when the
@@ -716,5 +725,24 @@ mod tests {
             ["impeccable-darwin-arm64"]
         );
         assert!(engine_assets("freebsd", "x64").is_empty());
+        assert!(engine_assets("linux", "riscv64").is_empty());
+
+        let launcher = e.launcher.to_string_lossy().into_owned();
+        let args: Vec<String> = ["detect", "--json", "C:\\p\\setup.html"]
+            .map(String::from)
+            .to_vec();
+        let c = launcher_command(&launcher, &args, "win32");
+        assert!(c.shell, "through cmd.exe, the line as written");
+        assert_eq!(
+            format!("{} {}", c.cmd, c.args.join(" ")),
+            format!("\"{launcher}\" \"detect\" \"--json\" \"C:\\p\\setup.html\"")
+        );
+        assert!(!std::iter::once(&c.cmd)
+            .chain(&c.args)
+            .any(|x| x == "sh" || x.ends_with("/sh") || x.ends_with("\\sh.exe")));
+        assert_eq!(
+            launcher_command("/x/impeccable", &["a".to_string()], "linux"),
+            Spawn::direct("/x/impeccable", vec!["a".into()])
+        );
     }
 }

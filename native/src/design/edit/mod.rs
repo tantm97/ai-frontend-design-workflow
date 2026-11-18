@@ -42,7 +42,7 @@ pub use style::{
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{project_paths, resolve, to_posix};
-use crate::core::util::{now_iso, read_json, to_json_compact};
+use crate::core::util::{now_iso, read_json, to_json_compact, write_atomic};
 use crate::design::compose::{load_components, ComponentDef};
 use crate::design::html::{set_attr, Splice};
 use crate::design::tokens::{dir_names, relative_path};
@@ -394,24 +394,6 @@ pub fn transform(root: &Path, text: &str, op: &Value) -> Result<String, DfwError
     }
 }
 
-/// `writeAtomic`: write to a temporary file next to `file`, then rename over it.
-fn write_atomic(file: &Path, data: &str) -> Result<(), DfwError> {
-    if let Some(dir) = file.parent() {
-        fs::create_dir_all(dir)?;
-    }
-    let mut tmp = file.as_os_str().to_owned();
-    tmp.push(format!(".{}.{}.tmp", std::process::id(), now_ms()));
-    fs::write(&tmp, data)?;
-    fs::rename(&tmp, file)?;
-    Ok(())
-}
-
-fn now_ms() -> u128 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |d| d.as_millis())
-}
-
 fn edits_dir(root: &Path) -> PathBuf {
     project_paths(root).dfw.join("edits")
 }
@@ -436,7 +418,12 @@ fn next_stamp(journal: &[String]) -> String {
         .and_then(|f| f.rsplit_once('-'))
         .and_then(|(_, seq)| seq.parse::<u32>().ok());
     let seq = last.map_or(0, |n| (n + 1) % 10000);
-    format!("{:014}-{seq:04}", now_ms())
+    format!(
+        "{:014}-{seq:04}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |d| d.as_millis())
+    )
 }
 
 /// What [`apply_edit`] did.

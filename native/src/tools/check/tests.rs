@@ -165,9 +165,9 @@ fn an_unverified_engine_is_not_installed_and_a_verified_one_runs_directly() {
 /// (tests/unit/impeccable-hardening.test.mjs on fix/impeccable-hardening)
 #[test]
 fn setup_only_downloads_and_the_result_must_verify() {
-    type Call = (LauncherCommand, Vec<(String, String)>);
+    type Call = (Spawn, Vec<(String, String)>);
     let calls: RefCell<Vec<Call>> = RefCell::new(Vec::new());
-    let launch = |command: &LauncherCommand, env: &[(String, String)]| {
+    let launch = |command: &Spawn, env: &[(String, String)]| {
         calls.borrow_mut().push((command.clone(), env.to_vec()));
         Launched {
             stderr: "curl: no network".into(),
@@ -250,7 +250,7 @@ fn setup_only_downloads_and_the_result_must_verify() {
     );
     // Nothing on stderr: the reason is why the launcher did not start, then the engine's detail.
     let silent = |error: Option<&str>| {
-        let launch = |_: &LauncherCommand, _: &[(String, String)]| Launched {
+        let launch = |_: &Spawn, _: &[(String, String)]| Launched {
             stderr: String::new(),
             error: error.map(String::from),
         };

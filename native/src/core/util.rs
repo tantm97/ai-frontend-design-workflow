@@ -58,13 +58,25 @@ pub fn read_json(file: &Path, fallback: Option<Value>) -> Result<Value, DfwError
 /// `writeJson(file, data)`: two-space indentation and a trailing newline, written to a temporary
 /// file and renamed so a reader never sees half a file.
 pub fn write_json(file: &Path, data: &Value) -> Result<(), DfwError> {
+    write_atomic(file, &(to_json_pretty(data) + "\n"))
+}
+
+/// Write a file through a temporary file and a rename, so a reader never sees half of it.
+/// The temporary name carries the pid and the time: two writers never share one.
+pub fn write_atomic(file: &Path, data: &str) -> Result<(), DfwError> {
     if let Some(dir) = file.parent() {
         fs::create_dir_all(dir)?;
     }
+    let ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis());
     let mut tmp = file.as_os_str().to_owned();
-    tmp.push(format!(".{}.tmp", std::process::id()));
-    fs::write(&tmp, to_json_pretty(data) + "\n")?;
-    fs::rename(&tmp, file)?;
+    tmp.push(format!(".{}.{ms}.tmp", std::process::id()));
+    fs::write(&tmp, data)?;
+    if let Err(err) = fs::rename(&tmp, file) {
+        let _ = fs::remove_file(&tmp);
+        return Err(err.into());
+    }
     Ok(())
 }
 

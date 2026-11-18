@@ -14,7 +14,7 @@ use crate::core::paths::{plugin_root, project_paths};
 use crate::core::util::{get_path, list_files, read_json};
 use crate::review::comments::all_comments;
 use crate::workflow::gates::relative;
-use crate::workflow::state::{current_approval, load_state, type_error};
+use crate::workflow::state::{current_approval, require_state, type_error};
 
 /// `text.replaceAll(needle, replacement)` with a string pattern: `$$`, `$&`, `` $` `` and `$'`
 /// in the replacement mean what JavaScript says, so a product name or a comment with a dollar
@@ -152,12 +152,7 @@ fn stack_line(stack: &Value, state: &Value) -> Result<String, DfwError> {
 /// and return the line to print.
 pub fn write_handoff(root: &Path) -> Result<String, DfwError> {
     let p = project_paths(root);
-    let state = load_state(root)?.ok_or_else(|| {
-        DfwError::new(format!(
-            "No dfw workflow in {}. Run \"dfw init\" first.",
-            root.display()
-        ))
-    })?;
+    let state = require_state(root)?;
     let Some(appr) = current_approval(&state)? else {
         return Err(DfwError::new(
             "Handoff is generated from an approved design (G2).",

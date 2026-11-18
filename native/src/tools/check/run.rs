@@ -2,13 +2,13 @@
 
 use std::io::Read;
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use super::engine::LauncherCommand;
 use super::Env;
+use crate::core::process::{command as spawn_command, Spawn};
 
 /// What a finished (or killed) tool left behind.
 #[derive(Debug, Default)]
@@ -22,23 +22,8 @@ pub(super) struct Ran {
 
 /// `spawnSync(cmd, args, { cwd, env: { ...process.env, ...env }, timeout })` with the output
 /// as text. A tool that runs past `timeout_ms` is killed.
-pub(super) fn run(
-    command: &LauncherCommand,
-    cwd: Option<&Path>,
-    env: &Env,
-    timeout_ms: u64,
-) -> Ran {
-    let mut child = Command::new(&command.cmd);
-    #[cfg(windows)]
-    if command.verbatim {
-        use std::os::windows::process::CommandExt;
-        for arg in &command.args {
-            child.raw_arg(arg);
-        }
-    }
-    if !(cfg!(windows) && command.verbatim) {
-        child.args(&command.args);
-    }
+pub(super) fn run(command: &Spawn, cwd: Option<&Path>, env: &Env, timeout_ms: u64) -> Ran {
+    let mut child = spawn_command(command);
     if let Some(cwd) = cwd {
         child.current_dir(cwd);
     }
@@ -116,33 +101,4 @@ pub(super) fn run(
         timed_out,
         error: None,
     }
-}
-
-pub(super) fn plain(cmd: impl Into<String>, args: Vec<String>) -> LauncherCommand {
-    LauncherCommand {
-        cmd: cmd.into(),
-        args,
-        verbatim: false,
-    }
-}
-
-/// `nodeExecutable()` of util.mjs inside the dfw binary: "node" when it runs, else nothing.
-// TODO(merge): one helper with tools::lighthouse::node_executable.
-pub(super) fn node_executable() -> Option<String> {
-    let mut probe = if cfg!(windows) {
-        let mut c = Command::new("cmd");
-        c.args(["/d", "/s", "/c", "node", "--version"]);
-        c
-    } else {
-        let mut c = Command::new("node");
-        c.arg("--version");
-        c
-    };
-    probe
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .is_ok_and(|s| s.success())
-        .then(|| "node".to_string())
 }

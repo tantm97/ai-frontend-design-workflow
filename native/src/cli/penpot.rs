@@ -2,7 +2,6 @@
 //! `tokens` command (`tokens export`, `tokens import`), which `cli/design.rs` hands over.
 
 use std::path::Path;
-use std::process::{Command, Stdio};
 
 use serde_json::{json, Map, Value};
 
@@ -11,6 +10,7 @@ use crate::core::config::load_config;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{project_paths, resolve};
+use crate::core::process::is_alive;
 use crate::core::util::{
     get_path, out, read_json, read_stdin, to_json_compact, to_json_pretty, ArgValue,
 };
@@ -115,34 +115,6 @@ fn import(ctx: &Ctx, root: &Path) -> Result<i32, DfwError> {
         out(&format_import_changes(&r, dry_run));
     }
     Ok(0)
-}
-
-/// `isAlive(pid)`: whether a process with this id exists and may be signalled.
-// TODO(merge): use the studio group's is_alive
-fn is_alive(pid: Option<&Value>) -> bool {
-    let Some(pid) = pid.and_then(Value::as_u64).filter(|p| *p > 0) else {
-        return false;
-    };
-    let mut probe = if cfg!(windows) {
-        let mut c = Command::new("tasklist");
-        c.args(["/NH", "/FI", &format!("PID eq {pid}")]);
-        c
-    } else {
-        let mut c = Command::new("kill");
-        c.args(["-0", &pid.to_string()]);
-        c
-    };
-    probe.stdin(Stdio::null()).stderr(Stdio::null());
-    if cfg!(windows) {
-        probe
-            .output()
-            .is_ok_and(|o| String::from_utf8_lossy(&o.stdout).contains(&format!(" {pid} ")))
-    } else {
-        probe
-            .stdout(Stdio::null())
-            .status()
-            .is_ok_and(|s| s.success())
-    }
 }
 
 /// `dfw penpot plugin`: the manifest URL to install in Penpot, and what the plugin does.

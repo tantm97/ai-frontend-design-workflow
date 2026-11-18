@@ -103,7 +103,8 @@ pub fn filter_project_env(mut layer: Value, file: &Path, warn: &mut dyn FnMut(St
     let file = file.display();
     let mut kept = Map::new();
     if let Value::Object(entries) = env {
-        for (k, v) in entries.iter() {
+        // Object.entries order: integer-like keys first, as the warnings come out in Node.
+        for (k, v) in js::entries(entries) {
             let allowed = v.as_str().is_some_and(|v| {
                 PROJECT_ENV_ALLOW.contains(&k.as_str())
                     || (PRIVACY_ENV.contains(&k.as_str()) && v == "1")

@@ -192,6 +192,16 @@ pub fn load_state(root: &Path) -> Result<Option<Value>, DfwError> {
     Ok(Some(state).filter(|v| js::truthy(v)))
 }
 
+/// `requireState(root)`: the state, or the error that says to run `dfw init`.
+pub fn require_state(root: &Path) -> Result<Value, DfwError> {
+    load_state(root)?.ok_or_else(|| {
+        DfwError::new(format!(
+            "No dfw workflow in {}. Run \"dfw init\" first.",
+            root.display()
+        ))
+    })
+}
+
 /// `saveState(root, state)`: stamps `updatedAt` and writes `.dfw/state.json`.
 pub fn save_state(root: &Path, state: &mut Value) -> Result<(), DfwError> {
     set_field(state, "updatedAt", Some(Value::String(now_iso())))?;

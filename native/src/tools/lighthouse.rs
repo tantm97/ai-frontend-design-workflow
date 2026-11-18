@@ -19,31 +19,12 @@ use serde_json::{json, Value};
 use crate::browser::cdp::lock;
 use crate::browser::launch::find_browser;
 use crate::core::js;
+use crate::core::process::node_executable;
 
 const LIGHTHOUSE_VERSION: &str = "13.6.0";
 
 fn unverifiable(detail: &str) -> Value {
     json!({ "tool": "lighthouse", "status": "unverifiable", "detail": detail, "findings": [] })
-}
-
-/// `nodeExecutable()` of util.mjs inside the dfw binary: "node" when it runs, else nothing.
-fn node_executable() -> Option<&'static str> {
-    let mut probe = if cfg!(windows) {
-        let mut c = Command::new("cmd");
-        c.args(["/d", "/s", "/c", "node", "--version"]);
-        c
-    } else {
-        let mut c = Command::new("node");
-        c.arg("--version");
-        c
-    };
-    probe
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .is_ok_and(|s| s.success())
-        .then_some("node")
 }
 
 /// `runLighthouse(url, { timeoutMs })`: a dfw check result (`{ tool, status, detail, findings }`).

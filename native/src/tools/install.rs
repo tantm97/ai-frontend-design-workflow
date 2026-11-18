@@ -7,7 +7,7 @@ use std::env;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 use serde_json::Value;
 
@@ -17,6 +17,7 @@ use crate::browser::launch::{browser_status, make_temp_dir, BrowserStatus};
 use crate::core::error::DfwError;
 use crate::core::host::{get_host, supported_hosts, Host, Status, HOSTS};
 use crate::core::paths::{global_dir, plugin_root, resolve};
+use crate::core::process::{command, quote_for_cmd, Spawn};
 use crate::core::util::{out, plugin_manifest, read_json};
 
 /// The marketplace dfw and its skills are installed from.
@@ -57,15 +58,6 @@ pub fn plugin_list() -> Result<Vec<String>, DfwError> {
     Ok(plugins)
 }
 
-/// How to start a program (`spawnPlan`).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SpawnPlan {
-    pub bin: String,
-    pub args: Vec<String>,
-    /// Through cmd.exe, with the arguments already quoted for it.
-    pub shell: bool,
-}
-
 /// `path.win32.isAbsolute`.
 fn win32_is_absolute(p: &str) -> bool {
     let b = p.as_bytes();
@@ -77,42 +69,15 @@ fn win32_is_absolute(p: &str) -> bool {
 /// are .cmd shims and need a shell, where the arguments are joined unquoted: quote the ones
 /// cmd.exe would split or interpret. An absolute executable (dfw.exe, often under "Program
 /// Files") runs directly, no shell. Elsewhere everything runs directly.
-pub fn spawn_plan(bin: &str, args: &[String], platform: &str) -> SpawnPlan {
+pub fn spawn_plan(bin: &str, args: &[String], platform: &str) -> Spawn {
     if platform != "win32" || win32_is_absolute(bin) {
-        return SpawnPlan {
-            bin: bin.to_string(),
-            args: args.to_vec(),
-            shell: false,
-        };
+        return Spawn::direct(bin, args.to_vec());
     }
-    let special = |c: char| c.is_whitespace() || "\"&|<>^()%!,;=".contains(c);
-    let quote = |a: &String| {
-        if a.is_empty() || a.chars().any(special) {
-            format!("\"{}\"", a.replace('"', "\"\""))
-        } else {
-            a.clone()
-        }
-    };
-    SpawnPlan {
-        bin: bin.to_string(),
-        args: args.iter().map(quote).collect(),
+    Spawn {
+        cmd: bin.to_string(),
+        args: args.iter().map(|a| quote_for_cmd(a, false)).collect(),
         shell: true,
     }
-}
-
-fn command(plan: &SpawnPlan) -> Command {
-    #[cfg(windows)]
-    if plan.shell {
-        use std::os::windows::process::CommandExt;
-        // What Node runs for `shell: true`: cmd.exe /d /s /c "<bin> <args...>".
-        let mut c = Command::new("cmd.exe");
-        c.raw_arg("/d /s /c")
-            .raw_arg(format!("\"{} {}\"", plan.bin, plan.args.join(" ")));
-        return c;
-    }
-    let mut c = Command::new(&plan.bin);
-    c.args(&plan.args);
-    c
 }
 
 /// What a finished child left (`spawnSync` with `encoding: 'utf8'`).
@@ -565,8 +530,8 @@ mod tests {
         );
         assert_eq!(
             direct,
-            SpawnPlan {
-                bin: "C:\\Program Files\\nodejs\\node.exe".into(),
+            Spawn {
+                cmd: "C:\\Program Files\\nodejs\\node.exe".into(),
                 args: args(&["C:\\p\\dfw.mjs", "doctor"]),
                 shell: false
             }
@@ -601,8 +566,8 @@ mod tests {
         );
         assert_eq!(
             spawn_plan("claude", &args(&["a b"]), "linux"),
-            SpawnPlan {
-                bin: "claude".into(),
+            Spawn {
+                cmd: "claude".into(),
                 args: args(&["a b"]),
                 shell: false
             }

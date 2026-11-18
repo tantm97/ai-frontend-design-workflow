@@ -2,16 +2,15 @@
 //! sloplint, optional Taste copy-lint) and the report.
 //! Severity is normalized to: error (Must fix), warn (Should fix), info (Nice to have).
 //!
-//! The Impeccable part follows the pull request "fix/impeccable-hardening" (see `engine`): only
-//! a verified engine runs, directly; a tool that did not run is listed as `unverified`.
+//! The Impeccable part follows the hardening of 0.5.2 (the engine lookup is
+//! `review::locate::resolve_engine`, the env filter is in `core::config::load_config`): only a
+//! verified engine runs, directly; a tool that did not run is listed as `unverified`.
 //!
 //! A check result is the JSON object the Node code built: `{ tool, status, detail?, findings }`.
 //
-// Split by job: `engine` (which Impeccable engine may run, which env a project may set), `run`
-// (starting a tool), `report` (the text and the exit code), this file (the tools and the run
+// Split by job: `run` (starting a tool), `report` (the text and the exit code), this file (the tools and the run
 // over all of them).
 
-pub mod engine;
 mod report;
 mod run;
 
@@ -20,20 +19,23 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{json, Map, Value};
 
-use self::engine::{impeccable_engine, launcher_command, node_platform, Engine, LauncherCommand};
 pub use self::report::{check_exit_code, format_report};
-use self::run::{node_executable, plain, run, Ran};
+use self::run::{run, Ran};
 use crate::core::config::env_map;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{project_paths, resolve, to_posix};
+use crate::core::process::{node_executable, Spawn};
 use crate::core::util::read_json;
 use crate::design::compose::{build_composed, build_system};
 use crate::design::dsaudit::audit_design_system;
 
 use crate::design::lint::lint_design;
 use crate::design::tokens::relative_path;
-use crate::review::locate::{sloplint_script, taste_copy_lint_script};
+use crate::review::locate::{
+    impeccable_engine, launcher_command, sloplint_script, taste_copy_lint_script, Engine,
+};
+use crate::tools::binary::node_platform;
 
 /// `UI_EXT`: the files the checks look at.
 pub const UI_EXT: [&str; 11] = [
@@ -82,9 +84,14 @@ impl Lookup<'static> {
             engine: &impeccable_engine,
             sloplint: &sloplint_script,
             taste: &taste_copy_lint_script,
-            node: &node_executable,
+            node: &installed_node,
         }
     }
+}
+
+/// The Node.js on PATH, as the scripts' runner.
+fn installed_node() -> Option<String> {
+    node_executable().map(String::from)
 }
 
 /// `parseJsonLoose`: the JSON that starts at the first `[` or `{` of a tool's output.
@@ -196,7 +203,12 @@ pub fn run_sloplint(
     let mut args = vec![script.to_string_lossy().into_owned()];
     args.extend(files.iter().map(|f| f.to_string()));
     args.extend(["--json", "--scope", scope].map(String::from));
-    let ran = run(&plain(node, args), Some(root), opts.env, opts.timeout_ms);
+    let ran = run(
+        &Spawn::direct(node, args),
+        Some(root),
+        opts.env,
+        opts.timeout_ms,
+    );
     if ran.timed_out {
         return Ok(result(TOOL, "timeout", None, Vec::new()));
     }
@@ -259,7 +271,7 @@ pub fn run_impeccable(
     args.extend(files.iter().map(|f| f.to_string()));
     let env: Vec<(String, String)> = opts.env.iter().chain(&engine.env).cloned().collect();
     let ran = run(
-        &plain(cmd.to_string_lossy(), args),
+        &Spawn::direct(cmd.to_string_lossy(), args),
         Some(root),
         &env,
         opts.timeout_ms,
@@ -320,7 +332,7 @@ pub struct Setup {
 }
 
 /// Start the launcher for [`setup_engine`]: up to three minutes, for the download.
-pub fn launch(command: &LauncherCommand, env: &Env) -> Launched {
+pub fn launch(command: &Spawn, env: &Env) -> Launched {
     let ran = run(command, None, env, 180_000);
     Launched {
         stderr: ran.stderr,
@@ -335,7 +347,7 @@ pub fn setup_engine(
     env: &[(String, String)],
     target: &str,
     resolve: &dyn Fn() -> Result<Option<Engine>, DfwError>,
-    launch: &dyn Fn(&LauncherCommand, &Env) -> Launched,
+    launch: &dyn Fn(&Spawn, &Env) -> Launched,
 ) -> Result<Setup, DfwError> {
     let ready = || Setup {
         ok: true,
@@ -354,13 +366,7 @@ pub fn setup_engine(
         return Ok(Setup { ok: false, text: format!("Impeccable setup stopped: the launcher would run an engine dfw cannot verify ({}). Remove it or unset IMPECCABLE_BIN, or allow it: dfw config set impeccable.allowUnverifiedEngine true --global", first.display()) });
     }
     let args: Vec<String> = ["detect", "--json", target].map(String::from).to_vec();
-    let comspec = std::env::var("ComSpec").ok();
-    let command = launcher_command(
-        &engine.launcher.to_string_lossy(),
-        &args,
-        node_platform(),
-        comspec.as_deref(),
-    );
+    let command = launcher_command(&engine.launcher.to_string_lossy(), &args, node_platform());
     let launched = launch(&command, env);
     let after = resolve()?;
     if after.as_ref().is_some_and(|e| e.ready) {
@@ -410,7 +416,12 @@ pub fn run_taste_copy_lint(
     let mut args = vec![script.to_string_lossy().into_owned()];
     args.extend(files.iter().map(|f| f.to_string()));
     args.push("--json".into());
-    let ran = run(&plain(node, args), Some(root), opts.env, opts.timeout_ms);
+    let ran = run(
+        &Spawn::direct(node, args),
+        Some(root),
+        opts.env,
+        opts.timeout_ms,
+    );
     let Some(data) = parse_json_loose(&ran.stdout) else {
         return Ok(result(TOOL, "error", Some(error_detail(&ran)), Vec::new()));
     };

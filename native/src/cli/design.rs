@@ -12,6 +12,7 @@ use serde_json::{json, Map, Value};
 
 use super::{forward, Ctx, Handler};
 use crate::core::config::env_map;
+use crate::core::config::load_config;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{project_paths, resolve};
@@ -34,7 +35,7 @@ use crate::design::system::{
     list_presets, system_choose, system_init, system_options, system_summary, InitOptions,
 };
 use crate::design::tokens::{build_tokens, dir_names, relative_path};
-use crate::tools::check::engine::{check_config, impeccable_engine};
+use crate::review::locate::impeccable_engine;
 use crate::tools::check::{
     check_exit_code, format_report, launch, run_checks, setup_engine, CheckOptions,
 };
@@ -242,7 +243,7 @@ fn check(ctx: &Ctx) -> Result<i32, DfwError> {
     if is_check && !setup && !a.truthy("no-a11y") && (url.is_some() || targets.is_none()) {
         return forward(&ctx.argv);
     }
-    let config = check_config(&root)?;
+    let config = load_config(Some(&root))?;
     if setup {
         let page = project_paths(&root).dfw.join("checks").join("setup.html");
         if let Some(dir) = page.parent() {

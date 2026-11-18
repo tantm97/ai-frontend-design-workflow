@@ -2,7 +2,6 @@
 //! extraction have no command of their own: they run inside `check` and `tokens extract`.
 
 use std::path::{Component, Path, PathBuf};
-use std::process::{Command, Stdio};
 
 use serde_json::{json, Value};
 
@@ -17,6 +16,7 @@ use crate::core::config::{load_config, studio_breakpoints, Breakpoint};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{project_paths, resolve};
+use crate::core::process::is_alive;
 use crate::core::util::{out, read_json, sha256, to_json_pretty, ArgValue, Args};
 
 /// The commands of this group.
@@ -51,35 +51,6 @@ fn relative(from: &Path, to: &Path) -> String {
         rel.push(part);
     }
     rel.display().to_string()
-}
-
-/// `isAlive(pid)`: whether a process with this id exists and may be signalled.
-// TODO(merge): use the studio group's is_alive
-fn is_alive(pid: Option<&Value>) -> bool {
-    // Only a positive integer names one process: 0 and negative numbers address process groups.
-    let Some(pid) = pid.and_then(super::workflow::positive_pid) else {
-        return false;
-    };
-    let mut probe = if cfg!(windows) {
-        let mut c = Command::new("tasklist");
-        c.args(["/NH", "/FI", &format!("PID eq {pid}")]);
-        c
-    } else {
-        let mut c = Command::new("kill");
-        c.args(["-0", &pid.to_string()]);
-        c
-    };
-    probe.stdin(Stdio::null()).stderr(Stdio::null());
-    if cfg!(windows) {
-        probe
-            .output()
-            .is_ok_and(|o| String::from_utf8_lossy(&o.stdout).contains(&format!(" {pid} ")))
-    } else {
-        probe
-            .stdout(Stdio::null())
-            .status()
-            .is_ok_and(|s| s.success())
-    }
 }
 
 /// `new URL(url).pathname` for the default screenshot name. Not the whole WHATWG parser: dot

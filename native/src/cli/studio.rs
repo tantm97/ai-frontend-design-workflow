@@ -15,6 +15,7 @@ use crate::core::config::{load_config, studio_port};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{project_paths, resolve};
+use crate::core::process::{is_alive, kill};
 use crate::core::util::{now_iso, out, read_json, write_json, ArgValue, Args};
 use crate::studio::live_proxy::{
     assert_local_target, configured_shortcut, start_live_server, LiveOptions,
@@ -29,55 +30,6 @@ pub fn commands() -> Vec<(&'static str, Handler)> {
         ("__studio-server", Handler::Native(studio_server)),
         ("__review-server", Handler::Native(review_server)),
     ]
-}
-
-/// Flags of `VALUE_FLAGS` in cli.mjs these commands read: given alone they are an error.
-fn require_values(a: &Args) -> Result<(), DfwError> {
-    for k in ["root", "port", "url", "shortcut", "host"] {
-        if a.get(k) == Some(&ArgValue::Flag) {
-            return Err(DfwError::new(format!("--{k} needs a value.")));
-        }
-    }
-    Ok(())
-}
-
-/// `isAlive(pid)`: a process with that id exists (only a positive integer names one).
-fn is_alive(pid: Option<&Value>) -> bool {
-    let Some(pid) = pid.and_then(Value::as_u64).filter(|p| *p > 0) else {
-        return false;
-    };
-    // std has no kill(2) or OpenProcess; the system tools answer the same question.
-    #[cfg(unix)]
-    {
-        Command::new("kill")
-            .args(["-0", &pid.to_string()])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .is_ok_and(|s| s.success())
-    }
-    #[cfg(not(unix))]
-    {
-        Command::new("tasklist")
-            .args(["/FI", &format!("PID eq {pid}"), "/NH"])
-            .output()
-            .is_ok_and(|o| String::from_utf8_lossy(&o.stdout).contains(&pid.to_string()))
-    }
-}
-
-/// `process.kill(pid)`: SIGTERM.
-fn kill(pid: Option<&Value>) {
-    let Some(pid) = pid.and_then(Value::as_u64).filter(|p| *p > 0) else {
-        return;
-    };
-    #[cfg(unix)]
-    let _ = Command::new("kill").arg(pid.to_string()).status();
-    #[cfg(not(unix))]
-    let _ = Command::new("taskkill")
-        .args(["/PID", &pid.to_string(), "/F"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status();
 }
 
 fn port_free(port: u16) -> bool {
@@ -166,7 +118,6 @@ fn free_from(mut port: u16) -> u16 {
 /// `dfw studio start|stop|status [--port <n>]`.
 fn studio(ctx: &Ctx) -> Result<i32, DfwError> {
     let a = &ctx.args;
-    require_values(a)?;
     let root = ctx.root();
     let p = project_paths(&root);
     let sub = a.pos(1).filter(|s| !s.is_empty()).unwrap_or("status");
@@ -238,7 +189,6 @@ fn shortcut_flag(a: &Args) -> Option<String> {
 /// `dfw review start --url <dev server> [--port <n>] [--shortcut <combo>] [--no-shots] | stop | status`.
 fn review(ctx: &Ctx) -> Result<i32, DfwError> {
     let a = &ctx.args;
-    require_values(a)?;
     let root = ctx.root();
     let p = project_paths(&root);
     let file = p.dfw.join("review.json");
