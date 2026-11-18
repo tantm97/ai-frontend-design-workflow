@@ -264,3 +264,20 @@ test('p: a Studio pid that is not a positive integer is never signalled', () => 
   put(root, '.dfw/studio.json', { pid: process.pid, url: 'http://127.0.0.1:4600/' });
   assert.equal(JSON.parse(cli(root, ['status', '--json']).stdout).studio.pid, process.pid);
 });
+
+// ---- findings of the code review of this release ----
+
+test('review: "dfw check --setup" exits 1 when the setup was refused', () => {
+  const root = project();
+  put(root, 'fake-engine', 'not an engine');
+  // IMPECCABLE_BIN names an engine dfw cannot verify: setup stops before anything is run or downloaded.
+  const r = spawnSync(process.execPath, [DFW, 'check', '--setup'], { cwd: root, encoding: 'utf8', env: { ...env(root), IMPECCABLE_HOME: path.join(root, 'no-engine'), IMPECCABLE_BIN: path.join(root, 'fake-engine') } });
+  assertUserError(r, /^Impeccable setup stopped: /m);
+  assert.equal(r.stdout, '');
+});
+
+test('review: .dfw/presence.json is ignored by git in a new project', () => {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'dfw-stable-')));
+  assert.equal(cli(root, ['init', '--root', root]).status, 0);
+  assert.ok(fs.readFileSync(path.join(root, '.dfw', '.gitignore'), 'utf8').split('\n').includes('presence.json'));
+});

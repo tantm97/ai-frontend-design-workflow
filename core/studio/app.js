@@ -1062,6 +1062,9 @@ window.addEventListener('message', (e) => {
 /** Apply a source change inside the frame (no reload, no flash). The frame reloads itself, or is reloaded here, when that is not possible. */
 function softReload(f, files = []) {
   if (!f || f.present || !f.iframe || !f.loaded) return reloadFrame(f);
+  // Only markup and stylesheets are patched in place: a changed image, font or script needs the reload.
+  // (A name without an extension is a folder the watcher reported.)
+  if (files.some((x) => /\.(?!(?:html|css|json)$)[\w-]+$/.test(x))) return reloadFrame(f);
   clearTimeout(f.softTimer);
   f.softTimer = setTimeout(() => reloadFrame(f), 4000);
   post(f, { type: 'dfw:soft-reload', files, agent: Date.now() > S.selfEditUntil });

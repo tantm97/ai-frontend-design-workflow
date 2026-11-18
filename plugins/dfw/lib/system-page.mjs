@@ -63,7 +63,7 @@ export function describeParts(def) {
   let text = ` ${String(def.description || '').replace(/\s+/g, ' ').trim()}`;
   const meaning = new Map();
   for (const name of [...def.variants, ...def.sizes, ...def.props].sort((a, b) => b.length - a.length)) {
-    const re = new RegExp(`([\\s;.(])${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*=\\s*((?:\\([^)]*\\)|[^;.()])+)[;.]?`);
+    const re = new RegExp(`([\\s;.(])${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*=\\s*((?:\\([^)]*\\)|[^;.()]|\\.(?=\\S))+)[;.]?`); // a dot inside a value (1.5rem, e.g.) does not end it
     const m = re.exec(text);
     if (!m || meaning.has(name)) continue;
     meaning.set(name, m[2].trim());

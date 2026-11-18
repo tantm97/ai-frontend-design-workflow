@@ -168,7 +168,7 @@ function cmdInit(root, a) {
   fs.mkdirSync(p.reviews, { recursive: true });
   if (!fs.existsSync(p.config)) writeJson(p.config, { schema: 1 });
   if (!fs.existsSync(p.decisions)) fs.writeFileSync(p.decisions, '');
-  fs.writeFileSync(path.join(p.dfw, '.gitignore'), 'config.local.json\nstudio.json\nstudio.log\nreview.json\nreview.log\nshots/\nchecks/\n');
+  fs.writeFileSync(path.join(p.dfw, '.gitignore'), 'config.local.json\nstudio.json\nstudio.log\nreview.json\nreview.log\npresence.json\nshots/\nchecks/\n');
   const created = [];
   for (const doc of ['PRODUCT.md', 'DESIGN.md']) {
     if (!fs.existsSync(path.join(root, doc))) {
@@ -905,7 +905,7 @@ export async function main(argv) {
         fs.mkdirSync(path.dirname(tmp), { recursive: true });
         fs.writeFileSync(tmp, '<!doctype html><html lang="en"><title>x</title><p>x</p></html>');
         const r = setupEngine({ env: config.env, target: tmp });
-        if (!r.ok && r.text === 'Impeccable plugin not found.') throw new DfwError(r.text);
+        if (!r.ok) throw new DfwError(r.text); // a setup that was refused or failed is not a success
         return out(r.text);
       }
       if (typeof a.strict === 'string') a._.push(a.strict); // "--strict <file>": the file is a target, not the flag's value

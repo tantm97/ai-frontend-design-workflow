@@ -80,10 +80,12 @@ export function notePresence(root, input, absFile) {
   const old = ti.old_string || ti.edits?.[0]?.old_string || '';
   let dfwId = null;
   if (old && rel.endsWith('.html') && fs.existsSync(absFile)) {
+    // Ids inside HTML comments are not elements: blank them (same length, so offsets hold). Either quote.
+    const blank = (s) => s.replace(/<!--[\s\S]*?(?:-->|$)/g, (c) => ' '.repeat(c.length));
     const text = fs.readFileSync(absFile, 'utf8');
     const at = text.indexOf(old);
-    const ID = /(?:data-dfw-id|<dfw-use\b[^>]*?\bid)="([^"]+)"/g;
-    if (at >= 0) dfwId = ID.exec(old)?.[1] || [...text.slice(0, at).matchAll(ID)].at(-1)?.[1] || null;
+    const ID = /(?:data-dfw-id|<dfw-use\b[^>]*?\bid)=(["'])([^"']+)\1/g;
+    if (at >= 0) dfwId = ID.exec(blank(old))?.[2] || [...blank(text).slice(0, at).matchAll(ID)].at(-1)?.[2] || null;
   }
   const note = { file: rel, dfwId, at: nowIso() };
   writeJson(path.join(p.dfw, 'presence.json'), note);
