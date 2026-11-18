@@ -4,7 +4,8 @@
 // resolved from this repo's node_modules or from $DFW_RUNTIME_DIR (a folder with playwright installed).
 // The browser is Playwright's own Chromium, or $DFW_BROWSER / $CHROME_PATH (e.g. the CI runner's
 // Google Chrome, so no browser download is needed). With $CI set, a missing playwright fails.
-// dfw itself does not use Playwright (it renders through lib/cdp.mjs).
+// dfw is the binary in $DFW_BIN, else native/target/debug/dfw (cd native && cargo build); without
+// either the test fails. dfw itself does not use Playwright (it drives the browser over CDP).
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -14,7 +15,9 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const DFW = path.join(REPO, 'core', 'bin', 'dfw.mjs');
+const DFW = process.env.DFW_BIN
+  ? path.resolve(REPO, process.env.DFW_BIN)
+  : path.join(REPO, 'native', 'target', 'debug', process.platform === 'win32' ? 'dfw.exe' : 'dfw');
 const args = process.argv.slice(2);
 const shotsDir = args.includes('--shots') ? path.resolve(args[args.indexOf('--shots') + 1]) : null;
 
@@ -31,16 +34,16 @@ if (!pw) {
   console.log('SKIP: playwright not found (npm i -D playwright, or set DFW_RUNTIME_DIR).');
   process.exit(process.env.CI ? 1 : 0);
 }
+if (!fs.existsSync(DFW)) {
+  console.error(`FAIL studio e2e: no dfw binary at ${DFW}. Build it (cd native && cargo build) or set DFW_BIN.`);
+  process.exit(1);
+}
 if (shotsDir) fs.mkdirSync(shotsDir, { recursive: true });
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dfw-e2e-'));
 const env = { ...process.env, DFW_HOME: path.join(tmp, '.dfwhome') };
-const dfw = (...a) => execFileSync(process.execPath, [DFW, ...a], { cwd: tmp, env, encoding: 'utf8' });
-// DFW_BIN: the Studio is started (and stopped) by that binary instead of the Node CLI.
-const studio = (...a) =>
-  process.env.DFW_BIN
-    ? execFileSync(path.resolve(REPO, process.env.DFW_BIN), ['studio', ...a], { cwd: tmp, env, encoding: 'utf8' })
-    : dfw('studio', ...a);
+const dfw = (...a) => execFileSync(DFW, a, { cwd: tmp, env, encoding: 'utf8' });
+const studio = (...a) => dfw('studio', ...a);
 
 dfw('init', '--product', 'E2E Shop');
 fs.mkdirSync(path.join(tmp, 'design/screens/home'), { recursive: true });
@@ -387,7 +390,7 @@ try {
   const homeFile = path.join(tmp, 'design/screens/home/a.html');
   await frame.locator('html').evaluate(() => (window.__dfwKept = true));
   // 1. The pre-tool-use hook (what Claude Code runs before an Edit) announces the element.
-  execFileSync(process.execPath, [DFW, 'hook', 'pre-tool-use'], {
+  execFileSync(DFW, ['hook', 'pre-tool-use'], {
     cwd: tmp,
     env,
     encoding: 'utf8',
@@ -495,7 +498,7 @@ try {
   await page.mouse.move(b1.x + b1.width * 0.2, b1.y + b1.height / 2, { steps: 10 });
   await page.mouse.up();
   await waitBoard(
-    /<section class="cards" data-dfw-id="board.cards">\n      <div data-dfw-id="board.three">Three<\/div>\n      <div data-dfw-id="board.one">One<\/div>\n      <div data-dfw-id="board.two">Two<\/div>\n    <\/section>/,
+    /<section class="cards" data-dfw-id="board.cards">\n {6}<div data-dfw-id="board.three">Three<\/div>\n {6}<div data-dfw-id="board.one">One<\/div>\n {6}<div data-dfw-id="board.two">Two<\/div>\n {4}<\/section>/,
     'drag reordered the source (indentation kept)',
   );
   await page.waitForTimeout(800); // live reload
@@ -605,7 +608,7 @@ try {
   if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-11-drop-inside.png') });
   await page.mouse.up();
   await waitBoard(
-    /<section class="cards" data-dfw-id="board.empty">\n      <div data-dfw-id="board.one">One<\/div>\n    <\/section>/,
+    /<section class="cards" data-dfw-id="board.empty">\n {6}<div data-dfw-id="board.one">One<\/div>\n {4}<\/section>/,
     'dropped into the empty container (source moved and indented)',
   );
 
@@ -622,9 +625,7 @@ try {
   await page.click('#inspector [data-act="layout-reset"]');
   for (let i = 0; i < 50 && /data-dfw-layout/.test(fs.readFileSync(boardFile, 'utf8')); i++) await page.waitForTimeout(100);
   assert.doesNotMatch(fs.readFileSync(boardFile, 'utf8'), /data-dfw-layout/, 'inspector "Reset size to auto" removed the rule');
-  const lint = JSON.parse(
-    spawnSync(process.execPath, [DFW, 'lint', 'design/screens/board/a.html', '--json'], { cwd: tmp, env, encoding: 'utf8' }).stdout,
-  );
+  const lint = JSON.parse(spawnSync(DFW, ['lint', 'design/screens/board/a.html', '--json'], { cwd: tmp, env, encoding: 'utf8' }).stdout);
   assert.equal(lint.tally.error, 0, `lint clean after layout edits: ${JSON.stringify(lint.results).slice(0, 400)}`);
 
   assert.deepEqual(errors, [], `no page errors: ${errors.join('; ')}`);
