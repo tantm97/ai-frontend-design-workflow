@@ -132,9 +132,22 @@ pub fn freeze_design(root: &Path, state: &mut Value, note: Option<Value>) -> Res
     approve_gate(root, state, "G2", note, extra)
 }
 
+/// The version names a folder: only the form `freezeDesign` writes (v1, v2, ...) is joined onto
+/// `design/approved`.
+pub fn check_snapshot_name(version: &str) -> Result<(), DfwError> {
+    let digits = version.strip_prefix('v').unwrap_or_default();
+    if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(DfwError::new(format!(
+            "Unknown snapshot \"{version}\". A snapshot is named v<number>, for example v1."
+        )));
+    }
+    Ok(())
+}
+
 /// `verifySnapshot(root, version)`: verify an approved snapshot is intact (nobody edited it).
 /// Returns one line per missing, modified or added file.
 pub fn verify_snapshot(root: &Path, version: &str) -> Result<Vec<String>, DfwError> {
+    check_snapshot_name(version)?;
     let dir = project_paths(root).approved.join(version);
     let lock = read_json(&dir.join("approval.lock.json"), Some(Value::Null))?;
     if !js_truthy(&lock) {
@@ -232,6 +245,28 @@ mod tests {
     use super::*;
     use crate::core::util::test_dir;
     use crate::workflow::state::{load_state, new_state};
+
+    /// e: a comment file or snapshot version from input never leaves design/
+    /// (tests/unit/node-stable.test.mjs; the snapshot part)
+    #[test]
+    fn a_snapshot_version_from_input_never_leaves_design() {
+        let root = test_dir("freeze-name");
+        std::fs::create_dir_all(root.join("snap")).unwrap();
+        std::fs::write(root.join("snap/approval.lock.json"), r#"{"files":[]}"#).unwrap();
+        for bad in ["../../snap", "v", "v1/../../x", "1", "V1", "v1\n", ""] {
+            let err = verify_snapshot(&root, bad).unwrap_err();
+            assert_eq!(
+                err.report(),
+                format!(
+                    "Unknown snapshot \"{bad}\". A snapshot is named v<number>, for example v1."
+                )
+            );
+        }
+        assert!(verify_snapshot(&root, "v12")
+            .unwrap_err()
+            .message()
+            .starts_with("No approval.lock.json in "));
+    }
 
     /// freeze: snapshot, lock, tamper detection, reopen (tests/unit/dfw.test.mjs)
     #[test]

@@ -55,7 +55,8 @@ fn relative(from: &Path, to: &Path) -> String {
 /// `isAlive(pid)`: whether a process with this id exists and may be signalled.
 // TODO(merge): use the studio group's is_alive
 fn is_alive(pid: Option<&Value>) -> bool {
-    let Some(pid) = pid.and_then(Value::as_u64).filter(|p| *p > 0) else {
+    // Only a positive integer names one process: 0 and negative numbers address process groups.
+    let Some(pid) = pid.and_then(super::workflow::positive_pid) else {
         return false;
     };
     let mut probe = if cfg!(windows) {
