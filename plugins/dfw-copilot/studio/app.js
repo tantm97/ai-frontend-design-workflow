@@ -24,6 +24,9 @@ const ZMIN = 0.02;
 const ZMAX = 8;
 
 const S = {
+  agent: new Map(), // frame key -> what the agent is editing / just changed there
+  agentLast: null,
+  selfEditUntil: 0,
   manifest: null,
   pages: [],
   state: null,
@@ -512,6 +515,7 @@ function updateHud() {
     b.style.left = `${r[0] + r[2]}px`;
     b.style.top = `${r[1]}px`;
   }
+  drawAgent();
   placePop();
 }
 
@@ -865,6 +869,7 @@ async function edit(f, op, label = '') {
   // A resize is checked in the frame once it reloads with the new source (a stronger screen rule can still win).
   const verify = op.op === 'layout' && op.prop && op.value != null ? { id: op.id, prop: op.prop } : null;
   f.pendingVerify = verify;
+  S.selfEditUntil = Date.now() + 2500; // the change that follows is the user's own, not the agent's
   try {
     const r = await api('/__dfw/api/edit', { method: 'POST', body: JSON.stringify({ file: f.file, ...op }) });
     if (!r.changed && f.pendingVerify === verify) f.pendingVerify = null;
@@ -878,6 +883,7 @@ async function edit(f, op, label = '') {
 
 async function undo() {
   try {
+    S.selfEditUntil = Date.now() + 2500;
     const r = await api('/__dfw/api/undo', { method: 'POST', body: '{}' });
     toast(`Undid ${r.op.op} edit in ${r.file}.`);
   } catch (e) {
@@ -913,6 +919,7 @@ window.addEventListener('message', (e) => {
         renderPresentBar();
         break;
       }
+      clearTimeout(f.softTimer);
       f.loaded = true;
       f.sizeCount = 0;
       f.lastStep = 0;
@@ -953,6 +960,15 @@ window.addEventListener('message', (e) => {
       updateHud();
       break;
     }
+    case 'dfw:presence':
+      // The agent is about to edit this element (or, without a rect, something in this frame).
+      if (d.rect) showAgent(f, 'editing', [{ rect: d.rect, label: d.label }]);
+      else if (d.fallback) showAgent(f, 'editing', [{ rect: [0, 0, f.w, f.h], whole: true }]);
+      break;
+    case 'dfw:changed':
+      if (d.agent && d.items?.length) showAgent(f, 'changed', d.items, d.count);
+      else if (S.agent.get(f.key)?.phase === 'editing') clearAgent(f.key);
+      break;
     case 'dfw:hover':
       S.hover = d.rect ? { key: f.key, rect: d.rect, label: d.label, comp: d.comp } : null;
       updateHud();
@@ -1043,9 +1059,68 @@ window.addEventListener('message', (e) => {
   }
 });
 
+/** Apply a source change inside the frame (no reload, no flash). The frame reloads itself, or is reloaded here, when that is not possible. */
+function softReload(f, files = []) {
+  if (!f || f.present || !f.iframe || !f.loaded) return reloadFrame(f);
+  clearTimeout(f.softTimer);
+  f.softTimer = setTimeout(() => reloadFrame(f), 4000);
+  post(f, { type: 'dfw:soft-reload', files, agent: Date.now() > S.selfEditUntil });
+}
+
+/* ---------------------------------------------------------------- agent presence (what Claude is editing / just changed) */
+
+function showAgent(f, phase, items, count = items.length) {
+  const cur = S.agent.get(f.key);
+  clearTimeout(cur?.timer);
+  S.agent.set(f.key, { phase, items, count, timer: setTimeout(() => clearAgent(f.key), phase === 'editing' ? 6000 : 2600) });
+  S.agentLast = f.key;
+  updateHud();
+}
+
+function clearAgent(key) {
+  clearTimeout(S.agent.get(key)?.timer);
+  S.agent.delete(key);
+  updateHud();
+}
+
+function drawAgent() {
+  const host = $('#agent');
+  const boxes = [];
+  let cursorAt = null;
+  for (const [key, a] of S.agent) {
+    const f = frameByKey(key);
+    if (!visibleFrame(f)) continue;
+    a.items.forEach((it, i) => {
+      const r = toScreen(f, it.rect);
+      const more = i === 0 && a.count > a.items.length ? ` +${a.count - a.items.length}` : '';
+      boxes.push({ r, phase: a.phase, label: i === 0 ? `Claude ${a.phase === 'editing' ? 'is editing' : 'changed'} ${it.whole ? 'this frame' : it.label || ''}${more}`.trim() : '' });
+      if (i === 0 && (key === S.agentLast || !cursorAt)) cursorAt = [r[0] + Math.min(r[2] - 4, 14), r[1] + Math.min(r[3] - 4, 14)];
+    });
+  }
+  while (host.children.length - 1 < boxes.length) {
+    const b = document.createElement('div');
+    b.className = 'box agent';
+    b.append(Object.assign(document.createElement('span'), { className: 'tag' }));
+    host.append(b);
+  }
+  [...host.children].slice(1).forEach((b, i) => {
+    const x = boxes[i];
+    b.hidden = !x;
+    if (!x) return;
+    b.classList.toggle('changed', x.phase === 'changed');
+    place(b, [x.r[0] - 2, x.r[1] - 2, x.r[2] + 4, x.r[3] + 4]);
+    b.firstChild.textContent = x.label;
+    b.firstChild.hidden = !x.label;
+  });
+  const cursor = $('#agent-cursor');
+  cursor.style.display = cursorAt ? '' : 'none'; // an SVG element has no .hidden property
+  if (cursorAt) cursor.style.transform = `translate(${cursorAt[0]}px, ${cursorAt[1]}px)`;
+}
+
 function reloadFrame(f) {
   if (f?.present) return P.open && loadPresent();
   if (!f?.iframe) return;
+  clearTimeout(f.softTimer);
   f.loaded = false;
   f.pinRects = [];
   try {
@@ -1945,9 +2020,22 @@ es.addEventListener('design', async (e) => {
   const screenOnly = files.every((f) => f.endsWith('.html') && !f.startsWith('system/') && !f.startsWith('components/'));
   for (const f of S.frames.values()) {
     if (!f.iframe) continue;
-    if (!screenOnly || (f.file && files.includes(f.file))) reloadFrame(f);
+    if (!screenOnly || (f.file && files.includes(f.file))) softReload(f, files);
   }
   if (P.open && (!screenOnly || (P.file && files.includes(P.file)))) loadPresent();
+});
+// The agent is about to edit a design file: point at the element in the frames that show it.
+es.addEventListener('presence', (e) => {
+  const { file = '', dfwId = null } = JSON.parse(e.data);
+  const component = /^system\/components\/([\w-]+)\.html$/.exec(file)?.[1] || null;
+  for (const f of S.frames.values()) {
+    if (!f.iframe || !f.loaded) continue;
+    if (f.system) {
+      if (component) post(f, { type: 'dfw:presence', dfwId: `system.component.${component}` });
+      else if (file.startsWith('tokens/')) post(f, { type: 'dfw:presence', dfwId: 'system.colors' });
+    } else if (f.file === file) post(f, { type: 'dfw:presence', dfwId, fallback: true });
+    else if (component) post(f, { type: 'dfw:presence', component });
+  }
 });
 es.addEventListener('comments', () => loadComments());
 

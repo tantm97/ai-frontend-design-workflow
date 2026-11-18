@@ -395,6 +395,15 @@ try {
 }
 watch(P.design, 'design');
 watch(P.reviews, 'reviews');
+// Agent presence: the pre-tool-use hook writes what the agent is about to edit; frames show a cursor there.
+const presenceFile = path.join(P.dfw, 'presence.json');
+fs.watchFile(presenceFile, { interval: 120 }, (cur) => {
+  if (!cur.mtimeMs) return;
+  try {
+    const p = JSON.parse(fs.readFileSync(presenceFile, 'utf8'));
+    if (typeof p.file === 'string' && Date.now() - Date.parse(p.at) < 10000) broadcast('presence', { file: p.file, dfwId: typeof p.dfwId === 'string' ? p.dfwId : null });
+  } catch {}
+});
 setInterval(() => broadcast('ping', {}), 25000).unref();
 
 server.listen(port, host, () => {

@@ -356,10 +356,20 @@ try {
   assert.match(await page.textContent('.comment[data-id="fb_002"] .status'), /please verify/);
   if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-9-live-status.png') });
 
-  // Live reload: editing the design file reloads frames.
-  fs.writeFileSync(path.join(tmp, 'design/screens/home/a.html'), fs.readFileSync(path.join(tmp, 'design/screens/home/a.html'), 'utf8').replace('Welcome back', 'Good morning'));
-  await page.waitForTimeout(1200);
-  assert.equal(await frame.locator('[data-dfw-id="home.title"]').textContent(), 'Good morning', 'frame reloaded after edit');
+  // Live update: the agent's edit shows up in the frame without a reload, with a cursor on what it touches.
+  const homeFile = path.join(tmp, 'design/screens/home/a.html');
+  await frame.locator('html').evaluate(() => (window.__dfwKept = true));
+  // 1. The pre-tool-use hook (what Claude Code runs before an Edit) announces the element.
+  execFileSync(process.execPath, [DFW, 'hook', 'pre-tool-use'], { cwd: tmp, env, encoding: 'utf8', input: JSON.stringify({ cwd: tmp, tool_name: 'Edit', tool_input: { file_path: homeFile, old_string: 'Welcome back', new_string: 'Good morning' } }) });
+  await page.waitForFunction(() => /Claude is editing home\.title/.test(document.querySelector('#agent .box.agent:not([hidden]) .tag')?.textContent || ''), null, { timeout: 5000 });
+  assert.equal(await page.locator('#agent-cursor').isHidden(), false, 'the agent cursor is shown');
+  if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-4a-agent-editing.png') });
+  // 2. The edit lands: the frame is patched in place and the changed element is marked.
+  fs.writeFileSync(homeFile, fs.readFileSync(homeFile, 'utf8').replace('Welcome back', 'Good morning'));
+  await page.waitForFunction(() => /Claude changed/.test(document.querySelector('#agent .box.agent.changed:not([hidden]) .tag')?.textContent || ''), null, { timeout: 5000 });
+  assert.equal(await frame.locator('[data-dfw-id="home.title"]').textContent(), 'Good morning', 'frame updated after edit');
+  assert.equal(await frame.locator('html').evaluate(() => window.__dfwKept === true), true, 'the frame was patched, not reloaded');
+  await page.waitForFunction(() => !document.querySelector('#agent .box.agent:not([hidden])'), null, { timeout: 6000 }); // the mark goes away by itself
   if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-4-reloaded.png') });
 
   // Constrained layout edits: drag to reorder grid items, drag the handle to change the column span.

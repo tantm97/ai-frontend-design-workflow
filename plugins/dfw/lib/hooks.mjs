@@ -4,7 +4,7 @@
 // ({ context } | { deny } | { block }); the CLI formats it for the calling host.
 import fs from 'node:fs';
 import path from 'node:path';
-import { findProjectRoot, toPosix } from './util.mjs';
+import { findProjectRoot, toPosix, writeJson, nowIso, projectPaths } from './util.mjs';
 import { loadState, summarize } from './state.mjs';
 import { loadConfig } from './config.mjs';
 import { decideWrite, filesFromToolInput, preToolUseResult } from './gate.mjs';
@@ -57,7 +57,37 @@ export function preToolUse(input) {
     const res = preToolUseResult(decideWrite({ root, state, config, absFile: f }));
     if (res) return res;
   }
+  if (state.active !== false) {
+    try {
+      notePresence(root, input, files[0]);
+    } catch {
+      /* presence is a nicety: never block an edit */
+    }
+  }
   return null;
+}
+
+/**
+ * Tell the Studio what the agent is about to edit (.dfw/presence.json), so it can show a cursor on
+ * that element before the change lands. Only for design files; the element is the data-dfw-id
+ * inside the text being replaced, or the nearest one before it.
+ */
+export function notePresence(root, input, absFile) {
+  const p = projectPaths(root);
+  const rel = toPosix(path.relative(p.design, absFile));
+  if (rel.startsWith('..') || path.isAbsolute(rel) || rel.startsWith('approved/')) return null;
+  const ti = input.tool_input || {};
+  const old = ti.old_string || ti.edits?.[0]?.old_string || '';
+  let dfwId = null;
+  if (old && rel.endsWith('.html') && fs.existsSync(absFile)) {
+    const text = fs.readFileSync(absFile, 'utf8');
+    const at = text.indexOf(old);
+    const ID = /(?:data-dfw-id|<dfw-use\b[^>]*?\bid)="([^"]+)"/g;
+    if (at >= 0) dfwId = ID.exec(old)?.[1] || [...text.slice(0, at).matchAll(ID)].at(-1)?.[1] || null;
+  }
+  const note = { file: rel, dfwId, at: nowIso() };
+  writeJson(path.join(p.dfw, 'presence.json'), note);
+  return note;
 }
 
 export function postToolUse(input, host = {}) {

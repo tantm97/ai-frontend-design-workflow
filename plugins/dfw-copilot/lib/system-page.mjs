@@ -49,9 +49,28 @@ function specLine(def, vars) {
     if (!want.includes(prop)) continue;
     const resolved = vars.resolve(val).replace(/"[^"]*",.*$/, '').replace(/\s+/g, ' ').trim();
     const names = [...val.matchAll(/var\(--([\w-]+)\)/g)].map((x) => x[1]).join(', ');
-    parts.push(`<span><b>${esc(prop)}</b> ${esc(resolved.slice(0, 48))}${names ? ` <i>${esc(names)}</i>` : ''}</span>`);
+    parts.push(`<tr><td><code>${esc(prop)}</code></td><td>${esc(resolved.slice(0, 48))}</td><td>${names ? `<code>${esc(names)}</code>` : ''}</td></tr>`);
   }
-  return parts.length ? `<div class="ds-spec">${parts.join('')}</div>` : '';
+  return parts.length ? `<table class="ds-spec"><thead><tr><th>Property</th><th>Value</th><th>Token</th></tr></thead><tbody>${parts.join('')}</tbody></table>` : '';
+}
+
+/**
+ * A master's description is one paragraph ("Text button. primary = the main action; ghost = low emphasis. Never two
+ * primaries."). Split it so the page can show it as a summary, one meaning per variant/size/prop, and notes.
+ * Nothing is dropped: every clause ends up in exactly one of the three.
+ */
+export function describeParts(def) {
+  let text = ` ${String(def.description || '').replace(/\s+/g, ' ').trim()}`;
+  const meaning = new Map();
+  for (const name of [...def.variants, ...def.sizes, ...def.props].sort((a, b) => b.length - a.length)) {
+    const re = new RegExp(`([\\s;.(])${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*=\\s*((?:\\([^)]*\\)|[^;.()])+)[;.]?`);
+    const m = re.exec(text);
+    if (!m || meaning.has(name)) continue;
+    meaning.set(name, m[2].trim());
+    text = text.slice(0, m.index) + m[1] + text.slice(m.index + m[0].length);
+  }
+  const sentences = text.split(/(?<=[.!?])\s+(?=[^a-z(])/).map((x) => x.trim().replace(/^[;,]\s*/, '')).filter((x) => x.replace(/[\s;.,]/g, '').length > 1);
+  return { summary: sentences[0] || '', notes: sentences.slice(1), meaning };
 }
 
 function loadTokens(root) {
@@ -183,7 +202,7 @@ export function renderSystemPage(root, { designBase = '../' } = {}) {
   const sample = manifest.sampleText || 'The quick brown fox · 0123456789';
   const textHtml = hasText ? `<table class="ds-table ds-types">${TEXT_STYLES.map(([v, label, use]) => {
     const size = v.startsWith('display') ? sizeOf(v) : { title: sizeOf('xl'), subtitle: sizeOf('lg'), body: sizeOf('md'), 'body-sm': sizeOf('sm'), caption: sizeOf('xs'), eyebrow: byName.get('font.eyebrow.size')?.value?.value, mono: sizeOf('sm') }[v];
-    return `<tr><td class="ds-types__meta"><b>${esc(label)}</b><small>${size ? `${size}px · ` : ''}${esc(use)}</small></td><td><dfw-use c="text" variant="${v}" as="div">${esc(v.startsWith('display') ? sample.split('·')[0].trim() : v === 'mono' ? 'TP-TOOL-00421 · 20417' : sample)}</dfw-use></td></tr>`;
+    return `<tr><td class="ds-types__meta"><b>${esc(label)}</b><span>${esc(use)}</span><code>text ${esc(v)}${size ? ` · ${size}px` : ''}</code></td><td><dfw-use c="text" variant="${v}" as="div">${esc(v.startsWith('display') ? sample.split('·')[0].trim() : v === 'mono' ? 'TP-TOOL-00421 · 20417' : sample)}</dfw-use></td></tr>`;
   }).join('')}</table>` : '';
 
   const spaces = tokens.filter((t) => t.type === 'dimension' && /^space\./.test(t.name)).sort((a, b) => (a.value?.value || 0) - (b.value?.value || 0));
@@ -195,11 +214,29 @@ export function renderSystemPage(root, { designBase = '../' } = {}) {
     if (!groups.has(d.group)) groups.set(d.group, []);
     groups.get(d.group).push(d);
   }
-  const compSection = (d) => `<section class="ds-comp" data-dfw-id="system.component.${esc(d.name)}" id="c-${esc(d.name)}">
-  <header><h3>${esc(d.name)}</h3><p>${esc(d.description)}</p>
-  <dl>${d.variants.length ? `<dt>Variants</dt><dd>${d.variants.map(esc).join(' · ')}</dd>` : ''}${d.sizes.length ? `<dt>Sizes</dt><dd>${d.sizes.map(esc).join(' · ')}</dd>` : ''}${d.props.length ? `<dt>Props</dt><dd>${d.props.map(esc).join(' · ')}</dd>` : ''}<dt>Master</dt><dd><code>${esc(d.file.replace('design/system/components/', ''))}</code></dd></dl></header>
-  <div class="ds-right">${specLine(d, vars)}${d.preview === 'frame' ? `<div class="ds-frames">${(d.examples || autoExamples(d)).split(/\n(?=<)/).filter((x) => x.trim()).map((ex) => `<div class="ds-frame"><div class="ds-frame__inner">${ex}</div></div>`).join('')}</div>` : `<div class="ds-examples">${d.examples || autoExamples(d)}</div>`}</div>
+  // Names with a meaning get one line each; names without one share a line.
+  const named = (list, parts) => {
+    const withMeaning = list.filter((n) => parts.meaning.has(n));
+    const plain = list.filter((n) => !parts.meaning.has(n));
+    return `${withMeaning.length ? `<ul class="ds-named">${withMeaning.map((n) => `<li><code>${esc(n)}</code><span>${esc(parts.meaning.get(n))}</span></li>`).join('')}</ul>` : ''}${plain.length ? `<p class="ds-plain">${plain.map((n) => `<code>${esc(n)}</code>`).join('')}</p>` : ''}`;
+  };
+  const compSection = (d) => {
+    const parts = describeParts(d);
+    const spec = specLine(d, vars);
+    const row = (label, html) => (html ? `<tr><th scope="row">${label}</th><td>${html}</td></tr>` : '');
+    return `<section class="ds-comp" data-dfw-id="system.component.${esc(d.name)}" id="c-${esc(d.name)}">
+  <header><h3>${esc(d.name)}</h3><p>${esc(parts.summary)}</p></header>
+  ${d.preview === 'frame' ? `<div class="ds-frames">${(d.examples || autoExamples(d)).split(/\n(?=<)/).filter((x) => x.trim()).map((ex) => `<div class="ds-frame"><div class="ds-frame__inner">${ex}</div></div>`).join('')}</div>` : `<div class="ds-examples">${d.examples || autoExamples(d)}</div>`}
+  <table class="ds-kv">
+  ${row('Variants', d.variants.length ? named(d.variants, parts) : '')}
+  ${row('Sizes', d.sizes.length ? named(d.sizes, parts) : '')}
+  ${row('Props', d.props.length ? named(d.props, parts) : '')}
+  ${row('Rules', parts.notes.length ? `<ul class="ds-notes">${parts.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : '')}
+  ${row('Tokens', spec)}
+  ${row('Master', `<code>${esc(d.file)}</code>`)}
+  </table>
 </section>`;
+  };
 
   // The project's own reasoning (DESIGN.md) wins over the generic style-guide text.
   const designMd = path.join(root, 'DESIGN.md');
@@ -227,7 +264,9 @@ ${head}
 <style>
   /* The documentation page uses the system's own fonts and colours, so nothing on it is foreign to the system. */
   .ds { margin: 0; padding: 56px 64px 120px; display: grid; gap: 72px; background: var(--color-surface, #fff); color: var(--color-ink, #111); font: var(--font-weight-regular, 400) var(--font-size-sm, 14px) / 1.5 var(--font-family-body, system-ui, sans-serif); }
-  .ds code, .ds .ds-mono { font-family: var(--font-family-mono, ui-monospace, monospace); font-size: var(--font-size-xs, 12px); color: var(--color-muted, #555); overflow-wrap: anywhere; }
+  /* Documentation text uses three sizes only: 14px text, 13px code, 12px labels. Lines stay under ~75 characters. */
+  .ds code, .ds .ds-mono { font-family: var(--font-family-mono, ui-monospace, monospace); font-size: 13px; color: var(--color-muted, #555); overflow-wrap: anywhere; }
+  .ds p, .ds li, .ds dd { max-width: 75ch; }
   .ds > header { display: grid; gap: 8px; }
   .ds > header h1 { margin: 0; font: var(--font-weight-display, 600) var(--font-size-display-md, 40px) / 1.05 var(--font-family-display, inherit); letter-spacing: var(--font-tracking-display, -0.02em); }
   .ds > header p { margin: 0; color: var(--color-muted); }
@@ -236,16 +275,19 @@ ${head}
   .ds h4 { margin: 32px 0 12px; font: var(--font-weight-semibold, 600) var(--font-size-xs, 12px) / 1.3 var(--font-family-body); text-transform: uppercase; letter-spacing: .08em; color: var(--color-muted); }
   .ds small { color: var(--color-muted); }
   .ds-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 48px; }
-  .ds-style { display: grid; grid-template-columns: 1.2fr 1fr; gap: 48px; }
-  .ds-style .concept { margin: 0; font: var(--font-weight-regular) var(--font-size-xl, 20px) / 1.45 var(--font-family-body); }
-  .ds-style ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
-  .ds-style h4 { margin-top: 0; }
-  .ds-style > div { display: grid; gap: 24px; align-content: start; }
+  .ds-lead { margin: 0 0 24px; font-size: var(--font-size-md, 16px); line-height: 1.6; }
+  .ds-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .ds-card { padding: 20px; border: 1px solid var(--color-rule); border-radius: 8px; display: grid; gap: 12px; align-content: start; }
+  .ds-card h4 { margin: 0; } .ds-card p { margin: 0; }
+  .ds-card--wide { grid-column: 1 / -1; }
+  .ds-why { border-collapse: collapse; width: 100%; } .ds-why th { padding: 0 24px 8px 0; text-align: left; font-size: 12px; font-weight: 600; color: var(--color-muted); } .ds-why td { padding: 10px 24px 10px 0; vertical-align: top; border-top: 1px solid var(--color-rule); width: 50%; } .ds-why td:first-child { font-weight: 500; }
+  .ds-card ul { margin: 0; padding-left: 18px; display: grid; gap: 8px; }
+  .ds-card dl { margin: 0; display: grid; gap: 4px; } .ds-card dt { font-weight: 600; } .ds-card dd { margin: 0 0 8px; color: var(--color-muted); }
   /* palette */
   .ds-ramp { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 24px; align-items: center; padding: 10px 0; }
   .ds-ramp__head { display: grid; gap: 2px; } .ds-ramp__head span { color: var(--color-muted); font-size: var(--font-size-xs, 12px); line-height: 1.4; }
   .ds-ramp__chips { display: grid; grid-template-columns: repeat(11, minmax(0, 1fr)); border-radius: 6px; overflow: hidden; }
-  .ds-chip { position: relative; height: 48px; display: flex; align-items: flex-end; padding: 6px; font: 500 10px/1 var(--font-family-mono, monospace); }
+  .ds-chip { position: relative; height: 48px; display: flex; align-items: flex-end; padding: 6px; font: 500 12px/1 var(--font-family-mono, monospace); }
   .ds-chip span { opacity: .75; } .ds-chip.is-used span { opacity: 1; font-weight: 700; }
   .ds-chip i { position: absolute; top: 6px; right: 6px; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
   .ds-legend { margin-top: 8px; color: var(--color-muted); font-size: var(--font-size-xs, 12px); }
@@ -266,7 +308,7 @@ ${head}
   .ds-fam { display: grid; gap: 4px; padding: 20px; border: 1px solid var(--color-rule); border-radius: 8px; }
   .ds-fam__aa { font-size: 56px; line-height: 1; margin-bottom: 8px; }
   .ds-types td { padding: 16px 16px 16px 0; }
-  .ds-types__meta { width: 220px; } .ds-types__meta b, .ds-types__meta small { display: block; }
+  .ds-types__meta { width: 260px; } .ds-types__meta b, .ds-types__meta span, .ds-types__meta code { display: block; } .ds-types__meta span { color: var(--color-muted); }
   /* space / shape */
   .ds-space { display: grid; gap: 6px; }
   .ds-space div { display: grid; grid-template-columns: 140px 1fr; align-items: center; gap: 16px; }
@@ -277,20 +319,26 @@ ${head}
   .ds-shapes i.sh { border: 0; }
   /* icons, assets, components */
   .ds-icons { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 4px; }
-  .ds-icons div { display: grid; justify-items: center; gap: 8px; padding: 14px 4px; font-size: 11px; color: var(--color-muted); }
-  .ds-assets { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; } .ds-assets figure { margin: 0; border: 1px solid var(--color-rule); border-radius: 8px; overflow: hidden; font-size: 11px; } .ds-assets img { width: 100%; height: 120px; object-fit: contain; background: var(--color-canvas); display: block; } .ds-assets figcaption { padding: 6px 8px; color: var(--color-muted); }
-  .ds-comp { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 32px; padding: 32px 0; border-top: 1px solid var(--color-rule); }
-  .ds-comp > header p { color: var(--color-muted); margin: 4px 0 12px; }
-  .ds-comp > header dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: var(--font-size-xs, 12px); } .ds-comp > header dt { color: var(--color-muted); } .ds-comp > header dd { margin: 0; }
-  .ds-right { display: grid; gap: 12px; align-content: start; min-width: 0; }
-  .ds-spec { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 11px; color: var(--color-muted); } .ds-spec b { color: var(--color-ink); font-weight: 600; } .ds-spec i { font-style: normal; opacity: .75; }
+  .ds-icons div { display: grid; justify-items: center; gap: 8px; padding: 14px 4px; font-size: 12px; color: var(--color-muted); }
+  .ds-assets { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; } .ds-assets figure { margin: 0; border: 1px solid var(--color-rule); border-radius: 8px; overflow: hidden; font-size: 12px; } .ds-assets img { width: 100%; height: 120px; object-fit: contain; background: var(--color-canvas); display: block; } .ds-assets figcaption { padding: 6px 8px; color: var(--color-muted); }
+  .ds-comp { display: grid; gap: 16px; padding: 32px 0; border-top: 1px solid var(--color-rule); }
+  .ds-comp > header { display: grid; gap: 4px; } .ds-comp > header p { margin: 0; color: var(--color-muted); }
+  .ds-kv { border-collapse: collapse; width: 100%; }
+  .ds-kv > tbody > tr > th { width: 120px; padding: 12px 24px 12px 0; text-align: left; vertical-align: top; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--color-muted); white-space: nowrap; }
+  .ds-kv > tbody > tr > td { padding: 10px 0; vertical-align: top; }
+  .ds-kv > tbody > tr + tr > * { border-top: 1px solid var(--color-rule); }
+  .ds-named, .ds-notes { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+  .ds-plain { margin: 0; display: flex; flex-wrap: wrap; gap: 6px 20px; max-width: none; } .ds-plain code { color: var(--color-ink); } .ds-named + .ds-plain { margin-top: 8px; }
+  .ds-named li { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 16px; align-items: baseline; } .ds-named code { color: var(--color-ink); }
+  .ds-notes li { padding-left: 14px; position: relative; } .ds-notes li::before { content: ""; position: absolute; left: 0; top: .65em; width: 5px; height: 5px; border-radius: 50%; background: var(--color-muted); }
+  .ds-spec { border-collapse: collapse; } .ds-spec th { padding: 0 24px 6px 0; text-align: left; font-size: 12px; font-weight: 600; color: var(--color-muted); } .ds-spec td { padding: 3px 24px 3px 0; vertical-align: baseline; } .ds-spec td:first-child code { color: var(--color-ink); }
   .ds-examples { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; align-content: flex-start; padding: 24px; border-radius: 8px; background: var(--color-canvas); }
   /* Layout components (app shells) preview as scaled 1366×768 screens. */
   .ds-frames { display: flex; flex-wrap: wrap; gap: 24px; }
   .ds-frame { width: 615px; height: 346px; overflow: hidden; border: 1px solid var(--color-rule); border-radius: 8px; box-shadow: var(--shadow-sm); }
   .ds-frame__inner { width: 1366px; height: 768px; transform: scale(0.45); transform-origin: 0 0; }
   .ds-frame__inner .shell { min-height: 768px; height: 768px; }
-  .ds-audit { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; } .ds-audit li { padding: 10px 14px; border-radius: 6px; background: var(--color-surface-sunken); } .ds-audit li b { font-size: 11px; margin-right: 8px; letter-spacing: .04em; }
+  .ds-audit { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; } .ds-audit li { padding: 10px 14px; border-radius: 6px; background: var(--color-surface-sunken); } .ds-audit li b { font-size: 12px; margin-right: 8px; letter-spacing: .04em; }
   .ds-audit .lv-error { background: var(--color-status-err-tint); color: var(--color-status-err-text); } .ds-audit .lv-warn { background: var(--color-status-warn-tint); color: var(--color-status-warn-text); }
   .ds-empty { padding: 24px; border: 1px dashed var(--color-border); border-radius: 8px; color: var(--color-muted); }
   .ds-group { margin: 0 0 8px; }
@@ -300,12 +348,18 @@ ${head}
   <header data-dfw-id="system.header"><h1>Design System</h1><p>${esc(manifest.product || '')}${style ? ` · ${esc(style.name)}` : ''}</p></header>
 
   ${style ? `<section data-dfw-id="system.style"><h2>Concept</h2>
-  <div class="ds-style"><div><p class="concept">${direction && !/^TODO/.test(direction) ? mdInline(direction) : esc(style.concept)}</p>
-  ${(projectWhy.length ? projectWhy : style.rationale || []).length ? `<div><h4>Why${projectWhy.length ? ' (DESIGN.md)' : ' (style guide)'}</h4><ul>${(projectWhy.length ? projectWhy : style.rationale).map((x) => `<li>${mdInline(x)}</li>`).join('')}</ul></div>` : ''}
-  <div class="ds-cols"><div><h4>Do</h4><ul>${(style.do || []).map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div><div><h4>Don't</h4><ul>${(style.dont || []).map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div></div></div>
-  <div><div><h4>Layout and grid</h4><p>${esc(style.layout || '')}</p></div>
-  <div><h4>Signature motifs</h4><ul>${(style.motifs || []).map((m) => `<li><b>${esc(m.name)}</b> · ${esc(m.use)}</li>`).join('')}</ul></div>
-  <div><h4>Component rules</h4><ul>${(style.components || []).map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div></div></div>
+  <p class="ds-lead">${direction && !/^TODO/.test(direction) ? mdInline(direction) : esc(style.concept)}</p>
+  <div class="ds-cards">
+  ${(projectWhy.length ? projectWhy : style.rationale || []).length ? `<div class="ds-card ds-card--wide"><h4>Why${projectWhy.length ? ' (DESIGN.md)' : ' (style guide)'}</h4><table class="ds-why"><thead><tr><th>Decision</th><th>Because</th></tr></thead><tbody>${(projectWhy.length ? projectWhy : style.rationale).map((x) => {
+    const m = /^(.*?)\s+(?:[-–—]\s+)?because\s+(.*)$/is.exec(x);
+    return m ? `<tr><td>${mdInline(m[1])}</td><td>${mdInline(m[2])}</td></tr>` : `<tr><td colspan="2">${mdInline(x)}</td></tr>`;
+  }).join('')}</tbody></table></div>` : ''}
+  ${(style.do || []).length ? `<div class="ds-card"><h4>Do</h4><ul>${style.do.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
+  ${(style.dont || []).length ? `<div class="ds-card"><h4>Don't</h4><ul>${style.dont.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
+  ${style.layout ? `<div class="ds-card"><h4>Layout and grid</h4><p>${esc(style.layout)}</p></div>` : ''}
+  ${(style.motifs || []).length ? `<div class="ds-card"><h4>Signature motifs</h4><dl>${style.motifs.map((m) => `<dt>${esc(m.name)}</dt><dd>${esc(m.use)}</dd>`).join('')}</dl></div>` : ''}
+  ${(style.components || []).length ? `<div class="ds-card"><h4>Component rules</h4><ul>${style.components.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
+  </div>
   </section>` : ''}
 
   <section data-dfw-id="system.audit"><h2>Senior review · ${audit.length ? `${audit.filter((x) => x.level === 'error').length} must, ${audit.filter((x) => x.level === 'warn').length} should` : 'clean'}</h2>
