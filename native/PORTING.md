@@ -17,7 +17,7 @@ Set the status to `done` in the same commit that registers the commands as nativ
 | `core/lib/compose.mjs` | `design/compose` | parsing moves to design/html | design | done |
 | `core/lib/config.mjs` | `core/config` |  | core | done |
 | `core/lib/dsaudit.mjs` | `design/dsaudit` |  | design | todo |
-| `core/lib/edit.mjs` | `design/edit` |  | design | todo |
+| `core/lib/edit.mjs` | `design/edit` | split by job: edit/locate, edit/style, edit/moves, edit/layout | design | done (no command: the Studio server, not ported yet, calls it; reached through `__debug edit\|undo`) |
 | `core/lib/extract.mjs` | `browser/extract` |  | browser | done |
 | `core/lib/fonts.mjs` | `design/fonts` |  | design | done |
 | `core/lib/freeze.mjs` | `workflow/freeze` |  | workflow | done (its command, `approve G2`, still forwards) |
@@ -43,7 +43,7 @@ Set the status to `done` in the same commit that registers the commands as nativ
 | `core/lib/stack.mjs` | `workflow/stack` |  | workflow | done |
 | `core/lib/state.mjs` | `workflow/state` | decision log entry: workflow/decisions | workflow | done |
 | `core/lib/style.mjs` | `design/style` |  | design | done |
-| `core/lib/system-page.mjs` | `design/system_page` |  | design | todo |
+| `core/lib/system-page.mjs` | `design/system_page` | the CSS literal: design/system_page.css | design | done (callers: Studio server and layout check; holds a private copy of `auditDesignSystem` until `design/dsaudit` is ported) |
 | `core/lib/system.mjs` | `design/system` |  | design | done |
 | `core/lib/tokens.mjs` | `design/tokens` |  | design | done (also holds `js`: JavaScript number, string and key-order rules, to move to core/util) |
 | `core/lib/util.mjs` | `core/util` | paths: core/paths; DfwError: core/error | core | done (skeleton) |
@@ -66,6 +66,7 @@ the doctor line and the check counts, see `README-telemetry.md`).
 | `cli/comments.rs` | comments | native (every subcommand, incl. wait and inbox) |
 | `cli/design.rs` | build, tokens, system, style, type, palette, icons, fonts, blueprint (hidden: `__debug compose`, `__debug color`) | native; forwards `tokens export\|import` and `system audit` |
 | `cli/design.rs` | lint, check | forward |
+| `cli/edit.rs` | none (hidden: `__debug edit`, `undo`, `system-page`, `changed-screens`, `mark-checked`) | native |
 | `cli/studio.rs` | studio, review, __studio-server, __review-server | forward |
 | `cli/browser.rs` | shoot, diff, layout (hidden: `__debug a11y`) | native |
 | `cli/penpot.rs` | penpot | forward |

@@ -30,6 +30,11 @@ const SUBCOMMANDS: &[(&str, Subcommand)] = &[
     ("a11y", super::browser::debug_a11y),
     ("insp-path", super::tools::debug_insp_path),
     ("telemetry-build", super::telemetry::debug_telemetry_build),
+    ("edit", super::edit::debug_edit),
+    ("undo", super::edit::debug_undo),
+    ("system-page", super::edit::debug_system_page),
+    ("changed-screens", super::edit::debug_changed_screens),
+    ("mark-checked", super::edit::debug_mark_checked),
 ];
 
 /// The command of this file.
