@@ -12,9 +12,9 @@ use crate::core::error::DfwError;
 use crate::core::host::HOSTS;
 use crate::core::js;
 use crate::core::paths::{claude_dir, global_dir, manifest_path, plugin_root, resolve};
+use crate::core::platform::{node_arch, node_platform};
 use crate::core::process::{quote_for_cmd, Spawn};
 use crate::core::util::{read_json, sha256, write_json, MARKETPLACE_NAME};
-use crate::tools::binary::{node_arch, node_platform};
 
 /// The most recently changed folder directly under `dir`.
 fn newest_dir(dir: &Path) -> Option<PathBuf> {

@@ -3,7 +3,6 @@
 pub mod api;
 pub mod http;
 pub mod live_proxy;
-pub mod pages;
 pub mod penpot_routes;
 pub mod server;
 pub mod sse;

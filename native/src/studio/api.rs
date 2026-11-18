@@ -8,9 +8,9 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{json, Map, Value};
 
-use super::pages::{screen_flows, studio_pages};
 use crate::browser::screenshot::{screenshot, Job, CONCURRENCY};
 use crate::core::js;
+use crate::design::pages::{screen_flows, studio_pages};
 
 use crate::core::error::DfwError;
 use crate::core::js::regex::with_js_classes;

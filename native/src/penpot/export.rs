@@ -28,8 +28,8 @@ use crate::core::js;
 use crate::core::paths::{project_paths, resolve, to_posix};
 use crate::core::util::{get_path, now_iso, read_json, sha256, to_json_compact, write_json};
 use crate::design::compose::{build_composed, build_system};
+use crate::design::pages::studio_pages;
 use crate::design::tokens::{dir_names, relative_path};
-use crate::studio::pages::studio_pages;
 
 pub(super) const EXPORT_SCHEMA: &str = "dfw-penpot-export/1";
 pub(super) const CHANGES_SCHEMA: &str = "dfw-penpot-changes/1";

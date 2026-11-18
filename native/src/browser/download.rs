@@ -12,8 +12,8 @@ use ureq::ResponseExt;
 
 use super::launch::browser_dir;
 use crate::core::error::DfwError;
+use crate::core::platform::{node_arch, node_platform};
 use crate::core::util::{to_json_compact, to_json_pretty};
-use crate::tools::binary::{node_arch, node_platform};
 
 const CFT_URL: &str = "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json";
 const DOWNLOAD_HOST: &str = "storage.googleapis.com";
