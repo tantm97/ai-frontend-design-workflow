@@ -10,8 +10,8 @@ use std::path::{Path, PathBuf};
 use serde_json::{json, Value};
 
 use super::html::{Quote, Tag, Token, Tokenizer};
-use super::icons::plugin_dir;
 use super::tokens::{dir_names, relative_path};
+use crate::assets::{self, Folder};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::project_paths;
@@ -43,9 +43,26 @@ const STATES: [&str; 11] = [
 
 const SKELETON_COMMENT: &str = "Component inventory (dfw system phase). One entry per component the product needs, derived from PRODUCT.md workflows and the screen blueprints, never from a kit list. name = master file name; purpose = the job it does in THIS product; usedBy = pages/screens that need it; states = every state its CSS must cover; ref = optional kit reference consulted with \"dfw system ref <name>\" (a checklist, never copied).";
 
-/// The starter kit's masters (`KIT_COMPONENTS`).
+/// The starter kit's masters (`KIT_COMPONENTS`), a folder of the embedded kits.
+const KIT_COMPONENTS: &str = "base/components";
+
+/// The file names of the kit's masters, in byte order.
+fn kit_files() -> Vec<String> {
+    assets::file_names(Folder::Kits, KIT_COMPONENTS)
+        .into_iter()
+        .filter(|f| f.ends_with(".html"))
+        .collect()
+}
+
+/// The text of one kit master by its file name.
+fn kit_text(file: &str) -> Option<String> {
+    assets::text(Folder::Kits, &format!("{KIT_COMPONENTS}/{file}"))
+}
+
+/// Test fixtures only: the kit's masters in the source tree, to copy into a test project.
+#[cfg(test)]
 pub fn kit_components() -> Result<PathBuf, DfwError> {
-    Ok(plugin_dir()?.join("kits").join("base").join("components"))
+    Ok(Path::new(env!("CARGO_MANIFEST_DIR")).join("../core/kits/base/components"))
 }
 
 /// `inventoryPath`: `design/system/inventory.json`.
@@ -180,12 +197,11 @@ impl KitRef {
 
 /// `kitRefs`: name, group, description, variants/sizes and covered states of every kit master.
 pub fn kit_refs() -> Result<Vec<KitRef>, DfwError> {
-    let dir = kit_components()?;
-    let mut files = html_files(&dir)?;
+    let mut files = kit_files();
     files.sort_by(|a, b| js::cmp_utf16(a, b));
     let mut refs = Vec::new();
     for f in files {
-        let text = js::read_text(&dir.join(&f))?;
+        let text = kit_text(&f).unwrap_or_default();
         let open = component_tag(&text);
         let attr = |name: &str| {
             open.as_ref()
@@ -212,15 +228,14 @@ pub fn kit_refs() -> Result<Vec<KitRef>, DfwError> {
 
 /// `kitRef`: full source of one kit master, for reading as a reference.
 pub fn kit_ref(name: &str) -> Result<String, DfwError> {
-    let f = kit_components()?.join(format!("{name}.html"));
-    if !f.exists() {
-        let names: Vec<String> = kit_refs()?.into_iter().map(|r| r.name).collect();
-        return Err(DfwError::new(format!(
-            "No kit reference \"{name}\". Available: {}",
-            names.join(", ")
-        )));
+    if let Some(text) = kit_text(&format!("{name}.html")) {
+        return Ok(text);
     }
-    js::read_text(&f)
+    let names: Vec<String> = kit_refs()?.into_iter().map(|r| r.name).collect();
+    Err(DfwError::new(format!(
+        "No kit reference \"{name}\". Available: {}",
+        names.join(", ")
+    )))
 }
 
 /// Normalised style, template and examples blocks of the kit, each with the master it is from.
@@ -236,9 +251,8 @@ fn kit_fingerprints() -> Result<KitFingerprints, DfwError> {
         templates: HashMap::new(),
         examples: HashMap::new(),
     };
-    let dir = kit_components()?;
-    for f in html_files(&dir)? {
-        let text = js::read_text(&dir.join(&f))?;
+    for f in kit_files() {
+        let text = kit_text(&f).unwrap_or_default();
         for (map, tag) in [
             (&mut kit.styles, "style"),
             (&mut kit.templates, "template"),

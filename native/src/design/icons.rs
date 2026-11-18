@@ -4,43 +4,20 @@
 //! copy only the icons they use, so designs stay self-contained.
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use serde_json::Value;
 
+use crate::assets::{self, Folder};
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::{plugin_root, project_paths};
-
-/// The plugin folder that holds `assets/` and `kits/` (`PLUGIN_ROOT` in util.mjs).
-// TODO(merge): embed kits/ and assets/ in assets.rs (the Studio group's module, which embeds
-// studio/ and templates/ so far); the design modules walk these as folders, so until then they
-// come from the plugin folder.
-pub fn plugin_dir() -> Result<PathBuf, DfwError> {
-    // The unit tests run from cargo's build folder, too deep for the search from the executable.
-    #[cfg(test)]
-    if crate::core::paths::env_nonempty("DFW_PLUGIN_ROOT").is_none() {
-        return Ok(Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("..")
-            .join("core"));
-    }
-    plugin_root().ok_or_else(|| {
-        DfwError::new("The dfw plugin files were not found. Set DFW_PLUGIN_ROOT to the dfw plugin folder, or reinstall dfw.")
-    })
-}
+use crate::core::paths::project_paths;
 
 /// `iconBundle`: the parsed icon library `{ svgRoot, icons: { name: [paths, ...tags] } }`.
 pub fn icon_bundle() -> Result<Value, DfwError> {
-    let file = plugin_dir()?
-        .join("assets")
-        .join("icons")
-        .join("lucide.json");
-    if !file.exists() {
-        return Err(DfwError::new(
-            "Icon library missing (assets/icons/lucide.json). Reinstall dfw.",
-        ));
-    }
-    js::read_json(&file, None)
+    assets::json(Folder::Assets, "icons/lucide.json")?.ok_or_else(|| {
+        DfwError::new("Icon library missing (assets/icons/lucide.json). Reinstall dfw.")
+    })
 }
 
 /// `iconSvg`: the SVG file text of one icon, or `None` when the library has no such icon.

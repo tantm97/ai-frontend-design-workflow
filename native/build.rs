@@ -8,8 +8,16 @@
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     // Embedded by src/assets.rs: a change there must rebuild the binary.
-    println!("cargo:rerun-if-changed=../core/studio");
-    println!("cargo:rerun-if-changed=../core/templates");
+    for folder in [
+        "studio",
+        "templates",
+        "kits",
+        "assets",
+        "workflow",
+        "manifest.json",
+    ] {
+        println!("cargo:rerun-if-changed=../core/{folder}");
+    }
     for name in ["DFW_OTLP_ENDPOINT", "DFW_OTLP_HEADERS"] {
         println!("cargo:rerun-if-env-changed={name}");
         let value = std::env::var(name).unwrap_or_default();

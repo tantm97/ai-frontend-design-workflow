@@ -40,13 +40,13 @@ fn bold(s: &str) -> String {
 /// `pluginList()`: plugins to install: dfw first, then the design skills it depends on.
 pub fn plugin_list() -> Result<Vec<String>, DfwError> {
     let listed = |v: &Value| v.get("dependencies").filter(|d| !d.is_null()).cloned();
-    let from_file = match plugin_root() {
-        Some(root) => listed(&read_json(&root.join("dfw.json"), Some(Value::Null))?),
-        None => None,
-    };
-    let deps = match from_file {
-        Some(deps) => Some(deps),
-        None => listed(&plugin_manifest(None)?),
+    let deps = match plugin_root() {
+        Some(root) => match listed(&read_json(&root.join("dfw.json"), Some(Value::Null))?) {
+            Some(deps) => Some(deps),
+            None => listed(&plugin_manifest(None)?),
+        },
+        // No plugin folder (the binary installed alone by install.sh): the list it was built with.
+        None => listed(&crate::assets::manifest()),
     };
     let mut plugins = vec!["dfw".to_string()];
     plugins.extend(

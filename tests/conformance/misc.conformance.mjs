@@ -285,9 +285,14 @@ describe('mcp server on stdio', { skip: skipReason() }, () => {
   const req = (method, params) => JSON.stringify({ jsonrpc: '2.0', id: ++id, method, ...(params === undefined ? {} : { params }) });
   const call = (name, args) => req('tools/call', { name, arguments: args });
 
+  // The binary serves the guide from its embedded workflow text, which has no folder on disk:
+  // where Node named the built mcp/ folder, the binary names the topic (`references/x.md`).
+  const guideDir = path.join(REPO, 'plugins', 'dfw', 'mcp');
+  const normalize = (t) => t.split(`${guideDir}/`).join('').split(guideDir).join('.');
+
   /** One scripted session against both servers: the replies, line by line. */
   function session(lines, opts = {}) {
-    const r = both(['mcp'], { stdin: lines.join('\n') + '\n', ...opts });
+    const r = both(['mcp'], { stdin: lines.join('\n') + '\n', normalize, ...opts });
     assertSame(r, { stderr: true });
     assert.equal(r.native.code, 0);
     return r.native.stdout.trim().split('\n').map((l) => JSON.parse(l));

@@ -51,8 +51,8 @@ Set the status to `done` in the same commit that registers the commands as nativ
 | `core/studio/server.mjs` | `studio/server` | split by job: studio/api, studio/watch (polling only: no OS watcher without a crate), studio/sse, studio/penpot_routes, studio/http (the HTTP/1.1 layer shared with the proxy); browser files embedded by `assets` | studio | done |
 
 Rust modules with no Node file of their own: `design/html` (the tokenizer, design decision 2, owner design, done),
-`assets` (embedded files, design decision 6: core/studio and core/templates; kits/ and assets/ are still read from the
-plugin folder), `core/js` (the JavaScript value and regular expression rules every module follows), `core/process`
+`assets` (embedded files, design decision 6: core/studio, core/templates, core/kits, core/assets, core/workflow (the MCP
+guide) and core/manifest.json; nothing is read from the plugin folder, `DFW_PLUGIN_ROOT` only overrides them), `core/js` (the JavaScript value and regular expression rules every module follows), `core/process`
 (spawn plans, pids, Node.js on PATH), `tools/handoff` (`cmdHandoff` of cli.mjs, owner tools, done) and `telemetry`
 (the `telemetry` change: events, otlp, spool, flush; with `build.rs` and `cli/telemetry.rs`; done).
 

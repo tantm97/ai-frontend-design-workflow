@@ -7,26 +7,19 @@
 // Over 800 lines with its tests: one Node module, kept whole so the two read side by side.
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use regex::Regex;
 use serde_json::{json, Map, Value};
 
-use super::icons::plugin_dir;
-use super::tokens::dir_names;
+use crate::assets::{self, Folder};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{project_paths, resolve};
 use crate::core::util::write_json;
 
-/// `STYLES_DIR`: the guides shipped with dfw.
-pub fn styles_dir() -> Result<PathBuf, DfwError> {
-    Ok(plugin_dir()?.join("kits").join("styles"))
-}
-
-fn presets_dir() -> Result<PathBuf, DfwError> {
-    Ok(plugin_dir()?.join("kits").join("base").join("presets"))
-}
+/// `STYLES_DIR`: the guides shipped with dfw, a folder of the embedded kits.
+const STYLES_DIR: &str = "styles";
 
 fn text(v: Option<&Value>) -> String {
     js::to_string(v)
@@ -48,10 +41,12 @@ fn entries(v: Option<&Value>) -> Vec<(&String, &Value)> {
 
 /// `listStyles`: every guide of the library, in file-name order.
 pub fn list_styles() -> Result<Vec<Value>, DfwError> {
-    let dir = styles_dir()?;
     let mut guides = Vec::new();
-    for f in dir_names(&dir)?.iter().filter(|f| f.ends_with(".json")) {
-        guides.push(js::read_json(&dir.join(f), None)?);
+    for f in assets::file_names(Folder::Kits, STYLES_DIR)
+        .iter()
+        .filter(|f| f.ends_with(".json"))
+    {
+        guides.extend(assets::json(Folder::Kits, &format!("{STYLES_DIR}/{f}"))?);
     }
     Ok(guides)
 }
@@ -88,18 +83,16 @@ pub fn get_style(id: &str) -> Result<Value, DfwError> {
         }
         return Ok(js::key_order(Value::Object(guide)));
     }
-    let f = styles_dir()?.join(format!("{id}.json"));
-    if !f.exists() {
-        return Err(DfwError::new(format!(
+    assets::json(Folder::Kits, &format!("{STYLES_DIR}/{id}.json"))?.ok_or_else(|| {
+        DfwError::new(format!(
             "Unknown style guide \"{id}\". List them: dfw style list"
-        )));
-    }
-    js::read_json(&f, None)
+        ))
+    })
 }
 
 /// `isStyle`: the name of a guide file, or the id of a guide of the library.
 pub fn is_style(id: &str) -> bool {
-    id.ends_with(".json") || styles_dir().is_ok_and(|dir| dir.join(format!("{id}.json")).exists())
+    id.ends_with(".json") || assets::exists(Folder::Kits, &format!("{STYLES_DIR}/{id}.json"))
 }
 
 /// `searchStyles`: guides ranked by tag and concept match, as `{ id, name, score, tags, concept }`.
@@ -337,10 +330,13 @@ fn group<'a>(tree: &'a mut Value, path: &[&str]) -> Result<&'a mut Map<String, V
 // assigned them, which is the order of the file users diff.
 #[allow(clippy::too_many_lines)]
 pub fn style_tokens(g: &Value, fonts: &str) -> Result<Value, DfwError> {
-    let mut t = js::read_json(
-        &presets_dir()?.join(format!("{}.tokens.json", text(g.get("base")))),
-        None,
-    )?;
+    let base = text(g.get("base"));
+    let mut t = assets::json(Folder::Kits, &format!("base/presets/{base}.tokens.json"))?
+        .ok_or_else(|| {
+            DfwError::new(format!(
+                "The style guide's base preset \"{base}\" does not exist. Presets: dfw system presets"
+            ))
+        })?;
     let hex_of = |v: &Value| text(Some(v));
 
     let mut palette = Map::new();
