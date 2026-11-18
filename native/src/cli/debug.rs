@@ -23,6 +23,7 @@ const SUBCOMMANDS: &[(&str, Subcommand)] = &[
     ("config", config),
     ("host-format", host_format),
     ("host-render", host_render),
+    ("hot", super::workflow::debug_hot),
 ];
 
 /// The command of this file.
