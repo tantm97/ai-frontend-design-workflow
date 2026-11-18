@@ -30,6 +30,21 @@
       "why": "`hooks on` writes hook entries into settings files; dfw provides a controlled check hook instead."
     },
     {
+      "op": "write",
+      "file": "skills/impeccable/reference/hooks.md",
+      "why": "The upstream page is a full guide to `hooks on`, which writes hook entries into host settings (also ~/.claude/settings.json). dfw strips the hooks, so the page is replaced by a note that they must not be enabled."
+    },
+    {
+      "op": "replace",
+      "file": "skills/impeccable/SKILL.md",
+      "why": "Upstream's hooks reference says `context` restores missing hook entries when local consent exists. The shipped text does not show that IMPECCABLE_HOOK_DISABLED=1 stops that write, so the instruction is bounded in words."
+    },
+    {
+      "op": "replace",
+      "file": "skills/impeccable/reference/doctor.md",
+      "why": "`doctor --fix` can rewrite hook entries in host settings without asking; dfw forbids enabling or repairing Impeccable hooks."
+    },
+    {
       "op": "replace",
       "file": "skills/impeccable/scripts/impeccable",
       "why": "Applies the approved privacy defaults to every invocation, including ones the model runs from the skill text."

@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { lintDesign } from './lint.mjs';
 import { buildSystem, buildComposed } from './compose.mjs';
 import { auditDesignSystem } from './dsaudit.mjs';
-import { impeccableLauncher, sloplintScript, tasteCopyLintScript } from './locate.mjs';
+import { impeccableEngine, launcherCommand, sloplintScript, tasteCopyLintScript } from './locate.mjs';
 import { readJson, projectPaths, toPosix, nodeExecutable } from './util.mjs';
 
 export const UI_EXT = new Set(['.html', '.htm', '.css', '.scss', '.sass', '.less', '.jsx', '.tsx', '.vue', '.svelte', '.astro']);
@@ -66,15 +66,14 @@ export function runSloplint(root, targets, { env, timeoutMs }) {
   return { tool: 'sloplint', status: 'ran', findings };
 }
 
-export function runImpeccable(root, targets, { env, timeoutMs, allowDownload = false }) {
-  const l = impeccableLauncher();
+export function runImpeccable(root, targets, { env, timeoutMs, engine = impeccableEngine() }) {
+  const l = engine;
   if (!l) return { tool: 'impeccable', status: 'unavailable', findings: [] };
-  if (!l.ready && !allowDownload) {
-    return { tool: 'impeccable', status: 'not-installed', detail: 'Engine not downloaded yet; run "dfw check --setup" once.', findings: [] };
-  }
+  // Never download here (a hook would time out) and never run an engine that failed the checksum.
+  if (!l.ready) return { tool: 'impeccable', status: 'not-installed', detail: l.detail, findings: [] };
   const files = targets.filter((t) => UI_EXT.has(path.extname(t)) || /^https?:/.test(t));
   if (!files.length) return { tool: 'impeccable', status: 'skipped', findings: [] };
-  const r = run(l.cmd, ['detect', '--json', ...files], { cwd: root, env, timeoutMs });
+  const r = run(l.cmd, ['detect', '--json', ...files], { cwd: root, env: { ...env, ...l.env }, timeoutMs });
   if (r.timedOut) return { tool: 'impeccable', status: 'timeout', findings: [] };
   const data = parseJsonLoose(r.stdout);
   if (!Array.isArray(data)) return { tool: 'impeccable', status: 'error', detail: (r.stderr || r.stdout).slice(0, 400), findings: [] };
@@ -88,6 +87,27 @@ export function runImpeccable(root, targets, { env, timeoutMs, allowDownload = f
     source: 'impeccable',
   }));
   return { tool: 'impeccable', status: 'ran', findings };
+}
+
+/**
+ * "dfw check --setup": let the upstream launcher download the engine, then accept it only when dfw
+ * verifies it too. The launcher is not started when it would run a binary dfw cannot verify.
+ */
+export function setupEngine({ env = {}, target, resolve = impeccableEngine, launch = spawnSync } = {}) {
+  let e = resolve();
+  if (!e) return { ok: false, text: 'Impeccable plugin not found.' };
+  if (e.ready) return { ok: true, text: 'Impeccable engine ready.' };
+  if (e.unverified.length) {
+    return {
+      ok: false,
+      text: `Impeccable setup stopped: the launcher would run an engine dfw cannot verify (${e.unverified[0]}). Remove it or unset IMPECCABLE_BIN, or allow it: dfw config set impeccable.allowUnverifiedEngine true --global`,
+    };
+  }
+  const c = launcherCommand(e.launcher, ['detect', '--json', target]);
+  const r = launch(c.cmd, c.args, { ...c.options, env: { ...process.env, ...env }, encoding: 'utf8', timeout: 180000 });
+  e = resolve();
+  if (e?.ready) return { ok: true, text: 'Impeccable engine ready.' };
+  return { ok: false, text: `Impeccable setup failed: ${(r?.stderr || r?.error?.message || e?.detail || '').slice(0, 500)}` };
 }
 
 export function runTasteCopyLint(root, targets, { env, timeoutMs }) {
@@ -121,7 +141,7 @@ export function runTasteCopyLint(root, targets, { env, timeoutMs }) {
  * Run all enabled checks on `targets` (project-relative paths or URLs).
  * When targets is null, checks the whole design workspace.
  */
-export function runChecks(root, targets, config, { timeoutMs, allowDownload = false, tools } = {}) {
+export function runChecks(root, targets, config, { timeoutMs, tools } = {}) {
   const p = projectPaths(root);
   const c = config.checks || {};
   const env = config.env || {};
@@ -169,7 +189,7 @@ export function runChecks(root, targets, config, { timeoutMs, allowDownload = fa
     }
     return res;
   };
-  if (want('impeccable') && c.impeccable !== false) results.push(remap(runImpeccable(root, toolTargets, { env, timeoutMs: budget, allowDownload })));
+  if (want('impeccable') && c.impeccable !== false) results.push(remap(runImpeccable(root, toolTargets, { env, timeoutMs: budget })));
   if (want('sloplint') && c.sloplint !== false) results.push(remap(runSloplint(root, toolTargets, { env, timeoutMs: budget })));
   if (want('taste') && c.tasteCopyLint) results.push(remap(runTasteCopyLint(root, toolTargets, { env, timeoutMs: budget })));
   return results;
@@ -225,4 +245,10 @@ export function formatReport(results, { max = 50 } = {}) {
   if (unverified.length) lines.push(`NOT VERIFIED: ${unverified.map((r) => `${r.tool} (${r.detail || r.status})`).join('; ')}. Say so in any report; do not claim these aspects pass.`);
   for (const r of results) if (r.detail && !unverified.includes(r)) lines.push(`  note: ${r.tool}: ${r.detail}`);
   return { text: lines.join('\n'), tally, findings: all, unverified: unverified.map((r) => r.tool) };
+}
+
+/** Exit code of "dfw check": 2 for MUST findings; with --strict, 3 when a configured tool did not run. */
+export function checkExitCode(rep, { strict = false } = {}) {
+  if (rep.tally.error) return 2;
+  return strict && rep.unverified.length ? 3 : 0;
 }

@@ -60,6 +60,6 @@ Reference files live next to this SKILL.md: `./references/`. Policies: `./polici
 You (main thread) act as product analyst, UX researcher, frontend designer and frontend engineer, because these roles need the conversation with the user. Delegate only:
 - `design-director` agent: reference research and 2-3 direction briefs (read-only).
 - `screen-builder` agent: builds the screens of one page from the approved design system (writes only its own `design/screens/<id>/` files). Spawn one per page, in parallel.
-- `visual-reviewer` agent: screenshots + checks + Must/Should/Nice review report (read-only).
+- `visual-reviewer` agent: screenshots + checks + Must/Should/Nice review report (never edits design or code; may write under `.dfw/` and `.impeccable/`).
 - `skill-steward` agent: external skill update checks/proposals in the marketplace repo.
 Subagents never record gate approvals and never talk to the user directly; you relay their results.

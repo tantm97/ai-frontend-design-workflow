@@ -125,8 +125,11 @@ export function executableFiles(dir) {
 
 /**
  * Built plugins must not ship an unresolved `<skill-dir>` placeholder (pasted into a shell it is a
- * redirect, not a path) or an upstream hook installer script (it writes into the host's settings).
+ * redirect, not a path), an upstream hook installer script (it writes into the host's settings), or
+ * Impeccable text that tells the model how to turn its hooks on (`hooks on` writes host settings).
  */
+const IMPECCABLE_HOOKS_ON = /\bhooks\s+on\b|scripts\/impeccable(\.cmd)?"?\s+hooks\b/;
+
 export function leftoverCheck({ pluginsRoot = path.join(REPO_ROOT, 'plugins'), only } = {}) {
   const errors = [];
   if (!fs.existsSync(pluginsRoot)) return errors;
@@ -140,6 +143,10 @@ export function leftoverCheck({ pluginsRoot = path.join(REPO_ROOT, 'plugins'), o
       const lines = fs.readFileSync(path.join(dir, rel), 'utf8').split('\n');
       const i = lines.findIndex((l) => l.includes('<skill-dir>'));
       if (i >= 0) errors.push(`${plugin}/${rel}:${i + 1}: unresolved <skill-dir> placeholder (add a replace op in overlays/).`);
+      if (plugin !== 'impeccable') continue;
+      // A line written by a dfw overlay names dfw and forbids the command; any other mention is upstream's how-to.
+      const h = lines.findIndex((l) => IMPECCABLE_HOOKS_ON.test(l) && !/\bdfw\b/.test(l));
+      if (h >= 0) errors.push(`${plugin}/${rel}:${h + 1}: instructions to enable Impeccable hooks shipped (replace them in overlays/impeccable.json).`);
     }
   }
   return errors;
