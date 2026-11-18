@@ -103,10 +103,10 @@ const ON = {
   },
 };
 
-/** Listen to the Studio (the parent window only). */
+/** Listen to the Studio: only the parent window, from our own origin (javascript.md J6). */
 export function listenStudio() {
   addEventListener('message', (e) => {
-    if (e.source !== parent) return;
+    if (e.source !== parent || e.origin !== location.origin) return;
     const d = e.data || {};
     if (Object.hasOwn(ON, d.type)) ON[d.type](d);
   });

@@ -219,6 +219,8 @@ function onPresence(/** @type {MessageEvent} */ e) {
 /** Listen to the frames and to the server. */
 export function initEvents() {
   window.addEventListener('message', (e) => {
+    // Only our own frames (same origin, a window we created) are heard (javascript.md J6).
+    if (e.origin !== location.origin) return;
     const f = S.byWin.get(e.source);
     if (!f) return;
     const d = e.data || {};

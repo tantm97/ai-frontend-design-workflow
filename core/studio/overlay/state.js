@@ -39,8 +39,9 @@ export const st = {
 };
 
 /**
- * Message to the Studio.
+ * Message to the Studio. The Studio serves this page, so its origin is ours ('/'): nothing is
+ * delivered to a parent from another origin (javascript.md J6).
  * @param {string} type
  * @param {Record<string, any>} [data]
  */
-export const post = (type, data = {}) => parent.postMessage({ type, ...data }, '*');
+export const post = (type, data = {}) => parent.postMessage({ type, ...data }, '/');

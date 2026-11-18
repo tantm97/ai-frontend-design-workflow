@@ -148,7 +148,7 @@
     /** @type {{ key: string, n: number, list: { name: string, var: string, px: number }[] } | null} */
     lengthCache: null
   };
-  var post = (type, data = {}) => parent.postMessage({ type, ...data }, "*");
+  var post = (type, data = {}) => parent.postMessage({ type, ...data }, "/");
 
   // core/studio/overlay/layers.js
   function buildLayers() {
@@ -1247,7 +1247,7 @@
   };
   function listenStudio() {
     addEventListener("message", (e) => {
-      if (e.source !== parent) return;
+      if (e.source !== parent || e.origin !== location.origin) return;
       const d = e.data || {};
       if (Object.hasOwn(ON, d.type)) ON[d.type](d);
     });

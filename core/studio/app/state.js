@@ -151,11 +151,12 @@ export const currentPage = () =>
   S.page === ALL ? { id: ALL, title: 'All pages', screens: [], all: true } : S.pages.find((p) => p.id === S.page) || S.pages[0];
 
 /**
- * Message to the overlay of a frame.
+ * Message to the overlay of a frame. Frames show /design/ and /__dfw/ pages of this Studio, so the
+ * target origin is ours ('/'): a frame that navigated elsewhere gets nothing (javascript.md J6).
  * @param {any} f a frame, or the presenter
  * @param {Record<string, any>} msg
  */
-export const post = (f, msg) => f?.iframe?.contentWindow?.postMessage(msg, '*');
+export const post = (f, msg) => f?.iframe?.contentWindow?.postMessage(msg, '/');
 export const postAll = (/** @type {Record<string, any>} */ msg) => S.frames.forEach((f) => f.loaded && post(f, msg));
 
 /** Frames by key, including the presenter's pseudo-frame. */
