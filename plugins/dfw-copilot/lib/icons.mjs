@@ -16,7 +16,7 @@ export function iconBundle() {
 
 export function iconSvg(name) {
   const b = iconBundle();
-  const e = b.icons[name];
+  const e = Object.hasOwn(b.icons, name) ? b.icons[name] : null; // "constructor" is not an icon
   return e ? `${b.svgRoot}${e[0]}</svg>\n` : null;
 }
 

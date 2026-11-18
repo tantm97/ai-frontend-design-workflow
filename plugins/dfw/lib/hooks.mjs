@@ -75,7 +75,7 @@ export function preToolUse(input) {
 export function notePresence(root, input, absFile) {
   const p = projectPaths(root);
   const rel = toPosix(path.relative(p.design, absFile));
-  if (rel.startsWith('..') || path.isAbsolute(rel) || rel.startsWith('approved/')) return null;
+  if (rel === '..' || rel.startsWith('../') || path.isAbsolute(rel) || rel.startsWith('approved/')) return null;
   const ti = input.tool_input || {};
   const old = ti.old_string || ti.edits?.[0]?.old_string || '';
   let dfwId = null;
@@ -92,8 +92,9 @@ export function notePresence(root, input, absFile) {
 
 export function postToolUse(input, host = {}) {
   // Hosts that cannot add context to the user's prompt get new Studio comments here instead.
-  const inbox = host.context?.UserPromptSubmit === false ? inboxFor(input) : null;
+  // Checks first: reading the inbox marks the comments delivered, so nothing may throw after it.
   const checks = postToolUseChecks(input);
+  const inbox = host.context?.UserPromptSubmit === false ? inboxFor(input) : null;
   const text = [checks, inbox].filter(Boolean).join('\n\n');
   return text ? { context: text } : null;
 }
@@ -108,7 +109,7 @@ function postToolUseChecks(input) {
   if (config.checks?.onEdit === false) return null;
   const targets = files
     .map((f) => toPosix(path.relative(root, path.resolve(root, f))))
-    .filter((rel) => !rel.startsWith('..') && !rel.startsWith('design/approved/') && (UI_EXT.has(path.extname(rel)) || /^design\/.*\.json$/.test(rel)));
+    .filter((rel) => rel !== '..' && !rel.startsWith('../') && !rel.startsWith('design/approved/') && (UI_EXT.has(path.extname(rel)) || /^design\/.*\.json$/.test(rel)));
   if (!targets.length) return null;
   // Keep generated files in sync so the Studio live-reloads without an extra command.
   try {

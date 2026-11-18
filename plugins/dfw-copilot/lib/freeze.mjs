@@ -48,6 +48,8 @@ export function freezeDesign(root, state, { note = '' } = {}) {
 
 /** Verify an approved snapshot is intact (nobody edited it). */
 export function verifySnapshot(root, version) {
+  // The version names a folder: only the form freezeDesign writes (v1, v2, ...) is joined onto design/approved.
+  if (!/^v\d+$/.test(String(version))) throw new DfwError(`Unknown snapshot "${version}". A snapshot is named v<number>, for example v1.`);
   const dir = path.join(projectPaths(root).approved, version);
   const lock = readJson(path.join(dir, 'approval.lock.json'), null);
   if (!lock) throw new DfwError(`No approval.lock.json in ${dir}`);

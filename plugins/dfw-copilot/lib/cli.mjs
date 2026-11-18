@@ -128,6 +128,20 @@ Stack and settings
   dfw version
 `;
 
+// Flags that take a value. Given without one they would read as `true`: a level 1 decision, a
+// 1 second timeout, an approval note "true", a TypeError in path.resolve.
+const VALUE_FLAGS = [
+  'root', 'port', 'host', 'scope', 'source', 'mode', 'product', 'note', 'reason', 'level', 'topic', 'overrides', 'text', 'timeout',
+  'message', 'm', 'evidence', 'by', 'status', 'url', 'shortcut', 'bp', 'out', 'selector', 'screen', 'page', 'variant', 'state', 'theme',
+  'session', 'file', 'format', 'from', 'brief', 'limit', 'style', 'preset', 'fonts', 'base', 'ratio', 'display-ratio', 'brand', 'chroma',
+  'neutral-hue', 'tint', 'signature', 'signature-chroma', 'harmony', 'accent', 'names', 'threshold', 'max', 'marketplace-repo',
+];
+
+function requireFlagValues(a) {
+  const bare = VALUE_FLAGS.find((k) => a[k] === true);
+  if (bare) throw new DfwError(`--${bare} needs a value.`);
+}
+
 function out(data, json) {
   if (json) console.log(JSON.stringify(data, null, 2));
   else console.log(typeof data === 'string' ? data : JSON.stringify(data, null, 2));
@@ -265,6 +279,9 @@ async function cmdApprove(root, a) {
   }
   if (gate === 'G3') {
     const stack = readJson(projectPaths(root).stack, null);
+    if (fs.existsSync(projectPaths(root).stack) && (!stack || typeof stack !== 'object' || Array.isArray(stack))) {
+      throw new DfwError('G3 needs a stack proposal: .dfw/stack.json must hold a JSON object (run: dfw stack set ... or dfw stack detect --write).');
+    }
     if (stack) {
       stack.status = 'approved';
       stack.approvedAt = nowIso();
@@ -276,7 +293,8 @@ async function cmdApprove(root, a) {
 }
 
 function isAlive(pid) {
-  if (!pid) return false;
+  // Only a positive integer names one process: 0 and negative numbers address process groups.
+  if (!Number.isInteger(pid) || pid <= 0) return false;
   try {
     process.kill(pid, 0);
     return true;
@@ -648,6 +666,7 @@ export async function main(argv) {
   }
   const a = parseArgs(argv);
   const cmd = a._[0];
+  if (cmd !== 'hook') requireFlagValues(a); // a hook checks inside its try: it fails open
   if (cmd === 'version' || a.version) return out(`dfw ${dfwVersion()} (${IS_BINARY ? 'binary' : `node ${process.versions.node}`})`);
   if (cmd === 'mcp') {
     const sub = a._[1];
@@ -660,13 +679,14 @@ export async function main(argv) {
   if (cmd === 'uninstall') return uninstall({ host: a.host || 'auto', scope: a.scope || 'user', quiet: Boolean(a.quiet) });
   if (!cmd || cmd === 'help' || a.help) return out(HELP);
   if (cmd === 'hook') {
-    const handler = HANDLERS[a._[1]];
+    const handler = Object.hasOwn(HANDLERS, a._[1] ?? '') ? HANDLERS[a._[1]] : null;
     if (!handler) throw new DfwError(`Unknown hook "${a._[1]}"`);
     let input = {};
     try {
       input = JSON.parse((await readStdin()) || '{}');
     } catch {}
     try {
+      requireFlagValues(a);
       const host = currentHost(a.host);
       const res = formatHookOutput(host.id, HOOK_EVENTS[a._[1]], await handler(normalizeHookInput(input), host));
       if (res) process.stdout.write(JSON.stringify(res));
@@ -964,6 +984,7 @@ export async function main(argv) {
       const sub = a._[1];
       if (sub === 'get') return out(a._[2] ? getConfigValue(root, a._[2]) : loadConfig(root), true);
       if (sub === 'set') {
+        if (a._[2] === undefined || a._[3] === undefined) throw new DfwError('Usage: dfw config set <key> <value> [--global|--project|--local]');
         const scope = a.global ? 'global' : a.local ? 'local' : 'project';
         const file = setConfigValue(scope, root, a._[2], parseValue(a._[3]));
         return out(`Set ${a._[2]} in ${file}`);

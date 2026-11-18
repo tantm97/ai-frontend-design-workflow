@@ -34,7 +34,7 @@ export const MODE_ALIASES = {
 };
 
 export function normalizeMode(mode) {
-  return MODE_ALIASES[mode] || mode;
+  return Object.hasOwn(MODE_ALIASES, mode) ? MODE_ALIASES[mode] : mode;
 }
 
 export function loadState(root) {
@@ -49,7 +49,7 @@ export function saveState(root, state) {
 
 export function newState({ mode = 'new-product', product = '' } = {}) {
   mode = normalizeMode(mode);
-  if (!MODES[mode]) throw new DfwError(`Unknown mode "${mode}". Modes: ${Object.keys(MODES).join(', ')}`);
+  if (!Object.hasOwn(MODES, mode)) throw new DfwError(`Unknown mode "${mode}". Modes: ${Object.keys(MODES).join(', ')}`);
   const at = nowIso();
   return {
     schema: 1,
@@ -114,7 +114,8 @@ export function transitionBlockers(state, to) {
 
 export function setPhase(root, state, to, { force = false, reason = '' } = {}) {
   const blockers = transitionBlockers(state, to);
-  if (blockers.length && !force) {
+  // --force overrides gate blockers, never an unknown or missing phase.
+  if (blockers.length && (!force || !PHASES.includes(to))) {
     throw new DfwError(`Cannot move to "${to}":\n- ${blockers.join('\n- ')}`);
   }
   const from = state.phase;
@@ -124,7 +125,7 @@ export function setPhase(root, state, to, { force = false, reason = '' } = {}) {
 }
 
 export function approveGate(root, state, gate, { note = '', extra = {} } = {}) {
-  if (!GATES[gate]) throw new DfwError(`Unknown gate "${gate}". Gates: ${Object.keys(GATES).join(', ')}`);
+  if (!Object.hasOwn(GATES, gate)) throw new DfwError(`Unknown gate "${gate}". Gates: ${Object.keys(GATES).join(', ')}`);
   const p = projectPaths(root);
   if (gate === 'G1' && ['discovery'].includes(state.phase) && !note) {
     throw new DfwError('G1 is normally approved during the direction phase. Pass --note to record what was approved.');
@@ -150,7 +151,7 @@ export function approveGate(root, state, gate, { note = '', extra = {} } = {}) {
 
 export function setMode(root, state, mode) {
   mode = normalizeMode(mode);
-  if (!MODES[mode]) throw new DfwError(`Unknown mode "${mode}". Modes: ${Object.keys(MODES).join(', ')}`);
+  if (!Object.hasOwn(MODES, mode)) throw new DfwError(`Unknown mode "${mode}". Modes: ${Object.keys(MODES).join(', ')}`);
   if (MODES[mode].requiresApprovedDesign && !currentApproval(state)) {
     throw new DfwError(`Mode "${mode}" needs an approved design (G2). None exists for the current version.`);
   }

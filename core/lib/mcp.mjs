@@ -224,7 +224,7 @@ export function mcpConfigText(format, current, { remove = false, command = serve
 
 /** Whether a tool's config already has the dfw server. */
 export function mcpInstalled(id) {
-  const t = MCP_TARGETS[id];
+  const t = Object.hasOwn(MCP_TARGETS, id) ? MCP_TARGETS[id] : null;
   try {
     const text = fs.readFileSync(t.file(), 'utf8');
     return t.format === 'toml' ? TOML_BLOCK.test(text) : Boolean(JSON.parse(text)?.[t.format === 'opencode' ? 'mcp' : 'mcpServers']?.dfw);
@@ -238,7 +238,7 @@ export function mcpInstall(target, { remove = false, print = false } = {}) {
   const ids = target === 'all' ? Object.keys(MCP_TARGETS) : [target];
   const lines = [];
   for (const id of ids) {
-    const t = MCP_TARGETS[id];
+    const t = Object.hasOwn(MCP_TARGETS, id) ? MCP_TARGETS[id] : null;
     if (!t) throw new Error(`Unknown tool "${id}". MCP install targets: ${Object.keys(MCP_TARGETS).join(', ')}, all.`);
     const file = t.file();
     const current = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
