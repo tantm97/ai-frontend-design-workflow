@@ -119,6 +119,28 @@ try {
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(url);
   await page.waitForSelector('.frame iframe');
+  // Steps wait on conditions, not sleeps (testing.md T12). A changed design file reaches the frames
+  // through the server's 'design' event (after the watcher's debounce); a frame that took the change
+  // (patched in place or reloaded) posts dfw:ready again. Both are counted here.
+  await page.evaluate(() => {
+    window.__e2e = { design: 0, ready: {} };
+    new EventSource('/__dfw/events').addEventListener('design', () => window.__e2e.design++);
+    addEventListener('message', (e) => {
+      const name = e.source && e.source.name;
+      if (e.data && e.data.type === 'dfw:ready' && name) window.__e2e.ready[name] = (window.__e2e.ready[name] || 0) + 1;
+    });
+  });
+  /** The counters now, to wait for what comes after. */
+  const mark = () => page.evaluate(() => JSON.parse(JSON.stringify(window.__e2e)));
+  /** A design event came after `since` and the frame `key` posted dfw:ready after it. */
+  const settled = (key, since) =>
+    page.waitForFunction(([k, s]) => window.__e2e.design > s.design && (window.__e2e.ready[k] || 0) > (s.ready[k] || 0), [key, since], {
+      timeout: 10000,
+    });
+  /** The camera is applied on the next animation frame. */
+  const painted = () => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  /** The Studio has the frame's overlay ready (tool, tokens and layout settings sent). */
+  const frameReady = (key) => page.waitForFunction((k) => window.__dfwStudio.frames.get(k)?.loaded === true, key);
   const count = () => page.$$eval('.frame[data-key]', (f) => f.length); // frames, not iframes (off-screen iframes load lazily)
   const summary = (id) => page.textContent(`#${id} summary`);
   // Default: every breakpoint and every state. 2 screens x 3 breakpoints + 1 variant + 2 screens x 3 states.
@@ -238,14 +260,17 @@ try {
   const pinBefore = await page.locator('#pins button[data-id="fb_001"]').first().boundingBox();
   await page.keyboard.press('0');
   await page.waitForFunction(() => document.querySelector('#zoom-label').textContent === '100%');
-  await page.waitForTimeout(50);
+  await page.waitForFunction((b) => {
+    const r = document.querySelector('#pins button[data-id="fb_001"]').getBoundingClientRect();
+    return r.x !== b.x || r.y !== b.y;
+  }, pinBefore);
   const pinAfter = await page.locator('#pins button[data-id="fb_001"]').first().boundingBox();
   assert.notDeepEqual(pinBefore, pinAfter, 'pin moved with zoom');
   await page.keyboard.press('-');
-  await page.waitForTimeout(50);
+  await page.waitForFunction(() => parseInt(document.querySelector('#zoom-label').textContent) < 100);
   assert.ok(parseInt(await page.textContent('#zoom-label')) < 100, 'minus zooms out');
   await page.keyboard.press('Shift+1');
-  await page.waitForTimeout(100);
+  await painted();
 
   // Claude marks it fixed (CLI); the studio shows it under "To verify"; the user resolves it.
   dfw('comments', 'fixed', 'fb_001', '--message', 'CTA moved next to the title and given the accent fill.');
@@ -285,15 +310,17 @@ try {
   await frame.locator('[data-dfw-id="home.title"]').dblclick();
   await frame.locator('[data-dfw-id="home.title"][contenteditable]').waitFor();
   await page.keyboard.type('Hello there');
+  const beforeEdit = await mark();
   await page.keyboard.press('Enter');
   await waitFile(/<h1 data-dfw-id="home.title">Hello there<\/h1>/, 'text written to source');
   assert.equal(fs.readdirSync(path.join(tmp, '.dfw/edits')).length, 1, 'edit journaled');
-  await page.waitForTimeout(500);
+  await settled('home::a::desktop', beforeEdit);
+  const beforeUndo = await mark();
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
   await waitFile(/<h1 data-dfw-id="home.title">Welcome back<\/h1>/, 'undo restored the source');
 
   // Component instance: the inspector's variant select rewrites <dfw-use>; Go to master opens the system page.
-  await page.waitForTimeout(600);
+  await settled('home::a::desktop', beforeUndo);
   await frame.locator('[data-dfw-id="home.buy"]').click();
   await page.waitForSelector('#inspector select[data-edit="variant"]');
   assert.equal(await frame.locator('[data-dfw-id="home.buy"]').getAttribute('data-dfw-component'), 'button');
@@ -308,8 +335,9 @@ try {
   // Page switch back.
   await page.click('#page-list button[data-page="screens"]');
   await page.waitForSelector('iframe[name="home::a::desktop"]');
+  const beforeUndoAll = await mark();
   undoAll();
-  await page.waitForTimeout(800);
+  await settled('home::a::desktop', beforeUndoAll);
 
   // All pages: every page section stacked on one canvas, Design System first.
   await page.click('#page-list button[data-page="__all"]');
@@ -322,7 +350,7 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('.psec').length === 1);
   await page.waitForSelector('iframe[name="home::a::desktop"]');
   await page.keyboard.press('Shift+1');
-  await page.waitForTimeout(800);
+  await frameReady('home::a::desktop');
 
   // Interact tool: links in a frame act as prototype links on the canvas (jump to the target frame).
   await page.keyboard.press('i');
@@ -332,7 +360,7 @@ try {
   assert.equal(await frame.locator('[data-dfw-id="home.title"]').count(), 1, 'the source frame did not navigate away');
   await page.keyboard.press('v');
   await page.keyboard.press('Shift+1');
-  await page.waitForTimeout(300);
+  await painted();
 
   // Present: full-window, interactive prototype with link + data-dfw-goto navigation and comments.
   await page.click('.frame[data-key="home::a::desktop"] .frame-title');
@@ -482,7 +510,7 @@ try {
   await page.waitForSelector('.frame[data-key="board::a::desktop"] iframe');
   await page.click('.frame[data-key="board::a::desktop"] .frame-title');
   await page.keyboard.press('Shift+2');
-  await page.waitForTimeout(300);
+  await frameReady('board::a::desktop');
   const board = page.frameLocator('iframe[name="board::a::desktop"]');
   const waitBoard = async (re, msg) => {
     for (let i = 0; i < 50 && !re.test(fs.readFileSync(boardFile, 'utf8')); i++) await page.waitForTimeout(100);
@@ -493,6 +521,7 @@ try {
   await board.locator('[data-dfw-handle="x"]').waitFor({ state: 'visible' });
   const b3 = await board.locator('[data-dfw-id="board.three"]').boundingBox();
   const b1 = await board.locator('[data-dfw-id="board.one"]').boundingBox();
+  let since = await mark();
   await page.mouse.move(...center(b3));
   await page.mouse.down();
   await page.mouse.move(b1.x + b1.width * 0.2, b1.y + b1.height / 2, { steps: 10 });
@@ -501,11 +530,12 @@ try {
     /<section class="cards" data-dfw-id="board.cards">\n {6}<div data-dfw-id="board.three">Three<\/div>\n {6}<div data-dfw-id="board.one">One<\/div>\n {6}<div data-dfw-id="board.two">Two<\/div>\n {4}<\/section>/,
     'drag reordered the source (indentation kept)',
   );
-  await page.waitForTimeout(800); // live reload
+  await settled('board::a::desktop', since); // the live update after the drag
   await board.locator('[data-dfw-id="board.two"]').click();
   await board.locator('[data-dfw-handle="x"]').waitFor({ state: 'visible' });
   const b2 = await board.locator('[data-dfw-id="board.two"]').boundingBox();
   const hx = await board.locator('[data-dfw-handle="x"]').boundingBox();
+  since = await mark();
   await page.mouse.move(...center(hx));
   await page.mouse.down();
   await page.mouse.move(b2.x + b2.width * 2.05, hx.y + hx.height / 2, { steps: 10 });
@@ -528,7 +558,7 @@ try {
   };
   await waitSpan(board.locator('[data-dfw-id="board.two"]'), 'span 2', 'layout rule beats the more specific screen rule');
   // Keyboard alternative: Alt+Shift+Right steps the span.
-  await page.waitForTimeout(800);
+  await settled('board::a::desktop', since);
   await board.locator('[data-dfw-id="board.two"]').click();
   await page.keyboard.press('Alt+Shift+ArrowRight');
   await waitBoard(/\[data-dfw-id='board.two'\]:not\(#dfw\) \{ grid-column: span 3; \}/, 'Alt+Shift+Right widened the span');
@@ -551,12 +581,13 @@ try {
   await pickFrame('board::a::mobile');
   await page.keyboard.press('Shift+2');
   await page.waitForSelector('.frame[data-key="board::a::mobile"] iframe', { state: 'attached' });
-  await page.waitForTimeout(800);
+  await frameReady('board::a::mobile');
   const boardM = page.frameLocator('iframe[name="board::a::mobile"]');
   await boardM.locator('[data-dfw-id="board.two"]').click();
   await boardM.locator('[data-dfw-handle="x"]').waitFor({ state: 'visible' });
   const m2b = await boardM.locator('[data-dfw-id="board.two"]').boundingBox();
   const mhx = await boardM.locator('[data-dfw-handle="x"]').boundingBox();
+  since = await mark();
   await page.mouse.move(...center(mhx));
   await page.mouse.down();
   await page.mouse.move(m2b.x + m2b.width / 3, mhx.y + mhx.height / 2, { steps: 10 }); // ~1 of the 3 spanned columns
@@ -569,8 +600,9 @@ try {
   await waitSpan(board.locator('[data-dfw-id="board.two"]'), 'span 3', 'desktop frame (1440px) is unaffected');
 
   // Reset to auto: Alt+Shift+0 in the Mobile frame drops only the 390px rule (and the empty @media block).
-  await page.waitForTimeout(800);
+  await settled('board::a::mobile', since);
   await boardM.locator('[data-dfw-id="board.two"]').click();
+  since = await mark();
   await page.keyboard.press('Alt+Shift+Digit0');
   for (let i = 0; i < 50 && /@media/.test(fs.readFileSync(boardFile, 'utf8')); i++) await page.waitForTimeout(100);
   assert.doesNotMatch(fs.readFileSync(boardFile, 'utf8'), /@media/, 'Alt+Shift+0 removed the media rule and its empty block');
@@ -578,9 +610,10 @@ try {
   // Double-click the width handle in the Desktop frame: the base rule goes, and with it the whole block.
   await pickFrame('board::a::desktop');
   await page.keyboard.press('Shift+2');
-  await page.waitForTimeout(600);
+  await settled('board::a::desktop', since); // the desktop frame shows the same file
   await board.locator('[data-dfw-id="board.two"]').click();
   await board.locator('[data-dfw-handle="x"]').waitFor({ state: 'visible' });
+  since = await mark();
   await board.locator('[data-dfw-handle="x"]').dblclick();
   for (let i = 0; i < 50 && /data-dfw-layout/.test(fs.readFileSync(boardFile, 'utf8')); i++) await page.waitForTimeout(100);
   assert.doesNotMatch(
@@ -591,10 +624,11 @@ try {
   await waitSpan(board.locator('[data-dfw-id="board.two"]'), 'span 1', 'back to the screen rule');
 
   // Drop into an empty grid container with a data-dfw-id (dashed highlight while dragging).
-  await page.waitForTimeout(800);
+  await settled('board::a::desktop', since);
   await board.locator('[data-dfw-id="board.one"]').click();
   const bOne = await board.locator('[data-dfw-id="board.one"]').boundingBox();
   const bEmpty = await board.locator('[data-dfw-id="board.empty"]').boundingBox();
+  since = await mark();
   await page.mouse.move(...center(bOne));
   await page.mouse.down();
   await page.mouse.move(...center(bEmpty), { steps: 10 });
@@ -613,14 +647,15 @@ try {
   );
 
   // A rule that still wins (!important) is named instead of the resize silently doing nothing; the inspector resets it.
-  await page.waitForTimeout(800);
+  await settled('board::a::desktop', since);
   await board.locator('[data-dfw-id="board.pinned"]').click();
+  since = await mark();
   await page.keyboard.press('Alt+Shift+ArrowRight');
   await waitBoard(/\[data-dfw-id='board.pinned'\]:not\(#dfw\) \{ grid-column: span 2; \}/, 'pinned resize written');
   await page.waitForFunction(() => /did not change/.test(document.querySelector('#toast').textContent), null, { timeout: 8000 });
   assert.match(await page.textContent('#toast'), /"\.cards > \.pinned" still sets grid-column/, 'toast names the conflicting selector');
   assert.equal(await page.evaluate(() => window.__dfwStudio.layoutConflict?.selector), '.cards > .pinned');
-  await page.waitForTimeout(300);
+  await settled('board::a::desktop', since);
   await board.locator('[data-dfw-id="board.pinned"]').click();
   await page.click('#inspector [data-act="layout-reset"]');
   for (let i = 0; i < 50 && /data-dfw-layout/.test(fs.readFileSync(boardFile, 'utf8')); i++) await page.waitForTimeout(100);
