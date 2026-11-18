@@ -214,6 +214,11 @@ export function renderSystemPage(root, { designBase = '../' } = {}) {
     if (!groups.has(d.group)) groups.set(d.group, []);
     groups.get(d.group).push(d);
   }
+  // "Label: explanation" reads faster with the label in bold (a short lead before the first colon).
+  const lead = (t) => {
+    const m = /^([^:.;]{2,40}):\s+(.+)$/s.exec(t);
+    return m ? `<b>${esc(m[1])}:</b> ${esc(m[2])}` : mdInline(t);
+  };
   // Names with a meaning get one line each; names without one share a line.
   const named = (list, parts) => {
     const withMeaning = list.filter((n) => parts.meaning.has(n));
@@ -231,7 +236,7 @@ export function renderSystemPage(root, { designBase = '../' } = {}) {
   ${row('Variants', d.variants.length ? named(d.variants, parts) : '')}
   ${row('Sizes', d.sizes.length ? named(d.sizes, parts) : '')}
   ${row('Props', d.props.length ? named(d.props, parts) : '')}
-  ${row('Rules', parts.notes.length ? `<ul class="ds-notes">${parts.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : '')}
+  ${row('Rules', parts.notes.length ? `<ul class="ds-notes">${parts.notes.map((n) => `<li>${lead(n)}</li>`).join('')}</ul>` : '')}
   ${row('Tokens', spec)}
   ${row('Master', `<code>${esc(d.file)}</code>`)}
   </table>
@@ -267,12 +272,14 @@ ${head}
   /* Documentation text uses three sizes only: 14px text, 13px code, 12px labels. Lines stay under ~75 characters. */
   .ds code, .ds .ds-mono { font-family: var(--font-family-mono, ui-monospace, monospace); font-size: 13px; color: var(--color-muted, #555); overflow-wrap: anywhere; }
   .ds p, .ds li, .ds dd { max-width: 75ch; }
+  /* Weight carries the hierarchy: names and labels are bold in ink, explanations regular, secondary facts muted. */
+  .ds b, .ds strong, .ds dt { font-weight: 700; color: var(--color-ink, #111); }
   .ds > header { display: grid; gap: 8px; }
   .ds > header h1 { margin: 0; font: var(--font-weight-display, 600) var(--font-size-display-md, 40px) / 1.05 var(--font-family-display, inherit); letter-spacing: var(--font-tracking-display, -0.02em); }
   .ds > header p { margin: 0; color: var(--color-muted); }
   .ds > section > h2 { margin: 0 0 24px; padding-bottom: 12px; border-bottom: 1px solid var(--color-rule); font: var(--font-weight-semibold, 600) var(--font-size-xl, 20px) / 1.2 var(--font-family-body); }
-  .ds h3 { margin: 0; font: var(--font-weight-semibold, 600) var(--font-size-md, 16px) / 1.3 var(--font-family-body); }
-  .ds h4 { margin: 32px 0 12px; font: var(--font-weight-semibold, 600) var(--font-size-xs, 12px) / 1.3 var(--font-family-body); text-transform: uppercase; letter-spacing: .08em; color: var(--color-muted); }
+  .ds h3 { margin: 0; font: 700 var(--font-size-lg, 18px) / 1.3 var(--font-family-body); }
+  .ds h4 { margin: 32px 0 12px; font: var(--font-weight-semibold, 600) var(--font-size-xs, 12px) / 1.3 var(--font-family-body); text-transform: uppercase; letter-spacing: .08em; color: var(--color-ink, #111); font-weight: 700; }
   .ds small { color: var(--color-muted); }
   .ds-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 48px; }
   .ds-lead { margin: 0 0 24px; font-size: var(--font-size-md, 16px); line-height: 1.6; }
@@ -280,9 +287,9 @@ ${head}
   .ds-card { padding: 20px; border: 1px solid var(--color-rule); border-radius: 8px; display: grid; gap: 12px; align-content: start; }
   .ds-card h4 { margin: 0; } .ds-card p { margin: 0; }
   .ds-card--wide { grid-column: 1 / -1; }
-  .ds-why { border-collapse: collapse; width: 100%; } .ds-why th { padding: 0 24px 8px 0; text-align: left; font-size: 12px; font-weight: 600; color: var(--color-muted); } .ds-why td { padding: 10px 24px 10px 0; vertical-align: top; border-top: 1px solid var(--color-rule); width: 50%; } .ds-why td:first-child { font-weight: 500; }
+  .ds-why { border-collapse: collapse; width: 100%; } .ds-why th { padding: 0 24px 8px 0; text-align: left; font-size: 12px; font-weight: 600; color: var(--color-muted); } .ds-why td { padding: 10px 24px 10px 0; vertical-align: top; border-top: 1px solid var(--color-rule); width: 50%; } .ds-why td:first-child { font-weight: 700; }
   .ds-card ul { margin: 0; padding-left: 18px; display: grid; gap: 8px; }
-  .ds-card dl { margin: 0; display: grid; gap: 4px; } .ds-card dt { font-weight: 600; } .ds-card dd { margin: 0 0 8px; color: var(--color-muted); }
+  .ds-card dl { margin: 0; display: grid; gap: 4px; } .ds-card dt { font-weight: 700; } .ds-card dd { margin: 0 0 8px; color: var(--color-muted); }
   /* palette */
   .ds-ramp { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 24px; align-items: center; padding: 10px 0; }
   .ds-ramp__head { display: grid; gap: 2px; } .ds-ramp__head span { color: var(--color-muted); font-size: var(--font-size-xs, 12px); line-height: 1.4; }
@@ -322,16 +329,18 @@ ${head}
   .ds-icons div { display: grid; justify-items: center; gap: 8px; padding: 14px 4px; font-size: 12px; color: var(--color-muted); }
   .ds-assets { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; } .ds-assets figure { margin: 0; border: 1px solid var(--color-rule); border-radius: 8px; overflow: hidden; font-size: 12px; } .ds-assets img { width: 100%; height: 120px; object-fit: contain; background: var(--color-canvas); display: block; } .ds-assets figcaption { padding: 6px 8px; color: var(--color-muted); }
   .ds-comp { display: grid; gap: 16px; padding: 32px 0; border-top: 1px solid var(--color-rule); }
-  .ds-comp > header { display: grid; gap: 4px; } .ds-comp > header p { margin: 0; color: var(--color-muted); }
+  .ds-comp > header { display: grid; gap: 4px; } .ds-comp > header p { margin: 0; font-weight: 500; }
+  /* Names are set in the body font: the mono font often ships in one weight only, so bold would not show. */
+  .ds-named code, .ds-plain code, .ds-spec td:first-child code { font-family: var(--font-family-body, system-ui, sans-serif); font-size: inherit; }
   .ds-kv { border-collapse: collapse; width: 100%; }
-  .ds-kv > tbody > tr > th { width: 120px; padding: 12px 24px 12px 0; text-align: left; vertical-align: top; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--color-muted); white-space: nowrap; }
+  .ds-kv > tbody > tr > th { width: 120px; padding: 12px 24px 12px 0; text-align: left; vertical-align: top; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--color-ink, #111); white-space: nowrap; }
   .ds-kv > tbody > tr > td { padding: 10px 0; vertical-align: top; }
   .ds-kv > tbody > tr + tr > * { border-top: 1px solid var(--color-rule); }
   .ds-named, .ds-notes { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
-  .ds-plain { margin: 0; display: flex; flex-wrap: wrap; gap: 6px 20px; max-width: none; } .ds-plain code { color: var(--color-ink); } .ds-named + .ds-plain { margin-top: 8px; }
-  .ds-named li { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 16px; align-items: baseline; } .ds-named code { color: var(--color-ink); }
+  .ds-plain { margin: 0; display: flex; flex-wrap: wrap; gap: 6px 20px; max-width: none; } .ds-plain code { color: var(--color-ink); font-weight: 700; } .ds-named + .ds-plain { margin-top: 8px; }
+  .ds-named li { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 16px; align-items: baseline; } .ds-named code { color: var(--color-ink); font-weight: 700; }
   .ds-notes li { padding-left: 14px; position: relative; } .ds-notes li::before { content: ""; position: absolute; left: 0; top: .65em; width: 5px; height: 5px; border-radius: 50%; background: var(--color-muted); }
-  .ds-spec { border-collapse: collapse; } .ds-spec th { padding: 0 24px 6px 0; text-align: left; font-size: 12px; font-weight: 600; color: var(--color-muted); } .ds-spec td { padding: 3px 24px 3px 0; vertical-align: baseline; } .ds-spec td:first-child code { color: var(--color-ink); }
+  .ds-spec { border-collapse: collapse; } .ds-spec th { padding: 0 24px 6px 0; text-align: left; font-size: 12px; font-weight: 600; color: var(--color-muted); } .ds-spec td { padding: 3px 24px 3px 0; vertical-align: baseline; } .ds-spec td:first-child code { color: var(--color-ink); font-weight: 700; } .ds-spec td:nth-child(2) { font-weight: 500; }
   .ds-examples { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; align-content: flex-start; padding: 24px; border-radius: 8px; background: var(--color-canvas); }
   /* Layout components (app shells) preview as scaled 1366×768 screens. */
   .ds-frames { display: flex; flex-wrap: wrap; gap: 24px; }
@@ -354,11 +363,11 @@ ${head}
     const m = /^(.*?)\s+(?:[-–—]\s+)?because\s+(.*)$/is.exec(x);
     return m ? `<tr><td>${mdInline(m[1])}</td><td>${mdInline(m[2])}</td></tr>` : `<tr><td colspan="2">${mdInline(x)}</td></tr>`;
   }).join('')}</tbody></table></div>` : ''}
-  ${(style.do || []).length ? `<div class="ds-card"><h4>Do</h4><ul>${style.do.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
-  ${(style.dont || []).length ? `<div class="ds-card"><h4>Don't</h4><ul>${style.dont.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
+  ${(style.do || []).length ? `<div class="ds-card"><h4>Do</h4><ul>${style.do.map((x) => `<li>${lead(x)}</li>`).join('')}</ul></div>` : ''}
+  ${(style.dont || []).length ? `<div class="ds-card"><h4>Don't</h4><ul>${style.dont.map((x) => `<li>${lead(x)}</li>`).join('')}</ul></div>` : ''}
   ${style.layout ? `<div class="ds-card"><h4>Layout and grid</h4><p>${esc(style.layout)}</p></div>` : ''}
   ${(style.motifs || []).length ? `<div class="ds-card"><h4>Signature motifs</h4><dl>${style.motifs.map((m) => `<dt>${esc(m.name)}</dt><dd>${esc(m.use)}</dd>`).join('')}</dl></div>` : ''}
-  ${(style.components || []).length ? `<div class="ds-card"><h4>Component rules</h4><ul>${style.components.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
+  ${(style.components || []).length ? `<div class="ds-card"><h4>Component rules</h4><ul>${style.components.map((x) => `<li>${lead(x)}</li>`).join('')}</ul></div>` : ''}
   </div>
   </section>` : ''}
 
