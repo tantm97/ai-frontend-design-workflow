@@ -38,7 +38,7 @@ Design workspace
   dfw tokens export --format penpot [--out <f>] Tokens + themes as a Penpot token file (sets/themes, aliases kept; unsupported types listed)
   dfw tokens import <file|dir> [--from penpot] [--dry-run] [--prune]   Penpot token file -> design/tokens (diff summary; refused while frozen)
   dfw lint [files...] [--json]                  dfw design lint only (fast)
-  dfw check [files...|--url <u>] [--states] [--themes] [--no-a11y] [--lighthouse] [--json] [--setup]   dfw lint + Impeccable + sloplint + axe (rendered a11y; whole design or URL); --lighthouse: performance/SEO of a running app (pinned, via npx)
+  dfw check [files...|--url <u>] [--states] [--themes] [--no-a11y] [--lighthouse] [--json] [--strict] [--setup]   dfw lint + Impeccable + sloplint + axe (rendered a11y; whole design or URL); --lighthouse: performance/SEO of a running app (pinned, via npx); --strict: exit 3 when a tool could not run
   dfw studio start|stop|status [--port <n>]     Local Design Studio (canvas + click-to-comment)
   dfw review start --url <dev server> [--port <n>] [--shortcut <combo>] [--no-shots] | stop | status
                                                 Click-to-comment on the running app (local proxy; comments carry file:line with the inspector)

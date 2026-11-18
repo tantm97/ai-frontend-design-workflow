@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use super::{Ctx, Handler};
 use crate::core::error::DfwError;
 use crate::core::host::{current_host, format_hook_output, normalize_hook_input, HookResult};
-use crate::core::util::to_json_compact;
+use crate::core::util::{require_flag_values, to_json_compact};
 use crate::hooks::post_tool_use::{post_tool_use, Outcome};
 use crate::hooks::pre_tool_use::pre_tool_use;
 use crate::hooks::session_start::session_start;
@@ -90,6 +90,7 @@ fn run(
     event: &str,
     payload: &Value,
 ) -> Result<(HookOutcome, Outcome<Value>), DfwError> {
+    require_flag_values(&ctx.args)?;
     let host = current_host(ctx.args.get("host"))?;
     let input = normalize_hook_input(payload)?;
     let result: Option<HookResult> = match name {

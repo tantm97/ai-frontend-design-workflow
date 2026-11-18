@@ -85,7 +85,8 @@ pub fn note_presence(
 ) -> Result<Option<Value>, DfwError> {
     let p = project_paths(root);
     let rel = relative(&resolve(&p.design), &resolve(abs_file));
-    if rel.starts_with("..") || rel.starts_with("approved/") {
+    // "..x.html" is a design file; only ".." and "../..." are outside.
+    if rel == ".." || rel.starts_with("../") || rel.starts_with("approved/") {
         return Ok(None);
     }
     let first_edit = tool_input
@@ -99,16 +100,31 @@ pub fn note_presence(
     let mut dfw_id = None;
     if !old.is_empty() && rel.ends_with(".html") && abs_file.exists() {
         let text = String::from_utf8_lossy(&fs::read(abs_file)?).into_owned();
-        // `\b` of JavaScript is ASCII.
-        let id = Regex::new(r#"(?:data-dfw-id|<dfw-use(?-u:\b)[^>]*?(?-u:\b)id)="([^"]+)""#)
+        // `\b` of JavaScript is ASCII. Either quote (JS: a back-reference to the opening one).
+        let id = Regex::new(
+            r#"(?:data-dfw-id|<dfw-use(?-u:\b)[^>]*?(?-u:\b)id)=(?:"([^"']+)"|'([^"']+)')"#,
+        )
+        .map_err(|err| DfwError::internal(err.to_string()))?;
+        // Ids inside HTML comments are not elements: blank them (same length, so offsets hold).
+        // An unclosed comment runs to the end.
+        let comment = Regex::new(r"(?s)<!--.*?(?:-->|$)")
             .map_err(|err| DfwError::internal(err.to_string()))?;
+        let blank = |s: &str| -> String {
+            comment
+                .replace_all(s, |c: &regex::Captures| " ".repeat(c[0].len()))
+                .into_owned()
+        };
         if let Some(at) = text.find(&old) {
-            let within = id.captures(&old);
-            let before = || id.captures_iter(&text[..at]).last();
-            dfw_id = within
-                .or_else(before)
-                .and_then(|c| c.get(1))
-                .map(|m| m.as_str().to_string());
+            let name = |c: regex::Captures| {
+                c.get(1)
+                    .or_else(|| c.get(2))
+                    .map(|m| m.as_str().to_string())
+            };
+            let within = id.captures(&blank(&old)).and_then(name);
+            dfw_id = within.or_else(|| {
+                let blanked = blank(&text);
+                id.captures_iter(&blanked[..at]).last().and_then(name)
+            });
         }
     }
     let note = json!({ "file": rel, "dfwId": dfw_id, "at": now_iso() });
@@ -165,5 +181,34 @@ mod tests {
         assert!(written.starts_with(
             "{\n  \"file\": \"screens/demo/a.html\",\n  \"dfwId\": null,\n  \"at\": \""
         ));
+    }
+
+    /// presence: ids in HTML comments are skipped and single quotes are read
+    /// (tests/unit/studio-presence.test.mjs)
+    #[test]
+    fn presence_ids_in_html_comments_are_skipped_and_single_quotes_are_read() {
+        let root = test_dir("presence-comments");
+        let file = root.join("design/screens/demo/a.html");
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        fs::write(&file, "<main data-dfw-id=\"page\">\n<!-- <section data-dfw-id=\"old.hero\"> removed -->\n<header data-dfw-id='nav'><a>Home</a></header>\n<section data-dfw-id='hero'><h1>Title</h1></section>\n<!-- <p data-dfw-id=\"never.closed\">\n</main>\n").unwrap();
+        let at = |old: &str| {
+            note_presence(&root, &json!({ "old_string": old }), &file)
+                .unwrap()
+                .unwrap()["dfwId"]
+                .clone()
+        };
+        assert_eq!(at("<section data-dfw-id='hero'><h1>Title</h1>"), "hero");
+        assert_eq!(
+            at("<a>Home</a>"),
+            "nav",
+            "the commented-out id before it is not an element"
+        );
+        assert_eq!(at("</main>"), "hero", "an unclosed comment hides the rest");
+        // "..x.html" is inside design/ (node-stable d: two leading dots are not "outside").
+        let dots = root.join("design/..x.html");
+        assert_eq!(
+            note_presence(&root, &json!({}), &dots).unwrap().unwrap()["file"],
+            "..x.html"
+        );
     }
 }

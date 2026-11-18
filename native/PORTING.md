@@ -34,7 +34,7 @@ Set the status to `done` in the same commit that registers the commands as nativ
 | `core/lib/lighthouse.mjs` | `tools/lighthouse` |  | tools | done (its caller, `check`, is not) |
 | `core/lib/lint.mjs` | `design/lint` | JavaScript regular expressions for the regex crate: design/lint/jsre | design | done |
 | `core/lib/live.mjs` | `studio/live_proxy` |  | studio | todo |
-| `core/lib/locate.mjs` | `review/locate` |  | review | done (no caller yet: check runner and doctor, tools group) |
+| `core/lib/locate.mjs` | `review/locate` |  | review | done, with the engine lookup of 0.5.2 (`resolveEngine`, `verifyEngine`, `engineAssets`); callers: doctor; the check runner (tools group) is not ported, `launcherCommand` goes with it |
 | `core/lib/mcp.mjs` | `tools/mcp` | install and uninstall: tools/mcp_install | tools | done |
 | `core/lib/penpot-tokens.mjs` | `penpot/tokens` |  | penpot | done (also holds `jv`: JavaScript value rules for untrusted JSON, shared by the penpot modules) |
 | `core/lib/penpot.mjs` | `penpot/export` | split by job: penpot/diff, penpot/import, penpot/live; `snapshotPage` stays JavaScript in `penpot/snapshot_page.js` | penpot | done (the Studio's Penpot routes, studio group, still run on Node) |

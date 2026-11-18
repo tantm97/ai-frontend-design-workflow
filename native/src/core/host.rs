@@ -8,15 +8,17 @@
 //! - plugin locations.
 //!
 //! Adding a host = one entry here + `adapters/<host>/`.
+//!
+//! Over 800 lines only with its tests (the ported cases of the JavaScript tests sit next to the code).
 
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use regex::{Captures, Regex};
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
 
-use super::config::{js_spread, js_truthy};
+use super::config::js_truthy;
 use super::error::DfwError;
 use super::paths::env_nonempty;
 use super::util::{ArgValue, MARKETPLACE_NAME};
@@ -315,25 +317,22 @@ fn parse_maybe_json(v: Option<Value>) -> Value {
 /// Claude Code and Copilot's PascalCase (VS Code compatible) format already use snake_case;
 /// Copilot's camelCase format uses sessionId/toolName/toolArgs.
 pub fn normalize_hook_input(raw: &Value) -> Result<HookInput, DfwError> {
-    if raw.is_null() {
-        // The TypeError of Node; the hook command reports it and lets the session go on.
-        return Err(DfwError::internal(
-            "Cannot read properties of null (reading 'tool_name')",
-        ));
-    }
-    let src = js_spread(Some(raw));
+    // A payload that is not a JSON object (null, a list, a string) is an empty payload.
+    let src = match raw {
+        Value::Object(map) => map.clone(),
+        _ => Map::new(),
+    };
     // `raw.a ?? raw.b`: `None` is JavaScript's undefined.
     let either = |a: &str, b: &str| match src.get(a) {
         Some(v) if !v.is_null() => Some(v.clone()),
         _ => src.get(b).cloned(),
     };
+    // Only a string names a tool; the alias table is read by own key ("toString" is not an alias).
     let tool = either("tool_name", "toolName")
-        .filter(js_truthy)
-        .map(|tool| {
-            let alias = tool
-                .as_str()
-                .and_then(|name| TOOL_ALIASES.iter().find(|(from, _)| *from == name));
-            alias.map_or(tool.clone(), |(_, to)| Value::String(to.to_string()))
+        .and_then(|tool| tool.as_str().filter(|t| !t.is_empty()).map(str::to_string))
+        .map(|name| {
+            let alias = TOOL_ALIASES.iter().find(|(from, _)| *from == name);
+            Value::String(alias.map_or(name.clone(), |(_, to)| to.to_string()))
         });
     let fields = [
         ("event", either("hook_event_name", "hookEventName")),
@@ -422,12 +421,7 @@ pub fn format_hook_output(
         }));
     }
     if let Some(context) = field("context") {
-        if host.context.is_none() {
-            // Node reads `host.context[event]` of a host without the table: kept as the same error.
-            return Err(DfwError::internal(format!(
-                "Cannot read properties of undefined (reading '{event}')"
-            )));
-        }
+        // A host without a context table (mcp, planned hosts) gets the generic form.
         if host.context(event) == Some(false) {
             return Ok(None);
         }
@@ -451,6 +445,18 @@ fn regex(pattern: &str) -> Result<Regex, DfwError> {
 /// blocks) in skill, reference and agent text.
 pub fn render_text(text: &str, host_id: &str) -> Result<String, DfwError> {
     let host = get_host(Some(host_id))?;
+    if host.text.is_none() {
+        let with_text: Vec<&str> = HOSTS
+            .iter()
+            .filter(|h| h.text.is_some())
+            .map(|h| h.id)
+            .collect();
+        return Err(DfwError::internal(format!(
+            "Host \"{}\" has no text placeholders. Hosts with text: {}",
+            host.id,
+            with_text.join(", ")
+        )));
+    }
     // JS: /<!--\s*host:([\w,]+)\s*-->\n?([\s\S]*?)<!--\s*\/host\s*-->\n?/g
     let blocks = regex(&format!(
         r"<!--{JS_SPACE}*host:([A-Za-z0-9_,]+){JS_SPACE}*-->\n?((?s:.*?))<!--{JS_SPACE}*/host{JS_SPACE}*-->\n?"
@@ -464,15 +470,6 @@ pub fn render_text(text: &str, host_id: &str) -> Result<String, DfwError> {
     });
     // JS: /\{\{([A-Z_]+)\}\}/g
     let placeholders = regex(r"\{\{([A-Z_]+)\}\}")?;
-    if host.text.is_none() {
-        if let Some(c) = placeholders.captures(&out) {
-            // Node evaluates `k in host.text` for a host without texts: kept as the same error.
-            return Err(DfwError::internal(format!(
-                "Cannot use 'in' operator to search for '{}' in undefined",
-                &c[1]
-            )));
-        }
-    }
     let out = placeholders.replace_all(&out, |c: &Captures| {
         host.text(&c[1]).unwrap_or(&c[0]).to_string()
     });
@@ -591,18 +588,10 @@ mod tests {
             .unwrap(),
             "axb"
         );
-        // A planned host has no texts: blocks still render, a placeholder is Node's TypeError.
+        // A planned host has no texts: refused with its own message, placeholders or not.
         assert_eq!(
-            render_text(
-                "<!-- host:codex -->\nonly\n<!-- /host -->\n`dfw:x`",
-                "codex"
-            )
-            .unwrap(),
-            "only\n`x`"
-        );
-        assert_eq!(
-            render_text("{{ASK_TOOL}}", "codex").unwrap_err().message(),
-            "Cannot use 'in' operator to search for 'ASK_TOOL' in undefined"
+            render_text("only", "codex").unwrap_err().message(),
+            "Host \"codex\" has no text placeholders. Hosts with text: claude, copilot, mcp"
         );
         assert!(render_text("x", "nope").is_err());
     }
@@ -738,7 +727,64 @@ mod tests {
             to_json_compact(&normalize_hook_input(&json!(5)).unwrap().raw),
             r#"{"tool_input":{},"stop_hook_active":false}"#
         );
-        assert!(normalize_hook_input(&Value::Null).is_err());
+    }
+
+    /// l: host helpers answer with their own messages, not JavaScript errors (tests/unit/node-stable.test.mjs)
+    #[test]
+    fn host_helpers_answer_with_their_own_messages() {
+        assert_eq!(
+            format("mcp", "SessionStart", json!({ "context": "x" })),
+            Some(json!({ "additionalContext": "x" }))
+        );
+        assert_eq!(
+            format("opencode", "PostToolUse", json!({ "context": "x" })),
+            Some(json!({ "additionalContext": "x" }))
+        );
+        assert_eq!(
+            format("copilot", "UserPromptSubmit", json!({ "context": "x" })),
+            None,
+            "a context table still decides"
+        );
+        assert_eq!(
+            render_text("a {{ASK_TOOL}}", "opencode").unwrap_err().report(),
+            "Error: Host \"opencode\" has no text placeholders. Hosts with text: claude, copilot, mcp"
+        );
+        for raw in [Value::Null, json!([]), json!("text"), json!(5)] {
+            let n = normalize_hook_input(&raw).unwrap();
+            assert_eq!(n.tool_name, None);
+            assert_eq!(n.tool_input, json!({}));
+            assert!(!n.stop_hook_active);
+        }
+        assert_eq!(
+            to_json_compact(&normalize_hook_input(&json!("ab")).unwrap().raw),
+            r#"{"tool_input":{},"stop_hook_active":false}"#
+        );
+    }
+
+    /// o: a tool name that is not a string names no tool (tests/unit/node-stable.test.mjs)
+    #[test]
+    fn a_tool_name_that_is_not_a_string_names_no_tool() {
+        for tool in [
+            json!(["Write"]),
+            json!({ "name": "Write" }),
+            json!(5),
+            json!(true),
+        ] {
+            let a = normalize_hook_input(&json!({ "tool_name": tool.clone() })).unwrap();
+            assert_eq!(a.tool_name, None, "{tool}");
+            assert!(a.raw.get("tool_name").is_none());
+            let b = normalize_hook_input(&json!({ "toolName": tool.clone() })).unwrap();
+            assert_eq!(b.tool_name, None, "{tool}");
+        }
+        let name = |raw: Value| normalize_hook_input(&raw).unwrap().tool_name;
+        assert_eq!(
+            name(json!({ "tool_name": "create" })).as_deref(),
+            Some("Write")
+        );
+        assert_eq!(name(json!({ "toolName": "Bash" })).as_deref(), Some("Bash"));
+        for proto in ["constructor", "toString", "__proto__", "hasOwnProperty"] {
+            assert_eq!(name(json!({ "tool_name": proto })).as_deref(), Some(proto));
+        }
     }
 
     #[test]
@@ -781,10 +827,9 @@ mod tests {
         assert_eq!(format("nope", "Stop", Value::Null), None);
         assert!(format_hook_output("nope", "Stop", &json!({})).is_err());
         assert_eq!(
-            format_hook_output("mcp", "SessionStart", &json!({ "context": "c" }))
-                .unwrap_err()
-                .report(),
-            "Error: Cannot read properties of undefined (reading 'SessionStart')"
+            format("mcp", "SessionStart", json!({ "context": "c" })),
+            Some(json!({ "additionalContext": "c" })),
+            "a host without a context table gets the generic form"
         );
     }
 

@@ -23,6 +23,7 @@ use crate::core::util::{
     list_files, out, read_json, sha256, to_json_compact, to_json_pretty, ArgValue, Args,
     MARKETPLACE_NAME,
 };
+use crate::review::locate::impeccable_engine;
 use crate::tools::binary::{binary_status, install_binary, RELEASE_REPO};
 use crate::tools::inspector::{format_plan, inspector_setup, parse_insp_path, PACKAGE, VERSION};
 use crate::tools::install::{axe_file, install, uninstall, InstallOptions};
@@ -216,32 +217,6 @@ fn sibling_plugin(name: &str) -> Result<Option<PathBuf>, DfwError> {
         .filter(is_plugin))
 }
 
-/// `impeccableLauncher()` of locate.mjs, as doctor reads it: `None` without the plugin, else
-/// whether its engine is downloaded and which version (none for `IMPECCABLE_BIN`).
-// TODO(merge): use review::locate::impeccable_launcher
-fn impeccable() -> Result<Option<(bool, Option<String>)>, DfwError> {
-    if env::var("IMPECCABLE_BIN").is_ok_and(|bin| !bin.is_empty() && Path::new(&bin).exists()) {
-        return Ok(Some((true, None)));
-    }
-    let Some(root) = sibling_plugin("impeccable")? else {
-        return Ok(None);
-    };
-    let scripts = root.join("skills").join("impeccable").join("scripts");
-    if !scripts.join("impeccable").exists() {
-        return Ok(None);
-    }
-    let version = fs::read_to_string(scripts.join("VERSION"))
-        .map(|v| v.trim().to_string())
-        .unwrap_or_default();
-    let home = env::var("IMPECCABLE_HOME")
-        .ok()
-        .filter(|h| !h.is_empty())
-        .map(PathBuf::from)
-        .unwrap_or_else(|| env::home_dir().unwrap_or_default().join(".impeccable"));
-    let ready = !version.is_empty() && home.join("bin").join(&version).join("impeccable").exists();
-    Ok(Some((ready, Some(version))))
-}
-
 /// A script inside a sibling plugin's skill, when it is there (`sloplintScript`,
 /// `tasteCopyLintScript` of locate.mjs).
 fn skill_script(plugin: &str, script: &str) -> Result<bool, DfwError> {
@@ -257,6 +232,7 @@ fn skill_script(plugin: &str, script: &str) -> Result<bool, DfwError> {
 /// `verifySnapshot(root, version)` of freeze.mjs: what differs from the approval lock.
 // TODO(merge): use workflow::freeze::verify_snapshot
 fn verify_snapshot(root: &Path, version: &str) -> Result<Vec<String>, DfwError> {
+    crate::workflow::freeze::check_snapshot_name(version)?;
     let dir = project_paths(root).approved.join(version);
     let lock = read_json(&dir.join("approval.lock.json"), Some(Value::Null))?;
     if !js_truthy(&lock) {
@@ -380,22 +356,22 @@ fn doctor(ctx: &Ctx) -> Result<i32, DfwError> {
             ),
         );
     }
-    match impeccable()? {
-        Some((true, version)) => ok(
-            "impeccable engine downloaded",
-            true,
-            &version.unwrap_or_default(),
-        ),
-        Some((false, _)) => ok(
-            "impeccable engine downloaded",
-            false,
-            "run \"dfw check --setup\" once (downloads a checksum-verified binary from GitHub)",
-        ),
-        None => ok(
-            "impeccable engine downloaded",
-            false,
-            "impeccable plugin not found",
-        ),
+    let label = "impeccable engine verified";
+    match impeccable_engine()? {
+        Some(e) if e.ready => {
+            let cmd = e.cmd.as_deref().map(|c| c.display().to_string());
+            let detail = if e.verified {
+                format!("{} (sha256 matches the pinned checksum)", e.version)
+            } else {
+                format!(
+                    "UNVERIFIED {} (impeccable.allowUnverifiedEngine)",
+                    cmd.unwrap_or_default()
+                )
+            };
+            ok(label, true, &detail);
+        }
+        Some(e) => ok(label, false, &e.detail.unwrap_or_default()),
+        None => ok(label, false, "impeccable plugin not found"),
     }
     ok("sloplint", skill_script("hallmark", "sloplint.mjs")?, "");
     ok(

@@ -183,6 +183,17 @@ mod tests {
         );
     }
 
+    /// j: names that are prototype keys are not ids (tests/unit/node-stable.test.mjs; icons)
+    #[test]
+    fn prototype_names_are_not_icons() {
+        let root = test_dir("icons-proto");
+        let bundle = icon_bundle().unwrap();
+        assert_eq!(icon_svg(&bundle, "constructor"), None);
+        let r = add_icons(&root, &["constructor".to_string(), "toString".to_string()]).unwrap();
+        assert!(r.added.is_empty(), "not icons");
+        assert!(!root.join("design/system/icons/constructor.svg").exists());
+    }
+
     #[test]
     fn limits_follow_array_slice() {
         assert_eq!(slice_end(10, 3.9), 3);

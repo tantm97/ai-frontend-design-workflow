@@ -17,8 +17,8 @@ use crate::core::config::{get_config_value, js_truthy, load_config, set_config_v
 use crate::core::error::DfwError;
 use crate::core::paths::{plugin_root, project_paths};
 use crate::core::util::{
-    now_iso, out, parse_value, read_json, set_path, to_json_compact, to_json_pretty, write_json,
-    ArgValue, Args,
+    now_iso, out, parse_value, read_json, to_json_compact, to_json_pretty, write_json, ArgValue,
+    Args,
 };
 use crate::design::compose::{build_system, load_components};
 use crate::design::dsaudit::audit_design_system;
@@ -102,7 +102,7 @@ fn init(ctx: &Ctx) -> Result<i32, DfwError> {
     }
     fs::write(
         p.dfw.join(".gitignore"),
-        "config.local.json\nstudio.json\nstudio.log\nreview.json\nreview.log\nshots/\nchecks/\n",
+        "config.local.json\nstudio.json\nstudio.log\nreview.json\nreview.log\npresence.json\nshots/\nchecks/\n",
     )?;
     let mut created = Vec::new();
     for doc in ["PRODUCT.md", "DESIGN.md"] {
@@ -130,10 +130,20 @@ fn init(ctx: &Ctx) -> Result<i32, DfwError> {
     Ok(0)
 }
 
+/// `Number.isInteger(pid) && pid > 0`: a pid that names one process (`1.0` is an integer too).
+pub(super) fn positive_pid(pid: &Value) -> Option<u64> {
+    pid.as_u64().filter(|p| *p > 0).or_else(|| {
+        pid.as_f64()
+            .filter(|f| *f >= 1.0 && f.fract() == 0.0 && *f <= u32::MAX as f64)
+            .map(|f| f as u64)
+    })
+}
+
 /// `isAlive(pid)`: whether a process of this user with that id exists.
 #[cfg(unix)]
 fn is_alive(pid: &Value) -> Option<bool> {
-    let Some(pid) = pid.as_u64().filter(|p| *p > 0) else {
+    // Only a positive integer names one process: 0 and negative numbers address process groups.
+    let Some(pid) = positive_pid(pid) else {
         return Some(false);
     };
     // std has no kill(2); `kill -0` asks the same question and only runs when a Studio is recorded.
@@ -147,7 +157,7 @@ fn is_alive(pid: &Value) -> Option<bool> {
 /// Not known here without a platform call: the caller forwards the command.
 #[cfg(not(unix))]
 fn is_alive(pid: &Value) -> Option<bool> {
-    if js_truthy(pid) {
+    if positive_pid(pid).is_some() {
         None
     } else {
         Some(false)
@@ -379,6 +389,9 @@ fn approve(ctx: &Ctx) -> Result<i32, DfwError> {
     if gate == "G3" {
         let file = project_paths(&root).stack;
         let mut stack = read_json(&file, Some(Value::Null))?;
+        if file.exists() && !stack.is_object() {
+            return Err(DfwError::new("G3 needs a stack proposal: .dfw/stack.json must hold a JSON object (run: dfw stack set ... or dfw stack detect --write)."));
+        }
         if js_truthy(&stack) {
             if let Value::Object(map) = &mut stack {
                 map.insert("status".into(), "approved".into());
@@ -485,13 +498,12 @@ fn config(ctx: &Ctx) -> Result<i32, DfwError> {
             } else {
                 Scope::Project
             };
-            let Some(key) = a.pos(2) else {
-                return Err(type_error("split"));
+            let (Some(key), Some(value)) = (a.pos(2), a.pos(3)) else {
+                return Err(DfwError::new(
+                    "Usage: dfw config set <key> <value> [--global|--project|--local]",
+                ));
             };
-            let file = match a.pos(3) {
-                Some(value) => set_config_value(scope, &root, key, parse_value(value))?,
-                None => unset_config_value(scope, &root, key)?,
-            };
+            let file = set_config_value(scope, &root, key, parse_value(value))?;
             out(&format!("Set {key} in {}", file.display()));
             Ok(0)
         }
@@ -499,31 +511,6 @@ fn config(ctx: &Ctx) -> Result<i32, DfwError> {
             "Usage: dfw config get [key] | set <key> <value> [--global|--project|--local]",
         )),
     }
-}
-
-/// `dfw config set <key>` without a value: Node sets the key to `undefined`, which leaves the
-/// objects on the way to it and drops the key itself when the file is written.
-fn unset_config_value(scope: Scope, root: &Path, key: &str) -> Result<PathBuf, DfwError> {
-    let file = crate::core::config::config_file_for(scope, root);
-    let mut data = read_json(&file, Some(json!({})))?;
-    set_path(&mut data, key, Value::Null);
-    let (parent, leaf) = match key.rsplit_once('.') {
-        Some((parent, leaf)) => (data.pointer_mut(&pointer(parent)), leaf),
-        None => (Some(&mut data), key),
-    };
-    if let Some(Value::Object(map)) = parent {
-        map.shift_remove(leaf);
-    }
-    write_json(&file, &data)?;
-    Ok(file)
-}
-
-/// A dotted key as a JSON pointer.
-fn pointer(dotted: &str) -> String {
-    dotted
-        .split('.')
-        .map(|k| format!("/{}", k.replace('~', "~0").replace('/', "~1")))
-        .collect()
 }
 
 fn lang(ctx: &Ctx) -> Result<i32, DfwError> {

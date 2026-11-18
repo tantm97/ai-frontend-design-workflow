@@ -66,8 +66,8 @@ pub fn decide_write(
         return Ok(Decision::allow());
     }
     let rel = relative(&resolve(root), &resolve(root.join(abs_file)));
-    // Node tests the text, so a file whose name starts with ".." also counts as outside.
-    if rel.starts_with("..") {
+    // Outside the project; "..x.ts" is inside.
+    if rel == ".." || rel.starts_with("../") {
         return Ok(Decision::allow());
     }
     if matches_any(&rel, &gate_immutable(config)) {
@@ -242,6 +242,21 @@ mod tests {
                 .unwrap()
                 .allow
         );
+    }
+
+    /// d: the write gate applies to a file whose name starts with two dots
+    /// (tests/unit/node-stable.test.mjs)
+    #[test]
+    fn the_write_gate_applies_to_a_file_whose_name_starts_with_two_dots() {
+        let root = crate::core::util::test_dir("gate-dots");
+        let s = new_state("new-product", Value::Null).unwrap();
+        let config = defaults();
+        let allow = |f: &Path| decide_write(&root, Some(&s), &config, f).unwrap().allow;
+        assert!(!allow(Path::new("..x.ts")));
+        assert!(!allow(&root.join("..x").join("y.ts")));
+        assert!(!allow(Path::new("...")));
+        assert!(allow(Path::new("../x.ts")), "outside the project");
+        assert!(allow(Path::new("..")), "outside the project");
     }
 
     #[test]

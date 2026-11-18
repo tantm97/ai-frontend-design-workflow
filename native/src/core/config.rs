@@ -6,6 +6,8 @@
 //! [`load_config`] returns the merged config as a `Value` with the key order `loadConfig` gives in
 //! Node. The typed accessors below it read the fields other modules use most, with the fallbacks
 //! the Node callers apply (`config.checks?.maxFindings || 12` and the like).
+//!
+//! Over 800 lines only with its tests (the ported cases of the JavaScript tests sit next to the code).
 
 use std::path::{Path, PathBuf};
 
@@ -76,47 +78,100 @@ pub fn global_config_path() -> PathBuf {
     global_dir().join("config.json")
 }
 
-/// `loadConfig(root)`: defaults, then the global file, then (with a root) the project file and
-/// the project-local file. A missing file is an empty layer; broken JSON is an error.
-pub fn load_config(root: Option<&Path>) -> Result<Value, DfwError> {
-    load_config_from(&global_config_path(), root)
+/// `PROJECT_ENV_ALLOW`: the `env` names a project layer may set. Project layers come from the
+/// repository being opened, so they are untrusted: their `env` may only set names that cannot
+/// choose what runs or where it connects. An allowlist, not a denylist: loader, proxy and
+/// tool-specific variables cannot be enumerated. The user's global config may set any variable.
+pub const PROJECT_ENV_ALLOW: [&str; 5] = ["NO_COLOR", "FORCE_COLOR", "TZ", "LANG", "LC_ALL"];
+
+/// `PRIVACY_ENV`: switches a project layer may only keep on (`"1"`).
+pub const PRIVACY_ENV: [&str; 4] = [
+    "DO_NOT_TRACK",
+    "IMPECCABLE_NO_UPDATE_CHECK",
+    "IMPECCABLE_HOOK_DISABLED",
+    "IMPECCABLE_NO_TELEMETRY",
+];
+
+/// `filterProjectEnv(layer, file, warn)`: a project layer without the `env` entries it may not
+/// set; one warning per dropped key. The `env` key keeps its place in the layer.
+pub fn filter_project_env(mut layer: Value, file: &Path, warn: &mut dyn FnMut(String)) -> Value {
+    let Some(map) = layer.as_object_mut() else {
+        return layer;
+    };
+    let Some(env) = map.get_mut("env") else {
+        return layer;
+    };
+    let file = file.display();
+    let mut kept = Map::new();
+    if let Value::Object(entries) = env {
+        for (k, v) in entries.iter() {
+            let allowed = v.as_str().is_some_and(|v| {
+                PROJECT_ENV_ALLOW.contains(&k.as_str())
+                    || (PRIVACY_ENV.contains(&k.as_str()) && v == "1")
+            });
+            if allowed {
+                kept.insert(k.clone(), v.clone());
+            } else {
+                warn(format!("dfw: ignored env.{k} in {file} (a project config cannot set it; use the global config: dfw config set env.{k} <value> --global)"));
+            }
+        }
+    } else {
+        warn(format!(
+            "dfw: ignored env in {file} (it must be an object of strings)"
+        ));
+    }
+    *env = Value::Object(kept);
+    layer
 }
 
-/// [`load_config`] with the global file given, so tests need no environment variable.
-fn load_config_from(global_file: &Path, root: Option<&Path>) -> Result<Value, DfwError> {
-    let read = |file: PathBuf| -> Result<(Option<PathBuf>, Value), DfwError> {
-        // deepMerge assigns `out['__proto__']`, which sets a prototype instead of a key: such a
-        // key never reaches the merged config, so it is dropped here.
-        let layer = without_proto(read_json(&file, Some(Value::Object(Map::new())))?);
-        Ok((Some(file), layer))
-    };
-    let mut layers = vec![(None, defaults()), read(global_file.to_path_buf())?];
+/// `readLayer(file)`: a config file's content (`{}` when missing); anything but a JSON object is
+/// the user's error to fix.
+fn read_layer(file: &Path) -> Result<Value, DfwError> {
+    let data = read_json(file, Some(Value::Object(Map::new())))?;
+    if !data.is_object() {
+        return Err(DfwError::new(format!(
+            "Config file {} must hold a JSON object. Fix it or delete it.",
+            file.display()
+        )));
+    }
+    Ok(data)
+}
+
+/// `loadConfig(root)`: defaults, then the global file, then (with a root) the project file and
+/// the project-local file. A missing file is an empty layer; broken JSON or a file that is not an
+/// object is an error. Dropped project `env` entries are reported on stderr.
+pub fn load_config(root: Option<&Path>) -> Result<Value, DfwError> {
+    load_config_from(&global_config_path(), root, &mut |m| eprintln!("{m}"))
+}
+
+/// [`load_config`] with the global file and the warning sink given, so tests need no environment
+/// variable.
+fn load_config_from(
+    global_file: &Path,
+    root: Option<&Path>,
+    warn: &mut dyn FnMut(String),
+) -> Result<Value, DfwError> {
+    let mut layers = vec![defaults(), read_layer(global_file)?];
     // An empty root is falsy in Node: no project layers.
     if let Some(root) = root.filter(|r| !r.as_os_str().is_empty()) {
         let p = project_paths(root);
-        layers.push(read(p.config)?);
-        layers.push(read(p.config_local)?);
+        layers.push(filter_project_env(read_layer(&p.config)?, &p.config, warn));
+        layers.push(filter_project_env(
+            read_layer(&p.config_local)?,
+            &p.config_local,
+            warn,
+        ));
     }
     let mut merged = Value::Object(Map::new());
-    for (_, layer) in &layers {
+    for layer in &layers {
         merged = deep_merge(merged, layer.clone());
     }
     let Value::Object(mut merged) = merged else {
-        // Only a last layer that is not an object ends here (Node: a TypeError, or for an array
-        // a config whose keys JSON.stringify does not show).
-        let file = layers
-            .last()
-            .and_then(|(file, _)| file.as_ref())
-            .map(|f| f.display().to_string())
-            .unwrap_or_default();
-        return Err(DfwError::new(format!(
-            "Config file {file} must hold a JSON object. Fix or delete it."
-        )));
+        return Err(DfwError::internal("the merged config is not an object")); // every layer is one
     };
     // Some lists are unions across layers rather than replacements, so a project can add to the
     // defaults without accidentally dropping them.
-    let union =
-        |group: &str, key: &str| union_of(layers.iter().map(|(_, layer)| layer), group, key);
+    let union = |group: &str, key: &str| union_of(layers.iter(), group, key);
     let mut skills = js_spread(merged.get("skills"));
     skills.insert("disabled".into(), union("skills", "disabled"));
     merged.insert("skills".into(), Value::Object(skills));
@@ -158,19 +213,6 @@ fn same_value_zero(a: &Value, b: &Value) -> bool {
     match (a, b) {
         (Value::Number(x), Value::Number(y)) => x.as_f64() == y.as_f64(),
         _ => a == b,
-    }
-}
-
-/// Drop `__proto__` keys from objects (not from objects inside arrays: arrays are not merged).
-fn without_proto(value: Value) -> Value {
-    match value {
-        Value::Object(map) => Value::Object(
-            map.into_iter()
-                .filter(|(k, _)| k != "__proto__")
-                .map(|(k, v)| (k, without_proto(v)))
-                .collect(),
-        ),
-        other => other,
     }
 }
 
@@ -243,10 +285,17 @@ pub fn set_config_value(
     value: Value,
 ) -> Result<PathBuf, DfwError> {
     let file = config_file_for(scope, root);
-    let mut data = read_json(&file, Some(Value::Object(Map::new())))?;
-    set_path(&mut data, key, value);
+    let mut data = read_layer(&file)?;
+    set_path(&mut data, key, value)?;
     write_json(&file, &data)?;
     Ok(file)
+}
+
+/// `allowUnverifiedEngine(globalFile)`: the opt-in to run an Impeccable engine dfw cannot
+/// checksum. Read from the global config only: a project must not grant it. Only `true` opts in.
+pub fn allow_unverified_engine(global_file: &Path) -> Result<bool, DfwError> {
+    let data = read_json(global_file, Some(Value::Object(Map::new())))?;
+    Ok(get_path(&data, "impeccable.allowUnverifiedEngine") == Some(&Value::Bool(true)))
 }
 
 /// `getConfigValue(root, key)`: a dotted key of the merged config; `None` where Node gives `undefined`.
@@ -414,8 +463,8 @@ mod tests {
         root
     }
 
-    fn load(root: &Path) -> Value {
-        load_config_from(&root.join("no-global.json"), Some(root)).unwrap()
+    fn load(root: &Path) -> Result<Value, DfwError> {
+        load_config_from(&root.join("no-global.json"), Some(root), &mut |_| {})
     }
 
     /// external tools run with telemetry and update checks off (tests/unit/dfw.test.mjs; the
@@ -436,7 +485,7 @@ mod tests {
             Some(r#"{"gate":{"allow":["docs/**"]},"checks":{"onEdit":false}}"#),
             None,
         );
-        let c = load(&root);
+        let c = load(&root).unwrap();
         assert!(gate_allow(&c).contains(&"docs/**".to_string()));
         assert!(
             gate_allow(&c).contains(&".dfw/**".to_string()),
@@ -452,17 +501,18 @@ mod tests {
         let tmp = test_dir("config-none");
         let expected = to_json_compact(&defaults());
         assert_eq!(
-            to_json_compact(&load_config_from(&tmp.join("none.json"), None).unwrap()),
+            to_json_compact(&load_config_from(&tmp.join("none.json"), None, &mut |_| {}).unwrap()),
             expected
         );
         assert_eq!(
             to_json_compact(
-                &load_config_from(&tmp.join("none.json"), Some(Path::new(""))).unwrap()
+                &load_config_from(&tmp.join("none.json"), Some(Path::new("")), &mut |_| {})
+                    .unwrap()
             ),
             expected,
             "an empty root is no root"
         );
-        assert_eq!(to_json_compact(&load(&tmp)), expected);
+        assert_eq!(to_json_compact(&load(&tmp).unwrap()), expected);
         assert!(expected.starts_with(r#"{"schema":1,"language":{"askPolicy":"session","default":"en"},"gate":{"allow":[".dfw/**","design/handoff/**"],"designPaths":["#));
         assert!(expected.ends_with(r#""skills":{"optional":{"hallmark":true,"taste-reference":true},"disabled":[]},"env":{"DO_NOT_TRACK":"1","IMPECCABLE_NO_UPDATE_CHECK":"1","IMPECCABLE_HOOK_DISABLED":"1"}}"#));
         fs::remove_dir_all(&tmp).unwrap();
@@ -481,7 +531,7 @@ mod tests {
         );
         let global = root.join("global.json");
         fs::write(&global, r#"{"gate":{"allow":["global/**"]},"studio":{"port":4650},"language":{"default":"vi"}}"#).unwrap();
-        let c = load_config_from(&global, Some(&root)).unwrap();
+        let c = load_config_from(&global, Some(&root), &mut |_| {}).unwrap();
         assert_eq!(
             gate_allow(&c),
             [
@@ -531,7 +581,7 @@ mod tests {
             ),
             Some(r#"{"gate":{"allow":0,"immutable":[1.0,{"a":1},null]},"studio":null}"#),
         );
-        let c = load(&root);
+        let c = load(&root).unwrap();
         assert_eq!(
             c["gate"]["allow"],
             json!([".dfw/**", "design/handoff/**", "docs/**"])
@@ -552,24 +602,216 @@ mod tests {
     }
 
     #[test]
-    fn a_broken_or_non_object_file_is_an_error() {
+    fn a_broken_file_is_an_error() {
         let root = project("config-broken", Some("{ nope"), None);
-        let err = load_config_from(&root.join("none.json"), Some(&root)).unwrap_err();
+        let err = load_config_from(&root.join("none.json"), Some(&root), &mut |_| {}).unwrap_err();
         assert!(err.message().starts_with("Invalid JSON in "), "{err}");
-        fs::write(root.join(".dfw").join("config.json"), "{}").unwrap();
-        fs::write(root.join(".dfw").join("config.local.json"), "[1]").unwrap();
-        let err = load_config_from(&root.join("none.json"), Some(&root)).unwrap_err();
-        assert!(
-            err.message()
-                .contains("config.local.json must hold a JSON object"),
-            "{err}"
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    /// k: a config file that is not a JSON object is a clear error (tests/unit/node-stable.test.mjs)
+    #[test]
+    fn a_config_file_that_is_not_a_json_object_is_a_clear_error() {
+        let root = project("config-not-object", None, None);
+        let file = root.join(".dfw").join("config.json");
+        for content in ["[1,2]", "\"text\"", "5", "null", "true"] {
+            fs::write(&file, content).unwrap();
+            let err = load(&root).unwrap_err();
+            assert_eq!(err.exit_code(), 1);
+            assert_eq!(
+                err.report(),
+                format!(
+                    "Config file {} must hold a JSON object. Fix it or delete it.",
+                    file.display()
+                )
+            );
+            let err = set_config_value(Scope::Project, &root, "x", json!(1)).unwrap_err();
+            assert!(err.message().contains("must hold a JSON object"));
+            assert_eq!(
+                fs::read_to_string(&file).unwrap(),
+                content,
+                "left as it was"
+            );
+        }
+        fs::write(&file, "{}").unwrap();
+        let global = root.join("home-config.json");
+        fs::write(&global, "[]").unwrap();
+        let err = load_config_from(&global, Some(&root), &mut |_| {}).unwrap_err();
+        assert!(err
+            .message()
+            .contains("home-config.json must hold a JSON object"));
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    /// j: names that are prototype keys are not ids (tests/unit/node-stable.test.mjs; the config part)
+    #[test]
+    fn reserved_keys_in_a_config_file_are_dropped_and_not_set() {
+        let root = project(
+            "config-reserved",
+            None,
+            Some(
+                r#"{"__proto__":{"polluted":"yes"},"constructor":{"x":1},"studio":{"__proto__":{"port":1}}}"#,
+            ),
         );
-        // A non-object layer below another one is simply replaced, as deepMerge does.
-        fs::write(root.join(".dfw").join("config.json"), "[1]").unwrap();
-        fs::write(root.join(".dfw").join("config.local.json"), r#"{"a":1}"#).unwrap();
+        let c = load(&root).unwrap();
+        assert!(c.get("polluted").is_none() && c.get("constructor").is_none());
+        assert_eq!(c["studio"]["port"], 4600);
+        for key in [
+            "toString",
+            "studio.breakpoints.length",
+            "studio.constructor",
+        ] {
+            assert_eq!(get_path(&c, key), None, "{key}");
+        }
         assert_eq!(
-            to_json_compact(&load(&root)),
-            r#"{"a":1,"skills":{"disabled":[]},"gate":{"allow":[".dfw/**","design/handoff/**"],"immutable":["design/approved/**"]}}"#
+            get_path(&c, "studio.breakpoints.0.id"),
+            Some(&json!("desktop"))
+        );
+        for key in ["__proto__.x", "a.constructor", "a.prototype.b"] {
+            let err = set_config_value(Scope::Project, &root, key, json!(1)).unwrap_err();
+            assert!(
+                err.message()
+                    .starts_with(&format!("Invalid key \"{key}\": \"")),
+                "{err}"
+            );
+            assert!(err.message().ends_with("\" is a reserved name."));
+        }
+        assert!(!root.join(".dfw").join("config.json").exists());
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    /// n: config set refuses a key that goes through a list (tests/unit/node-stable.test.mjs)
+    #[test]
+    fn config_set_refuses_a_key_that_goes_through_a_list() {
+        let root = project("config-list", None, None);
+        set_config_value(Scope::Project, &root, "gate.allow", json!(["src/**"])).unwrap();
+        let err = set_config_value(Scope::Project, &root, "gate.allow.0.b", json!(5)).unwrap_err();
+        assert_eq!(
+            err.report(),
+            "Cannot set \"gate.allow.0.b\": \"gate.allow\" is a list; set the whole list instead."
+        );
+        let err =
+            set_config_value(Scope::Project, &root, "gate.allow.extra", json!(5)).unwrap_err();
+        assert!(err.message().contains("\"gate.allow\" is a list"));
+        assert_eq!(
+            fs::read_to_string(root.join(".dfw").join("config.json")).unwrap(),
+            "{\n  \"gate\": {\n    \"allow\": [\n      \"src/**\"\n    ]\n  }\n}\n"
+        );
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    /// config: project layers cannot set engine or loader variables, or loosen the privacy
+    /// defaults (tests/unit/impeccable-hardening.test.mjs)
+    #[test]
+    fn project_layers_cannot_set_engine_or_loader_variables() {
+        let root = project(
+            "config-env",
+            Some(
+                r#"{"env":{"IMPECCABLE_BIN":"/repo/evil","IMPECCABLE_API_URL":"http://evil.example","IMPECCABLE_UPDATE_HOST":"evil.example","IMPECCABLE_HOME":"/repo/cache","DO_NOT_TRACK":"0","IMPECCABLE_NO_UPDATE_CHECK":null,"IMPECCABLE_NO_TELEMETRY":"0","PATH":"/repo/bin","NODE_OPTIONS":"--require /repo/x.js","LD_PRELOAD":"/repo/x.so","DYLD_INSERT_LIBRARIES":"/repo/x.dylib","NO_COLOR":"1"}}"#,
+            ),
+            Some(r#"{"env":{"IMPECCABLE_HOOK_DISABLED":"0","IMPECCABLE_NO_TELEMETRY":"1"}}"#),
+        );
+        let global = root.join("home-config.json");
+        fs::write(&global, "{}").unwrap();
+        let mut warnings = Vec::new();
+        let c = load_config_from(&global, Some(&root), &mut |m| warnings.push(m)).unwrap();
+        assert_eq!(
+            to_json_compact(&c["env"]),
+            r#"{"DO_NOT_TRACK":"1","IMPECCABLE_NO_UPDATE_CHECK":"1","IMPECCABLE_HOOK_DISABLED":"1","NO_COLOR":"1","IMPECCABLE_NO_TELEMETRY":"1"}"#
+        );
+        let project_file = root.join(".dfw").join("config.json").display().to_string();
+        let local_file = root
+            .join(".dfw")
+            .join("config.local.json")
+            .display()
+            .to_string();
+        let dropped = [
+            "IMPECCABLE_BIN",
+            "IMPECCABLE_API_URL",
+            "IMPECCABLE_UPDATE_HOST",
+            "IMPECCABLE_HOME",
+            "DO_NOT_TRACK",
+            "IMPECCABLE_NO_UPDATE_CHECK",
+            "IMPECCABLE_NO_TELEMETRY",
+            "PATH",
+            "NODE_OPTIONS",
+            "LD_PRELOAD",
+            "DYLD_INSERT_LIBRARIES",
+        ];
+        for k in dropped {
+            let n = warnings
+                .iter()
+                .filter(|w| w.contains(&format!("env.{k} ")) && w.contains(&project_file))
+                .count();
+            assert_eq!(n, 1, "one warning for {k} naming the file");
+        }
+        assert_eq!(
+            warnings
+                .iter()
+                .filter(|w| w.contains("env.IMPECCABLE_HOOK_DISABLED ") && w.contains(&local_file))
+                .count(),
+            1
+        );
+        assert_eq!(
+            warnings.len(),
+            dropped.len() + 1,
+            "allowed keys do not warn"
+        );
+        assert_eq!(warnings[0], format!("dfw: ignored env.IMPECCABLE_BIN in {project_file} (a project config cannot set it; use the global config: dfw config set env.IMPECCABLE_BIN <value> --global)"));
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    /// config: a project "env": null cannot erase the defaults; the global config may set
+    /// anything (tests/unit/impeccable-hardening.test.mjs)
+    #[test]
+    fn a_project_env_null_cannot_erase_the_defaults() {
+        let root = project("config-env-null", Some(r#"{"env":null}"#), None);
+        let global = root.join("home-config.json");
+        fs::write(
+            &global,
+            r#"{"env":{"DO_NOT_TRACK":"0","IMPECCABLE_API_URL":"http://mirror.internal"}}"#,
+        )
+        .unwrap();
+        let mut warnings = Vec::new();
+        let c = load_config_from(&global, Some(&root), &mut |m| warnings.push(m)).unwrap();
+        assert_eq!(c["env"]["IMPECCABLE_NO_UPDATE_CHECK"], "1");
+        assert_eq!(
+            c["env"]["DO_NOT_TRACK"], "0",
+            "the user may change a default in the global config"
+        );
+        assert_eq!(c["env"]["IMPECCABLE_API_URL"], "http://mirror.internal");
+        assert_eq!(
+            warnings,
+            [format!(
+                "dfw: ignored env in {} (it must be an object of strings)",
+                root.join(".dfw").join("config.json").display()
+            )]
+        );
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    /// config: the unverified-engine opt-in is read from the global file only
+    /// (tests/unit/impeccable-hardening.test.mjs)
+    #[test]
+    fn the_unverified_engine_opt_in_is_read_from_the_global_file_only() {
+        let root = project(
+            "config-opt-in",
+            Some(r#"{"impeccable":{"allowUnverifiedEngine":true}}"#),
+            None,
+        );
+        let global = root.join("home-config.json");
+        fs::write(&global, "{}").unwrap();
+        assert!(!allow_unverified_engine(&global).unwrap());
+        fs::write(&global, r#"{"impeccable":{"allowUnverifiedEngine":true}}"#).unwrap();
+        assert!(allow_unverified_engine(&global).unwrap());
+        fs::write(
+            &global,
+            r#"{"impeccable":{"allowUnverifiedEngine":"true"}}"#,
+        )
+        .unwrap();
+        assert!(
+            !allow_unverified_engine(&global).unwrap(),
+            "only the boolean true opts in"
         );
         fs::remove_dir_all(&root).unwrap();
     }
@@ -667,7 +909,7 @@ mod tests {
             "{\n  \"schema\": 1,\n  \"studio\": {\n    \"port\": 4777\n  }\n}\n"
         );
         set_config_value(Scope::Local, &root, "review.shortcut", json!("off")).unwrap();
-        let c = load(&root);
+        let c = load(&root).unwrap();
         assert_eq!(get_path(&c, "studio.port"), Some(&json!(4777)));
         assert_eq!(get_path(&c, "review.shortcut"), Some(&json!("off")));
         assert_eq!(get_path(&c, "studio.nope"), None);

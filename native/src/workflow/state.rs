@@ -441,7 +441,9 @@ pub fn set_phase(
     reason: Option<Value>,
 ) -> Result<(), DfwError> {
     let blockers = transition_blockers(state, to)?;
-    if !blockers.is_empty() && !force {
+    // --force overrides gate blockers, never an unknown or missing phase.
+    let known = to.is_some_and(|t| PHASES.contains(&t));
+    if !blockers.is_empty() && (!force || !known) {
         return Err(DfwError::new(format!(
             "Cannot move to \"{}\":\n- {}",
             to.unwrap_or("undefined"),
@@ -714,6 +716,49 @@ mod tests {
             summarize(None).unwrap(),
             "dfw: no workflow in this project (run /dfw to start)."
         );
+    }
+
+    /// c: phase --force never writes a missing or unknown phase (tests/unit/node-stable.test.mjs)
+    #[test]
+    fn phase_force_never_writes_a_missing_or_unknown_phase() {
+        let root = test_dir("state-force");
+        let mut s = fresh("new-product");
+        for to in [None, Some("bogus")] {
+            let err = set_phase(&root, &mut s, to, true, None).unwrap_err();
+            assert!(
+                err.message()
+                    .contains(&format!("Unknown phase \"{}\"", to.unwrap_or("undefined"))),
+                "{err}"
+            );
+        }
+        assert_eq!(s["phase"], "discovery");
+        set_phase(&root, &mut s, Some("concepts"), true, Some("test".into())).unwrap();
+        assert_eq!(
+            s["phase"], "concepts",
+            "--force still overrides gate blockers"
+        );
+    }
+
+    /// j: names that are prototype keys are not ids (tests/unit/node-stable.test.mjs; modes and gates)
+    #[test]
+    fn prototype_names_are_not_modes_or_gates() {
+        let root = test_dir("state-proto");
+        let mut s = fresh("new-product");
+        for name in ["constructor", "toString", "__proto__", "hasOwnProperty"] {
+            let unknown = format!("Unknown mode \"{name}\".");
+            assert!(set_mode(&root, &mut s, Some(name))
+                .unwrap_err()
+                .message()
+                .starts_with(&unknown));
+            assert!(new_state(name, Value::Null)
+                .unwrap_err()
+                .message()
+                .starts_with(&unknown));
+            let gate = approve_gate(&root, &mut s, name, Some("x".into()), Map::new()).unwrap_err();
+            assert!(gate
+                .message()
+                .starts_with(&format!("Unknown gate \"{name}\".")));
+        }
     }
 
     #[test]

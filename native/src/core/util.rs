@@ -4,6 +4,8 @@
 //! JSON written here is byte-identical to `JSON.stringify(value, null, 2) + '\n'` for every value
 //! `serde_json` can hold, with one known exception: JavaScript moves integer-like keys ("1", "42")
 //! to the front of an object, `serde_json` keeps them where they were written.
+//!
+//! Over 800 lines only with its tests (the ported cases of the JavaScript tests sit next to the code).
 
 use std::collections::HashMap;
 use std::fs;
@@ -198,8 +200,13 @@ pub fn js_number(v: f64) -> String {
     }
 }
 
+/// `RESERVED_KEYS`: names that reach an object's prototype in JavaScript; never accepted as a key
+/// or a flag from input.
+pub const RESERVED_KEYS: [&str; 3] = ["__proto__", "constructor", "prototype"];
+
 /// `deepMerge(base, over)` for config layering: objects merge, arrays and scalars replace.
-/// (The JavaScript `undefined` case, "no override", is the caller not calling this.)
+/// Reserved keys are dropped. (The JavaScript `undefined` case, "no override", is the caller not
+/// calling this.)
 pub fn deep_merge(base: Value, over: Value) -> Value {
     let Value::Object(over) = over else {
         return over;
@@ -209,36 +216,68 @@ pub fn deep_merge(base: Value, over: Value) -> Value {
         _ => Map::new(),
     };
     for (k, v) in over {
-        let merged = match out.get_mut(&k) {
-            Some(slot) => deep_merge(slot.take(), v),
-            // A missing key still goes through the merge in Node; the result equals the override.
-            None => v,
-        };
+        if RESERVED_KEYS.contains(&k.as_str()) {
+            continue;
+        }
+        // A missing key still goes through the merge, so its reserved keys are dropped too.
+        let slot = out.get_mut(&k).map_or(Value::Null, Value::take);
+        let merged = deep_merge(slot, v);
         out.insert(k, merged);
     }
     Value::Object(out)
 }
 
-/// `getPath(obj, "a.b.c")`: `None` where JavaScript gives `undefined`.
+/// `getPath(obj, "a.b.c")`: `None` where JavaScript gives `undefined`. Own keys of objects and
+/// indexes of lists only, never a prototype member (`toString`, `length`).
 pub fn get_path<'a>(obj: &'a Value, dotted: &str) -> Option<&'a Value> {
     dotted.split('.').try_fold(obj, |o, k| match o {
         Value::Object(map) => map.get(k),
-        Value::Array(list) => k.parse::<usize>().ok().and_then(|i| list.get(i)),
+        // `Object.hasOwn(list, k)`: only the canonical form of an index ("1", not "01" or "+1").
+        Value::Array(list)
+            if k.bytes().all(|b| b.is_ascii_digit()) && (k == "0" || !k.starts_with('0')) =>
+        {
+            k.parse::<usize>().ok().and_then(|i| list.get(i))
+        }
         _ => None,
     })
 }
 
-/// `setPath(obj, "a.b.c", value)`: intermediate values that are not objects are replaced by objects.
-pub fn set_path(obj: &mut Value, dotted: &str, value: Value) {
+/// `setPath(obj, "a.b.c", value)`: intermediate values that are not objects are replaced by
+/// objects. A reserved name, or a key that goes through a list, is the user's error.
+pub fn set_path(obj: &mut Value, dotted: &str, value: Value) -> Result<(), DfwError> {
+    let keys: Vec<&str> = dotted.split('.').collect();
+    if let Some(reserved) = keys.iter().find(|k| RESERVED_KEYS.contains(k)) {
+        return Err(DfwError::new(format!(
+            "Invalid key \"{dotted}\": \"{reserved}\" is a reserved name."
+        )));
+    }
+    let mut value = Some(value);
     let mut o = obj;
-    for k in dotted.split('.') {
+    for (i, k) in keys.iter().enumerate() {
+        // A property set on a list is lost when the file is written, and an index would replace an item.
+        if o.is_array() {
+            return Err(DfwError::new(format!(
+                "Cannot set \"{dotted}\": \"{}\" is a list; set the whole list instead.",
+                keys[..i].join(".")
+            )));
+        }
         if !o.is_object() {
             *o = Value::Object(Map::new());
         }
-        let Value::Object(map) = o else { return };
-        o = map.entry(k).or_insert(Value::Null);
+        let Value::Object(map) = o else {
+            return Ok(()); // made an object just above
+        };
+        if i + 1 == keys.len() {
+            map.insert((*k).to_string(), value.take().unwrap_or(Value::Null));
+            return Ok(());
+        }
+        let slot = map.entry(*k).or_insert(Value::Null);
+        if !slot.is_object() && !slot.is_array() {
+            *slot = Value::Object(Map::new());
+        }
+        o = slot;
     }
-    *o = value;
+    Ok(())
 }
 
 /// `parseValue(v)`: a CLI value is JSON when it parses, else the raw string.
@@ -477,13 +516,86 @@ pub fn parse_args<S: AsRef<str>>(argv: &[S]) -> Args {
                 }
                 (None, None) => (body, ArgValue::Flag),
             };
-            args.flags.insert(key.to_string(), value);
+            // "--_" would replace the positional list and a reserved key the prototype: dropped
+            // with their value.
+            if key != "_" && !RESERVED_KEYS.contains(&key) {
+                args.flags.insert(key.to_string(), value);
+            }
         } else {
             args.positionals.push(a.to_string());
         }
         i += 1;
     }
     args
+}
+
+/// `VALUE_FLAGS` of cli.mjs: flags that take a value. Given without one they would read as `true`:
+/// a level 1 decision, a 1 second timeout, an approval note "true", a TypeError in path.resolve.
+pub const VALUE_FLAGS: [&str; 53] = [
+    "root",
+    "port",
+    "host",
+    "scope",
+    "source",
+    "mode",
+    "product",
+    "note",
+    "reason",
+    "level",
+    "topic",
+    "overrides",
+    "text",
+    "timeout",
+    "message",
+    "m",
+    "evidence",
+    "by",
+    "status",
+    "url",
+    "shortcut",
+    "bp",
+    "out",
+    "selector",
+    "screen",
+    "page",
+    "variant",
+    "state",
+    "theme",
+    "session",
+    "file",
+    "format",
+    "from",
+    "brief",
+    "limit",
+    "style",
+    "preset",
+    "fonts",
+    "base",
+    "ratio",
+    "display-ratio",
+    "brand",
+    "chroma",
+    "neutral-hue",
+    "tint",
+    "signature",
+    "signature-chroma",
+    "harmony",
+    "accent",
+    "names",
+    "threshold",
+    "max",
+    "marketplace-repo",
+];
+
+/// `requireFlagValues(a)`: the first flag of [`VALUE_FLAGS`] given without a value is an error.
+pub fn require_flag_values(args: &Args) -> Result<(), DfwError> {
+    let bare = VALUE_FLAGS
+        .iter()
+        .find(|k| args.get(k) == Some(&ArgValue::Flag));
+    match bare {
+        Some(k) => Err(DfwError::new(format!("--{k} needs a value."))),
+        None => Ok(()),
+    }
 }
 
 /// `readStdin()`: all of stdin as text, or an empty string when stdin is a terminal.
@@ -563,6 +675,104 @@ mod tests {
         assert!(!glob_to_regex("a?c").unwrap().is_match("a/c"));
         assert!(matches_any("design/x.html", &["src/**", "design/**"]));
         assert!(!matches_any("design/x.html", &[] as &[&str]));
+    }
+
+    /// j: names that are prototype keys are not ids (tests/unit/node-stable.test.mjs; the util part)
+    #[test]
+    fn reserved_names_are_not_keys_or_flags() {
+        let parsed = |argv: &[&str]| {
+            let a = parse_args(argv);
+            let mut keys: Vec<&String> = a.flags.keys().collect();
+            keys.sort();
+            (
+                a.positionals.clone(),
+                keys.into_iter().cloned().collect::<Vec<_>>(),
+            )
+        };
+        assert_eq!(
+            parsed(&["a", "--_=x", "b"]),
+            (vec!["a".into(), "b".into()], vec![])
+        );
+        assert_eq!(
+            parsed(&["a", "--_", "x", "b"]),
+            (vec!["a".into(), "b".into()], vec![])
+        );
+        assert_eq!(
+            parsed(&[
+                "--__proto__",
+                "x",
+                "--constructor",
+                "--prototype=1",
+                "y",
+                "--json"
+            ]),
+            (vec!["y".into()], vec!["json".into()])
+        );
+        let merged = deep_merge(
+            json!({"studio": {"port": 4600}}),
+            json!({"__proto__": {"polluted": "yes"}, "constructor": {"x": 1}, "studio": {"__proto__": {"port": 1}}, "new": {"prototype": 1, "k": 2}}),
+        );
+        assert_eq!(
+            to_json_compact(&merged),
+            r#"{"studio":{"port":4600},"new":{"k":2}}"#
+        );
+        let d = json!({"studio": {"breakpoints": [{"id": "desktop"}]}, "s": "text"});
+        for name in ["constructor", "toString", "__proto__", "hasOwnProperty"] {
+            assert_eq!(get_path(&d, name), None);
+            assert_eq!(get_path(&d, &format!("studio.{name}")), None);
+        }
+        assert_eq!(
+            get_path(&d, "studio.breakpoints.0.id"),
+            Some(&json!("desktop"))
+        );
+        for key in [
+            "studio.breakpoints.length",
+            "studio.breakpoints.00",
+            "studio.breakpoints.+0",
+            "s.length",
+        ] {
+            assert_eq!(get_path(&d, key), None, "{key}");
+        }
+        let mut v = json!({});
+        let err = set_path(&mut v, "a.constructor", json!(1)).unwrap_err();
+        assert_eq!(
+            err.report(),
+            "Invalid key \"a.constructor\": \"constructor\" is a reserved name."
+        );
+        assert_eq!(v, json!({}), "nothing set");
+    }
+
+    /// b, m: a flag that takes a value is refused without one (tests/unit/node-stable.test.mjs)
+    #[test]
+    fn a_flag_that_takes_a_value_is_refused_without_one() {
+        for flag in [
+            "level",
+            "timeout",
+            "root",
+            "port",
+            "note",
+            "reason",
+            "message",
+            "session",
+            "status",
+            "url",
+            "host",
+            "marketplace-repo",
+        ] {
+            let a = parse_args(&["x", &format!("--{flag}")]);
+            assert_eq!(
+                require_flag_values(&a).unwrap_err().report(),
+                format!("--{flag} needs a value.")
+            );
+        }
+        assert!(require_flag_values(&parse_args(&["status", "--json", "--root", "/p"])).is_ok());
+        assert!(require_flag_values(&parse_args(&["comments", "list", "--status=open"])).is_ok());
+        // The first one in the Node list wins, whatever the order typed.
+        let a = parse_args(&["x", "--level", "--root"]);
+        assert_eq!(
+            require_flag_values(&a).unwrap_err().message(),
+            "--root needs a value."
+        );
     }
 
     #[test]
@@ -743,8 +953,8 @@ mod tests {
         let mut v = json!({"a": {"b": [10, 20]}, "s": "x"});
         assert_eq!(get_path(&v, "a.b.1"), Some(&json!(20)));
         assert_eq!(get_path(&v, "a.missing.c"), None);
-        set_path(&mut v, "s.deep.k", json!(true));
-        set_path(&mut v, "a.c", json!(1));
+        set_path(&mut v, "s.deep.k", json!(true)).unwrap();
+        set_path(&mut v, "a.c", json!(1)).unwrap();
         assert_eq!(
             v,
             json!({"a": {"b": [10, 20], "c": 1}, "s": {"deep": {"k": true}}})

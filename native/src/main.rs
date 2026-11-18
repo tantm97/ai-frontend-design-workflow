@@ -21,7 +21,7 @@ mod workflow;
 use crate::cli::{Ctx, Handler};
 use crate::core::error::DfwError;
 use crate::core::paths::env_nonempty;
-use crate::core::util::{parse_args, Args};
+use crate::core::util::{parse_args, require_flag_values, Args};
 
 fn main() {
     let started = std::time::Instant::now();
@@ -50,6 +50,11 @@ fn run(ctx: &Ctx, name: &str) -> Result<i32, DfwError> {
     // The internal server commands exist only as the first argument; anywhere else cli.mjs
     // reaches its switch, which does not know them.
     let misplaced = cli::INTERNAL.contains(&name) && argv.first().map(String::as_str) != Some(name);
+    let internal = cli::INTERNAL.contains(&name) && !misplaced;
+    // A hook checks its flags inside the handler: it fails open.
+    if !internal && ctx.args.pos(0) != Some("hook") {
+        require_flag_values(&ctx.args)?;
+    }
     let table = cli::commands();
     let handler = table
         .iter()

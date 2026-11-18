@@ -332,6 +332,16 @@ mod tests {
         serde_json::from_str(text).unwrap()
     }
 
+    /// j: names that are prototype keys are not ids (tests/unit/node-stable.test.mjs; MCP targets)
+    #[test]
+    fn prototype_names_are_not_mcp_targets() {
+        let err = mcp_install("constructor", false, true).unwrap_err();
+        assert!(err
+            .message()
+            .starts_with("Unknown tool \"constructor\". MCP install targets: "));
+        assert!(!mcp_installed("constructor") && !mcp_installed("toString"));
+    }
+
     /// mcp install: config text for OpenCode, Codex, Cursor (add, keep other servers, remove)
     #[test]
     fn config_text_for_opencode_codex_cursor() {
