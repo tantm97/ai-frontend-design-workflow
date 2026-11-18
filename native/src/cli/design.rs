@@ -1,23 +1,31 @@
 //! Design commands of `core/lib/cli.mjs`: build, tokens, lint, check, system, style, type, palette, icons,
 //! fonts, blueprint.
 //!
-//! Still on the Node CLI: `lint` and `check` (design/lint, tools/check), `system audit`
-//! (design/dsaudit), `tokens extract` (browser) and `tokens export|import` (penpot).
-// Over 800 lines: one arm of the cli.mjs switch per function, plus the two `__debug` helpers.
+//! Still on the Node CLI: `tokens extract` (browser), `tokens export|import` (penpot) and a
+//! `check` that renders pages for the accessibility check (whole design or `--url` without
+//! `--no-a11y`: browser/a11y).
+// Over 800 lines: one arm of the cli.mjs switch per function, plus the `__debug` helpers.
 
 use std::path::Path;
 
 use serde_json::{json, Map, Value};
 
 use super::{forward, Ctx, Handler};
+use crate::core::config::env_map;
 use crate::core::error::DfwError;
 use crate::core::paths::{project_paths, resolve};
 use crate::core::util::{out, to_json_compact, to_json_pretty, write_json, ArgValue, Args};
 use crate::design::color::{self, Names, Oklch, Ramp, Seeds, Signature};
-use crate::design::compose::{build_system, compose_html, parse_component_file, ComposeOptions};
+use crate::design::compose::{
+    build_system, compose_html, load_components, parse_component_file, ComposeOptions,
+};
+use crate::design::dsaudit::audit_design_system;
 use crate::design::fonts::font_subsets;
 use crate::design::icons::{add_icons, icon_bundle, search_icons, slice_end};
 use crate::design::inventory::{inventory_findings, kit_ref, kit_refs, load_inventory};
+use crate::design::lint::{
+    lint_component_file, lint_css, lint_html, lint_screen, lint_tokens, state_coverage,
+};
 use crate::design::style::{
     apply_style, format_style, get_style, list_styles, match_styles, search_styles, AXES,
 };
@@ -25,14 +33,19 @@ use crate::design::system::{
     list_presets, system_choose, system_init, system_options, system_summary, InitOptions,
 };
 use crate::design::tokens::{build_tokens, dir_names, js, relative_path};
+use crate::tools::check::engine::{check_config, impeccable_engine};
+use crate::tools::check::{
+    check_exit_code, format_report, launch, run_checks, setup_engine, CheckOptions,
+};
+use crate::tools::lighthouse::run_lighthouse;
 
-/// The commands of this group; `Forward` until ported.
+/// The commands of this group.
 pub fn commands() -> Vec<(&'static str, Handler)> {
     vec![
         ("build", Handler::Native(build)),
         ("tokens", Handler::Native(build)),
-        ("lint", Handler::Forward),
-        ("check", Handler::Forward),
+        ("lint", Handler::Native(check)),
+        ("check", Handler::Native(check)),
         ("system", Handler::Native(system)),
         ("style", Handler::Native(style)),
         ("type", Handler::Native(type_scale)),
@@ -171,6 +184,140 @@ fn build(ctx: &Ctx) -> Result<i32, DfwError> {
     Ok(0)
 }
 
+/// `dfw system audit [--json]`: the senior review of tokens, DESIGN.md and the inventory.
+fn system_audit(root: &Path, a: &Args) -> Result<i32, DfwError> {
+    let findings = audit_design_system(root)?;
+    if a.truthy("json") {
+        out(&to_json_pretty(&Value::Array(findings)));
+        return Ok(0);
+    }
+    if findings.is_empty() {
+        out("Design system audit: no findings.");
+        return Ok(0);
+    }
+    let lines: Vec<String> = findings
+        .iter()
+        .map(|f| {
+            format!(
+                "- [{}] ({}) {}",
+                level_label(f),
+                js::to_string(f.get("rule")),
+                js::to_string(f.get("message"))
+            )
+        })
+        .collect();
+    out(&lines.join("\n"));
+    Ok(if has_error(&findings) { 2 } else { 0 })
+}
+
+// ---------------------------------------------------------------- lint, check
+
+/// The page `dfw check --setup` hands to the upstream launcher so it has something to detect.
+const SETUP_PAGE: &str = "<!doctype html><html lang=\"en\"><title>x</title><p>x</p></html>";
+
+/// `dfw lint [files...]` (dfw's own lint only) and `dfw check [files...|--url <u>]` (every tool).
+fn check(ctx: &Ctx) -> Result<i32, DfwError> {
+    let a = &ctx.args;
+    let is_check = a.pos(0) == Some("check");
+    let root = ctx.root();
+    let url = match a.get("url") {
+        Some(ArgValue::Text(u)) if !u.is_empty() => Some(u.clone()),
+        Some(ArgValue::Flag) => return usage("--url needs a value: dfw check --url <running app>"),
+        _ => None,
+    };
+    let mut files: Vec<String> = a.positionals.iter().skip(1).cloned().collect();
+    // "--strict <file>": the file is a target, not the flag's value.
+    if let Some(ArgValue::Text(file)) = a.get("strict") {
+        files.push(file.clone());
+    }
+    let targets: Option<Vec<String>> = match url.clone() {
+        Some(u) => Some(vec![u]),
+        None if !files.is_empty() => Some(files),
+        None => None,
+    };
+    let setup = a.truthy("setup");
+    // Rendered accessibility (axe) on the whole design or a URL needs the browser group: that
+    // run goes to the Node CLI as a whole. Per-file runs stay fast and static, and run here.
+    if is_check && !setup && !a.truthy("no-a11y") && (url.is_some() || targets.is_none()) {
+        return forward(&ctx.argv);
+    }
+    let config = check_config(&root)?;
+    if setup {
+        let page = project_paths(&root).dfw.join("checks").join("setup.html");
+        if let Some(dir) = page.parent() {
+            std::fs::create_dir_all(dir)?;
+        }
+        std::fs::write(&page, SETUP_PAGE)?;
+        let done = setup_engine(
+            &env_map(&config),
+            &page.to_string_lossy(),
+            &impeccable_engine,
+            &launch,
+        )?;
+        if !done.ok && done.text == "Impeccable plugin not found." {
+            return Err(DfwError::new(done.text));
+        }
+        out(&done.text);
+        return Ok(0);
+    }
+    let opts = CheckOptions {
+        timeout_ms: Some(num_or(a, "timeout", 60000.0) as u64),
+        tools: if is_check { None } else { Some(&["dfw"]) },
+    };
+    let mut results = run_checks(&root, targets.as_deref(), &config, opts)?;
+    if is_check && a.truthy("lighthouse") {
+        let Some(url) = &url else {
+            return usage("--lighthouse needs --url <running app> (verify phase).");
+        };
+        results.push(run_lighthouse(url, 240_000));
+    }
+    let report = format_report(&results, num_or(a, "max", 60.0) as usize);
+    if a.truthy("json") {
+        out(&to_json_pretty(
+            &json!({ "results": results, "tally": report.tally(), "unverified": report.unverified }),
+        ));
+    } else {
+        out(&report.text);
+    }
+    Ok(check_exit_code(&report, a.truthy("strict")))
+}
+
+/// `__debug lint <file> [--as html|screen|component|css|tokens|states] [--rel <path>]
+/// [--root <project>] [--base <tokens.json>]`: the findings of one lint function as compact
+/// JSON (`--as tokens` on text that is not JSON prints `{"error":true}`).
+pub(super) fn debug_lint(ctx: &Ctx) -> Result<i32, DfwError> {
+    let a = &ctx.args;
+    let Some(file) = a.pos(2) else {
+        return usage("Usage: dfw __debug lint <file> [--as html|screen|component|css|tokens|states] [--rel <path>] [--root <project>] [--base <tokens.json>]");
+    };
+    let text = js::read_text(Path::new(file))?;
+    let rel = a.text("rel").unwrap_or(file);
+    let findings = match a.text("as").unwrap_or("html") {
+        "html" => lint_html(rel, &text),
+        "component" => lint_component_file(rel, &text),
+        "css" => lint_css(rel, &text),
+        "screen" => {
+            let root = ctx.root();
+            lint_screen(&root, rel, &text, &load_components(&root)?)?
+        }
+        "states" => state_coverage(&ctx.root(), rel, &text)?,
+        "tokens" => {
+            let Ok(tree) = serde_json::from_str::<Value>(&text) else {
+                out("{\"error\":true}");
+                return Ok(0);
+            };
+            let base = match a.text("base") {
+                Some(base) => Some(js::read_json(Path::new(base), None)?),
+                None => None,
+            };
+            lint_tokens(rel, &tree, base.as_ref())
+        }
+        other => return usage(&format!("Unknown lint \"{other}\"")),
+    };
+    out(&to_json_compact(&Value::Array(findings)));
+    Ok(0)
+}
+
 // ---------------------------------------------------------------- system
 
 // One arm per subcommand, as the `system` case of cli.mjs.
@@ -248,8 +395,7 @@ fn system(ctx: &Ctx) -> Result<i32, DfwError> {
             let chosen = system_choose(&root, a.pos(2).unwrap_or("undefined"), fonts_arg(a))?;
             out(&format!("Tokens now come from \"{chosen}\". Adapt design/tokens/tokens.json to the direction, then review the Design System page."));
         }
-        // design/dsaudit is not ported yet.
-        "audit" => return forward(&ctx.argv),
+        "audit" => return system_audit(&root, a),
         "list" => {
             let summary = system_summary(&root)?;
             if a.truthy("json") {

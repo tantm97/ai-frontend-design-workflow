@@ -1,23 +1,30 @@
 //! Ports `postToolUse` of `core/lib/hooks.mjs`: after an edit, checks on the files it touched
 //! and, for hosts without prompt context, new Studio comments.
 //!
-//! Native here: the decision whether the edit needs checks, and the comment delivery when it
-//! does not. The checks themselves (token and component rebuild, lint: the design group) are
-//! not ported, so an edit that needs them is handed to the Node CLI as a whole.
+//! The checks: generated files are rebuilt when a token file or a component master changed (so
+//! the Studio live-reloads without an extra command), then dfw lint runs on the edited files
+//! (milliseconds). Every tool runs only with `checks.onEdit: "full"`; full checks otherwise run
+//! at gates and on "dfw check".
+
+use std::path::PathBuf;
 
 use serde_json::Value;
 
-use crate::core::config::{checks_on_edit, load_config, OnEdit};
+use crate::core::config::{checks_max_findings, checks_on_edit, checks_timeout_ms, OnEdit};
 use crate::core::error::DfwError;
 use crate::core::host::{HookInput, HookResult, Host};
 use crate::core::paths::resolve;
+use crate::design::compose::build_system;
+use crate::design::tokens::build_tokens;
+use crate::tools::check::engine::check_config;
+use crate::tools::check::{extname, format_report, run_checks, CheckOptions, UI_EXT};
 use crate::workflow::gates::relative;
 use crate::workflow::state::load_state;
 
 use super::pre_tool_use::{root_from, tool_files};
 use super::user_prompt_submit::{delivers_on_prompt, inbox_for};
 
-/// What a handler that is only partly ported decided.
+/// What a handler that may hand its call to the Node CLI decided.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Outcome<T = HookResult> {
     /// Handled here: the result to print (or nothing).
@@ -26,73 +33,115 @@ pub enum Outcome<T = HookResult> {
     Forward,
 }
 
-/// `UI_EXT` of check.mjs: the files the checks look at.
-// TODO(merge): use tools::check::UI_EXT
-const UI_EXT: [&str; 11] = [
-    ".html", ".htm", ".css", ".scss", ".sass", ".less", ".jsx", ".tsx", ".vue", ".svelte", ".astro",
-];
-
-/// `path.extname`: from the last dot of the last segment, unless the name starts with it.
-fn extname(rel: &str) -> &str {
-    let name = rel.rsplit('/').next().unwrap_or(rel);
-    match name.rfind('.') {
-        Some(i) if i > 0 => &name[i..],
-        _ => "",
-    }
+/// `/^design\/<dir>.*\.json$/.test(rel)`.
+fn design_json(rel: &str, dir: &str) -> bool {
+    let prefix = format!("design/{dir}");
+    rel.starts_with(&prefix)
+        && rel.ends_with(".json")
+        && rel.len() >= prefix.len() + ".json".len()
+        && !rel.contains(['\n', '\r', '\u{2028}', '\u{2029}'])
 }
 
-/// The first part of `postToolUseChecks`: the project-relative files of this edit that the
-/// checks would run on. Empty when nothing needs checking.
-pub fn check_targets(input: &HookInput) -> Result<Vec<String>, DfwError> {
+/// What an edit asks the checks to look at.
+struct Edited {
+    root: PathBuf,
+    config: Value,
+    /// Project-relative files of the edit that the checks run on.
+    targets: Vec<String>,
+}
+
+/// The first part of `postToolUseChecks`: nothing when the project has no active workflow, the
+/// checks are off, or no edited file is one they look at.
+fn edited(input: &HookInput) -> Result<Option<Edited>, DfwError> {
     let files = tool_files(input)?;
     if files.is_empty() {
-        return Ok(Vec::new());
+        return Ok(None);
     }
     let root = root_from(input)?;
     let Some(state) = load_state(&root)? else {
-        return Ok(Vec::new());
+        return Ok(None);
     };
     if state.get("active") == Some(&Value::Bool(false)) {
-        return Ok(Vec::new());
+        return Ok(None);
     }
-    let config = load_config(Some(&root))?;
+    let config = check_config(&root)?;
     if checks_on_edit(&config) == OnEdit::Off {
-        return Ok(Vec::new());
+        return Ok(None);
     }
     let root = resolve(&root);
-    let design_json = |rel: &str| {
-        rel.starts_with("design/")
-            && rel.ends_with(".json")
-            && rel.len() >= "design/.json".len()
-            && !rel.contains(['\n', '\r', '\u{2028}', '\u{2029}'])
-    };
-    Ok(files
+    let targets: Vec<String> = files
         .iter()
         .map(|f| relative(&root, f))
         .filter(|rel| {
             !rel.starts_with("..")
                 && !rel.starts_with("design/approved/")
-                && (UI_EXT.contains(&extname(rel)) || design_json(rel))
+                && (UI_EXT.contains(&extname(rel)) || design_json(rel, ""))
         })
-        .collect())
+        .collect();
+    Ok((!targets.is_empty()).then_some(Edited {
+        root,
+        config,
+        targets,
+    }))
 }
 
-/// `postToolUse(input, host)`.
-pub fn post_tool_use(input: &HookInput, host: &Host) -> Result<Outcome, DfwError> {
-    let targets = check_targets(input);
-    if matches!(&targets, Ok(t) if !t.is_empty()) {
-        // Node delivers the comments and runs the checks in one call; nothing was delivered yet.
-        return Ok(Outcome::Forward);
+/// `postToolUseChecks(input)`: the report on the edited files, when it has MUST or SHOULD items.
+fn post_tool_use_checks(input: &HookInput) -> Result<Option<String>, DfwError> {
+    let Some(Edited {
+        root,
+        config,
+        targets,
+    }) = edited(input)?
+    else {
+        return Ok(None);
+    };
+    // Keep generated files in sync. A failure here is reported by lint.
+    let rebuild = || -> Result<(), DfwError> {
+        if targets.iter().any(|t| design_json(t, "tokens/")) {
+            build_tokens(&root)?;
+        }
+        if targets
+            .iter()
+            .any(|t| t.starts_with("design/system/components/"))
+        {
+            build_system(&root)?;
+        }
+        Ok(())
+    };
+    let _ = rebuild();
+    // Fast by default: dfw lint only.
+    let full = checks_on_edit(&config) == OnEdit::Full;
+    let opts = CheckOptions {
+        timeout_ms: Some(checks_timeout_ms(&config)),
+        tools: if full { None } else { Some(&["dfw"]) },
+    };
+    let results = run_checks(&root, Some(&targets), &config, opts)?;
+    let report = format_report(&results, checks_max_findings(&config));
+    if report.errors == 0 && report.warnings == 0 {
+        return Ok(None);
     }
+    Ok(Some(format!(
+        "dfw checks on {}:\n{}\nFix MUST items before moving on; SHOULD items unless the brief or a recorded decision says otherwise.",
+        targets.join(", "),
+        report.text
+    )))
+}
+
+/// `postToolUse(input, host)`. Always handled here; the `Outcome` is what `cli/hook.rs` takes.
+pub fn post_tool_use(input: &HookInput, host: &Host) -> Result<Outcome, DfwError> {
     // Hosts that cannot add context to the user's prompt get new Studio comments here instead.
-    // Node reads them before it looks at the edit, so they are delivered even when that fails.
+    // They are read before the edit is looked at, as in Node, so they count as delivered even
+    // when the checks fail.
     let inbox = if delivers_on_prompt(host) {
         None
     } else {
         inbox_for(input)?
     };
-    targets?;
-    Ok(Outcome::Done(inbox.map(HookResult::Context)))
+    let checks = post_tool_use_checks(input)?;
+    let text: Vec<String> = [checks, inbox].into_iter().flatten().collect();
+    Ok(Outcome::Done(
+        (!text.is_empty()).then(|| HookResult::Context(text.join("\n\n"))),
+    ))
 }
 
 #[cfg(test)]
@@ -100,12 +149,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn extname_is_the_node_extname() {
-        assert_eq!(extname("design/screens/a/index.html"), ".html");
-        assert_eq!(extname("src/App.test.tsx"), ".tsx");
-        assert_eq!(extname("src/.env"), "");
-        assert_eq!(extname("a.b/readme"), "");
-        assert_eq!(extname("notes."), ".");
-        assert_eq!(extname(""), "");
+    fn design_json_is_the_node_expression() {
+        assert!(design_json("design/design.json", ""));
+        assert!(design_json("design/.json", ""));
+        assert!(!design_json("design/json", ""));
+        assert!(!design_json("src/design/a.json", ""));
+        assert!(design_json("design/tokens/themes/dark.json", "tokens/"));
+        assert!(design_json("design/tokens/.json", "tokens/"));
+        assert!(!design_json("design/tokens.json", "tokens/"));
+        assert!(!design_json("design/tokens/a\nb.json", "tokens/"));
     }
 }
