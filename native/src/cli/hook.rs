@@ -2,7 +2,6 @@
 //! prints the host-specific result; fails open.
 
 use std::io::{self, IsTerminal, Read, Write};
-use std::process::{Command, Stdio};
 use std::time::Instant;
 
 use serde_json::{json, Value};
@@ -10,7 +9,6 @@ use serde_json::{json, Value};
 use super::{Ctx, Handler};
 use crate::core::error::DfwError;
 use crate::core::host::{current_host, format_hook_output, normalize_hook_input, HookResult};
-use crate::core::paths::plugin_root;
 use crate::core::util::to_json_compact;
 use crate::hooks::post_tool_use::{post_tool_use, Outcome};
 use crate::hooks::pre_tool_use::pre_tool_use;
@@ -73,7 +71,6 @@ fn hook(ctx: &Ctx) -> Result<i32, DfwError> {
             }
             (kind, None)
         }
-        Ok((kind, Outcome::Forward)) => (kind, forward_with_stdin(&ctx.argv, &stdin).err()),
         Err(err) => (HookOutcome::Error, Some(err)),
     };
     if let Some(err) = failed {
@@ -85,7 +82,7 @@ fn hook(ctx: &Ctx) -> Result<i32, DfwError> {
     Ok(0)
 }
 
-/// Run the handler and put its result in the host's words: the JSON to print, or `Forward`;
+/// Run the handler and put its result in the host's words: the JSON to print;
 /// with it, the kind of result for telemetry.
 fn run(
     ctx: &Ctx,
@@ -101,38 +98,13 @@ fn run(
         "user-prompt-submit" => user_prompt_submit(&input, host)?,
         "post-tool-use" => match post_tool_use(&input, host)? {
             Outcome::Done(result) => result,
-            Outcome::Forward => return Ok((HookOutcome::Forwarded, Outcome::Forward)),
         },
         _ => match stop(&input)? {
             Outcome::Done(result) => result,
-            Outcome::Forward => return Ok((HookOutcome::Forwarded, Outcome::Forward)),
         },
     };
     let kind = HookOutcome::of(result.as_ref());
     let neutral = result.map_or(Value::Null, |r| r.to_value());
     let output = format_hook_output(host.id, event, &neutral)?;
     Ok((kind, Outcome::Done(output)))
-}
-
-/// Run the Node CLI with the same arguments and give it the stdin this process already read.
-/// The child's exit code is not used: a hook always exits with 0.
-// TODO(merge): use cli::forward once it can take the bytes of a stdin that was already read.
-fn forward_with_stdin(argv: &[String], stdin: &[u8]) -> Result<(), DfwError> {
-    let script = plugin_root()
-        .map(|root| root.join("bin").join("dfw.mjs"))
-        .filter(|f| f.is_file())
-        .ok_or_else(|| DfwError::new("this hook still runs on the Node.js CLI, and bin/dfw.mjs was not found (set DFW_PLUGIN_ROOT to the dfw plugin folder)"))?;
-    let mut child = Command::new("node")
-        .arg(&script)
-        .args(argv)
-        .env("DFW_FORWARDED", "1")
-        .stdin(Stdio::piped())
-        .spawn()
-        .map_err(|err| DfwError::internal(format!("could not start node: {err}")))?;
-    if let Some(mut pipe) = child.stdin.take() {
-        // A child that exits without reading closes the pipe: not an error of this hook.
-        let _ = pipe.write_all(stdin);
-    }
-    child.wait()?;
-    Ok(())
 }

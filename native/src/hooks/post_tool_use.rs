@@ -24,13 +24,11 @@ use crate::workflow::state::load_state;
 use super::pre_tool_use::{root_from, tool_files};
 use super::user_prompt_submit::{delivers_on_prompt, inbox_for};
 
-/// What a handler that may hand its call to the Node CLI decided.
+/// What a hook handler decided.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Outcome<T = HookResult> {
     /// Handled here: the result to print (or nothing).
     Done(Option<T>),
-    /// Needs code of a group that is not ported: the Node CLI runs this hook call.
-    Forward,
 }
 
 /// `/^design\/<dir>.*\.json$/.test(rel)`.
