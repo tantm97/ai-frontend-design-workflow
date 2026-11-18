@@ -143,6 +143,12 @@ pub struct ToolRun<'a> {
 /// `sloplintScope`: Hallmark leads marketing pages only.
 fn sloplint_scope(root: &Path) -> Result<&'static str, DfwError> {
     let manifest = read_json(&project_paths(root).manifest, Some(json!({})))?;
+    if manifest.is_null() {
+        // As in Node, where a design.json that holds `null` ends the run with this TypeError.
+        return Err(DfwError::internal(
+            "Cannot read properties of null (reading 'surface')",
+        ));
+    }
     Ok(
         if manifest.get("surface").and_then(Value::as_str) == Some("marketing") {
             "page"

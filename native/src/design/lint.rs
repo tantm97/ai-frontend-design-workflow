@@ -382,14 +382,34 @@ pub fn lint_screen(
             add("warn", "app-shell", 1, "Screen does not use the shared app-shell: every screen should be framed by the same navigation and layout (<dfw-use c=\"app-shell\" current=\"...\">).".into());
         }
     }
-    out.extend(state_coverage(root, rel, text));
+    out.extend(state_coverage(root, rel, text)?);
     Ok(out)
 }
 
-/// The items of a JSON array; nothing for any other value (where the Node code read
-/// `value || []`, and threw a TypeError on a value that is neither an array nor falsy).
-fn items(value: Option<&Value>) -> &[Value] {
-    value.and_then(Value::as_array).map_or(&[], Vec::as_slice)
+/// A design.json value of a type the Node code could not handle: it stopped there with a
+/// TypeError, and so does the lint (a manifest of the wrong shape never passes a gate).
+fn malformed(what: &str) -> DfwError {
+    DfwError::internal(format!(
+        "Malformed design/design.json: {what} (the Node CLI stops here with a TypeError)."
+    ))
+}
+
+/// `value || []` before an array method: a list, nothing for a missing or falsy value, and the
+/// TypeError of Node for any other value.
+fn list<'a>(value: Option<&'a Value>, what: &str) -> Result<&'a [Value], DfwError> {
+    match value {
+        Some(Value::Array(items)) => Ok(items),
+        Some(other) if js::truthy(Some(other)) => Err(malformed(&format!("{what} must be a list"))),
+        _ => Ok(&[]),
+    }
+}
+
+/// An item the Node code read a property of: `null` was a TypeError there.
+fn item<'a>(value: &'a Value, what: &str) -> Result<&'a Value, DfwError> {
+    if value.is_null() {
+        return Err(malformed(&format!("{what} must not be null")));
+    }
+    Ok(value)
 }
 
 /// `String(sc.id).startsWith('_')`: screens the workflow keeps out of the checks.
@@ -397,28 +417,52 @@ fn is_private(screen: &Value) -> bool {
     js::to_string(screen.get("id")).starts_with('_')
 }
 
+/// `(m?.screens || []).find((s) => (s.variants || []).some((v) => v.file === file))`: the screen
+/// that owns a file. Like `find` and `some`, it stops at the first match, so only what comes
+/// before it has to be well-formed.
+fn screen_of<'a>(manifest: &'a Value, file: &str) -> Result<Option<&'a Value>, DfwError> {
+    for screen in list(manifest.get("screens"), "\"screens\"")? {
+        let screen = item(screen, "a screen")?;
+        for variant in list(screen.get("variants"), "\"variants\" of a screen")? {
+            if item(variant, "a variant")?
+                .get("file")
+                .and_then(Value::as_str)
+                == Some(file)
+            {
+                return Ok(Some(screen));
+            }
+        }
+    }
+    Ok(None)
+}
+
+/// `sc.states?.length ? sc.states : m.states || []`, which the Node code then maps.
+fn declared_states<'a>(screen: &'a Value, manifest: &'a Value) -> Result<&'a [Value], DfwError> {
+    match screen.get("states") {
+        Some(Value::Array(own)) if !own.is_empty() => return Ok(own),
+        Some(Value::String(text)) if !text.is_empty() => {
+            return Err(malformed("\"states\" of a screen must be a list"));
+        }
+        Some(Value::Object(map)) if js::truthy(map.get("length")) => {
+            return Err(malformed("\"states\" of a screen must be a list"));
+        }
+        _ => {}
+    }
+    list(manifest.get("states"), "\"states\"")
+}
+
 /// `stateCoverage(root, rel, text)`: warn when a screen with a table/list or a form declares no
 /// loading/empty/error states (design.json states).
-pub fn state_coverage(root: &Path, rel: &str, text: &str) -> Vec<Value> {
-    // A malformed design.json is reported by lint_manifest (manifest-json).
+pub fn state_coverage(root: &Path, rel: &str, text: &str) -> Result<Vec<Value>, DfwError> {
+    // A design.json that is not JSON is reported by lint_manifest (manifest-json).
     let Ok(manifest) = read_json(&project_paths(root).manifest, Some(Value::Null)) else {
-        return Vec::new();
+        return Ok(Vec::new());
     };
     let file = rel.strip_prefix("design/").unwrap_or(rel);
-    let screen = items(manifest.get("screens")).iter().find(|s| {
-        items(s.get("variants"))
-            .iter()
-            .any(|v| v.get("file").and_then(Value::as_str) == Some(file))
-    });
-    let Some(screen) = screen.filter(|s| !is_private(s)) else {
-        return Vec::new();
+    let Some(screen) = screen_of(&manifest, file)?.filter(|s| !is_private(s)) else {
+        return Ok(Vec::new());
     };
-    let own = items(screen.get("states"));
-    let declared = if own.is_empty() {
-        items(manifest.get("states"))
-    } else {
-        own
-    };
+    let declared = declared_states(screen, &manifest)?;
     let states: Vec<String> = declared
         .iter()
         .map(|s| js::to_string(Some(s)).to_lowercase())
@@ -435,13 +479,13 @@ pub fn state_coverage(root: &Path, rel: &str, text: &str) -> Vec<Value> {
         .filter(|s| !states.iter().any(|have| have == s))
         .collect();
     if missing.is_empty() {
-        return Vec::new();
+        return Ok(Vec::new());
     }
     let what = if data { "a data surface" } else { "a form" };
     let message = format!("Screen \"{}\" has {what} but no {} state. Add them to its \"states\" in design.json and design each (.when-<state> blocks): empty needs a headline, explanation and primary action; error says what happened and how to recover, keeping user input. Also check edge content (very long text, missing optional fields, large counts).", js::to_string(screen.get("id")), missing.join("/"));
-    vec![
+    Ok(vec![
         json!({ "level": "warn", "rule": "state-coverage", "file": rel, "line": 1, "source": "dfw", "message": message }),
-    ]
+    ])
 }
 
 /// `lintComponentFile(rel, text)`: lint a component master file.
@@ -634,7 +678,7 @@ pub fn lint_design(root: &Path, files: Option<&[String]>) -> Result<Vec<Value>, 
     let mut out = Vec::new();
     let targets = lint_targets(root, files)?;
     if files.is_none() || targets.iter().any(|t| t == "design/design.json") {
-        out.extend(lint_manifest(root));
+        out.extend(lint_manifest(root)?);
     }
     let lib = load_components(root)?;
     for rel in &targets {

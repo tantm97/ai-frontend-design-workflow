@@ -198,15 +198,21 @@ fn state_coverage_for_data_surfaces_and_forms() {
     };
     manifest(json!([]));
     let rel = "design/screens/list/a.html";
-    let found = state_coverage(&root, rel, "<body><table></table><form></form></body>");
+    let found = state_coverage(&root, rel, "<body><table></table><form></form></body>").unwrap();
     assert_eq!(found.len(), 1);
     assert!(found[0]["message"]
         .as_str()
         .unwrap()
         .contains("no loading/empty/error state"));
     manifest(json!(["loading", "empty", "error"]));
-    assert!(state_coverage(&root, rel, "<body><table></table></body>").is_empty());
-    assert!(state_coverage(&root, rel, "<body><p>no data surface</p></body>").is_empty());
+    assert!(state_coverage(&root, rel, "<body><table></table></body>")
+        .unwrap()
+        .is_empty());
+    assert!(
+        state_coverage(&root, rel, "<body><p>no data surface</p></body>")
+            .unwrap()
+            .is_empty()
+    );
 }
 
 /// lint: interface-guideline and copy rules, near-duplicate colours, component state matrix
@@ -391,7 +397,7 @@ fn findings_have_the_keys_of_the_node_objects_in_order() {
         "design/design.json",
         r#"{"screens":[{"id":"s","variants":[{"id":"a","file":"s.html"}]}]}"#,
     );
-    let coverage = state_coverage(&root, "design/s.html", "<form>");
+    let coverage = state_coverage(&root, "design/s.html", "<form>").unwrap();
     let keys: Vec<&String> = coverage[0].as_object().unwrap().keys().collect();
     assert_eq!(keys, ["level", "rule", "file", "line", "source", "message"]);
     assert!(coverage[0]["message"]
@@ -606,11 +612,11 @@ fn token_rules_one_by_one() {
 #[test]
 fn manifest_rules_one_by_one() {
     let root = test_dir("lint-manifest");
-    assert_eq!(rules(&lint_manifest(&root)), ["manifest-missing"]);
+    assert_eq!(rules(&lint_manifest(&root).unwrap()), ["manifest-missing"]);
     write(&root, "design/design.json", "null");
-    assert_eq!(rules(&lint_manifest(&root)), ["manifest-missing"]);
+    assert_eq!(rules(&lint_manifest(&root).unwrap()), ["manifest-missing"]);
     write(&root, "design/design.json", "{}");
-    assert_eq!(rules(&lint_manifest(&root)), ["manifest-screens"]);
+    assert_eq!(rules(&lint_manifest(&root).unwrap()), ["manifest-screens"]);
     write(&root, "design/screens/a.html", "x");
     let manifest = json!({
         "screens": [
@@ -622,7 +628,7 @@ fn manifest_rules_one_by_one() {
         "pages": [{ "id": "p", "screens": ["a", "ghost", 7] }]
     });
     write(&root, "design/design.json", &manifest.to_string());
-    let f = lint_manifest(&root);
+    let f = lint_manifest(&root).unwrap();
     assert_eq!(
         messages(&f),
         [
@@ -796,4 +802,87 @@ fn design_targets_and_file_kinds() {
     assert!(is_token_file("x.tokens.json"));
     assert!(!is_token_file("design/tokens.json"));
     assert!(!is_token_file("design/tokens/a.css"));
+}
+
+/// Where the Node code died on a TypeError the lint ends with an error too (exit code 1): a
+/// manifest of the wrong shape never passes a gate.
+#[test]
+fn a_manifest_of_the_wrong_shape_is_an_error_where_node_dies() {
+    let root = test_dir("lint-manifest-shapes");
+    write(&root, "design/screens/a.html", "<table></table>");
+    let variant = json!({ "id": "a", "file": "screens/a.html" });
+    let check = |manifest: Value| {
+        write(&root, "design/design.json", &manifest.to_string());
+        let coverage = state_coverage(&root, "design/screens/a.html", "<table></table>");
+        (lint_manifest(&root).is_ok(), coverage.is_ok())
+    };
+    // Wrong types the Node code read without trouble.
+    for fine in [
+        json!(5),
+        json!("text"),
+        json!([1]),
+        json!({ "screens": 0, "pages": "ab", "states": 0 }),
+        json!({ "screens": [5, "x", { "id": "a", "variants": 0 }] }),
+        json!({ "screens": [{ "id": "a", "variants": [{ "file": "" }, { "file": 0 }] }] }),
+        json!({ "screens": [{ "id": "a" }], "pages": [{ "screens": "ab" }, "x", 5, []] }),
+        json!({ "screens": [{ "id": "a", "states": { "length": 0 }, "variants": [variant] }] }),
+    ] {
+        assert_eq!(check(fine.clone()), (true, true), "{fine}");
+    }
+    // (lint_manifest, state_coverage): which of the two the Node code died in.
+    for (broken, ok) in [
+        (json!({ "screens": {} }), (false, false)),
+        (json!({ "screens": "ab" }), (false, false)),
+        (json!({ "screens": [null] }), (false, false)),
+        (json!({ "screens": [{ "variants": "x" }] }), (true, false)),
+        (
+            json!({ "screens": [{ "variants": [null] }] }),
+            (false, false),
+        ),
+        (
+            json!({ "screens": [{ "variants": [{ "file": 5 }] }] }),
+            (false, true),
+        ),
+        // `find` and `some` stop at the first match: what follows it is not read.
+        (
+            json!({ "screens": [{ "id": "a", "states": ["loading", "empty", "error"], "variants": [variant, null] }, null] }),
+            (false, true),
+        ),
+        (json!({ "screens": [], "pages": {} }), (false, true)),
+        (json!({ "screens": [], "pages": [null] }), (false, true)),
+        (
+            json!({ "screens": [], "pages": [{ "screens": {} }] }),
+            (false, true),
+        ),
+        (
+            json!({ "screens": [{ "id": "a", "states": "loading", "variants": [variant] }] }),
+            (true, false),
+        ),
+        (
+            json!({ "screens": [{ "id": "a", "states": { "length": 2 }, "variants": [variant] }] }),
+            (true, false),
+        ),
+        (
+            json!({ "screens": [{ "id": "a", "variants": [variant] }], "states": { "a": 1 } }),
+            (true, false),
+        ),
+    ] {
+        assert_eq!(check(broken.clone()), ok, "{broken}");
+    }
+    write(&root, "design/design.json", r#"{"screens":[],"pages":7}"#);
+    let err = lint_manifest(&root).unwrap_err();
+    assert_eq!(err.exit_code(), 1);
+    assert_eq!(
+        err.message(),
+        "Malformed design/design.json: \"pages\" must be a list (the Node CLI stops here with a TypeError)."
+    );
+    // Of a text, each character is a screen id.
+    write(
+        &root,
+        "design/design.json",
+        r#"{"screens":[{"id":"a","variants":[]}],"pages":[{"id":"p","screens":"ab"}]}"#,
+    );
+    let found = lint_manifest(&root).unwrap();
+    assert!(messages(&found).contains(&"Page \"p\" lists unknown screen \"b\"."));
+    assert!(!messages(&found).contains(&"Page \"p\" lists unknown screen \"a\"."));
 }

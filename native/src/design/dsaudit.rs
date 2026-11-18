@@ -183,24 +183,50 @@ fn max_min(items: &[Value]) -> (f64, f64) {
     (max, min)
 }
 
-/// A shadow whose every layer is a neutral near-black.
-fn is_grey_shadow(value: Option<&Value>) -> bool {
-    let layer_is_grey = |layer: &Value| {
-        let Some(components) = layer
-            .get("color")
-            .and_then(|c| c.get("components"))
-            .and_then(Value::as_array)
-        else {
-            return false;
-        };
-        let (max, min) = max_min(components);
-        max - min < 0.02 && max < 0.05
+/// A token value of a type the Node code could not handle: it stopped there with a TypeError,
+/// and so does the audit (a token file of the wrong shape never passes a gate).
+fn malformed(what: &str) -> DfwError {
+    DfwError::internal(format!(
+        "Malformed design/tokens/tokens.json: {what} (the Node CLI stops here with a TypeError)."
+    ))
+}
+
+/// A shadow whose every layer is a neutral near-black. Like `every`, it stops at the first
+/// layer that is not, so only the layers before it have to be well-formed.
+fn is_grey_shadow(name: &str, value: Option<&Value>) -> Result<bool, DfwError> {
+    let layers = match value {
+        Some(Value::Array(layers)) => layers.as_slice(),
+        Some(layer) => std::slice::from_ref(layer),
+        None => &[],
     };
-    match value {
-        Some(Value::Array(layers)) => layers.iter().all(layer_is_grey),
-        Some(layer) => layer_is_grey(layer),
-        None => false,
+    for layer in layers {
+        if layer.is_null() {
+            return Err(malformed(&format!("a layer of shadow {name} is null")));
+        }
+        let components = layer.get("color").and_then(|c| c.get("components"));
+        let grey = match components.filter(|c| js::truthy(Some(c))) {
+            None => false,
+            Some(Value::Array(list)) => {
+                let (max, min) = max_min(list);
+                max - min < 0.02 && max < 0.05
+            }
+            // `Math.max(...text)` spreads the characters: not numbers unless they are digits.
+            Some(Value::String(text)) => {
+                let digits: Vec<Value> = text.chars().map(|c| json!(c.to_string())).collect();
+                let (max, min) = max_min(&digits);
+                max - min < 0.02 && max < 0.05
+            }
+            Some(_) => {
+                return Err(malformed(&format!(
+                    "the colour components of shadow {name} must be a list"
+                )))
+            }
+        };
+        if !grey {
+            return Ok(false);
+        }
     }
+    Ok(true)
 }
 
 fn is_line_end(c: char) -> bool {
@@ -314,10 +340,6 @@ pub fn audit_design_system(root: &Path) -> Result<Vec<Value>, DfwError> {
         .map(|list| list.iter().map(|x| js::to_string(Some(x))).collect())
         .unwrap_or_default();
     let on_fill = r.hex("color.on-fill").unwrap_or_else(|| json!("#ffffff"));
-    let canvas = roles
-        .get("canvas")
-        .and_then(Value::as_str)
-        .map(str::to_string);
     if ["accent", "surface", "ink"]
         .iter()
         .all(|k| roles.contains_key(*k))
@@ -360,6 +382,13 @@ pub fn audit_design_system(root: &Path) -> Result<Vec<Value>, DfwError> {
     let display = sizes(&["display-sm", "display-md", "display-lg", "display-xl"]);
     // A malformed design.json is reported by lint (manifest-json).
     let manifest = read_json(&p.manifest, Some(json!({}))).unwrap_or_else(|_| json!({}));
+    if manifest.is_null() {
+        // A design.json that holds `null`: the Node code reads `null.surface` and ends here
+        // with this TypeError (a Node bug, kept: lint reports the file as manifest-missing).
+        return Err(DfwError::internal(
+            "Cannot read properties of null (reading 'surface')",
+        ));
+    }
     let body = r
         .size("md")
         .filter(|v| js::truthy(Some(v)))
@@ -423,13 +452,21 @@ pub fn audit_design_system(root: &Path) -> Result<Vec<Value>, DfwError> {
             ),
         );
     }
-    let canvas_chroma = canvas.map_or(0.0, |hex| hex_to_oklch(&hex).c);
-    let grey = tokens
+    // `roles.canvas ? hexToOklch(roles.canvas).c : 0`: a colour object whose hex is not text
+    // is a TypeError there.
+    let canvas_chroma = match roles.get("canvas") {
+        Some(Value::String(hex)) => hex_to_oklch(hex).c,
+        Some(_) => return Err(malformed("the hex of color.canvas must be text")),
+        None => 0.0,
+    };
+    for shadow in tokens
         .iter()
         .filter(|t| t.kind.and_then(Value::as_str) == Some("shadow"))
-        .find(|t| is_grey_shadow(t.value));
-    if let Some(shadow) = grey.filter(|_| canvas_chroma > 0.008) {
-        add("warn", "shadow-tint", format!("{} uses a neutral black shadow on a tinted canvas; tint shadows with the darkest neutral so elevation belongs to the palette.", shadow.name));
+    {
+        if is_grey_shadow(&shadow.name, shadow.value)? && canvas_chroma > 0.008 {
+            add("warn", "shadow-tint", format!("{} uses a neutral black shadow on a tinted canvas; tint shadows with the darkest neutral so elevation belongs to the palette.", shadow.name));
+            break;
+        }
     }
     // Spacing grid.
     let off: Vec<String> = tokens
@@ -594,5 +631,52 @@ mod tests {
         assert!(findings
             .iter()
             .all(|f| f["source"] == "dfw-ds" && f["line"] == 1));
+    }
+    /// Where the Node code died on a TypeError the audit ends with an error too.
+    #[test]
+    fn token_values_of_the_wrong_type_are_an_error_where_node_dies() {
+        let audit = |tree: Value| {
+            let root = test_dir("dsaudit-shapes");
+            write(&root, "design/tokens/tokens.json", &tree.to_string());
+            audit_design_system(&root)
+        };
+        let shadow = |value: Value| json!({ "color": { "$type": "color", "canvas": { "$value": "#f4ede0" } }, "shadow": { "$type": "shadow", "a": { "$value": value } } });
+        let tinted = |value: Value| rules(&audit(shadow(value)).unwrap()).contains(&"shadow-tint");
+        assert!(tinted(json!([])));
+        assert!(tinted(json!({ "color": { "components": [] } })));
+        assert!(tinted(json!({ "color": { "components": "000" } })));
+        assert!(tinted(
+            json!({ "color": { "components": [null, false, "0.01"] } })
+        ));
+        assert!(!tinted(json!({ "color": { "components": "abc" } })));
+        assert!(!tinted(json!({ "color": { "components": "" } })));
+        assert!(!tinted(json!({ "color": null })));
+        assert!(!tinted(json!(7)));
+        // A layer that is not grey ends the look at this shadow: the null after it is not read.
+        assert!(!tinted(
+            json!([{ "color": { "components": [1, 0, 0] } }, null])
+        ));
+        for dies in [
+            json!(null),
+            json!([{ "color": { "components": [0, 0, 0] } }, null]),
+            json!({ "color": { "components": 5 } }),
+            json!({ "color": { "components": {} } }),
+        ] {
+            assert!(audit(shadow(dies.clone())).is_err(), "{dies}");
+        }
+        let canvas = |value: Value| {
+            audit(json!({ "color": { "$type": "color", "canvas": { "$value": value } } }))
+        };
+        assert!(canvas(json!({ "hex": 5 })).is_err());
+        assert!(canvas(json!({ "hex": "" })).is_ok());
+        assert!(canvas(json!(5)).is_ok());
+        // design.json that holds null.
+        let root = test_dir("dsaudit-null-manifest");
+        write(&root, "design/tokens/tokens.json", "{}");
+        write(&root, "design/design.json", "null");
+        assert_eq!(
+            audit_design_system(&root).unwrap_err().message(),
+            "Cannot read properties of null (reading 'surface')"
+        );
     }
 }

@@ -4,7 +4,8 @@ use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
-use super::{finding, is_private, items};
+use super::{finding, is_private, item, list, malformed};
+use crate::core::error::DfwError;
 use crate::core::paths::project_paths;
 use crate::core::util::read_json;
 use crate::design::tokens::js;
@@ -24,8 +25,11 @@ fn join_below(dir: &Path, file: &str) -> PathBuf {
     dir.join(file.trim_start_matches(['/', '\\']))
 }
 
-/// `lintManifest(root)`: design/design.json.
-pub fn lint_manifest(root: &Path) -> Vec<Value> {
+/// `lintManifest(root)`: design/design.json. A value of a type the Node code died on (a
+/// TypeError) is an error here too.
+// Over 120 lines with its messages, one function as in lint.mjs: the rules run in the order
+// their findings are printed.
+pub fn lint_manifest(root: &Path) -> Result<Vec<Value>, DfwError> {
     const REL: &str = "design/design.json";
     let p = project_paths(root);
     let mut out = Vec::new();
@@ -35,7 +39,7 @@ pub fn lint_manifest(root: &Path) -> Vec<Value> {
         Ok(manifest) => manifest,
         Err(err) => {
             add("error", "manifest-json", err.message().to_string());
-            return out;
+            return Ok(out);
         }
     };
     if !js::truthy(Some(&manifest)) {
@@ -44,9 +48,12 @@ pub fn lint_manifest(root: &Path) -> Vec<Value> {
             "manifest-missing",
             "design/design.json is missing.".into(),
         );
-        return out;
+        return Ok(out);
     }
-    let screens = items(manifest.get("screens"));
+    let screens = list(manifest.get("screens"), "\"screens\"")?;
+    for screen in screens {
+        item(screen, "a screen")?;
+    }
     if screens.is_empty() {
         add(
             "warn",
@@ -74,8 +81,23 @@ pub fn lint_manifest(root: &Path) -> Vec<Value> {
             }
         }
     }
-    for page in items(manifest.get("pages")) {
-        for sid in items(page.get("screens")) {
+    // `for (const pg of m.pages || [])`: a text is iterated letter by letter (no letter has
+    // screens), any other value that is not a list is a TypeError.
+    let pages = match manifest.get("pages") {
+        Some(Value::String(_)) => &[],
+        other => list(other, "\"pages\"")?,
+    };
+    for page in pages {
+        // Of a text, each character is taken for a screen id.
+        let letters: Vec<Value>;
+        let listed = match item(page, "a page")?.get("screens") {
+            Some(Value::String(text)) => {
+                letters = text.chars().map(|c| Value::String(c.into())).collect();
+                letters.as_slice()
+            }
+            other => list(other, "\"screens\" of a page")?,
+        };
+        for sid in listed {
             let known = screens
                 .iter()
                 .any(|s| s.get("id").is_some_and(|have| same_value(have, sid)));
@@ -111,7 +133,10 @@ pub fn lint_manifest(root: &Path) -> Vec<Value> {
             );
         }
         seen.push(sid);
-        let variants = items(screen.get("variants"));
+        let variants = screen
+            .get("variants")
+            .and_then(Value::as_array)
+            .map_or(&[][..], Vec::as_slice);
         if variants.is_empty() {
             add(
                 "error",
@@ -121,7 +146,8 @@ pub fn lint_manifest(root: &Path) -> Vec<Value> {
             continue;
         }
         for variant in variants {
-            let Some(file) = variant.get("file").filter(|f| js::truthy(Some(f))) else {
+            let file = item(variant, "a variant")?.get("file");
+            let Some(file) = file.filter(|f| js::truthy(Some(f))) else {
                 add(
                     "error",
                     "manifest-variant-file",
@@ -129,8 +155,10 @@ pub fn lint_manifest(root: &Path) -> Vec<Value> {
                 );
                 continue;
             };
-            let file = js::to_string(Some(file));
-            if !join_below(&p.design, &file).exists() {
+            let Some(file) = file.as_str() else {
+                return Err(malformed("\"file\" of a variant must be text"));
+            };
+            if !join_below(&p.design, file).exists() {
                 add(
                     "error",
                     "manifest-file-missing",
@@ -143,5 +171,5 @@ pub fn lint_manifest(root: &Path) -> Vec<Value> {
             }
         }
     }
-    out
+    Ok(out)
 }
