@@ -361,3 +361,30 @@ fn a_change_file_with_wrong_types_does_not_panic() {
         json!({ "key": "nope", "layers": [null] })
     ));
 }
+
+/// Coordinates sent as text are joined before they are compared, as `+` does in JavaScript.
+#[test]
+fn coordinates_sent_as_text() {
+    // "20" + 2 is "202"; 20 + 2 is 22.
+    assert_eq!(
+        centre(&json!({ "x": "20", "y": 20, "w": 4, "h": 4 })),
+        (202.0, 22.0)
+    );
+    assert!(centre(&json!({ "x": 1, "y": {}, "w": {} })).0.is_nan());
+    assert!(contains(
+        &json!({ "x": 0, "y": 0, "w": 10, "h": 10 }),
+        5.0,
+        5.0
+    ));
+    // x <= "0" + "10" = 10 holds, x <= "0" + 3 = 3 does not.
+    assert!(contains(
+        &json!({ "x": "0", "y": 0, "w": "10", "h": 10 }),
+        5.0,
+        5.0
+    ));
+    assert!(!contains(
+        &json!({ "x": "0", "y": 0, "w": 3, "h": 10 }),
+        5.0,
+        5.0
+    ));
+}

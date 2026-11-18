@@ -28,6 +28,8 @@ const SUBCOMMANDS: &[(&str, Subcommand)] = &[
     ("color", super::design::debug_color),
     ("png-info", super::browser::debug_png_info),
     ("insp-path", super::tools::debug_insp_path),
+    ("penpot-build-export", super::penpot::debug_build_export),
+    ("penpot-sync", super::penpot::debug_sync),
 ];
 
 /// The command of this file.

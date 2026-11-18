@@ -118,8 +118,11 @@ fn has_error(findings: &[Value]) -> bool {
 fn build(ctx: &Ctx) -> Result<i32, DfwError> {
     if ctx.args.pos(0) == Some("tokens") {
         match ctx.args.pos(1) {
-            // extract renders in a browser, export and import are the Penpot bridge.
-            Some("extract" | "export" | "import") => return forward(&ctx.argv),
+            // extract renders in a browser.
+            Some("extract") => return forward(&ctx.argv),
+            // The Penpot bridge.
+            Some("export") => return super::penpot::tokens_export(ctx),
+            Some("import") => return super::penpot::tokens_import(ctx),
             Some("build") => {}
             _ => return usage("Usage: dfw tokens build | extract --url <u> | export --format penpot [--out <file>] | import <file> [--from penpot] [--dry-run]"),
         }

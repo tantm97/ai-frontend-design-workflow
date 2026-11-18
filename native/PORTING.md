@@ -36,8 +36,8 @@ Set the status to `done` in the same commit that registers the commands as nativ
 | `core/lib/live.mjs` | `studio/live_proxy` |  | studio | todo |
 | `core/lib/locate.mjs` | `review/locate` |  | review | done (no caller yet: check runner and doctor, tools group) |
 | `core/lib/mcp.mjs` | `tools/mcp` |  | tools | todo |
-| `core/lib/penpot-tokens.mjs` | `penpot/tokens` |  | penpot | todo |
-| `core/lib/penpot.mjs` | `penpot/export` | split by job: penpot/diff, penpot/import, penpot/live | penpot | todo |
+| `core/lib/penpot-tokens.mjs` | `penpot/tokens` |  | penpot | done (also holds `jv`: JavaScript value rules for untrusted JSON, shared by the penpot modules) |
+| `core/lib/penpot.mjs` | `penpot/export` | split by job: penpot/diff, penpot/import, penpot/live; `snapshotPage` stays JavaScript in `penpot/snapshot_page.js` | penpot | done (the Studio's Penpot routes, studio group, still run on Node) |
 | `core/lib/pixeldiff.mjs` | `browser/pixeldiff` |  | browser | done (pixelmatch ported: no browser needed) |
 | `core/lib/runtime.mjs` | `browser/launch` | installBrowser: browser/download; screenshot: browser/screenshot | browser | done |
 | `core/lib/stack.mjs` | `workflow/stack` |  | workflow | done (its command, `stack`, is in `cli/tools.rs` and still forwards) |
@@ -67,7 +67,7 @@ and `assets` (embedded files, design decision 6, owner integrator).
 | `cli/studio.rs` | studio, review, __studio-server, __review-server | forward |
 | `cli/browser.rs` | shoot, diff | native |
 | `cli/browser.rs` | layout | forward |
-| `cli/penpot.rs` | penpot | forward |
+| `cli/penpot.rs` | penpot (export, plugin, import); `tokens export\|import`, called from `cli/design.rs` (hidden: `__debug penpot-build-export`, `__debug penpot-sync`) | native |
 | `cli/tools.rs` | inspector, install, uninstall, setup (`--a11y` forwards), doctor | native |
 | `cli/tools.rs` | mcp, stack, handoff | forward |
 
