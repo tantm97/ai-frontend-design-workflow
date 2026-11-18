@@ -3,6 +3,7 @@
 //! Ports the dispatch of `core/bin/dfw.mjs` and `main()` in `core/lib/cli.mjs`. Every command is in
 //! one of three states: native (ported), forward (still run by the Node CLI) or unknown.
 //! The forward state goes when the Node core is deleted (rust-core, stage 4).
+//! The end of every command is a record point of `telemetry` (off unless a collector address exists).
 
 mod assets;
 mod browser;
@@ -13,6 +14,7 @@ mod hooks;
 mod penpot;
 mod review;
 mod studio;
+mod telemetry;
 mod tools;
 mod workflow;
 
@@ -22,35 +24,40 @@ use crate::core::paths::env_nonempty;
 use crate::core::util::{parse_args, Args};
 
 fn main() {
+    let started = std::time::Instant::now();
     let argv: Vec<String> = std::env::args().skip(1).collect();
-    let code = match run(argv) {
+    let args = parse_args(&argv);
+    let name = command_name(&argv, &args);
+    let ctx = Ctx { argv, args };
+    let code = match run(&ctx, &name) {
         Ok(code) => code,
         Err(err) => {
             eprintln!("{}", err.report());
             err.exit_code()
         }
     };
+    // After everything the command prints, and unable to change its exit code.
+    telemetry::command_finished(&name, &ctx, started, code);
     std::process::exit(code);
 }
 
-fn run(argv: Vec<String>) -> Result<i32, DfwError> {
+fn run(ctx: &Ctx, name: &str) -> Result<i32, DfwError> {
+    let argv = &ctx.argv;
     // Escape hatch while porting: the Node CLI handles everything.
     if env_nonempty("DFW_NATIVE").as_deref() == Some("off") {
-        return cli::forward(&argv);
+        return cli::forward(argv);
     }
-    let args = parse_args(&argv);
-    let name = command_name(&argv, &args);
     // The internal server commands exist only as the first argument; anywhere else cli.mjs
     // reaches its switch, which does not know them.
-    let misplaced = cli::INTERNAL.contains(&name.as_str()) && argv.first() != Some(&name);
+    let misplaced = cli::INTERNAL.contains(&name) && argv.first().map(String::as_str) != Some(name);
     let table = cli::commands();
     let handler = table
         .iter()
         .find(|(n, _)| *n == name && !misplaced)
         .map(|(_, h)| h);
     match handler {
-        Some(Handler::Native(run)) => run(&Ctx { argv, args }),
-        Some(Handler::Forward) => cli::forward(&argv),
+        Some(Handler::Native(run)) => run(ctx),
+        Some(Handler::Forward) => cli::forward(argv),
         None => Err(DfwError::new(format!(
             "Unknown command \"{name}\". Run \"dfw help\"."
         ))),
