@@ -77,6 +77,74 @@ fn text_or(value: Option<&Value>, fallback: &str) -> String {
     truthy(value).map_or_else(|| fallback.to_string(), |v| js_str(Some(v)))
 }
 
+/// `lines.join('\n') || fallback`.
+fn or_text(lines: Vec<String>, fallback: &str) -> String {
+    if lines.is_empty() {
+        fallback.to_string()
+    } else {
+        lines.join("\n")
+    }
+}
+
+/// The table rows of the screens: each with its approved, else recommended, else first variant.
+fn screen_rows(m: &Value, version: &str) -> Result<Vec<String>, DfwError> {
+    let mut screens = Vec::new();
+    for s in items(m.get("screens"), "m.screens")? {
+        let variants = s
+            .get("variants")
+            .and_then(Value::as_array)
+            .ok_or_else(|| type_error("find"))?;
+        // `v.id === s.approvedVariant` also holds when both are missing.
+        let chosen = variants
+            .iter()
+            .find(|v| v.get("id") == s.get("approvedVariant"))
+            .or_else(|| {
+                variants
+                    .iter()
+                    .find(|v| truthy(v.get("recommended")).is_some())
+            })
+            .or_else(|| variants.first());
+        screens.push(format!(
+            "| `{}` | {} | `{}` (`design/approved/{version}/{}`) | {} |",
+            js_str(s.get("id")),
+            text_or(s.get("title"), ""),
+            js_str(chosen.and_then(|c| c.get("id"))),
+            js_str(chosen.and_then(|c| c.get("file"))),
+            text_or(s.get("route"), "TBD"),
+        ));
+    }
+    Ok(screens)
+}
+
+/// The stack in one line, and whether G3 approved it.
+fn stack_line(stack: &Value, state: &Value) -> Result<String, DfwError> {
+    if truthy(Some(stack)).is_none() {
+        return Ok("NOT SET - gate G3 required".to_string());
+    }
+    let or = |text: String, fallback: &str| {
+        if text.is_empty() {
+            fallback.to_string()
+        } else {
+            text
+        }
+    };
+    let approved = truthy(state.get("gates").and_then(|g| g.get("G3"))).is_some();
+    Ok(format!(
+        "{}; styling: {}; UI libraries: {} ({})",
+        text_or(stack.get("framework").and_then(|f| f.get("name")), "TBD"),
+        or(names(stack.get("styling"), "stack.styling")?, "TBD"),
+        or(
+            names(stack.get("uiLibraries"), "stack.uiLibraries")?,
+            "none"
+        ),
+        if approved {
+            "approved"
+        } else {
+            "NOT YET APPROVED"
+        }
+    ))
+}
+
 /// `cmdHandoff(root)`: write the `design/handoff/<version>.md` skeleton of the approved design
 /// and return the line to print.
 pub fn write_handoff(root: &Path) -> Result<String, DfwError> {
@@ -131,57 +199,8 @@ pub fn write_handoff(root: &Path) -> Result<String, DfwError> {
     })?;
     let tpl = fs::read_to_string(templates.join("handoff.md"))?;
 
-    let mut screens = Vec::new();
-    for s in items(m.get("screens"), "m.screens")? {
-        let variants = s
-            .get("variants")
-            .and_then(Value::as_array)
-            .ok_or_else(|| type_error("find"))?;
-        // `v.id === s.approvedVariant` also holds when both are missing.
-        let chosen = variants
-            .iter()
-            .find(|v| v.get("id") == s.get("approvedVariant"))
-            .or_else(|| {
-                variants
-                    .iter()
-                    .find(|v| truthy(v.get("recommended")).is_some())
-            })
-            .or_else(|| variants.first());
-        screens.push(format!(
-            "| `{}` | {} | `{}` (`design/approved/{version}/{}`) | {} |",
-            js_str(s.get("id")),
-            text_or(s.get("title"), ""),
-            js_str(chosen.and_then(|c| c.get("id"))),
-            js_str(chosen.and_then(|c| c.get("file"))),
-            text_or(s.get("route"), "TBD"),
-        ));
-    }
-    let stack_text = if truthy(Some(&stack)).is_some() {
-        let or = |text: String, fallback: &str| {
-            if text.is_empty() {
-                fallback.to_string()
-            } else {
-                text
-            }
-        };
-        let approved = truthy(state.get("gates").and_then(|g| g.get("G3"))).is_some();
-        format!(
-            "{}; styling: {}; UI libraries: {} ({})",
-            text_or(stack.get("framework").and_then(|f| f.get("name")), "TBD"),
-            or(names(stack.get("styling"), "stack.styling")?, "TBD"),
-            or(
-                names(stack.get("uiLibraries"), "stack.uiLibraries")?,
-                "none"
-            ),
-            if approved {
-                "approved"
-            } else {
-                "NOT YET APPROVED"
-            }
-        )
-    } else {
-        "NOT SET - gate G3 required".to_string()
-    };
+    let screens = screen_rows(&m, &version)?;
+    let stack_text = stack_line(&stack, &state)?;
     let config;
     let breakpoints = match truthy(m.get("breakpoints")) {
         Some(own) => Some(own),
@@ -194,13 +213,6 @@ pub fn write_handoff(root: &Path) -> Result<String, DfwError> {
         .iter()
         .map(|b| format!("{} {}px", js_str(b.get("id")), js_str(b.get("width"))))
         .collect();
-    let or_text = |lines: Vec<String>, fallback: &str| {
-        if lines.is_empty() {
-            fallback.to_string()
-        } else {
-            lines.join("\n")
-        }
-    };
     let components = comps
         .iter()
         .map(|c| format!("- `design/approved/{version}/components/{c}`"))
