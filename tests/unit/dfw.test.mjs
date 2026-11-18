@@ -50,7 +50,7 @@ test('state machine: system needs G1, concepts needs G1+DS, implement needs G2+G
   assert.ok(transitionBlockers(d, 'implement').some((r) => r.includes('does not include implementation')));
 });
 
-test('external tools run with telemetry and update checks off (docs/impeccable-network.md)', () => {
+test('external tools run with telemetry and update checks off', () => {
   // DO_NOT_TRACK alone turns Impeccable's telemetry off (roll flagged off, choice ping skipped);
   // IMPECCABLE_NO_UPDATE_CHECK stops GET impeccable.style/api/version.
   assert.equal(DEFAULTS.env.DO_NOT_TRACK, '1');

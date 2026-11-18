@@ -4,7 +4,7 @@
 // - hook output formats (context, deny a tool call, block stopping),
 // - text placeholders rendered into SKILL.md, references and agents at build time,
 // - install commands and plugin locations.
-// Adding a host = one entry here + adapters/<host>/ (see docs/architecture*.html, "multi-host").
+// Adding a host = one entry here + adapters/<host>/.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
