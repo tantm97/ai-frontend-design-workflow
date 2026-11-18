@@ -15,7 +15,7 @@ Set the status to `done` in the same commit that registers the commands as nativ
 | `core/lib/color.mjs` | `design/color` |  | design | todo |
 | `core/lib/comments.mjs` | `review/comments` |  | review | todo |
 | `core/lib/compose.mjs` | `design/compose` | parsing moves to design/html | design | todo |
-| `core/lib/config.mjs` | `core/config` |  | core | todo |
+| `core/lib/config.mjs` | `core/config` |  | core | done |
 | `core/lib/dsaudit.mjs` | `design/dsaudit` |  | design | todo |
 | `core/lib/edit.mjs` | `design/edit` |  | design | todo |
 | `core/lib/extract.mjs` | `browser/extract` |  | browser | todo |
@@ -23,7 +23,7 @@ Set the status to `done` in the same commit that registers the commands as nativ
 | `core/lib/freeze.mjs` | `workflow/freeze` |  | workflow | todo |
 | `core/lib/gate.mjs` | `workflow/gates` |  | workflow | todo |
 | `core/lib/hooks.mjs` | `hooks (one file per handler)` | session_start, pre_tool_use, post_tool_use, user_prompt_submit, stop | hooks | todo |
-| `core/lib/host.mjs` | `core/host` |  | core | todo |
+| `core/lib/host.mjs` | `core/host` |  | core | done |
 | `core/lib/icons.mjs` | `design/icons` |  | design | todo |
 | `core/lib/inbox.mjs` | `review/inbox` |  | review | todo |
 | `core/lib/inspector.mjs` | `tools/inspector` |  | tools | todo |
@@ -58,6 +58,7 @@ and `assets` (embedded files, design decision 6, owner integrator).
 | Group file | Commands | State |
 |---|---|---|
 | `cli/mod.rs` | version, help | native |
+| `cli/debug.rs` | __debug (hidden: config, host-format, host-render; for the conformance tests) | native |
 | `cli/workflow.rs` | init, status, mode, phase, approve, reopen, pause, resume, decide, decisions, config, lang, verify-snapshot | forward |
 | `cli/hook.rs` | hook | forward |
 | `cli/comments.rs` | comments | forward |

@@ -6,6 +6,7 @@
 
 mod browser;
 mod comments;
+mod debug;
 mod design;
 mod hook;
 mod penpot;
@@ -66,6 +67,7 @@ pub fn commands() -> Vec<(&'static str, Handler)> {
     all.extend(browser::commands());
     all.extend(penpot::commands());
     all.extend(tools::commands());
+    all.extend(debug::commands());
     all
 }
 
@@ -137,7 +139,9 @@ mod tests {
         ] {
             assert!(unique.contains(cmd), "{cmd} is missing from the command table");
         }
-        assert_eq!(names.len(), 44, "a command the Node CLI does not have");
+        // `__debug` is the one command the Node CLI does not have (hidden; see cli/debug.rs).
+        assert!(unique.contains("__debug") && !include_str!("help.txt").contains("__debug"));
+        assert_eq!(names.len(), 45, "a command the Node CLI does not have");
         for name in INTERNAL.iter().chain(BEFORE_HELP.iter()) {
             assert!(unique.contains(name));
         }
