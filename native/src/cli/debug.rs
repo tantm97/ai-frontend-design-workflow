@@ -26,6 +26,7 @@ const SUBCOMMANDS: &[(&str, Subcommand)] = &[
     ("hot", super::workflow::debug_hot),
     ("compose", super::design::debug_compose),
     ("color", super::design::debug_color),
+    ("lint", super::design::debug_lint),
     ("png-info", super::browser::debug_png_info),
     ("insp-path", super::tools::debug_insp_path),
 ];

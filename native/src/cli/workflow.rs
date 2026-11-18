@@ -3,8 +3,9 @@
 //!
 //! Three branches still run on the Node CLI because they need the design or browser groups:
 //! `init` in a project without `design/` (it builds the tokens), `status` as text in the system
-//! phase before DS (it counts the component masters) and `approve DS` / `approve G2` (lint,
-//! design-system audit, accessibility check). Each is forwarded whole, before anything is written.
+//! phase before DS (it counts the component masters) and `approve G2` (every check, the rendered
+//! accessibility check included). Each is forwarded whole, before anything is written.
+//! `approve DS` runs here: its gate needs lint and the design-system audit only.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -17,9 +18,15 @@ use crate::core::error::DfwError;
 use crate::core::paths::{plugin_root, project_paths};
 use crate::core::util::{
     now_iso, out, parse_value, read_json, set_path, to_json_compact, to_json_pretty, write_json,
-    ArgValue,
+    ArgValue, Args,
 };
+use crate::design::compose::{build_system, load_components};
+use crate::design::dsaudit::audit_design_system;
+use crate::design::inventory::DS_GATE_RULES;
+use crate::design::tokens::dir_names;
 use crate::review::comments::{add_comment, all_comments};
+use crate::tools::check::engine::check_config;
+use crate::tools::check::{format_report, run_checks, CheckOptions};
 use crate::workflow::decisions::{decide, format_decisions, read_decisions};
 use crate::workflow::freeze::{freeze_design, reopen_design, verify_snapshot};
 use crate::workflow::lang::{language_status, set_language};
@@ -307,19 +314,68 @@ fn phase(ctx: &Ctx) -> Result<i32, DfwError> {
     Ok(0)
 }
 
+/// The checks of gate DS: the design system exists, lints clean and passes the audit, with the
+/// rationale and the inventory rules as MUST; no preset option is left undecided.
+fn approve_ds(root: &Path, a: &Args) -> Result<(), DfwError> {
+    if load_components(root)?.is_empty() {
+        return Err(DfwError::new("DS needs a design system: component masters in design/system/components/, designed from design/system/inventory.json (start with \"dfw system init\")."));
+    }
+    build_system(root)?;
+    let config = check_config(root)?;
+    let p = project_paths(root);
+    let mut targets = vec!["design/tokens/tokens.json".to_string()];
+    let masters = dir_names(&p.design.join("system").join("components"))?;
+    targets.extend(
+        masters
+            .iter()
+            .map(|f| format!("design/system/components/{f}")),
+    );
+    let opts = CheckOptions {
+        timeout_ms: Some(30000),
+        tools: Some(&["dfw"]),
+    };
+    let mut results = run_checks(root, Some(&targets), &config, opts)?;
+    let mut audit = audit_design_system(root)?;
+    for finding in &mut audit {
+        let rule = finding.get("rule").and_then(Value::as_str);
+        let must = rule.is_some_and(|r| r == "rationale" || DS_GATE_RULES.contains(&r));
+        if let (true, Value::Object(map)) = (must, finding) {
+            map.insert("level".into(), "error".into());
+        }
+    }
+    results.push(json!({ "tool": "dfw-ds-audit", "status": "ran", "findings": audit }));
+    let report = format_report(&results, 30);
+    if report.errors > 0 && !a.truthy("accept-findings") {
+        return Err(DfwError::new(format!(
+            "DS blocked: {} MUST finding(s) in the design system.\n{}",
+            report.errors, report.text
+        )));
+    }
+    let options = dir_names(&p.tokens.join("themes"))?
+        .iter()
+        .any(|f| f.starts_with("opt-"));
+    if options && !a.truthy("force") {
+        return Err(DfwError::new("Preset options are still active (opt-* themes). Promote the chosen one first: dfw system choose <preset>."));
+    }
+    Ok(())
+}
+
 fn approve(ctx: &Ctx) -> Result<i32, DfwError> {
     let a = &ctx.args;
     let root = ctx.root();
     let gate = a.pos(1).unwrap_or_default().to_uppercase();
-    if gate == "DS" || gate == "G2" {
-        // These gates run checks first (lint, design-system audit, accessibility: design and
-        // browser groups). The whole approval runs in Node: a gate is never half-run.
+    if gate == "G2" {
+        // This gate runs every check first, the rendered accessibility check included (browser
+        // group). The whole approval runs in Node: a gate is never half-run.
         return forward(&ctx.argv);
     }
     let mut state = require_state(&root)?;
     let Some(note) = arg_truthy(a, "note") else {
         return Err(DfwError::new("Approvals record what the user approved: pass --note \"<summary of what was approved>\"."));
     };
+    if gate == "DS" {
+        approve_ds(&root, a)?;
+    }
     if gate == "G3" {
         let file = project_paths(&root).stack;
         let mut stack = read_json(&file, Some(Value::Null))?;
