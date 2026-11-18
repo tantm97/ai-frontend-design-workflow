@@ -1,0 +1,514 @@
+//! The data the Studio API serves, ported from `core/studio/server.mjs`: the manifest (declared
+//! or inferred), the token list, the components, design files prepared for a frame (composed,
+//! component CSS linked, overlay injected), the Design System page and Studio screenshots.
+
+use std::collections::HashMap;
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use serde_json::{json, Map, Value};
+
+use super::pages::{screen_flows, studio_pages};
+use crate::browser::screenshot::{screenshot, Job, CONCURRENCY};
+use crate::core::config::{js_spread, js_truthy};
+use crate::core::error::DfwError;
+use crate::core::paths::{project_paths, resolve_inside, to_posix};
+use crate::core::util::{get_path, list_files, read_json};
+use crate::design::compose::{compose_html, escape_html, load_components, ComposeOptions};
+use crate::design::edit::{js_regex, load_token_names};
+use crate::design::system_page::render_system_page;
+use crate::design::tokens::{js, relative_path};
+
+/// URL prefix under which `design/` is served.
+pub const DESIGN_BASE: &str = "/design/";
+/// The script every design frame gets.
+pub const OVERLAY_TAG: &str = r#"<script src="/__dfw/overlay.js" data-dfw-overlay></script>"#;
+
+/// Content types by file extension (`MIME` of server.mjs).
+pub fn mime(ext: &str) -> Option<&'static str> {
+    Some(match ext {
+        ".html" => "text/html; charset=utf-8",
+        ".css" => "text/css; charset=utf-8",
+        ".js" | ".mjs" => "text/javascript; charset=utf-8",
+        ".json" => "application/json; charset=utf-8",
+        ".svg" => "image/svg+xml",
+        ".png" => "image/png",
+        ".jpg" | ".jpeg" => "image/jpeg",
+        ".webp" => "image/webp",
+        ".avif" => "image/avif",
+        ".gif" => "image/gif",
+        ".ico" => "image/x-icon",
+        ".woff" => "font/woff",
+        ".woff2" => "font/woff2",
+        ".ttf" => "font/ttf",
+        ".otf" => "font/otf",
+        _ => return None,
+    })
+}
+
+/// `path.extname`: the last `.suffix` of the last segment (none for a dot file).
+pub fn extname(rel: &str) -> &str {
+    let name = rel.rsplit(['/', '\\']).next().unwrap_or_default();
+    match name.rfind('.') {
+        Some(0) | None => "",
+        Some(i) => &name[i..],
+    }
+}
+
+/// `safeJoin(base, rel)` of server.mjs: `rel` normalised as a path below `/`, so `..` stops at
+/// `base`; `/` and `\` both separate. Returns the segments (empty: `base` itself).
+pub fn clamp_rel(rel: &str) -> Vec<&str> {
+    let mut out: Vec<&str> = Vec::new();
+    for seg in rel.split(['/', '\\']) {
+        match seg {
+            "" | "." => {}
+            ".." => {
+                out.pop();
+            }
+            s => out.push(s),
+        }
+    }
+    out
+}
+
+/// `base` joined with [`clamp_rel`] of `rel`.
+pub fn safe_join(base: &Path, rel: &str) -> PathBuf {
+    clamp_rel(rel)
+        .iter()
+        .fold(base.to_path_buf(), |acc, s| acc.join(s))
+}
+
+/// `manifest()`: `design/design.json` with the config's breakpoints, screen flows and canvas
+/// pages; without that file, screens inferred from `design/screens/**`.
+pub fn manifest(root: &Path, config: &Value) -> Result<Value, DfwError> {
+    let p = project_paths(root);
+    let m = read_json(&p.manifest, Some(Value::Null))?;
+    let mut base = Map::new();
+    if let Some(bps) = get_path(config, "studio.breakpoints") {
+        base.insert("breakpoints".into(), bps.clone());
+    }
+    base.insert("themes".into(), json!([]));
+    base.insert("states".into(), json!([]));
+    if js_truthy(&m) {
+        let mut out = base.clone();
+        for (k, v) in js_spread(Some(&m)) {
+            out.insert(k, v);
+        }
+        match m.get("breakpoints").filter(|b| js_truthy(b)) {
+            Some(b) => {
+                out.insert("breakpoints".into(), b.clone());
+            }
+            None => match base.get("breakpoints") {
+                Some(b) => {
+                    out.insert("breakpoints".into(), b.clone());
+                }
+                None => {
+                    out.shift_remove("breakpoints");
+                }
+            },
+        }
+        let mut files: HashMap<String, String> = HashMap::new();
+        let screens = out
+            .get("screens")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        for s in &screens {
+            for v in s
+                .get("variants")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+            {
+                let Some(file) = v
+                    .get("file")
+                    .and_then(Value::as_str)
+                    .filter(|f| !f.is_empty())
+                else {
+                    continue;
+                };
+                // design.json is user input: a file outside design/ is not read (rule 5).
+                let Ok(abs) = resolve_inside(&p.design, file) else {
+                    continue;
+                };
+                if abs.is_file() {
+                    files.insert(file.to_string(), js::read_text(&abs)?);
+                }
+            }
+        }
+        let flows = screen_flows(&Value::Object(out.clone()), &files);
+        out.insert("flows".into(), Value::Array(flows));
+        let pages = studio_pages(&Value::Object(out.clone()));
+        out.insert("studioPages".into(), Value::Array(pages));
+        return Ok(Value::Object(out));
+    }
+    let mut screens: Vec<(String, Vec<Value>)> = Vec::new();
+    for rel in list_files(&p.design.join("screens"), &[])? {
+        let Some(stem) = rel.strip_suffix(".html") else {
+            continue;
+        };
+        let parts: Vec<&str> = rel.split('/').collect();
+        let (id, variant) = if parts.len() > 1 {
+            let last = parts[parts.len() - 1];
+            (
+                parts[..parts.len() - 1].join("/"),
+                last.strip_suffix(".html").unwrap_or(last).to_string(),
+            )
+        } else {
+            (stem.to_string(), "a".to_string())
+        };
+        let entry = json!({ "id": variant, "label": variant, "file": format!("screens/{rel}") });
+        match screens.iter_mut().find(|(sid, _)| *sid == id) {
+            Some((_, variants)) => variants.push(entry),
+            None => screens.push((id, vec![entry])),
+        }
+    }
+    let mut out = base;
+    let product = root
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    out.insert("product".into(), json!(product));
+    out.insert("inferred".into(), json!(true));
+    let screens: Vec<Value> = screens
+        .into_iter()
+        .map(|(id, variants)| json!({ "id": id, "title": id, "variants": variants }))
+        .collect();
+    out.insert("screens".into(), Value::Array(screens));
+    let pages = studio_pages(&Value::Object(out.clone()));
+    out.insert("studioPages".into(), Value::Array(pages));
+    Ok(Value::Object(out))
+}
+
+/// `tokenList()`: `[{name, var, type}]` for the inspector, from tokens.json (typography split
+/// into its parts) plus any other variable declared in tokens.css.
+pub fn token_list(root: &Path) -> Result<Value, DfwError> {
+    const SUB: [(&str, &str); 5] = [
+        ("fontFamily", "font-family"),
+        ("fontSize", "font-size"),
+        ("fontWeight", "font-weight"),
+        ("letterSpacing", "letter-spacing"),
+        ("lineHeight", "line-height"),
+    ];
+    let mut out: Vec<Value> = Vec::new();
+    let mut seen: Vec<String> = Vec::new();
+    for t in load_token_names(root)? {
+        let var = t.var();
+        let object = matches!(t.value, Value::Object(_) | Value::Array(_));
+        if t.is_type("typography") && object {
+            for (k, sub) in SUB {
+                if t.value.get(k).is_some() {
+                    out.push(json!({ "name": format!("{}.{sub}", t.name), "var": format!("{var}-{sub}"), "type": "typography" }));
+                }
+            }
+        } else {
+            let ty = t.ty.clone().filter(js_truthy).unwrap_or(Value::Null);
+            out.push(json!({ "name": t.name, "var": var, "type": ty }));
+        }
+    }
+    for x in &out {
+        seen.push(js::to_string(x.get("var")));
+    }
+    let css = project_paths(root).tokens.join("tokens.css");
+    if css.exists() {
+        let text = js::read_text(&css)?;
+        let decl = js_regex(r"(--[\w-]+)\s*:")?;
+        for c in decl.captures_iter(&text) {
+            let Some(name) = c.get(1).map(|m| m.as_str()) else {
+                continue;
+            };
+            if seen.iter().any(|s| s == name) {
+                continue;
+            }
+            seen.push(name.to_string());
+            out.push(json!({ "name": name[2..].replace('-', "."), "var": name, "type": null }));
+        }
+    }
+    Ok(Value::Array(out))
+}
+
+/// `/__dfw/api/components`: the masters without their styles, template and examples.
+pub fn components(root: &Path) -> Result<Value, DfwError> {
+    let lib = load_components(root)?;
+    let list = lib
+        .iter()
+        .map(|d| {
+            let mut v = d.to_json();
+            if let Some(map) = v.as_object_mut() {
+                for k in ["styles", "template", "examples"] {
+                    map.shift_remove(k);
+                }
+            }
+            v
+        })
+        .collect();
+    Ok(Value::Array(list))
+}
+
+/// `prepareHtml(html)`: compose `<dfw-use>`/`<dfw-icon>`/`<dfw-head>`, link the component CSS
+/// when instances need it, and inject the overlay before the last `</body>`.
+pub fn prepare_html(root: &Path, html: &str) -> Result<String, DfwError> {
+    let r = compose_html(
+        root,
+        html,
+        ComposeOptions {
+            lib: None,
+            design_base: Some(DESIGN_BASE),
+        },
+    )?;
+    let mut out = r.html;
+    if !r.instances.is_empty() && !out.contains("system/components.css") {
+        let link = format!(r#"<link rel="stylesheet" href="{DESIGN_BASE}system/components.css">"#);
+        out = match find_ci(&out, "</head>", false) {
+            Some(i) => format!("{}{link}{}", &out[..i], &out[i..]),
+            None => link + &out,
+        };
+    }
+    Ok(match find_ci(&out, "</body>", true) {
+        Some(i) => format!("{}{OVERLAY_TAG}</body>{}", &out[..i], &out[i + 7..]),
+        None => out + OVERLAY_TAG,
+    })
+}
+
+/// First (or last) position of an ASCII `needle` in `hay`, ignoring ASCII case.
+pub fn find_ci(hay: &str, needle: &str, last: bool) -> Option<usize> {
+    let lower = hay.to_ascii_lowercase();
+    if last {
+        lower.rfind(needle)
+    } else {
+        lower.find(needle)
+    }
+}
+
+/// `fallbackSystemPage()`: the plain list of masters, used when the Design System page fails.
+pub fn fallback_system_page(root: &Path) -> Result<String, DfwError> {
+    let lib = load_components(root)?;
+    let sections: Vec<String> = lib
+        .iter()
+        .map(|d| {
+            let name = escape_html(d.display_name());
+            format!(
+                "<section id=\"c-{name}\" data-dfw-id=\"system.component.{name}\" style=\"padding:32px 0;border-top:1px solid #ddd\">\n  <h2 style=\"margin:0 0 4px\">{name}</h2><p style=\"margin:0 0 16px;color:#666\">{}</p>\n  <div style=\"display:flex;flex-wrap:wrap;gap:16px;align-items:center\">{}</div></section>",
+                escape_html(&d.description),
+                d.examples
+            )
+        })
+        .collect();
+    let sections = if sections.is_empty() {
+        "<p>No components yet. Add masters to <code>design/system/components/</code>.</p>"
+            .to_string()
+    } else {
+        sections.join("\n")
+    };
+    Ok(format!(
+        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Design System</title>\n<link rel=\"stylesheet\" href=\"{DESIGN_BASE}tokens/tokens.css\"><link rel=\"stylesheet\" href=\"{DESIGN_BASE}system/components.css\">\n</head><body style=\"margin:0;padding:48px;font-family:system-ui,sans-serif\">\n<h1 data-dfw-id=\"system.title\">Design System</h1>\n{sections}\n</body></html>"
+    ))
+}
+
+/// `systemPage()`: the Design System page prepared like a design file; when it cannot be built
+/// the error goes to the log and the fallback page is served.
+pub fn system_page(root: &Path) -> Result<String, DfwError> {
+    let html = match render_system_page(root, DESIGN_BASE) {
+        Ok(html) => html,
+        Err(err) => {
+            eprintln!("dfw studio: system page: {}", err.message());
+            fallback_system_page(root)?
+        }
+    };
+    prepare_html(root, &html)
+}
+
+/// What a request for a design file answers.
+pub enum DesignFile {
+    /// 200 with this body and content type.
+    Found(Vec<u8>, &'static str),
+    /// 404.
+    Missing,
+}
+
+/// `serveDesignFile(rel)`: HTML prepared for a frame, anything else as it is.
+pub fn design_file(root: &Path, rel: &str) -> Result<DesignFile, DfwError> {
+    let design = project_paths(root).design;
+    let abs = safe_join(&design, rel);
+    // Pages link the generated component CSS even before any component exists.
+    if rel == "system/components.css" && !abs.exists() {
+        return Ok(DesignFile::Found(
+            b"/* no components yet */".to_vec(),
+            "text/css; charset=utf-8",
+        ));
+    }
+    if !abs.exists() || abs.is_dir() {
+        return Ok(DesignFile::Missing);
+    }
+    let ext = extname(&abs.to_string_lossy()).to_lowercase();
+    if ext == ".html" {
+        let text = String::from_utf8_lossy(&fs::read(&abs)?).into_owned();
+        let html = prepare_html(root, &text)?;
+        return Ok(DesignFile::Found(
+            html.into_bytes(),
+            "text/html; charset=utf-8",
+        ));
+    }
+    Ok(DesignFile::Found(
+        fs::read(&abs)?,
+        mime(&ext).unwrap_or("application/octet-stream"),
+    ))
+}
+
+/// `shootFrames({ frames, fullPage })`: screenshot Studio frames to
+/// `.dfw/shots/studio/<local time>/<name>.png`. The caller holds the "one at a time" flag.
+pub fn shoot_frames(root: &Path, port: u16, body: &Value) -> Result<Value, DfwError> {
+    let p = project_paths(root);
+    let frames = body
+        .get("frames")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    // `fullPage = true` as a default parameter: only a missing value becomes true.
+    let full_page = body.get("fullPage").is_none_or(js_truthy);
+    let list: Vec<&Value> = frames
+        .iter()
+        .filter(|f| {
+            f.get("src")
+                .and_then(Value::as_str)
+                .is_some_and(|s| s.starts_with("/design/") || s == "/__dfw/system.html")
+        })
+        .take(200)
+        .collect();
+    if list.is_empty() {
+        return Err(DfwError::new("Nothing to screenshot."));
+    }
+    let dir = p.dfw.join("shots").join("studio").join(local_stamp());
+    let size = |v: Option<&Value>, fallback: f64| -> u32 {
+        let n = js::to_number(v);
+        let n = if n.is_nan() || n == 0.0 { fallback } else { n };
+        n.clamp(200.0, 4000.0) as u32
+    };
+    let jobs: Vec<Job> = list
+        .iter()
+        .map(|f| {
+            let name = js::to_string(
+                f.get("name")
+                    .filter(|n| js_truthy(n))
+                    .or(Some(&json!("frame"))),
+            );
+            Job {
+                url: format!("http://127.0.0.1:{port}{}", js::to_string(f.get("src"))),
+                width: size(f.get("w"), 1440.0),
+                height: size(f.get("h"), 900.0),
+                out: dir.join(format!("{}.png", frame_name(&name))),
+                full_page,
+                selector: None,
+                scale: 1.0,
+            }
+        })
+        .collect();
+    let results = screenshot(&jobs, CONCURRENCY)?;
+    let out = results
+        .into_iter()
+        .map(|r| {
+            let rel = to_posix(&relative_path(&p.dfw, &r.out));
+            let mut m = Map::new();
+            m.insert(
+                "name".into(),
+                json!(r.out.file_name().map(|n| n.to_string_lossy().into_owned())),
+            );
+            m.insert("ok".into(), json!(r.ok));
+            if let Some(e) = &r.error {
+                m.insert("error".into(), json!(e));
+            }
+            m.insert("file".into(), json!(relative_path(root, &r.out)));
+            m.insert(
+                "url".into(),
+                if r.ok {
+                    json!(format!("/__dfw/{rel}"))
+                } else {
+                    Value::Null
+                },
+            );
+            Value::Object(m)
+        })
+        .collect();
+    Ok(Value::Array(out))
+}
+
+/// `String(name).replace(/[^\w.-]+/g, '_').slice(0, 120)`.
+pub fn frame_name(name: &str) -> String {
+    let mut out = String::new();
+    let mut run = false;
+    for c in name.chars() {
+        if c.is_ascii_alphanumeric() || c == '_' || c == '.' || c == '-' {
+            out.push(c);
+            run = false;
+        } else if !run {
+            out.push('_');
+            run = true;
+        }
+    }
+    out.chars().take(120).collect()
+}
+
+/// The local time as `2026-11-19T10-20-30` (the folder name of a Studio screenshot run).
+fn local_stamp() -> String {
+    // std knows no time zone; `date` does. Without it (Windows) the time is UTC.
+    let local = std::process::Command::new("date")
+        .arg("+%Y-%m-%dT%H-%M-%S")
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .filter(|s| s.len() == 19);
+    local.unwrap_or_else(|| {
+        let iso = crate::core::util::iso_from_millis(super::watch::now_ms());
+        iso.replace([':', '.'], "-").chars().take(19).collect()
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn safe_join_stays_inside_the_base() {
+        assert_eq!(clamp_rel("../../etc/passwd"), ["etc", "passwd"]);
+        assert_eq!(clamp_rel("a/./b/../c"), ["a", "c"]);
+        assert!(clamp_rel("..").is_empty());
+        assert_eq!(clamp_rel("a\\..\\..\\b"), ["b"]);
+    }
+
+    #[test]
+    fn extname_and_mime_follow_node() {
+        assert_eq!(extname("a/b.HTML"), ".HTML");
+        assert_eq!(extname("a/.env"), "");
+        assert_eq!(extname("a.b/c"), "");
+        assert_eq!(mime(".woff2"), Some("font/woff2"));
+        assert_eq!(mime(".txt"), None);
+    }
+
+    #[test]
+    fn frame_names_are_safe_file_names() {
+        assert_eq!(frame_name("home / a @ 1440"), "home_a_1440");
+        assert_eq!(frame_name("x.y-z_1"), "x.y-z_1");
+        assert_eq!(frame_name(&"é".repeat(5)), "_");
+        assert_eq!(frame_name(&"a".repeat(200)).len(), 120);
+    }
+
+    #[test]
+    fn the_overlay_goes_before_the_last_body_end() {
+        let dir = crate::core::util::test_dir("studio-prepare");
+        let html = prepare_html(
+            &dir,
+            "<html><body><p>a</p></BODY><!-- </body> --></body></html>",
+        )
+        .unwrap();
+        assert_eq!(
+            html,
+            format!("<html><body><p>a</p></BODY><!-- </body> -->{OVERLAY_TAG}</body></html>")
+        );
+        assert_eq!(
+            prepare_html(&dir, "<p>x</p>").unwrap(),
+            format!("<p>x</p>{OVERLAY_TAG}")
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
+}

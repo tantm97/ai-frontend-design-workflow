@@ -33,11 +33,11 @@ Set the status to `done` in the same commit that registers the commands as nativ
 | `core/lib/layout.mjs` | `browser/layout_check` | changedScreens, markChecked: design/layout_cache | browser | done; holds stand-ins for design/layout_cache and for `renderSystemPage` (design/system_page: asked from the Node module) until those are merged |
 | `core/lib/lighthouse.mjs` | `tools/lighthouse` |  | tools | done (its caller, `check`, is not) |
 | `core/lib/lint.mjs` | `design/lint` | JavaScript regular expressions for the regex crate: design/lint/jsre | design | done |
-| `core/lib/live.mjs` | `studio/live_proxy` |  | studio | todo |
+| `core/lib/live.mjs` | `studio/live_proxy` | the server half: studio/live_proxy/proxy; the wire: studio/http | studio | done |
 | `core/lib/locate.mjs` | `review/locate` |  | review | done, with the engine lookup of 0.5.2 (`resolveEngine`, `verifyEngine`, `engineAssets`); callers: doctor; the check runner (tools group) is not ported, `launcherCommand` goes with it |
 | `core/lib/mcp.mjs` | `tools/mcp` | install and uninstall: tools/mcp_install | tools | done |
 | `core/lib/penpot-tokens.mjs` | `penpot/tokens` |  | penpot | done (also holds `jv`: JavaScript value rules for untrusted JSON, shared by the penpot modules) |
-| `core/lib/penpot.mjs` | `penpot/export` | split by job: penpot/diff, penpot/import, penpot/live; `snapshotPage` stays JavaScript in `penpot/snapshot_page.js` | penpot | done (the Studio's Penpot routes, studio group, still run on Node) |
+| `core/lib/penpot.mjs` | `penpot/export` | split by job: penpot/diff, penpot/import, penpot/live; `snapshotPage` stays JavaScript in `penpot/snapshot_page.js` | penpot | done (the Studio's Penpot routes call it from studio/penpot_routes) |
 | `core/lib/pixeldiff.mjs` | `browser/pixeldiff` |  | browser | done (pixelmatch ported: no browser needed) |
 | `core/lib/runtime.mjs` | `browser/launch` | installBrowser: browser/download; screenshot: browser/screenshot | browser | done |
 | `core/lib/stack.mjs` | `workflow/stack` |  | workflow | done |
@@ -47,8 +47,8 @@ Set the status to `done` in the same commit that registers the commands as nativ
 | `core/lib/system.mjs` | `design/system` |  | design | done |
 | `core/lib/tokens.mjs` | `design/tokens` |  | design | done (also holds `js`: JavaScript number, string and key-order rules, to move to core/util) |
 | `core/lib/util.mjs` | `core/util` | paths: core/paths; DfwError: core/error | core | done (skeleton) |
-| `core/studio/pages.mjs` | `studio/server` |  | studio | todo |
-| `core/studio/server.mjs` | `studio/server` | split by job: studio/watch, studio/sse, studio/penpot_routes | studio | todo |
+| `core/studio/pages.mjs` | `studio/pages` |  | studio | done |
+| `core/studio/server.mjs` | `studio/server` | split by job: studio/api, studio/watch (polling only: no OS watcher without a crate), studio/sse, studio/penpot_routes, studio/http (the HTTP/1.1 layer shared with the proxy); browser files embedded by `assets` | studio | done |
 
 Rust modules with no Node file of their own: `design/html` (the tokenizer, design decision 2, owner design, done),
 `assets` (embedded files, design decision 6, owner integrator), `tools/handoff` (`cmdHandoff` of cli.mjs, owner tools, done)
@@ -67,7 +67,7 @@ the doctor line and the check counts, see `README-telemetry.md`).
 | `cli/design.rs` | build, tokens, system, style, type, palette, icons, fonts, blueprint (hidden: `__debug compose`, `__debug color`) | native; forwards `tokens export\|import` and `system audit` |
 | `cli/design.rs` | build, tokens, lint, check, system, style, type, palette, icons, fonts, blueprint (hidden: `__debug compose`, `__debug color`, `__debug lint`) | native; forwards `tokens extract\|export\|import`, and `check` when it renders pages for the a11y check (whole design or `--url`, without `--no-a11y`) |
 | `cli/edit.rs` | none (hidden: `__debug edit`, `undo`, `system-page`, `changed-screens`, `mark-checked`) | native |
-| `cli/studio.rs` | studio, review, __studio-server, __review-server | forward |
+| `cli/studio.rs` | studio, review, __studio-server, __review-server | native |
 | `cli/browser.rs` | shoot, diff, layout (hidden: `__debug a11y`) | native |
 | `cli/penpot.rs` | penpot (export, plugin, import); `tokens export\|import`, called from `cli/design.rs` (hidden: `__debug penpot-build-export`, `__debug penpot-sync`) | native |
 | `cli/tools.rs` | inspector, install, uninstall, setup, doctor | native |
