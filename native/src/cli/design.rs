@@ -141,8 +141,9 @@ fn build(ctx: &Ctx) -> Result<i32, DfwError> {
     if ctx.args.pos(0) == Some("tokens") {
         match ctx.args.pos(1) {
             Some("extract") => return tokens_extract(ctx),
-            // export and import are the Penpot bridge.
-            Some("export" | "import") => return forward(&ctx.argv),
+            // The Penpot bridge.
+            Some("export") => return super::penpot::tokens_export(ctx),
+            Some("import") => return super::penpot::tokens_import(ctx),
             Some("build") => {}
             _ => return usage("Usage: dfw tokens build | extract --url <u> | export --format penpot [--out <file>] | import <file> [--from penpot] [--dry-run]"),
         }

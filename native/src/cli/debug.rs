@@ -35,6 +35,8 @@ const SUBCOMMANDS: &[(&str, Subcommand)] = &[
     ("system-page", super::edit::debug_system_page),
     ("changed-screens", super::edit::debug_changed_screens),
     ("mark-checked", super::edit::debug_mark_checked),
+    ("penpot-build-export", super::penpot::debug_build_export),
+    ("penpot-sync", super::penpot::debug_sync),
 ];
 
 /// The command of this file.
