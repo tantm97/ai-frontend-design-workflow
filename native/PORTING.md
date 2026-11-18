@@ -12,23 +12,23 @@ Set the status to `done` in the same commit that registers the commands as nativ
 | `core/lib/cdp.mjs` | `browser/cdp` |  | browser | todo |
 | `core/lib/check.mjs` | `tools/check` |  | tools | todo |
 | `core/lib/cli.mjs` | `cli (mod.rs + one file per group)` | decision log cases: workflow/decisions | every group, its own `cli/<group>.rs` | dispatch, version, help done; commands todo |
-| `core/lib/color.mjs` | `design/color` |  | design | todo |
+| `core/lib/color.mjs` | `design/color` |  | design | done |
 | `core/lib/comments.mjs` | `review/comments` |  | review | done |
-| `core/lib/compose.mjs` | `design/compose` | parsing moves to design/html | design | todo |
+| `core/lib/compose.mjs` | `design/compose` | parsing moves to design/html | design | done |
 | `core/lib/config.mjs` | `core/config` |  | core | done |
 | `core/lib/dsaudit.mjs` | `design/dsaudit` |  | design | todo |
 | `core/lib/edit.mjs` | `design/edit` |  | design | todo |
 | `core/lib/extract.mjs` | `browser/extract` |  | browser | todo |
-| `core/lib/fonts.mjs` | `design/fonts` |  | design | todo |
+| `core/lib/fonts.mjs` | `design/fonts` |  | design | done |
 | `core/lib/freeze.mjs` | `workflow/freeze` |  | workflow | done (its command, `approve G2`, still forwards) |
 | `core/lib/gate.mjs` | `workflow/gates` |  | workflow | done |
 | `core/lib/hooks.mjs` | `hooks (one file per handler)` | session_start, pre_tool_use, post_tool_use, user_prompt_submit, stop | hooks | done, except the checks of post_tool_use (design group) and the layout check of stop (browser group): those calls forward |
 | `core/lib/host.mjs` | `core/host` |  | core | done |
-| `core/lib/icons.mjs` | `design/icons` |  | design | todo |
+| `core/lib/icons.mjs` | `design/icons` |  | design | done |
 | `core/lib/inbox.mjs` | `review/inbox` |  | review | done |
 | `core/lib/inspector.mjs` | `tools/inspector` |  | tools | todo |
 | `core/lib/install.mjs` | `tools/install` |  | tools | todo |
-| `core/lib/inventory.mjs` | `design/inventory` |  | design | todo |
+| `core/lib/inventory.mjs` | `design/inventory` |  | design | done |
 | `core/lib/lang.mjs` | `workflow/lang` |  | workflow | done |
 | `core/lib/layout.mjs` | `browser/layout_check` | changedScreens, markChecked: design/layout_cache | browser | todo |
 | `core/lib/lighthouse.mjs` | `tools/lighthouse` |  | tools | todo |
@@ -42,15 +42,15 @@ Set the status to `done` in the same commit that registers the commands as nativ
 | `core/lib/runtime.mjs` | `browser/launch` | installBrowser: browser/download; screenshot: browser/screenshot | browser | todo |
 | `core/lib/stack.mjs` | `workflow/stack` |  | workflow | done (its command, `stack`, is in `cli/tools.rs` and still forwards) |
 | `core/lib/state.mjs` | `workflow/state` | decision log entry: workflow/decisions | workflow | done |
-| `core/lib/style.mjs` | `design/style` |  | design | todo |
+| `core/lib/style.mjs` | `design/style` |  | design | done |
 | `core/lib/system-page.mjs` | `design/system_page` |  | design | todo |
-| `core/lib/system.mjs` | `design/system` |  | design | todo |
-| `core/lib/tokens.mjs` | `design/tokens` |  | design | todo |
+| `core/lib/system.mjs` | `design/system` |  | design | done |
+| `core/lib/tokens.mjs` | `design/tokens` |  | design | done (also holds `js`: JavaScript number, string and key-order rules, to move to core/util) |
 | `core/lib/util.mjs` | `core/util` | paths: core/paths; DfwError: core/error | core | done (skeleton) |
 | `core/studio/pages.mjs` | `studio/server` |  | studio | todo |
 | `core/studio/server.mjs` | `studio/server` | split by job: studio/watch, studio/sse, studio/penpot_routes | studio | todo |
 
-Rust modules with no Node file of their own: `design/html` (the tokenizer, design decision 2, owner design)
+Rust modules with no Node file of their own: `design/html` (the tokenizer, design decision 2, owner design, done)
 and `assets` (embedded files, design decision 6, owner integrator).
 
 ## Commands
@@ -62,7 +62,8 @@ and `assets` (embedded files, design decision 6, owner integrator).
 | `cli/workflow.rs` | init, status, mode, phase, approve, reopen, pause, resume, decide, decisions, config, lang, verify-snapshot | native; forwards at run time: `init` without `design/` (token build), `status` as text in the system phase before DS (counts masters), `approve DS` and `approve G2` (gate checks). Also `__debug hot` |
 | `cli/hook.rs` | hook | native: session-start, pre-tool-use, user-prompt-submit always; post-tool-use forwards when the edit needs checks, stop when the layout check applies |
 | `cli/comments.rs` | comments | native (every subcommand, incl. wait and inbox) |
-| `cli/design.rs` | build, tokens, lint, check, system, style, type, palette, icons, fonts, blueprint | forward |
+| `cli/design.rs` | build, tokens, system, style, type, palette, icons, fonts, blueprint (hidden: `__debug compose`, `__debug color`) | native; forwards `tokens extract\|export\|import` and `system audit` |
+| `cli/design.rs` | lint, check | forward |
 | `cli/studio.rs` | studio, review, __studio-server, __review-server | forward |
 | `cli/browser.rs` | shoot, layout, diff | forward |
 | `cli/penpot.rs` | penpot | forward |
