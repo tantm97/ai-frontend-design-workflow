@@ -47,10 +47,8 @@ impl Ctx {
 
 /// How a command runs.
 pub enum Handler {
-    /// Ported: runs here and returns the exit code.
+    /// Runs here and returns the exit code.
     Native(fn(&Ctx) -> Result<i32, DfwError>),
-    /// Not ported yet: the Node CLI runs it.
-    Forward,
 }
 
 /// Internal commands, recognised only as the first argument ("dfw studio start" and

@@ -62,7 +62,6 @@ fn run(ctx: &Ctx, name: &str) -> Result<i32, DfwError> {
         .map(|(_, h)| h);
     match handler {
         Some(Handler::Native(run)) => run(ctx),
-        Some(Handler::Forward) => cli::forward(argv),
         None => Err(DfwError::new(format!(
             "Unknown command \"{name}\". Run \"dfw help\"."
         ))),
