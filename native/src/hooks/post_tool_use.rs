@@ -40,6 +40,15 @@ fn design_json(rel: &str, dir: &str) -> bool {
         && !rel.contains(['\n', '\r', '\u{2028}', '\u{2029}'])
 }
 
+/// Whether the checks look at a project-relative file: a UI file or design JSON, inside the
+/// project (only ".." and "../x" are outside: "..x.html" is a file in it), not in a snapshot.
+fn is_checked(rel: &str) -> bool {
+    rel != ".."
+        && !rel.starts_with("../")
+        && !rel.starts_with("design/approved/")
+        && (UI_EXT.contains(&extname(rel)) || design_json(rel, ""))
+}
+
 /// What an edit asks the checks to look at.
 struct Edited {
     root: PathBuf,
@@ -70,11 +79,7 @@ fn edited(input: &HookInput) -> Result<Option<Edited>, DfwError> {
     let targets: Vec<String> = files
         .iter()
         .map(|f| relative(&root, f))
-        .filter(|rel| {
-            !rel.starts_with("..")
-                && !rel.starts_with("design/approved/")
-                && (UI_EXT.contains(&extname(rel)) || design_json(rel, ""))
-        })
+        .filter(|rel| is_checked(rel))
         .collect();
     Ok((!targets.is_empty()).then_some(Edited {
         root,
@@ -128,14 +133,13 @@ fn post_tool_use_checks(input: &HookInput) -> Result<Option<String>, DfwError> {
 /// `postToolUse(input, host)`. Always handled here; the `Outcome` is what `cli/hook.rs` takes.
 pub fn post_tool_use(input: &HookInput, host: &Host) -> Result<Outcome, DfwError> {
     // Hosts that cannot add context to the user's prompt get new Studio comments here instead.
-    // They are read before the edit is looked at, as in Node, so they count as delivered even
-    // when the checks fail.
+    // Checks first: reading the inbox marks the comments delivered, so nothing may fail after it.
+    let checks = post_tool_use_checks(input)?;
     let inbox = if delivers_on_prompt(host) {
         None
     } else {
         inbox_for(input)?
     };
-    let checks = post_tool_use_checks(input)?;
     let text: Vec<String> = [checks, inbox].into_iter().flatten().collect();
     Ok(Outcome::Done(
         (!text.is_empty()).then(|| HookResult::Context(text.join("\n\n"))),
@@ -156,5 +160,17 @@ mod tests {
         assert!(design_json("design/tokens/.json", "tokens/"));
         assert!(!design_json("design/tokens.json", "tokens/"));
         assert!(!design_json("design/tokens/a\nb.json", "tokens/"));
+    }
+
+    /// d: a file whose name starts with two dots is in the project (tests/unit/node-stable)
+    #[test]
+    fn only_dot_dot_and_dot_dot_slash_are_outside() {
+        assert!(is_checked("..x.html"));
+        assert!(is_checked("..x/y.css"));
+        assert!(is_checked("src/a.tsx"));
+        assert!(!is_checked("../x.html"));
+        assert!(!is_checked(".."));
+        assert!(!is_checked("design/approved/v1/a.html"));
+        assert!(!is_checked("README.md"));
     }
 }

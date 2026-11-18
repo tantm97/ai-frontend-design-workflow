@@ -98,7 +98,12 @@ pub(super) fn continue_thread(
         } else {
             (None, text.clone())
         }
-    } else if !thread_resolved && (!fresh.is_empty() || link_resolved) && done {
+    } else if ((!thread_resolved && (!fresh.is_empty() || link_resolved))
+        || (!fresh.is_empty() && link_resolved))
+        && done
+    {
+        // A reply in a thread that stays resolved reopens the comment too: otherwise the agent
+        // never sees it.
         (Some("reopened"), or("Thread reopened in Penpot."))
     } else {
         (None, text.clone())
@@ -157,7 +162,15 @@ pub fn thread_replies(root: &Path, file_id: &str) -> Result<Vec<Value>, DfwError
         let mut events: Vec<(String, String)> = Vec::new();
         if c.get("status").and_then(Value::as_str) == Some("acknowledged") {
             events.push((
-                format!("ack:{}", js::to_string(c.get("updatedAt"))),
+                // One "seen" per round: keyed by how often the comment was reopened, not by
+                // its last change (a reply would post it again).
+                format!(
+                    "ack:{}",
+                    list(c.get("thread"))
+                        .iter()
+                        .filter(|e| e.get("status").and_then(Value::as_str) == Some("reopened"))
+                        .count()
+                ),
                 format!("[dfw] {id} seen, working on it."),
             ));
         }

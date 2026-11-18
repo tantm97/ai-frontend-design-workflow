@@ -355,3 +355,55 @@ fn presence_json_is_ignored_by_git_in_a_new_project() {
     let ignore = fs::read_to_string(root.join(".dfw/.gitignore")).unwrap();
     assert!(ignore.lines().any(|l| l == "presence.json"), "{ignore}");
 }
+
+/// f: Copilot post-tool-use keeps comments undelivered when the checks throw
+#[test]
+fn post_tool_use_keeps_comments_undelivered_when_the_checks_throw() {
+    let root = project("post-f");
+    let added = dfw(
+        &root,
+        &[
+            "comments",
+            "add",
+            "--json",
+            r#"{"comment":"Make it bigger"}"#,
+        ],
+        "",
+    );
+    assert_eq!(added.code, 0, "{}", added.stderr);
+    // A file path that is not text makes the edited-files step fail.
+    let payload = format!(
+        r#"{{"cwd":{},"tool_name":"Write","tool_input":{{"file_path":123}}}}"#,
+        serde_json::to_string(&root).unwrap()
+    );
+    let r = dfw(
+        &root,
+        &["hook", "post-tool-use", "--host", "copilot"],
+        &payload,
+    );
+    assert_eq!(r.code, 0, "the hook fails open");
+    assert!(
+        r.stderr.contains("dfw hook post-tool-use error"),
+        "{}",
+        r.stderr
+    );
+    assert_eq!(r.stdout, "");
+    let payload = format!(
+        r#"{{"cwd":{},"tool_name":"Read","tool_input":{{}}}}"#,
+        serde_json::to_string(&root).unwrap()
+    );
+    let next = dfw(
+        &root,
+        &["hook", "post-tool-use", "--host", "copilot"],
+        &payload,
+    );
+    let out: Value = serde_json::from_str(&next.stdout).unwrap();
+    assert!(
+        out["additionalContext"]
+            .as_str()
+            .unwrap()
+            .contains("Make it bigger"),
+        "the comment waited for the next hook: {}",
+        next.stdout
+    );
+}

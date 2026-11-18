@@ -123,6 +123,28 @@ fn description_parts() {
     assert_eq!(describe_text("", &[]).unwrap(), Parts::default());
 }
 
+/// design system page: a dot inside a meaning does not end it
+#[test]
+fn a_dot_inside_a_meaning_does_not_end_it() {
+    let p = describe_text(
+        "Text button. sm = 1.5rem tall; lg = 2.5rem tall. Never two primaries.",
+        &["sm", "lg"],
+    )
+    .unwrap();
+    let pair = |k: &str, v: &str| (k.to_string(), v.to_string());
+    assert_eq!(
+        p.meaning,
+        [pair("sm", "1.5rem tall"), pair("lg", "2.5rem tall")]
+    );
+    // A dot before white space or the end still ends the value; one before ";" stays in it.
+    let p = describe_text("x. md = wide. Rest.", &["md"]).unwrap();
+    assert_eq!(p.meaning, [pair("md", "wide")]);
+    let p = describe_text("x. md = 2.;", &["md"]).unwrap();
+    assert_eq!(p.meaning, [pair("md", "2.")]);
+    let p = describe_text("a. md = f(x. y) z..w end", &["md"]).unwrap();
+    assert_eq!(p.meaning, [pair("md", "f(x. y) z..w end")]);
+}
+
 /// design system page: components are documented in rows, in three text sizes
 #[test]
 fn components_in_rows() {

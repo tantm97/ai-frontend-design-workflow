@@ -220,6 +220,76 @@ fn a_follow_up_on_a_comment_being_worked_on_reaches_the_agent() {
     );
 }
 
+/// penpot live: a reply in a thread that stays resolved reopens the comment and reaches the agent
+#[test]
+fn a_reply_in_a_thread_that_stays_resolved_reopens_the_comment() {
+    let (root, export) = live_project("penpot-live-resolved-reply");
+    let threads = |messages: &[&str], resolved| vec![thread(1, messages, resolved)];
+    sync(
+        &root,
+        "file-1",
+        &export,
+        threads(&["Make it red"], false),
+        json!([]),
+    );
+    sync(
+        &root,
+        "file-1",
+        &export,
+        threads(&["Make it red"], true),
+        json!([]),
+    );
+    assert_eq!(one(&root)["status"], "dismissed");
+    assert_eq!(undelivered(&root).unwrap().len(), 0);
+    let reply = ["Make it red", "Actually please do it"];
+    sync(&root, "file-1", &export, threads(&reply, true), json!([]));
+    assert_eq!(one(&root)["status"], "reopened");
+    let told = format_for_claude(&undelivered(&root).unwrap());
+    assert!(told.contains("Actually please do it"), "{told}");
+    let again = sync(&root, "file-1", &export, threads(&reply, true), json!([]));
+    assert_eq!(
+        again["updated"],
+        json!([]),
+        "the same messages change nothing"
+    );
+}
+
+/// penpot live: "seen, working on it" is posted once, also after a later reply
+#[test]
+fn seen_working_on_it_is_posted_once_also_after_a_later_reply() {
+    let (root, export) = live_project("penpot-live-ack-once");
+    let threads = || vec![thread(1, &["Make it red"], false)];
+    sync(&root, "file-1", &export, threads(), json!([]));
+    let id = one(&root)["id"].as_str().unwrap().to_string();
+    set(&root, &id, "acknowledged", None);
+    let first = sync(&root, "file-1", &export, threads(), json!([]))["replies"].clone();
+    let texts = |r: &Value| -> Vec<String> {
+        r.as_array()
+            .unwrap()
+            .iter()
+            .map(|x| x["text"].as_str().unwrap().to_string())
+            .collect()
+    };
+    assert_eq!(texts(&first), [format!("[dfw] {id} seen, working on it.")]);
+    std::thread::sleep(Duration::from_millis(5));
+    let update = Update {
+        message: Some("Which red: brand or status?".into()),
+        ..Update::default()
+    };
+    update_comment(&root, Some(&id), &update).unwrap();
+    let posted: Vec<Value> = first
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| json!({ "seq": r["seq"], "key": r["key"] }))
+        .collect();
+    let next = sync(&root, "file-1", &export, threads(), json!(posted))["replies"].clone();
+    assert_eq!(
+        texts(&next),
+        [format!("[dfw] {id}: Which red: brand or status?")]
+    );
+}
+
 /// penpot live: boards are behind once a design file changes after the export
 #[test]
 fn boards_are_behind_once_a_design_file_changes_after_the_export() {

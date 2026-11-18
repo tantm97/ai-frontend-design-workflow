@@ -45,6 +45,50 @@ pub fn describe_parts(def: &ComponentDef) -> Result<Parts, DfwError> {
     describe_text(&def.description, &names)
 }
 
+/// The first match of `([\s;.(])<name>\s*=\s*((?:\([^)]*\)|[^;.()]|\.(?=\S))+)[;.]?` in
+/// `text` (`head` is the part up to the value): the whole match, the leading character and the
+/// value. A dot inside a value (`1.5rem`) does not end it. The value is scanned by hand because
+/// the regex crate has no look-ahead; the loop is greedy and nothing after it can make it give
+/// characters back (`[;.]?` is optional), so this is what the JavaScript expression matches.
+fn find_meaning(
+    head: &regex::Regex,
+    text: &str,
+) -> Option<(std::ops::Range<usize>, String, std::ops::Range<usize>)> {
+    let mut from = 0;
+    while let Some(m) = head.captures_at(text, from) {
+        let (whole, lead) = (m.get(0)?, m.get(1)?);
+        let start = whole.end();
+        let mut at = start;
+        loop {
+            let rest = &text[at..];
+            let Some(c) = rest.chars().next() else { break };
+            if c == '(' {
+                match rest.find(')') {
+                    Some(close) => at += close + 1,
+                    None => break,
+                }
+            } else if !matches!(c, ';' | '.' | '(' | ')') {
+                at += c.len_utf8();
+            } else if c == '.' && rest[1..].chars().next().is_some_and(|n| !js::is_space(n)) {
+                at += 1;
+            } else {
+                break;
+            }
+        }
+        if at > start {
+            let end = if text[at..].starts_with([';', '.']) {
+                at + 1
+            } else {
+                at
+            };
+            return Some((whole.start()..end, lead.as_str().to_string(), start..at));
+        }
+        // The value is empty here: the expression is tried again one character further.
+        from = whole.start() + text[whole.start()..].chars().next()?.len_utf8();
+    }
+    None
+}
+
 /// [`describe_parts`] on the description and the names (variants, then sizes, then props).
 pub fn describe_text(description: &str, names: &[&str]) -> Result<Parts, DfwError> {
     let words: Vec<&str> = description
@@ -56,11 +100,8 @@ pub fn describe_text(description: &str, names: &[&str]) -> Result<Parts, DfwErro
     let mut names = names.to_vec();
     names.sort_by_key(|n| std::cmp::Reverse(js::len16(n)));
     for name in names {
-        let re = with_js_classes(&format!(
-            r"([\s;.(]){}\s*=\s*((?:\([^)]*\)|[^;.()])+)[;.]?",
-            regex::escape(name)
-        ))?;
-        let Some(m) = re.captures(&text) else {
+        let head = with_js_classes(&format!(r"([\s;.(]){}\s*=\s*", regex::escape(name)))?;
+        let Some((all, lead, value)) = find_meaning(&head, &text) else {
             continue;
         };
         if parts.meaning_of(name).is_some() {
@@ -68,9 +109,8 @@ pub fn describe_text(description: &str, names: &[&str]) -> Result<Parts, DfwErro
         }
         parts
             .meaning
-            .push((name.to_string(), js::trim(&m[2]).to_string()));
-        let all = m.get(0).map_or(0..0, |g| g.range());
-        text = format!("{}{}{}", &text[..all.start], &m[1], &text[all.end..]);
+            .push((name.to_string(), js::trim(&text[value]).to_string()));
+        text = format!("{}{lead}{}", &text[..all.start], &text[all.end..]);
     }
     let mut found = sentences(&text).into_iter().filter_map(|s| {
         let s = js::trim(s);
