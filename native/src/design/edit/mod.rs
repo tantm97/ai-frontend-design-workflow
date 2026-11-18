@@ -212,6 +212,7 @@ fn with_attr(text: &str, el: &Located, name: &str, value: Option<&str>) -> Strin
 /// `transform`: the new source text for an edit op `{op, id, value, prop, ref, position,
 /// maxWidth}`; a refusal is an error and nothing is written.
 // Over 120 lines: one arm per op, as the `switch` of edit.mjs, so the two read side by side.
+#[allow(clippy::too_many_lines)]
 pub fn transform(root: &Path, text: &str, op: &Value) -> Result<String, DfwError> {
     let field = |key: &str| op.get(key);
     let shown = |key: &str| js::to_string(field(key));

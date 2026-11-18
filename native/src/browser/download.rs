@@ -369,6 +369,8 @@ mod tests {
     /// The whole download against a local HTTP server: index, archive, unzip, where it is
     /// stored, and no second download once it is there.
     #[test]
+    // One scenario end to end: the steps share the server and the folder they fill.
+    #[allow(clippy::too_many_lines)]
     fn install_from_a_local_index() {
         let home = test_dir("download").join("browser");
         let archive = zip_of(&[

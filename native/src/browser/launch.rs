@@ -626,7 +626,9 @@ pub fn fonts_ready(page: &Page, ms: u64) -> Result<(), DfwError> {
     page.evaluate(READY, Some(&json!(ms))).map(|_| ())
 }
 
-#[cfg(all(test, unix))]
+// clippy's allow-unwrap-in-tests looks for a plain cfg(test).
+#[cfg(test)]
+#[cfg(unix)]
 mod tests {
     //! tests/unit/cdp.test.mjs, against a fake browser: a shell script that prints the DevTools
     //! line and a WebSocket server in the test that speaks just enough of the protocol. It

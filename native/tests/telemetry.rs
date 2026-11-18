@@ -299,6 +299,8 @@ fn wait_until(what: &str, mut done: impl FnMut() -> bool) {
 /// Events arrive as valid OTLP JSON, and nothing of the project, the files or the arguments
 /// is in them.
 #[test]
+// One collector run: every event kind is sent and checked against the same capture.
+#[allow(clippy::too_many_lines)]
 fn events_arrive_as_otlp_json_and_carry_no_content() {
     let sink = Sink::start(Duration::ZERO);
     let m = Machine::new("otlp");

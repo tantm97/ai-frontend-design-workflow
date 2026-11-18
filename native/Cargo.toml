@@ -31,6 +31,19 @@ zip = { version = "9.7.0", default-features = false, features = ["deflate"] }
 [lints.cargo]
 unused_dependencies = "allow"
 
+# docs/conventions/rust.md: no unsafe, no unwrap/expect/panic outside tests (clippy.toml allows
+# them in tests), long functions reported (threshold in clippy.toml).
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+dbg_macro = "deny"
+too_many_lines = "warn"
+
 [profile.release]
 opt-level = "s"
 lto = "thin"

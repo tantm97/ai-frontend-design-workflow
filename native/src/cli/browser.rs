@@ -215,6 +215,8 @@ fn text<'a>(v: &'a Value, key: &str) -> &'a str {
 
 /// Screenshots of the design, served by the running Studio: screens x variants x breakpoints
 /// x states x themes, and the design system page with `--system`.
+// One function as `cmdShoot` builds its job list: the nested loops read like the Node code.
+#[allow(clippy::too_many_lines)]
 fn studio_jobs(a: &Args, root: &Path, bps: &[Breakpoint]) -> Result<Vec<Job>, DfwError> {
     let p = project_paths(root);
     let info = read_json(&p.studio, Some(Value::Null))?;

@@ -335,6 +335,7 @@ fn group<'a>(tree: &'a mut Value, path: &[&str]) -> Result<&'a mut Map<String, V
 /// guide's colour, type, shape and elevation on top).
 // One function as in style.mjs: the token groups are written in the order the Node code
 // assigned them, which is the order of the file users diff.
+#[allow(clippy::too_many_lines)]
 pub fn style_tokens(g: &Value, fonts: &str) -> Result<Value, DfwError> {
     let mut t = js::read_json(
         &presets_dir()?.join(format!("{}.tokens.json", text(g.get("base")))),

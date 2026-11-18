@@ -39,6 +39,7 @@ const CSS: &str = include_str!("../system_page.css");
 /// under which `design/` is served (`../` from `design/system/`).
 // The template of system-page.mjs in one piece, so the two can be compared side by side; the
 // sections are built by the other files of this module.
+#[allow(clippy::too_many_lines)]
 pub fn render_system_page(root: &Path, design_base: &str) -> Result<String, DfwError> {
     let p = project_paths(root);
     let manifest = js::read_json(&p.design.join("design.json"), Some(json!({})))?;

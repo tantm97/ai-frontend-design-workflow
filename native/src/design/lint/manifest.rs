@@ -29,6 +29,7 @@ fn join_below(dir: &Path, file: &str) -> PathBuf {
 /// TypeError) is an error here too.
 // Over 120 lines with its messages, one function as in lint.mjs: the rules run in the order
 // their findings are printed.
+#[allow(clippy::too_many_lines)]
 pub fn lint_manifest(root: &Path) -> Result<Vec<Value>, DfwError> {
     const REL: &str = "design/design.json";
     let p = project_paths(root);

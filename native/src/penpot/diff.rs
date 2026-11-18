@@ -272,6 +272,7 @@ fn change(ty: &str, parts: Vec<Pairs>) -> Value {
 /// `changes` (the Node code did the same to the object it was given).
 // Long: boards, deleted boards, masters and comment threads, in the order the Node function
 // reports them (the order decides how changes group into comments).
+#[allow(clippy::too_many_lines)]
 pub fn diff_changes(baseline: &Value, changes: &mut Value, dims: &[Dim]) -> Result<Diff, DfwError> {
     if changes.get("schema").and_then(Value::as_str) != Some(CHANGES_SCHEMA) {
         return Err(DfwError::new(format!(
@@ -429,6 +430,7 @@ pub fn diff_changes(baseline: &Value, changes: &mut Value, dims: &[Dim]) -> Resu
 /// The changes of one screen board. Returns the layers whose path the export does not know.
 // Long: one block per kind of change on a layer (text, box, fill, name), then removed and
 // added layers, as in the Node function.
+#[allow(clippy::too_many_lines)]
 fn diff_board(
     b: &Value,
     cb: &Value,
@@ -646,17 +648,26 @@ fn diff_board(
 
 /* ------------------------------------------------------------------ component masters (dfw components page) */
 
+// A constant pattern: it compiles, and every test that reaches it proves so.
+#[allow(clippy::expect_used)]
 static RADIUS_NAME: LazyLock<Regex> =
-    // The patterns of this file are constants: known to compile.
     LazyLock::new(|| Regex::new(r"(^|\.)radius(\.|$)").expect("constant pattern"));
+// A constant pattern: it compiles, and every test that reaches it proves so.
+#[allow(clippy::expect_used)]
 static BORDER_NAME: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(border|stroke|focus)[.-]?width").expect("constant pattern"));
+// A constant pattern: it compiles, and every test that reaches it proves so.
+#[allow(clippy::expect_used)]
 static SPACE_NAME: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(^|\.)(space|spacing|gap|inset|padding)(\.|$)").expect("constant pattern")
 });
+// A constant pattern: it compiles, and every test that reaches it proves so.
+#[allow(clippy::expect_used)]
 static SIZE_NAME: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(^|\.)(size|sizing|width|height)(\.|$)").expect("constant pattern")
 });
+// A constant pattern: it compiles, and every test that reaches it proves so.
+#[allow(clippy::expect_used)]
 static MAIN_PREFIX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^main:[^#]*#").expect("constant pattern"));
 
@@ -815,6 +826,7 @@ fn diff_components(
 
 /// The changes of one main component.
 // Long: one block per property the designer can change, as in the Node function.
+#[allow(clippy::too_many_lines)]
 fn diff_component(
     c: &Value,
     cc: &Value,
@@ -1192,15 +1204,23 @@ fn css_property(change: &Value) -> Option<&'static str> {
     })
 }
 
+// A constant pattern: it compiles, and every test that reaches it proves so.
+#[allow(clippy::expect_used)]
 static CSS_RULE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"([^{}<>]+)\{([^{}]*)\}").expect("constant pattern"));
+// A constant pattern: it compiles, and every test that reaches it proves so.
+#[allow(clippy::expect_used)]
 static STATE_SELECTOR: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r":(hover|focus|focus-visible|focus-within|active|disabled|checked)|\[(aria|data)-")
         .expect("constant pattern")
 });
+// A constant pattern: it compiles, and every test that reaches it proves so.
+#[allow(clippy::expect_used)]
 static TEXT_SELECTOR: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?-u:\b)(span|p|label|strong)(?-u:\b)").expect("constant pattern")
 });
+// A constant pattern: it compiles, and every test that reaches it proves so.
+#[allow(clippy::expect_used)]
 static CLASS_NAME: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)^[a-z][0-9A-Za-z_-]*\.([0-9A-Za-z_-]+)$").expect("constant pattern")
 });
@@ -1238,6 +1258,7 @@ fn first_element(text: &str) -> Option<usize> {
 /// tag/class), else the component tag. `None` when the change is not on a component.
 // Long: three lookups in one text (CSS rule, template element, component tag) that share
 // the offsets of the master block.
+#[allow(clippy::too_many_lines)]
 pub fn master_source(root: &Path, change: &Value, lib: Option<&Library>) -> Option<MasterSource> {
     let comp = js::truthy_value(change.get("component"))?;
     let comp_name = comp.get("name").and_then(Value::as_str);
@@ -1535,6 +1556,7 @@ fn token_or(token: Option<&Value>, what: &str) -> String {
 /// `describeComponentChange`: one line for a change on a component master (dfw components
 /// page).
 // Long: one sentence per change type.
+#[allow(clippy::too_many_lines)]
 pub fn describe_component_change(c: &Value) -> String {
     let s = |key: &str| js::to_string(c.get(key));
     let (from, to) = (c.get("from"), c.get("to"));

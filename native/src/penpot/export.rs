@@ -105,17 +105,26 @@ pub fn simplify(nodes: Vec<Value>) -> Vec<Value> {
     out
 }
 
+// A constant pattern: it compiles, and every test that reaches it proves so.
+#[allow(clippy::expect_used)]
 static PLAIN_ALIAS: LazyLock<Regex> =
-    // A constant pattern: known to compile.
     LazyLock::new(|| Regex::new(r"^\{([^{}]+)\}$").expect("constant pattern"));
+// A constant pattern: it compiles, and every test that reaches it proves so.
+#[allow(clippy::expect_used)]
 static SCALE_STEP: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\.[0-9]+$").expect("constant pattern"));
+// A constant pattern: it compiles, and every test that reaches it proves so.
+#[allow(clippy::expect_used)]
 static RADIUS_NAME: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(^|\.)radius(\.|$)").expect("constant pattern"));
+// A constant pattern: it compiles, and every test that reaches it proves so.
+#[allow(clippy::expect_used)]
 static TEXTISH: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(^|[.-])(ink|text|on|fg|foreground|muted|subtle)([.-]|$)")
         .expect("constant pattern")
 });
+// A constant pattern: it compiles, and every test that reaches it proves so.
+#[allow(clippy::expect_used)]
 static EXPORT_FILE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^px_[0-9A-Za-z_]+\.json$").expect("constant pattern"));
 
@@ -307,6 +316,7 @@ impl Linker<'_> {
     }
 
     // Long: one step per property of a snapshot node, in the key order of the export file.
+    #[allow(clippy::too_many_lines)]
     fn layer(&self, n: &Value, path: &str) -> Value {
         let kind = n.get("kind").and_then(Value::as_str);
         let st = |key: &str| style(n, key);
@@ -564,6 +574,7 @@ pub struct ExportInput<'a> {
 /// `buildExport`: the export document from rendered snapshots. Its id carries the render time
 /// and a hash of the pages.
 // Long: the document is built in the key order its hash (the export id) is taken over.
+#[allow(clippy::too_many_lines)]
 pub fn build_export(input: &ExportInput) -> Value {
     let base = input.tokens.map(|t| &t.base);
     let colors = color_token_index(base);

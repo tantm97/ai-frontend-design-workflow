@@ -191,6 +191,7 @@ fn list<'a>(value: Option<&'a Value>, what: &str) -> Result<&'a [Value], DfwErro
 }
 
 // One match over the DTCG types, as the switch of tokens.mjs (over 120 lines once formatted).
+#[allow(clippy::too_many_lines)]
 fn value_to_css(value: Option<&Value>, ty: &str) -> Result<String, DfwError> {
     if let Some(Value::String(text)) = value {
         return Ok(aliases_to_css(text));

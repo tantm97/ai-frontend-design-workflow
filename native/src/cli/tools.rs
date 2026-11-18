@@ -163,6 +163,8 @@ fn version_of(bin: &str) -> (bool, String, String) {
 }
 
 /// `dfw doctor`: environment and installation checks (`cmdDoctor`).
+// One row after the other, in the order cmdDoctor prints them.
+#[allow(clippy::too_many_lines)]
 fn doctor(ctx: &Ctx) -> Result<i32, DfwError> {
     let root = ctx.root();
     let mut rows: Vec<String> = Vec::new();
