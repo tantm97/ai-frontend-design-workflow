@@ -11,8 +11,8 @@ Each ruling names the conflicting instructions and decides. Re-check this file a
 - Ruling: dfw owns PRODUCT.md and DESIGN.md at the project root (templates from dfw). Do not run Impeccable `init`/`document`/`extract` to (re)write them; read Impeccable's output proposals and merge by hand. Never use UI UX Pro Max `--persist`; translate its recommendations into DESIGN.md + tokens. Values live in `design/tokens/tokens.json` (DTCG); DESIGN.md references token names.
 
 ## R3. Direction is chosen by the user, not dealt
-- Conflict: Hallmark deals themes from a catalog (`theme.mjs deal`), Impeccable fetches catalog directions (`/impeccable shape` / concept seed), UI UX Pro Max matches styles by keyword, frontend-design reasons from the brief.
-- Ruling: the design-director brief and frontend-design reasoning produce the 2-3 directions. Catalog tools are *inputs* (inspiration, data), never the decision. For marketing pages led by Hallmark, run it in custom mode with DESIGN.md/brand passed in, or let the user pick from its dealt options explicitly.
+- Conflict: Hallmark deals themes from a catalog (`theme.mjs deal`), Impeccable deals catalog directions (`concept-seed`, reached from its new-work flow; `shape` hands over to that flow for visual direction), UI UX Pro Max matches styles by keyword, frontend-design reasons from the brief.
+- Ruling: the design-director brief and frontend-design reasoning produce the 2-3 directions. Catalog tools are *inputs* (inspiration, data), never the decision. For marketing pages led by Hallmark, run it in custom mode with DESIGN.md/brand passed in, or let the user pick from its dealt options explicitly. Impeccable `shape` is allowed for UX planning only (job, audience, content, flow): stop before its "Resolve the design direction" phase and never run `concept-seed` or new-work.
 
 ## R4. Eyebrows, labels and typographic tics
 - Conflict: Impeccable and Hallmark ban eyebrow/kicker labels absolutely; frontend-design discourages them but lets the brief win.
@@ -35,7 +35,7 @@ Each ruling names the conflicting instructions and decides. Re-check this file a
 - Ruling: user-supplied copy is verbatim (level 1). Product UI microcopy follows `ux-research:ux-copy`. Marketing copy may use Taste copy references and Hallmark budgets as guidance; `copy: verbatim` waivers when the user's copy is longer.
 
 ## R9. Images and paid services
-- Ruling: no paid APIs by default. Hallmark `imagegen` (Together AI key) and Impeccable `generate` (OpenAI key) only on explicit user request with their own key. Use user assets, real product screenshots, or clearly marked placeholders.
+- Ruling: no paid APIs by default. Hallmark `imagegen` (Together AI key) and Impeccable `generate-image` and its `visualize` flow (OpenAI key) only on explicit user request with their own key. Use user assets, real product screenshots, or clearly marked placeholders.
 
 ## R10. Hooks and settings
 - Ruling: upstream hooks are stripped at build time (Impeccable's three hooks, Taste's Stop hook). Never run `impeccable hooks on`, `impeccable pin`, Hallmark `install-hook.mjs`, or anything that edits `~/.claude/settings.json`; dfw provides its own check hook.

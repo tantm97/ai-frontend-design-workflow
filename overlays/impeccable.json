@@ -11,7 +11,7 @@
       "file": "skills/impeccable/SKILL.md",
       "pattern": "^\\*\\*Pin / Unpin:\\*\\*.*$",
       "flags": "m",
-      "with": "**Pin / Unpin:** disabled in dfw-marketplace (creates global slash commands that collide with other skills; dfw policy R10). Tell the user it is unavailable.",
+      "with": "**Pin / Unpin:** not available in dfw-marketplace and must not be run (`pin` creates global slash commands that collide with other skills; dfw policy R10). Tell the user it is unavailable.",
       "min": 1,
       "why": "pin creates bare /<command> shortcuts outside the plugin namespace."
     },
@@ -20,9 +20,33 @@
       "file": "skills/impeccable/SKILL.md",
       "pattern": "^\\*\\*Hooks:\\*\\*.*$",
       "flags": "m",
-      "with": "**Hooks:** disabled in dfw-marketplace. The dfw workflow runs `impeccable detect` itself after edits and at its gates (dfw policy R10). Do not run `hooks on`; it writes to Claude Code settings.",
+      "with": "**Hooks:** not available in dfw-marketplace and must not be enabled. The dfw workflow runs `impeccable detect` itself after edits and at its gates (dfw policy R10). Never run `hooks on`, also when `hooks status`, `context` or `doctor` output suggests it as a repair: it writes hook entries into the host's settings files. See [reference/hooks.md](reference/hooks.md).",
       "min": 1,
       "why": "`hooks on` writes hook entries into settings files; dfw provides a controlled check hook instead."
+    },
+    {
+      "op": "write",
+      "file": "skills/impeccable/reference/hooks.md",
+      "content": "# Impeccable hooks under dfw\n\nImpeccable's edit hooks are not available under dfw-marketplace and must not be enabled. dfw runs `impeccable detect` itself after edits and at its gates, and the launcher defaults `IMPECCABLE_HOOK_DISABLED` to `1`.\n\n- Never run the launcher's `hooks` command with `on`, also when the output of `hooks status`, `context` or `doctor` suggests it as a repair. It records consent and writes hook entries into the host's settings files, including the user's global ones.\n- Do not add Impeccable hook entries to any settings file by hand, and do not unset `IMPECCABLE_HOOK_DISABLED`.\n- If the user asks for Impeccable hooks, say they are unavailable here and that `dfw check` covers the same detector.\n",
+      "why": "The upstream page is a full guide to `hooks on`, which writes hook entries into host settings (also ~/.claude/settings.json). dfw strips the hooks, so the page is replaced by a note that they must not be enabled."
+    },
+    {
+      "op": "replace",
+      "file": "skills/impeccable/SKILL.md",
+      "pattern": "follow its directives and do not rerun it\\.$",
+      "flags": "m",
+      "with": "follow its directives and do not rerun it. Under dfw-marketplace, run `context` only through this launcher with its defaults (it sets `IMPECCABLE_HOOK_DISABLED=1`); never run it with that variable unset or changed, or with hooks enabled, because `context` can restore hook entries in the host's settings when an older Impeccable install left hook consent in `.impeccable/config.local.json`. If its output says it restored or repaired hook entries, stop and tell the user.",
+      "min": 1,
+      "why": "Upstream's hooks reference says `context` restores missing hook entries when local consent exists. The shipped text does not show that IMPECCABLE_HOOK_DISABLED=1 stops that write, so the instruction is bounded in words."
+    },
+    {
+      "op": "replace",
+      "file": "skills/impeccable/reference/doctor.md",
+      "pattern": "Do not ask permission first, and do not ask about them afterward\\.",
+      "flags": "",
+      "with": "Do not ask permission first, and do not ask about them afterward. Under dfw-marketplace the one exception is any finding about the design hook: report it and do not repair it, because hooks are not available under dfw and must not be enabled.",
+      "min": 1,
+      "why": "`doctor --fix` can rewrite hook entries in host settings without asking; dfw forbids enabling or repairing Impeccable hooks."
     },
     {
       "op": "replace",

@@ -12,7 +12,7 @@ import { install, uninstall } from './install.mjs';
 import { loadConfig, setConfigValue, getConfigValue } from './config.mjs';
 import { loadState, saveState, newState, setPhase, approveGate, setMode, summarize, MODES, PHASES, GATES, currentApproval } from './state.mjs';
 import { freezeDesign, reopenDesign, verifySnapshot } from './freeze.mjs';
-import { runChecks, formatReport } from './check.mjs';
+import { runChecks, formatReport, checkExitCode, setupEngine } from './check.mjs';
 import { buildTokens } from './tokens.mjs';
 import { exportPenpotTokens, importPenpotTokens, formatExport, formatImport } from './penpot-tokens.mjs';
 import { exportPenpot, exportSummary, importChanges, formatImportChanges } from './penpot.mjs';
@@ -21,7 +21,7 @@ import { addComment, allComments, updateComment, newSession } from './comments.m
 import { languageStatus, setLanguage } from './lang.mjs';
 import { HANDLERS, HOOK_EVENTS } from './hooks.mjs';
 import { currentHost, normalizeHookInput, formatHookOutput, HOSTS, SUPPORTED_HOSTS } from './host.mjs';
-import { impeccableLauncher, pluginRoot, sloplintScript, tasteCopyLintScript } from './locate.mjs';
+import { impeccableEngine, pluginRoot, sloplintScript, tasteCopyLintScript } from './locate.mjs';
 import { a11yCheck, axeStatus, installAxe } from './a11y.mjs';
 import { diffImages, diffPairs } from './pixeldiff.mjs';
 import { extractTokensToFile } from './extract.mjs';
@@ -81,7 +81,7 @@ Design workspace
   dfw tokens export --format penpot [--out <f>] Tokens + themes as a Penpot token file (sets/themes, aliases kept; unsupported types listed)
   dfw tokens import <file|dir> [--from penpot] [--dry-run] [--prune]   Penpot token file -> design/tokens (diff summary; refused while frozen)
   dfw lint [files...] [--json]                  dfw design lint only (fast)
-  dfw check [files...|--url <u>] [--states] [--themes] [--no-a11y] [--lighthouse] [--json] [--setup]   dfw lint + Impeccable + sloplint + axe (rendered a11y; whole design or URL); --lighthouse: performance/SEO of a running app (pinned, via npx)
+  dfw check [files...|--url <u>] [--states] [--themes] [--no-a11y] [--lighthouse] [--json] [--strict] [--setup]   dfw lint + Impeccable + sloplint + axe (rendered a11y; whole design or URL); --lighthouse: performance/SEO of a running app (pinned, via npx); --strict: exit 3 when a tool could not run
   dfw studio start|stop|status [--port <n>]     Local Design Studio (canvas + click-to-comment)
   dfw review start --url <dev server> [--port <n>] [--shortcut <combo>] [--no-shots] | stop | status
                                                 Click-to-comment on the running app (local proxy; comments carry file:line with the inspector)
@@ -556,8 +556,8 @@ function cmdDoctor(root) {
     const r = pluginRoot(name);
     ok(`plugin ${name}`, Boolean(r), r || 'not found (install from dfw-marketplace)');
   }
-  const imp = impeccableLauncher();
-  ok('impeccable engine downloaded', Boolean(imp?.ready), imp ? (imp.ready ? imp.version : 'run "dfw check --setup" once (downloads a checksum-verified binary from GitHub)') : 'impeccable plugin not found');
+  const imp = impeccableEngine();
+  ok('impeccable engine verified', Boolean(imp?.ready), imp ? (imp.ready ? (imp.verified ? `${imp.version} (sha256 matches the pinned checksum)` : `UNVERIFIED ${imp.cmd} (impeccable.allowUnverifiedEngine)`) : imp.detail) : 'impeccable plugin not found');
   ok('sloplint', Boolean(sloplintScript()));
   ok('taste copy-lint', Boolean(tasteCopyLintScript()), 'optional');
   const br = browserStatus();
@@ -881,16 +881,16 @@ export async function main(argv) {
     case 'check': {
       const config = loadConfig(root);
       if (a.setup) {
-        const l = impeccableLauncher();
-        if (!l) throw new DfwError('Impeccable plugin not found.');
         const tmp = path.join(projectPaths(root).dfw, 'checks', 'setup.html');
         fs.mkdirSync(path.dirname(tmp), { recursive: true });
         fs.writeFileSync(tmp, '<!doctype html><html lang="en"><title>x</title><p>x</p></html>');
-        const r = spawnSync(l.cmd, ['detect', '--json', tmp], { env: { ...process.env, ...config.env }, encoding: 'utf8', timeout: 180000 });
-        return out(r.status === 0 || r.status === 2 ? 'Impeccable engine ready.' : `Impeccable setup failed: ${(r.stderr || '').slice(0, 500)}`);
+        const r = setupEngine({ env: config.env, target: tmp });
+        if (!r.ok && r.text === 'Impeccable plugin not found.') throw new DfwError(r.text);
+        return out(r.text);
       }
+      if (typeof a.strict === 'string') a._.push(a.strict); // "--strict <file>": the file is a target, not the flag's value
       const targets = a.url ? [a.url] : a._.length > 1 ? a._.slice(1) : null;
-      const results = runChecks(root, targets, config, { timeoutMs: Number(a.timeout) || 60000, allowDownload: false, tools: cmd === 'lint' ? ['dfw'] : undefined });
+      const results = runChecks(root, targets, config, { timeoutMs: Number(a.timeout) || 60000, tools: cmd === 'lint' ? ['dfw'] : undefined });
       // Rendered accessibility (axe) on the whole design or a URL; per-file runs stay fast and static.
       if (cmd === 'check' && !a['no-a11y'] && (a.url || !targets)) results.push(await a11yCheck(root, { url: a.url, states: Boolean(a.states), themes: Boolean(a.themes) }));
       if (cmd === 'check' && a.lighthouse) {
@@ -898,9 +898,10 @@ export async function main(argv) {
         results.push(runLighthouse(a.url));
       }
       const rep = formatReport(results, { max: Number(a.max) || 60 });
-      if (a.json) out({ results, tally: rep.tally }, true);
+      if (a.json) out({ results, tally: rep.tally, unverified: rep.unverified }, true);
       else out(rep.text);
-      if (rep.tally.error) process.exitCode = 2;
+      const code = checkExitCode(rep, { strict: Boolean(a.strict) });
+      if (code) process.exitCode = code;
       return;
     }
     case 'studio':
