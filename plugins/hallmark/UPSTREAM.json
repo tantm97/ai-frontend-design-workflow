@@ -22,6 +22,51 @@
       "op": "replace",
       "file": "skills/hallmark/SKILL.md",
       "why": "Installed as a plugin, the placeholder must resolve to the real skill directory."
+    },
+    {
+      "op": "delete",
+      "file": "skills/hallmark/scripts/install-hook.mjs,skills/hallmark/scripts/lint-hook.mjs",
+      "why": "install-hook.mjs writes a hook into Claude Code settings; upstream hooks are never installed from dfw-marketplace (dfw policy R10). lint-hook.mjs is only that hook."
+    },
+    {
+      "op": "replace",
+      "file": "skills/hallmark/references/flow.md",
+      "why": "The line told the model to run the settings-writing hook installer."
+    },
+    {
+      "op": "replace",
+      "file": "skills/hallmark/references/flow.md",
+      "why": "Same: the harness table must not point at the removed hook installer."
+    },
+    {
+      "op": "replace",
+      "file": "skills/hallmark/references/comp.md",
+      "why": "Same placeholder as in SKILL.md: left as is, `node <skill-dir>/...` is a shell redirect and fails."
+    },
+    {
+      "op": "replace",
+      "file": "skills/hallmark/references/direction.md",
+      "why": "Same placeholder as in SKILL.md: left as is, `node <skill-dir>/...` is a shell redirect and fails."
+    },
+    {
+      "op": "replace",
+      "file": "skills/hallmark/references/fonts.md",
+      "why": "Same placeholder as in SKILL.md: left as is, `node <skill-dir>/...` is a shell redirect and fails."
+    },
+    {
+      "op": "replace",
+      "file": "skills/hallmark/references/gates.md",
+      "why": "Same placeholder as in SKILL.md: left as is, `node <skill-dir>/...` is a shell redirect and fails."
+    },
+    {
+      "op": "replace",
+      "file": "skills/hallmark/references/imagery.md",
+      "why": "Same placeholder as in SKILL.md: left as is, `node <skill-dir>/...` is a shell redirect and fails."
+    },
+    {
+      "op": "replace",
+      "file": "skills/hallmark/references/redesign.md",
+      "why": "Same placeholder as in SKILL.md: left as is, `node <skill-dir>/...` is a shell redirect and fails."
     }
   ],
   "mode": "plugin"

@@ -51,7 +51,7 @@ function colorToCss(v) {
   throw new Error(`Unsupported color value ${JSON.stringify(v)}`);
 }
 
-function valueToCss(value, type, resolve) {
+function valueToCss(value, type) {
   if (typeof value === 'string') {
     const alias = value.match(/^\{([^{}]+)\}$/);
     if (alias) return `var(${cssVarName(alias[1])})`;
@@ -72,8 +72,10 @@ function valueToCss(value, type, resolve) {
     case 'cubicBezier':
       return `cubic-bezier(${value.map(fmtNumber).join(', ')})`;
     case 'shadow': {
+      // blur and spread are optional in CSS; a missing one must not print "undefined".
+      const len = (v) => valueToCss(v ?? { value: 0, unit: 'px' }, 'dimension');
       const one = (s) =>
-        [s.inset ? 'inset' : '', valueToCss(s.offsetX, 'dimension'), valueToCss(s.offsetY, 'dimension'), valueToCss(s.blur, 'dimension'), valueToCss(s.spread, 'dimension'), valueToCss(s.color, 'color')]
+        [s.inset ? 'inset' : '', len(s.offsetX), len(s.offsetY), len(s.blur), s.spread == null ? '' : len(s.spread), valueToCss(s.color, 'color')]
           .filter(Boolean)
           .join(' ');
       return (Array.isArray(value) ? value : [value]).map(one).join(', ');
@@ -97,6 +99,7 @@ export function tokensToDeclarations(tree) {
   const tokens = collect(tree);
   const decls = [];
   for (const [name, { value, type }] of tokens) {
+    if (value == null) throw new DfwError(`Token "${name}" has no value ($value is null).`);
     if (type === 'typography' && typeof value === 'object' && !Array.isArray(value)) {
       const map = { fontFamily: 'fontFamily', fontSize: 'dimension', fontWeight: 'fontWeight', letterSpacing: 'dimension', lineHeight: 'number' };
       for (const [k, t] of Object.entries(map)) {

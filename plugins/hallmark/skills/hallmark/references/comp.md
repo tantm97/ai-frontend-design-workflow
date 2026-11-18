@@ -24,7 +24,7 @@ A rendered comp carries mass, interval and alignment at a glance, which prose ca
 Two comps, three when the direction genuinely forks. One is not a choice and four is a shopping trip.
 
 ```
-node <skill-dir>/scripts/imagegen.mjs "<prompt>" --size 1280x800 --n 1 --out .hallmark/comps/c1.png
+node ${CLAUDE_SKILL_DIR}/scripts/imagegen.mjs "<prompt>" --size 1280x800 --n 1 --out .hallmark/comps/c1.png
 ```
 
 The prompt is built from the Picks block and the stamp's idea or theme line, not from the prompt. A prompt that reads like the prompt produces the category default in pixels, the page `direction.md` sets aside. Carry, in this order: the **first viewport** as you planned it (what sits where, how large), the **idea** in a few plain words, the **ground and accent** as plain colour words, the **display class** (not the face name; no generator knows Erode), and the **macrostructure** as a compositional instruction. Then one negative clause naming what the category does, so the generator is pushed off it too.
@@ -98,7 +98,7 @@ Rower photograph   raster    library photo; the comp's crew is not a real crew
 A picture for the page itself, outside the comp step: only when `TOGETHER_API_KEY` is set and the user asked for generated images, or for a subject the library cannot reach (`imagery.md` § 1).
 
 ```
-node <skill-dir>/scripts/imagegen.mjs "<prompt>" --size 1536x1024 --out <project>/images/<name>.png
+node ${CLAUDE_SKILL_DIR}/scripts/imagegen.mjs "<prompt>" --size 1536x1024 --out <project>/images/<name>.png
 ```
 
 Prompt like a photographer's prompt: one concrete subject, the place, the light and the lens (*a stack of rye loaves on a flour-dusted steel counter, early window light from the left, 50mm, shallow depth*), with *no text, no people facing the camera*. Look at every result; six fingers, doubled furniture and melted labels go back. Treatment and frame as for a library photo. Stamp `generated: <model> via imagegen.mjs`. Never auto-fire it.

@@ -196,7 +196,12 @@ const FORM_RE = /<form\b|<dfw-use\b[^>]*\bc="[\w-]*form[\w-]*"/i;
 
 /** Warn when a screen with a table/list or a form declares no loading/empty/error states (design.json states). */
 export function stateCoverage(root, rel, text) {
-  const m = readJson(projectPaths(root).manifest, null);
+  let m;
+  try {
+    m = readJson(projectPaths(root).manifest, null);
+  } catch {
+    return []; // a malformed design.json is reported by lintManifest (manifest-json)
+  }
   const file = rel.replace(/^design\//, '');
   const sc = (m?.screens || []).find((s) => (s.variants || []).some((v) => v.file === file));
   if (!sc || String(sc.id).startsWith('_')) return [];
@@ -266,8 +271,8 @@ export function lintCss(rel, text) {
   return out;
 }
 
-/** Validate a DTCG token tree: every leaf has $value; aliases resolve. */
-export function lintTokens(rel, json) {
+/** Validate a DTCG token tree: every leaf has $value; aliases resolve (for a theme, also against the `base` tree it overrides). */
+export function lintTokens(rel, json, base = null) {
   const out = [];
   const leaves = new Map();
   const walk = (node, trail, inheritedType) => {
@@ -285,10 +290,17 @@ export function lintTokens(rel, json) {
     }
   };
   walk(json, [], undefined);
-  const strings = (v) => (typeof v === 'string' ? [v] : Array.isArray(v) ? v.flatMap(strings) : v && typeof v === 'object' ? Object.values(v).flatMap(strings) : []);
+  const known = new Set(leaves.keys());
+  const names = (node, trail) => {
+    if (typeof node !== 'object' || node === null) return;
+    if ('$value' in node) return void known.add(trail.join('.'));
+    for (const [k, v] of Object.entries(node)) if (!k.startsWith('$')) names(v, [...trail, k]);
+  };
+  names(base, []);
+  const strings =(v) => (typeof v === 'string' ? [v] : Array.isArray(v) ? v.flatMap(strings) : v && typeof v === 'object' ? Object.values(v).flatMap(strings) : []);
   for (const [name, { node }] of leaves) {
     for (const m of strings(node.$value).flatMap((s) => [...s.matchAll(/\{([^{}]+)\}/g)])) {
-      if (!leaves.has(m[1])) out.push({ level: 'error', rule: 'token-alias', file: rel, line: 1, message: `Token "${name}" references unknown token "{${m[1]}}".`, source: 'dfw' });
+      if (!known.has(m[1])) out.push({ level: 'error', rule: 'token-alias', file: rel, line: 1, message: `Token "${name}" references unknown token "{${m[1]}}".`, source: 'dfw' });
     }
   }
   // Near-duplicate colours: two tokens that look the same are one decision made twice.
@@ -389,7 +401,17 @@ export function lintDesign(root, files = null) {
     else if (rel.endsWith('.css')) out.push(...lintCss(rel, text));
     else if (/tokens\/.*\.json$/.test(rel) || rel.endsWith('.tokens.json')) {
       try {
-        out.push(...lintTokens(rel, JSON.parse(text)));
+        // A theme overrides part of tokens.json, so its aliases may point at base tokens.
+        const json = JSON.parse(text);
+        let base = null;
+        if (rel.startsWith('design/tokens/themes/')) {
+          try {
+            base = readJson(path.join(p.tokens, 'tokens.json'), null);
+          } catch {
+            /* a broken tokens.json gets its own token-json finding */
+          }
+        }
+        out.push(...lintTokens(rel, json, base));
       } catch (e) {
         out.push({ level: 'error', rule: 'token-json', file: rel, line: 1, message: e.message, source: 'dfw' });
       }

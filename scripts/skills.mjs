@@ -12,7 +12,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { REPO_ROOT, readJson, writeJson, loadRegistry, loadLock, buildPlugin, buildAll, listFiles } from './lib/build.mjs';
 import { resolveRef, commitCount } from './lib/git.mjs';
-import { xrefCheck, hooksCheck, conflictLint, executableFiles } from './lib/checks.mjs';
+import { xrefCheck, hooksCheck, leftoverCheck, conflictLint, executableFiles } from './lib/checks.mjs';
 import { getKey } from './lib/frontmatter.mjs';
 
 const LOCK = path.join(REPO_ROOT, 'registry', 'skills.lock.json');
@@ -135,6 +135,7 @@ function cmdPropose(id) {
     // Hooks invariant.
     const hooks = hooksCheck({ pluginsRoot: tmp, only: [s.plugin] });
     report.blocking.push(...hooks);
+    report.blocking.push(...leftoverCheck({ pluginsRoot: tmp, only: [s.plugin] }));
     // Cross references used by dfw, evaluated against the candidate.
     const xref = xrefCheck({ overrides: { [s.plugin]: cand } });
     report.blocking.push(...xref);

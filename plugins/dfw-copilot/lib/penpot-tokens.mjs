@@ -16,9 +16,18 @@ import path from 'node:path';
 import { projectPaths, readJson, writeJson, DfwError } from './util.mjs';
 import { oklchToHex } from './color.mjs';
 
-export const BASE_SET = 'base';
-export const THEME_PREFIX = 'themes/';
-export const THEME_GROUP = 'dfw';
+const BASE_SET = 'base';
+const THEME_PREFIX = 'themes/';
+const THEME_GROUP = 'dfw';
+
+// Token and set names come from a Penpot file (untrusted): a path segment like "__proto__" would
+// write into Object.prototype instead of the tree.
+const RESERVED = new Set(['__proto__', 'constructor', 'prototype']);
+/** "color.brand.500" -> ['color', 'brand', '500'], or null when a segment is reserved. */
+function tokenPath(name) {
+  const parts = String(name).split('.');
+  return parts.some((p) => RESERVED.has(p)) ? null : parts;
+}
 
 const isAlias = (v) => typeof v === 'string' && /\{[^{}]+\}/.test(v);
 const round = (n, d = 4) => Math.round(n * 10 ** d) / 10 ** d;
@@ -155,11 +164,12 @@ export function tokenToPenpot(name, { type, value, description }, note = () => {
   }
 }
 
-/** Nested Penpot set from a flat Map(name -> {type, value, description}). */
-function nest(entries) {
+/** Nested Penpot set from flat entries [name, {type, value, description}]; names with a reserved segment are left out. */
+export function nest(entries) {
   const root = {};
   for (const [name, t] of entries) {
-    const parts = name.split('.');
+    const parts = tokenPath(name);
+    if (!parts) continue;
     let node = root;
     for (const p of parts.slice(0, -1)) node = node[p] ??= {};
     node[parts.at(-1)] = { $value: t.value, $type: t.type, ...(t.description ? { $description: t.description } : {}) };
@@ -360,9 +370,13 @@ export function tokenFromPenpot(name, { type, value, description }, prefer, warn
 
 /* ------------------------------------------------------------------ reading a Penpot file */
 
-function walkSet(tree, inheritedType) {
+function walkSet(tree, inheritedType, reserved = []) {
   const out = new Map();
   const walk = (node, trail, type) => {
+    if (!tokenPath(trail.join('.'))) {
+      reserved.push(trail.join('.'));
+      return;
+    }
     if (typeof node !== 'object' || node === null || Array.isArray(node)) return;
     const t = node.$type || node.type || type;
     if ('$value' in node || ('value' in node && 'type' in node && trail.length)) {
@@ -417,7 +431,8 @@ export function mapSets(parsed) {
   const order = [...new Set([...(parsed.metadata.tokenSetOrder || []), ...parsed.sets.keys()])].filter((s) => parsed.sets.has(s));
   const map = new Map();
   const skipped = [];
-  const baseName = parsed.single || parsed.sets.size === 1 ? order[0] : parsed.sets.has(BASE_SET) ? BASE_SET : order.find((s) => !/^themes?\//.test(s));
+  // A lone "themes/<n>" set in a multi-set file is still a theme, never the base (it would overwrite tokens.json).
+  const baseName = parsed.single ? order[0] : parsed.sets.has(BASE_SET) ? BASE_SET : order.find((s) => !/^themes?\//.test(s));
   for (const s of order) {
     const m = /^themes?\/(.+)$/.exec(s);
     if (s === baseName) map.set(s, { kind: 'base' });
@@ -441,7 +456,8 @@ function inheritedTypeAt(tree, parts) {
 }
 
 function setToken(tree, name, tok) {
-  const parts = name.split('.');
+  const parts = tokenPath(name);
+  if (!parts) return;
   let node = tree;
   for (const p of parts.slice(0, -1)) {
     if (typeof node[p] !== 'object' || node[p] === null || '$value' in node[p]) node[p] = {};
@@ -485,15 +501,22 @@ function deleteToken(tree, name) {
 export function mergeSet(current, penpotSet, { set, prune = false } = {}) {
   const tree = clone(current) || {};
   const cur = flattenTokens(current || {});
-  const incoming = walkSet(penpotSet);
+  const reserved = [];
+  const incoming = walkSet(penpotSet, undefined, reserved);
   const diff = { added: [], changed: [], removed: [], kept: [] };
-  const unsupported = [];
+  const unsupported = reserved.map((token) => ({ set, token, type: undefined, reason: 'reserved name (__proto__, constructor, prototype)' }));
   const warnings = [];
   for (const [name, pt] of incoming) {
     const c = cur.get(name);
     if (c) {
       const exported = tokenToPenpot(name, c);
-      if (!exported.unsupported && same(exported.value, pt.value) && (exported.description || undefined) === (pt.description || undefined)) continue; // unchanged
+      if (!exported.unsupported && same(exported.value, pt.value)) {
+        if ((exported.description || undefined) === (pt.description || undefined)) continue; // unchanged
+        // Only the description was edited in Penpot: keep dfw's exact value (oklch, seconds, ...).
+        setToken(tree, name, { type: c.type, value: c.value, description: pt.description || undefined });
+        diff.changed.push({ token: name, type: c.type, from: c.value, to: c.value, descriptionOnly: true });
+        continue;
+      }
     }
     const r = tokenFromPenpot(name, pt, c?.type, (w) => warnings.push({ set, token: name, note: w }));
     if (r.unsupported) {
@@ -592,7 +615,7 @@ export function formatImport(r, { dryRun = false } = {}) {
   for (const [set, d] of Object.entries(r.diff)) {
     const n = d.added.length + d.changed.length + d.removed.length;
     lines.push(`${set}: ${n ? `${d.changed.length} changed, ${d.added.length} added, ${d.removed.length} removed` : 'no changes'}${d.kept.length ? ` (${d.kept.length} missing in Penpot, kept; --prune removes them)` : ''}`);
-    for (const c of d.changed) lines.push(`  ~ ${c.token}: ${shortValue(c.from)} -> ${shortValue(c.to)}`);
+    for (const c of d.changed) lines.push(c.descriptionOnly ? `  ~ ${c.token}: description changed (value kept)` : `  ~ ${c.token}: ${shortValue(c.from)} -> ${shortValue(c.to)}`);
     for (const c of d.added) lines.push(`  + ${c.token} (${c.type}): ${shortValue(c.value)}`);
     for (const c of d.removed) lines.push(`  - ${c.token}`);
   }

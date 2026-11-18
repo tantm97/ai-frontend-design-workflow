@@ -126,6 +126,8 @@ export function runChecks(root, targets, config, { timeoutMs, allowDownload = fa
   const c = config.checks || {};
   const env = config.env || {};
   const budget = timeoutMs || c.timeoutMs || 8000;
+  // Targets may be typed as ./design/x.html, an absolute path or relative to the current directory: make them project-relative.
+  if (targets) targets = targets.map((t) => (/^https?:/.test(t) ? t : projectRel(root, t)));
   const designTargets = targets
     ? targets.filter((t) => !/^https?:/.test(t))
     : fs.existsSync(p.design)
@@ -171,6 +173,20 @@ export function runChecks(root, targets, config, { timeoutMs, allowDownload = fa
   if (want('sloplint') && c.sloplint !== false) results.push(remap(runSloplint(root, toolTargets, { env, timeoutMs: budget })));
   if (want('taste') && c.tasteCopyLint) results.push(remap(runTasteCopyLint(root, toolTargets, { env, timeoutMs: budget })));
   return results;
+}
+
+function projectRel(root, t) {
+  const abs = path.isAbsolute(t) ? t : fs.existsSync(path.resolve(t)) ? path.resolve(t) : path.resolve(root, t);
+  let rel = path.relative(root, abs);
+  if (rel.startsWith('..')) {
+    // The same file reached through a symlinked directory (/tmp vs /private/tmp).
+    try {
+      rel = path.relative(fs.realpathSync(root), fs.realpathSync(abs));
+    } catch {
+      /* keep the plain relative path */
+    }
+  }
+  return toPosix(rel);
 }
 
 function listDesignUi(root) {

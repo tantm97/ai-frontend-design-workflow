@@ -22,7 +22,40 @@ export function pluginList() {
   return ['dfw', ...deps];
 }
 
-const hasCli = (bin) => spawnSync(bin, ['--version'], { encoding: 'utf8', shell: process.platform === 'win32' }).status === 0;
+/**
+ * How to spawn on Windows. Host CLIs ("claude", "copilot") are .cmd shims and need a shell, where
+ * Node joins the arguments unquoted: quote the ones cmd.exe would split or interpret. An absolute
+ * executable (node.exe / dfw.exe, often under "Program Files") runs directly, no shell.
+ */
+export function spawnPlan(bin, args, platform = process.platform) {
+  if (platform !== 'win32' || path.win32.isAbsolute(bin)) return { bin, args, shell: false };
+  const q = (a) => (/[\s"&|<>^()%!,;=]/.test(a) || a === '' ? `"${String(a).replace(/"/g, '""')}"` : a);
+  return { bin, args: args.map(q), shell: true };
+}
+
+const hasCli = (bin) => {
+  const p = spawnPlan(bin, ['--version']);
+  return spawnSync(p.bin, p.args, { encoding: 'utf8', shell: p.shell }).status === 0;
+};
+
+/**
+ * What to do with the marketplace in Claude Code, from "claude plugin marketplace list --json":
+ * "add" (not registered), "update" (registered from this source), "readd" (registered from
+ * another source, e.g. GitHub while --source is a local clone: update would keep the old one).
+ */
+export function marketplaceAction(listOut, source, name = MARKET) {
+  let list;
+  try {
+    list = JSON.parse(listOut);
+  } catch {
+    return String(listOut || '').includes(name) ? 'update' : 'add'; // older Claude Code: no --json
+  }
+  const cur = (Array.isArray(list) ? list : []).find((m) => m?.name === name);
+  if (!cur) return 'add';
+  const norm = (v) => String(v).replace(/^https:\/\/github\.com\//, '').replace(/\.git$/, '').replace(/[\\/]+$/, '');
+  const known = [cur.repo, cur.path, cur.url, cur.directory].filter((v) => typeof v === 'string').map(norm);
+  return known.includes(norm(source)) || known.includes(norm(path.resolve(source))) ? 'update' : 'readd';
+}
 
 /** Hosts to act on: --host claude|copilot|all, default "auto" = every supported host whose CLI is installed. */
 export function resolveHosts(host = 'auto') {
@@ -42,9 +75,14 @@ export function resolveHosts(host = 'auto') {
 function installInHost(h, { run, step, scope, source, plugins }) {
   if (h.id === 'claude') {
     step(`Claude Code: marketplace ${MARKET} from ${source}`);
-    const list = run('claude', ['plugin', 'marketplace', 'list'], { allowFail: true }).stdout || '';
-    if (list.includes(MARKET)) run('claude', ['plugin', 'marketplace', 'update', MARKET]);
-    else run('claude', ['plugin', 'marketplace', 'add', source, '--scope', scope]);
+    let list = run('claude', ['plugin', 'marketplace', 'list', '--json'], { allowFail: true });
+    if (list.status !== 0) list = run('claude', ['plugin', 'marketplace', 'list'], { allowFail: true });
+    const action = marketplaceAction(list.stdout || '', source);
+    if (action === 'update') run('claude', ['plugin', 'marketplace', 'update', MARKET]);
+    else {
+      if (action === 'readd') run('claude', ['plugin', 'marketplace', 'remove', MARKET], { allowFail: true });
+      run('claude', ['plugin', 'marketplace', 'add', source, '--scope', scope]);
+    }
     step(`Claude Code plugins (${scope} scope): ${plugins.join(', ')}`);
     // dfw declares the skills as dependencies; installing each explicitly keeps older Claude Code versions working.
     for (const p of plugins) run('claude', ['plugin', 'install', `${p}@${MARKET}`, '--scope', scope], { allowFail: p !== 'dfw' });
@@ -52,6 +90,8 @@ function installInHost(h, { run, step, scope, source, plugins }) {
   }
   if (h.id === 'copilot') {
     step(`GitHub Copilot: marketplace ${MARKET} from ${source}`);
+    // An explicit --source replaces a marketplace registered from somewhere else ("add" alone would fail and keep it).
+    if (source !== RELEASE_REPO) run('copilot', ['plugin', 'marketplace', 'remove', MARKET], { allowFail: true });
     run('copilot', ['plugin', 'marketplace', 'add', source], { allowFail: true }); // already added -> update below
     run('copilot', ['plugin', 'marketplace', 'update', MARKET], { allowFail: true });
     step(`GitHub Copilot plugins: ${plugins.join(', ')}`);
@@ -82,7 +122,8 @@ function linkCopilotCli() {
 function runner(quiet) {
   return (bin, args, { allowFail = false, env } = {}) => {
     if (!quiet) console.log(c.dim(`  $ ${bin} ${args.join(' ')}`));
-    const r = spawnSync(bin, args, { encoding: 'utf8', env: { ...process.env, ...env }, shell: process.platform === 'win32' });
+    const p = spawnPlan(bin, args);
+    const r = spawnSync(p.bin, p.args, { encoding: 'utf8', env: { ...process.env, ...env }, shell: p.shell });
     if (r.error || (r.status !== 0 && !allowFail)) {
       const msg = (r.stderr || r.stdout || r.error?.message || '').trim();
       throw new Error(`${bin} ${args.join(' ')} failed${msg ? `:\n${msg}` : ''}`);

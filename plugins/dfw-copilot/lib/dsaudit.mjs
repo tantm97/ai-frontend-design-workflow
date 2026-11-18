@@ -75,7 +75,12 @@ export function auditDesignSystem(root) {
   };
   const ui = ['2xs', 'xs', 'sm', 'md', 'lg', 'xl', '2xl'].map(size).filter(Boolean);
   const display = ['display-sm', 'display-md', 'display-lg', 'display-xl'].map(size).filter(Boolean);
-  const manifest = readJson(p.manifest, {});
+  let manifest = {};
+  try {
+    manifest = readJson(p.manifest, {});
+  } catch {
+    /* a malformed design.json is reported by lint (manifest-json) */
+  }
   for (const x of auditTypeScale({ ui, display }, { body: size('md') || 16, surface: manifest.surface || 'product' })) add(x.level, x.rule, x.message);
   if (!display.length) add('warn', 'type-display', 'No display sizes (font.size.display-*): titles and key numbers will sit at body scale, the most common "AI look".');
   const families = new Set([...tokens].filter(([, t]) => t.type === 'fontFamily').map(([, t]) => (Array.isArray(t.value) ? t.value[0] : t.value)));

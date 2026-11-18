@@ -8,7 +8,8 @@ const toLin = (v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
 const toGam = (v) => (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055);
 
 export function hexToRgb(hex) {
-  const h = hex.replace('#', '');
+  let h = hex.replace('#', '');
+  if (h.length < 6) h = [...h].map((c) => c + c).join(''); // #abc / #abcf shorthand
   return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
 }
 export function rgbToHex(rgb) {

@@ -112,14 +112,15 @@ function addImport(text, esm) {
     return strict ? strict[0] + line + text.slice(strict[0].length) : line + text;
   }
   const line = "import { codeInspectorPlugin } from 'code-inspector-plugin';\n";
-  // After the last top-level import statement (single- or multi-line).
-  const re = /^import\b[\s\S]*?(?:from\s*)?['"][^'"]+['"];?[ \t]*\r?\n/gm;
+  // After the last top-level import statement (single- or multi-line, optional trailing // comment).
+  // One statement per match: nothing before the module string may hold a quote or a semicolon.
+  const re = /^import\b[^'";]*['"][^'"\n]+['"];?[ \t]*(?:\/\/[^\n]*)?\r?\n/gm;
   let end = 0;
   for (const m of text.matchAll(re)) end = m.index + m[0].length;
   return text.slice(0, end) + line + text.slice(end);
 }
 
-/** Brace depth at each index (ignores strings and comments only roughly: good enough for config files). */
+/** Brace depth at an index, or null when it sits inside a comment or a string (rough: good enough for config files). */
 function depthAt(text, index) {
   let d = 0;
   let q = null;
@@ -129,16 +130,23 @@ function depthAt(text, index) {
       if (c === '\\') i++;
       else if (c === q) q = null;
     } else if (c === '"' || c === "'" || c === '`') q = c;
-    else if (c === '/' && text[i + 1] === '/') i = text.indexOf('\n', i) === -1 ? index : text.indexOf('\n', i);
-    else if (c === '{') d++;
+    else if (c === '/' && (text[i + 1] === '/' || text[i + 1] === '*')) {
+      const line = text[i + 1] === '/';
+      const end = line ? text.indexOf('\n', i) : text.indexOf('*/', i + 2);
+      if (end === -1 || end >= index) return null;
+      i = line ? end : end + 1;
+    } else if (c === '{') d++;
     else if (c === '}') d--;
   }
-  return d;
+  return q ? null : d;
 }
 
-/** Insert `item` as the first element of the shallowest `plugins: [` array; null when there is none. */
+/**
+ * Insert `item` as the first element of the config's own `plugins: [` array; null when there is none.
+ * Lists in comments and nested lists (css.postcss.plugins, resolve.plugins, rollupOptions.plugins) are not it.
+ */
 function addToPlugins(text, item) {
-  const hits = [...text.matchAll(/\bplugins\s*:\s*\[/g)].map((m) => ({ at: m.index + m[0].length, d: depthAt(text, m.index) }));
+  const hits = [...text.matchAll(/\bplugins\s*:\s*\[/g)].map((m) => ({ at: m.index + m[0].length, d: depthAt(text, m.index) })).filter((h) => h.d !== null && h.d <= 1);
   if (!hits.length) return null;
   const best = hits.reduce((a, b) => (b.d < a.d ? b : a));
   const rest = text.slice(best.at);
@@ -151,7 +159,7 @@ function addToPlugins(text, item) {
 /** Insert `prop` as the first property of the exported config object; null when not found. */
 function addProperty(text, prop) {
   const re = [
-    /defineConfig\(\s*(?:(?:async\s*)?\([^)]*\)\s*=>\s*\(?\s*)?\{/, // defineConfig({ / defineConfig(({ mode }) => ({
+    /defineConfig\(\s*(?:(?:async\s*)?\([^)]*\)\s*=>\s*\(\s*)?\{/, // defineConfig({ / defineConfig(({ mode }) => ({ ; never a function body
     /(?:const|let|var)\s+nextConfig\s*(?::\s*[\w.]+\s*)?=\s*\{/,
     /module\.exports\s*=\s*(?:\([^)]*\)\s*=>\s*\(\s*)?\{/,
     /export\s+default\s*\{/,
@@ -280,7 +288,9 @@ export function inspectorSetup(root, { write = false } = {}) {
   if (!plan.supported) throw new DfwError(`dfw cannot edit this project's bundler config automatically: ${plan.manual}`);
   const written = [];
   if (!plan.alreadyConfigured) {
-    fs.writeFileSync(path.join(root, plan.configFile), plan.patched);
+    const file = path.join(root, plan.configFile);
+    if (!fs.existsSync(`${file}.dfw-backup`)) fs.copyFileSync(file, `${file}.dfw-backup`); // the user's original, kept once
+    fs.writeFileSync(file, plan.patched);
     written.push(plan.configFile);
   }
   const pkgFile = path.join(root, 'package.json');

@@ -147,7 +147,12 @@ export function inventoryFindings(root) {
     if (c.name && !names.some((n) => n.name === c.name)) add('warn', 'inventory-unbuilt', 'design/system/inventory.json', `Inventory lists "${c.name}" but there is no master for it in design/system/components/.`);
   }
   for (const n of names) if (!listed.has(n.name)) add('warn', 'inventory-orphan', n.rel, `Master "${n.name}" is not in design/system/inventory.json. Add it with the screens that need it, or delete it.`);
-  const m = readJson(p.manifest, {});
+  let m = {};
+  try {
+    m = readJson(p.manifest, {});
+  } catch {
+    /* a malformed design.json is reported by lint (manifest-json) */
+  }
   const realScreens = (m.screens || []).filter((s) => !String(s.id).startsWith('_'));
   if (realScreens.length) {
     const used = usages(root);

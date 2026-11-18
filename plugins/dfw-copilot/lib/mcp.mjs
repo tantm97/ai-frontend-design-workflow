@@ -108,7 +108,7 @@ const TOOLS = () => [
 ];
 
 /** Handle one JSON-RPC request; returns the result (or throws an Error with .code). */
-export async function handle(method, params = {}) {
+async function handle(method, params = {}) {
   switch (method) {
     case 'initialize':
       return {
@@ -164,6 +164,11 @@ export function serveMcp() {
         send({ id: null, error: { code: -32700, message: 'Parse error' } });
         continue;
       }
+      // Valid JSON that is not a request object (null, a number, a batch array): answer, never crash.
+      if (!msg || typeof msg !== 'object' || Array.isArray(msg)) {
+        send({ id: null, error: { code: -32600, message: 'Invalid Request' } });
+        continue;
+      }
       if (msg.id === undefined) continue; // notification
       try {
         send({ id: msg.id, result: await handle(msg.method, msg.params) });
@@ -184,7 +189,7 @@ export const MCP_TARGETS = {
   cursor: { name: 'Cursor', file: () => path.join(os.homedir(), '.cursor', 'mcp.json'), format: 'mcpServers' },
 };
 
-const TOML_BLOCK = /^\[mcp_servers\.dfw\]\n(?:(?!\[)[^\n]*\n?)*/m;
+const TOML_BLOCK = /^\[mcp_servers\.dfw\][ \t]*\r?\n(?:(?!\[)[^\n]*\n?)*/m; // LF or CRLF files
 
 /** New text of a tool's config with the dfw server added (or removed). Throws on a config it cannot parse. */
 /** Command a tool runs to start the server: the plugin's sh launcher (survives Node upgrades), else node + dfw.mjs. */
@@ -246,7 +251,8 @@ export function mcpInstall(target, { remove = false, print = false } = {}) {
       lines.push(`${t.name}: unchanged (${file})`);
       continue;
     }
-    if (current) fs.copyFileSync(file, `${file}.dfw-backup`); // keep the user's previous config
+    // Keep the user's config from before dfw first touched it: a later run must not replace that copy.
+    if (current && !fs.existsSync(`${file}.dfw-backup`)) fs.copyFileSync(file, `${file}.dfw-backup`);
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, next);
     lines.push(`${t.name}: ${remove ? 'removed dfw from' : 'added dfw to'} ${file}${current ? ` (backup: ${path.basename(file)}.dfw-backup)` : ''}`);

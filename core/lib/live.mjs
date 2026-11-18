@@ -284,8 +284,20 @@ export function createLiveServer({ root, target, shots = true, shortcut, log = (
     req.pipe(preq);
   }
 
+  // Local user only: a rebinding page must not reach the app through the proxy (the proxy rewrites Host,
+  // which would defeat the dev server's own host check), and another site must not post comments.
+  const LOOPBACK = /^(localhost|127\.0\.0\.1|\[::1\]):\d+$/i;
+  const foreign = (req) => {
+    if (!LOOPBACK.test(String(req.headers.host || ''))) return `host ${req.headers.host || '(none)'} not allowed`;
+    const from = req.headers.origin;
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && from && !LOOPBACK.test(from.replace(/^https?:\/\//, ''))) return `origin ${from} not allowed`;
+    return null;
+  };
+
   async function onRequest(req, res) {
     try {
+      const refused = foreign(req);
+      if (refused) return send(res, 403, { error: refused });
       const p = new URL(req.url, 'http://127.0.0.1').pathname;
       if (p === '/__dfw/overlay.js') return send(res, 200, fs.readFileSync(path.join(PLUGIN_ROOT, 'studio', 'overlay.js')), 'text/javascript; charset=utf-8');
       if (p === '/__dfw/live.js') return send(res, 200, fs.readFileSync(path.join(PLUGIN_ROOT, 'studio', 'live.js')), 'text/javascript; charset=utf-8');
@@ -299,6 +311,7 @@ export function createLiveServer({ root, target, shots = true, shortcut, log = (
 
   // WebSocket (HMR) passthrough: replay the upgrade request to the app and splice the sockets.
   function onUpgrade(req, socket, head) {
+    if (!LOOPBACK.test(String(req.headers.host || ''))) return socket.destroy();
     const connect = t.protocol === 'https:' ? () => tls.connect({ host: t.hostname, port: tport, servername: t.hostname, rejectUnauthorized: false }) : () => net.connect(tport, t.hostname.replace(/^\[|\]$/g, ''));
     const up = connect();
     up.once(t.protocol === 'https:' ? 'secureConnect' : 'connect', () => {

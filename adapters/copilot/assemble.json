@@ -1,86 +1,9 @@
 {
-  "$comment": "How a host plugin is assembled from the host-agnostic core and this adapter. Host plugins must be self-contained, so core files are copied in. Generated: edit core/ or adapters/<host>/plugin/, then run npm run build.",
+  "$comment": "How this host's plugin is assembled: the core copy list shared by every host (adapters/core-copy.json) first, then this adapter's own files. Host plugins must be self-contained, so core files are copied in. Generated: edit core/ or adapters/<host>/plugin/, then run npm run build.",
   "host": "copilot",
   "plugin": "dfw-copilot",
   "manifest": "plugin.json",
   "copy": [
-    {
-      "from": "core/bin",
-      "to": "bin"
-    },
-    {
-      "from": "core/lib",
-      "to": "lib"
-    },
-    {
-      "from": "core/studio",
-      "to": "studio"
-    },
-    {
-      "from": "core/schemas",
-      "to": "schemas"
-    },
-    {
-      "from": "core/templates",
-      "to": "templates"
-    },
-    {
-      "from": "core/assets",
-      "to": "assets"
-    },
-    {
-      "from": "core/kits",
-      "to": "kits"
-    },
-    {
-      "from": "core/workflow/SKILL.md",
-      "to": "skills/dfw/SKILL.md",
-      "render": "text"
-    },
-    {
-      "from": "core/workflow/references",
-      "to": "skills/dfw/references",
-      "render": "text"
-    },
-    {
-      "from": "core/workflow/policies",
-      "to": "skills/dfw/policies",
-      "render": "text"
-    },
-    {
-      "from": "core/workflow/stacks",
-      "to": "skills/dfw/stacks",
-      "render": "text"
-    },
-    {
-      "from": "core/workflow/agents",
-      "to": "agents",
-      "render": "agent"
-    },
-    {
-      "from": "core/workflow/SKILL.md",
-      "to": "mcp/SKILL.md",
-      "render": "text",
-      "host": "mcp"
-    },
-    {
-      "from": "core/workflow/references",
-      "to": "mcp/references",
-      "render": "text",
-      "host": "mcp"
-    },
-    {
-      "from": "core/workflow/policies",
-      "to": "mcp/policies",
-      "render": "text",
-      "host": "mcp"
-    },
-    {
-      "from": "core/workflow/stacks",
-      "to": "mcp/stacks",
-      "render": "text",
-      "host": "mcp"
-    },
     {
       "from": "adapters/copilot/plugin",
       "to": "."

@@ -16,6 +16,39 @@ const NEXT = {
   dismissed: ['reopened'],
 };
 
+// The Studio server and the CLI (hooks, "dfw comments ...") change the same session files from
+// different processes: every read-modify-write runs under one lock so no comment or status is lost.
+function locked(root, fn) {
+  const dir = projectPaths(root).reviews;
+  fs.mkdirSync(dir, { recursive: true });
+  const lock = path.join(dir, '.lock');
+  const end = Date.now() + 5000;
+  for (;;) {
+    try {
+      fs.mkdirSync(lock);
+      break;
+    } catch (e) {
+      if (e.code !== 'EEXIST') throw e;
+      let age = 0;
+      try {
+        age = Date.now() - fs.statSync(lock).mtimeMs;
+      } catch {
+        continue; // released meanwhile
+      }
+      if (age > 10_000 || Date.now() > end) {
+        fs.rmSync(lock, { recursive: true, force: true }); // left by a process that died
+        continue;
+      }
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 15);
+    }
+  }
+  try {
+    return fn();
+  } finally {
+    fs.rmSync(lock, { recursive: true, force: true });
+  }
+}
+
 function sessionFiles(root) {
   const dir = projectPaths(root).reviews;
   if (!fs.existsSync(dir)) return [];
@@ -34,10 +67,14 @@ export function currentSession(root, { create = true } = {}) {
     if (!s.closedAt) return { file: last, session: s };
   }
   if (!create) return null;
-  return newSession(root);
+  return newSessionUnlocked(root);
 }
 
-export function newSession(root, { designVersion } = {}) {
+export function newSession(...args) {
+  return locked(args[0], () => newSessionUnlocked(...args));
+}
+
+function newSessionUnlocked(root, { designVersion } = {}) {
   const now = new Date();
   const stamp = now.toISOString().replace(/[-:]/g, '').replace(/\..+/, '');
   const id = `rv_${stamp}`;
@@ -86,7 +123,11 @@ export function locateSource(root, designFile, dfwId) {
   return `design/${designFile}`;
 }
 
-export function addComment(root, input) {
+export function addComment(...args) {
+  return locked(args[0], () => addCommentUnlocked(...args));
+}
+
+function addCommentUnlocked(root, input) {
   if (!input?.comment?.trim()) throw new DfwError('A comment needs text.');
   const { file, session } = currentSession(root);
   const target = { ...(input.target || {}) };
@@ -116,7 +157,11 @@ export function addComment(root, input) {
 }
 
 /** Attach a screenshot taken after the comment was posted (dfw review shoots asynchronously). */
-export function setCommentScreenshot(root, id, file) {
+export function setCommentScreenshot(...args) {
+  return locked(args[0], () => setCommentScreenshotUnlocked(...args));
+}
+
+function setCommentScreenshotUnlocked(root, id, file) {
   const { file: f, session, comment } = findComment(root, id);
   comment.screenshot = file;
   writeJson(f, session);
@@ -132,7 +177,11 @@ function findComment(root, id) {
   throw new DfwError(`Comment ${id} not found.`);
 }
 
-export function updateComment(root, id, { status, message, by = 'claude', evidence } = {}) {
+export function updateComment(...args) {
+  return locked(args[0], () => updateCommentUnlocked(...args));
+}
+
+function updateCommentUnlocked(root, id, { status, message, by = 'claude', evidence } = {}) {
   const { file, session, comment } = findComment(root, id);
   const at = nowIso();
   if (status && status !== comment.status) {

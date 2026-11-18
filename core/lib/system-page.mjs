@@ -7,6 +7,7 @@ import { projectPaths, readJson } from './util.mjs';
 import { cssVarName, tokensToDeclarations } from './tokens.mjs';
 import { loadComponents, listIcons, escapeHtml as esc } from './compose.mjs';
 import { auditDesignSystem } from './dsaudit.mjs';
+import { contrast } from './color.mjs';
 
 function collect(tree) {
   const out = [];
@@ -64,15 +65,6 @@ function loadTokens(root) {
 
 let HEX_LOOKUP = () => null;
 const hexOf = (v) => (typeof v === 'string' ? (v.startsWith('#') ? v : /^\{[^}]+\}$/.test(v) ? HEX_LOOKUP(v.slice(1, -1)) : null) : v?.hex || null);
-function lum(hex) {
-  const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
-  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
-}
-export function contrast(a, b) {
-  if (!a || !b || a.length < 7 || b.length < 7) return null;
-  const [x, y] = [lum(a), lum(b)];
-  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
-}
 const dim = (v) => (typeof v === 'object' && v && 'value' in v ? `${v.value}${v.unit}` : String(v));
 
 function autoExamples(def) {

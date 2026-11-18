@@ -22,12 +22,13 @@ const opt = (n, d) => (argv.includes(`--${n}`) ? argv[argv.indexOf(`--${n}`) + 1
 function help() {
   console.log(`ai-frontend-design-workflow (dfw) installer
 
-  npx github:${REPO} [install] [--scope user|project|local] [--source <path|owner/repo>] [--no-runtime] [--no-binary]
-  npx github:${REPO} uninstall [--scope ...]
+  npx github:${REPO} [install] [--host auto|claude|copilot|all] [--scope user|project|local] [--source <path|owner/repo>] [--no-runtime] [--no-binary]
+  npx github:${REPO} uninstall [--host ...] [--scope ...]
   npx github:${REPO} doctor
 
   install       add the marketplace, install dfw + the design skills it depends on, fetch the dfw
                 binary, make sure a headless browser exists, set up the Impeccable engine, run doctor
+  --host        auto (default: every supported tool found on PATH), claude, copilot, all
   --scope       user (default, all projects), project (shared in .claude/settings.json), local
   --source      marketplace source; default ${REPO} (use a local clone path while developing)
   --no-runtime  skip the browser check/download and the Impeccable engine
@@ -38,8 +39,8 @@ function help() {
 
 try {
   if (cmd === 'help' || flag('help') || flag('h')) help();
-  else if (cmd === 'install') await install({ scope: opt('scope', 'user'), source: opt('source', REPO), runtime: !flag('no-runtime'), binary: !flag('no-binary'), quiet: flag('quiet') });
-  else if (cmd === 'uninstall') uninstall({ scope: opt('scope', 'user'), quiet: flag('quiet') });
+  else if (cmd === 'install') await install({ host: opt('host', 'auto'), scope: opt('scope', 'user'), source: opt('source', REPO), runtime: !flag('no-runtime'), binary: !flag('no-binary'), quiet: flag('quiet') });
+  else if (cmd === 'uninstall') uninstall({ host: opt('host', 'auto'), scope: opt('scope', 'user'), quiet: flag('quiet') });
   else if (cmd === 'doctor') spawnSync(process.execPath, [path.join(ROOT, 'plugins', 'dfw', 'bin', 'dfw.mjs'), 'doctor'], { stdio: 'inherit' });
   else {
     help();

@@ -122,3 +122,25 @@ export function executableFiles(dir) {
     }
   });
 }
+
+/**
+ * Built plugins must not ship an unresolved `<skill-dir>` placeholder (pasted into a shell it is a
+ * redirect, not a path) or an upstream hook installer script (it writes into the host's settings).
+ */
+export function leftoverCheck({ pluginsRoot = path.join(REPO_ROOT, 'plugins'), only } = {}) {
+  const errors = [];
+  if (!fs.existsSync(pluginsRoot)) return errors;
+  for (const plugin of fs.readdirSync(pluginsRoot).sort()) {
+    if (only && !only.includes(plugin)) continue;
+    const dir = path.join(pluginsRoot, plugin);
+    if (!fs.statSync(dir).isDirectory()) continue;
+    for (const rel of listFiles(dir)) {
+      if (/(^|\/)install-hooks?\.[cm]?js$/.test(rel)) errors.push(`${plugin}/${rel}: upstream hook installer shipped (delete it in overlays/).`);
+      if (!/\.(md|txt|json)$/.test(rel) || rel === 'UPSTREAM.json') continue; // UPSTREAM.json quotes the overlay's own "why" text
+      const lines = fs.readFileSync(path.join(dir, rel), 'utf8').split('\n');
+      const i = lines.findIndex((l) => l.includes('<skill-dir>'));
+      if (i >= 0) errors.push(`${plugin}/${rel}:${i + 1}: unresolved <skill-dir> placeholder (add a replace op in overlays/).`);
+    }
+  }
+  return errors;
+}

@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { nodeExecutable } from './util.mjs';
 import { findBrowser } from './cdp.mjs';
 
-export const LIGHTHOUSE_VERSION = '13.6.0';
+const LIGHTHOUSE_VERSION = '13.6.0';
 
 export function runLighthouse(url, { timeoutMs = 240000 } = {}) {
   const node = nodeExecutable();
@@ -23,17 +23,23 @@ export function runLighthouse(url, { timeoutMs = 240000 } = {}) {
     env: { ...process.env, CHROME_PATH: browser.path, NO_UPDATE_NOTIFIER: '1' },
     shell: process.platform === 'win32',
   });
-  let lhr;
+  return lighthouseReport(r.stdout, url, r.stderr || r.error?.message);
+}
+
+/** Lighthouse's JSON output -> a dfw check result (status "error" when there is no usable report). */
+export function lighthouseReport(stdout, url, errorDetail = '') {
+  let lhr = null;
   try {
-    lhr = JSON.parse(r.stdout);
-  } catch {
-    return { tool: 'lighthouse', status: 'error', detail: (r.stderr || r.error?.message || 'no output').slice(0, 300), findings: [] };
-  }
+    lhr = JSON.parse(stdout);
+  } catch {}
+  // JSON.parse(null) is null (spawn failed: no stdout at all), and "null" is valid JSON too.
+  if (!lhr || typeof lhr !== 'object') return { tool: 'lighthouse', status: 'error', detail: String(errorDetail || 'no output').slice(0, 300), findings: [] };
   const findings = [];
-  const scores = Object.values(lhr.categories || {}).map((c) => `${c.title} ${Math.round(c.score * 100)}`);
+  // A category Lighthouse could not score has score null: that is not a 0.
+  const scores = Object.values(lhr.categories || {}).map((c) => `${c.title} ${typeof c.score === 'number' ? Math.round(c.score * 100) : 'n/a'}`);
   for (const cat of Object.values(lhr.categories || {})) {
     for (const ref of cat.auditRefs || []) {
-      const a = lhr.audits[ref.id];
+      const a = lhr.audits?.[ref.id];
       if (!a || a.score == null || a.score >= 0.9 || !['binary', 'numeric', 'metricSavings'].includes(a.scoreDisplayMode) || !ref.weight) continue;
       findings.push({ level: a.score < 0.5 ? 'warn' : 'info', rule: `lighthouse-${a.id}`, file: url, line: 1, source: 'lighthouse', message: `${cat.title}: ${a.title}${a.displayValue ? ` (${a.displayValue})` : ''}` });
     }

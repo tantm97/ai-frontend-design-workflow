@@ -14,6 +14,86 @@
       "with": "${CLAUDE_SKILL_DIR}",
       "min": 1,
       "why": "Installed as a plugin, the placeholder must resolve to the real skill directory."
+    },
+    {
+      "op": "delete",
+      "paths": [
+        "skills/hallmark/scripts/install-hook.mjs",
+        "skills/hallmark/scripts/lint-hook.mjs"
+      ],
+      "why": "install-hook.mjs writes a hook into Claude Code settings; upstream hooks are never installed from dfw-marketplace (dfw policy R10). lint-hook.mjs is only that hook."
+    },
+    {
+      "op": "replace",
+      "file": "skills/hallmark/references/flow.md",
+      "pattern": "^On Claude Code, `node <skill-dir>/scripts/install-hook\\.mjs`.*$",
+      "flags": "m",
+      "with": "Disabled in dfw-marketplace: no edit-time hook is installed and the installer script is not shipped (dfw policy R10). The dfw workflow runs sloplint itself through `dfw check` after edits and at its gates; Step 7 still runs.",
+      "min": 1,
+      "why": "The line told the model to run the settings-writing hook installer."
+    },
+    {
+      "op": "replace",
+      "file": "skills/hallmark/references/flow.md",
+      "pattern": "\\| PostToolUse via `install-hook\\.mjs` \\|",
+      "flags": "g",
+      "with": "| none in dfw-marketplace; `dfw check` runs sloplint |",
+      "min": 1,
+      "why": "Same: the harness table must not point at the removed hook installer."
+    },
+    {
+      "op": "replace",
+      "file": "skills/hallmark/references/comp.md",
+      "pattern": "<skill-dir>",
+      "flags": "g",
+      "with": "${CLAUDE_SKILL_DIR}",
+      "min": 1,
+      "why": "Same placeholder as in SKILL.md: left as is, `node <skill-dir>/...` is a shell redirect and fails."
+    },
+    {
+      "op": "replace",
+      "file": "skills/hallmark/references/direction.md",
+      "pattern": "<skill-dir>",
+      "flags": "g",
+      "with": "${CLAUDE_SKILL_DIR}",
+      "min": 1,
+      "why": "Same placeholder as in SKILL.md: left as is, `node <skill-dir>/...` is a shell redirect and fails."
+    },
+    {
+      "op": "replace",
+      "file": "skills/hallmark/references/fonts.md",
+      "pattern": "<skill-dir>",
+      "flags": "g",
+      "with": "${CLAUDE_SKILL_DIR}",
+      "min": 1,
+      "why": "Same placeholder as in SKILL.md: left as is, `node <skill-dir>/...` is a shell redirect and fails."
+    },
+    {
+      "op": "replace",
+      "file": "skills/hallmark/references/gates.md",
+      "pattern": "<skill-dir>",
+      "flags": "g",
+      "with": "${CLAUDE_SKILL_DIR}",
+      "min": 1,
+      "why": "Same placeholder as in SKILL.md: left as is, `node <skill-dir>/...` is a shell redirect and fails."
+    },
+    {
+      "op": "replace",
+      "file": "skills/hallmark/references/imagery.md",
+      "pattern": "<skill-dir>",
+      "flags": "g",
+      "with": "${CLAUDE_SKILL_DIR}",
+      "min": 1,
+      "why": "Same placeholder as in SKILL.md: left as is, `node <skill-dir>/...` is a shell redirect and fails."
+    },
+    {
+      "op": "replace",
+      "file": "skills/hallmark/references/redesign.md",
+      "pattern": "<skill-dir>",
+      "flags": "g",
+      "with": "${CLAUDE_SKILL_DIR}",
+      "min": 1,
+      "why": "Same placeholder as in SKILL.md: left as is, `node <skill-dir>/...` is a shell redirect and fails."
     }
   ]
 }

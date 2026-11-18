@@ -26,7 +26,7 @@ A photograph never stands in for a fact: numbers, names and claims stay in type,
 Hallmark carries 755 verified photographs from Wikimedia Commons, each CC0, public domain, CC BY or CC BY-SA, tagged by subject, tone and temperature. Ask for each subject the page needs, concretely:
 
 ```
-node <skill-dir>/scripts/theme.mjs photos "apple orchard in autumn" "hands picking apples" --theme <slug> [--n 3] [--orient portrait|landscape|square] [--seed <draw seed>] [--log .hallmark/log.json]
+node ${CLAUDE_SKILL_DIR}/scripts/theme.mjs photos "apple orchard in autumn" "hands picking apples" --theme <slug> [--n 3] [--orient portrait|landscape|square] [--seed <draw seed>] [--log .hallmark/log.json]
 ```
 
 It ranks the library for each subject, steers away from the photos the last five builds used, and prints for each pick what it shows, its size, a ready `<img>` with its `srcset`, and its credit. Keep only picks that fit the sentence the section makes; re-ask in other words (the place, the material, the action) before settling for a near miss.
@@ -53,7 +53,7 @@ A slot is any picture the user will replace: `data-slot="<name>"` (`hero`, `demo
 **Capture it.** When the product exists, the page shows it, not a mock of it. Find it at Step 0: a URL in the prompt, a dev server already running, a `package.json` with a `dev` or `start` script, a built app on the machine, or a path the user names. Start it if it needs starting (install, run, wait for the port), put it in the state that tells the page's story (sample data, a real project open, the one screen that does the job), then:
 
 ```
-node <skill-dir>/scripts/capture.mjs http://localhost:3000 --routes /,/settings --sizes desktop,phone [--selector ".editor"] [--full] [--out images/screens]
+node ${CLAUDE_SKILL_DIR}/scripts/capture.mjs http://localhost:3000 --routes /,/settings --sizes desktop,phone [--selector ".editor"] [--full] [--out images/screens]
 ```
 
 It writes 2x PNGs at 1440 x 900 and 390 x 844 (or one element with `--selector`) and prints an `<img>` for each. A desktop app built on Electron, WebView2 or CEF is started with a DevTools port and captured through it (`capture.mjs --cdp 9222 --target "<window title>" [--selector ...]`, clean and at its own pixel density); any other desktop app with the OS (`screencapture -l <window id>` or `-R x,y,w,h` on macOS), a phone app with its simulator (`xcrun simctl io booted screenshot`), a terminal tool by running it and setting its real output in a code block. Look at every capture before it ships: nothing personal on screen (names, emails, tokens, file paths), no error states unless they are the point, no debug overlays. Use several: the main screen in the hero, a detail cropped large lower down, a second screen, the phone view. Stamp `imagery: screenshots <n> (capture.mjs)` and credit nothing; they are the user's own.
