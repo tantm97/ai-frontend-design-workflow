@@ -388,3 +388,20 @@ fn coordinates_sent_as_text() {
         5.0
     ));
 }
+
+/// A coordinate that is not a number: the sentence says NaN, as in Node.
+#[test]
+fn a_move_with_a_coordinate_that_is_not_a_number() {
+    let doc = fixture_export();
+    let mut changes = changes_for(&doc, "changes.json");
+    changes["boards"][0]["layers"] =
+        json!([{ "path": "0.3", "x": "a", "y": 200, "w": 992, "h": 127 }]);
+    let diff = diff_changes(&doc, &mut changes, &[]).unwrap();
+    let moved = diff.changes.iter().find(|c| c["type"] == "move").unwrap();
+    assert_eq!(compact(&moved["delta"]["x"]), "null");
+    assert!(
+        describe_change(moved).starts_with("Moved by NaN, 88 px (now x NaN, y 200)"),
+        "{}",
+        describe_change(moved)
+    );
+}

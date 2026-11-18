@@ -1413,7 +1413,11 @@ fn moved_beyond(c: &Value) -> bool {
 /// `describeChange`: one line for a change on a screen board.
 pub fn describe_change(c: &Value) -> String {
     let at = |key: &str, i: usize| rounded(c.get(key).and_then(|v| v.get(i)));
-    let delta = |k: &str| rounded(c.get("delta").and_then(|d| d.get(k)));
+    // A delta is computed: `null` in it is what JSON keeps of NaN.
+    let delta = |k: &str| match c.get("delta").and_then(|d| d.get(k)) {
+        Some(Value::Null) => "NaN".to_string(),
+        other => rounded(other),
+    };
     let s = |key: &str| jv::text(c.get(key));
     match c.get("type").and_then(Value::as_str) {
         Some("text") => format!(
