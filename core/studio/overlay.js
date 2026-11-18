@@ -955,6 +955,17 @@
         if (editing) endEdit(false);
         placeHandles();
         break;
+      case 'dfw:soft-reload':
+        softReload(d);
+        break;
+      case 'dfw:presence': {
+        let el = null;
+        try {
+          el = (d.dfwId && document.querySelector(`[data-dfw-id="${CSS.escape(d.dfwId)}"]`)) || (d.component && document.querySelector(`[data-dfw-component="${CSS.escape(d.component)}"]`)) || null;
+        } catch {}
+        post('dfw:presence', el && el.getClientRects().length ? { rect: rectOf(el), label: labelOf(el) } : { rect: null, fallback: !!d.fallback });
+        break;
+      }
       case 'dfw:reinspect':
         if (selected && selected.isConnected) select(selected);
         break;
@@ -980,10 +991,142 @@
     }
   });
 
-  const ready = () => {
+  const ready = (soft) => {
     reportSize();
-    post('dfw:ready', { href: location.pathname + location.search, title: document.title });
+    post('dfw:ready', { href: location.pathname + location.search, title: document.title, soft: soft === true });
   };
+
+  /* ---------- soft update: apply a changed source in place (no reload, no flash, scroll kept) ---------- */
+
+  const keyOf = (n) => (n.nodeType === 1 ? n.getAttribute('data-dfw-id') || n.id || null : null);
+  const sameKind = (a, b) => a.nodeType === b.nodeType && a.nodeName === b.nodeName;
+  const sheetPath = (href) => {
+    try {
+      return new URL(href, location.href).pathname;
+    } catch {
+      return href;
+    }
+  };
+  const hasScript = (n) => n.nodeType === 1 && (n.nodeName === 'SCRIPT' || n.querySelector('script'));
+
+  function syncAttrs(from, to, changed) {
+    // A stylesheet link is refreshed by swapSheets (its href only differs by the cache key).
+    if (from.nodeName === 'LINK' && sheetPath(from.getAttribute('href') || '') === sheetPath(to.getAttribute('href') || '')) return;
+    let diff = false;
+    for (const a of [...from.attributes]) {
+      if (a.name === 'contenteditable' || to.hasAttribute(a.name)) continue;
+      from.removeAttribute(a.name);
+      diff = true;
+    }
+    for (const a of [...to.attributes]) {
+      if (from.getAttribute(a.name) === a.value) continue;
+      from.setAttribute(a.name, a.value);
+      diff = true;
+    }
+    if (diff) changed.add(from);
+  }
+
+  /** Make `from` equal to `to`, touching only what differs. Changed elements are collected. Scripts never change this way. */
+  function morph(from, to, changed) {
+    if (from === editing) return;
+    syncAttrs(from, to, changed);
+    const olds = [...from.childNodes].filter((n) => !(n.nodeType === 1 && n.hasAttribute('data-dfw-ui')));
+    const keyed = new Map();
+    for (const o of olds) {
+      const k = keyOf(o);
+      if (k && !keyed.has(k)) keyed.set(k, o);
+    }
+    const used = new Set();
+    const plan = [];
+    let i = 0;
+    for (const n of [...to.childNodes]) {
+      const k = keyOf(n);
+      let match = null;
+      if (k) {
+        const o = keyed.get(k);
+        if (o && !used.has(o) && sameKind(o, n)) match = o;
+      } else {
+        while (i < olds.length && used.has(olds[i])) i++;
+        // The same node a little further on (something was inserted or removed before it), else the next one of its kind.
+        for (let j = i; j < Math.min(olds.length, i + 8) && !match; j++) if (!used.has(olds[j]) && !keyOf(olds[j]) && olds[j].isEqualNode(n)) match = olds[j];
+        if (!match && olds[i] && sameKind(olds[i], n) && !keyOf(olds[i])) match = olds[i];
+      }
+      if (match) used.add(match);
+      plan.push([n, match]);
+    }
+    for (const o of olds) {
+      if (used.has(o)) continue;
+      if (hasScript(o)) throw new Error('script removed');
+      o.remove();
+      if (o.nodeType === 1 || (o.nodeValue || '').trim()) changed.add(from);
+    }
+    let prev = null;
+    for (const [n, match] of plan) {
+      const want = prev ? prev.nextSibling : from.firstChild;
+      let node = match;
+      if (!node) {
+        if (hasScript(n)) throw new Error('script added');
+        node = document.importNode(n, true);
+        from.insertBefore(node, want);
+        if (node.nodeType === 1) changed.add(node);
+        else if ((node.nodeValue || '').trim()) changed.add(from);
+      } else {
+        if (node !== want) from.insertBefore(node, want);
+        if (node.nodeType !== 1) {
+          if (node.nodeValue !== n.nodeValue) {
+            node.nodeValue = n.nodeValue;
+            if (node.nodeType === 3) changed.add(from);
+          }
+        } else if (node.nodeName === 'SCRIPT') {
+          if (node.outerHTML !== n.outerHTML) throw new Error('script changed');
+        } else if (!node.isEqualNode(n)) morph(node, n, changed);
+      }
+      prev = node;
+    }
+  }
+
+  /** Reload the stylesheets whose file changed: the new one loads next to the old one, which goes when it is ready. */
+  function swapSheets(files) {
+    for (const link of [...document.querySelectorAll('link[rel~="stylesheet"][href]')]) {
+      const p = sheetPath(link.getAttribute('href'));
+      if (!files.some((f) => p.endsWith(`/${f}`))) continue;
+      const next = link.cloneNode();
+      next.setAttribute('href', `${p}?v=${Date.now()}`);
+      const done = () => {
+        link.remove();
+        reportSize();
+        reportSelection();
+        if (pins.length) reportPins();
+      };
+      next.addEventListener('load', done);
+      next.addEventListener('error', done);
+      link.after(next);
+    }
+  }
+
+  async function softReload(d) {
+    try {
+      const res = await fetch(location.href, { cache: 'no-store' });
+      if (!res.ok) throw new Error(String(res.status));
+      const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+      const changed = new Set();
+      morph(document.head, doc.head, changed);
+      morph(document.body, doc.body, changed);
+      swapSheets(d.files || []);
+      hoverEl = null;
+      layerEls = [];
+      layerNode = new Map();
+      tokenCache = null;
+      if (selected && !selected.isConnected) selected = null;
+      ready(true);
+      // What changed, for the Studio to point at: the outermost changed elements that are on screen.
+      const els = [...changed].filter((el) => el.nodeType === 1 && el.isConnected && el !== document.body && !document.head.contains(el) && !isUi(el) && el.getClientRects().length);
+      const tops = els.filter((el) => !els.some((o) => o !== el && o.contains(el)));
+      post('dfw:changed', { agent: !!d.agent, count: tops.length, items: tops.slice(0, 4).map((el) => ({ rect: rectOf(el), label: labelOf(pick(el) || el) })) });
+    } catch {
+      location.reload(); // anything unusual (scripts, parse problems): the plain reload is always right
+    }
+  }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ready);
   else ready();
   addEventListener('load', reportSize);
