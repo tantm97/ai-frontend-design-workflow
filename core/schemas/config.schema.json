@@ -13,6 +13,7 @@
     "studio": { "type": "object", "properties": { "port": { "type": "integer" }, "breakpoints": { "type": "array" } } },
     "accessibility": { "type": "object", "properties": { "standard": { "type": "string" }, "level": { "type": "string" } } },
     "skills": { "type": "object", "properties": { "optional": { "type": "object" }, "disabled": { "type": "array", "items": { "type": "string" } } } },
-    "env": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Environment applied to external tools (telemetry and update checks off by default)" }
+    "env": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Environment applied to external tools (telemetry and update checks off by default). Project files may set only NO_COLOR, FORCE_COLOR, TZ, LANG, LC_ALL; the global config may set any name." },
+    "impeccable": { "type": "object", "properties": { "allowUnverifiedEngine": { "type": "boolean", "description": "Global config only: run an Impeccable engine dfw cannot checksum (IMPECCABLE_BIN, ~/.impeccable/bin/impeccable, PATH)." } } }
   }
 }

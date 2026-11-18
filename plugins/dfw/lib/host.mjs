@@ -95,7 +95,8 @@ export const HOSTS = {
 export const SUPPORTED_HOSTS = Object.values(HOSTS).filter((h) => h.status === 'supported').map((h) => h.id);
 
 export function getHost(id) {
-  const h = HOSTS[id || 'claude'];
+  const key = id || 'claude';
+  const h = Object.hasOwn(HOSTS, key) ? HOSTS[key] : null;
   if (!h) throw new Error(`Unknown host "${id}". Known: ${Object.keys(HOSTS).join(', ')}`);
   return h;
 }
@@ -127,13 +128,16 @@ function parseMaybeJson(v) {
  * Copilot's camelCase format uses sessionId/toolName/toolArgs.
  */
 export function normalizeHookInput(raw = {}) {
+  // A payload that is not a JSON object (null, a list, a string) is an empty payload.
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) raw = {};
   const tool = raw.tool_name ?? raw.toolName;
   return {
     ...raw,
     event: raw.hook_event_name ?? raw.hookEventName,
     session_id: raw.session_id ?? raw.sessionId,
     cwd: raw.cwd,
-    tool_name: tool ? TOOL_ALIASES[tool] || tool : undefined,
+    // Only a string names a tool; the alias table is read by own key ("toString" is not an alias).
+    tool_name: typeof tool === 'string' && tool ? (Object.hasOwn(TOOL_ALIASES, tool) ? TOOL_ALIASES[tool] : tool) : undefined,
     tool_input: parseMaybeJson(raw.tool_input ?? raw.toolArgs),
     stop_hook_active: Boolean(raw.stop_hook_active ?? raw.stopHookActive),
     prompt: raw.prompt,
@@ -153,7 +157,8 @@ export function formatHookOutput(hostId, event, result) {
     return { permissionDecision: 'deny', permissionDecisionReason: result.deny };
   }
   if (result.context) {
-    if (host.context[event] === false) return null;
+    // A host without a context table (mcp, planned hosts) gets the generic form.
+    if (host.context?.[event] === false) return null;
     if (host.id === 'claude') return { hookSpecificOutput: { hookEventName: event, additionalContext: result.context } };
     return { additionalContext: result.context };
   }
@@ -163,6 +168,7 @@ export function formatHookOutput(hostId, event, result) {
 /** Render host placeholders ({{SKILL_DIR}}, host blocks) in skill/reference/agent text. */
 export function renderText(text, hostId) {
   const host = getHost(hostId);
+  if (!host.text) throw new Error(`Host "${host.id}" has no text placeholders. Hosts with text: ${Object.values(HOSTS).filter((h) => h.text).map((h) => h.id).join(', ')}`);
   let out = text.replace(/<!--\s*host:([\w,]+)\s*-->\n?([\s\S]*?)<!--\s*\/host\s*-->\n?/g, (_, ids, body) => (ids.split(',').includes(host.id) ? body : ''));
   out = out.replace(/\{\{([A-Z_]+)\}\}/g, (m, k) => (k in host.text ? host.text[k] : m));
   if (!host.qualifiedSkillNames) {

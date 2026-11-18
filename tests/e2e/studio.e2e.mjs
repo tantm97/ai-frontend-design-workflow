@@ -55,8 +55,13 @@ fs.mkdirSync(path.join(tmp, 'design/screens/detail'), { recursive: true });
 fs.writeFileSync(
   path.join(tmp, 'design/screens/detail/a.html'),
   `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Detail</title><link rel="stylesheet" href="../../tokens/tokens.css"></head>
-<body><main data-dfw-id="detail.main"><h1 data-dfw-id="detail.title">Order 1042</h1><button type="button" data-dfw-goto="home/b">Back home</button></main></body></html>`,
+<body><main data-dfw-id="detail.main"><h1 data-dfw-id="detail.title">Order 1042</h1><button type="button" data-dfw-goto="home/b">Back home</button><ul id="made"></ul><img id="logo" alt="" src="../../assets/logo.svg" width="8" height="8"></main>
+<script>for (const n of ['Bolts', 'Nuts']) document.getElementById('made').append(Object.assign(document.createElement('li'), { textContent: n }));</script></body></html>`,
 );
+const logoFile = path.join(tmp, 'design/assets/logo.svg');
+const logo = (fill) => `<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="8" height="8" fill="${fill}"/></svg>\n`;
+fs.mkdirSync(path.dirname(logoFile), { recursive: true });
+fs.writeFileSync(logoFile, logo('#ff0000'));
 fs.mkdirSync(path.join(tmp, 'design/system/components'), { recursive: true });
 fs.writeFileSync(
   path.join(tmp, 'design/system/components/button.html'),
@@ -371,6 +376,26 @@ try {
   assert.equal(await frame.locator('html').evaluate(() => window.__dfwKept === true), true, 'the frame was patched, not reloaded');
   await page.waitForFunction(() => !document.querySelector('#agent .box.agent:not([hidden])'), null, { timeout: 6000 }); // the mark goes away by itself
   if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-4-reloaded.png') });
+
+  // What cannot be patched in place reloads the frame: a screen whose own script builds DOM, and a changed image.
+  const detail = page.frameLocator('iframe[name="detail::a::desktop"]');
+  const detailFile = path.join(tmp, 'design/screens/detail/a.html');
+  const kept = () => detail.locator('html').evaluate(() => window.__dfwKept === true);
+  const reloaded = async (what) => {
+    for (let i = 0; i < 50 && (await kept().catch(() => true)); i++) await page.waitForTimeout(100);
+    assert.equal(await kept(), false, `${what}: the frame was reloaded`);
+  };
+  assert.equal(await detail.locator('#made li').count(), 2);
+  await detail.locator('html').evaluate(() => (window.__dfwKept = true));
+  fs.writeFileSync(detailFile, fs.readFileSync(detailFile, 'utf8').replace('Order 1042', 'Order 1043'));
+  await reloaded('a screen with a script');
+  assert.equal(await detail.locator('[data-dfw-id="detail.title"]').textContent(), 'Order 1043');
+  assert.equal(await detail.locator('#made li').count(), 2, 'the list its script builds is still there');
+  await detail.locator('html').evaluate(() => (window.__dfwKept = true));
+  fs.writeFileSync(logoFile, logo('#0000ff'));
+  await reloaded('a changed image');
+  fs.writeFileSync(detailFile, fs.readFileSync(detailFile, 'utf8').replace('Order 1043', 'Order 1042'));
+  for (let i = 0; i < 50 && (await detail.locator('[data-dfw-id="detail.title"]').textContent().catch(() => '')) !== 'Order 1042'; i++) await page.waitForTimeout(100);
 
   // Constrained layout edits: drag to reorder grid items, drag the handle to change the column span.
   const boardFile = path.join(tmp, 'design/screens/board/a.html');

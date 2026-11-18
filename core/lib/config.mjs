@@ -2,7 +2,7 @@
 // Explicit user decisions live in .dfw/decisions.jsonl and are applied by the
 // orchestrator skill on top of this (they are not config values).
 import path from 'node:path';
-import { readJson, writeJson, deepMerge, globalDir, projectPaths, getPath, setPath } from './util.mjs';
+import { readJson, writeJson, deepMerge, globalDir, projectPaths, getPath, setPath, DfwError } from './util.mjs';
 
 export const DEFAULTS = {
   schema: 1,
@@ -58,15 +58,43 @@ export function globalConfigPath() {
   return path.join(globalDir(), 'config.json');
 }
 
-export function loadConfig(root) {
+// Project layers come from the repository being opened, so they are untrusted: their `env` may only
+// set names that cannot choose what runs or where it connects, and may only keep a privacy switch on.
+// An allowlist, not a denylist: loader, proxy and tool-specific variables cannot be enumerated.
+// The user's global config is trusted and may set any variable.
+export const PROJECT_ENV_ALLOW = ['NO_COLOR', 'FORCE_COLOR', 'TZ', 'LANG', 'LC_ALL'];
+export const PRIVACY_ENV = ['DO_NOT_TRACK', 'IMPECCABLE_NO_UPDATE_CHECK', 'IMPECCABLE_HOOK_DISABLED', 'IMPECCABLE_NO_TELEMETRY'];
+
+/** A project layer without the `env` entries it may not set; one warning per dropped key. */
+export function filterProjectEnv(layer, file, warn) {
+  if (!layer || typeof layer !== 'object' || !('env' in layer)) return layer;
+  const drop = (key) => warn(`dfw: ignored env.${key} in ${file} (a project config cannot set it; use the global config: dfw config set env.${key} <value> --global)`);
+  const env = {};
+  if (layer.env && typeof layer.env === 'object' && !Array.isArray(layer.env)) {
+    for (const [k, v] of Object.entries(layer.env)) {
+      if (typeof v === 'string' && (PROJECT_ENV_ALLOW.includes(k) || (PRIVACY_ENV.includes(k) && v === '1'))) env[k] = v;
+      else drop(k);
+    }
+  } else warn(`dfw: ignored env in ${file} (it must be an object of strings)`);
+  return { ...layer, env };
+}
+
+/** A config file's content ({} when missing): anything but a JSON object is the user's error to fix. */
+function readLayer(file) {
+  const data = readJson(file, {});
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new DfwError(`Config file ${file} must hold a JSON object. Fix it or delete it.`);
+  return data;
+}
+
+export function loadConfig(root, { warn = (m) => process.stderr.write(`${m}\n`), globalFile = globalConfigPath() } = {}) {
   const p = root ? projectPaths(root) : null;
   const layers = [
     ['defaults', DEFAULTS],
-    ['global', readJson(globalConfigPath(), {})],
+    ['global', readLayer(globalFile)],
   ];
   if (p) {
-    layers.push(['project', readJson(p.config, {})]);
-    layers.push(['local', readJson(p.configLocal, {})]);
+    layers.push(['project', filterProjectEnv(readLayer(p.config), p.config, warn)]);
+    layers.push(['local', filterProjectEnv(readLayer(p.configLocal), p.configLocal, warn)]);
   }
   let merged = {};
   for (const [, layer] of layers) merged = deepMerge(merged, layer);
@@ -82,6 +110,14 @@ export function loadConfig(root) {
   return merged;
 }
 
+/**
+ * Opt-in to run an Impeccable engine dfw cannot checksum (IMPECCABLE_BIN, a sibling build,
+ * ~/.impeccable/bin/impeccable, PATH). Read from the global config only: a project must not grant it.
+ */
+export function allowUnverifiedEngine(globalFile = globalConfigPath()) {
+  return readJson(globalFile, {})?.impeccable?.allowUnverifiedEngine === true;
+}
+
 export function configFileFor(scope, root) {
   if (scope === 'global') return globalConfigPath();
   const p = projectPaths(root);
@@ -91,7 +127,7 @@ export function configFileFor(scope, root) {
 
 export function setConfigValue(scope, root, key, value) {
   const file = configFileFor(scope, root);
-  const data = readJson(file, {});
+  const data = readLayer(file);
   setPath(data, key, value);
   writeJson(file, data);
   return file;

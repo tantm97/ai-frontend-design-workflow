@@ -187,26 +187,35 @@ export function toPosix(p) {
   return p.split(path.sep).join('/');
 }
 
-/** Deep merge for config layering: objects merge, arrays and scalars replace. */
+/** Names that reach an object's prototype: never accepted as a key or a flag from input. */
+export const RESERVED_KEYS = ['__proto__', 'constructor', 'prototype'];
+
+/** Deep merge for config layering: objects merge, arrays and scalars replace. Reserved keys are dropped. */
 export function deepMerge(base, over) {
   if (over === undefined) return base;
   if (Array.isArray(over) || typeof over !== 'object' || over === null) return over;
   const out = { ...(typeof base === 'object' && base && !Array.isArray(base) ? base : {}) };
-  for (const [k, v] of Object.entries(over)) out[k] = deepMerge(out[k], v);
+  for (const [k, v] of Object.entries(over)) if (!RESERVED_KEYS.includes(k)) out[k] = deepMerge(out[k], v);
   return out;
 }
 
 export function getPath(obj, dotted) {
-  return dotted.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
+  // Own keys of objects and indexes of lists only: never a prototype member (toString, length).
+  return dotted.split('.').reduce((o, k) => (o !== null && typeof o === 'object' && Object.hasOwn(o, k) && (!Array.isArray(o) || /^\d+$/.test(k)) ? o[k] : undefined), obj);
 }
 
 export function setPath(obj, dotted, value) {
   const keys = dotted.split('.');
+  const reserved = keys.find((k) => RESERVED_KEYS.includes(k));
+  if (reserved) throw new DfwError(`Invalid key "${dotted}": "${reserved}" is a reserved name.`);
   let o = obj;
-  for (const k of keys.slice(0, -1)) {
+  keys.forEach((k, i) => {
+    // A property set on a list is lost when the file is written, and an index would replace an item.
+    if (Array.isArray(o)) throw new DfwError(`Cannot set "${dotted}": "${keys.slice(0, i).join('.')}" is a list; set the whole list instead.`);
+    if (i === keys.length - 1) return;
     if (typeof o[k] !== 'object' || o[k] === null) o[k] = {};
     o = o[k];
-  }
+  });
   o[keys.at(-1)] = value;
   return obj;
 }
@@ -226,9 +235,11 @@ export function parseArgs(argv) {
     const a = argv[i];
     if (a.startsWith('--')) {
       const [k, inline] = a.slice(2).split(/=(.*)/s);
-      if (inline !== undefined) args[k] = inline;
-      else if (argv[i + 1] !== undefined && !argv[i + 1].startsWith('--')) args[k] = argv[++i];
-      else args[k] = true;
+      let v = true;
+      if (inline !== undefined) v = inline;
+      else if (argv[i + 1] !== undefined && !argv[i + 1].startsWith('--')) v = argv[++i];
+      // "--_" would replace the positional list and a reserved key the prototype: dropped with their value.
+      if (k !== '_' && !RESERVED_KEYS.includes(k)) args[k] = v;
     } else args._.push(a);
   }
   return args;

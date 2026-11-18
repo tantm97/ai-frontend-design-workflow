@@ -2,7 +2,7 @@
 
 Goal: understand the product well enough that design decisions can be justified. Output: `PRODUCT.md` (root), assets in `design/assets/`, open questions answered or recorded as assumptions.
 
-Skills: lead `user-research` (planning questions, research methods) and, when the user supplies research data (interviews, tickets, analytics), `research-synthesis`. Optional support: `impeccable` with the `shape` command for UX planning of a single feature. Do not load visual design skills yet.
+Skills: lead `user-research` (planning questions, research methods) and, when the user supplies research data (interviews, tickets, analytics), `research-synthesis`. Optional support: `impeccable` with the `shape` command for UX planning of a single feature (planning only: stop before its design-direction phase, which deals catalog directions; see policy R3). Do not load visual design skills yet.
 
 ## Steps
 

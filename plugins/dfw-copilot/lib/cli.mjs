@@ -12,7 +12,7 @@ import { install, uninstall } from './install.mjs';
 import { loadConfig, setConfigValue, getConfigValue } from './config.mjs';
 import { loadState, saveState, newState, setPhase, approveGate, setMode, summarize, MODES, PHASES, GATES, currentApproval } from './state.mjs';
 import { freezeDesign, reopenDesign, verifySnapshot } from './freeze.mjs';
-import { runChecks, formatReport } from './check.mjs';
+import { runChecks, formatReport, checkExitCode, setupEngine } from './check.mjs';
 import { buildTokens } from './tokens.mjs';
 import { exportPenpotTokens, importPenpotTokens, formatExport, formatImport } from './penpot-tokens.mjs';
 import { exportPenpot, exportSummary, importChanges, formatImportChanges } from './penpot.mjs';
@@ -21,7 +21,7 @@ import { addComment, allComments, updateComment, newSession } from './comments.m
 import { languageStatus, setLanguage } from './lang.mjs';
 import { HANDLERS, HOOK_EVENTS } from './hooks.mjs';
 import { currentHost, normalizeHookInput, formatHookOutput, HOSTS, SUPPORTED_HOSTS } from './host.mjs';
-import { impeccableLauncher, pluginRoot, sloplintScript, tasteCopyLintScript } from './locate.mjs';
+import { impeccableEngine, pluginRoot, sloplintScript, tasteCopyLintScript } from './locate.mjs';
 import { a11yCheck, axeStatus, installAxe } from './a11y.mjs';
 import { diffImages, diffPairs } from './pixeldiff.mjs';
 import { extractTokensToFile } from './extract.mjs';
@@ -81,7 +81,7 @@ Design workspace
   dfw tokens export --format penpot [--out <f>] Tokens + themes as a Penpot token file (sets/themes, aliases kept; unsupported types listed)
   dfw tokens import <file|dir> [--from penpot] [--dry-run] [--prune]   Penpot token file -> design/tokens (diff summary; refused while frozen)
   dfw lint [files...] [--json]                  dfw design lint only (fast)
-  dfw check [files...|--url <u>] [--states] [--themes] [--no-a11y] [--lighthouse] [--json] [--setup]   dfw lint + Impeccable + sloplint + axe (rendered a11y; whole design or URL); --lighthouse: performance/SEO of a running app (pinned, via npx)
+  dfw check [files...|--url <u>] [--states] [--themes] [--no-a11y] [--lighthouse] [--json] [--strict] [--setup]   dfw lint + Impeccable + sloplint + axe (rendered a11y; whole design or URL); --lighthouse: performance/SEO of a running app (pinned, via npx); --strict: exit 3 when a tool could not run
   dfw studio start|stop|status [--port <n>]     Local Design Studio (canvas + click-to-comment)
   dfw review start --url <dev server> [--port <n>] [--shortcut <combo>] [--no-shots] | stop | status
                                                 Click-to-comment on the running app (local proxy; comments carry file:line with the inspector)
@@ -128,6 +128,20 @@ Stack and settings
   dfw version
 `;
 
+// Flags that take a value. Given without one they would read as `true`: a level 1 decision, a
+// 1 second timeout, an approval note "true", a TypeError in path.resolve.
+const VALUE_FLAGS = [
+  'root', 'port', 'host', 'scope', 'source', 'mode', 'product', 'note', 'reason', 'level', 'topic', 'overrides', 'text', 'timeout',
+  'message', 'm', 'evidence', 'by', 'status', 'url', 'shortcut', 'bp', 'out', 'selector', 'screen', 'page', 'variant', 'state', 'theme',
+  'session', 'file', 'format', 'from', 'brief', 'limit', 'style', 'preset', 'fonts', 'base', 'ratio', 'display-ratio', 'brand', 'chroma',
+  'neutral-hue', 'tint', 'signature', 'signature-chroma', 'harmony', 'accent', 'names', 'threshold', 'max', 'marketplace-repo',
+];
+
+function requireFlagValues(a) {
+  const bare = VALUE_FLAGS.find((k) => a[k] === true);
+  if (bare) throw new DfwError(`--${bare} needs a value.`);
+}
+
 function out(data, json) {
   if (json) console.log(JSON.stringify(data, null, 2));
   else console.log(typeof data === 'string' ? data : JSON.stringify(data, null, 2));
@@ -154,7 +168,7 @@ function cmdInit(root, a) {
   fs.mkdirSync(p.reviews, { recursive: true });
   if (!fs.existsSync(p.config)) writeJson(p.config, { schema: 1 });
   if (!fs.existsSync(p.decisions)) fs.writeFileSync(p.decisions, '');
-  fs.writeFileSync(path.join(p.dfw, '.gitignore'), 'config.local.json\nstudio.json\nstudio.log\nreview.json\nreview.log\nshots/\nchecks/\n');
+  fs.writeFileSync(path.join(p.dfw, '.gitignore'), 'config.local.json\nstudio.json\nstudio.log\nreview.json\nreview.log\npresence.json\nshots/\nchecks/\n');
   const created = [];
   for (const doc of ['PRODUCT.md', 'DESIGN.md']) {
     if (!fs.existsSync(path.join(root, doc))) {
@@ -265,6 +279,9 @@ async function cmdApprove(root, a) {
   }
   if (gate === 'G3') {
     const stack = readJson(projectPaths(root).stack, null);
+    if (fs.existsSync(projectPaths(root).stack) && (!stack || typeof stack !== 'object' || Array.isArray(stack))) {
+      throw new DfwError('G3 needs a stack proposal: .dfw/stack.json must hold a JSON object (run: dfw stack set ... or dfw stack detect --write).');
+    }
     if (stack) {
       stack.status = 'approved';
       stack.approvedAt = nowIso();
@@ -276,7 +293,8 @@ async function cmdApprove(root, a) {
 }
 
 function isAlive(pid) {
-  if (!pid) return false;
+  // Only a positive integer names one process: 0 and negative numbers address process groups.
+  if (!Number.isInteger(pid) || pid <= 0) return false;
   try {
     process.kill(pid, 0);
     return true;
@@ -556,8 +574,8 @@ function cmdDoctor(root) {
     const r = pluginRoot(name);
     ok(`plugin ${name}`, Boolean(r), r || 'not found (install from dfw-marketplace)');
   }
-  const imp = impeccableLauncher();
-  ok('impeccable engine downloaded', Boolean(imp?.ready), imp ? (imp.ready ? imp.version : 'run "dfw check --setup" once (downloads a checksum-verified binary from GitHub)') : 'impeccable plugin not found');
+  const imp = impeccableEngine();
+  ok('impeccable engine verified', Boolean(imp?.ready), imp ? (imp.ready ? (imp.verified ? `${imp.version} (sha256 matches the pinned checksum)` : `UNVERIFIED ${imp.cmd} (impeccable.allowUnverifiedEngine)`) : imp.detail) : 'impeccable plugin not found');
   ok('sloplint', Boolean(sloplintScript()));
   ok('taste copy-lint', Boolean(tasteCopyLintScript()), 'optional');
   const br = browserStatus();
@@ -648,6 +666,7 @@ export async function main(argv) {
   }
   const a = parseArgs(argv);
   const cmd = a._[0];
+  if (cmd !== 'hook') requireFlagValues(a); // a hook checks inside its try: it fails open
   if (cmd === 'version' || a.version) return out(`dfw ${dfwVersion()} (${IS_BINARY ? 'binary' : `node ${process.versions.node}`})`);
   if (cmd === 'mcp') {
     const sub = a._[1];
@@ -660,13 +679,14 @@ export async function main(argv) {
   if (cmd === 'uninstall') return uninstall({ host: a.host || 'auto', scope: a.scope || 'user', quiet: Boolean(a.quiet) });
   if (!cmd || cmd === 'help' || a.help) return out(HELP);
   if (cmd === 'hook') {
-    const handler = HANDLERS[a._[1]];
+    const handler = Object.hasOwn(HANDLERS, a._[1] ?? '') ? HANDLERS[a._[1]] : null;
     if (!handler) throw new DfwError(`Unknown hook "${a._[1]}"`);
     let input = {};
     try {
       input = JSON.parse((await readStdin()) || '{}');
     } catch {}
     try {
+      requireFlagValues(a);
       const host = currentHost(a.host);
       const res = formatHookOutput(host.id, HOOK_EVENTS[a._[1]], await handler(normalizeHookInput(input), host));
       if (res) process.stdout.write(JSON.stringify(res));
@@ -881,16 +901,16 @@ export async function main(argv) {
     case 'check': {
       const config = loadConfig(root);
       if (a.setup) {
-        const l = impeccableLauncher();
-        if (!l) throw new DfwError('Impeccable plugin not found.');
         const tmp = path.join(projectPaths(root).dfw, 'checks', 'setup.html');
         fs.mkdirSync(path.dirname(tmp), { recursive: true });
         fs.writeFileSync(tmp, '<!doctype html><html lang="en"><title>x</title><p>x</p></html>');
-        const r = spawnSync(l.cmd, ['detect', '--json', tmp], { env: { ...process.env, ...config.env }, encoding: 'utf8', timeout: 180000 });
-        return out(r.status === 0 || r.status === 2 ? 'Impeccable engine ready.' : `Impeccable setup failed: ${(r.stderr || '').slice(0, 500)}`);
+        const r = setupEngine({ env: config.env, target: tmp });
+        if (!r.ok) throw new DfwError(r.text); // a setup that was refused or failed is not a success
+        return out(r.text);
       }
+      if (typeof a.strict === 'string') a._.push(a.strict); // "--strict <file>": the file is a target, not the flag's value
       const targets = a.url ? [a.url] : a._.length > 1 ? a._.slice(1) : null;
-      const results = runChecks(root, targets, config, { timeoutMs: Number(a.timeout) || 60000, allowDownload: false, tools: cmd === 'lint' ? ['dfw'] : undefined });
+      const results = runChecks(root, targets, config, { timeoutMs: Number(a.timeout) || 60000, tools: cmd === 'lint' ? ['dfw'] : undefined });
       // Rendered accessibility (axe) on the whole design or a URL; per-file runs stay fast and static.
       if (cmd === 'check' && !a['no-a11y'] && (a.url || !targets)) results.push(await a11yCheck(root, { url: a.url, states: Boolean(a.states), themes: Boolean(a.themes) }));
       if (cmd === 'check' && a.lighthouse) {
@@ -898,9 +918,10 @@ export async function main(argv) {
         results.push(runLighthouse(a.url));
       }
       const rep = formatReport(results, { max: Number(a.max) || 60 });
-      if (a.json) out({ results, tally: rep.tally }, true);
+      if (a.json) out({ results, tally: rep.tally, unverified: rep.unverified }, true);
       else out(rep.text);
-      if (rep.tally.error) process.exitCode = 2;
+      const code = checkExitCode(rep, { strict: Boolean(a.strict) });
+      if (code) process.exitCode = code;
       return;
     }
     case 'studio':
@@ -963,6 +984,7 @@ export async function main(argv) {
       const sub = a._[1];
       if (sub === 'get') return out(a._[2] ? getConfigValue(root, a._[2]) : loadConfig(root), true);
       if (sub === 'set') {
+        if (a._[2] === undefined || a._[3] === undefined) throw new DfwError('Usage: dfw config set <key> <value> [--global|--project|--local]');
         const scope = a.global ? 'global' : a.local ? 'local' : 'project';
         const file = setConfigValue(scope, root, a._[2], parseValue(a._[3]));
         return out(`Set ${a._[2]} in ${file}`);
