@@ -6,17 +6,18 @@
 use std::env;
 use std::fs;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Stdio;
 
 use serde_json::Value;
 
 use super::binary::{node_platform, RELEASE_REPO};
+use crate::browser::a11y::{axe_status, install_axe, AxeStatus};
 use crate::browser::download::install_browser;
 use crate::browser::launch::{browser_status, make_temp_dir, BrowserStatus};
 use crate::core::error::DfwError;
 use crate::core::host::{get_host, supported_hosts, Host, Status, HOSTS};
-use crate::core::paths::{global_dir, plugin_root, resolve};
+use crate::core::paths::{plugin_root, resolve};
 use crate::core::process::{command, quote_for_cmd, Spawn};
 use crate::core::util::{out, plugin_manifest, read_json};
 
@@ -368,17 +369,6 @@ fn link_copilot_cli() {
     }
 }
 
-/// Whether axe-core for the rendered accessibility check is downloaded (`axeStatus()` of
-/// a11y.mjs, the `installed` part).
-// TODO(merge): use browser::a11y::axe_status
-pub(crate) fn axe_file() -> PathBuf {
-    global_dir()
-        .join("tools")
-        .join("axe-core")
-        .join("4.14.0")
-        .join("axe.min.js")
-}
-
 /// `selfCommand()`: this dfw, to run again in a child process.
 fn self_command() -> Result<String, DfwError> {
     Ok(env::current_exe()?.display().to_string())
@@ -428,9 +418,11 @@ pub fn install(opts: &InstallOptions) -> Result<(), DfwError> {
                 }
             }
         }
-        if !axe_file().exists() {
+        if matches!(axe_status(), AxeStatus::Missing { .. }) {
             step("axe-core for the accessibility check (pinned, integrity-checked)");
-            install_axe(&me);
+            if let Err(e) = install_axe(&|m| out(&dim(&format!("  {m}")))) {
+                out(&warn(&format!("  skipped: {e}")));
+            }
         }
         step("Impeccable engine (detect only, telemetry and update checks off)");
         let tmp = make_temp_dir(&env::temp_dir(), "dfw-setup-")?;
@@ -450,33 +442,6 @@ pub fn install(opts: &InstallOptions) -> Result<(), DfwError> {
     out(&indented.join("\n"));
     out(&format!("\n{} {}", ok("Done."), next.join(" ")));
     Ok(())
-}
-
-/// The axe-core download of `install`, through "dfw setup --a11y" until a11y is ported; its
-/// progress lines and a failure are shown the way Node's `installAxe` log did.
-// TODO(merge): use browser::a11y::install_axe
-fn install_axe(me: &str) {
-    let args = ["setup".to_string(), "--a11y".to_string()];
-    match spawn_sync(me, &args, &[]) {
-        Err(e) => out(&warn(&format!("  skipped: {e}"))),
-        Ok(r) => {
-            let mut lines: Vec<&str> = r.stderr.lines().filter(|l| !l.trim().is_empty()).collect();
-            let failure = if r.status == Some(0) {
-                None
-            } else {
-                lines.pop()
-            };
-            for line in lines {
-                out(&dim(&format!("  {line}")));
-            }
-            if r.status != Some(0) {
-                out(&warn(&format!(
-                    "  skipped: {}",
-                    failure.unwrap_or("dfw setup --a11y failed")
-                )));
-            }
-        }
-    }
 }
 
 /// `uninstall({ host, scope, quiet })`: remove dfw and its skills from the hosts.

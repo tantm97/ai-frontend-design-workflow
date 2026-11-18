@@ -369,4 +369,36 @@ mod tests {
             (Some("v1"), Some("v2"))
         );
     }
+
+    /// Moved from cli/tools (doctor's copy of verifySnapshot).
+    #[test]
+    fn snapshot_problems_are_missing_modified_and_added() {
+        let root = test_dir("doctor-snapshot");
+        let dir = project_paths(&root).approved.join("v1");
+        fs::create_dir_all(dir.join("screens")).unwrap();
+        fs::write(dir.join("kept.html"), "kept").unwrap();
+        fs::write(dir.join("screens/changed.html"), "now").unwrap();
+        fs::write(dir.join("extra.css"), "x").unwrap();
+        assert_eq!(
+            verify_snapshot(&root, "v1").unwrap_err().message(),
+            format!("No approval.lock.json in {}", dir.display())
+        );
+        write_json(
+            &dir.join("approval.lock.json"),
+            &json!({ "files": [
+                { "path": "kept.html", "sha256": sha256("kept") },
+                { "path": "screens/changed.html", "sha256": sha256("before") },
+                { "path": "gone.html", "sha256": sha256("gone") },
+            ] }),
+        )
+        .unwrap();
+        assert_eq!(
+            verify_snapshot(&root, "v1").unwrap(),
+            [
+                "modified: screens/changed.html",
+                "missing: gone.html",
+                "added: extra.css"
+            ]
+        );
+    }
 }

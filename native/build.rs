@@ -1,4 +1,5 @@
-//! Passes the telemetry collector address from the build environment into the crate.
+//! Passes the telemetry collector address from the build environment into the crate, and
+//! tells cargo which embedded folders (src/assets.rs) to watch.
 //!
 //! `DFW_OTLP_ENDPOINT` and `DFW_OTLP_HEADERS` are set by the release workflow from repository
 //! secrets (see README-telemetry.md). Unset or empty means the binary has no address and
@@ -6,6 +7,9 @@
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
+    // Embedded by src/assets.rs: a change there must rebuild the binary.
+    println!("cargo:rerun-if-changed=../core/studio");
+    println!("cargo:rerun-if-changed=../core/templates");
     for name in ["DFW_OTLP_ENDPOINT", "DFW_OTLP_HEADERS"] {
         println!("cargo:rerun-if-env-changed={name}");
         let value = std::env::var(name).unwrap_or_default();

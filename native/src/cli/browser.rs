@@ -17,6 +17,7 @@ use crate::core::paths::{project_paths, resolve};
 use crate::core::process::is_alive;
 use crate::core::util::{out, read_json, sha256, to_json_pretty, ArgValue, Args};
 use crate::design::layout_cache::{changed_screens, mark_checked};
+use crate::workflow::state::{load_state, type_error};
 
 /// The commands of this group.
 pub fn commands() -> Vec<(&'static str, Handler)> {
@@ -226,12 +227,18 @@ fn studio_jobs(a: &Args, root: &Path, bps: &[Breakpoint]) -> Result<Vec<Job>, Df
     if !js::truthy(&m) {
         return Err(DfwError::new("design/design.json not found."));
     }
-    // TODO(merge): use workflow::state::load_state
-    let state = read_json(&p.state, Some(Value::Null))?;
-    let version = match state.get("design").and_then(|d| d.get("version")) {
-        Some(Value::Number(n)) => format!("v{n}"),
-        Some(Value::String(s)) => format!("v{s}"),
-        _ => "v1".to_string(),
+    // `state ? \`v${state.design.version}\` : 'v1'`.
+    let version = match load_state(root)? {
+        Some(state) => format!(
+            "v{}",
+            js::to_string(
+                state
+                    .get("design")
+                    .ok_or_else(|| type_error("version"))?
+                    .get("version")
+            )
+        ),
+        None => "v1".to_string(),
     };
     let screens_all: Vec<&Value> = m
         .get("screens")

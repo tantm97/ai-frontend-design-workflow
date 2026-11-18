@@ -107,14 +107,14 @@ fn help(_ctx: &Ctx) -> Result<i32, DfwError> {
 }
 
 /// Run the Node CLI with the same arguments, stdin, stdout, stderr and environment, and return
-/// its exit code.
+/// its exit code. Only for `DFW_NATIVE=off` (main.rs): no command forwards on its own.
 pub fn forward(argv: &[String]) -> Result<i32, DfwError> {
     let script = plugin_root().map(|root| root.join("bin").join("dfw.mjs")).filter(|f| f.is_file()).ok_or_else(|| {
-        DfwError::new("This command still runs on the Node.js CLI, and bin/dfw.mjs was not found. Set DFW_PLUGIN_ROOT to the dfw plugin folder.")
+        DfwError::new("DFW_NATIVE=off runs the Node.js CLI, and bin/dfw.mjs was not found. Set DFW_PLUGIN_ROOT to the dfw plugin folder, or unset DFW_NATIVE.")
     })?;
     // DFW_FORWARDED marks the child: the Node side never starts this binary for a forwarded command.
     let status = Command::new("node").arg(&script).args(argv).env("DFW_FORWARDED", "1").status().map_err(|err| match err.kind() {
-        io::ErrorKind::NotFound => DfwError::new("This command still runs on the Node.js CLI, and node was not found on PATH. Install Node.js 22 or newer."),
+        io::ErrorKind::NotFound => DfwError::new("DFW_NATIVE=off runs the Node.js CLI, and node was not found on PATH. Install Node.js 22 or newer, or unset DFW_NATIVE."),
         _ => DfwError::internal(format!("Could not start node {}: {err}", script.display())),
     })?;
     Ok(status.code().unwrap_or_else(|| killed_by(&status)))

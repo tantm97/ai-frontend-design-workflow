@@ -73,6 +73,7 @@ Stack and settings
   dfw lang status|set <code> [--session <id>]   Communication language for this session
   dfw config get <key> | set <key> <value> [--global|--project|--local]
   dfw doctor                                    Environment and installation checks
+  dfw telemetry status|on|off|endpoint <url>|show|flush   Anonymous usage counts (off unless a collector is set; nothing about your project)
   dfw setup --browser                           Download a headless Chrome (only if no Chrome/Edge/Chromium is installed)
   dfw setup --a11y                              Download axe-core (pinned, integrity-checked) for the rendered accessibility check
   dfw setup --binary                            Download the single-file dfw binary for this version (faster; Node optional)

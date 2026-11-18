@@ -1,6 +1,7 @@
 //! Ports `core/lib/tokens.mjs`: DTCG tokens to CSS declarations and `tokens.css`.
 
 use crate::core::js;
+use crate::design::edit::collect_tokens;
 use std::fs;
 use std::path::{Path, PathBuf, MAIN_SEPARATOR_STR};
 
@@ -35,64 +36,28 @@ fn malformed(what: &str) -> DfwError {
     DfwError::internal(format!("Malformed token value: {what}."))
 }
 
-struct Token<'a> {
+struct Token {
     name: String,
-    value: &'a Value,
+    value: Value,
     ty: Option<String>,
 }
 
-/// Every token of the tree by dotted name, with the `$type` it has or inherits.
-fn collect(tree: &Value) -> Vec<Token<'_>> {
-    fn walk<'a>(
-        node: &'a Value,
-        trail: &mut Vec<String>,
-        ty: Option<&str>,
-        out: &mut Vec<Token<'a>>,
-    ) {
-        let children: Vec<(String, &Value)> = match node {
-            Value::Object(map) => {
-                // `node.$type || type`: a truthy value that is not a string matches no type.
-                let own = map.get("$type").filter(|t| js::truthy(Some(t)));
-                let own = own.map(|t| t.as_str().unwrap_or_default().to_string());
-                let ty = own.as_deref().or(ty);
-                if let Some(value) = map.get("$value") {
-                    let name = trail.join(".");
-                    let token = Token {
-                        name,
-                        value,
-                        ty: ty.map(str::to_string),
-                    };
-                    // A Map in the Node code: a repeated name keeps its first place.
-                    match out.iter_mut().find(|t| t.name == token.name) {
-                        Some(slot) => *slot = token,
-                        None => out.push(token),
-                    }
-                    return;
-                }
-                for (key, child) in js::entries(map) {
-                    if !key.starts_with('$') {
-                        trail.push(key.clone());
-                        walk(child, trail, ty, out);
-                        trail.pop();
-                    }
-                }
-                return;
-            }
-            Value::Array(items) => items
-                .iter()
-                .enumerate()
-                .map(|(i, v)| (i.to_string(), v))
-                .collect(),
-            _ => return,
+/// Every token of the tree by dotted name, with the `$type` it has or inherits: the walk of
+/// [`collect_tokens`] kept as a `Map` (a repeated name keeps its first place and takes the
+/// later token). `node.$type || type`: a truthy type that is not a string matches no type.
+fn collect(tree: &Value) -> Vec<Token> {
+    let mut out: Vec<Token> = Vec::new();
+    for t in collect_tokens(tree) {
+        let token = Token {
+            ty: t.ty.map(|ty| ty.as_str().unwrap_or_default().to_string()),
+            name: t.name,
+            value: t.value,
         };
-        for (key, child) in children {
-            trail.push(key);
-            walk(child, trail, ty, out);
-            trail.pop();
+        match out.iter_mut().find(|o| o.name == token.name) {
+            Some(slot) => *slot = token,
+            None => out.push(token),
         }
     }
-    let mut out = Vec::new();
-    walk(tree, &mut Vec::new(), None, &mut out);
     out
 }
 
@@ -379,7 +344,7 @@ pub fn tokens_to_declarations(tree: &Value) -> Result<Vec<(String, String)>, Dfw
         }
         let ty = token.ty.as_deref().unwrap_or_default();
         let var = css_var_name(&token.name);
-        if let (true, Value::Object(parts)) = (ty == "typography", token.value) {
+        if let (true, Value::Object(parts)) = (ty == "typography", &token.value) {
             for (key, suffix, part_type) in TYPOGRAPHY {
                 if let Some(part) = parts.get(key) {
                     decls.push((
@@ -390,7 +355,7 @@ pub fn tokens_to_declarations(tree: &Value) -> Result<Vec<(String, String)>, Dfw
             }
             continue;
         }
-        decls.push((var, value_to_css(Some(token.value), ty)?));
+        decls.push((var, value_to_css(Some(&token.value), ty)?));
     }
     Ok(decls)
 }

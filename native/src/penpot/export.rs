@@ -29,6 +29,7 @@ use crate::core::paths::{project_paths, resolve, to_posix};
 use crate::core::util::{get_path, now_iso, read_json, sha256, to_json_compact, write_json};
 use crate::design::compose::{build_composed, build_system};
 use crate::design::tokens::{dir_names, relative_path};
+use crate::studio::pages::studio_pages;
 
 pub(super) const EXPORT_SCHEMA: &str = "dfw-penpot-export/1";
 pub(super) const CHANGES_SCHEMA: &str = "dfw-penpot-changes/1";
@@ -764,108 +765,27 @@ fn lay_out(boards: &mut [Value]) {
 
 /* ------------------------------------------------------------------ export (render + write) */
 
-/// `studioPages` of core/studio/pages.mjs, for what an export needs: the canvas pages that hold
-/// screens (not the Design System page, not the flow page) as id, title and screen ids.
-// TODO(merge): use studio::pages::studio_pages
+/// The canvas pages that hold screens (`studioPages(m)` without the Design System page and
+/// the flow page) as id, title and screen ids.
 fn screen_pages(manifest: &Value) -> Vec<(String, Value, Vec<String>)> {
-    let list = |v: Option<&Value>| -> Vec<Value> {
-        js::truthy_value(v)
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default()
-    };
-    let id_of = |s: &Value| s.get("id").and_then(Value::as_str).map(str::to_string);
-    let screens: Vec<Value> = list(manifest.get("screens"))
+    studio_pages(manifest)
         .into_iter()
-        .filter(|s| !js::truthy(s.get("archived")))
-        .collect();
-    let ids: Vec<String> = screens.iter().filter_map(id_of).collect();
-    let mut pages: Vec<(String, Value, Vec<String>)> = Vec::new();
-    let mut assigned: Vec<String> = Vec::new();
-    fn ensure(
-        pages: &mut Vec<(String, Value, Vec<String>)>,
-        id: &str,
-        title: Option<&Value>,
-    ) -> usize {
-        if let Some(i) = pages.iter().position(|(p, _, _)| p == id) {
-            return i;
-        }
-        let title = js::truthy_value(title)
-            .cloned()
-            .unwrap_or_else(|| id.into());
-        pages.push((id.to_string(), title, Vec::new()));
-        pages.len() - 1
-    }
-    // Returns true when the screen went onto the page (it is then assigned).
-    let add = |pages: &mut Vec<(String, Value, Vec<String>)>, page: usize, sid: &str| -> bool {
-        if !ids.iter().any(|i| i == sid) || pages[page].2.iter().any(|s| s == sid) {
-            return false;
-        }
-        pages[page].2.push(sid.to_string());
-        true
-    };
-    for p in list(manifest.get("pages")) {
-        let Some(id) = js::truthy_value(p.get("id")).and_then(Value::as_str) else {
-            continue;
-        };
-        if id == "system" {
-            continue;
-        }
-        let page = ensure(&mut pages, id, p.get("title"));
-        for sid in list(p.get("screens")) {
-            if let Some(sid) = sid.as_str() {
-                if add(&mut pages, page, sid) {
-                    assigned.push(sid.to_string());
-                }
-            }
-        }
-        // Screens referenced only from sections ("id" or "id/variant") belong to the page too.
-        for section in list(p.get("sections")) {
-            for reference in list(section.get("screens")) {
-                let reference = js::to_string(Some(&reference));
-                let sid = reference.split('/').next().unwrap_or_default();
-                if add(&mut pages, page, sid) {
-                    assigned.push(sid.to_string());
-                }
-            }
-        }
-    }
-    for s in &screens {
-        let (Some(id), Some(page)) = (
-            id_of(s),
-            js::truthy_value(s.get("page")).and_then(Value::as_str),
-        ) else {
-            continue;
-        };
-        if page != "system" {
-            let page = ensure(&mut pages, page, None);
-            if add(&mut pages, page, &id) {
-                assigned.push(id);
-            }
-        }
-    }
-    let rest: Vec<String> = ids
-        .iter()
-        .filter(|id| !assigned.contains(id))
-        .cloned()
-        .collect();
-    let (explore, main): (Vec<String>, Vec<String>) =
-        rest.into_iter().partition(|id| id.starts_with('_'));
-    let title = |t: &str| Value::String(t.to_string());
-    if !main.is_empty() || pages.is_empty() {
-        for id in &main {
-            let page = ensure(&mut pages, "screens", Some(&title("Screens")));
-            add(&mut pages, page, id);
-        }
-    }
-    if pages.is_empty() && main.is_empty() && explore.is_empty() {
-        ensure(&mut pages, "screens", Some(&title("Screens")));
-    }
-    for id in &explore {
-        let page = ensure(&mut pages, "explorations", Some(&title("Explorations")));
-        add(&mut pages, page, id);
-    }
-    pages
+        .filter(|p| !js::truthy(p.get("system")) && !js::truthy(p.get("flow")))
+        .map(|p| {
+            let screens = p
+                .get("screens")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .map(js::to_string)
+                .collect();
+            (
+                js::to_string(p.get("id")),
+                p.get("title").cloned().unwrap_or(Value::Null),
+                screens,
+            )
+        })
+        .collect()
 }
 
 /// The renders an export needs: one job per screen variant and breakpoint, as

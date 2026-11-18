@@ -1,14 +1,19 @@
-// Skeleton of the native port: the command table answers help, version and unknown commands
-// itself and forwards everything else to the Node CLI.
+// Skeleton of the native port: the command table answers help, version and unknown commands.
 // Run: DFW_BIN=native/target/debug/dfw node --test tests/conformance/
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { both, assertSame, skipReason, NOW } from './harness.mjs';
 
 describe('skeleton', { skip: skipReason() }, () => {
-  test('help is identical (dfw help, dfw, --help on a command)', () => {
+  // The native help has exactly one line more than Node's: the telemetry command, which only the
+  // native CLI has. Everything else is identical.
+  const TELEMETRY_LINE = /^  dfw telemetry status\|on\|off\|endpoint <url>\|show\|flush .*\n/m;
+  test('help is identical except the native telemetry line (dfw help, dfw, --help on a command)', () => {
     for (const args of [['help'], [], ['status', '--help']]) {
       const r = both(args);
+      assert.match(r.native.stdout, TELEMETRY_LINE);
+      assert.doesNotMatch(r.node.stdout, TELEMETRY_LINE);
+      r.native.stdout = r.native.stdout.replace(TELEMETRY_LINE, '');
       assertSame(r, { stderr: true });
       assert.equal(r.native.code, 0);
       assert.match(r.native.stdout, /^dfw - design-first workflow CLI\n/);
@@ -30,7 +35,7 @@ describe('skeleton', { skip: skipReason() }, () => {
     assert.match(r.native.stdout, /^dfw \d+\.\d+\.\d+ \(<runtime>\)\n$/);
   });
 
-  test('a forwarded command is identical (status, with and without a workflow)', () => {
+  test('status is identical, with and without a workflow', () => {
     for (const args of [['status'], ['status', '--json']]) {
       const r = both(args);
       assertSame(r, { stderr: true });

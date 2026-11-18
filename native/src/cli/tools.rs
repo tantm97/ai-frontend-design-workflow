@@ -2,32 +2,28 @@
 //! (`cmdInspector`, `cmdDoctor`, `cmdHandoff`). Lighthouse has no command of its own: it runs inside `check`.
 
 use std::env;
-use std::fs;
-use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::time::SystemTime;
 
-use regex::Regex;
 use serde_json::{json, Value};
 
 use super::{Ctx, Handler};
+use crate::browser::a11y::{axe_status, AxeStatus, AXE_VERSION};
 use crate::browser::download::install_browser;
 use crate::browser::launch::{browser_status, BrowserStatus};
 use crate::core::config::{set_config_value, Scope};
 use crate::core::error::DfwError;
 use crate::core::host::{Status, HOSTS};
 use crate::core::js;
-use crate::core::paths::{
-    claude_dir, global_dir, manifest_path, plugin_root, project_paths, resolve,
+use crate::core::paths::{claude_dir, global_dir, project_paths, resolve};
+use crate::core::util::{out, read_json, to_json_compact, to_json_pretty, ArgValue, Args};
+use crate::review::locate::{
+    impeccable_engine, plugin_root_of, sloplint_script, taste_copy_lint_script,
 };
-use crate::core::util::{
-    list_files, out, read_json, sha256, to_json_compact, to_json_pretty, ArgValue, Args,
-    MARKETPLACE_NAME,
-};
-use crate::review::locate::impeccable_engine;
 use crate::tools::binary::{binary_status, install_binary, RELEASE_REPO};
 use crate::tools::inspector::{format_plan, inspector_setup, parse_insp_path, PACKAGE, VERSION};
-use crate::tools::install::{axe_file, install, uninstall, InstallOptions};
+use crate::tools::install::{install, uninstall, InstallOptions};
+use crate::tools::mcp_install::mcp_installed;
+use crate::workflow::freeze::verify_snapshot;
 
 /// The commands of this group. `mcp`, `stack` and `handoff` are at the end of the file.
 pub fn commands() -> Vec<(&'static str, Handler)> {
@@ -166,147 +162,6 @@ fn version_of(bin: &str) -> (bool, String, String) {
     }
 }
 
-/// `newestDir(dir)`: the most recently changed folder in `dir`.
-fn newest_dir(dir: &Path) -> Option<PathBuf> {
-    let mut subs: Vec<(SystemTime, PathBuf)> = fs::read_dir(dir)
-        .ok()?
-        .flatten()
-        .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
-        .filter_map(|e| Some((fs::metadata(e.path()).ok()?.modified().ok()?, e.path())))
-        .collect();
-    subs.sort_by_key(|sub| std::cmp::Reverse(sub.0));
-    subs.into_iter().next().map(|(_, path)| path)
-}
-
-/// `pluginRoot(name)` of locate.mjs: root directory of a plugin from the dfw marketplace,
-/// installed or in the dev repo.
-// TODO(merge): use review::locate::plugin_root
-fn sibling_plugin(name: &str) -> Result<Option<PathBuf>, DfwError> {
-    let is_plugin = |dir: &PathBuf| manifest_path(dir).is_some();
-    if let Some(parent) = plugin_root().as_deref().and_then(Path::parent) {
-        // Sibling in the same marketplace checkout (dev mode, or plugin cache layout), then
-        // the dev checkout: core/ next to plugins/.
-        for dir in [parent.join(name), parent.join("plugins").join(name)] {
-            if is_plugin(&dir) {
-                return Ok(Some(dir));
-            }
-        }
-    }
-    // Plugin cache: <claudeDir>/plugins/cache/<marketplace>/<plugin>/<version>/
-    let cache = claude_dir()
-        .join("plugins")
-        .join("cache")
-        .join(MARKETPLACE_NAME)
-        .join(name);
-    if let Some(cached) = newest_dir(&cache).filter(is_plugin) {
-        return Ok(Some(cached));
-    }
-    // Other hosts' install directories (e.g. ~/.copilot/installed-plugins/dfw-marketplace/<plugin>).
-    for dir in HOSTS.iter().flat_map(|h| h.installed_plugin_dirs()) {
-        let p = dir.join(name);
-        if is_plugin(&p) {
-            return Ok(Some(p));
-        }
-    }
-    // Marketplace repo recorded in the global config.
-    let config = read_json(&global_dir().join("config.json"), Some(json!({})))?;
-    Ok(config
-        .get("marketplaceRepo")
-        .and_then(Value::as_str)
-        .filter(|r| !r.is_empty())
-        .map(|repo| Path::new(repo).join("plugins").join(name))
-        .filter(is_plugin))
-}
-
-/// A script inside a sibling plugin's skill, when it is there (`sloplintScript`,
-/// `tasteCopyLintScript` of locate.mjs).
-fn skill_script(plugin: &str, script: &str) -> Result<bool, DfwError> {
-    Ok(sibling_plugin(plugin)?.is_some_and(|root| {
-        root.join("skills")
-            .join(plugin)
-            .join("scripts")
-            .join(script)
-            .exists()
-    }))
-}
-
-/// `verifySnapshot(root, version)` of freeze.mjs: what differs from the approval lock.
-// TODO(merge): use workflow::freeze::verify_snapshot
-fn verify_snapshot(root: &Path, version: &str) -> Result<Vec<String>, DfwError> {
-    crate::workflow::freeze::check_snapshot_name(version)?;
-    let dir = project_paths(root).approved.join(version);
-    let lock = read_json(&dir.join("approval.lock.json"), Some(Value::Null))?;
-    if !js::truthy(&lock) {
-        return Err(DfwError::new(format!(
-            "No approval.lock.json in {}",
-            dir.display()
-        )));
-    }
-    let locked: Vec<(&str, &str)> = lock
-        .get("files")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .map(|f| {
-            let field = |k: &str| f.get(k).and_then(Value::as_str).unwrap_or_default();
-            (field("path"), field("sha256"))
-        })
-        .collect();
-    let mut problems = Vec::new();
-    for (path, sum) in &locked {
-        let abs = dir.join(path);
-        if !abs.exists() {
-            problems.push(format!("missing: {path}"));
-        } else if sha256(fs::read(&abs)?) != *sum {
-            problems.push(format!("modified: {path}"));
-        }
-    }
-    for rel in list_files(&dir, &[])? {
-        if rel != "approval.lock.json" && !locked.iter().any(|(path, _)| *path == rel) {
-            problems.push(format!("added: {rel}"));
-        }
-    }
-    Ok(problems)
-}
-
-/// `mcpInstalled(id)` of mcp.mjs: whether a tool's config already has the dfw server.
-// TODO(merge): use tools::mcp::mcp_installed
-fn mcp_installed(id: &str) -> bool {
-    let home = env::home_dir().unwrap_or_default();
-    let dir = |var: &str, fallback: PathBuf| {
-        env::var(var)
-            .ok()
-            .filter(|v| !v.is_empty())
-            .map_or(fallback, PathBuf::from)
-    };
-    let (file, key) = match id {
-        "opencode" => (
-            dir("XDG_CONFIG_HOME", home.join(".config"))
-                .join("opencode")
-                .join("opencode.json"),
-            Some("mcp"),
-        ),
-        "codex" => (
-            dir("CODEX_HOME", home.join(".codex")).join("config.toml"),
-            None,
-        ),
-        "cursor" => (home.join(".cursor").join("mcp.json"), Some("mcpServers")),
-        _ => return false,
-    };
-    let Ok(text) = fs::read_to_string(file) else {
-        return false;
-    };
-    match key {
-        // A [mcp_servers.dfw] table header on its own line (LF or CRLF files).
-        None => Regex::new(r"(?m)^\[mcp_servers\.dfw\][ \t]*\r?\n")
-            .is_ok_and(|header| header.is_match(&text)),
-        Some(key) => serde_json::from_str::<Value>(&text)
-            .ok()
-            .and_then(|v| v.get(key)?.get("dfw").map(js::truthy))
-            .unwrap_or(false),
-    }
-}
-
 /// `dfw doctor`: environment and installation checks (`cmdDoctor`).
 fn doctor(ctx: &Ctx) -> Result<i32, DfwError> {
     let root = ctx.root();
@@ -347,7 +202,7 @@ fn doctor(ctx: &Ctx) -> Result<i32, DfwError> {
         "hallmark",
         "taste-reference",
     ] {
-        let r = sibling_plugin(name)?;
+        let r = plugin_root_of(name)?;
         ok(
             &format!("plugin {name}"),
             r.is_some(),
@@ -374,10 +229,10 @@ fn doctor(ctx: &Ctx) -> Result<i32, DfwError> {
         Some(e) => ok(label, false, &e.detail.unwrap_or_default()),
         None => ok(label, false, "impeccable plugin not found"),
     }
-    ok("sloplint", skill_script("hallmark", "sloplint.mjs")?, "");
+    ok("sloplint", sloplint_script()?.is_some(), "");
     ok(
         "taste copy-lint",
-        skill_script("taste-reference", "copy-lint.mjs")?,
+        taste_copy_lint_script()?.is_some(),
         "optional",
     );
     match browser_status() {
@@ -390,20 +245,13 @@ fn doctor(ctx: &Ctx) -> Result<i32, DfwError> {
             ok("browser for screenshots and layout check", false, detail)
         }
     }
-    // TODO(merge): use browser::a11y::axe_status
-    let axe = axe_file();
-    if axe.exists() {
-        ok(
+    match axe_status() {
+        AxeStatus::Installed { path } => ok(
             "axe-core for the accessibility check",
             true,
-            &format!("4.14.0: {}", axe.display()),
-        );
-    } else {
-        ok(
-            "axe-core for the accessibility check",
-            false,
-            "axe-core not downloaded (dfw setup --a11y, ~550 KB, once)",
-        );
+            &format!("{AXE_VERSION}: {}", path.display()),
+        ),
+        AxeStatus::Missing { detail } => ok("axe-core for the accessibility check", false, detail),
     }
     // Duplicate installs of the same upstream skills from other marketplaces load twice.
     let installed_file = claude_dir().join("plugins").join("installed_plugins.json");
@@ -444,19 +292,18 @@ fn doctor(ctx: &Ctx) -> Result<i32, DfwError> {
             "skipped (no installed_plugins.json; plugins may be loaded with --plugin-dir)",
         ),
     }
-    // TODO(merge): use workflow::state::load_state
-    let state = read_json(&project_paths(&root).state, Some(Value::Null))?;
-    let field = |k: &str| match state.get(k) {
-        Some(Value::String(s)) => s.clone(),
-        Some(other) => other.to_string(),
-        None => "undefined".to_string(),
-    };
-    if js::truthy(&state) {
-        ok(
-            "project workflow",
-            true,
-            &format!("{}/{}", field("mode"), field("phase")),
-        );
+    let state = load_state(&root)?;
+    let detail = state
+        .as_ref()
+        .map_or("not initialized here".to_string(), |s| {
+            format!(
+                "{}/{}",
+                js::to_string(s.get("mode")),
+                js::to_string(s.get("phase"))
+            )
+        });
+    ok("project workflow", true, &detail);
+    if let Some(state) = &state {
         let approved = state
             .get("design")
             .and_then(|d| d.get("approved"))
@@ -474,8 +321,6 @@ fn doctor(ctx: &Ctx) -> Result<i32, DfwError> {
                 &first.join("; "),
             );
         }
-    } else {
-        ok("project workflow", true, "not initialized here");
     }
     for h in HOSTS.iter().filter(|h| h.status != Status::Internal) {
         let name = format!("host {}", h.name);
@@ -529,6 +374,7 @@ fn doctor(ctx: &Ctx) -> Result<i32, DfwError> {
         true,
         &global_dir().display().to_string(),
     );
+    ok("telemetry", true, &crate::telemetry::status_line());
     out(&rows.join("\n"));
     Ok(0)
 }
@@ -640,50 +486,4 @@ fn stack(ctx: &Ctx) -> Result<i32, DfwError> {
 fn handoff(ctx: &Ctx) -> Result<i32, DfwError> {
     out(&write_handoff(&ctx.root())?);
     Ok(0)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::core::util::{test_dir, write_json};
-
-    #[test]
-    fn snapshot_problems_are_missing_modified_and_added() {
-        let root = test_dir("doctor-snapshot");
-        let dir = project_paths(&root).approved.join("v1");
-        fs::create_dir_all(dir.join("screens")).unwrap();
-        fs::write(dir.join("kept.html"), "kept").unwrap();
-        fs::write(dir.join("screens/changed.html"), "now").unwrap();
-        fs::write(dir.join("extra.css"), "x").unwrap();
-        assert_eq!(
-            verify_snapshot(&root, "v1").unwrap_err().message(),
-            format!("No approval.lock.json in {}", dir.display())
-        );
-        write_json(
-            &dir.join("approval.lock.json"),
-            &json!({ "files": [
-                { "path": "kept.html", "sha256": sha256("kept") },
-                { "path": "screens/changed.html", "sha256": sha256("before") },
-                { "path": "gone.html", "sha256": sha256("gone") },
-            ] }),
-        )
-        .unwrap();
-        assert_eq!(
-            verify_snapshot(&root, "v1").unwrap(),
-            [
-                "modified: screens/changed.html",
-                "missing: gone.html",
-                "added: extra.css"
-            ]
-        );
-    }
-
-    #[test]
-    fn newest_folder_wins() {
-        let dir = test_dir("doctor-newest");
-        assert_eq!(newest_dir(&dir.join("none")), None);
-        fs::create_dir(dir.join("0.4.0")).unwrap();
-        fs::write(dir.join("file"), "").unwrap();
-        assert_eq!(newest_dir(&dir), Some(dir.join("0.4.0")));
-    }
 }

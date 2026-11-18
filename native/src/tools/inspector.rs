@@ -17,6 +17,8 @@ use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{project_paths, resolve};
 use crate::core::util::{read_json, to_json_pretty};
+use crate::workflow::stack::detect_stack;
+use crate::workflow::state::{gate_passed, load_state};
 
 /// The npm package.
 pub const PACKAGE: &str = "code-inspector-plugin";
@@ -517,71 +519,12 @@ fn manual_for(bundler: Option<&str>) -> String {
 
 /* ---------------------------------------------------------------- plan and setup */
 
-/// The two facts `inspectorPlan` takes from `detectStack` (stack.mjs): the framework's name and
-/// the package manager.
-// TODO(merge): use workflow::stack::detect_stack
-fn stack_hint(root: &Path) -> Result<(Option<&'static str>, Option<&'static str>), DfwError> {
-    const FRAMEWORKS: [(&str, &str); 13] = [
-        ("next", "Next.js (React)"),
-        ("nuxt", "Nuxt (Vue)"),
-        ("@sveltejs/kit", "SvelteKit"),
-        ("@angular/core", "Angular"),
-        ("@remix-run/react", "Remix (React)"),
-        ("@builder.io/qwik", "Qwik"),
-        ("astro", "Astro"),
-        ("solid-js", "Solid"),
-        ("svelte", "Svelte"),
-        ("vue", "Vue"),
-        ("preact", "Preact"),
-        ("react", "React"),
-        ("lit", "Lit (Web Components)"),
-    ];
-    const LOCKS: [(&str, &str); 5] = [
-        ("pnpm-lock.yaml", "pnpm"),
-        ("yarn.lock", "yarn"),
-        ("bun.lockb", "bun"),
-        ("bun.lock", "bun"),
-        ("package-lock.json", "npm"),
-    ];
-    const OTHER: [(&str, &str); 7] = [
-        ("composer.json", "PHP (Composer; check for Laravel/Symfony)"),
-        ("Gemfile", "Ruby (check for Rails)"),
-        ("go.mod", "Go"),
-        ("pubspec.yaml", "Flutter/Dart"),
-        ("manage.py", "Django"),
-        ("pyproject.toml", "Python"),
-        ("Cargo.toml", "Rust"),
-    ];
-    let pkg_path = root.join("package.json");
-    if pkg_path.exists() {
-        let pkg = read_json(&pkg_path, Some(json!({})))?;
-        let mut deps = js::spread(pkg.get("dependencies"));
-        deps.extend(js::spread(pkg.get("devDependencies")));
-        let framework = FRAMEWORKS
-            .iter()
-            .find(|(dep, _)| deps.get(*dep).is_some_and(js::truthy))
-            .map(|(_, name)| *name);
-        let manager = LOCKS
-            .iter()
-            .find(|(f, _)| root.join(f).exists())
-            .map(|(_, pm)| *pm);
-        return Ok((framework, manager));
-    }
-    if let Some((_, name)) = OTHER.iter().find(|(f, _)| root.join(f).exists()) {
-        return Ok((Some(name), None));
-    }
-    let html = fs::read_dir(root).is_ok_and(|entries| {
-        entries
-            .flatten()
-            .any(|e| e.file_name().to_string_lossy().ends_with(".html"))
-    });
-    Ok((html.then_some("Plain HTML/CSS/JS"), None))
-}
-
 /// `inspectorPlan(root)`: what "dfw inspector setup" would do in this project, with the keys
 /// in the order Node built them.
 pub fn inspector_plan(root: &Path) -> Result<Value, DfwError> {
-    let (framework, manager) = stack_hint(root)?;
+    let stack = detect_stack(root)?;
+    let framework = js::or_null(stack.get("framework").and_then(|f| f.get("name")));
+    let manager = js::or_empty(stack.get("packageManager"));
     let b = detect_bundler(root)?;
     let mut plan = Map::new();
     plan.insert("bundler".into(), json!(b.bundler));
@@ -597,13 +540,22 @@ pub fn inspector_plan(root: &Path) -> Result<Value, DfwError> {
         "dependency".into(),
         json!({ "name": PACKAGE, "version": VERSION, "dev": true, "license": LICENSE, "purpose": PURPOSE }),
     );
-    plan.insert("framework".into(), json!(framework));
-    let manager = manager.unwrap_or("npm");
+    plan.insert("framework".into(), framework);
+    let manager = if manager.is_empty() {
+        "npm".into()
+    } else {
+        manager
+    };
     plan.insert("packageManager".into(), json!(manager));
+    // `INSTALL[plan.packageManager] || 'npm install'`.
+    let install = match manager.as_str() {
+        "npm" | "pnpm" | "yarn" | "bun" => format!("{manager} install"),
+        _ => "npm install".into(),
+    };
     plan.insert(
         "install".into(),
         json!(format!(
-            "{manager} install (after adding \"{PACKAGE}\": \"{VERSION}\" to devDependencies)"
+            "{install} (after adding \"{PACKAGE}\": \"{VERSION}\" to devDependencies)"
         )),
     );
     let unsupported = |plan: &mut Map<String, Value>, why: String| {
@@ -714,19 +666,6 @@ pub fn stack_approves(stack: &Value) -> bool {
         })
 }
 
-/// `gatePassed(state, 'G3')` on the project's state file (state.mjs).
-// TODO(merge): use workflow::state::{load_state, gate_passed}
-fn g3_passed(root: &Path) -> Result<bool, DfwError> {
-    let state = read_json(&project_paths(root).state, Some(Value::Null))?;
-    let set = |group: &str| {
-        state
-            .get(group)
-            .and_then(|g| g.get("G3"))
-            .is_some_and(js::truthy)
-    };
-    Ok(set("gates") || set("waived"))
-}
-
 /// `JSON.stringify(value, null, indent)`: the two-space layout re-indented, which is safe
 /// because a JSON string never holds a raw line break.
 fn to_json_indented(value: &Value, indent: &str) -> String {
@@ -750,7 +689,7 @@ pub fn inspector_setup(root: &Path, write: bool) -> Result<(Value, Vec<String>),
     }
     let stack = read_json(&project_paths(root).stack, Some(Value::Null))?;
     let mut missing = Vec::new();
-    if !g3_passed(root)? {
+    if !load_state(root)?.is_some_and(|state| gate_passed(&state, "G3")) {
         missing.push("G3 (technology stack) is not approved".to_string());
     }
     if !stack_approves(&stack) {

@@ -10,7 +10,7 @@ use serde_json::{json, Value};
 use crate::core::config::load_config;
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::{plugin_root, project_paths};
+use crate::core::paths::project_paths;
 use crate::core::util::{get_path, list_files, read_json};
 use crate::review::comments::all_comments;
 use crate::workflow::gates::relative;
@@ -189,13 +189,7 @@ pub fn write_handoff(root: &Path) -> Result<String, DfwError> {
     if file.exists() {
         return Err(DfwError::new(format!("{rel} already exists.")));
     }
-    // TODO(merge): use the embedded templates of `assets` when they exist.
-    let templates = plugin_root().map(|r| r.join("templates")).ok_or_else(|| {
-        DfwError::new(
-            "The dfw templates were not found. Set DFW_PLUGIN_ROOT to the dfw plugin folder.",
-        )
-    })?;
-    let tpl = fs::read_to_string(templates.join("handoff.md"))?;
+    let tpl = crate::assets::template_text("handoff.md")?;
 
     let screens = screen_rows(&m, &version)?;
     let stack_text = stack_line(&stack, &state)?;

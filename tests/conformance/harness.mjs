@@ -37,10 +37,17 @@ export function nativeBinary() {
   return path.resolve(process.env.DFW_BIN || path.join(REPO, 'native', 'target', 'debug', exe));
 }
 
-/** A reason to skip (no binary), or false. Pass it as `{ skip: skipReason() }` to `describe`. */
+/**
+ * A reason to skip (no binary), or false. Pass it as `{ skip: skipReason() }` to `describe`.
+ * When the binary is required (`CI` or `DFW_REQUIRE_BIN=1`), a missing binary is an error
+ * instead: a green run must mean the cases ran.
+ */
 export function skipReason() {
   const bin = nativeBinary();
-  return fs.existsSync(bin) ? false : `no native binary at ${bin}: build it (cd native && cargo build) or set DFW_BIN`;
+  if (fs.existsSync(bin)) return false;
+  const why = `no native binary at ${bin}: build it (cd native && cargo build) or set DFW_BIN`;
+  if (process.env.CI || process.env.DFW_REQUIRE_BIN === '1') throw new Error(`${why} (the binary is required: CI or DFW_REQUIRE_BIN=1 is set)`);
+  return why;
 }
 
 function snapshot(root) {

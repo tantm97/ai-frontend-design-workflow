@@ -106,7 +106,6 @@ impl TokenEntry {
 
 /// Every token of a tree in the order JavaScript walks it (integer-like keys first). A name
 /// that appears twice is listed twice: callers that built a `Map` keep the last one.
-// TODO(merge): design::tokens has the same walk as a private `collect` without descriptions.
 pub fn collect_tokens(tree: &Value) -> Vec<TokenEntry> {
     fn walk(node: &Value, trail: &mut Vec<String>, ty: Option<&Value>, out: &mut Vec<TokenEntry>) {
         let children: Vec<(String, &Value)> = match node {

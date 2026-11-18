@@ -13,7 +13,9 @@ use crate::core::js;
 use crate::core::paths::{plugin_root, project_paths};
 
 /// The plugin folder that holds `assets/` and `kits/` (`PLUGIN_ROOT` in util.mjs).
-// TODO(merge): use assets:: (embedded files with the DFW_PLUGIN_ROOT override, design decision 6).
+// TODO(merge): embed kits/ and assets/ in assets.rs (the Studio group's module, which embeds
+// studio/ and templates/ so far); the design modules walk these as folders, so until then they
+// come from the plugin folder.
 pub fn plugin_dir() -> Result<PathBuf, DfwError> {
     // The unit tests run from cargo's build folder, too deep for the search from the executable.
     #[cfg(test)]

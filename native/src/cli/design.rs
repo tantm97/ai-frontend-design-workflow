@@ -10,7 +10,8 @@ use std::path::Path;
 
 use serde_json::{json, Map, Value};
 
-use super::{forward, Ctx, Handler};
+use super::{Ctx, Handler};
+use crate::browser::a11y::{a11y_check, A11yOptions};
 use crate::core::config::env_map;
 use crate::core::config::load_config;
 use crate::core::error::DfwError;
@@ -36,6 +37,8 @@ use crate::design::system::{
 };
 use crate::design::tokens::{build_tokens, dir_names, relative_path};
 use crate::review::locate::impeccable_engine;
+use crate::telemetry;
+use crate::telemetry::events::{CheckCount, CheckTool, Event};
 use crate::tools::check::{
     check_exit_code, format_report, launch, run_checks, setup_engine, CheckOptions,
 };
@@ -238,11 +241,6 @@ fn check(ctx: &Ctx) -> Result<i32, DfwError> {
         None => None,
     };
     let setup = a.truthy("setup");
-    // Rendered accessibility (axe) on the whole design or a URL needs the browser group: that
-    // run goes to the Node CLI as a whole. Per-file runs stay fast and static, and run here.
-    if is_check && !setup && !a.truthy("no-a11y") && (url.is_some() || targets.is_none()) {
-        return forward(&ctx.argv);
-    }
     let config = load_config(Some(&root))?;
     if setup {
         let page = project_paths(&root).dfw.join("checks").join("setup.html");
@@ -256,7 +254,8 @@ fn check(ctx: &Ctx) -> Result<i32, DfwError> {
             &impeccable_engine,
             &launch,
         )?;
-        if !done.ok && done.text == "Impeccable plugin not found." {
+        // A setup that was refused or failed is not a success.
+        if !done.ok {
             return Err(DfwError::new(done.text));
         }
         out(&done.text);
@@ -267,12 +266,23 @@ fn check(ctx: &Ctx) -> Result<i32, DfwError> {
         tools: if is_check { None } else { Some(&["dfw"]) },
     };
     let mut results = run_checks(&root, targets.as_deref(), &config, opts)?;
+    // Rendered accessibility (axe) on the whole design or a URL; per-file runs stay fast and static.
+    if is_check && !a.truthy("no-a11y") && (url.is_some() || targets.is_none()) {
+        let a11y = A11yOptions {
+            url: url.clone(),
+            screens: None,
+            states: a.truthy("states"),
+            themes: a.truthy("themes"),
+        };
+        results.push(a11y_check(&root, &a11y)?.to_json());
+    }
     if is_check && a.truthy("lighthouse") {
         let Some(url) = &url else {
             return usage("--lighthouse needs --url <running app> (verify phase).");
         };
         results.push(run_lighthouse(url, 240_000));
     }
+    record_checks(&results);
     let report = format_report(&results, num_or(a, "max", 60.0) as usize);
     if a.truthy("json") {
         out(&to_json_pretty(
@@ -282,6 +292,26 @@ fn check(ctx: &Ctx) -> Result<i32, DfwError> {
         out(&report.text);
     }
     Ok(check_exit_code(&report, a.truthy("strict")))
+}
+
+/// The `dfw.checks` telemetry event: the number of findings of each tool that ran (a tool off
+/// the telemetry list is left out).
+pub(super) fn record_checks(results: &[Value]) {
+    let tools = results
+        .iter()
+        .filter_map(|r| {
+            let tool = CheckTool::new(r.get("tool").and_then(Value::as_str)?)?;
+            let findings = r
+                .get("findings")
+                .and_then(Value::as_array)
+                .map_or(0, Vec::len);
+            Some(CheckCount {
+                tool,
+                findings: u32::try_from(findings).unwrap_or(u32::MAX),
+            })
+        })
+        .collect();
+    telemetry::record(Event::Checks { tools });
 }
 
 /// `__debug lint <file> [--as html|screen|component|css|tokens|states] [--rel <path>]

@@ -745,4 +745,13 @@ mod tests {
             Spawn::direct("/x/impeccable", vec!["a".into()])
         );
     }
+
+    #[test]
+    fn newest_folder_wins() {
+        let dir = test_dir("doctor-newest");
+        assert_eq!(newest_dir(&dir.join("none")), None);
+        fs::create_dir(dir.join("0.4.0")).unwrap();
+        fs::write(dir.join("file"), "").unwrap();
+        assert_eq!(newest_dir(&dir), Some(dir.join("0.4.0")));
+    }
 }

@@ -1,8 +1,8 @@
 //! dfw: design-first frontend workflow CLI (native core).
 //!
-//! Ports the dispatch of `core/bin/dfw.mjs` and `main()` in `core/lib/cli.mjs`. Every command is in
-//! one of three states: native (ported), forward (still run by the Node CLI) or unknown.
-//! The forward state goes when the Node core is deleted (rust-core, stage 4).
+//! Ports the dispatch of `core/bin/dfw.mjs` and `main()` in `core/lib/cli.mjs`. Every command is
+//! native; `DFW_NATIVE=off` still hands the whole command line to the Node CLI (the escape hatch
+//! of design decision 5), which goes when the Node core is deleted (rust-core, stage 4).
 //! The end of every command is a record point of `telemetry` (off unless a collector address exists).
 
 mod assets;

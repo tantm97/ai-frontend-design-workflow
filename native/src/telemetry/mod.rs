@@ -249,8 +249,6 @@ pub fn describe(state: &State) -> String {
 }
 
 /// One line for `dfw doctor`.
-// Not called yet: the doctor handler belongs to the tools group (see README-telemetry.md).
-#[allow(dead_code)]
 pub fn status_line() -> String {
     describe(&current(&spool::dir()))
 }
@@ -312,8 +310,6 @@ fn record_with(may_show_notice: bool, build: impl FnOnce() -> Vec<Event>) {
 }
 
 /// Record one event (for the code that knows it: a check run reports its counts with this).
-// Not called yet: `check` and `lint` still run in Node (see README-telemetry.md).
-#[allow(dead_code)]
 pub fn record(event: Event) {
     record_with(false, || vec![event]);
 }
