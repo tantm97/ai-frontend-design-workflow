@@ -27,18 +27,17 @@ use crate::tools::binary::{binary_status, install_binary, RELEASE_REPO};
 use crate::tools::inspector::{format_plan, inspector_setup, parse_insp_path, PACKAGE, VERSION};
 use crate::tools::install::{axe_file, install, uninstall, InstallOptions};
 
-/// The commands of this group. `mcp`, `stack` and `handoff` need modules of other groups and
-/// stay forwarded; `setup --a11y` forwards at run time (browser/a11y is not ported).
+/// The commands of this group. `mcp`, `stack` and `handoff` are at the end of the file; `setup --a11y` forwards at run time (browser/a11y is not ported).
 pub fn commands() -> Vec<(&'static str, Handler)> {
     vec![
         ("inspector", Handler::Native(inspector)),
-        ("mcp", Handler::Forward),
+        ("mcp", Handler::Native(mcp)),
         ("install", Handler::Native(cmd_install)),
         ("uninstall", Handler::Native(cmd_uninstall)),
         ("setup", Handler::Native(setup)),
         ("doctor", Handler::Native(doctor)),
-        ("stack", Handler::Forward),
-        ("handoff", Handler::Forward),
+        ("stack", Handler::Native(stack)),
+        ("handoff", Handler::Native(handoff)),
     ]
 }
 
@@ -570,6 +569,100 @@ fn version_of_plain(bin: &str) -> (bool, String, String) {
         ),
         Err(_) => (false, String::new(), String::new()),
     }
+}
+
+/* ---------------------------------------------------------------- mcp, stack, handoff */
+
+use crate::core::config::js_spread;
+use crate::core::util::{now_iso, write_json};
+use crate::tools::handoff::write_handoff;
+use crate::tools::mcp::serve_mcp;
+use crate::tools::mcp_install::{mcp_install, which_tool};
+use crate::workflow::stack::detect_stack;
+use crate::workflow::state::{load_state, push_history, save_state, truthy, type_error};
+
+/// `dfw mcp`: the server on stdio; `dfw mcp install|uninstall <tool|all> [--print]`.
+fn mcp(ctx: &Ctx) -> Result<i32, DfwError> {
+    let a = &ctx.args;
+    let Some(sub) = a.pos(1).filter(|s| !s.is_empty()) else {
+        serve_mcp()?;
+        return Ok(0);
+    };
+    if sub != "install" && sub != "uninstall" {
+        return Err(DfwError::new(
+            "Usage: dfw mcp | dfw mcp install|uninstall <opencode|codex|cursor|all> [--print]",
+        ));
+    }
+    let Some(tool) = a.pos(2).filter(|t| !t.is_empty()) else {
+        return Err(DfwError::new(which_tool()));
+    };
+    out(&mcp_install(tool, sub == "uninstall", a.truthy("print"))?);
+    Ok(0)
+}
+
+/// `dfw stack detect [--write] | dfw stack set --json <json>|--file <f>`.
+fn stack(ctx: &Ctx) -> Result<i32, DfwError> {
+    let a = &ctx.args;
+    let root = ctx.root();
+    let file = project_paths(&root).stack;
+    match a.pos(1) {
+        Some("detect") => {
+            let detected = detect_stack(&root)?;
+            if a.truthy("write") {
+                let mut data = js_spread(Some(&detected));
+                data.insert("status".into(), json!("proposed"));
+                data.insert("source".into(), json!("detected"));
+                write_json(&file, &Value::Object(data))?;
+            }
+            out(&to_json_pretty(&detected));
+        }
+        Some("set") => {
+            let given = match (a.truthy("file"), a.get("file"), a.get("json")) {
+                (true, Some(ArgValue::Text(f)), _) => read_json(&resolve(f), None)?,
+                // `--file` alone is `true`, which path.resolve refuses.
+                (true, ..) => {
+                    return Err(DfwError::internal(
+                        "The \"paths[0]\" argument must be of type string. Received type boolean (true)",
+                    ))
+                }
+                // `--json` alone is `true`, and JSON.parse(true) is true.
+                (_, _, Some(ArgValue::Flag)) => json!(true),
+                (_, _, Some(ArgValue::Text(t))) if !t.is_empty() => serde_json::from_str(t)?,
+                _ => json!({}),
+            };
+            let mut data = js_spread(Some(&given));
+            data.insert("status".into(), json!("proposed"));
+            data.insert("proposedAt".into(), json!(now_iso()));
+            write_json(&file, &Value::Object(data))?;
+            if let Some(mut state) = load_state(&root)? {
+                let gates = state
+                    .get_mut("gates")
+                    .filter(|g| !g.is_null())
+                    .ok_or_else(|| type_error("G3"))?;
+                if truthy(gates.get("G3")).is_some() {
+                    gates["G3"] = Value::Null;
+                    push_history(
+                        &mut state,
+                        json!({ "at": now_iso(), "event": "stack-changed", "note": "G3 invalidated by a new stack proposal" }),
+                    )?;
+                    save_state(&root, &mut state)?;
+                }
+            }
+            out("Stack proposal written to .dfw/stack.json. Approve with \"dfw approve G3 --note ...\" after the user confirms.");
+        }
+        _ => {
+            return Err(DfwError::new(
+                "Usage: dfw stack detect [--write] | dfw stack set --json <json>|--file <f>",
+            ))
+        }
+    }
+    Ok(0)
+}
+
+/// `dfw handoff` (`cmdHandoff`).
+fn handoff(ctx: &Ctx) -> Result<i32, DfwError> {
+    out(&write_handoff(&ctx.root())?);
+    Ok(0)
 }
 
 #[cfg(test)]
