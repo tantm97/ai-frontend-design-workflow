@@ -27,6 +27,7 @@ const SUBCOMMANDS: &[(&str, Subcommand)] = &[
     ("compose", super::design::debug_compose),
     ("color", super::design::debug_color),
     ("png-info", super::browser::debug_png_info),
+    ("a11y", super::browser::debug_a11y),
     ("insp-path", super::tools::debug_insp_path),
 ];
 

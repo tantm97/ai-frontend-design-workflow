@@ -10,7 +10,7 @@ use std::time::SystemTime;
 use regex::Regex;
 use serde_json::{json, Value};
 
-use super::{forward, Ctx, Handler};
+use super::{Ctx, Handler};
 use crate::browser::download::install_browser;
 use crate::browser::launch::{browser_status, BrowserStatus};
 use crate::core::config::{js_truthy, set_config_value, Scope};
@@ -28,7 +28,7 @@ use crate::tools::inspector::{format_plan, inspector_setup, parse_insp_path, PAC
 use crate::tools::install::{axe_file, install, uninstall, InstallOptions};
 
 /// The commands of this group. `mcp`, `stack` and `handoff` need modules of other groups and
-/// stay forwarded; `setup --a11y` forwards at run time (browser/a11y is not ported).
+/// stay forwarded.
 pub fn commands() -> Vec<(&'static str, Handler)> {
     vec![
         ("inspector", Handler::Native(inspector)),
@@ -116,8 +116,9 @@ fn setup(ctx: &Ctx) -> Result<i32, DfwError> {
     if a.truthy("browser") || a.truthy("playwright") {
         out(&to_json_pretty(&install_browser(&log)?));
     } else if a.truthy("a11y") {
-        // TODO(merge): use browser::a11y::install_axe
-        return forward(&ctx.argv);
+        out(&to_json_pretty(
+            &crate::browser::a11y::install_axe(&log)?.to_json(),
+        ));
     } else if a.truthy("binary") {
         out(&to_json_pretty(&install_binary(&log)?));
     } else if let Some(repo) = a.text("marketplace-repo").filter(|r| !r.is_empty()) {

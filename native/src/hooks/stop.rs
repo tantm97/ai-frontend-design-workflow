@@ -1,13 +1,13 @@
 //! Ports `stop` of `core/lib/hooks.mjs`: before the agent stops, (1) deliver comments the user
 //! posted meanwhile; (2) re-render every screen whose file, masters or tokens changed and block
 //! once on layout MUST findings, so edits never leave the design broken. Fails open.
-//!
-//! Native here: (1), and the cheap part of the decision whether (2) applies (loop guard, phase,
-//! `checks.layoutOnStop`). The layout check itself needs the browser and design groups, which
-//! are not ported, so a stop that reaches it is handed to the Node CLI.
 
 use serde_json::Value;
 
+use crate::browser::launch::browser_status;
+use crate::browser::layout_check::{
+    changed_screens, layout_check, mark_checked, Finding, LayoutOptions, LayoutResult,
+};
 use crate::core::config::{checks_layout_on_stop, load_config};
 use crate::core::error::DfwError;
 use crate::core::host::{HookInput, HookResult};
@@ -36,9 +36,49 @@ pub fn stop(input: &HookInput) -> Result<Outcome, DfwError> {
     if state.get("active") == Some(&Value::Bool(false)) || !designing {
         return Ok(Outcome::Done(None));
     }
-    if !checks_layout_on_stop(&load_config(Some(&root))?) {
+    if !checks_layout_on_stop(&load_config(Some(&root))?) || !browser_status().installed() {
         return Ok(Outcome::Done(None));
     }
-    // From here Node asks whether a browser is installed and which screens changed.
-    Ok(Outcome::Forward)
+    // TODO(merge): design::layout_cache (changed_screens, mark_checked)
+    let ch = changed_screens(&root)?;
+    if ch.is_empty() {
+        return Ok(Outcome::Done(None));
+    }
+    let opts = LayoutOptions {
+        screens: Some(ch.screens.clone()),
+        bp: None,
+        states: true,
+        stress: true,
+        system: !ch.changed_comps.is_empty() || ch.tokens_changed,
+    };
+    let LayoutResult::Ran { findings, .. } = layout_check(&root, &opts)? else {
+        return Ok(Outcome::Done(None));
+    };
+    let must = findings.iter().filter(|f| f.level == "error");
+    let should = findings
+        .iter()
+        .filter(|f| f.level == "warn" && ["void", "consistency", "clipped"].contains(&&*f.rule));
+    let report: Vec<&Finding> = must.chain(should).collect();
+    mark_checked(&root)?; // report each state of the design once
+    if report.is_empty() {
+        return Ok(Outcome::Done(None));
+    }
+    let lines: Vec<String> = report
+        .iter()
+        .take(15)
+        .map(|f| {
+            let label = if f.level == "error" { "MUST" } else { "SHOULD" };
+            format!("- [{label}] ({}) {}", f.rule, f.message)
+        })
+        .collect();
+    let masters = if ch.changed_comps.is_empty() {
+        String::new()
+    } else {
+        format!(", changed masters: {}", ch.changed_comps.join(", "))
+    };
+    Ok(Outcome::Done(Some(HookResult::Block(format!(
+        "dfw layout check after your edits ({} screen(s){masters}):\n{}\nFix these in the design system (masters, page layout) where possible, re-run \"dfw layout check --changed\", then finish. See references/layout-patterns.md.",
+        ch.screens.len(),
+        lines.join("\n")
+    )))))
 }
