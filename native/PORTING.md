@@ -50,8 +50,10 @@ Set the status to `done` in the same commit that registers the commands as nativ
 | `core/studio/pages.mjs` | `studio/server` |  | studio | todo |
 | `core/studio/server.mjs` | `studio/server` | split by job: studio/watch, studio/sse, studio/penpot_routes | studio | todo |
 
-Rust modules with no Node file of their own: `design/html` (the tokenizer, design decision 2, owner design, done)
-and `assets` (embedded files, design decision 6, owner integrator).
+Rust modules with no Node file of their own: `design/html` (the tokenizer, design decision 2, owner design, done),
+`assets` (embedded files, design decision 6, owner integrator), `tools/handoff` (`cmdHandoff` of cli.mjs, owner tools, done)
+and `telemetry` (the `telemetry` change: events, otlp, spool, flush; with `build.rs` and `cli/telemetry.rs`; done except
+the doctor line and the check counts, see `README-telemetry.md`).
 
 ## Commands
 
@@ -70,5 +72,6 @@ and `assets` (embedded files, design decision 6, owner integrator).
 | `cli/penpot.rs` | penpot | forward |
 | `cli/tools.rs` | inspector, install, uninstall, setup (`--a11y` forwards), doctor | native |
 | `cli/tools.rs` | mcp, stack, handoff (`cmdHandoff` of cli.mjs is `tools/handoff`) | native |
+| `cli/telemetry.rs` | telemetry (new: status, on, off, endpoint, show, flush; hidden: `__debug telemetry-build`) | native; the Node CLI has no such command |
 
 The `HELP` text lives in `core/lib/cli.mjs` and in `src/cli/help.txt` until the Node CLI is deleted.
