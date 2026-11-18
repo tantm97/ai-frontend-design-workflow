@@ -11,7 +11,7 @@ import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
 import { parseInspPath, detectBundler, patchConfig, inspectorPlan, inspectorSetup, stackApproves, INSPECTOR } from '../../core/lib/inspector.mjs';
-import { createLiveServer, injectLive, assertLocalTarget, LIVE_TAGS } from '../../core/lib/live.mjs';
+import { createLiveServer, startLiveServer, injectLive, assertLocalTarget, LIVE_TAGS, liveTags, normalizeShortcut, patchCsp, patchMetaCsp, fixSetCookie } from '../../core/lib/live.mjs';
 import { newState, saveState, loadState, approveGate } from '../../core/lib/state.mjs';
 import { allComments } from '../../core/lib/comments.mjs';
 import { undelivered, formatForClaude } from '../../core/lib/inbox.mjs';
@@ -186,9 +186,9 @@ test('dfw review proxy: injects the overlay into HTML, passes assets, redirects 
   try {
     const page = await fetch(`${L.base}/cart`);
     const html = await page.text();
-    assert.ok(html.includes(LIVE_TAGS), 'overlay injected');
+    assert.match(html, /<script defer src="\/__dfw\/overlay\.js" data-dfw-live nonce="[A-Za-z0-9+/=]+"><\/script><script defer src="\/__dfw\/live\.js" data-shortcut="alt\+c" nonce="[A-Za-z0-9+/=]+"><\/script><\/head>/, 'overlay injected');
     assert.equal(page.headers.get('etag'), null, 'injected HTML is not cached under the upstream etag');
-    assert.ok((await (await fetch(`${L.base}/gz`)).text()).includes(LIVE_TAGS), 'gzip HTML decoded and injected');
+    assert.ok((await (await fetch(`${L.base}/gz`)).text()).includes('data-dfw-live'), 'gzip HTML decoded and injected');
     assert.equal(await (await fetch(`${L.base}/app.js`)).text(), 'console.log(1)', 'assets untouched');
     const redirect = await fetch(`${L.base}/old`, { redirect: 'manual' });
     assert.equal(redirect.headers.get('location'), `${L.base}/cart`, 'redirects stay on the proxy');
@@ -270,7 +270,8 @@ test('dfw review in a browser: click-to-comment carries the nearest data-insp-pa
     const ok = await page.evaluate(async () => {
       for (let i = 0; i < 50 && !window.__dfwLive; i++) await new Promise((res) => setTimeout(res, 50));
       const ui = document.querySelector('dfw-live').shadowRoot;
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'c', bubbles: true }));
+      // Option+C on macOS types "ç": matched by event.code.
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ç', code: 'KeyC', altKey: true, bubbles: true }));
       if (ui.querySelector('.toggle').getAttribute('aria-pressed') !== 'true') return 'comment mode not on';
       const span = document.querySelector('#total .amount');
       span.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
@@ -292,5 +293,139 @@ test('dfw review in a browser: click-to-comment carries the nearest data-insp-pa
   } finally {
     await r.close();
     L.close();
+  }
+});
+
+test('review shortcut: normalised combos, Alt+C default, invalid combos refused', () => {
+  assert.equal(normalizeShortcut('Alt+C'), 'alt+c');
+  assert.equal(normalizeShortcut('option+c'), 'alt+c');
+  assert.equal(normalizeShortcut('shift+ctrl+k'), 'ctrl+shift+k');
+  assert.equal(normalizeShortcut('cmd+shift+1'), 'shift+meta+1');
+  assert.equal(normalizeShortcut('c'), 'c', 'a bare key is allowed when the user asks for it');
+  for (const off of ['off', 'none', '', false]) assert.equal(normalizeShortcut(off), 'off');
+  for (const bad of ['alt', 'alt+cc', 'alt+c+d', 'hyper+c', 'ctrl+enter']) assert.throws(() => normalizeShortcut(bad), /Invalid review shortcut/, bad);
+  assert.match(LIVE_TAGS, /data-shortcut="alt\+c"/, 'Alt/Option+C by default, not a bare C');
+  assert.match(liveTags({ shortcut: 'off', nonce: 'a"b' }), /data-shortcut="off" nonce="a&quot;b"/);
+});
+
+test('patchCsp: adds the proxy origin + nonce for the injected scripts and the comment POST, nothing else', () => {
+  const o = { origin: 'http://localhost:4700', nonce: 'N0nce' };
+  // strict-dynamic: host sources are ignored, so the nonce is what lets the scripts run.
+  assert.equal(
+    patchCsp("default-src 'none'; script-src 'strict-dynamic' 'nonce-app' https:; style-src 'self'; img-src data:; frame-ancestors 'none'; report-uri /csp", o),
+    "default-src 'none'; script-src 'strict-dynamic' 'nonce-app' https: http://localhost:4700 'nonce-N0nce'; style-src 'self'; img-src data:; frame-ancestors 'none'; report-uri /csp; connect-src http://localhost:4700",
+  );
+  // default-src only: script-src/connect-src are created from it, default-src itself untouched.
+  assert.equal(patchCsp("default-src 'self' https://cdn.example", o), "default-src 'self' https://cdn.example; script-src 'self' https://cdn.example 'nonce-N0nce'; connect-src 'self' https://cdn.example");
+  // 'unsafe-inline' without nonces: adding a nonce would disable the app's inline scripts, so origin only.
+  assert.equal(patchCsp("script-src https://cdn.example 'unsafe-inline'", o), "script-src https://cdn.example 'unsafe-inline' http://localhost:4700");
+  // script-src-elem and script-src both patched; several policies patched one by one.
+  assert.equal(patchCsp("script-src-elem 'self'; script-src 'none', connect-src 'self'", o), "script-src-elem 'self' 'nonce-N0nce'; script-src http://localhost:4700 'nonce-N0nce', connect-src 'self'");
+  assert.equal(patchCsp("img-src 'self'", o), "img-src 'self'", 'scripts and fetch not restricted: unchanged');
+  assert.equal(patchCsp('', o), '');
+  const meta = patchMetaCsp(`<head><meta http-equiv="Content-Security-Policy" content="script-src &#39;nonce-app&#39;"><META HTTP-EQUIV='content-security-policy' CONTENT="default-src 'self'"></head>`, o);
+  assert.equal(meta, `<head><meta http-equiv="Content-Security-Policy" content="script-src 'nonce-app' http://localhost:4700 'nonce-N0nce'"><META HTTP-EQUIV='content-security-policy' content="default-src 'self'; script-src 'self' 'nonce-N0nce'; connect-src 'self'"></head>`);
+});
+
+test('fixSetCookie: only a Domain naming the other loopback host is dropped', () => {
+  assert.deepEqual(fixSetCookie(['a=1; Domain=127.0.0.1; Path=/', 'b=2; domain=localhost; HttpOnly', 'c=3; Path=/', 'd=4; Domain=example.test'], 'localhost'), ['a=1; Path=/', 'b=2; domain=localhost; HttpOnly', 'c=3; Path=/', 'd=4; Domain=example.test']);
+  assert.deepEqual(fixSetCookie('a=1; Domain=.localhost', '127.0.0.1'), ['a=1']);
+});
+
+const STRICT = "default-src 'none'; script-src 'nonce-app' 'strict-dynamic'; style-src 'self'; img-src 'self'; frame-ancestors 'none'";
+
+/** An app with a strict CSP, a login cookie and its own single-key "c" shortcut. */
+async function strictApp() {
+  const seen = [];
+  const app = http.createServer((req, res) => {
+    seen.push({ url: req.url, cookie: req.headers.cookie || '' });
+    if (req.url === '/login') {
+      res.writeHead(200, { 'content-type': 'text/plain', 'set-cookie': ['sid=s3cret; Path=/; HttpOnly; SameSite=Lax', 'pref=1; Domain=127.0.0.1; Path=/'] });
+      return res.end('ok');
+    }
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': STRICT, 'content-security-policy-report-only': "script-src 'nonce-app'" });
+    res.end(`<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="script-src 'nonce-app' 'strict-dynamic'"><title>Strict</title>
+<script nonce="app">window.appKeys = []; addEventListener('keydown', (e) => appKeys.push(e.key));</script></head>
+<body><main><h1 id="t">Strict app</h1><input id="q"><p id="who">${String(req.headers.cookie || 'anon').replace(/[<&]/g, '')}</p></main></body></html>`);
+  });
+  await new Promise((r) => app.listen(0, '127.0.0.1', r));
+  return { app, seen };
+}
+
+test('dfw review proxy: strict CSP is extended for the injected scripts only; cookies pass both ways', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dfw-live-csp-'));
+  process.env.DFW_HOME = path.join(root, '.home');
+  const { app, seen } = await strictApp();
+  const { server, url } = await startLiveServer({ root, target: `http://localhost:${app.address().port}`, port: 0, shots: false, shortcut: 'Option+C' });
+  try {
+    const port = server.address().port;
+    assert.equal(url, `http://localhost:${port}/`, 'localhost app -> localhost proxy URL (same cookie jar)');
+    assert.equal(server.address().address, '127.0.0.1', 'loopback only, never 0.0.0.0');
+    const res = await fetch(url, { headers: { cookie: 'sid=s3cret' } });
+    const html = await res.text();
+    const nonce = html.match(/data-dfw-live nonce="([^"]+)"/)[1];
+    assert.match(html, /data-shortcut="alt\+c"/, '--shortcut normalised into the page');
+    const csp = res.headers.get('content-security-policy');
+    assert.equal(csp, `default-src 'none'; script-src 'nonce-app' 'strict-dynamic' http://localhost:${port} 'nonce-${nonce}'; style-src 'self'; img-src 'self'; frame-ancestors 'none'; connect-src http://localhost:${port}`);
+    assert.equal(res.headers.get('content-security-policy-report-only'), `script-src 'nonce-app' http://localhost:${port} 'nonce-${nonce}'`);
+    assert.ok(html.includes(`content="script-src 'nonce-app' 'strict-dynamic' http://localhost:${port} 'nonce-${nonce}'"`), 'meta CSP patched too');
+    assert.ok(html.includes(`<script nonce="app">`), "the app's own nonce untouched");
+    assert.equal(seen.at(-1).cookie, 'sid=s3cret', 'Cookie header forwarded to the app');
+    const second = await fetch(url);
+    assert.notEqual((await second.text()).match(/data-dfw-live nonce="([^"]+)"/)[1], nonce, 'a fresh nonce per response');
+    const login = await fetch(`${url}login`);
+    assert.deepEqual(login.headers.getSetCookie(), ['sid=s3cret; Path=/; HttpOnly; SameSite=Lax', 'pref=1; Path=/'], 'Domain=127.0.0.1 dropped for a localhost page, the rest untouched');
+    assert.equal((await (await fetch(`http://127.0.0.1:${port}/__dfw/api/live`)).json()).url, url);
+  } finally {
+    server.close();
+    app.close();
+  }
+});
+
+test('dfw review in a browser: strict CSP app, localhost cookies, Alt/Option+C not C (needs Chrome)', { skip: !(await import('../../core/lib/runtime.mjs')).browserStatus().installed }, async () => {
+  const { openRenderer } = await import('../../core/lib/runtime.mjs');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dfw-live-csp-b-'));
+  process.env.DFW_HOME = path.join(root, '.home');
+  saveState(root, newState({ mode: 'existing-project' }));
+  const { app, seen } = await strictApp();
+  const appUrl = `http://localhost:${app.address().port}`;
+  const { server, url } = await startLiveServer({ root, target: appUrl, port: 0, shots: false });
+  const r = await openRenderer();
+  try {
+    const page = await r.page({ width: 1280, height: 800 });
+    await page.goto(`${appUrl}/login`); // the user signs in on the app itself
+    await page.goto(url);
+    assert.equal(seen.at(-1).cookie, 'sid=s3cret', "the app's localhost cookie reaches it through the proxy");
+    const out = await page.evaluate(async () => {
+      for (let i = 0; i < 50 && !window.__dfwLive; i++) await new Promise((res) => setTimeout(res, 50));
+      if (!window.__dfwLive) return 'live.js blocked by CSP';
+      if (typeof window.__dfwTargetInfo !== 'function') return 'overlay.js blocked by CSP';
+      if (!Array.isArray(window.appKeys)) return "the app's own nonce script did not run";
+      const ui = document.querySelector('dfw-live').shadowRoot;
+      const pressed = () => ui.querySelector('.toggle').getAttribute('aria-pressed');
+      const key = (init, el = document.body) => el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, composed: true, ...init }));
+      if (getComputedStyle(ui.querySelector('.bar')).position !== 'fixed') return 'review UI styles blocked by style-src';
+      key({ key: 'c', code: 'KeyC' });
+      if (pressed() !== 'false') return 'plain C was stolen from the app';
+      if (!window.appKeys.includes('c')) return 'the app did not get C';
+      const q = document.querySelector('#q');
+      q.focus();
+      key({ key: 'ç', code: 'KeyC', altKey: true }, q);
+      if (pressed() !== 'false') return 'shortcut fired while typing in an input';
+      q.blur();
+      key({ key: 'ç', code: 'KeyC', altKey: true });
+      if (pressed() !== 'true') return 'Option+C did not toggle comment mode';
+      document.querySelector('#t').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      ui.querySelector('textarea').value = 'Bigger title';
+      ui.querySelector('.pop').requestSubmit();
+      for (let i = 0; i < 50 && !/Sent to Claude|Not sent/.test(ui.querySelector('.toast').textContent); i++) await new Promise((res) => setTimeout(res, 50));
+      return ui.querySelector('.toast').textContent;
+    });
+    assert.match(out, /Sent to Claude · comment #001/, 'comment POST allowed by connect-src');
+    assert.equal(allComments(root)[0].comment, 'Bigger title');
+  } finally {
+    await r.close();
+    server.close();
+    app.close();
   }
 });

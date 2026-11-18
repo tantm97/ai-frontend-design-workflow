@@ -133,13 +133,14 @@ details summary{cursor:pointer;font-weight:600}
   <a href="#project">17. File trong project người dùng</a>
   <b>Mở rộng</b>
   <a href="#copilot">18. Nhiều công cụ AI (host)</a>
+  <a href="#penpot">19. Cầu nối Penpot</a>
   <b>Hướng dẫn</b>
-  <a href="#install">19. Cài đặt</a>
-  <a href="#review">20. Review trên Studio</a>
-  <a href="#commands">21. Bảng lệnh</a>
-  <a href="#improve">22. Muốn cải thiện thì sửa ở đâu</a>
-  <a href="#trouble">23. Xử lý sự cố</a>
-  <a href="#dev">24. Phát triển và phát hành</a>
+  <a href="#install">20. Cài đặt</a>
+  <a href="#review">21. Review trên Studio và app thật</a>
+  <a href="#commands">22. Bảng lệnh</a>
+  <a href="#improve">23. Muốn cải thiện thì sửa ở đâu</a>
+  <a href="#trouble">24. Xử lý sự cố và giới hạn</a>
+  <a href="#dev">25. Phát triển và phát hành</a>
 </nav>
 
 <main>
@@ -161,10 +162,11 @@ details summary{cursor:pointer;font-weight:600}
 <div class="card" style="margin-top:14px">
   <h3 style="margin-top:0">Đọc trang này thế nào</h3>
   <ul style="margin:0;padding-left:20px">
-    <li>Mới làm quen: đọc mục <b>1–6</b>, rồi <b>19–21</b>.</li>
+    <li>Mới làm quen: đọc mục <b>1–6</b>, rồi <b>20–22</b>.</li>
     <li>Muốn hiểu code và kiến trúc: mục <b>7–17</b>.</li>
-    <li>Muốn sửa hoặc cải thiện dfw: mục <b>22</b> (bảng tra "muốn đổi gì thì sửa file nào") và <b>24</b>.</li>
-    <li>Chạy trên nhiều công cụ AI (Claude Code, Copilot; sau này OpenCode, Codex, Cursor): mục <b>18</b>.</li>
+    <li>Muốn sửa hoặc cải thiện dfw: mục <b>23</b> (bảng tra "muốn đổi gì thì sửa file nào") và <b>25</b>.</li>
+    <li>Chạy trên nhiều công cụ AI (Claude Code, Copilot; OpenCode, Codex, Cursor qua MCP): mục <b>18</b>.</li>
+    <li>Designer muốn làm việc trong Penpot: mục <b>19</b>. dfw gọi mạng những gì (kể cả Impeccable): mục <b>10</b>. Giới hạn hiện tại: mục <b>24</b>.</li>
   </ul>
 </div>
 
@@ -179,7 +181,7 @@ details summary{cursor:pointer;font-weight:600}
       <tr><td>Giao diện na ná nhau, "mùi AI", mỗi màn một kiểu.</td><td>Có bước chọn phong cách riêng, và một bộ màu, chữ, component dùng chung cho mọi màn.</td></tr>
       <tr><td>Góp ý bằng chat: "cái nút ở góc trên bên phải…", AI hay hiểu nhầm chỗ.</td><td>Bấm thẳng vào phần tử trên thiết kế và viết góp ý, giống comment trong Figma. Claude biết chính xác bạn nói về chỗ nào, tới tận file và dòng.</td></tr>
       <tr><td>AI tự quyết mọi thứ, kể cả framework và thư viện.</td><td>Có 5 điểm dừng để bạn duyệt. Chưa duyệt thì Claude không được đi tiếp: một hook chặn tự động.</td></tr>
-      <tr><td>Code xong không ai so lại với thiết kế.</td><td>Bước cuối chụp app thật ở nhiều kích thước màn hình và so với thiết kế, liệt kê chỗ lệch.</td></tr>
+      <tr><td>Code xong không ai so lại với thiết kế.</td><td>Bước cuối chụp app thật ở nhiều kích thước màn hình và so với thiết kế, liệt kê chỗ lệch. Bạn cũng bấm thẳng lên app đang chạy để góp ý; comment trỏ tới file và dòng code nếu project có plugin dò nguồn.</td></tr>
     </tbody>
   </table>
 </section>
@@ -384,15 +386,15 @@ details summary{cursor:pointer;font-weight:600}
       <text x="478" y="80" class="s-xs">comment Studio</text><text x="478" y="96" class="s-xs">→ duyệt G2</text>
       <text x="598" y="80" class="s-xs">xem đề xuất</text><text x="598" y="96" class="s-xs">→ duyệt G3</text>
       <text x="718" y="80" class="s-xs">chờ / xem PR</text>
-      <text x="838" y="80" class="s-xs">xem chỗ lệch</text><text x="838" y="96" class="s-xs">→ duyệt G4</text>
+      <text x="838" y="80" class="s-xs">xem chỗ lệch</text><text x="838" y="96" class="s-xs">comment trên app</text><text x="838" y="112" class="s-xs">→ duyệt G4</text>
       <!-- CLAUDE -->
       <text x="118" y="152" class="s-xs">hỏi, viết</text><text x="118" y="168" class="s-xs">PRODUCT.md</text>
       <text x="238" y="152" class="s-xs">tổng hợp 2–3</text><text x="238" y="168" class="s-xs">brief, phác nhanh</text>
       <text x="358" y="152" class="s-xs">token, component</text><text x="358" y="168" class="s-xs">DESIGN.md</text>
       <text x="478" y="152" class="s-xs">blueprint, tự chấm</text><text x="478" y="168" class="s-xs">2 vòng, sửa comment</text>
-      <text x="598" y="152" class="s-xs">dò stack,</text><text x="598" y="168" class="s-xs">đề xuất thư viện</text>
+      <text x="598" y="152" class="s-xs">dò stack, đề xuất</text><text x="598" y="168" class="s-xs">thư viện + plugin</text><text x="598" y="184" class="s-xs">dò nguồn (dev)</text>
       <text x="718" y="152" class="s-xs">code theo</text><text x="718" y="168" class="s-xs">handoff</text>
-      <text x="838" y="152" class="s-xs">chạy app, chụp,</text><text x="838" y="168" class="s-xs">so thiết kế</text>
+      <text x="838" y="152" class="s-xs">chạy app, chụp,</text><text x="838" y="168" class="s-xs">so thiết kế, sửa</text><text x="838" y="184" class="s-xs">comment trên app</text>
       <!-- AGENT -->
       <text x="118" y="232" class="s-xs">—</text>
       <text x="238" y="224" class="s-xs">design-director</text><text x="238" y="240" class="s-xs">(nghiên cứu)</text>
@@ -423,8 +425,8 @@ details summary{cursor:pointer;font-weight:600}
       <text x="358" y="428" class="s-xm">style apply</text><text x="358" y="444" class="s-xm">approve DS</text>
       <text x="478" y="428" class="s-xm">layout check</text><text x="478" y="444" class="s-xm">approve G2</text>
       <text x="598" y="428" class="s-xm">stack detect</text><text x="598" y="444" class="s-xm">approve G3</text>
-      <text x="718" y="428" class="s-xm">handoff</text><text x="718" y="444" class="s-xm">phase implement</text>
-      <text x="838" y="428" class="s-xm">shoot --url</text><text x="838" y="444" class="s-xm">approve G4</text>
+      <text x="718" y="428" class="s-xm">handoff</text><text x="718" y="444" class="s-xm">phase implement</text><text x="718" y="458" class="s-xm">inspector setup</text>
+      <text x="838" y="428" class="s-xm">shoot --url</text><text x="838" y="444" class="s-xm">review start</text><text x="838" y="458" class="s-xm">approve G4</text>
     </svg>
     <figcaption>Hình thoi đỏ ở đầu cột = cổng duyệt phải qua để vào phase đó (G1 → system, DS → concepts, G2 → stack, G3 → implement; G4 để kết thúc sau verify). Hook PreToolUse chặn ghi code ứng dụng ở mọi cột trước implement; từ G2 trở đi thư mục <code>design/</code> bị khoá.</figcaption>
   </figure>
@@ -437,9 +439,9 @@ details summary{cursor:pointer;font-weight:600}
       <tr><td><b>direction</b></td><td>PRODUCT.md</td><td>design-director nghiên cứu tham khảo, viết 2–3 brief khác nhau; có thể phác nhanh. Ghi rõ kiểu mặc định của ngành mà mình tránh, và mức chuyển động theo loại sản phẩm (dashboard rất thấp, marketing cao) vào DESIGN.md.</td><td><code>dfw style match</code><br><code>dfw style show &lt;id&gt;</code><br><code>dfw approve G1 --note "Hướng B, ấm hơn"</code></td><td><code>design/system/brief.json</code>, <code>design/screens/_directions/</code></td><td><span class="tag t-gate">G1</span></td></tr>
       <tr><td><b>system</b></td><td>Hướng đã chọn</td><td>Style guide → token (màu OKLCH, thang chữ, khoảng cách, bo góc, chuyển động) → inventory component (<code>design/system/inventory.json</code>: sản phẩm cần gì, màn nào dùng) → tự thiết kế từng master cho sản phẩm (kit chỉ để tham khảo, <code>dfw system ref</code>) → trang Design System.</td><td><code>dfw style apply &lt;id&gt;</code> hoặc <code>dfw system init --preset crisp</code><br><code>dfw palette build --brand "#3b5bdb"</code><br><code>dfw system audit</code><br><code>dfw approve DS --note "…"</code></td><td><code>design/tokens/tokens.json</code> → <code>tokens.css</code>, <code>design/system/components/*.html</code>, <code>components.css</code>, <code>style.json</code>, <code>head.html</code>, <code>DESIGN.md</code></td><td><span class="tag t-gate">DS</span>: phải có component; lint + audit không còn lỗi MUST; không còn theme thử <code>opt-*</code></td></tr>
       <tr><td><b>concepts</b></td><td>DS đã duyệt</td><td>Soát các màn hay quên (đăng nhập/lần đầu, cài đặt, điều khoản/cookie, 404/lỗi, offline) và state của từng màn (bảng/danh sách: loading, empty, error; form: error) → thống nhất blueprint từng màn → screen-builder dựng song song → tự chấm 2 vòng → bạn review trên Studio → sửa theo comment.</td><td><code>dfw blueprint</code><br><code>dfw studio start</code><br><code>dfw layout check --states</code><br><code>dfw check</code><br><code>dfw comments fixed fb_003 --message "…"</code><br><code>dfw approve G2 --note "…"</code></td><td><code>design/design.json</code>, <code>design/screens/&lt;id&gt;/*.html</code>, <code>.dfw/reviews/*.json</code>; khi G2: <code>design/approved/v1/</code> + <code>approval.lock.json</code></td><td><span class="tag t-gate">G2</span>: check không còn MUST; không còn comment open/acknowledged/reopened/fixed</td></tr>
-      <tr><td><b>stack</b></td><td>Thiết kế đã khoá</td><td>Dò project hiện có, đề xuất framework, cách viết style, thư viện chính; có thể nhờ emil chọn thư viện UI.</td><td><code>dfw stack detect --write</code><br><code>dfw stack set --json '{…}'</code><br><code>dfw approve G3 --note "…"</code></td><td><code>.dfw/stack.json</code></td><td><span class="tag t-gate">G3</span>: cần có <code>.dfw/stack.json</code></td></tr>
-      <tr><td><b>implement</b></td><td>G2 + G3</td><td>Sinh handoff rồi code theo stack đã duyệt, đọc ghi chú trong <code>stacks/&lt;framework&gt;.md</code>.</td><td><code>dfw handoff</code><br><code>dfw phase implement</code></td><td><code>design/handoff/v1.md</code>, code trong <code>src/</code>…</td><td>Làm xong theo handoff</td></tr>
-      <tr><td><b>verify</b></td><td>App chạy được</td><td>Chụp app ở từng breakpoint, so với thiết kế, liệt kê lệch; chạy check trên URL.</td><td><code>dfw phase verify</code><br><code>dfw shoot --url http://localhost:3000 --out app.png</code><br><code>dfw check --url http://localhost:3000</code><br><code>dfw approve G4 --note "…"</code></td><td>Báo cáo review, ảnh trong <code>.dfw/shots/</code></td><td><span class="tag t-gate">G4</span>: phải đang ở phase verify</td></tr>
+      <tr><td><b>stack</b></td><td>Thiết kế đã khoá</td><td>Dò project hiện có, đề xuất framework, cách viết style, thư viện chính; có thể nhờ emil chọn thư viện UI. Với project JavaScript có bundler, đề xuất thêm một thư viện chỉ dùng khi dev: <code>code-inspector-plugin</code> (dfw khoá bản 2.0.9, MIT), để comment trên app thật trỏ được tới file:dòng. Bạn từ chối thì review app thật vẫn chạy, chỉ thiếu file:dòng.</td><td><code>dfw stack detect --write</code><br><code>dfw inspector setup</code> (chỉ in, không ghi)<br><code>dfw stack set --json '{…}'</code><br><code>dfw approve G3 --note "…"</code></td><td><code>.dfw/stack.json</code></td><td><span class="tag t-gate">G3</span>: cần có <code>.dfw/stack.json</code></td></tr>
+      <tr><td><b>implement</b></td><td>G2 + G3</td><td>Sinh handoff rồi code theo stack đã duyệt, đọc ghi chú trong <code>stacks/&lt;framework&gt;.md</code>. Nếu G3 đã duyệt <code>code-inspector-plugin</code>: chạy <code>dfw inspector setup --write</code> rồi lệnh cài của project.</td><td><code>dfw handoff</code><br><code>dfw phase implement</code><br><code>dfw inspector setup --write</code></td><td><code>design/handoff/v1.md</code>, code trong <code>src/</code>…; có thể thêm <code>package.json</code> (devDependencies) và file cấu hình bundler</td><td>Làm xong theo handoff</td></tr>
+      <tr><td><b>verify</b></td><td>App chạy được</td><td>Chụp app ở từng breakpoint, so với thiết kế, liệt kê lệch; chạy check trên URL. Bạn review app đang chạy qua <code>dfw review</code>: bấm phần tử, viết comment; Claude mở đúng <code>file:dòng:cột</code> để sửa (mục 13).</td><td><code>dfw phase verify</code><br><code>dfw shoot --url http://localhost:3000 --out app.png</code><br><code>dfw check --url http://localhost:3000</code><br><code>dfw review start --url http://localhost:3000</code><br><code>dfw approve G4 --note "…"</code></td><td>Báo cáo review, ảnh trong <code>.dfw/shots/</code> (ảnh của comment trên app: <code>.dfw/shots/live/</code>), comment trong <code>.dfw/reviews/</code></td><td><span class="tag t-gate">G4</span>: phải đang ở phase verify</td></tr>
     </tbody>
   </table>
   <div class="note"><b>Mỗi lần duyệt</b> đều ghi một dòng vào <code>.dfw/decisions.jsonl</code> (<code>level: 1</code>, <code>topic: "gate:G2"</code>, <code>by: "user"</code>) và lịch sử trong <code>state.json</code>. Lệnh <code>dfw approve</code> luôn bắt buộc <code>--note</code> ghi rõ đã duyệt cái gì.</div>
@@ -520,12 +522,20 @@ dfw handoff        # design/handoff/v1.md</code></pre></td></tr>
   <table>
     <tbody>
       <tr><td style="width:38%">(chờ)</td><td><pre><code>dfw stack detect --write     # đọc package.json…
-dfw phase stack</code></pre>Đề xuất: "Vue 3 + Vite, CSS variables từ tokens, không thêm UI kit".</td></tr>
-      <tr><td><i>"Ok, duyệt G3"</i></td><td><pre><code>dfw approve G3 --note "Vue 3 + Vite, không UI kit"
-dfw phase implement</code></pre>Bây giờ hook <code>pre-tool-use</code> mới cho ghi vào <code>src/</code>. Code theo <code>design/handoff/v1.md</code> và <code>stacks/vue.md</code>.</td></tr>
+dfw phase stack
+dfw inspector setup          # in phiên bản khoá, bundler, thay đổi cấu hình (chưa ghi gì)</code></pre>Đề xuất: "Vue 3 + Vite, CSS variables từ tokens, không thêm UI kit; thêm <code>code-inspector-plugin</code> 2.0.9 chỉ khi dev, để comment trên app trỏ tới file:dòng".</td></tr>
+      <tr><td><i>"Ok, duyệt G3"</i></td><td><pre><code>dfw approve G3 --note "Vue 3 + Vite, không UI kit, code-inspector-plugin (dev)"
+dfw phase implement
+dfw inspector setup --write  # sửa vite.config.ts + package.json (chỉ chạy được khi G3 đã duyệt nó)
+npm install</code></pre>Bây giờ hook <code>pre-tool-use</code> mới cho ghi vào <code>src/</code>. Code theo <code>design/handoff/v1.md</code> và <code>stacks/vue.md</code>.</td></tr>
       <tr><td>(chờ)</td><td><pre><code>dfw phase verify
 dfw shoot --url http://localhost:5173 --bp desktop,mobile --out .dfw/shots/app.png
-dfw check --url http://localhost:5173</code></pre>Agent visual-reviewer so với <code>design/approved/v1</code>, trả danh sách lệch.</td></tr>
+dfw check --url http://localhost:5173
+dfw review start --url http://localhost:5173   # → http://localhost:4700/
+dfw comments wait                              # chạy nền, chờ comment của bạn</code></pre>Agent visual-reviewer so với <code>design/approved/v1</code>, trả danh sách lệch.</td></tr>
+      <tr><td>Mở địa chỉ <code>localhost</code> mà Claude đưa, bấm <b>Comment</b> (hoặc <kbd>Alt</kbd>/<kbd>Option</kbd><kbd>C</kbd>), bấm vào nút "Trả", viết <i>"Nút này phải là màu primary"</i>.</td><td>Comment tới như comment Studio, kèm <code>target.source</code> = <code>src/views/Return.vue:42:7</code>. Claude mở đúng chỗ đó, sửa, rồi:
+<pre><code>dfw comments fixed fb_012 --message "Nút Trả dùng variant primary"
+dfw review stop</code></pre></td></tr>
       <tr><td><i>"Chấp nhận, duyệt G4"</i></td><td><pre><code>dfw approve G4 --note "Chấp nhận, 2 lệch nhỏ ghi trong báo cáo"
 dfw phase done</code></pre></td></tr>
     </tbody>
@@ -662,7 +672,7 @@ dfw mode ui-refinement                        # đổi mode giữa chừng (tín
       <path d="M470 440 C620 500 760 500 855 464" class="s-dash" marker-end="url(#r)"/>
       <text x="560" y="492" class="s-xs">install.sh / dfw setup --binary tải binary</text>
       <rect x="20" y="508" width="450" height="28" rx="8" class="s-box"/>
-      <text x="34" y="527" class="s-xs">CI mỗi PR: npm test · build --check (plugins/ khớp nguồn) · validate.mjs (cả 2 marketplace)</text>
+      <text x="34" y="527" class="s-xs">CI mỗi PR: npm test · build --check · validate.mjs · e2e Studio (Chrome của runner)</text>
     </svg>
   </figure>
 
@@ -687,9 +697,10 @@ registry/                  <span class="d">skills.json (7 skill + 2 plugin local
 overlays/                  <span class="d">chỉnh sửa dfw áp lên skill ngoài</span>
 reports/proposals/         <span class="d">báo cáo đề xuất cập nhật skill</span>
 scripts/                   <span class="d">build, validate, skills, knowledge (file kiến thức pin), install, binary, sinh dữ liệu</span>
-tests/unit, tests/e2e      <span class="d">test (host.test.mjs đa host, mcp.test.mjs server MCP)</span>
+tests/unit, tests/e2e      <span class="d">test (host.test.mjs đa host, mcp.test.mjs server MCP, inspector/penpot-*.test.mjs…)</span>
+tests/fixtures/            <span class="d">project mẫu cho test: cấu hình bundler (inspector/), project + bản export Penpot (penpot/)</span>
 tests/bench/               <span class="d">bộ đo: fixtures/ (màn mẫu có lỗi cài sẵn), run.mjs, baseline.json, README (cả bộ đo workflow)</span>
-docs/                      <span class="d">trang này</span>
+docs/                      <span class="d">trang này (+ bản tiếng Anh), impeccable-network.md (Impeccable gọi mạng những gì)</span>
 install.sh, package.json, .github/workflows/, README.md, LICENSE, THIRD_PARTY_NOTICES.md</div>
   <h3>Build làm gì với văn bản dùng chung</h3>
   <table>
@@ -727,35 +738,37 @@ install.sh, package.json, .github/workflows/, README.md, LICENSE, THIRD_PARTY_NO
   <table>
     <thead><tr><th>Module</th><th>Nhóm</th><th>Làm gì</th></tr></thead>
     <tbody>
-      <tr><td><code>cli.mjs</code> (778)</td><td>điều phối</td><td>Đọc lệnh, gọi module tương ứng, in kết quả, đặt mã thoát (2 khi có lỗi MUST). Chứa luôn <code>status</code>, <code>approve</code>, <code>studio</code>, <code>handoff</code>, <code>doctor</code>, <code>setup</code>, và bộ chạy hook.</td></tr>
-      <tr><td><code>util.mjs</code> (234)</td><td>chung</td><td>Tìm gốc project (thư mục có <code>.dfw/state.json</code>, không thì có <code>.git</code>), đọc/ghi JSON, <code>PLUGIN_ROOT</code>, <code>IS_BINARY</code>, <code>selfCommand()</code>, <code>nodeExecutable()</code>, lỗi <code>DfwError</code>.</td></tr>
+      <tr><td><code>cli.mjs</code> (985)</td><td>điều phối</td><td>Đọc lệnh, gọi module tương ứng, in kết quả, đặt mã thoát (2 khi có lỗi MUST). Chứa luôn <code>status</code>, <code>approve</code>, <code>studio</code>, <code>review</code> (khởi động/tắt proxy review app thật), <code>inspector</code>, <code>penpot</code>, <code>handoff</code>, <code>doctor</code>, <code>setup</code>, và bộ chạy hook.</td></tr>
+      <tr><td><code>util.mjs</code> (249)</td><td>chung</td><td>Tìm gốc project (thư mục có <code>.dfw/state.json</code>, không thì có <code>.git</code>), đọc/ghi JSON, <code>PLUGIN_ROOT</code>, <code>IS_BINARY</code>, <code>selfCommand()</code>, <code>nodeExecutable()</code>, lỗi <code>DfwError</code>.</td></tr>
       <tr><td><code>state.mjs</code> (173)</td><td>quy trình</td><td>Máy trạng thái: mode, phase, cổng; luật chuyển phase; ghi lịch sử và quyết định.</td></tr>
-      <tr><td><code>gate.mjs</code> (72)</td><td>quy trình</td><td>Quyết định cho/chặn ghi file (hàm thuần <code>decideWrite</code>) + chuyển thành output hook.</td></tr>
+      <tr><td><code>gate.mjs</code> (75)</td><td>quy trình</td><td>Quyết định cho/chặn ghi file (hàm thuần <code>decideWrite</code>) + chuyển thành output hook.</td></tr>
       <tr><td><code>freeze.mjs</code> (77)</td><td>quy trình</td><td>Khi G2: chụp <code>design/</code> vào <code>design/approved/vN/</code>, viết <code>approval.lock.json</code> có hash từng file. <code>reopen</code> và <code>verify-snapshot</code>.</td></tr>
-      <tr><td><code>config.mjs</code> (97)</td><td>quy trình</td><td>Cấu hình nhiều lớp: mặc định plugin &lt; global &lt; project &lt; local.</td></tr>
+      <tr><td><code>config.mjs</code> (102)</td><td>quy trình</td><td>Cấu hình nhiều lớp: mặc định plugin &lt; global &lt; project &lt; local.</td></tr>
       <tr><td><code>lang.mjs</code> (51)</td><td>quy trình</td><td>Ngôn ngữ trao đổi theo phiên; nhớ ngôn ngữ dùng lần trước.</td></tr>
-      <tr><td><code>hooks.mjs</code> (134)</td><td>hook</td><td>5 hàm xử lý hook (mục 11). Lỗi nội bộ không bao giờ chặn người dùng.</td></tr>
+      <tr><td><code>hooks.mjs</code> (147)</td><td>hook</td><td>5 hàm xử lý hook (mục 11). Lỗi nội bộ không bao giờ chặn người dùng.</td></tr>
       <tr><td><code>tokens.mjs</code> (142)</td><td>design system</td><td>DTCG <code>tokens.json</code> + <code>themes/*.json</code> → <code>tokens.css</code> (<code>:root</code> và <code>[data-theme=…]</code>).</td></tr>
       <tr><td><code>color.mjs</code> (323)</td><td>design system</td><td>Dải màu OKLCH từ vài quyết định (màu thương hiệu, nhiệt độ trung tính), chọn vai trò theo độ tương phản, màu trạng thái hài hoà, thang chữ.</td></tr>
       <tr><td><code>style.mjs</code> (254)</td><td>design system</td><td>Thư viện style guide <code>kits/styles/*.json</code>: tìm, xem, chấm điểm theo brief, áp thành token.</td></tr>
       <tr><td><code>system.mjs</code> (134)</td><td>design system</td><td><code>system init</code> (token từ style/preset, tạo inventory rỗng; không chép component), <code>options</code>/<code>choose</code> (so 2–3 theme), <code>list</code>.</td></tr>
       <tr><td><code>inventory.mjs</code> (160)</td><td>design system</td><td>Inventory component (<code>design/system/inventory.json</code>), kiểm tra <code>kit-copy</code> / <code>inventory-*</code> / <code>unused-master</code>, <code>system ref</code> đọc kit làm tham khảo.</td></tr>
       <tr><td><code>system-page.mjs</code> (359)</td><td>design system</td><td>Sinh trang "Design System": nền tảng từ token + mọi component với variant và ví dụ.</td></tr>
-      <tr><td><code>dsaudit.mjs</code> (110)</td><td>design system</td><td>Review cấp senior: tương phản, màu nhấn trùng màu trạng thái, nhiệt độ xám, số lượng hue, nhịp chữ, lý do trong DESIGN.md.</td></tr>
+      <tr><td><code>dsaudit.mjs</code> (113)</td><td>design system</td><td>Review cấp senior: tương phản, màu nhấn trùng màu trạng thái, nhiệt độ xám, số lượng hue, nhịp chữ, lý do trong DESIGN.md.</td></tr>
       <tr><td><code>fonts.mjs</code> (10)</td><td>design system</td><td>Hỏi Google Fonts xem font có subset nào (vd. vietnamese). Chỉ gửi tên font.</td></tr>
       <tr><td><code>icons.mjs</code> (56)</td><td>design system</td><td>Tìm/thêm icon Lucide vào <code>design/system/icons/</code>.</td></tr>
       <tr><td><code>compose.mjs</code> (398)</td><td>màn hình</td><td>Mở rộng <code>&lt;dfw-use&gt;</code>, <code>&lt;dfw-icon&gt;</code>, <code>&lt;dfw-head&gt;</code>, slot, prop thành HTML thường; build <code>components.css</code>; bản ghép đầy đủ vào <code>.dfw/build/</code>.</td></tr>
-      <tr><td><code>lint.mjs</code> (344)</td><td>kiểm tra</td><td>Luật tĩnh nhanh cho HTML, CSS, token, manifest, cộng dấu hiệu "AI làm" và độ phủ state (danh sách ở mục 14).</td></tr>
-      <tr><td><code>layout.mjs</code> (393)</td><td>kiểm tra</td><td>Render thật từng màn × breakpoint × state (cả bản danh sách dài ra) và đo chồng lấn, tràn, bị cắt, neo, khoảng trống, vùng chạm <code>layout.mjs</code> (331)</td><td>kiểm tra</td><td>Render thật từng màn × breakpoint × state (cả bản danh sách dài ra) và đo chồng lấn, tràn, bị cắt, neo, khoảng trống, độ nhất qlt; 44px ở màn cảm ứng, độ nhất quán giữa các màn.</td></tr>
-      <tr><td><code>check.mjs</code> (209)</td><td>kiểm tra</td><td>Gom dfw lint + DS audit + Impeccable + Hallmark sloplint (+ Taste copy-lint), quy về MUST/SHOULD/NICE và trỏ về file nguồn.</td></tr>
-      <tr><td><code>locate.mjs</code> (68)</td><td>kiểm tra</td><td>Tìm thư mục của các plugin anh em (Impeccable, Hallmark, Taste) trong cache của Claude Code.</td></tr>
+      <tr><td><code>lint.mjs</code> (399)</td><td>kiểm tra</td><td>Luật tĩnh nhanh cho HTML, CSS, token, manifest, cộng dấu hiệu "AI làm" và độ phủ state (danh sách ở mục 14).</td></tr>
+      <tr><td><code>layout.mjs</code> (397)</td><td>kiểm tra</td><td>Render thật từng màn × breakpoint × state (cả bản danh sách dài ra) và đo chồng lấn, tràn, bị cắt, neo, khoảng trống, vùng chạm 44px ở màn cảm ứng, độ nhất quán giữa các màn.</td></tr>
+      <tr><td><code>check.mjs</code> (212)</td><td>kiểm tra</td><td>Gom dfw lint + DS audit + Impeccable + Hallmark sloplint (+ Taste copy-lint), quy về MUST/SHOULD/NICE và trỏ về file nguồn.</td></tr>
+      <tr><td><code>locate.mjs</code> (76)</td><td>kiểm tra</td><td>Tìm thư mục của các plugin anh em (Impeccable, Hallmark, Taste) trong cache của Claude Code.</td></tr>
       <tr><td><code>cdp.mjs</code> (421)</td><td>render</td><td>Driver DevTools protocol tự viết: tìm/mở Chrome ẩn, context, page, chụp, cache font, tải chrome-headless-shell.</td></tr>
       <tr><td><code>runtime.mjs</code> (58)</td><td>render</td><td>Lớp mỏng trên cdp: <code>openRenderer()</code>, <code>screenshot(jobs)</code> chạy song song 6 trang.</td></tr>
-      <tr><td><code>comments.mjs</code> (143)</td><td>review</td><td>Kho comment theo phiên review trong <code>.dfw/reviews/</code>, luật chuyển trạng thái.</td></tr>
-      <tr><td><code>inbox.mjs</code> (54)</td><td>review</td><td>Biết comment nào chưa đưa cho Claude; <code>comments wait</code> chờ comment mới.</td></tr>
-      <tr><td><code>edit.mjs</code> (222)</td><td>review</td><td>Sửa trực tiếp từ Studio ghi ngược về file nguồn, có nhật ký để hoàn tác (<code>.dfw/edits/</code>).</td></tr>
+      <tr><td><code>comments.mjs</code> (152)</td><td>review</td><td>Kho comment theo phiên review trong <code>.dfw/reviews/</code>, luật chuyển trạng thái. Comment trên app thật có thêm <code>url</code> (route) và ảnh chụp gắn sau (<code>setCommentScreenshot</code>).</td></tr>
+      <tr><td><code>inbox.mjs</code> (57)</td><td>review</td><td>Biết comment nào chưa đưa cho Claude; <code>comments wait</code> chờ comment mới. Có comment từ app thật (<code>provider: "dfw-live"</code>) thì thêm một dòng dặn Claude mở <code>target.source</code> để sửa code.</td></tr>
+      <tr><td><code>edit.mjs</code> (456)</td><td>review</td><td>Sửa trực tiếp từ Studio ghi ngược về file nguồn, có nhật ký để hoàn tác (<code>.dfw/edits/</code>). Các op: <code>text</code>, <code>variant</code>/<code>size</code>/<code>prop</code>, <code>spacing</code>, <code>move</code> (dời mã nguồn của phần tử ra trước/sau một phần tử anh em, hoặc vào trong một khung rỗng với <code>position: "inside"</code>, giữ thụt lề) và <code>layout</code> (ghi <code>grid-column</code>, <code>width</code>, <code>min-height</code> vào khối <code>&lt;style data-dfw-layout&gt;</code> theo dạng <code>[data-dfw-id='x']:not(#dfw)</code>, có thể trong <code>@media (max-width: Npx)</code>; giá trị <code>auto</code> hoặc <code>null</code> thì xoá thuộc tính, không có <code>prop</code> thì xoá cả luật). Id chỉ có trong master của component thì bị từ chối, kèm lời chỉ sang file master. <code>assertEditable</code> từ chối mọi lần sửa và hoàn tác khi thiết kế đã khoá (G2) hoặc mode review-only.</td></tr>
       <tr><td><code>stack.mjs</code> (108)</td><td>code</td><td>Dò stack hiện có từ <code>package.json</code>…; lưu đề xuất <code>.dfw/stack.json</code>.</td></tr>
-      <tr><td><code>install.mjs</code> (93)</td><td>cài đặt</td><td><code>dfw install</code>/<code>uninstall</code>: gọi <code>claude plugin …</code>, tải binary, kiểm trình duyệt, doctor.</td></tr>
+      <tr><td><code>inspector.mjs</code> (296)</td><td>code</td><td><code>dfw inspector setup</code>: dò bundler (Vite, webpack, Next.js với webpack hoặc Turbopack, Nuxt, Astro, Rsbuild, Rspack, Umi, Vue CLI), in thay đổi cấu hình để thêm <code>code-inspector-plugin</code> 2.0.9 (khoá đúng bản, chỉ chạy khi dev). <code>--write</code> chỉ tự sửa Vite, webpack, Next.js, và chỉ khi G3 đã duyệt và <code>.dfw/stack.json</code> có thư viện này; bundler khác thì in hướng dẫn sửa tay. <code>parseInspPath</code> đọc <code>data-insp-path</code> thành <code>file:dòng:cột</code> (đường dẫn tuyệt đối, kể cả kiểu Windows, đổi thành tương đối theo project).</td></tr>
+      <tr><td><code>live.mjs</code> (366)</td><td>review</td><td>Proxy của <code>dfw review</code>: chỉ nghe ở loopback (127.0.0.1, và ::1 khi app ở <code>localhost</code>), chỉ nhận đích là máy local (<code>localhost</code>, <code>127.*</code>, <code>::1</code>). Chèn <code>overlay.js</code> + <code>live.js</code> vào trang HTML (CSP chặt thì thêm nonce riêng cho mỗi response, <code>patchCsp</code>), cho mọi thứ khác đi thẳng (cả WebSocket, nên HMR của Vite/webpack/Next vẫn chạy), ghi comment vào <code>.dfw/reviews/</code> và chụp ảnh route vào <code>.dfw/shots/live/&lt;id&gt;.png</code>.</td></tr>
+      <tr><td><code>install.mjs</code> (160)</td><td>cài đặt</td><td><code>dfw install</code>/<code>uninstall</code>: gọi <code>claude plugin …</code>, tải binary, kiểm trình duyệt, doctor.</td></tr>
       <tr><td><code>binary.mjs</code> (61)</td><td>cài đặt</td><td>Tên file binary theo nền tảng, tải từ GitHub Release và kiểm SHA-256.</td></tr>
       <tr><td><code>host.mjs</code></td><td>đa host</td><td>Danh sách host (Claude Code, Copilot; OpenCode, Codex, Cursor qua MCP), chuẩn hoá input hook, định dạng output theo host, giá trị placeholder cho skill (kể cả bản "mcp"), nơi cài plugin (mục 18).</td></tr>
       <tr><td><code>mcp.mjs</code> (256)</td><td>đa host</td><td><code>dfw mcp</code>: server MCP qua stdio (JSON-RPC, không thư viện) với 3 tool <code>dfw_guide</code>, <code>dfw</code>, <code>dfw_can_write</code> và prompt <code>dfw</code>; <code>dfw mcp install|uninstall</code> ghi cấu hình OpenCode/Codex/Cursor (có <code>--print</code>, sao lưu file cũ).</td></tr>
@@ -763,6 +776,8 @@ install.sh, package.json, .github/workflows/, README.md, LICENSE, THIRD_PARTY_NO
       <tr><td><code>pixeldiff.mjs</code> (79)</td><td>render</td><td><code>dfw diff</code>: chạy pixelmatch trong Chrome, ghép file theo tên khi so hai thư mục.</td></tr>
       <tr><td><code>extract.mjs</code> (104)</td><td>render</td><td><code>dfw tokens extract</code>: đọc computed style, gom màu gần trùng, ghi gợi ý token DTCG.</td></tr>
       <tr><td><code>lighthouse.mjs</code> (42)</td><td>kiểm tra</td><td>Lighthouse pin qua npx cho G4 (tuỳ chọn).</td></tr>
+      <tr><td><code>penpot-tokens.mjs</code> (615)</td><td>Penpot</td><td><code>dfw tokens export --format penpot</code> / <code>dfw tokens import</code>: đổi token DTCG của dfw sang file token của Penpot và ngược lại (set <code>base</code> + <code>themes/&lt;tên&gt;</code>, theme nhóm <code>dfw</code>, giữ alias), in bảng khác biệt, từ chối ghi khi thiết kế đã khoá (mục 19).</td></tr>
+      <tr><td><code>penpot.mjs</code> (1105)</td><td>Penpot</td><td><code>dfw penpot export</code>: render từng màn × biến thể × breakpoint bằng Chrome ẩn và đọc ra cây layer cho plugin Penpot. <code>dfw penpot import</code>: so thay đổi từ Penpot với bản export, biến thành comment (<code>provider: "penpot"</code>) và bảng khác biệt token. Sửa trên main component ở page <code>dfw components</code> thành comment trên file master. Không bao giờ sửa <code>design/</code>.</td></tr>
     </tbody>
   </table>
 
@@ -770,11 +785,13 @@ install.sh, package.json, .github/workflows/, README.md, LICENSE, THIRD_PARTY_NO
   <table>
     <thead><tr><th>File</th><th>Làm gì</th></tr></thead>
     <tbody>
-      <tr><td><code>server.mjs</code> (309)</td><td>Web server local (127.0.0.1), không dependency. Phục vụ app, ghép thiết kế khi trả về, API token/component/manifest/state/comment/edit/chụp ảnh (<code>/__dfw/api/shoot</code>), đẩy sự kiện qua SSE, theo dõi file để tải lại.</td></tr>
-      <tr><td><code>pages.mjs</code> (48)</td><td>Gom các màn trong manifest thành "page" trên canvas; page "Design System" luôn đứng đầu.</td></tr>
+      <tr><td><code>server.mjs</code> (354)</td><td>Web server local (127.0.0.1), không dependency. Phục vụ app, ghép thiết kế khi trả về, API token/component/manifest/state/comment/edit/chụp ảnh (<code>/__dfw/api/shoot</code>), đẩy sự kiện qua SSE, theo dõi file để tải lại. Route <code>/__dfw/penpot/*</code> phục vụ plugin Penpot (mục 19).</td></tr>
+      <tr><td><code>pages.mjs</code> (84)</td><td>Gom các màn trong manifest thành "page" trên canvas; page "Design System" luôn đứng đầu.</td></tr>
       <tr><td><code>app.html</code>, <code>app.css</code></td><td>Khung giao diện Studio: thanh trên, panel trái (page, layer), canvas, panel phải (inspect, comment), thanh Present, popover pin, bảng phím tắt.</td></tr>
-      <tr><td><code>app.js</code> (1914)</td><td>Toàn bộ logic phía trình duyệt: menu chọn breakpoint/state, khung cao theo nội dung (Full height), menu chọn màn để chụp / chụp màn trong Present, canvas kéo/zoom, khung iframe, chọn layer, inspect, comment và pin, Present, sửa trực tiếp, nhận SSE.</td></tr>
-      <tr><td><code>overlay.js</code></td><td>Script chèn vào từng iframe thiết kế: báo vị trí hover/chọn, layer, token đang dùng, sửa chữ, chuyển phím và cuộn về Studio qua <code>postMessage</code>.</td></tr>
+      <tr><td><code>app.js</code> (1956)</td><td>Toàn bộ logic phía trình duyệt: menu chọn breakpoint/state, khung cao theo nội dung (Full height), menu chọn màn để chụp / chụp màn trong Present, canvas kéo/zoom, khung iframe, chọn layer, inspect, comment và pin, Present, sửa trực tiếp, nhận SSE. Với kéo thả/đổi kích thước: nhận yêu cầu từ khung, tính phạm vi (<code>layoutScope</code>: khung rộng nhất ghi luật gốc, khung hẹp hơn ghi trong <code>@media (max-width: &lt;rộng của khung&gt;px)</code>), chuyển phím <kbd>Alt</kbd>+mũi tên và <kbd>Alt</kbd><kbd>Shift</kbd><kbd>0</kbd> vào khung, nút "Reset size to auto" trong panel, gửi tới <code>/__dfw/api/edit</code>.</td></tr>
+      <tr><td><code>overlay.js</code> (1002)</td><td>Script chèn vào từng iframe thiết kế: báo vị trí hover/chọn, layer, token đang dùng, sửa chữ, chuyển phím và cuộn về Studio qua <code>postMessage</code>. Vẽ đường xanh khi kéo phần tử giữa các anh em trong khung flex/grid, vẽ 2 tay nắm đổi kích thước và tính các mốc bám (cột grid, token <code>size.*</code>/<code>space.*</code>, phần trăm). Viền nét đứt khi thả vào khung flex/grid rỗng. Bấm đúp tay nắm thì về auto. Sau khi đổi kích thước, đọc lại giá trị đã tính; nếu không đổi thì báo luật nào đang thắng. <code>dfw review</code> cũng chèn file này vào app thật, nhưng chỉ dùng phần lấy thông tin phần tử.</td></tr>
+      <tr><td><code>live.js</code> (212)</td><td>Giao diện comment trên app thật (<code>dfw review</code>): nút <b>Comment</b> (hoặc <kbd>Alt</kbd>/<kbd>Option</kbd><kbd>C</kbd>, so theo <code>event.code</code> vì macOS gõ ra "ç"; không chạy khi đang gõ trong ô nhập), khung viền phần tử, ô viết comment. Nằm trong shadow root nên style và framework của app không đụng tới. Style là một constructed stylesheet, nên không cần nới <code>style-src</code> của CSP. Lấy <code>data-insp-path</code> của phần tử gần nhất nếu có.</td></tr>
+      <tr><td><code>penpot/plugin.js</code> (400), <code>ui.html</code> (140), <code>icon.svg</code></td><td>Plugin "dfw bridge" chạy trong Penpot: dựng page, board, layer chữ, component từ bản export; gửi thay đổi và comment của Penpot về Studio, kể cả các main component (khoá <code>dfw-main</code> trong plugin data). Studio phục vụ các file này (mục 19).</td></tr>
     </tbody>
   </table>
 
@@ -787,7 +804,7 @@ install.sh, package.json, .github/workflows/, README.md, LICENSE, THIRD_PARTY_NO
       <tr><td><code>kits/styles/*.json</code></td><td>12 style guide: civic-public, clinical-calm, dark-console, editorial-luxe, heritage-signboard, industrial-utility, ledger-finance, nature-organic, ops-dense, playful-bold, swiss-grid, warm-craft (sinh bằng <code>scripts/make-styles.mjs</code>).</td></tr>
       <tr><td><code>templates/PRODUCT.md</code>, <code>DESIGN.md</code>, <code>handoff.md</code>, <code>screen.html</code></td><td>Mẫu mà <code>dfw init</code> và <code>dfw handoff</code> chép vào project.</td></tr>
       <tr><td><code>templates/design/</code></td><td>Khung thư mục <code>design/</code> cho project mới (design.json, system/brief.json…).</td></tr>
-      <tr><td><code>schemas/*.schema.json</code></td><td>Hợp đồng dữ liệu: <code>state</code>, <code>config</code>, <code>design-manifest</code>, <code>feedback</code> (comment, độc lập với công cụ).</td></tr>
+      <tr><td><code>schemas/*.schema.json</code></td><td>Hợp đồng dữ liệu: <code>state</code>, <code>config</code>, <code>design-manifest</code>, <code>feedback</code> (comment, độc lập với công cụ; <code>provider</code> là <code>dfw-studio</code>, <code>dfw-live</code> cho app thật, hoặc <code>penpot</code>).</td></tr>
       <tr><td><code>assets/icons/lucide.json</code></td><td>Bộ icon Lucide đã vendor.</td></tr>
     </tbody>
   </table>
@@ -801,12 +818,13 @@ install.sh, package.json, .github/workflows/, README.md, LICENSE, THIRD_PARTY_NO
       <tr><td><code>references/phase-direction.md</code></td><td>phase direction</td><td>Cách tạo 2–3 hướng; frontend-design, ui-ux-pro-max, hallmark/taste cho marketing.</td></tr>
       <tr><td><code>references/phase-system.md</code></td><td>phase system</td><td>Dựng token, component, trang DS; frontend-design, ui-ux-pro-max, impeccable.</td></tr>
       <tr><td><code>references/phase-concepts.md</code></td><td>phase concepts</td><td>Blueprint, chia page cho screen-builder, ghép màn; ux-copy, emil animate, hallmark/taste.</td></tr>
-      <tr><td><code>references/phase-review.md</code></td><td>review và audit</td><td>Vòng comment, áp comment, audit cho review-only; impeccable, emil review-animations.</td></tr>
-      <tr><td><code>references/phase-stack.md</code></td><td>phase stack</td><td>Dò stack, hỏi duyệt; emil pick-ui-library.</td></tr>
-      <tr><td><code>references/phase-implement.md</code></td><td>phase implement</td><td>Từ handoff sang code; emil animate, ux-copy.</td></tr>
-      <tr><td><code>references/phase-verify.md</code></td><td>phase verify</td><td>So app với thiết kế, báo lệch.</td></tr>
+      <tr><td><code>references/phase-review.md</code></td><td>review và audit</td><td>Vòng comment, áp comment (cả comment <code>provider: "penpot"</code>), audit cho review-only; impeccable, emil review-animations.</td></tr>
+      <tr><td><code>references/phase-stack.md</code></td><td>phase stack</td><td>Dò stack, hỏi duyệt; emil pick-ui-library; đề xuất <code>code-inspector-plugin</code> (dev) trong cùng câu hỏi G3.</td></tr>
+      <tr><td><code>references/phase-implement.md</code></td><td>phase implement</td><td>Từ handoff sang code; <code>dfw inspector setup --write</code> nếu G3 đã duyệt; emil animate, ux-copy.</td></tr>
+      <tr><td><code>references/phase-verify.md</code></td><td>phase verify</td><td>So app với thiết kế, báo lệch; review app thật với bạn (<code>dfw review</code>), sửa theo <code>target.source</code>.</td></tr>
       <tr><td><code>references/quality-rubric.md</code></td><td>trước khi đưa bạn xem</td><td>Tiêu chí chấm và 2 vòng tự sửa.</td></tr>
-      <tr><td><code>references/design-format.md</code></td><td>khi viết file thiết kế</td><td>Định dạng <code>design/</code>: manifest, <code>&lt;dfw-use&gt;</code>, id phần tử, state.</td></tr>
+      <tr><td><code>references/design-format.md</code></td><td>khi viết file thiết kế</td><td>Định dạng <code>design/</code>: manifest, <code>&lt;dfw-use&gt;</code>, id phần tử, state, khối <code>&lt;style data-dfw-layout&gt;</code> (giữ đúng định dạng khi sửa).</td></tr>
+      <tr><td><code>references/penpot.md</code></td><td>khi dùng Penpot</td><td>Cầu nối Penpot: bảng ánh xạ token, lệnh, cái gì đi/về, vì sao chọn plugin, mạng và riêng tư, điểm chưa kiểm.</td></tr>
       <tr><td><code>references/layout-patterns.md</code></td><td>khi dựng bố cục</td><td>app-shell + page task/flow/split, neo, phần tử co giãn, không khoảng trống.</td></tr>
       <tr><td><code>references/design-system-thinking.md</code></td><td>quyết định màu/chữ/style</td><td>Cách senior quyết định: ngữ cảnh → nguyên tắc → quyết định → kiểm.</td></tr>
       <tr><td><code>references/type-pairings.md</code></td><td>chọn font</td><td>Các cặp font tuyển chọn.</td></tr>
@@ -856,16 +874,21 @@ install.sh, package.json, .github/workflows/, README.md, LICENSE, THIRD_PARTY_NO
   <table>
     <thead><tr><th>File</th><th>Kiểm gì</th></tr></thead>
     <tbody>
-      <tr><td><code>tests/unit/dfw.test.mjs</code></td><td>CLI, state, cổng, hook ghi file, freeze, lint…</td></tr>
+      <tr><td><code>tests/unit/dfw.test.mjs</code></td><td>CLI, state, cổng, hook ghi file, freeze, lint…; khoá các biến tắt telemetry/kiểm cập nhật khi chạy công cụ ngoài, và giá trị mặc định trong cả hai launcher <code>scripts/impeccable</code> và <code>scripts/impeccable.cmd</code> (<code>docs/impeccable-network.md</code>).</td></tr>
       <tr><td><code>tests/unit/system.test.mjs</code></td><td>Design system: init, preset, style, compose, trang DS.</td></tr>
       <tr><td><code>tests/unit/color.test.mjs</code></td><td>Dải màu OKLCH, tương phản, thang chữ.</td></tr>
-      <tr><td><code>tests/unit/edit.test.mjs</code></td><td>Sửa trực tiếp từ Studio và hoàn tác.</td></tr>
+      <tr><td><code>tests/unit/edit.test.mjs</code></td><td>Sửa trực tiếp từ Studio và hoàn tác; <code>move</code> (dời cả dòng, thụt lề lại, các trường hợp bị từ chối); <code>layout</code> (luật span, chỗ đặt <code>@media</code>, xoá luật, bám token/phần trăm, từ chối khối sửa tay, hoàn tác); luật <code>:not(#dfw)</code> thắng luật class của màn, khối cũ không có hậu tố vẫn đọc được; về auto (một thuộc tính hoặc cả luật ở đúng phạm vi); <code>move</code> vào khung rỗng; nội dung slot dời được, id chỉ có trong master bị từ chối; từ chối sửa sau G2 và ở review-only.</td></tr>
+      <tr><td><code>tests/unit/host.test.mjs</code></td><td>Khác biệt giữa các host: input hook, output, chữ trong skill, nơi cài.</td></tr>
+      <tr><td><code>tests/unit/inspector.test.mjs</code></td><td>Đọc <code>data-insp-path</code>, dò bundler, sửa cấu hình Vite/webpack/Next trên project mẫu, chặn <code>--write</code> khi thiếu G3; proxy <code>dfw review</code> (chèn script, gzip, redirect, WebSocket, lưu comment, trang 502); phím tắt (chuẩn hoá, mặc định <code>alt+c</code>, từ chối tổ hợp sai); <code>patchCsp</code> (chỉ thêm origin của proxy, nonce và <code>connect-src</code>); <code>fixSetCookie</code>; app có CSP chặt và cookie qua proxy. Hai test trong Chrome thật (bỏ qua nếu máy không có Chrome): bấm-để-comment, và app có CSP chặt + cookie <code>localhost</code> + <kbd>Alt</kbd><kbd>C</kbd> chứ không phải <kbd>C</kbd>.</td></tr>
+      <tr><td><code>tests/unit/penpot-tokens.test.mjs</code></td><td>Ánh xạ token hai chiều, cấu trúc file, round trip đúng từng byte (cả 3 preset), import file Penpot đã sửa, CLI từ chối khi thiết kế đã khoá.</td></tr>
+      <tr><td><code>tests/unit/penpot-screens.test.mjs</code></td><td>Bản export (so với snapshot, render thật nếu có Chrome), ánh xạ thay đổi về <code>data-dfw-id</code>, comment <code>provider: "penpot"</code>, không đụng <code>design/</code>, thiết kế khoá thì chỉ ghi comment, route Penpot của Studio (CORS, chỉ nhận ghi từ chính Studio).</td></tr>
+      <tr><td><code>tests/unit/penpot-components.test.mjs</code></td><td>Sửa trên page <code>dfw components</code>: token kích thước theo vai trò (radius, space), cỡ chữ không so; sửa main component thành comment trên đúng master, variant, phần tử, kèm token khớp; layer bị xoá và main component bị xoá; dòng nguồn là luật CSS của variant, luật gốc, hoặc phần tử trong template; import ghi comment (<code>target.component</code>, <code>source</code>, lời dặn), không đụng <code>design/</code>, gửi lại không trùng; thiết kế khoá thì comment nhắc <code>dfw reopen</code>.</td></tr>
       <tr><td><code>tests/unit/mcp.test.mjs</code></td><td>Server MCP qua JSON-RPC thật (guide, lệnh, cổng duyệt), ghi cấu hình OpenCode/Codex/Cursor.</td></tr>
       <tr><td><code>tests/bench/run.mjs</code></td><td>Bộ đo kiểm tra: tỉ lệ bắt lỗi cài sẵn, báo nhầm, thời gian; so với baseline.</td></tr>
       <tr><td><code>tests/unit/inbox.test.mjs</code></td><td>Đưa comment tới Claude đúng một lần.</td></tr>
       <tr><td><code>tests/unit/marketplace.test.mjs</code></td><td>Cấu trúc marketplace và plugin sinh ra.</td></tr>
-      <tr><td><code>tests/e2e/studio.e2e.mjs</code></td><td>Mở Studio thật bằng Playwright: canvas, comment, Present.</td></tr>
-      <tr><td><code>.github/workflows/validate.yml</code></td><td>Mỗi push/PR: unit test, build --check, validate.</td></tr>
+      <tr><td><code>tests/e2e/studio.e2e.mjs</code></td><td>Mở Studio thật bằng Playwright: canvas, comment, Present; kéo để đổi thứ tự phần tử trong grid và kéo tay nắm đổi span, rồi kiểm file nguồn và lint. Thêm: luật layout thắng luật class của màn; đổi kích thước trong khung mobile ghi vào <code>@media (max-width: 390px)</code>, kiểm ở hai chiều rộng; về auto; thả vào khung rỗng; thông báo khi có luật mạnh hơn. Trình duyệt là Chromium của Playwright, hoặc <code>DFW_BROWSER</code> / <code>CHROME_PATH</code>.</td></tr>
+      <tr><td><code>.github/workflows/validate.yml</code></td><td>Mỗi push/PR: unit test, build --check, validate. Job <code>e2e</code> chạy <code>tests/e2e/studio.e2e.mjs</code> trên <code>ubuntu-latest</code>: cài thư viện Playwright đã khoá bản vào <code>RUNNER_TEMP</code> (không thêm dependency vào repo, không tải trình duyệt), dùng Google Chrome có sẵn trên runner qua <code>DFW_BROWSER</code>, lỗi thì tải ảnh chụp lên. Lúc viết tài liệu này job chưa chạy trên GitHub lần nào.</td></tr>
       <tr><td><code>.github/workflows/upstream-check.yml</code></td><td>Thứ Hai 06:00 UTC: tìm bản mới của skill ngoài.</td></tr>
       <tr><td><code>.github/workflows/release-binaries.yml</code></td><td>Tag <code>v*</code>: build 5 binary, chạy thử, phát hành.</td></tr>
     </tbody>
@@ -998,7 +1021,7 @@ install.sh, package.json, .github/workflows/, README.md, LICENSE, THIRD_PARTY_NO
 <!-- EXTERNAL -->
 <section id="external">
   <h2><small>Kiến trúc chi tiết</small>10. Repo bên ngoài đang dùng</h2>
-  <p class="lead">dfw dùng 3 nhóm thứ từ bên ngoài: <b>7 skill thiết kế</b> (chép vào repo, khoá commit), <b>dữ liệu vendor</b> (icon), và <b>công cụ build/chạy</b>. Không có dịch vụ trả phí nào; khi chạy, dfw chỉ gọi mạng để tải Google Fonts (một lần, rồi cache) và tải binary/trình duyệt khi cài.</p>
+  <p class="lead">dfw dùng 3 nhóm thứ từ bên ngoài: <b>7 skill thiết kế</b> (chép vào repo, khoá commit), <b>dữ liệu vendor</b> (icon), và <b>công cụ build/chạy</b>. Không có dịch vụ trả phí nào. Khi chạy, dfw chỉ gọi mạng để tải Google Fonts (một lần, rồi cache), hỏi subset font (<code>dfw fonts check</code>), và tải công cụ khi cài hoặc khi bạn đồng ý: binary, trình duyệt, axe-core, engine Impeccable, Lighthouse. Review app thật (<code>dfw review</code>) và cầu nối Penpot chỉ chạy trên máy (127.0.0.1). Impeccable có vài lời gọi mạng riêng, xem bảng "Impeccable có gọi mạng không" bên dưới.</p>
 
   <h3>7 skill thiết kế (nguồn: <code>registry/skills.json</code>, khoá commit: <code>registry/skills.lock.json</code>)</h3>
   <table>
@@ -1007,13 +1030,33 @@ install.sh, package.json, .github/workflows/, README.md, LICENSE, THIRD_PARTY_NO
       <tr><td><code>frontend-design</code><br><span class="tag t-ext">Apache-2.0 · Anthropic</span></td><td><code>anthropics/skills</code><br><code>2c5958e</code></td><td><code>skills/frontend-design</code></td><td>Nền thẩm mỹ cho mọi phase thiết kế: chọn hướng có chủ đích, tránh giao diện rập khuôn.</td><td>Thu hẹp mô tả để skill không tự kích hoạt cho mọi UI; skill dfw quyết định lúc nào nạp.</td></tr>
       <tr><td><code>ux-research</code><br><span class="tag t-ext">Apache-2.0 · Anthropic</span></td><td><code>anthropics/knowledge-work-plugins</code><br><code>02717ef</code></td><td><code>design/skills/user-research</code>, <code>research-synthesis</code>, <code>ux-copy</code>, <code>CONNECTORS.md</code></td><td>Discovery (kế hoạch nghiên cứu, tổng hợp) và viết chữ trên giao diện.</td><td>Mô tả 3 skill được chỉnh để đi qua dfw, vẫn trả lời khi người dùng hỏi thẳng về copy.</td></tr>
       <tr><td><code>ui-ux-pro-max</code><br><span class="tag t-ext">MIT · Next Level Builder</span></td><td><code>nextlevelbuilder/ui-ux-pro-max-skill</code><br><code>6ae86f6</code></td><td><code>.claude/skills/ui-ux-pro-max</code> (cơ sở dữ liệu + <code>scripts/search.py</code>)</td><td>Tra cứu dữ liệu: bảng màu, cặp font, loại sản phẩm, nguyên tắc UX, biểu đồ. Chỉ là dữ liệu, không quyết định.</td><td>Mô tả hạ xuống "nguồn dữ liệu phụ"; đổi lệnh <code>python</code> → <code>python3</code>.</td></tr>
-      <tr><td><code>impeccable</code><br><span class="tag t-ext">Apache-2.0 · Paul Bakaus</span></td><td><code>pbakaus/impeccable</code><br><code>c4cd192</code></td><td><code>plugin/skills</code>, <code>plugin/agents</code></td><td>Critique, audit, polish, harden; bộ phát hiện 62 luật mà <code>dfw check</code> gọi.</td><td>Giới hạn vào critique/audit/refine; tắt <code>pin</code> và <code>hooks on</code>; script <code>impeccable</code> mặc định <code>DO_NOT_TRACK=1</code>, tắt kiểm tra cập nhật và hook.</td></tr>
+      <tr><td><code>impeccable</code><br><span class="tag t-ext">Apache-2.0 · Paul Bakaus</span></td><td><code>pbakaus/impeccable</code><br><code>c4cd192</code></td><td><code>plugin/skills</code>, <code>plugin/agents</code></td><td>Critique, audit, polish, harden; bộ phát hiện 62 luật mà <code>dfw check</code> gọi.</td><td>Giới hạn vào critique/audit/refine; tắt <code>pin</code> và <code>hooks on</code>; script <code>impeccable</code> mặc định <code>DO_NOT_TRACK=1</code>, tắt kiểm tra cập nhật và hook (chi tiết: <a href="impeccable-network.md"><code>docs/impeccable-network.md</code></a>).</td></tr>
       <tr><td><code>emil-design-eng</code><br><span class="tag t-ext">MIT · Emil Kowalski</span></td><td><code>emilkowalski/skills</code><br><code>f7ce8c0</code></td><td><code>skills/animate</code>, <code>review-animations</code>, <code>improve-animations</code>, <code>animation-vocabulary</code>, <code>pick-ui-library</code></td><td>Chuyển động: làm, review, cải thiện animation; gợi ý thư viện ở cổng G3.</td><td>Bỏ cờ chặn gọi tự động để agent dùng được; mô tả giữ hẹp; animation phải nằm trong stack đã duyệt; chọn thư viện là quyết định của người dùng.</td></tr>
       <tr><td><code>hallmark</code><br><span class="tag t-ext">MIT · Nutlope</span></td><td><code>nutlope/hallmark</code><br><code>04977e1</code></td><td><code>skills/hallmark</code> (bỏ thư mục <code>agents</code>)</td><td>Dẫn dắt trang marketing/landing; <code>sloplint</code> được <code>dfw check</code> gọi.</td><td>Chỉ dẫn dắt trang marketing; sửa đường dẫn placeholder; không cài hook sửa file của họ.</td></tr>
       <tr><td><code>taste-reference</code><br><span class="tag t-ext">MIT · Leonxlnx</span></td><td><code>Leonxlnx/taste-skill</code><br><code>f6b7657</code></td><td>Chỉ 9 file tham khảo (copy, voice, sections, layout, cards) + <code>scripts/copy-lint.mjs</code></td><td>Tư liệu tham khảo cho trang marketing + kiểm tra chữ.</td><td>Viết <code>SKILL.md</code> nhỏ riêng của dfw (chế độ "chỉ tham khảo"); không lấy kit, hook, script khác.</td></tr>
     </tbody>
   </table>
-  <div class="note">Tất cả chỉ nằm trong repo dưới dạng bản chép tại commit đã khoá. Không có gì tải về lúc người dùng chạy. Muốn lên bản mới phải đi qua quy trình đề xuất → báo cáo → bạn duyệt (xem sơ đồ dưới).</div>
+  <div class="note">Mã của 7 skill chỉ nằm trong repo dưới dạng bản chép tại commit đã khoá; không tải mã skill nào lúc người dùng chạy. Ngoại lệ duy nhất là engine của Impeccable (một file chạy ~19 MB), tải một lần khi cài (xem bảng dưới). Muốn lên bản mới phải đi qua quy trình đề xuất → báo cáo → bạn duyệt (xem sơ đồ dưới).</div>
+
+  <h3 id="impeccable-network">Impeccable có gọi mạng không</h3>
+  <p>Đã kiểm ngày 2026-11-16 (engine <code>0.1.23</code>, macOS arm64): chạy engine qua một proxy ghi log và một server giả trên máy, đọc chuỗi trong file chạy, chạy mỗi lệnh hai lần (không biến nào, và với biến của dfw). Báo cáo đầy đủ: <a href="impeccable-network.md"><code>docs/impeccable-network.md</code></a>.</p>
+  <table>
+    <thead><tr><th>Lời gọi</th><th>Khi nào</th><th>Gửi gì</th><th>Với biến của dfw</th></tr></thead>
+    <tbody>
+      <tr><td>Tải engine từ GitHub Releases (<code>pbakaus/impeccable</code>)</td><td>Một lần, khi chưa có engine dùng được. dfw chỉ tải ở <code>dfw check --setup</code> hoặc <code>dfw install</code>; hook và <code>dfw check</code> thường không bao giờ tải (thiếu engine thì báo "not installed"). Nếu Claude tự chạy lệnh của skill trước, launcher sẽ tải ở lần đó.</td><td>Không gửi dữ liệu project. File được kiểm sha256 với <code>engine-checksums.txt</code> có sẵn trong repo; sai mã hoặc thiếu mã thì từ chối.</td><td>Vẫn tải (cần để chạy)</td></tr>
+      <tr><td><code>impeccable detect</code> (lệnh duy nhất dfw chạy)</td><td>Mỗi lần <code>dfw check</code></td><td>Không có kết nối nào, kể cả với HTML có link Google Fonts hay ảnh ngoài</td><td>Không gọi mạng</td></tr>
+      <tr><td><code>GET impeccable.style/api/version</code></td><td>Kiểm tra bản mới khi nạp ngữ cảnh</td><td>Không có dữ liệu project</td><td>Tắt (<code>IMPECCABLE_NO_UPDATE_CHECK=1</code>)</td></tr>
+      <tr><td><code>GET impeccable.style/api/roll</code></td><td>Chỉ khi chính skill Impeccable chạy luồng thiết kế mới của nó (dfw không chạy)</td><td>Một khoá ngẫu nhiên, không có tên project, file hay prompt; nhận về danh sách thẻ hướng thiết kế</td><td>Vẫn gửi, nhưng kèm header <code>x-impeccable-telemetry: off</code> và không được ghi nhận</td></tr>
+      <tr><td><code>POST impeccable.style/api/chosen</code></td><td>Sau một vòng chọn thẻ ở luồng trên</td><td>Lựa chọn đã chọn (khoá, loại, id)</td><td>Bỏ qua (<code>DO_NOT_TRACK=1</code>)</td></tr>
+      <tr><td><code>GET impeccable.style/api/commands</code></td><td>Lệnh <code>impeccable help</code> (không phải <code>--help</code>); dfw và văn bản skill không chạy</td><td>Không có dữ liệu project</td><td>Không biến nào tắt được</td></tr>
+      <tr><td>Tài khoản Impeccable, OpenAI (tạo ảnh), cài hoặc cập nhật bundle, app Loop</td><td>Chỉ khi người dùng tự đăng nhập, tự đặt <code>OPENAI_API_KEY</code>, hoặc tự chạy <code>impeccable install/update/loop</code></td><td>Tuỳ tính năng (đọc từ chuỗi trong file chạy, chưa chạy thử)</td><td>dfw không bao giờ chạy các luồng này</td></tr>
+    </tbody>
+  </table>
+  <ul>
+    <li><b>Biến dfw đặt:</b> <code>DO_NOT_TRACK=1</code>, <code>IMPECCABLE_NO_UPDATE_CHECK=1</code>, <code>IMPECCABLE_HOOK_DISABLED=1</code>, ở hai chỗ: <code>core/lib/config.mjs</code> (khi dfw chạy công cụ ngoài) và phần overlay đầu cả hai launcher (khi Claude chạy thẳng lệnh Impeccable): <code>scripts/impeccable</code> dùng <code>: "${VAR:=1}"</code>, launcher Windows <code>scripts/impeccable.cmd</code> dùng <code>if not defined VAR set "VAR=1"</code> ngay sau <code>setlocal</code>. Biến người dùng đã đặt thì luôn được giữ. Cả hai là thao tác overlay trong <code>overlays/impeccable.json</code>. Một unit test khoá các biến này.</li>
+    <li><b>Dùng offline:</b> chép file engine đúng bản vào <code>~/.impeccable/bin/0.1.23/impeccable</code> (launcher kiểm checksum ở lần dùng đầu), hoặc đặt <code>IMPECCABLE_BIN</code>; dfw cũng đọc biến này.</li>
+    <li><b>Còn hở:</b> nếu người dùng đăng nhập tài khoản Impeccable, việc tắt đồng bộ tài khoản là việc của họ. Có <code>OPENAI_API_KEY</code> thì luồng visualize của Impeccable có thể gọi OpenAI. Chi tiết: <a href="impeccable-network.md"><code>docs/impeccable-network.md</code></a>.</li>
+  </ul>
 
   <h3>Thành phần bên ngoài khác</h3>
   <table>
@@ -1030,6 +1073,8 @@ install.sh, package.json, .github/workflows/, README.md, LICENSE, THIRD_PARTY_NO
       <tr><td>Node.js</td><td>nodejs.org (bản chính thức 26.13.0 LTS cho binary)</td><td>Chạy dfw khi không dùng binary; được nhúng vào binary.</td><td>Luôn (trực tiếp hoặc bên trong binary)</td></tr>
       <tr><td>esbuild <code>0.28.2</code>, postject <code>1.0.0-alpha.6</code></td><td>npm (devDependencies, khoá đúng phiên bản)</td><td>Chỉ dùng khi build binary.</td><td>Chỉ lúc build</td></tr>
       <tr><td>Playwright</td><td>npm, chỉ trong repo dev</td><td>Chạy test e2e của Studio. Người dùng không cần.</td><td>Chỉ khi chạy e2e</td></tr>
+      <tr><td>code-inspector-plugin 2.0.9</td><td>zh-lx/code-inspector · MIT · npm, khoá đúng bản</td><td>Gắn <code>data-insp-path="file:dòng:cột:thẻ"</code> lên mọi phần tử khi app chạy ở chế độ dev, để comment trên app thật trỏ về mã nguồn. Không hoạt động khi build production. dfw không chứa mã của nó; nó được thêm vào <code>devDependencies</code> của project bạn.</td><td>Chỉ khi bạn duyệt ở G3 rồi chạy <code>dfw inspector setup --write</code></td></tr>
+      <tr><td>Penpot (cloud hoặc tự host)</td><td>penpot.app, của bạn; plugin "dfw bridge" do Studio phục vụ</td><td>Cầu nối tuỳ chọn cho designer (mục 19). dfw không gọi mạng tới Penpot, không cần tài khoản hay token: Penpot tải plugin trong trình duyệt của bạn từ 127.0.0.1.</td><td>Chỉ khi bạn dùng Penpot</td></tr>
       <tr><td>Python 3</td><td>Có sẵn trên máy</td><td>Script tìm kiếm của ui-ux-pro-max.</td><td>Khi skill đó được dùng</td></tr>
       <tr><td>GitHub Actions</td><td>actions/checkout, setup-node, upload/download-artifact</td><td>3 workflow: validate, upstream-check, release-binaries.</td><td>Trên GitHub</td></tr>
     </tbody>
@@ -1159,6 +1204,16 @@ dfw comments inbox --peek</code></pre>
     </tbody>
   </table>
   <p>Handoff không tự sinh ở G2; chạy riêng <code>dfw handoff</code>.</p>
+  <h3>Các lệnh khác cũng tôn trọng cổng</h3>
+  <table>
+    <thead><tr><th>Việc</th><th>Bị từ chối khi</th><th>Muốn làm thì</th></tr></thead>
+    <tbody>
+      <tr><td>Sửa trực tiếp trên Studio (chữ, variant, spacing, kéo thả, đổi kích thước) và hoàn tác <kbd>⌘</kbd><kbd>Z</kbd></td><td>Thiết kế đã khoá (G2), hoặc mode review-only (<code>assertEditable</code> trong <code>edit.mjs</code>)</td><td><code>dfw reopen --reason "…"</code> khi bạn đồng ý đổi; ở review-only thì để comment</td></tr>
+      <tr><td><code>dfw inspector setup --write</code> (thêm <code>code-inspector-plugin</code> vào project)</td><td>Chưa có G3, hoặc <code>.dfw/stack.json</code> không ghi thư viện này trong <code>dependencies</code></td><td>Đề xuất ở phase stack, ghi bằng <code>dfw stack set</code>, bạn duyệt G3, rồi chạy lại</td></tr>
+      <tr><td><code>dfw tokens import</code> (token từ Penpot)</td><td>Thiết kế đã khoá (G2); <code>--dry-run</code> vẫn chạy để xem khác biệt</td><td>Bạn đồng ý → <code>dfw reopen</code> → import lại</td></tr>
+      <tr><td><code>dfw penpot import</code></td><td>Không bao giờ sửa <code>design/</code>; khi thiết kế đã khoá, comment vẫn được ghi kèm lời nhắc cần <code>dfw reopen</code> mới áp được</td><td>Áp comment trong vòng review bình thường</td></tr>
+    </tbody>
+  </table>
 </section>
 
 <!-- 13 -->
@@ -1202,6 +1257,52 @@ dfw comments inbox --peek</code></pre>
       <path d="M840 140V158" class="s-line" marker-start="url(#s)" marker-end="url(#s)"/>
     </svg>
   </figure>
+  <p>Server cũng có route <code>/__dfw/penpot/*</code> cho plugin Penpot (mục 19). Review app đang chạy không đi qua server này mà qua một proxy riêng (<code>dfw review</code>, xem dưới).</p>
+  <h3 id="layout-edit">Kéo thả và đổi kích thước (sửa bố cục có ràng buộc)</h3>
+  <p>Studio cho đổi bố cục ngay trên canvas, nhưng chỉ theo cách vẫn giữ được thiết kế là bố cục co giãn (flex/grid) và dùng token, vì thiết kế sẽ thành code thật. Không có kéo tự do kiểu đặt toạ độ tuyệt đối.</p>
+  <table>
+    <thead><tr><th>Thao tác</th><th>Điều kiện</th><th>Ghi gì vào file</th></tr></thead>
+    <tbody>
+      <tr><td><b>Kéo để đổi thứ tự</b> (op <code>move</code>)</td><td>Phần tử đang chọn có <code>data-dfw-id</code> và là con của một khung flex hoặc grid. Thả cạnh một phần tử anh em, hoặc cạnh một phần tử của khung flex/grid khác trong cùng màn. Đường xanh cho biết chỗ thả.</td><td>Mã nguồn của phần tử được cắt và dán ra trước/sau phần tử đích, giữ thụt lề. Đổi thứ tự là đổi mã nguồn, nên áp dụng ở mọi breakpoint.</td></tr>
+      <tr><td><b>Thả vào khung rỗng</b> (op <code>move</code>, <code>position: "inside"</code>)</td><td>Khung đích là flex hoặc grid, rỗng, và có <code>data-dfw-id</code>. Khung được viền nét đứt khi kéo qua. Không thả vào instance của component.</td><td>Mã nguồn của phần tử được dời vào trong khung, thụt lề thêm một bậc.</td></tr>
+      <tr><td><b>Kéo tay nắm ngang</b> (op <code>layout</code>)</td><td>Trong grid: bám theo số cột (<code>span 2 / 4</code>, tối đa 24). Ngoài grid: bám theo token <code>size.*</code> hoặc 25 / 33 / 50 / 67 / 75 / 100%.</td><td><code>grid-column: span N</code> hoặc <code>width</code> trong khối <code>&lt;style data-dfw-layout&gt;</code> ở <code>&lt;head&gt;</code> của màn</td></tr>
+      <tr><td><b>Kéo tay nắm dọc</b> (op <code>layout</code>)</td><td>Bám theo token <code>space.*</code> hoặc <code>size.*</code></td><td><code>min-height</code> trong cùng khối</td></tr>
+      <tr><td><b>Về auto</b> (op <code>layout</code>, giá trị <code>auto</code> hoặc <code>null</code>)</td><td>Bấm đúp một tay nắm (một chiều), <kbd>Alt</kbd><kbd>Shift</kbd><kbd>0</kbd> hoặc nút "Reset size to auto" trong panel (cả luật, ở phạm vi breakpoint của khung đang chọn)</td><td>Xoá thuộc tính hoặc cả luật. Khối <code>@media</code> rỗng và khối rỗng tự xoá.</td></tr>
+    </tbody>
+  </table>
+  <pre><code>&lt;style data-dfw-layout&gt;
+  /* dfw Studio layout edits (drag/resize): layout properties only, one rule per element; :not(#dfw) lifts specificity over screen rules. */
+  [data-dfw-id='board.two']:not(#dfw) { grid-column: span 2; }
+  @media (max-width: 834px) {
+    [data-dfw-id='board.two']:not(#dfw) { grid-column: span 1; }
+  }
+&lt;/style&gt;</code></pre>
+  <ul>
+    <li><b>Breakpoint:</b> đổi kích thước trong khung rộng nhất thì ghi luật gốc. Trong khung hẹp hơn thì ghi trong <code>@media (max-width: &lt;rộng của khung&gt;px)</code>, nên chỉ áp ở breakpoint đó và nhỏ hơn. Khối <code>@media</code> xếp từ rộng tới hẹp để khung hẹp thắng. Test e2e kiểm việc này: đổi kích thước trong khung mobile ghi vào <code>@media (max-width: 390px)</code>, rồi đo ở hai chiều rộng.</li>
+    <li><b>Vì sao có <code>:not(#dfw)</code>:</b> phần này thêm độ ưu tiên của một id mà không đổi phần tử được chọn. Nhờ vậy luật của Studio thắng luật theo class của màn (vd. <code>.dash .card { grid-column: span 3 }</code>) ở bất kỳ đâu, không cần <code>!important</code>. Khối cũ không có hậu tố này vẫn đọc được.</li>
+    <li><b>Khi đổi kích thước không có tác dụng:</b> sau khi ghi, khung đọc lại giá trị đã tính. Nếu một luật mạnh hơn vẫn thắng (selector có id, thuộc tính <code>style</code>, <code>!important</code>), thông báo ghi rõ luật đó ("Saved, but … did not change"). Bỏ thuộc tính ở đó (hoặc nhờ Claude) rồi đổi lại.</li>
+    <li><b>Component và slot:</b> phần tử chỉ có trong master của component (vd. khung của app-shell) bị từ chối, kèm tên file master để sửa ở đó. Nội dung slot viết trong màn thì dời được giữa các anh em trong slot.</li>
+    <li>Mỗi phần tử một luật, chỉ 3 thuộc tính <code>grid-column</code>, <code>width</code>, <code>min-height</code>. Luật dùng nháy đơn <code>[data-dfw-id='…']:not(#dfw)</code> có chủ đích: công cụ tìm <code>data-dfw-id="…"</code> (lint trùng id, dòng nguồn của comment) vẫn tìm ra phần tử, không nhầm sang luật này. Khối rỗng thì tự xoá.</li>
+    <li>Nếu ai đó sửa tay khối này thành dạng Studio không đọc được (hoặc có 2 khối), Studio từ chối ghi và báo sửa trong code. Claude được dặn giữ đúng định dạng này (<code>references/design-format.md</code>).</li>
+    <li>Mọi thao tác đi qua <code>POST /__dfw/api/edit</code>, có nhật ký trong <code>.dfw/edits/</code> nên <kbd>⌘</kbd><kbd>Z</kbd> hoàn tác được. Sau G2 (hoặc ở review-only) Studio từ chối cả sửa lẫn hoàn tác. Trang Design System và chế độ Present không cho kéo thả.</li>
+    <li>Bấm vào tay nắm mà không kéo thì không ghi gì.</li>
+    <li>Đổi khác (grid mới, khung lồng nhau, bố cục riêng của master, màu, chữ) thì để comment, hoặc sửa token/master trong design system.</li>
+  </ul>
+
+  <h3 id="live-review">Review app đang chạy (<code>dfw review</code>)</h3>
+  <p>Ở phase verify, bạn góp ý thẳng trên app thật thay vì mô tả bằng chat. <code>dfw review start --url http://localhost:5173</code> mở một proxy ở cổng 4700 (cổng bận thì thử cổng kế tiếp) đứng trước dev server của app.</p>
+  <ul>
+    <li><b>Chỉ chạy trên máy:</b> proxy chỉ nghe ở loopback, không bao giờ ở 0.0.0.0, và chỉ nhận đích là server local (<code>localhost</code>, <code>127.*</code>, <code>::1</code>, <code>*.localhost</code>). Đưa một địa chỉ ngoài thì báo lỗi.</li>
+    <li><b>Cookie đăng nhập:</b> app chạy ở <code>localhost</code> thì địa chỉ review là <code>http://localhost:&lt;cổng&gt;/</code>, proxy nghe ở cả 127.0.0.1 và ::1. Cookie gắn theo host chứ không theo cổng, nên cookie đăng nhập của app vẫn dùng được. <code>Domain</code> trong <code>Set-Cookie</code> chỉ bị bỏ khi nó ghi host loopback còn lại. Nếu [::1] đang bận cổng đó, proxy dùng <code>http://127.0.0.1:&lt;cổng&gt;/</code> và ghi log là cookie của <code>localhost</code> sẽ không tới.</li>
+    <li><b>CSP chặt:</b> Content-Security-Policy (header, bản Report-Only, và thẻ <code>&lt;meta&gt;</code>) chỉ được thêm origin của proxy và một nonce mới cho mỗi response, cho script chèn vào, cùng <code>connect-src</code> cho lệnh POST comment. Không bỏ gì khác. Nonce chỉ được thêm khi không làm mất tác dụng <code>'unsafe-inline'</code> của app. Style của <code>live.js</code> là constructed stylesheet nên <code>style-src</code> giữ nguyên. Trang bắt buộc Trusted Types (<code>require-trusted-types-for</code>) thì chưa hỗ trợ.</li>
+    <li><b>Chèn gì:</b> với trang HTML, proxy thêm <code>overlay.js</code> (lấy thông tin phần tử) và <code>live.js</code> (nút <b>Comment</b>, phím <kbd>Alt</kbd>/<kbd>Option</kbd><kbd>C</kbd>, ô viết comment trong shadow root). Dùng <kbd>Alt</kbd><kbd>C</kbd> thay cho <kbd>C</kbd> để phím tắt một chữ của app vẫn chạy. Đổi bằng <code>--shortcut &lt;tổ hợp&gt;</code> hoặc <code>dfw config set review.shortcut &lt;tổ hợp&gt;</code>; <code>off</code> thì chỉ còn nút. Phím không chạy khi đang gõ trong ô nhập. File khác (JS, CSS, ảnh, API, redirect) đi thẳng. WebSocket cũng đi thẳng nên HMR của Vite/webpack/Next vẫn chạy; trang nào không tự cập nhật thì tải lại.</li>
+    <li><b>Comment lưu thế nào:</b> cùng hợp đồng với comment Studio, trong <code>.dfw/reviews/</code>, với <code>provider: "dfw-live"</code>, <code>variant: "live"</code>, <code>url</code> và <code>screen</code> là route, breakpoint gần nhất với chiều rộng cửa sổ. Nên <code>dfw comments wait</code>, inbox và hook đưa tới Claude y như comment Studio.</li>
+    <li><b>Trỏ về mã nguồn:</b> nếu project có <code>code-inspector-plugin</code> (thêm bằng <code>dfw inspector setup --write</code> sau G3), mọi phần tử có <code>data-insp-path</code>; comment lấy giá trị của phần tử gần nhất và ghi <code>target.source = "src/Foo.tsx:42:7"</code> (giá trị gốc ở <code>target.inspPath</code>). Không có plugin thì <code>source</code> là <code>null</code>, Claude tìm phần tử theo selector, chữ và route.</li>
+    <li><b>Ảnh chụp:</b> sau mỗi comment, dfw chụp route đó trên app gốc (không có giao diện review) vào <code>.dfw/shots/live/&lt;id&gt;.png</code> và gắn vào comment. <code>--no-shots</code> để tắt.</li>
+    <li>App chưa chạy thì proxy trả trang 502 dễ đọc ("the app is not reachable"). <code>dfw review status</code> / <code>stop</code> xem và tắt; pid, cổng, địa chỉ, đích, phím tắt lưu trong <code>.dfw/review.json</code>, log ở <code>.dfw/review.log</code>.</li>
+  </ul>
+  <div class="note warn">Đã kiểm bằng test: proxy (chèn script, gzip, redirect, WebSocket, lưu comment, 502, CSP chặt, cookie), dò bundler và sửa cấu hình trên các project mẫu (Vite, webpack, Next với webpack và Turbopack; Nuxt chỉ dò, in hướng dẫn), và hai lần chạy trong Chrome thật: bấm-để-comment, và app mẫu có CSP chặt, cookie <code>localhost</code>, phím <kbd>Alt</kbd><kbd>C</kbd>. <b>Chưa kiểm</b> trên project Vite/webpack/Next thật đang chạy với plugin đã cài.</div>
+
   <h3>Vòng đời một comment</h3>
   <figure class="fig">
     <svg viewBox="0 0 960 190" role="img" aria-label="Trạng thái comment">
@@ -1222,7 +1323,7 @@ dfw comments inbox --peek</code></pre>
       <text x="200" y="34" class="s-xs">sửa ngay không cần ack</text><text x="560" y="150" class="s-xs">bạn mở lại</text>
       <text x="84" y="134" class="s-xs">bạn đồng ý bỏ (từ open / ack / reopened)</text>
     </svg>
-    <figcaption>Chỉ bạn (Studio luôn gửi <code>by: "user"</code>) mới resolve được. <code>fixed</code> bắt buộc có message mô tả đã đổi gì.</figcaption>
+    <figcaption>Chỉ bạn (Studio luôn gửi <code>by: "user"</code>) mới resolve được. <code>fixed</code> bắt buộc có message mô tả đã đổi gì. Comment từ app thật (<code>dfw-live</code>) và từ Penpot (<code>penpot</code>) đi cùng vòng đời này.</figcaption>
   </figure>
   <h3>Một comment được lưu thế nào</h3>
   <pre><code>// .dfw/reviews/rv_20261114T091500.json  (mỗi phiên review một file)
@@ -1233,7 +1334,13 @@ dfw comments inbox --peek</code></pre>
               "component": "data-table" },
   "comment": "Ở mobile bảng này nên thành danh sách thẻ",
   "thread": [ { "at": "…", "by": "user", "message": "…", "status": "open" } ],
-  "resolution": null, "provider": "dfw-studio" }</code></pre>
+  "resolution": null, "provider": "dfw-studio" }
+
+// comment trên app thật (dfw review): thêm url, source là file của project, ảnh chụp gắn sau
+{ "id": "fb_012", "screen": "/return", "variant": "live", "url": "/return", "breakpoint": "desktop",
+  "target": { "selector": "…", "source": "src/views/Return.vue:42:7",
+              "inspPath": "src/views/Return.vue:42:7:button", … },
+  "screenshot": ".dfw/shots/live/fb_012.png", "provider": "dfw-live", … }</code></pre>
   <p><b>Đưa comment tới Claude:</b> <code>inbox.mjs</code> giữ khoá <code>id:status:updatedAt</code> của comment đã đưa trong <code>.dfw/reviews/.delivered.json</code>. Comment open/reopened chưa có khoá → hook <code>user-prompt-submit</code> (tin nhắn tới) hoặc hook <code>stop</code> (trước khi Claude dừng) đưa vào. <code>dfw comments wait</code> (Claude chạy nền) hỏi mỗi giây, gom comment trong 1,5 s rồi thoát để đánh thức Claude.</p>
 </section>
 
@@ -1439,6 +1546,28 @@ dfw layout check --screen dashboard --bp mobile   # chỉ kiểm lại chỗ v�
       <text x="10" y="135" class="s-xs">Chỉ lỗi khi cài plugin dfw là dừng hẳn; 7 skill kia lỗi thì cảnh báo. Gỡ: claude plugin uninstall ×8, rồi marketplace remove dfw-marketplace.</text>
     </svg>
   </figure>
+
+  <h3>15.6 <code>dfw review start --url …</code> và một comment trên app thật</h3>
+  <figure class="fig">
+    <svg viewBox="0 0 960 320" role="img" aria-label="Sequence: review app thật qua proxy">
+      <defs><marker id="e6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="s-arrow"/></marker></defs>
+      <text x="40" y="24" class="s-ut">BẠN / TRÌNH DUYỆT</text><text x="250" y="24" class="s-ct">PROXY 127.0.0.1:4700</text><text x="470" y="24" class="s-k">DEV SERVER CỦA APP</text><text x="650" y="24" class="s-k">.dfw/</text><text x="820" y="24" class="s-at">CLAUDE</text>
+      <path d="M100 32V310M320 32V310M520 32V310M680 32V310M860 32V310" class="s-dash"/>
+      <path d="M860 50H322" class="s-line" marker-end="url(#e6)"/><text x="470" y="45" class="s-xs">dfw review start --url http://localhost:5173 → spawn __review-server</text>
+      <path d="M100 78H318" class="s-line" marker-end="url(#e6)"/><text x="130" y="73" class="s-xs">GET /return</text>
+      <path d="M320 92H518" class="s-line" marker-end="url(#e6)"/><text x="340" y="87" class="s-xs">GET /return (host = app)</text>
+      <path d="M520 106H322" class="s-dash" marker-end="url(#e6)"/><text x="360" y="120" class="s-xs">HTML</text>
+      <path d="M320 132H102" class="s-dash" marker-end="url(#e6)"/><text x="110" y="127" class="s-xs">HTML + overlay.js + live.js</text>
+      <path d="M100 152H518" class="s-dash" marker-start="url(#e6)" marker-end="url(#e6)"/><text x="130" y="166" class="s-xs">JS, CSS, ảnh, API, WebSocket HMR: đi thẳng qua proxy</text>
+      <path d="M100 192H318" class="s-line" marker-end="url(#e6)"/><text x="110" y="187" class="s-xs">POST /__dfw/api/comments (C + bấm)</text>
+      <path d="M320 206H678" class="s-line" marker-end="url(#e6)"/><text x="340" y="201" class="s-xs">ghi fb_012: dfw-live, source = data-insp-path</text>
+      <path d="M320 226H518" class="s-line" marker-end="url(#e6)"/><text x="340" y="240" class="s-xs">Chrome ẩn chụp route → shots/live/fb_012.png</text>
+      <path d="M680 258H858" class="s-line" marker-end="url(#e6)"/><text x="690" y="253" class="s-xs">comments wait / hook → Claude</text>
+      <path d="M860 280H522" class="s-line" marker-end="url(#e6)"/><text x="560" y="275" class="s-xs">mở src/views/Return.vue:42:7, sửa → comments fixed</text>
+      <path d="M520 300H102" class="s-dash" marker-end="url(#e6)"/><text x="130" y="295" class="s-xs">HMR cập nhật trang (hoặc tải lại)</text>
+    </svg>
+    <figcaption>Code: <code>cmdReview</code> trong <code>cli.mjs</code> (khởi động, ghi <code>.dfw/review.json</code>), <code>createLiveServer</code> trong <code>live.mjs</code> (proxy, chèn script, nhận comment, chụp), <code>studio/live.js</code> (giao diện trên trang), <code>parseInspPath</code> trong <code>inspector.mjs</code>.</figcaption>
+  </figure>
 </section>
 
 <!-- 16 -->
@@ -1461,7 +1590,7 @@ dfw layout check --screen dashboard --bp mobile   # chỉ kiểm lại chỗ v�
     </tbody>
   </table>
   <h3 id="shoot">Chụp màn hình thiết kế (<code>dfw shoot</code>)</h3>
-  <p>Trên Studio có nút máy ảnh (chọn màn để chụp) và nút Screenshot trong Present làm cùng việc này (mục 20). Lệnh này biến các file HTML trong <code>design/</code> (hoặc một URL bất kỳ) thành ảnh PNG để Claude/Copilot nhìn và tự chấm thiết kế, và để so app thật với thiết kế ở phase verify. Code nằm ở 3 chỗ: <code>cli.mjs</code> (<code>cmdShoot</code>, lập danh sách ảnh), <code>runtime.mjs</code> (<code>screenshot</code>, chạy song song), <code>cdp.mjs</code> (<code>Page.screenshot</code>, nói chuyện với Chrome).</p>
+  <p>Trên Studio có nút máy ảnh (chọn màn để chụp) và nút Screenshot trong Present làm cùng việc này (mục 21). Lệnh này biến các file HTML trong <code>design/</code> (hoặc một URL bất kỳ) thành ảnh PNG để Claude/Copilot nhìn và tự chấm thiết kế, và để so app thật với thiết kế ở phase verify. Code nằm ở 3 chỗ: <code>cli.mjs</code> (<code>cmdShoot</code>, lập danh sách ảnh), <code>runtime.mjs</code> (<code>screenshot</code>, chạy song song), <code>cdp.mjs</code> (<code>Page.screenshot</code>, nói chuyện với Chrome).</p>
   <figure class="fig">
     <svg viewBox="0 0 960 250" role="img" aria-label="Luồng code của dfw shoot">
       <defs><marker id="sm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="s-arrow"/></marker></defs>
@@ -1525,7 +1654,7 @@ design/
     components.css         <span class="d">sinh ra từ các master</span>
     icons/*.svg            <span class="d">icon project dùng</span>
   styles/base.css          <span class="d">style nền cho thẻ HTML</span>
-  screens/&lt;id&gt;/*.html     <span class="d">màn hình (index + variant)</span>
+  screens/&lt;id&gt;/*.html     <span class="d">màn hình (index + variant); kéo thả/đổi kích thước trên Studio ghi vào &lt;style data-dfw-layout&gt; trong head</span>
   screens/_directions/     <span class="d">bản phác các hướng (G1)</span>
   assets/                  <span class="d">ảnh, tài liệu gốc</span>
   approved/vN/             <span class="d">bản chụp khi G2 + approval.lock.json (KHÔNG sửa được)</span>
@@ -1538,10 +1667,14 @@ design/
   reviews/rv_*.json        <span class="d">comment theo phiên review; .delivered.json</span>
   edits/                   <span class="d">nhật ký sửa trực tiếp từ Studio (để hoàn tác)</span>
   build/                   <span class="d">HTML đã ghép (cache)</span>
-  shots/                   <span class="d">ảnh chụp</span>
+  shots/                   <span class="d">ảnh chụp; shots/live/&lt;id&gt;.png = ảnh của comment trên app thật</span>
+  review.json, review.log  <span class="d">pid, cổng, đích và log của proxy dfw review</span>
+  penpot/                  <span class="d">cầu nối Penpot: export.json (+ exports/&lt;id&gt;.json), tokens.penpot.json,</span>
+                           <span class="d">tokens.from-penpot.json, imported.json (chống ghi trùng comment)</span>
   layout-cache.json        <span class="d">mtime đã kiểm, để hook stop không báo lặp</span>
   studio.json, studio.log  <span class="d">port và log Studio</span></div>
-  <div class="note">Nên commit: <code>PRODUCT.md</code>, <code>DESIGN.md</code>, <code>design/</code>, <code>.dfw/state.json</code>, <code>decisions.jsonl</code>, <code>config.json</code>, <code>stack.json</code>, <code>reviews/</code>. <code>dfw init</code> tạo <code>.dfw/.gitignore</code> bỏ qua <code>config.local.json</code>, <code>studio.json</code>, <code>studio.log</code>, <code>shots/</code>, <code>checks/</code>; nên tự thêm <code>.dfw/build/</code> và <code>.dfw/layout-cache.json</code>.</div>
+  <div class="note">Nên commit: <code>PRODUCT.md</code>, <code>DESIGN.md</code>, <code>design/</code>, <code>.dfw/state.json</code>, <code>decisions.jsonl</code>, <code>config.json</code>, <code>stack.json</code>, <code>reviews/</code>. <code>dfw init</code> tạo <code>.dfw/.gitignore</code> bỏ qua <code>config.local.json</code>, <code>studio.json</code>, <code>studio.log</code>, <code>review.json</code>, <code>review.log</code>, <code>shots/</code>, <code>checks/</code>; nên tự thêm <code>.dfw/build/</code> và <code>.dfw/layout-cache.json</code>. <code>.dfw/penpot/</code> không nằm trong file ignore mặc định.</div>
+  <p>Với code của app, chỉ một lệnh dfw tự sửa file: <code>dfw inspector setup --write</code> (sau G3) thêm <code>code-inspector-plugin</code> vào <code>devDependencies</code> của <code>package.json</code> và sửa file cấu hình bundler (<code>vite.config.*</code>, <code>webpack.config.*</code> hoặc <code>next.config.*</code>).</p>
   <h3>Thư mục chung của dfw trên máy (<code>~/.config/dfw</code>, đổi bằng <code>DFW_HOME</code>)</h3>
   <div class="card tree">bin/&lt;ver&gt;/dfw            <span class="d">binary</span>
 plugin/&lt;ver&gt;-&lt;hash&gt;/      <span class="d">dữ liệu plugin giải nén khi binary chạy độc lập</span>
@@ -1652,8 +1785,95 @@ dfw mcp uninstall cursor           # gỡ; file cũ được lưu thành *.dfw-b
 </section>
 
 <!-- 19 -->
+<section id="penpot">
+  <h2><small>Mở rộng</small>19. Cầu nối Penpot</h2>
+  <p class="lead">Penpot là công cụ thiết kế mã nguồn mở, giống Figma. Cầu nối này dành cho designer muốn chỉnh trong Penpot. Nó là tuỳ chọn, và không phải nguồn sự thật thứ hai: HTML trong <code>design/</code> và token DTCG vẫn là bản gốc. Mọi thứ Penpot gửi về chỉ thành <b>comment</b> và <b>bảng khác biệt token</b>; Claude áp chúng trong vòng review bình thường, qua đúng các cổng.</p>
+  <figure class="fig">
+    <svg viewBox="0 0 960 300" role="img" aria-label="Cầu nối Penpot: cái gì đi, cái gì về">
+      <defs><marker id="pp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="s-arrow"/></marker></defs>
+      <rect x="10" y="20" width="230" height="260" rx="12" class="s-box"/>
+      <text x="26" y="44" class="s-k">PROJECT (BẢN GỐC)</text>
+      <text x="26" y="70" class="s-xm">design/screens/**</text>
+      <text x="26" y="88" class="s-xm">design/system/components/</text>
+      <text x="26" y="106" class="s-xm">design/tokens/*.json</text>
+      <text x="26" y="140" class="s-xm">.dfw/penpot/export.json</text>
+      <text x="26" y="158" class="s-xm">.dfw/penpot/tokens.penpot.json</text>
+      <text x="26" y="192" class="s-xm">.dfw/reviews/ (comment</text>
+      <text x="26" y="208" class="s-xm">  provider "penpot")</text>
+      <text x="26" y="230" class="s-xm">.dfw/penpot/</text>
+      <text x="26" y="246" class="s-xm">  tokens.from-penpot.json</text>
+      <text x="26" y="268" class="s-xs">không bao giờ ghi vào design/</text>
+      <rect x="300" y="20" width="300" height="260" rx="12" class="s-core"/>
+      <text x="316" y="44" class="s-ct">STUDIO · 127.0.0.1:4600</text>
+      <text x="316" y="70" class="s-xm">GET /__dfw/penpot/manifest.json</text>
+      <text x="316" y="88" class="s-xm">GET /__dfw/penpot/plugin.js</text>
+      <text x="316" y="106" class="s-xs">(đọc được từ origin khác, để Penpot tải)</text>
+      <text x="316" y="132" class="s-xm">GET /__dfw/penpot/ui.html</text>
+      <text x="316" y="150" class="s-xm">GET /__dfw/penpot/export.json</text>
+      <text x="316" y="168" class="s-xs">(render lại nếu chưa có hoặc ?refresh=1)</text>
+      <text x="316" y="200" class="s-xm">POST /__dfw/penpot/changes</text>
+      <text x="316" y="218" class="s-xs">chỉ nhận từ chính origin của Studio</text>
+      <text x="316" y="236" class="s-xs">→ importChanges → comment</text>
+      <rect x="660" y="20" width="290" height="260" rx="12" class="s-user"/>
+      <text x="676" y="44" class="s-ut">PENPOT TRONG TRÌNH DUYỆT CỦA BẠN</text>
+      <text x="676" y="70" class="s-t">Plugin "dfw bridge"</text>
+      <text x="676" y="94" class="s-xs">Build boards: page, board, layer chữ,</text>
+      <text x="676" y="110" class="s-xs">component, màu gắn token</text>
+      <text x="676" y="140" class="s-xs">Designer sửa và comment</text>
+      <text x="676" y="170" class="s-xs">Send changes to dfw → POST về Studio</text>
+      <text x="676" y="188" class="s-xs">Download changes → file JSON cho</text>
+      <text x="676" y="204" class="s-xm">dfw penpot import</text>
+      <text x="676" y="236" class="s-xs">Tokens panel: Import / Export file</text>
+      <text x="676" y="252" class="s-xs">token (dfw tokens export / import)</text>
+      <path d="M240 140H298" class="s-line" marker-end="url(#pp)"/>
+      <path d="M600 140H658" class="s-line" marker-end="url(#pp)"/>
+      <path d="M658 200H602" class="s-line" marker-end="url(#pp)"/>
+      <path d="M298 220H242" class="s-line" marker-end="url(#pp)"/>
+    </svg>
+    <figcaption>dfw không gọi mạng tới Penpot. Penpot (cloud hay tự host) tải plugin trong trình duyệt của bạn từ 127.0.0.1; nội dung đi vào file Penpot đang mở là do plugin ghi, như mọi chỉnh sửa khác trong Penpot.</figcaption>
+  </figure>
+
+  <h3>19.1 Token</h3>
+  <pre><code>dfw tokens export --format penpot            # → .dfw/penpot/tokens.penpot.json (Penpot: Tokens panel > Tools > Import)
+dfw tokens import penpot-tokens.json --dry-run  # chỉ xem khác biệt
+dfw tokens import penpot-tokens.json         # ghi design/tokens/, build lại tokens.css</code></pre>
+  <ul>
+    <li><code>design/tokens/tokens.json</code> thành set <code>base</code>; mỗi <code>themes/&lt;tên&gt;.json</code> thành set <code>themes/&lt;tên&gt;</code>; mỗi theme của dfw thành một theme Penpot trong nhóm <code>dfw</code> (<code>default</code> = chỉ base). Theme thử <code>opt-*</code> bị bỏ qua trừ khi có <code>--opt-themes</code>.</li>
+    <li>Alias (<code>{color.blue.600}</code>) và mô tả giữ nguyên hai chiều. Loại token Penpot không giữ được (<code>cubicBezier</code>, <code>transition</code>, <code>border</code>, <code>gradient</code>…) được liệt kê là "Not exported", không bị mất âm thầm. Màu OKLCH đổi sang hex sRGB (có báo).</li>
+    <li>Đi một vòng dfw → Penpot → dfw trong cùng project thì giữ nguyên từng byte: token nào Penpot không đổi giữ đúng cách viết của dfw.</li>
+    <li>Import in bảng khác biệt theo set (đổi, thêm, xoá, thiếu). Token có trong dfw mà Penpot không có thì giữ lại; <code>--prune</code> mới xoá. Khi thiết kế đã khoá (G2), import thật bị từ chối; xem bằng <code>--dry-run</code>, bạn đồng ý thì <code>dfw reopen</code> rồi import lại.</li>
+  </ul>
+
+  <h3>19.2 Màn hình</h3>
+  <ol class="steps">
+    <li><b>Chạy Studio và lấy địa chỉ plugin</b><code>dfw studio start</code>, rồi <code>dfw penpot plugin</code> in <code>http://127.0.0.1:&lt;cổng&gt;/__dfw/penpot/manifest.json</code>.</li>
+    <li><b>Cài plugin trong Penpot</b>Mở một file, import <code>tokens.penpot.json</code> ở Tokens panel (để màu gắn với token), mở Plugin Manager (<kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>P</kbd>), dán địa chỉ, cài và mở <b>dfw bridge</b>.</li>
+    <li><b>Build boards</b>Plugin xin Studio render thiết kế (hoặc dùng bản <code>dfw penpot export</code> gần nhất), tạo mỗi page dfw một page Penpot, mỗi màn × biến thể × breakpoint một board tên <code>&lt;màn&gt; / &lt;biến thể&gt; @ &lt;breakpoint&gt;</code>, thêm page <code>dfw components</code>.</li>
+    <li><b>Designer sửa và comment trong Penpot</b>Rồi bấm <b>Send changes to dfw</b>: Studio ghi thành comment và Claude được báo như comment Studio. Studio không chạy hoặc trình duyệt chặn 127.0.0.1 thì dùng <b>Download changes</b> và <code>dfw penpot import &lt;file&gt;</code>.</li>
+  </ol>
+  <table>
+    <thead><tr><th>Chiều</th><th>Nội dung</th></tr></thead>
+    <tbody>
+      <tr><td>dfw → Penpot (<code>.dfw/penpot/export.json</code>)</td><td>Layer đọc từ trang đã render trong Chrome ẩn: hộp, màu nền, viền, bo góc, bóng, độ mờ. Tên layer = <code>data-dfw-id</code> (instance không có id: <code>&lt;component&gt;/&lt;variant&gt;/&lt;size&gt;</code>). Chữ là layer chữ thật. Màu và bo góc gắn token khi đúng giá trị. Mỗi master thành một component Penpot, instance cùng cấu trúc thành instance. Icon là SVG, ảnh tải từ Studio. Gradient CSS và pseudo-element không xuất (có ghi chú trên layer).</td></tr>
+      <tr><td>Penpot → dfw (<code>dfw penpot import</code> hoặc Send)</td><td>Mỗi phần tử (<code>data-dfw-id</code>) một comment liệt kê: đổi chữ, dời chỗ, đổi kích thước (trừ chữ), đổi màu (kèm token khớp, hoặc báo không token nào khớp), đổi tên, xoá, thêm layer. Mỗi thread comment của Penpot thành một comment (thread đã resolve bị bỏ qua). Khác biệt token thành một comment, và các set token được lưu vào <code>.dfw/penpot/tokens.from-penpot.json</code> để <code>dfw tokens import … --dry-run</code> (không tự áp). Gửi lại cùng thay đổi không tạo comment trùng.</td></tr>
+      <tr><td>Penpot → master (page <code>dfw components</code>)</td><td>Mỗi main component mang khoá master của dfw (<code>component|variant|size</code>) trong plugin data <code>dfw-main</code>. Send đọc mọi main component của thư viện file (hộp, màu nền, viền, bo góc từng layer), main bị xoá, và thread comment ghim trên main. Mỗi phần tử của master (component + layer) thành một comment trên file master <code>design/system/components/&lt;tên&gt;.html</code>: <code>target.component</code> = <code>{ name, variant, size }</code>, <code>target.layer</code> = đường dẫn layer đã export, <code>target.source</code> = <code>file:dòng</code> của luật CSS đặt thuộc tính đó (luật của variant/size trước, rồi luật gốc), nếu không có thì phần tử trong <code>&lt;template&gt;</code>. Phát hiện: đổi chữ mẫu, màu nền và màu chữ, màu và độ dày viền, thêm/bỏ viền, bo góc, kích thước, khoảng cách (padding suy từ vị trí con), đổi tên, thêm/bỏ layer, xoá main. Màu khớp token màu; bo góc, khoảng cách, kích thước khớp token <code>radius.*</code>, <code>space.*</code>, <code>size.*</code> theo giá trị px trong <code>design/tokens/tokens.json</code>. Comment kèm lời dặn: sửa master, ảnh hưởng mọi màn dùng nó, không vá từng màn. Gửi lại không trùng; thiết kế khoá thì comment nhắc <code>dfw reopen</code>.</td></tr>
+      <tr><td>Không gửi về</td><td>Thứ tự layer, hiệu ứng ngoài màu nền và viền (bóng, độ mờ, blur), đổi kiểu chữ (font, cỡ, độ đậm), variant hoặc size mới tạo trong Penpot, page mới.</td></tr>
+    </tbody>
+  </table>
+  <p>Claude áp comment Penpot như comment khác: đổi chữ, màu, vị trí qua master, token và bố cục màn hình; không dán toạ độ của Penpot vào HTML; hỏi bạn trước khi <code>dfw tokens import</code> (<code>references/phase-review.md</code>). Thiết kế đã khoá (G2) thì comment vẫn được ghi, kèm lời nhắc cần <code>dfw reopen</code>.</p>
+
+  <h3>19.3 Vì sao dùng plugin, và riêng tư</h3>
+  <ul>
+    <li><b>Chọn plugin do Studio phục vụ</b> vì đó là API chính thức, có tài liệu (tạo page, board, chữ, component; đọc comment và token; lưu dữ liệu riêng trên layer), và cùng một code vừa dựng board vừa đọc thay đổi về, nên ánh xạ theo đường dẫn layer và <code>data-dfw-id</code> đáng tin. Đã loại: tự sinh file <code>.penpot</code> (định dạng nội bộ, đổi theo bản), import SVG (một chiều, mất chữ và component), API REST/RPC (cần token, gọi mạng tới server Penpot).</li>
+    <li><b>Mạng:</b> dfw không cần tài khoản hay token Penpot. Từ Studio sang plugin (trong trình duyệt): <code>export.json</code> (tên màn, tên layer, chữ, hộp, màu, tên và giá trị token) và ảnh trong <code>design/</code> mà màn dùng. Plugin ghi chúng vào file Penpot đang mở, file đó được Penpot lưu như mọi chỉnh sửa khác. Manifest và code plugin đọc được từ origin khác (có header <code>Access-Control-Allow-Private-Network</code>); ghi thay đổi chỉ nhận từ chính origin của Studio.</li>
+    <li>Trình duyệt có thể hỏi trước khi một trang công khai gọi tới 127.0.0.1 (Chrome có hộp hỏi "local network access"); vài trình duyệt chặn hẳn. Khi đó dùng <b>Load export file</b> / <b>Download changes</b> với <code>dfw penpot import</code>.</li>
+  </ul>
+  <div class="note warn"><b>Chưa kiểm trong Penpot thật.</b> Bản export, ánh xạ thay đổi, route của Studio và CLI được test trên dữ liệu mẫu (<code>tests/unit/penpot-screens.test.mjs</code>, <code>penpot-components.test.mjs</code>, <code>penpot-tokens.test.mjs</code>). Code plugin (<code>core/studio/penpot/plugin.js</code>) theo đúng API có tài liệu của Penpot nhưng chưa chạy bên trong Penpot. Cần kiểm ở lần dùng đầu: <code>appendChild</code> có giữ vị trí tuyệt đối không, tên con và dữ liệu plugin trong instance, <code>fonts.findByName</code> / <code>applyToText</code>, <code>openPage</code> khi plugin đang chạy, toạ độ của thread comment, các trường <code>TokenSet</code>/<code>Token</code> đọc về, Penpot có giữ đơn vị rem/em trong token không. Với master: <code>createComponent</code> giữ shape làm main hay bọc lại, <code>library.local.components</code> có liệt kê đủ main không, đơn vị bo góc và độ dày viền đọc về, thread ghim trên main có trỏ đúng main không. Danh sách đầy đủ và nguồn: <code>references/penpot.md</code>.</div>
+</section>
+
+<!-- 20 -->
 <section id="install">
-  <h2><small>Hướng dẫn</small>19. Cài đặt</h2>
+  <h2><small>Hướng dẫn</small>20. Cài đặt</h2>
   <h3>Cách A: máy không có Node.js</h3>
   <pre><code>curl -fsSL https://raw.githubusercontent.com/tantm97/ai-frontend-design-workflow/main/install.sh | sh
 # chọn phiên bản cố định:
@@ -1684,9 +1904,9 @@ node scripts/install.mjs --source "$PWD"     # marketplace trỏ vào thư mục
   </table>
 </section>
 
-<!-- 20 -->
+<!-- 21 -->
 <section id="review">
-  <h2><small>Hướng dẫn</small>20. Review trên Studio</h2>
+  <h2><small>Hướng dẫn</small>21. Review trên Studio và app thật</h2>
   <table>
     <thead><tr><th>Phím</th><th>Tác dụng</th></tr></thead>
     <tbody>
@@ -1701,7 +1921,12 @@ node scripts/install.mjs --source "$PWD"     # marketplace trỏ vào thư mục
       <tr><td><kbd>⌘</kbd>/<kbd>Ctrl</kbd> + cuộn, <kbd>+</kbd> <kbd>-</kbd>, <kbd>0</kbd></td><td>Zoom tại con trỏ / phóng / thu / 100%</td></tr>
       <tr><td><kbd>Shift</kbd><kbd>1</kbd> / <kbd>Shift</kbd><kbd>2</kbd></td><td>Vừa tất cả / vừa vùng chọn</td></tr>
       <tr><td><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd></td><td>Layer cha / con đầu / trước / sau</td></tr>
-      <tr><td><kbd>⌘</kbd>/<kbd>Ctrl</kbd> <kbd>Z</kbd></td><td>Hoàn tác lần sửa trực tiếp gần nhất</td></tr>
+      <tr><td>Kéo phần tử đang chọn</td><td>Đổi thứ tự giữa các anh em trong khung flex/grid (đường xanh = chỗ thả), hoặc thả vào khung flex/grid rỗng có <code>data-dfw-id</code> (viền nét đứt)</td></tr>
+      <tr><td>Kéo tay nắm ▫</td><td>Đổi kích thước: số cột grid, chiều rộng (token size / %) hoặc min-height (token spacing)</td></tr>
+      <tr><td><kbd>Alt</kbd> <kbd>←</kbd> <kbd>→</kbd> / <kbd>↑</kbd> <kbd>↓</kbd></td><td>Dời phần tử đang chọn ra trước / sau phần tử anh em</td></tr>
+      <tr><td><kbd>Alt</kbd><kbd>Shift</kbd> <kbd>←</kbd> <kbd>→</kbd> / <kbd>↑</kbd> <kbd>↓</kbd></td><td>Lùi / tiến một mốc bám của span hoặc chiều rộng / min-height</td></tr>
+      <tr><td><kbd>Alt</kbd><kbd>Shift</kbd> <kbd>0</kbd> / bấm đúp tay nắm ▫</td><td>Về auto: cả luật ở breakpoint của khung / một chiều (nút "Reset size to auto" trong panel cũng vậy)</td></tr>
+      <tr><td><kbd>⌘</kbd>/<kbd>Ctrl</kbd> <kbd>Z</kbd></td><td>Hoàn tác lần sửa trực tiếp gần nhất (bị từ chối sau G2)</td></tr>
       <tr><td><kbd>Esc</kbd> · <kbd>?</kbd></td><td>Bỏ chọn · bảng phím tắt</td></tr>
     </tbody>
   </table>
@@ -1724,6 +1949,23 @@ node scripts/install.mjs --source "$PWD"     # marketplace trỏ vào thư mục
     <li>Ảnh lưu ở <code>.dfw/shots/studio/&lt;giờ&gt;/&lt;màn&gt;__&lt;biến thể&gt;__&lt;bp&gt;[__theme][__state].png</code>, chụp cả chiều cao trang, không dính lớp chọn/comment của Studio. Thông báo góc dưới ghi số ảnh và thư mục.</li>
     <li>Dùng chung bộ chụp với <code>dfw shoot</code> (mục 16): server Studio gọi <code>screenshot()</code> trong <code>runtime.mjs</code> qua API <code>POST /__dfw/api/shoot</code>; chỉ nhận URL thiết kế của chính Studio, tối đa 200 khung một lần, một lượt chụp tại một thời điểm.</li>
   </ul>
+  <h3>Kéo thả và đổi kích thước trên canvas</h3>
+  <ol class="steps">
+    <li><b>Chọn phần tử</b>Công cụ chọn (<kbd>V</kbd>), bấm một phần tử có <code>data-dfw-id</code>. Panel phải ghi cách làm, và khi đang ở khung hẹp thì ghi phạm vi (vd. "Resizes here apply at ≤834px").</li>
+    <li><b>Đổi thứ tự</b>Kéo phần tử; đường xanh hiện chỗ thả cạnh một phần tử anh em trong khung flex/grid. Kéo qua một khung flex/grid rỗng có <code>data-dfw-id</code> thì khung viền nét đứt, thả là dời vào trong. Hoặc <kbd>Alt</kbd>+mũi tên để dời từng bước. Chỉ con của khung flex/grid mới dời được.</li>
+    <li><b>Đổi kích thước</b>Kéo tay nắm bên phải (rộng) hoặc ở dưới (cao). Nhãn nhỏ hiện mốc đang bám, vd. <code>span 2 / 4</code> hoặc <code>width size.card · 320px</code>. Hoặc <kbd>Alt</kbd><kbd>Shift</kbd>+mũi tên. <kbd>Esc</kbd> huỷ khi đang kéo. Về auto: bấm đúp tay nắm, <kbd>Alt</kbd><kbd>Shift</kbd><kbd>0</kbd>, hoặc nút "Reset size to auto".</li>
+    <li><b>Kiểm và hoàn tác</b>Thông báo góc dưới ghi file:dòng đã lưu; khung tải lại từ mã nguồn. Nếu kích thước không đổi vì có luật mạnh hơn, thông báo ghi tên luật đó. <kbd>⌘</kbd><kbd>Z</kbd> hoàn tác. Đổi kích thước trong khung hẹp chỉ áp ở breakpoint đó trở xuống (mục 13).</li>
+  </ol>
+  <p>Không làm được ở trang Design System, trong Present, sau G2 hoặc ở mode review-only. Phần tử chỉ có trong master của component bị từ chối, kèm tên file master. Bố cục kiểu khác (grid mới, khung lồng nhau, bố cục riêng của master) và màu, chữ thì để comment.</p>
+
+  <h3>Review app đang chạy (phase verify)</h3>
+  <ol class="steps">
+    <li><b>Claude mở proxy</b><code>dfw review start --url http://localhost:5173</code> in địa chỉ <code>http://localhost:4700/…</code> (app chạy ở <code>localhost</code>, để cookie đăng nhập vẫn dùng được) hoặc <code>http://127.0.0.1:4700/…</code>. Dev server của app phải đang chạy.</li>
+    <li><b>Bạn comment</b>Mở địa chỉ đó, bấm nút <b>Comment</b> ở góc dưới phải (hoặc <kbd>Alt</kbd>/<kbd>Option</kbd><kbd>C</kbd>; đổi bằng <code>dfw config set review.shortcut &lt;tổ hợp&gt;</code>, <code>off</code> thì chỉ còn nút), bấm phần tử, viết, <kbd>⌘</kbd>/<kbd>Ctrl</kbd> <kbd>Enter</kbd> (hoặc "Send to Claude"). Ô comment hiện file:dòng nếu app có <code>code-inspector-plugin</code>.</li>
+    <li><b>Claude sửa</b>Comment tới như comment Studio; Claude mở <code>target.source</code>, sửa code, đánh dấu fixed. HMR cập nhật trang; bạn kiểm lại trên app.</li>
+    <li><b>Tắt</b><code>dfw review stop</code>.</li>
+  </ol>
+
   <h3>Viết comment để được sửa đúng</h3>
   <ul>
     <li>Mỗi comment một thay đổi, ghim đúng phần tử.</li>
@@ -1733,12 +1975,12 @@ node scripts/install.mjs --source "$PWD"     # marketplace trỏ vào thư mục
   </ul>
 </section>
 
-<!-- 21 -->
+<!-- 22 -->
 <section id="commands">
-  <h2><small>Hướng dẫn</small>21. Bảng lệnh</h2>
+  <h2><small>Hướng dẫn</small>22. Bảng lệnh</h2>
   <p class="lead">Bình thường Claude tự chạy các lệnh này; bạn dùng khi muốn xem trạng thái hoặc làm tay trong terminal. Mỗi lệnh có ghi: làm gì, khi nào dùng, và ví dụ. Mã thoát 2 nghĩa là có lỗi MUST. <code>dfw help</code> in danh sách gốc bằng tiếng Anh.</p>
 
-  <h3>21.1 Quy trình (trạng thái, phase, cổng duyệt)</h3>
+  <h3>22.1 Quy trình (trạng thái, phase, cổng duyệt)</h3>
   <table>
     <thead><tr><th>Lệnh</th><th>Làm gì</th><th>Khi nào dùng · ví dụ</th></tr></thead>
     <tbody>
@@ -1757,7 +1999,7 @@ node scripts/install.mjs --source "$PWD"     # marketplace trỏ vào thư mục
     </tbody>
   </table>
 
-  <h3>21.2 Design system</h3>
+  <h3>22.2 Design system</h3>
   <table>
     <thead><tr><th>Lệnh</th><th>Làm gì</th><th>Khi nào dùng · ví dụ</th></tr></thead>
     <tbody>
@@ -1776,13 +2018,15 @@ node scripts/install.mjs --source "$PWD"     # marketplace trỏ vào thư mục
       <tr><td><code>dfw system audit [--json]</code></td><td>Review cấp senior: tương phản, màu nhấn trùng màu trạng thái, xám, số hue, nhịp chữ, lý do trong DESIGN.md.</td><td>Trước khi duyệt DS.</td></tr>
       <tr><td><code>dfw palette build --brand &lt;hex|hue&gt; …</code></td><td>Sinh dải màu OKLCH, chọn vai trò theo độ tương phản, màu trạng thái hài hoà.</td><td><code>dfw palette build --brand "#3b5bdb"</code></td></tr>
       <tr><td><code>dfw type scale --base 16 --ratio 1.2 [--display-ratio 1.333] [--write]</code></td><td>Tính thang cỡ chữ; <code>--write</code> ghi vào token.</td><td>Chỉnh nhịp chữ.</td></tr>
+      <tr><td><code>dfw tokens export --format penpot [--out &lt;file&gt;] [--opt-themes] [--json]</code></td><td>Ghi token + theme thành file token của Penpot (mặc định <code>.dfw/penpot/tokens.penpot.json</code>); liệt kê loại token không xuất được.</td><td>Designer dùng Penpot (mục 19).</td></tr>
+      <tr><td><code>dfw tokens import &lt;file|thư mục&gt; [--from penpot] [--dry-run] [--prune] [--json]</code></td><td>Đọc file token xuất từ Penpot, in khác biệt theo set, ghi <code>design/tokens/</code> và build lại CSS. Bị từ chối khi thiết kế đã khoá (trừ <code>--dry-run</code>).</td><td>Sau khi bạn đồng ý với thay đổi token từ Penpot.</td></tr>
       <tr><td><code>dfw build</code> (= <code>dfw tokens build</code>)</td><td>Build <code>tokens.css</code> và <code>components.css</code>. Hook đã tự làm khi sửa file.</td><td>Khi sửa file bên ngoài Claude.</td></tr>
       <tr><td><code>dfw icons search &lt;từ&gt;</code> / <code>add &lt;tên…&gt;</code> / <code>list</code></td><td>Tìm icon Lucide, chép icon vào <code>design/system/icons/</code>, xem icon đang dùng.</td><td><code>dfw icons add package qr-code</code></td></tr>
       <tr><td><code>dfw fonts check &lt;font…&gt;</code></td><td>Hỏi Google Fonts xem font có subset nào (vd. vietnamese).</td><td><code>dfw fonts check "Be Vietnam Pro"</code></td></tr>
     </tbody>
   </table>
 
-  <h3>21.3 Màn hình và kiểm tra</h3>
+  <h3>22.3 Màn hình và kiểm tra</h3>
   <table>
     <thead><tr><th>Lệnh</th><th>Làm gì</th><th>Khi nào dùng · ví dụ</th></tr></thead>
     <tbody>
@@ -1800,7 +2044,7 @@ node scripts/install.mjs --source "$PWD"     # marketplace trỏ vào thư mục
     </tbody>
   </table>
 
-  <h3>21.4 Studio và comment</h3>
+  <h3>22.4 Studio và comment</h3>
   <table>
     <thead><tr><th>Lệnh</th><th>Làm gì</th><th>Khi nào dùng · ví dụ</th></tr></thead>
     <tbody>
@@ -1817,10 +2061,16 @@ node scripts/install.mjs --source "$PWD"     # marketplace trỏ vào thư mục
       <tr><td><code>dfw comments new-round</code></td><td>Mở phiên review mới (đóng phiên cũ).</td><td>Bắt đầu một vòng góp ý mới.</td></tr>
       <tr><td><code>dfw comments wait [--timeout 3600]</code></td><td>Chờ tới khi có comment mới rồi thoát (Claude chạy nền để được đánh thức).</td><td>Trong lúc bạn đang review.</td></tr>
       <tr><td><code>dfw comments inbox [--peek]</code></td><td>Comment chưa đưa cho Claude (đúng cái hook sẽ chèn); <code>--peek</code> chỉ xem, không đánh dấu.</td><td>Kiểm tra comment có tới Claude không.</td></tr>
+      <tr><td><code>dfw review start --url &lt;dev server&gt; [--port 4700] [--shortcut &lt;tổ hợp&gt;|off] [--no-shots]</code></td><td>Chạy proxy nền ở loopback trước app đang chạy (chỉ server local; app ở <code>localhost</code> thì địa chỉ là <code>http://localhost:&lt;cổng&gt;/</code>), thêm nút Comment lên app (phím mặc định <kbd>Alt</kbd>/<kbd>Option</kbd><kbd>C</kbd>, hoặc <code>review.shortcut</code> trong config). Comment vào <code>.dfw/reviews/</code>, ảnh vào <code>.dfw/shots/live/</code> (tắt bằng <code>--no-shots</code>).</td><td>Phase verify, review app thật. <code>dfw review start --url http://localhost:5173</code></td></tr>
+      <tr><td><code>dfw review status</code> / <code>stop</code></td><td>Xem proxy có chạy không / tắt.</td><td>Xong vòng review app thật.</td></tr>
+      <tr><td><code>dfw inspector setup [--write] [--json]</code></td><td>Dò bundler, in bản khoá của <code>code-inspector-plugin</code> và thay đổi cấu hình. <code>--write</code> sửa <code>package.json</code> + cấu hình Vite/webpack/Next, chỉ khi G3 đã duyệt và <code>.dfw/stack.json</code> có thư viện này; bundler khác thì in hướng dẫn.</td><td>Phase stack (in để đề xuất), phase implement (<code>--write</code>, rồi cài và khởi động lại dev server).</td></tr>
+      <tr><td><code>dfw penpot export [--page &lt;id&gt;] [--bp &lt;ids&gt;] [--out &lt;file&gt;] [--json]</code></td><td>Render từng màn ra <code>.dfw/penpot/export.json</code> cho plugin Penpot (kèm file token). Có lỗi render thì mã thoát 2.</td><td>Trước khi Build boards trong Penpot (plugin cũng tự gọi được).</td></tr>
+      <tr><td><code>dfw penpot plugin</code></td><td>In địa chỉ manifest plugin để cài trong Penpot (cần Studio đang chạy) và cách dùng.</td><td>Lần đầu nối Penpot.</td></tr>
+      <tr><td><code>dfw penpot import &lt;changes.json&gt; [--dry-run] [--json]</code></td><td>Biến thay đổi từ Penpot thành comment (<code>provider: "penpot"</code>) + khác biệt token. Không sửa <code>design/</code>.</td><td>Khi plugin không gửi thẳng được về Studio (dùng Download changes).</td></tr>
     </tbody>
   </table>
 
-  <h3>21.5 Stack, cài đặt, cấu hình</h3>
+  <h3>22.5 Stack, cài đặt, cấu hình</h3>
   <table>
     <thead><tr><th>Lệnh</th><th>Làm gì</th><th>Khi nào dùng · ví dụ</th></tr></thead>
     <tbody>
@@ -1841,7 +2091,7 @@ node scripts/install.mjs --source "$PWD"     # marketplace trỏ vào thư mục
     </tbody>
   </table>
 
-  <h3>21.6 Lệnh của repo (khi phát triển dfw)</h3>
+  <h3>22.6 Lệnh của repo (khi phát triển dfw)</h3>
   <table>
     <thead><tr><th>Lệnh</th><th>Làm gì</th></tr></thead>
     <tbody>
@@ -1857,12 +2107,12 @@ node scripts/install.mjs --source "$PWD"     # marketplace trỏ vào thư mục
   </table>
 </section>
 
-<!-- 22 -->
+<!-- 23 -->
 <section id="improve">
-  <h2><small>Hướng dẫn</small>22. Muốn cải thiện thì sửa ở đâu</h2>
+  <h2><small>Hướng dẫn</small>23. Muốn cải thiện thì sửa ở đâu</h2>
   <p class="lead">Luôn sửa trong <code>core/</code>, <code>adapters/</code>, <code>registry/</code>, <code>overlays/</code> hoặc <code>scripts/</code>. Không sửa <code>plugins/</code> (sẽ bị build ghi đè, và CI báo lỗi vì không khớp).</p>
 
-  <h3>22.1 Bảng tra</h3>
+  <h3>23.1 Bảng tra</h3>
   <table>
     <thead><tr><th>Muốn cải thiện</th><th>Sửa file</th><th>Sửa gì</th><th>Kiểm bằng</th></tr></thead>
     <tbody>
@@ -1904,12 +2154,15 @@ node scripts/install.mjs --source "$PWD"     # marketplace trỏ vào thư mục
       <tr><td>Luật chuyển phase, mode mới</td><td><code>core/lib/state.mjs</code> (+ <code>references/modes.md</code>, bảng trong SKILL.md)</td><td><code>MODES</code>, <code>transitionBlockers</code>, <code>approveGate</code></td><td><code>npm test</code></td></tr>
       <tr><td>Điều kiện khi duyệt một cổng</td><td><code>core/lib/cli.mjs</code> (<code>cmdApprove</code>), <code>freeze.mjs</code></td><td>Kiểm gì trước khi ghi nhận, việc làm thêm</td><td><code>npm test</code></td></tr>
       <tr><td>Chặn/cho ghi file</td><td><code>core/lib/gate.mjs</code>; hoặc config <code>gate.allow</code>, <code>gate.immutable</code>, <code>gate.designPaths</code></td><td>Logic <code>decideWrite</code>; cho một project: <code>dfw config set gate.allow '["docs/**"]' --project</code></td><td><code>echo '{…}' | dfw hook pre-tool-use</code></td></tr>
-      <tr><td>Hỗ trợ host mới, hoặc sửa khác biệt của một host</td><td><code>core/lib/host.mjs</code>, <code>adapters/&lt;host&gt;/</code>, <code>registry/skills.json</code> (<code>local</code>), <code>core/lib/install.mjs</code></td><td>Theo mục 18.5</td><td><code>npm test</code> (host.test), <code>npm run validate</code></td></tr>
+      <tr><td>Hỗ trợ host mới, hoặc sửa khác biệt của một host</td><td><code>core/lib/host.mjs</code>, <code>adapters/&lt;host&gt;/</code>, <code>registry/skills.json</code> (<code>local</code>), <code>core/lib/install.mjs</code></td><td>Theo mục 18.6</td><td><code>npm test</code> (host.test), <code>npm run validate</code></td></tr>
       <tr><td>Chữ khác nhau giữa các host trong skill</td><td><code>core/workflow/*.md</code> (placeholder <code>{{…}}</code> hoặc khối <code>&lt;!-- host:… --&gt;</code>), giá trị trong <code>host.mjs</code></td><td>Không viết tên tool/biến riêng của một host thẳng vào core</td><td><code>npm run validate</code></td></tr>
       <tr><td>Hành vi hook</td><td><code>core/lib/hooks.mjs</code>; matcher/timeout ở <code>adapters/claude-code/plugin/hooks/hooks.json</code></td><td>Nội dung context, điều kiện chạy, giới hạn số lỗi</td><td>Mô phỏng stdin như mục 11</td></tr>
       <tr><td colspan="4"><b>Studio, comment, CLI, cài đặt</b></td></tr>
       <tr><td>Giao diện Studio</td><td><code>core/studio/app.html</code>, <code>app.css</code>, <code>app.js</code></td><td>Giao diện, phím tắt, panel, Present, pin</td><td><code>npm run test:e2e</code> + mở Studio</td></tr>
       <tr><td>Tương tác trong khung thiết kế</td><td><code>core/studio/overlay.js</code></td><td>Hover, chọn, đo, sửa chữ</td><td>Mở Studio</td></tr>
+      <tr><td>Kéo thả, đổi kích thước</td><td><code>core/studio/overlay.js</code> (chỗ thả, mốc bám, tay nắm), <code>app.js</code> (<code>layoutScope</code>, phím), <code>core/lib/edit.mjs</code> (op <code>move</code>, <code>layout</code>, <code>LAYOUT_PROPS</code>, <code>WIDTH_PERCENTS</code>)</td><td>Thuộc tính cho phép, mốc bám, cách ghi khối <code>data-dfw-layout</code></td><td><code>npm test</code> (edit.test), <code>npm run test:e2e</code></td></tr>
+      <tr><td>Review app thật, nối mã nguồn</td><td><code>core/lib/live.mjs</code>, <code>core/studio/live.js</code>, <code>core/lib/inspector.mjs</code> (<code>INSPECTOR</code>, <code>CONFIGS</code>, <code>patchConfig</code>), <code>references/phase-stack.md</code>, <code>phase-verify.md</code></td><td>Proxy, giao diện comment, bản khoá plugin, bundler được tự sửa</td><td><code>npm test</code> (inspector.test)</td></tr>
+      <tr><td>Cầu nối Penpot</td><td><code>core/lib/penpot-tokens.mjs</code>, <code>penpot.mjs</code>, <code>core/studio/penpot/</code>, route trong <code>server.mjs</code>, <code>references/penpot.md</code></td><td>Ánh xạ token, thứ được export, cách đổi thay đổi thành comment, plugin</td><td><code>npm test</code> (penpot-*.test); thử trong Penpot thật</td></tr>
       <tr><td>API, tải lại, phục vụ file</td><td><code>core/studio/server.mjs</code>, <code>pages.mjs</code></td><td>Route, SSE, cách nhóm page</td><td><code>npm run test:e2e</code></td></tr>
       <tr><td>Dữ liệu comment, đưa comment cho Claude</td><td><code>core/lib/comments.mjs</code>, <code>inbox.mjs</code>, <code>core/schemas/feedback.schema.json</code></td><td>Trường, trạng thái, cách đưa</td><td><code>npm test</code> (inbox.test)</td></tr>
       <tr><td>Nội dung handoff</td><td><code>core/templates/handoff.md</code>, <code>cmdHandoff</code> trong <code>cli.mjs</code></td><td>Mục, dữ liệu điền vào</td><td><code>dfw handoff</code></td></tr>
@@ -1920,7 +2173,7 @@ node scripts/install.mjs --source "$PWD"     # marketplace trỏ vào thư mục
     </tbody>
   </table>
 
-  <h3>22.2 Quy trình mỗi lần sửa</h3>
+  <h3>23.2 Quy trình mỗi lần sửa</h3>
   <figure class="fig">
     <svg viewBox="0 0 960 150" role="img" aria-label="Quy trình sửa">
       <defs><marker id="iv" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="s-arrow"/></marker></defs>
@@ -1943,16 +2196,16 @@ npm run build && npm test && npm run build:check && npm run validate
 # 5. cài lại từ thư mục này rồi khởi động lại Claude Code
 node scripts/install.mjs --source "$PWD"</code></pre>
 
-  <h3>22.3 Ví dụ: thêm luật lint cấm <code>font-size</code> viết bằng px trong màn hình</h3>
+  <h3>23.3 Ví dụ: thêm luật lint cấm <code>font-size</code> viết bằng px trong màn hình</h3>
   <ol class="steps">
     <li><b>Sửa luật</b>Trong <code>core/lib/lint.mjs</code>, ở nhóm luật CSS/màn hình, thêm mã <code>raw-font-size</code> mức <code>error</code> khi gặp <code>font-size: &lt;số&gt;px</code> ngoài token.</li>
     <li><b>Thêm test</b>Trong <code>tests/unit/dfw.test.mjs</code>: một màn có <code>font-size:14px</code> phải ra <code>raw-font-size</code>; một màn dùng <code>var(--font-size-sm)</code> thì không.</li>
     <li><b>Thử nhanh</b><code>node …/core/bin/dfw.mjs lint design/screens/dashboard/index.html</code> trong project test.</li>
     <li><b>Ghi vào hướng dẫn</b>Nhắc trong <code>references/design-format.md</code> để Claude biết luật mới trước khi viết.</li>
-    <li><b>Build, test, cài lại</b>Như 22.2. Hook <code>post-tool-use</code> sẽ tự báo luật mới mỗi khi Claude sửa màn.</li>
+    <li><b>Build, test, cài lại</b>Như 23.2. Hook <code>post-tool-use</code> sẽ tự báo luật mới mỗi khi Claude sửa màn.</li>
   </ol>
 
-  <h3>22.4 Ví dụ: muốn Claude dùng thêm Impeccable ở phase system</h3>
+  <h3>23.4 Ví dụ: muốn Claude dùng thêm Impeccable ở phase system</h3>
   <ol class="steps">
     <li>Mở <code>core/workflow/references/phase-system.md</code>, mục chọn skill: đặt <code>impeccable:impeccable</code> làm skill phụ, ghi rõ dùng lệnh nào (vd. critique trang DS trước khi đưa bạn).</li>
     <li>Nếu nó mâu thuẫn với skill khác (vd. luật cấm font), thêm phán quyết vào <code>policies/conflicts.md</code>.</li>
@@ -1960,9 +2213,9 @@ node scripts/install.mjs --source "$PWD"</code></pre>
   </ol>
 </section>
 
-<!-- 23 -->
+<!-- 24 -->
 <section id="trouble">
-  <h2><small>Hướng dẫn</small>23. Xử lý sự cố</h2>
+  <h2><small>Hướng dẫn</small>24. Xử lý sự cố và giới hạn</h2>
   <table>
     <thead><tr><th>Hiện tượng</th><th>Cách xử lý</th></tr></thead>
     <tbody>
@@ -1978,24 +2231,39 @@ node scripts/install.mjs --source "$PWD"</code></pre>
       <tr><td>Binary chạy khác mã nguồn</td><td><code>DFW_NO_BINARY=1</code> để so.</td></tr>
       <tr><td>macOS cảnh báo binary</td><td>Binary chỉ ký tạm; cài qua <code>curl | sh</code> thì không bị cảnh báo.</td></tr>
       <tr><td>sloplint / copy-lint "unavailable"</td><td>Cài Node 22+.</td></tr>
+      <tr><td>Kéo thả / đổi kích thước bị từ chối</td><td>Phần tử cần <code>data-dfw-id</code> và nằm trong khung flex/grid; không làm được sau G2, ở review-only, trên trang Design System hay trong Present. Báo "edited by hand" thì sửa khối <code>&lt;style data-dfw-layout&gt;</code> về đúng định dạng trong code. Báo phần tử thuộc master của component thì sửa master đó, hoặc để comment.</td></tr>
+      <tr><td>"Saved, but … did not change"</td><td>Một luật mạnh hơn trong màn (selector có id, thuộc tính <code>style</code>, <code>!important</code>) vẫn đặt thuộc tính đó; thông báo ghi tên luật. Bỏ thuộc tính ở đó (hoặc nhờ Claude) rồi đổi lại.</td></tr>
+      <tr><td><code>dfw review</code>: trang "the app is not reachable"</td><td>Dev server chưa chạy hoặc sai cổng: chạy app rồi tải lại. Xem <code>.dfw/review.log</code>. Chỉ địa chỉ local được nhận.</td></tr>
+      <tr><td><code>dfw review</code>: app đòi đăng nhập lại</td><td>Mở đúng địa chỉ <code>http://localhost:&lt;cổng&gt;/</code> mà Claude đưa, không phải 127.0.0.1. Nếu log báo [::1] bận cổng, chọn cổng khác bằng <code>--port</code>.</td></tr>
+      <tr><td><code>dfw review</code>: phím comment không chạy</td><td>Phím mặc định là <kbd>Alt</kbd>/<kbd>Option</kbd><kbd>C</kbd>, không chạy khi đang gõ trong ô nhập. Xem hoặc đổi bằng <code>dfw config get review.shortcut</code> / <code>set</code>; <code>off</code> thì chỉ còn nút <b>Comment</b>.</td></tr>
+      <tr><td>Comment trên app không có file:dòng</td><td>App chưa có <code>code-inspector-plugin</code>, hoặc đang chạy bản build production. <code>dfw inspector setup</code> xem cần đổi gì; sau G3 thì <code>--write</code>, cài, khởi động lại dev server.</td></tr>
+      <tr><td>Penpot không tải được plugin, hoặc Send lỗi</td><td>Studio phải đang chạy (<code>dfw penpot plugin</code> in đúng địa chỉ). Trình duyệt chặn 127.0.0.1 thì dùng Load export file / Download changes và <code>dfw penpot import</code>.</td></tr>
     </tbody>
   </table>
+  <h3 id="limits">Giới hạn đã biết</h3>
+  <ul>
+    <li><b>Cổng ghi file</b> chặn Edit/Write/MultiEdit/NotebookEdit. Lệnh shell vẫn có thể ghi file; skill cấm việc đó nhưng không có gì chặn cứng.</li>
+    <li><b>Impeccable chưa hoàn toàn offline.</b> Lệnh dfw chạy (<code>impeccable detect</code>) không gọi mạng; telemetry và kiểm tra cập nhật đã tắt. Còn hai lời gọi: tải engine một lần (GitHub, kiểm sha256), và khi luồng thiết kế mới của chính Impeccable chạy, một request ẩn danh tới <code>impeccable.style/api/roll</code> mang khoá ngẫu nhiên, không có dữ liệu project. Chi tiết: mục 10 và <a href="impeccable-network.md"><code>docs/impeccable-network.md</code></a>.</li>
+    <li><b>Kéo thả và đổi kích thước có ràng buộc:</b> đổi thứ tự giữa các anh em flex/grid, đổi kích thước bám theo cột grid và token; cố ý không có đặt vị trí tự do (thiết kế là bố cục co giãn sẽ thành code thật). Thả vào khung chỉ làm được với khung flex/grid rỗng có <code>data-dfw-id</code>. Đổi bố cục kiểu khác (grid mới, khung lồng nhau, bố cục riêng của master) qua comment hoặc code. Màu và chữ đổi trong design system (token, master), do Claude hoặc tự tay.</li>
+    <li><b>Penpot là cầu nối tuỳ chọn,</b> không phải nguồn sự thật thứ hai: sửa trong Penpot về thành comment cho Claude áp, không thành HTML. Plugin theo API có tài liệu của Penpot nhưng mới test trên dữ liệu mẫu (CI không có Penpot chạy).</li>
+  </ul>
+  <p>Các giới hạn khác nằm ở từng mục: review app thật mới test bằng project mẫu và trình duyệt ẩn, chưa hỗ trợ trang bắt buộc Trusted Types (mục 13); OpenCode, Codex, Cursor chạy qua MCP nên cổng duyệt không chặn cứng (mục 18.4).</p>
 </section>
 
-<!-- 24 -->
+<!-- 25 -->
 <section id="dev">
-  <h2><small>Hướng dẫn</small>24. Phát triển và phát hành</h2>
+  <h2><small>Hướng dẫn</small>25. Phát triển và phát hành</h2>
   <pre><code>npm run build            # core + adapter → plugins/dfw; 7 skill; marketplace; notices
 npm run build:check      # plugins/ có khớp nguồn không
-npm test                 # unit test
-npm run test:e2e         # e2e Studio (cần Playwright, chỉ dev)
+npm test                 # unit test (115 test, ~8 s; vài test cần Chrome, máy không có thì bỏ qua)
+npm run test:e2e         # e2e Studio (cần Playwright, chỉ dev; DFW_BROWSER chọn Chrome): canvas, comment, Present, kéo thả, đổi kích thước, về auto
 npm run validate         # kiểm marketplace
 npm run skills -- status | check | propose &lt;id&gt; | apply &lt;id&gt; | rollback &lt;id&gt;
 node scripts/build-binary.mjs   # binary cho máy hiện tại vào dist/</code></pre>
   <h3>Phát hành một phiên bản</h3>
   <ol class="steps">
     <li><b>Nâng phiên bản</b>Ở <code>core/manifest.json</code> và <code>package.json</code> (marketplace và manifest từng host sinh ra khi build); rồi <code>npm run build</code>.</li>
-    <li><b>PR</b>CI <code>validate.yml</code> chạy test, build --check, validate. Merge vào main.</li>
+    <li><b>PR</b>CI <code>validate.yml</code> chạy test, build --check, validate, và job <code>e2e</code> của Studio. Merge vào main.</li>
     <li><b>Tag</b><code>git tag v0.5.1 &amp;&amp; git push origin v0.5.1</code>. Tag phải khớp phiên bản plugin, CI kiểm.</li>
     <li><b>CI release</b><code>release-binaries.yml</code> build 5 binary, chạy thử, tạo release kèm <code>SHA256SUMS</code>.</li>
     <li><b>Người dùng cập nhật</b>Chạy lại <code>dfw install</code> (cập nhật marketplace, plugin, tải binary mới).</li>

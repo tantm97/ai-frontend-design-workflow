@@ -32,6 +32,15 @@
       "with": "#!/bin/sh\n# dfw-marketplace overlay: telemetry, update checks and hooks off unless the user overrides them.\n: \"${DO_NOT_TRACK:=1}\"; : \"${IMPECCABLE_NO_UPDATE_CHECK:=1}\"; : \"${IMPECCABLE_HOOK_DISABLED:=1}\"\nexport DO_NOT_TRACK IMPECCABLE_NO_UPDATE_CHECK IMPECCABLE_HOOK_DISABLED\n",
       "min": 1,
       "why": "Applies the approved privacy defaults to every invocation, including ones the model runs from the skill text."
+    },
+    {
+      "op": "replace",
+      "file": "skills/impeccable/scripts/impeccable.cmd",
+      "pattern": "^@echo off\\r\\nsetlocal\\r\\n",
+      "flags": "",
+      "with": "@echo off\r\nsetlocal\r\nrem dfw-marketplace overlay: telemetry, update checks and hooks off unless the user overrides them.\r\nif not defined DO_NOT_TRACK set \"DO_NOT_TRACK=1\"\r\nif not defined IMPECCABLE_NO_UPDATE_CHECK set \"IMPECCABLE_NO_UPDATE_CHECK=1\"\r\nif not defined IMPECCABLE_HOOK_DISABLED set \"IMPECCABLE_HOOK_DISABLED=1\"\r\n",
+      "min": 1,
+      "why": "Windows twin of the sh launcher defaults; after setlocal so they reach the engine process without leaking into the caller shell."
     }
   ]
 }

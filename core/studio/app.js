@@ -785,7 +785,9 @@ function renderInspector() {
     <dt>Size</dt><dd>${Math.round(sel.rect[2])} × ${Math.round(sel.rect[3])}</dd>
     ${sel.target.a11y?.role ? `<dt>Role</dt><dd>${esc(sel.target.a11y.role)}${sel.target.a11y.name ? ` “${esc(sel.target.a11y.name.slice(0, 60))}”` : ''}</dd>` : ''}
   </dl>${sel.textEditable && editable ? '<div class="btn-row"><button type="button" class="btn" data-act="edit-text">Edit text</button><span class="note" style="margin:0;align-self:center">or double-click it</span></div>' : ''}${
-    editable && own.id ? `<p class="note">Layout: drag to reorder among flex/grid siblings (<kbd>Alt</kbd>+arrows); drag the handles to resize (<kbd>Alt</kbd><kbd>Shift</kbd>+arrows), snapped to grid columns or tokens${layoutScope(f).scope ? `. Resizes here apply at ${esc(layoutScope(f).scope)}` : ''}.</p>` : ''
+    editable && own.id
+      ? `<p class="note">Layout: drag to reorder among flex/grid siblings or into an empty flex/grid container (<kbd>Alt</kbd>+arrows); drag the handles to resize (<kbd>Alt</kbd><kbd>Shift</kbd>+arrows), snapped to grid columns or tokens${layoutScope(f).scope ? `. Resizes here apply at ${esc(layoutScope(f).scope)}` : ''}. Double-click a handle or press <kbd>Alt</kbd><kbd>Shift</kbd><kbd>0</kbd> to reset.</p><div class="btn-row"><button type="button" class="btn small" data-act="layout-reset" title="Remove this element's Studio layout rule${layoutScope(f).scope ? ` at ${esc(layoutScope(f).scope)}` : ''} (back to the screen's own layout)">Reset size to auto${layoutScope(f).scope ? ` (${esc(layoutScope(f).scope)})` : ''}</button></div>`
+      : ''
   }</div>`);
   if (own.comp) {
     const def = S.components.get(own.comp);
@@ -828,6 +830,7 @@ $('#inspector').addEventListener('click', (e) => {
   const f = S.frames.get(sel?.key);
   if (b.dataset.act === 'master') return goToMaster(sel.own.comp);
   if (b.dataset.act === 'edit-text') return post(f, { type: 'dfw:edit' });
+  if (b.dataset.act === 'layout-reset') return post(f, { type: 'dfw:layout-key', key: 'reset' });
   if (b.dataset.act === 'comment') return openComposer(sel, f, '');
   if (b.dataset.ask != null) {
     const r = sel.inspect[Number(b.dataset.ask)];
@@ -859,10 +862,15 @@ function layoutScope(f) {
 }
 
 async function edit(f, op, label = '') {
+  // A resize is checked in the frame once it reloads with the new source (a stronger screen rule can still win).
+  const verify = op.op === 'layout' && op.prop && op.value != null ? { id: op.id, prop: op.prop } : null;
+  f.pendingVerify = verify;
   try {
     const r = await api('/__dfw/api/edit', { method: 'POST', body: JSON.stringify({ file: f.file, ...op }) });
+    if (!r.changed && f.pendingVerify === verify) f.pendingVerify = null;
     toast(r.changed ? `${label ? `${label}. ` : ''}Saved to ${r.file}:${r.line}  (⌘Z to undo)` : 'No change.');
   } catch (e) {
+    f.pendingVerify = null;
     toast(e.message);
     reloadFrame(f);
   }
@@ -913,6 +921,10 @@ window.addEventListener('message', (e) => {
       post(f, { type: 'dfw:tokens', vars: S.tokens });
       post(f, { type: 'dfw:pins', pins: pinsFor(f) });
       post(f, { type: 'dfw:layout', enabled: !f.system && !!f.file, scope: layoutScope(f).scope });
+      if (f.pendingVerify) {
+        post(f, { type: 'dfw:layout-verify', ...f.pendingVerify });
+        f.pendingVerify = null;
+      }
       if (f.pendingSelect) {
         post(f, { type: 'dfw:select-id', ...f.pendingSelect });
         f.pendingSelect = null;
@@ -1015,11 +1027,15 @@ window.addEventListener('message', (e) => {
       const { type, label, ...op } = d;
       // Resizes are breakpoint-aware; reordering changes the source order, so it applies at every width.
       if (op.op === 'layout') op.maxWidth = layoutScope(f).maxWidth;
+      if (op.prop == null) delete op.prop; // reset: the whole rule at this scope
       edit(f, op, label + (op.op === 'layout' && layoutScope(f).scope ? ` (${layoutScope(f).scope})` : ''));
       break;
     }
     case 'dfw:toast':
       toast(d.message);
+      break;
+    case 'dfw:layout-conflict':
+      S.layoutConflict = { key: f.key, ...d }; // for tests and the inspector note
       break;
     case 'dfw:focus':
       if (!$('#composer').hidden && S.mode !== 'comment') closeComposer();
@@ -1409,9 +1425,9 @@ function handleKey(d) {
   if (mod && (key === '=' || key === '+')) return zoomStep(1);
   if (mod && key === '-') return zoomStep(-1);
   if (mod && key === '0') return zoomCenter(1);
-  if (d.alt && !mod && key.startsWith('Arrow') && S.sel && S.mode === 'select') {
+  if (d.alt && !mod && (key.startsWith('Arrow') || (d.shift && d.code === 'Digit0')) && S.sel && S.mode === 'select') {
     const f = S.frames.get(S.sel.key);
-    if (f && !f.system && f.file) post(f, { type: 'dfw:layout-key', key, shift: d.shift });
+    if (f && !f.system && f.file) post(f, { type: 'dfw:layout-key', key: key.startsWith('Arrow') ? key : 'reset', shift: d.shift });
     return;
   }
   if (mod || d.alt) return;

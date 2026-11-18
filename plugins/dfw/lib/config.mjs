@@ -35,6 +35,11 @@ export const DEFAULTS = {
       { id: 'mobile', label: 'Mobile', width: 390, height: 844 },
     ],
   },
+  review: {
+    // dfw review: key that toggles comment mode on the running app ("off": the Comment button only).
+    // Alt/Option+C rather than C, so the app's own single-key shortcuts keep working.
+    shortcut: 'alt+c',
+  },
   accessibility: { standard: 'WCAG 2.2', level: 'AA' },
   skills: {
     // Optional skills that must be enabled per project.

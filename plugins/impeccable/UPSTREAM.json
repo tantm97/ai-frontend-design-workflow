@@ -33,6 +33,11 @@
       "op": "replace",
       "file": "skills/impeccable/scripts/impeccable",
       "why": "Applies the approved privacy defaults to every invocation, including ones the model runs from the skill text."
+    },
+    {
+      "op": "replace",
+      "file": "skills/impeccable/scripts/impeccable.cmd",
+      "why": "Windows twin of the sh launcher defaults; after setlocal so they reach the engine process without leaking into the caller shell."
     }
   ],
   "mode": "plugin"

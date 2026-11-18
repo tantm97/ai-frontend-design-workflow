@@ -1,0 +1,35 @@
+{
+  "schema": "dfw-penpot-changes/1",
+  "exportId": "(set by the test)",
+  "pushedAt": "2026-11-16T12:00:00.000Z",
+  "fileName": "Fixture",
+  "boards": [],
+  "missingBoards": [],
+  "components": [
+    {
+      "key": "button|primary|",
+      "name": "button / primary",
+      "layers": [
+        { "root": true, "path": "main:button|primary|#0.1", "name": "items.add", "kind": "frame", "x": 0, "y": 0, "w": 97.14, "h": 48, "fills": [{ "color": "#1C1B1A", "opacity": 1 }], "strokes": [], "radius": [8, 8, 8, 8] },
+        { "path": "main:button|primary|#0.1.0", "name": "text", "kind": "text", "x": 17, "y": 16, "w": 90, "h": 17, "characters": "Add to stock", "fills": [{ "color": "#ffffff", "opacity": 1 }], "strokes": [] }
+      ],
+      "added": [
+        { "name": "icon", "kind": "rect", "x": 4, "y": 16, "w": 10, "h": 10, "fills": [{ "color": "#ffffff", "opacity": 1 }] }
+      ]
+    },
+    {
+      "key": "button|ghost|",
+      "name": "button / outline",
+      "layers": [
+        { "root": true, "path": "main:button|ghost|#0.2", "name": "items.export", "kind": "frame", "x": 0, "y": 0, "w": 80.25, "h": 40, "fills": [], "strokes": [{ "color": "#1c1b1a", "opacity": 1, "width": 1 }], "radius": [6, 6, 6, 6] },
+        { "path": "main:button|ghost|#0.2.0", "name": "label", "kind": "text", "x": 9, "y": 11, "w": 46.25, "h": 17, "characters": "Export", "fills": [{ "color": "#1c1b1a", "opacity": 1 }], "strokes": [] }
+      ],
+      "added": []
+    }
+  ],
+  "missingComponents": [],
+  "comments": [
+    { "seq": 3, "resolved": false, "page": "dfw components", "boardKey": null, "componentKey": "button|primary|", "x": 10, "y": 10, "comments": [{ "content": "Primary should feel heavier.", "user": "Designer", "date": "2026-11-16T11:30:00Z" }] }
+  ],
+  "warnings": []
+}
