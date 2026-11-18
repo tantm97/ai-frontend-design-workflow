@@ -14,5 +14,5 @@
     "resolveJsonModule": true
   },
   "include": ["core/studio/**/*.js", "tests/e2e/**/*.mjs", "tests/unit/studio-*.test.mjs", "types/**/*.d.ts"],
-  "exclude": ["node_modules", "plugins", "native"]
+  "exclude": ["node_modules", "plugins", "native", "core/studio/overlay.js", "core/studio/live.js"]
 }

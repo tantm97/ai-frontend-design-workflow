@@ -21,10 +21,11 @@
     "knowledge": "node scripts/knowledge.mjs",
     "bench": "node tests/bench/run.mjs",
     "lint": "npm run lint:eslint && npm run lint:format && npm run lint:types",
-    "format": "prettier --write core/studio tests/e2e \"tests/unit/studio-{app,overlay,live}-*.test.mjs\" eslint.config.js types",
-    "lint:eslint": "eslint core/studio tests/e2e eslint.config.js",
-    "lint:format": "prettier --check core/studio tests/e2e \"tests/unit/studio-{app,overlay,live}-*.test.mjs\" eslint.config.js types",
-    "lint:types": "tsc -p tsconfig.json"
+    "format": "prettier --write core/studio tests/e2e scripts/build-overlay.mjs eslint.config.js types",
+    "lint:eslint": "eslint core/studio tests/e2e scripts/build-overlay.mjs eslint.config.js",
+    "lint:format": "prettier --check core/studio tests/e2e scripts/build-overlay.mjs eslint.config.js types",
+    "lint:types": "tsc -p tsconfig.json",
+    "build:overlay": "node scripts/build-overlay.mjs"
   },
   "bin": {
     "ai-frontend-design-workflow": "scripts/install.mjs"
