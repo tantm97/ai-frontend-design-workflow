@@ -17,10 +17,10 @@ jobs:
   verify:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
       - name: Tagged commit is on main
@@ -49,8 +49,8 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
       - run: npm ci
@@ -78,7 +78,7 @@ jobs:
           node -e "console.log(require('url').pathToFileURL(process.argv[1]).href)" "$RUNNER_TEMP/t.html" > "$RUNNER_TEMP/url"
           "$bin" shoot --url "$(cat "$RUNNER_TEMP/url")" --bp desktop --out "$RUNNER_TEMP/t.png"
           test -s "$RUNNER_TEMP/t.png"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: dfw-${{ matrix.target }}
           path: dist/dfw-*
@@ -91,7 +91,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: dist
           merge-multiple: true
