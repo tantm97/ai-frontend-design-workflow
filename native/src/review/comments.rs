@@ -2,6 +2,8 @@
 //! contract, `schemas/feedback.schema.json`). One JSON file per review session under
 //! `.dfw/reviews/`. Any provider (the Studio overlay, the Penpot bridge, the live review proxy)
 //! writes the same shape.
+//!
+//! Over 800 lines only with its tests (the ported cases of the JavaScript tests sit next to the code).
 
 use std::fs;
 use std::io;
@@ -130,21 +132,21 @@ pub fn new_session(root: &Path, design_version: Option<&str>) -> Result<Session,
 }
 
 fn new_session_unlocked(root: &Path, design_version: Option<&str>) -> Result<Session, DfwError> {
-    // The id is the real time to the second (not DFW_NOW), as in Node: two sessions started in
-    // the same second share a file, and the second one replaces the first.
-    let now = SystemTime::now()
+    // The id is the real time to the second (not DFW_NOW), as in Node. When that file exists,
+    // move on one second at a time until the name is free, so a second round in the same second
+    // never replaces the first.
+    let reviews = project_paths(root).reviews;
+    let mut t = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis() as i64)
         .unwrap_or(0);
-    let iso = iso_from_millis(now);
-    let stamp: String = iso
-        .split('.')
-        .next()
-        .unwrap_or_default()
-        .chars()
-        .filter(|c| !matches!(c, '-' | ':'))
-        .collect();
-    let id = format!("rv_{stamp}");
+    let id = loop {
+        let id = format!("rv_{}", session_stamp(t));
+        if !reviews.join(format!("{id}.json")).exists() {
+            break id;
+        }
+        t += 1000;
+    };
     let p = project_paths(root);
     let state = read_json(&p.state, Some(json!({})))?;
     if state.is_null() {
@@ -181,6 +183,17 @@ fn new_session_unlocked(root: &Path, design_version: Option<&str>) -> Result<Ses
     let file = p.reviews.join(format!("{id}.json"));
     write_json(&file, &session)?;
     Ok(Session { file, session })
+}
+
+/// `2026-11-18T10:20:30.123Z` as `20261118T102030`.
+fn session_stamp(millis: i64) -> String {
+    let iso = iso_from_millis(millis);
+    iso.split('.')
+        .next()
+        .unwrap_or_default()
+        .chars()
+        .filter(|c| !matches!(c, '-' | ':'))
+        .collect()
 }
 
 fn comments_of(session: &Value) -> Result<&Vec<Value>, DfwError> {
@@ -224,15 +237,28 @@ fn next_id(root: &Path) -> Result<String, DfwError> {
     Ok(format!("fb_{:0>3}", js_number(max + 1.0)))
 }
 
+/// `safeDesignFile(f)`: a design file name from input (Studio body, Penpot JSON): relative, no
+/// `..` segment, no drive or NUL.
+pub fn safe_design_file(f: &str) -> bool {
+    let b = f.as_bytes();
+    let rooted = matches!(b.first(), Some(b'/' | b'\\'));
+    let drive = b.len() >= 2 && b[0].is_ascii_alphabetic() && b[1] == b':';
+    !f.is_empty()
+        && !rooted
+        && !drive
+        && !f.contains('\0')
+        && !f.split(['/', '\\']).any(|p| p == "..")
+}
+
 /// `locateSource(root, designFile, dfwId)`: `design/<file>:<line>` of `data-dfw-id="<id>"` in a
 /// design file, for source mapping; the file alone when the id is not in it; `None` when the
-/// file does not exist. Only reads; the file name is not checked against the project.
+/// file does not exist or its name is not a safe design file name.
 pub fn locate_source(
     root: &Path,
     design_file: Option<&str>,
     dfw_id: Option<&str>,
 ) -> Result<Option<String>, DfwError> {
-    let Some(design_file) = design_file.filter(|f| !f.is_empty()) else {
+    let Some(design_file) = design_file.filter(|f| safe_design_file(f)) else {
         return Ok(None);
     };
     let abs = project_paths(root).design.join(design_file);
@@ -269,15 +295,10 @@ fn add_comment_unlocked(root: &Path, input: &Value) -> Result<Value, DfwError> {
     let Some(Session { file, mut session }) = current_session(root, true)? else {
         return Err(DfwError::internal("No review session."));
     };
-    let design_file = match truthy(input.get("file")) {
-        None => None,
-        Some(Value::String(f)) => Some(f.as_str()),
-        Some(_) => {
-            return Err(DfwError::internal(
-                "The \"path\" argument must be of type string.",
-            ))
-        }
-    };
+    let design_file = input
+        .get("file")
+        .and_then(Value::as_str)
+        .filter(|f| safe_design_file(f));
     let mut target = js_spread(truthy(input.get("target")));
     if truthy(target.get("source")).is_none() {
         let dfw_id = truthy(target.get("dfwId")).map(|id| js_str(Some(id)));
@@ -416,7 +437,9 @@ fn update_comment_unlocked(
     let message = update.message.clone().filter(js_truthy);
     let by = update.by.clone().unwrap_or_else(|| "claude".into());
     let current = comment.get("status").cloned();
-    if let Some(status) = status.filter(|s| current.as_ref().and_then(Value::as_str) != Some(s)) {
+    // The status the comment already has is not a transition: it is refused like any other one
+    // not in NEXT.
+    if let Some(status) = status {
         if !STATUSES.contains(&status) {
             return Err(DfwError::new(format!("Unknown status \"{status}\".")));
         }
@@ -613,8 +636,11 @@ mod tests {
             json!({ "at": c["updatedAt"], "by": "claude", "message": "Which one?" })
         );
         assert_eq!(status(), "open");
-        // The same status again is not a transition.
-        go("open", None, None).unwrap();
+        // The same status again is refused like any move not in NEXT.
+        assert_eq!(
+            go("open", None, None).unwrap_err().message(),
+            "Comment fb_001: cannot go from \"open\" to \"open\" (allowed: acknowledged, fixed, dismissed)."
+        );
         for (from, allowed) in NEXT {
             for to in STATUSES {
                 // Bring the comment to `from` by a legal path, then try `to`.
@@ -633,11 +659,7 @@ mod tests {
                     update_comment(&root, cid, &update(step, Some("m"), Some("user"))).unwrap();
                 }
                 let result = update_comment(&root, cid, &update(to, Some("m"), Some("user")));
-                assert_eq!(
-                    result.is_ok(),
-                    to == from || allowed.contains(&to),
-                    "{from} -> {to}"
-                );
+                assert_eq!(result.is_ok(), allowed.contains(&to), "{from} -> {to}");
             }
         }
         let fixed = go("fixed", Some("lg size"), None).unwrap();
@@ -660,6 +682,135 @@ mod tests {
         );
         let shot = set_comment_screenshot(&root, "fb_001", ".dfw/shots/fb_001.png").unwrap();
         assert_eq!(shot["screenshot"], ".dfw/shots/fb_001.png");
+    }
+
+    /// a: review rounds started in the same second get different session files
+    /// (tests/unit/node-stable.test.mjs)
+    #[test]
+    fn review_rounds_started_in_the_same_second_get_different_session_files() {
+        let root = project("comments-same-second");
+        let first = new_session(&root, None).unwrap();
+        add_comment(&root, &json!({ "comment": "kept" })).unwrap();
+        let ids: Vec<String> = [
+            first,
+            new_session(&root, None).unwrap(),
+            new_session(&root, None).unwrap(),
+        ]
+        .iter()
+        .map(|s| s.session["id"].as_str().unwrap().to_string())
+        .collect();
+        let unique: std::collections::HashSet<&String> = ids.iter().collect();
+        assert_eq!(unique.len(), 3, "{ids:?}");
+        let form = regex::Regex::new(r"^rv_\d{8}T\d{6}$").unwrap();
+        assert!(
+            ids.iter().all(|id| form.is_match(id)),
+            "the id keeps its form"
+        );
+        let mut sorted = ids.clone();
+        sorted.sort();
+        assert_eq!(sorted, ids, "file names sort in creation order");
+        let comments: Vec<Value> = all_comments(&root)
+            .unwrap()
+            .iter()
+            .map(|c| c["comment"].clone())
+            .collect();
+        assert_eq!(
+            comments,
+            [json!("kept")],
+            "the first round and its comment survive"
+        );
+        assert_eq!(session_files(&root).unwrap().len(), 3);
+    }
+
+    /// e: a comment file or snapshot version from input never leaves design/
+    /// (tests/unit/node-stable.test.mjs; the comment part)
+    #[test]
+    fn a_comment_file_from_input_never_leaves_design() {
+        let root = project("comments-file");
+        fs::write(root.join("outside.html"), "<p data-dfw-id=\"a\">x</p>").unwrap();
+        fs::create_dir_all(root.join("design/screens/home")).unwrap();
+        fs::write(
+            root.join("design/screens/home/a.html"),
+            "<main>\n<p data-dfw-id=\"a\">x</p>\n</main>",
+        )
+        .unwrap();
+        let abs = root.join("outside.html").display().to_string();
+        let bad = [
+            json!("../outside.html"),
+            json!("screens/../../outside.html"),
+            json!("screens\\..\\..\\outside.html"),
+            json!(abs),
+            json!("C:\\outside.html"),
+            json!({ "a": 1 }),
+        ];
+        for file in bad {
+            if let Some(f) = file.as_str() {
+                assert_eq!(
+                    locate_source(&root, Some(f), Some("a")).unwrap(),
+                    None,
+                    "{f}"
+                );
+            }
+            let c = add_comment(
+                &root,
+                &json!({ "comment": "x", "file": file, "target": { "dfwId": "a" } }),
+            )
+            .unwrap();
+            assert_eq!(c["file"], Value::Null, "{file}");
+            assert_eq!(c["target"]["source"], Value::Null, "{file}");
+        }
+        let ok = add_comment(
+            &root,
+            &json!({ "comment": "x", "file": "screens/home/a.html", "target": { "dfwId": "a" } }),
+        )
+        .unwrap();
+        assert_eq!(ok["file"], "design/screens/home/a.html");
+        assert_eq!(ok["target"]["source"], "design/screens/home/a.html:2");
+        assert!(!safe_design_file("a\0b") && !safe_design_file("") && safe_design_file("..x.html"));
+    }
+
+    /// i: setting the status a comment already has is refused (tests/unit/node-stable.test.mjs)
+    #[test]
+    fn setting_the_status_a_comment_already_has_is_refused() {
+        let root = project("comments-same-status");
+        add_comment(&root, &json!({ "comment": "x" })).unwrap();
+        let id = Some("fb_001");
+        update_comment(&root, id, &update("fixed", Some("done"), None)).unwrap();
+        update_comment(&root, id, &update("resolved", None, Some("user"))).unwrap();
+        let err = update_comment(
+            &root,
+            id,
+            &update("resolved", Some("again"), Some("claude")),
+        )
+        .unwrap_err();
+        assert!(err
+            .message()
+            .contains("cannot go from \"resolved\" to \"resolved\" (allowed: reopened)"));
+        let err = update_comment(&root, id, &update("resolved", None, Some("user"))).unwrap_err();
+        assert!(err
+            .message()
+            .contains("cannot go from \"resolved\" to \"resolved\""));
+        assert_eq!(
+            all_comments(&root).unwrap()[0]["thread"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1,
+            "no message was added"
+        );
+        update_comment(
+            &root,
+            id,
+            &update("", Some("a reply without a status still works"), None),
+        )
+        .unwrap();
+        assert_eq!(
+            all_comments(&root).unwrap()[0]["thread"]
+                .as_array()
+                .unwrap()
+                .len(),
+            2
+        );
     }
 
     #[test]
