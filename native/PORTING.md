@@ -34,7 +34,7 @@ Set the status to `done` in the same commit that registers the commands as nativ
 | `core/lib/lighthouse.mjs` | `tools/lighthouse` |  | tools | done (its caller, `check`, is not) |
 | `core/lib/lint.mjs` | `design/lint` |  | design | todo |
 | `core/lib/live.mjs` | `studio/live_proxy` |  | studio | todo |
-| `core/lib/locate.mjs` | `review/locate` |  | review | done (no caller yet: check runner and doctor, tools group) |
+| `core/lib/locate.mjs` | `review/locate` |  | review | done, with the engine lookup of 0.5.2 (`resolveEngine`, `verifyEngine`, `engineAssets`); callers: doctor; the check runner (tools group) is not ported, `launcherCommand` goes with it |
 | `core/lib/mcp.mjs` | `tools/mcp` | install and uninstall: tools/mcp_install | tools | done |
 | `core/lib/penpot-tokens.mjs` | `penpot/tokens` |  | penpot | todo |
 | `core/lib/penpot.mjs` | `penpot/export` | split by job: penpot/diff, penpot/import, penpot/live | penpot | todo |
