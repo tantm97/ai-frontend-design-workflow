@@ -36,6 +36,8 @@ if (shotsDir) fs.mkdirSync(shotsDir, { recursive: true });
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dfw-e2e-'));
 const env = { ...process.env, DFW_HOME: path.join(tmp, '.dfwhome') };
 const dfw = (...a) => execFileSync(process.execPath, [DFW, ...a], { cwd: tmp, env, encoding: 'utf8' });
+// DFW_BIN: the Studio is started (and stopped) by that binary instead of the Node CLI.
+const studio = (...a) => (process.env.DFW_BIN ? execFileSync(path.resolve(REPO, process.env.DFW_BIN), ['studio', ...a], { cwd: tmp, env, encoding: 'utf8' }) : dfw('studio', ...a));
 
 dfw('init', '--product', 'E2E Shop');
 fs.mkdirSync(path.join(tmp, 'design/screens/home'), { recursive: true });
@@ -90,7 +92,7 @@ m.states = ['empty', 'loading', 'error'];
 fs.writeFileSync(manifestFile, JSON.stringify(m, null, 2));
 
 const port = 4700 + Math.floor(Math.random() * 200);
-const started = dfw('studio', 'start', '--port', String(port));
+const started = studio('start', '--port', String(port));
 const url = started.match(/http:\/\/\S+/)[0];
 const { chromium } = pw;
 const executablePath = process.env.DFW_BROWSER || process.env.CHROME_PATH || undefined;
@@ -556,7 +558,7 @@ try {
   if (shotsDir && page) await page.screenshot({ path: path.join(shotsDir, 'studio-failure.png'), fullPage: true }).catch(() => {});
 } finally {
   await browser.close();
-  dfw('studio', 'stop');
+  studio('stop');
   if (!args.includes('--keep')) fs.rmSync(tmp, { recursive: true, force: true });
   else console.log(`kept ${tmp}`);
 }
