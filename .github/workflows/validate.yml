@@ -16,6 +16,10 @@ jobs:
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
+      - name: Dev tools (Prettier, ESLint, TypeScript; pinned in package-lock.json)
+        run: npm ci
+      - name: Lint, format and type check (Studio browser code and its tests)
+        run: npm run lint
       - name: Unit tests
         run: npm test
       - name: Committed plugins match a clean build from the lock

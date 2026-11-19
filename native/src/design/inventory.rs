@@ -18,8 +18,6 @@ use crate::core::paths::project_paths;
 use crate::core::util::write_json;
 
 /// Rules that block the DS gate (escalated from SHOULD).
-// For `dfw approve DS` (workflow group): this allow goes when it reads the list.
-#[allow(dead_code)]
 pub const DS_GATE_RULES: [&str; 4] = [
     "inventory-missing",
     "inventory-orphan",

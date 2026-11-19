@@ -14,6 +14,7 @@
 mod proxy;
 
 use std::path::Path;
+use std::sync::LazyLock;
 
 use regex::{Captures, Regex};
 use serde_json::Value;
@@ -26,6 +27,20 @@ use crate::core::js;
 use crate::core::js::regex::with_js_classes;
 use crate::core::paths::project_paths;
 use crate::core::util::{get_path, read_json};
+
+// Compiled once: every proxied page and response goes through them. A pattern that did not
+// compile would be a typo the tests catch; callers then leave the text as it is.
+static META_CSP: LazyLock<Option<Regex>> = LazyLock::new(|| {
+    with_js_classes(
+        r#"(?i)<meta(?-u:\b)[^>]*http-equiv\s*=\s*["']?content-security-policy["']?[^>]*>"#,
+    )
+    .ok()
+});
+static META_CONTENT: LazyLock<Option<Regex>> =
+    LazyLock::new(|| with_js_classes(r#"(?i)(?-u:\b)content\s*=\s*(?:"([^"]*)"|'([^']*)')"#).ok());
+static COOKIE_DOMAIN: LazyLock<Option<Regex>> =
+    LazyLock::new(|| with_js_classes(r"(?i);\s*domain\s*=\s*\.?([^;]*)").ok());
+static BODY_OPEN: LazyLock<Option<Regex>> = LazyLock::new(|| Regex::new(r"(?i)<body[^>]*>").ok());
 
 const LOCAL_HOSTS: [&str; 5] = ["localhost", "127.0.0.1", "::1", "[::1]", "0.0.0.0"];
 
@@ -308,12 +323,7 @@ pub fn patch_csp(value: &str, origin: &str, nonce: Option<&str>) -> String {
 
 /// `patchMetaCsp(html, opts)`: the same for `<meta http-equiv="Content-Security-Policy">`.
 pub fn patch_meta_csp(html: &str, origin: &str, nonce: Option<&str>) -> String {
-    let (Ok(meta), Ok(content)) = (
-        with_js_classes(
-            r#"(?i)<meta(?-u:\b)[^>]*http-equiv\s*=\s*["']?content-security-policy["']?[^>]*>"#,
-        ),
-        with_js_classes(r#"(?i)(?-u:\b)content\s*=\s*(?:"([^"]*)"|'([^']*)')"#),
-    ) else {
+    let (Some(meta), Some(content)) = (META_CSP.as_ref(), META_CONTENT.as_ref()) else {
         return html.to_string();
     };
     meta.replace_all(html, |tag: &Captures| {
@@ -337,7 +347,7 @@ pub fn patch_meta_csp(html: &str, origin: &str, nonce: Option<&str>) -> String {
 /// than the one the browser uses (127.0.0.1 vs localhost).
 pub fn fix_set_cookie(cookies: &[String], host: &str) -> Vec<String> {
     let h = host.to_lowercase();
-    let Ok(domain) = with_js_classes(r"(?i);\s*domain\s*=\s*\.?([^;]*)") else {
+    let Some(domain) = COOKIE_DOMAIN.as_ref() else {
         return cookies.to_vec();
     };
     cookies
@@ -367,10 +377,7 @@ pub fn inject_live(html: &str, nonce: Option<&str>, shortcut: &str) -> String {
     if let Some(i) = html.to_ascii_lowercase().find("</head>") {
         return format!("{}{tags}{}", &html[..i], &html[i..]);
     }
-    if let Some(m) = Regex::new(r"(?i)<body[^>]*>")
-        .ok()
-        .and_then(|r| r.find(html))
-    {
+    if let Some(m) = BODY_OPEN.as_ref().and_then(|r| r.find(html)) {
         return format!("{}{tags}{}", &html[..m.end()], &html[m.end()..]);
     }
     tags + html

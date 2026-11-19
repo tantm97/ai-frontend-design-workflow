@@ -11,7 +11,7 @@ use serde_json::{json, Value};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{env_nonempty, plugin_root};
-use crate::core::util::{to_json_compact, to_json_pretty};
+use crate::core::util::{to_json_compact, to_json_pretty, write_atomic};
 
 /// How a tool's config file holds its MCP servers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -234,8 +234,6 @@ fn installed_in(format: Format, file: &Path) -> bool {
 }
 
 /// `mcpInstalled(id)`: whether a tool's config already has the dfw server.
-// The doctor line of cli/tools.rs has its own copy until the wave is merged.
-#[allow(dead_code)]
 pub fn mcp_installed(id: &str) -> bool {
     MCP_TARGETS
         .iter()
@@ -276,7 +274,7 @@ fn install_into(
     if let Some(dir) = file.parent() {
         fs::create_dir_all(dir)?;
     }
-    fs::write(file, next)?;
+    write_atomic(file, next)?;
     let action = if remove {
         "removed dfw from"
     } else {

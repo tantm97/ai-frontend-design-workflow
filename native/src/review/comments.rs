@@ -397,8 +397,6 @@ fn find_comment(root: &Path, id: Option<&str>) -> Result<Found, DfwError> {
 
 /// `setCommentScreenshot(root, id, file)`: attach a screenshot taken after the comment was
 /// posted (dfw review shoots asynchronously).
-// Its caller is the live review proxy (studio group): this allow goes when that is ported.
-#[allow(dead_code)]
 pub fn set_comment_screenshot(root: &Path, id: &str, file: &str) -> Result<Value, DfwError> {
     locked(root, || {
         let mut found = find_comment(root, Some(id))?;

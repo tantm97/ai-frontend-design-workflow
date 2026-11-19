@@ -8,3 +8,4 @@ pub mod launch;
 pub mod layout_check;
 pub mod pixeldiff;
 pub mod screenshot;
+pub mod shoot;

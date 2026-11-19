@@ -12,8 +12,8 @@ use ureq::ResponseExt;
 
 use super::launch::browser_dir;
 use crate::core::error::DfwError;
+use crate::core::platform::{node_arch, node_platform};
 use crate::core::util::{to_json_compact, to_json_pretty};
-use crate::tools::binary::{node_arch, node_platform};
 
 const CFT_URL: &str = "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json";
 const DOWNLOAD_HOST: &str = "storage.googleapis.com";
@@ -36,8 +36,9 @@ fn cft_platform() -> Option<&'static str> {
 ///
 /// Stricter than `new URL()` in Node on purpose: a URL the WHATWG parser would first repair
 /// (backslashes, an empty user name, a percent-encoded host, tabs) is refused, never repaired.
-// Exported as in cdp.mjs; the download itself checks the index entry as it came (`checked`).
-#[allow(dead_code)]
+// The tests prove the URL rules with it; the download itself checks the index entry as it
+// came (`checked`).
+#[cfg(test)]
 pub fn checked_download_url(url: &str) -> Result<String, DfwError> {
     checked(&Value::String(url.to_string()))
 }

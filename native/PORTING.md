@@ -47,7 +47,7 @@ Set the status to `done` in the same commit that registers the commands as nativ
 | `core/lib/system.mjs` | `design/system` |  | design | done |
 | `core/lib/tokens.mjs` | `design/tokens` |  | design | done |
 | `core/lib/util.mjs` | `core/util` | paths: core/paths; DfwError: core/error; JavaScript value rules: core/js; child processes: core/process | core | done |
-| `core/studio/pages.mjs` | `studio/pages` |  | studio | done |
+| `core/studio/pages.mjs` | `design/pages` |  | studio | done |
 | `core/studio/server.mjs` | `studio/server` | split by job: studio/api, studio/watch (polling only: no OS watcher without a crate), studio/sse, studio/penpot_routes, studio/http (the HTTP/1.1 layer shared with the proxy); browser files embedded by `assets` | studio | done |
 
 Rust modules with no Node file of their own: `design/html` (the tokenizer, design decision 2, owner design, done),
@@ -68,7 +68,7 @@ guide) and core/manifest.json; nothing is read from the plugin folder, `DFW_PLUG
 | `cli/design.rs` | build, tokens, lint, check, system, style, type, palette, icons, fonts, blueprint (hidden: `__debug compose`, `__debug color`, `__debug lint`) | native |
 | `cli/edit.rs` | none (hidden: `__debug edit`, `undo`, `system-page`, `changed-screens`, `mark-checked`) | native |
 | `cli/studio.rs` | studio, review, __studio-server, __review-server | native |
-| `cli/browser.rs` | shoot, diff, layout (hidden: `__debug a11y`) | native |
+| `cli/browser.rs` | shoot (job list in `browser/shoot`), diff, layout (hidden: `__debug a11y`) | native |
 | `cli/penpot.rs` | penpot (export, plugin, import); `tokens export\|import`, called from `cli/design.rs` (hidden: `__debug penpot-build-export`, `__debug penpot-sync`) | native |
 | `cli/tools.rs` | inspector, install, uninstall, setup, doctor, mcp, stack, handoff (`cmdHandoff` of cli.mjs is `tools/handoff`) | native |
 | `cli/telemetry.rs` | telemetry (new: status, on, off, endpoint, show, flush; hidden: `__debug telemetry-build`) | native; the Node CLI has no such command |

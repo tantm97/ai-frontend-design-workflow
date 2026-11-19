@@ -19,7 +19,8 @@ penpot.ui.open('dfw bridge', `${STUDIO}/__dfw/penpot/ui.html`, { width: 360, hei
 
 penpot.ui.onMessage(async (msg) => {
   try {
-    if (msg && msg.type === 'build') penpot.ui.sendMessage({ type: 'built', stats: await build(msg.export, msg.images || {}, msg.options || {}) });
+    if (msg && msg.type === 'build')
+      penpot.ui.sendMessage({ type: 'built', stats: await build(msg.export, msg.images || {}, msg.options || {}) });
     else if (msg && msg.type === 'collect') penpot.ui.sendMessage({ type: 'changes', data: await collect() });
     else if (msg && msg.type === 'threads') penpot.ui.sendMessage({ type: 'threads', data: await liveThreads() });
     else if (msg && msg.type === 'reply') penpot.ui.sendMessage({ type: 'replied', done: await reply(msg.replies || []) });
@@ -63,7 +64,9 @@ function setFont(text, st) {
   try {
     const font = penpot.fonts.findByName(st.fontFamily);
     if (font) {
-      const v = (font.variants || []).find((x) => String(x.fontWeight) === String(st.fontWeight) && (x.fontStyle || 'normal') === (st.fontStyle || 'normal'));
+      const v = (font.variants || []).find(
+        (x) => String(x.fontWeight) === String(st.fontWeight) && (x.fontStyle || 'normal') === (st.fontStyle || 'normal'),
+      );
       font.applyToText(text, v);
       return;
     }
@@ -77,7 +80,14 @@ function paint(shape, l, ctx) {
     shape.fills = l.fills.map((f) => ({ fillColor: f.color, fillOpacity: f.opacity }));
     if (l.fills[0].token) applyToken(ctx.tokens, l.fills[0].token, shape, ctx.stats);
   } else if (shape.type !== 'text') shape.fills = [];
-  if (l.strokes) shape.strokes = l.strokes.map((s) => ({ strokeColor: s.color, strokeOpacity: s.opacity, strokeWidth: s.width, strokeStyle: s.style, strokeAlignment: 'inner' }));
+  if (l.strokes)
+    shape.strokes = l.strokes.map((s) => ({
+      strokeColor: s.color,
+      strokeOpacity: s.opacity,
+      strokeWidth: s.width,
+      strokeStyle: s.style,
+      strokeAlignment: 'inner',
+    }));
   if (l.radius) {
     shape.borderRadiusTopLeft = l.radius[0];
     shape.borderRadiusTopRight = l.radius[1];
@@ -86,7 +96,15 @@ function paint(shape, l, ctx) {
     if (l.radiusToken) applyToken(ctx.tokens, l.radiusToken, shape, ctx.stats);
   }
   if (l.shadows) {
-    shape.shadows = l.shadows.map((s) => ({ style: s.inset ? 'inner-shadow' : 'drop-shadow', offsetX: s.x, offsetY: s.y, blur: s.blur, spread: s.spread, hidden: false, color: { color: s.color.hex, opacity: s.color.opacity } }));
+    shape.shadows = l.shadows.map((s) => ({
+      style: s.inset ? 'inner-shadow' : 'drop-shadow',
+      offsetX: s.x,
+      offsetY: s.y,
+      blur: s.blur,
+      spread: s.spread,
+      hidden: false,
+      color: { color: s.color.hex, opacity: s.color.opacity },
+    }));
   }
   if (l.opacity !== undefined) shape.opacity = l.opacity;
 }
@@ -210,7 +228,8 @@ function override(shape, l, ox, oy, ctx, prefix) {
         match.x = ox + c.x;
         match.y = oy + c.y;
       }
-      if (c.kind !== 'svg' && (Math.abs(match.width - c.w) > 0.5 || Math.abs(match.height - c.h) > 0.5)) match.resize(Math.max(0.01, c.w), Math.max(0.01, c.h));
+      if (c.kind !== 'svg' && (Math.abs(match.width - c.w) > 0.5 || Math.abs(match.height - c.h) > 0.5))
+        match.resize(Math.max(0.01, c.w), Math.max(0.01, c.h));
       if (c.fills && c.kind !== 'text') match.fills = c.fills.map((f) => ({ fillColor: f.color, fillOpacity: f.opacity }));
     } catch (e) {
       ctx.stats.warnings.push(`override ${c.name}: ${e.message}`);
@@ -227,7 +246,10 @@ async function build(doc, images, options) {
   if (!doc || doc.schema !== 'dfw-penpot-export/1') throw new Error('Not a dfw Penpot export (run "dfw penpot export").');
   const stats = { pages: 0, boards: 0, updated: 0, layers: 0, components: 0, instances: 0, tokenLinks: 0, warnings: [] };
   const ctx = { tokens: tokenIndex(), images, mains: new Map(), stats };
-  if (!ctx.tokens.size) stats.warnings.push('No tokens in this file: import .dfw/penpot/tokens.penpot.json in the Tokens panel first to link colours to tokens.');
+  if (!ctx.tokens.size)
+    stats.warnings.push(
+      'No tokens in this file: import .dfw/penpot/tokens.penpot.json in the Tokens panel first to link colours to tokens.',
+    );
   const useInstances = options.components !== false;
   const update = Boolean(options.update);
   const old = update ? existing() : { boards: new Map(), pages: new Map(), mains: new Map() };
@@ -297,7 +319,10 @@ async function build(doc, images, options) {
       board.clipContent = true;
       board.fills = [{ fillColor: b.background.color, fillOpacity: b.background.opacity }];
       if (b.background.token) applyToken(ctx.tokens, b.background.token, board, stats);
-      board.setPluginData('dfw-board', JSON.stringify({ key: b.key, exportId: doc.id, screen: b.screen, variant: b.variant, breakpoint: b.breakpoint }));
+      board.setPluginData(
+        'dfw-board',
+        JSON.stringify({ key: b.key, exportId: doc.id, screen: b.screen, variant: b.variant, breakpoint: b.breakpoint }),
+      );
       for (const l of b.layers) await draw(l, board, board.x, board.y, ctx, '', useInstances);
       keys.push(b.key);
       stats.boards++;
@@ -370,7 +395,8 @@ async function liveThreads() {
   const file = penpot.currentFile;
   const ex = data(file, 'dfw-export');
   const out = { fileId: file ? file.id : null, exportId: ex ? ex.id : null, threads: [], warnings: [] };
-  for (const page of file.pages) for (const x of await pageThreads(page, out.warnings)) if (x.entry.boardKey || x.entry.componentKey) out.threads.push(x.entry);
+  for (const page of file.pages)
+    for (const x of await pageThreads(page, out.warnings)) if (x.entry.boardKey || x.entry.componentKey) out.threads.push(x.entry);
   return out;
 }
 
@@ -399,15 +425,25 @@ function fillOf(s) {
 
 function strokeOf(s) {
   const k = Array.isArray(s.strokes) ? s.strokes[0] : null;
-  return k && k.strokeColor ? { color: String(k.strokeColor).toLowerCase(), opacity: k.strokeOpacity === undefined ? 1 : k.strokeOpacity, width: k.strokeWidth === undefined ? 1 : k.strokeWidth } : null;
+  return k && k.strokeColor
+    ? {
+        color: String(k.strokeColor).toLowerCase(),
+        opacity: k.strokeOpacity === undefined ? 1 : k.strokeOpacity,
+        width: k.strokeWidth === undefined ? 1 : k.strokeWidth,
+      }
+    : null;
 }
 
 /** Fill, stroke and corner radii of a shape, as sent back (strokes/radius only matter for component masters). */
 function paintOf(s) {
   const fill = fillOf(s);
   const stroke = strokeOf(s);
-  const out = { fills: fill ? [fill] : Array.isArray(s.fills) ? [] : undefined, strokes: stroke ? [stroke] : Array.isArray(s.strokes) ? [] : undefined };
-  if (s.type !== 'text' && typeof s.borderRadiusTopLeft === 'number') out.radius = [s.borderRadiusTopLeft, s.borderRadiusTopRight, s.borderRadiusBottomRight, s.borderRadiusBottomLeft].map((v) => v || 0);
+  const out = {
+    fills: fill ? [fill] : Array.isArray(s.fills) ? [] : undefined,
+    strokes: stroke ? [stroke] : Array.isArray(s.strokes) ? [] : undefined,
+  };
+  if (s.type !== 'text' && typeof s.borderRadiusTopLeft === 'number')
+    out.radius = [s.borderRadiusTopLeft, s.borderRadiusTopRight, s.borderRadiusBottomRight, s.borderRadiusBottomLeft].map((v) => v || 0);
   return out;
 }
 
@@ -418,10 +454,23 @@ function walk(shape, board, out) {
     const box = { x: c.x - board.x, y: c.y - board.y, w: c.width, h: c.height };
     const fill = fillOf(c);
     if (meta && meta.path !== undefined) {
-      out.layers.push({ path: meta.path, name: c.name, kind: meta.kind, ...box, characters: c.type === 'text' ? c.characters : undefined, ...paintOf(c) });
+      out.layers.push({
+        path: meta.path,
+        name: c.name,
+        kind: meta.kind,
+        ...box,
+        characters: c.type === 'text' ? c.characters : undefined,
+        ...paintOf(c),
+      });
       if (meta.kind === 'svg') continue;
     } else {
-      out.added.push({ name: c.name, kind: c.type, ...box, characters: c.type === 'text' ? c.characters : undefined, fills: fill ? [fill] : undefined });
+      out.added.push({
+        name: c.name,
+        kind: c.type,
+        ...box,
+        characters: c.type === 'text' ? c.characters : undefined,
+        fills: fill ? [fill] : undefined,
+      });
       continue;
     }
     walk(c, board, out);
@@ -431,7 +480,20 @@ function walk(shape, board, out) {
 async function collect() {
   const file = penpot.currentFile;
   const ex = data(file, 'dfw-export');
-  const out = { schema: 'dfw-penpot-changes/1', fileId: file ? file.id : null, exportId: ex ? ex.id : null, pushedAt: new Date().toISOString(), fileName: file ? file.name : null, boards: [], missingBoards: [], components: [], missingComponents: [], comments: [], tokens: null, warnings: [] };
+  const out = {
+    schema: 'dfw-penpot-changes/1',
+    fileId: file ? file.id : null,
+    exportId: ex ? ex.id : null,
+    pushedAt: new Date().toISOString(),
+    fileName: file ? file.name : null,
+    boards: [],
+    missingBoards: [],
+    components: [],
+    missingComponents: [],
+    comments: [],
+    tokens: null,
+    warnings: [],
+  };
   const seen = new Set();
   for (const page of file.pages) {
     const boards = new Map();
@@ -461,7 +523,24 @@ async function collect() {
       mains.add(meta.key);
       if (!out.exportId) out.exportId = meta.exportId;
       const rootMeta = data(main, 'dfw');
-      const c = { key: meta.key, name: comp.name, layers: [{ root: true, path: rootMeta ? rootMeta.path : null, name: main.name, kind: rootMeta ? rootMeta.kind : 'frame', x: 0, y: 0, w: main.width, h: main.height, ...paintOf(main) }], added: [] };
+      const c = {
+        key: meta.key,
+        name: comp.name,
+        layers: [
+          {
+            root: true,
+            path: rootMeta ? rootMeta.path : null,
+            name: main.name,
+            kind: rootMeta ? rootMeta.kind : 'frame',
+            x: 0,
+            y: 0,
+            w: main.width,
+            h: main.height,
+            ...paintOf(main),
+          },
+        ],
+        added: [],
+      };
       walk(main, main, c);
       out.components.push(c);
     }
@@ -472,7 +551,11 @@ async function collect() {
   try {
     const cat = penpot.library.local.tokens;
     out.tokens = {
-      sets: cat.sets.map((s) => ({ name: s.name, active: s.active, tokens: s.tokens.map((t) => ({ name: t.name, type: t.type, value: t.value, description: t.description || undefined })) })),
+      sets: cat.sets.map((s) => ({
+        name: s.name,
+        active: s.active,
+        tokens: s.tokens.map((t) => ({ name: t.name, type: t.type, value: t.value, description: t.description || undefined })),
+      })),
       themes: cat.themes.map((th) => ({ name: th.name, group: th.group, sets: (th.activeSets || []).map((s) => s.name) })),
     };
   } catch (e) {

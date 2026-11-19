@@ -121,7 +121,7 @@ pub fn system_init(root: &Path, opts: &InitOptions) -> Result<SystemInit, DfwErr
     }
     let head_file = sys.join("head.html");
     if opts.force || !head_file.exists() {
-        fs::write(&head_file, head)?;
+        write_atomic(&head_file, head)?;
     }
     build_tokens(root)?;
     build_system(root)?;
@@ -234,7 +234,7 @@ pub fn system_options(root: &Path, names: &[String], fonts: &str) -> Result<Vec<
         },
         None => format!("{}\n{block}\n", js::trim(&current)),
     };
-    fs::write(&head_file, text)?;
+    write_atomic(&head_file, text)?;
     let options: Vec<String> = names.iter().map(|n| format!("opt-{n}")).collect();
     set_manifest_themes(&p.manifest, &options)?;
     let built = build_tokens(root)?;
@@ -262,16 +262,13 @@ pub fn system_choose(root: &Path, name: &str, fonts: &str) -> Result<String, Dfw
         };
         apply_style(root, name, fonts)?;
         if let Some(edited) = edited {
-            fs::write(&tok_file, edited)?;
+            write_atomic(&tok_file, edited)?;
         }
     } else {
         let (tokens, head) = preset_files(name)?;
-        if opt.exists() {
-            fs::copy(&opt, &tok_file)?;
-        } else {
-            write_atomic(&tok_file, &tokens)?;
-        }
-        fs::write(p.design.join("system").join("head.html"), head)?;
+        let tokens = if opt.exists() { fs::read(&opt)? } else { tokens.into_bytes() };
+        write_atomic(&tok_file, tokens)?;
+        write_atomic(&p.design.join("system").join("head.html"), head)?;
     }
     remove_options(&themes_dir)?;
     set_manifest_themes(&p.manifest, &[])?;

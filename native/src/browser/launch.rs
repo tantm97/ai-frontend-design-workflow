@@ -4,6 +4,22 @@
 //!
 //! Over 800 lines with its tests: a third of the file is the fake browser of cdp.test.mjs and
 //! the cases ported from it.
+//!
+//! Cleanup (`process-and-io.md` P5). Every exit dfw makes itself ends the browser and removes
+//! its profile: `Browser::close`, `Drop`, and the cleanup of a failed start. When dfw is killed
+//! instead, POSIX systems have the `sh` watchdog of [`guard_process`]. Windows has none today:
+//! the browser is started with `--remote-debugging-port=0`, so it does not notice that dfw is
+//! gone, and a child process outlives its parent there. A dfw that is killed (Task Manager,
+//! `taskkill /F`, the MCP tool timeout, a crash that skips `Drop`; `panic = "abort"` in release
+//! builds) leaves a headless browser running with its `dfw-browser-*` profile in `%TEMP%`
+//! until the user ends it; nothing removes old profiles later. A Job Object that kills its
+//! processes when dfw ends needs FFI (unsafe or a new crate, both refused). A std-only
+//! watchdog would work the same way as on POSIX: a helper process, for example
+//! `powershell -NoProfile -Command` reading its stdin to the end and then running
+//! `Stop-Process -Id <pid> -Force` and `Remove-Item -Recurse -Force <profile>`, holding a pipe
+//! whose write end only dfw has (Windows closes it when dfw ends, for any reason). It is not
+//! built: it costs a PowerShell start (hundreds of milliseconds) per launch and has no test
+//! on the Windows runner yet.
 
 use std::collections::hash_map::RandomState;
 use std::collections::HashMap;
@@ -149,8 +165,6 @@ pub enum BrowserStatus {
 
 impl BrowserStatus {
     /// `status.installed`.
-    // For the next browser groups (layout check, a11y, extract, Penpot export, Studio).
-    #[allow(dead_code)]
     pub fn installed(&self) -> bool {
         matches!(self, BrowserStatus::Installed(_))
     }
@@ -227,20 +241,6 @@ impl Browser {
     /// `newContext(opts)`.
     pub fn new_context(&self, opts: ContextOptions) -> Result<Context, DfwError> {
         Context::create(&self.conn, opts)
-    }
-
-    /// The DevTools connection, for browser-level commands.
-    // For the next browser groups (layout check, a11y, extract, Penpot export, Studio).
-    #[allow(dead_code)]
-    pub fn connection(&self) -> &Arc<Connection> {
-        &self.conn
-    }
-
-    /// Process id of the browser.
-    // For the next browser groups (layout check, a11y, extract, Penpot export, Studio).
-    #[allow(dead_code)]
-    pub fn pid(&self) -> u32 {
-        lock(&self.proc).id()
     }
 
     /// Whether the browser is ended and its profile removed if this process dies first.
@@ -386,7 +386,8 @@ fn guard_process(pid: u32, data_dir: &Path) -> Option<Guard> {
         .map(|watchdog| Guard { watchdog })
 }
 
-/// No watchdog off POSIX: `Browser::close` and `Drop` cover every exit dfw makes itself.
+/// No watchdog off POSIX: `Browser::close` and `Drop` cover every exit dfw makes itself; a
+/// killed dfw leaves the browser and its profile behind (see the module comment).
 #[cfg(not(unix))]
 fn guard_process(_pid: u32, _data_dir: &Path) -> Option<Guard> {
     None
@@ -399,13 +400,6 @@ impl Guard {
         let _ = self.watchdog.kill();
         let _ = self.watchdog.wait();
     }
-}
-
-/// `launch()`: start the browser [`find_browser`] picks and connect to it.
-// For the next browser groups (layout check, a11y, extract, Penpot export, Studio).
-#[allow(dead_code)]
-pub fn launch() -> Result<Browser, DfwError> {
-    launch_with(&LaunchOptions::default())
 }
 
 /// `launch({ timeoutMs, commandTimeoutMs })`: start a headless browser and connect to it.
@@ -591,13 +585,6 @@ impl Renderer {
         Ok(page)
     }
 
-    /// The browser behind the renderer.
-    // For the next browser groups (layout check, a11y, extract, Penpot export, Studio).
-    #[allow(dead_code)]
-    pub fn browser(&self) -> &Browser {
-        &self.browser
-    }
-
     /// `r.close()`: close the browser.
     pub fn close(&self) {
         self.browser.close();
@@ -605,8 +592,6 @@ impl Renderer {
 }
 
 /// `openRenderer()`: start a browser for a batch of renders.
-// For the next browser groups (layout check, a11y, extract, Penpot export, Studio).
-#[allow(dead_code)]
 pub fn open_renderer() -> Result<Renderer, DfwError> {
     open_renderer_with(&LaunchOptions::default())
 }
