@@ -2,6 +2,7 @@
 //! `.dfw/build/` (`buildComposed`).
 
 use super::*;
+use crate::core::util::write_atomic_inside;
 
 #[cfg(test)]
 /// The result of [`compose_file`].
@@ -52,7 +53,7 @@ pub fn build_system(root: &Path) -> Result<BuiltSystem, DfwError> {
         let file = sys.join("components.css");
         let css = components_css(&lib);
         if !file.exists() || js::read_text(&file)? != css {
-            fs::write(&file, css)?;
+            write_atomic_inside(root, &file, css)?;
             written.push(to_posix(&relative_path(root, &file)));
         }
     }
@@ -176,7 +177,7 @@ pub fn build_composed(root: &Path, rels: &[String]) -> Result<Vec<BuiltFile>, Df
         if let Some(at) = head {
             inlined.insert_str(at, &format!("\n<base href=\"{base_href}/\">"));
         }
-        fs::write(&out, inlined)?;
+        write_atomic_inside(root, &out, inlined)?;
         res.push(BuiltFile {
             rel: rel.clone(),
             out,

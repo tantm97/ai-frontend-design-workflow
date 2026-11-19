@@ -4,6 +4,7 @@ pub mod config;
 pub mod error;
 pub mod host;
 pub mod js;
+pub mod lock;
 pub mod paths;
 pub mod platform;
 pub mod process;

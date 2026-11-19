@@ -8,7 +8,8 @@ use super::tokens::Vars;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::js::regex::with_js_classes;
-use crate::design::compose::{escape_html as esc, ComponentDef};
+use crate::design::compose::ComponentDef;
+use crate::design::html::escape_html as esc;
 
 /// What [`describe_parts`] makes of a master's description.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

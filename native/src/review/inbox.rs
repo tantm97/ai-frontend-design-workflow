@@ -15,9 +15,9 @@ use serde_json::{json, Value};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::project_paths;
-use crate::core::util::{read_json, write_json};
+use crate::core::util::{read_json, write_json_inside};
 
-use super::comments::all_comments;
+use super::comments::{all_comments, locked, try_locked};
 
 /// How many delivery keys are kept.
 const MAX_DELIVERED: usize = 2000;
@@ -72,10 +72,15 @@ pub fn undelivered(root: &Path) -> Result<Vec<Value>, DfwError> {
 }
 
 /// `markDelivered(root, comments)`: remember that the agent was given these comment states.
+/// The read-modify-write of `.delivered.json` holds the reviews lock.
 pub fn mark_delivered(root: &Path, comments: &[Value]) -> Result<(), DfwError> {
     if comments.is_empty() {
         return Ok(());
     }
+    locked(root, || mark_delivered_unlocked(root, comments))
+}
+
+fn mark_delivered_unlocked(root: &Path, comments: &[Value]) -> Result<(), DfwError> {
     let mut seen = read_delivered(root)?;
     for c in comments {
         let k = Value::String(key(c));
@@ -84,7 +89,32 @@ pub fn mark_delivered(root: &Path, comments: &[Value]) -> Result<(), DfwError> {
         }
     }
     let skip = seen.len().saturating_sub(MAX_DELIVERED);
-    write_json(&delivered_file(root), &Value::Array(seen.split_off(skip)))
+    write_json_inside(
+        root,
+        &delivered_file(root),
+        &Value::Array(seen.split_off(skip)),
+    )
+}
+
+/// How long a hook waits for the reviews lock before it leaves the comments for the next call.
+const HOOK_LOCK_WAIT: Duration = Duration::from_millis(50);
+
+/// The undelivered comments, marked delivered in the same hold of the reviews lock, so two
+/// callers at once (two hooks, a hook and `dfw comments inbox`) never deliver one comment
+/// state twice. For a `hook`, a lock busy for [`HOOK_LOCK_WAIT`] gives an empty list: the
+/// comments come with the next call (hooks stay fast and fail open). Otherwise it waits as
+/// every writer does.
+pub fn take_undelivered(root: &Path, hook: bool) -> Result<Vec<Value>, DfwError> {
+    let take = || {
+        let list = undelivered(root)?;
+        mark_delivered_unlocked(root, &list)?;
+        Ok(list)
+    };
+    if hook {
+        Ok(try_locked(root, HOOK_LOCK_WAIT, take)?.unwrap_or_default())
+    } else {
+        locked(root, take)
+    }
 }
 
 /// `formatForClaude(comments)`: the comments as the text the agent reads, with what to do next.
@@ -181,9 +211,7 @@ pub fn wait_for_comments(root: &Path, options: WaitOptions) -> Result<Vec<Value>
         if !undelivered(root)?.is_empty() {
             // Let the user finish a burst of comments before waking the agent.
             thread::sleep(Duration::from_millis(options.settle_ms));
-            let list = undelivered(root)?;
-            mark_delivered(root, &list)?;
-            return Ok(list);
+            return take_undelivered(root, false);
         }
         thread::sleep(Duration::from_millis(options.poll_ms));
     }
@@ -341,5 +369,38 @@ mod tests {
         assert_eq!(kept[0], "fb_8:open:t");
         assert_eq!(kept[MAX_DELIVERED - 1], "fb_2:open:t");
         mark_delivered(&root, &[]).unwrap();
+    }
+
+    /// Eight callers at once deliver each comment once (review CO-5: parallel
+    /// `dfw comments inbox` calls gave the same comments three times).
+    #[test]
+    fn parallel_takers_deliver_each_comment_once() {
+        let root = project("inbox-parallel");
+        for i in 0..5 {
+            add_comment(&root, &json!({ "comment": format!("c{i}") })).unwrap();
+        }
+        let delivered: Vec<usize> = std::thread::scope(|s| {
+            let takers: Vec<_> = (0..8)
+                .map(|_| s.spawn(|| take_undelivered(&root, false).unwrap().len()))
+                .collect();
+            takers.into_iter().map(|t| t.join().unwrap()).collect()
+        });
+        assert_eq!(delivered.iter().sum::<usize>(), 5, "{delivered:?}");
+        assert!(undelivered(&root).unwrap().is_empty());
+    }
+
+    /// A hook gives up on a busy lock fast and leaves the comments for its next call.
+    #[test]
+    fn a_hook_leaves_the_comments_when_the_lock_is_busy() {
+        let root = project("inbox-busy");
+        add_comment(&root, &json!({ "comment": "later" })).unwrap();
+        let lock = root.join(".dfw/reviews/.lock");
+        let held = crate::core::lock::acquire(&lock, &crate::core::lock::STANDARD).unwrap();
+        let start = Instant::now();
+        assert!(take_undelivered(&root, true).unwrap().is_empty());
+        assert!(start.elapsed() < Duration::from_secs(1));
+        drop(held);
+        assert_eq!(take_undelivered(&root, true).unwrap().len(), 1);
+        assert!(take_undelivered(&root, false).unwrap().is_empty());
     }
 }

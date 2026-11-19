@@ -16,7 +16,7 @@ use crate::assets::{self, Folder};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{project_paths, resolve};
-use crate::core::util::{write_atomic, write_json};
+use crate::core::util::{write_atomic_inside, write_json_inside};
 
 /// `STYLES_DIR`: the guides shipped with dfw, a folder of the embedded kits.
 const STYLES_DIR: &str = "styles";
@@ -326,8 +326,8 @@ fn group<'a>(tree: &'a mut Value, path: &[&str]) -> Result<&'a mut Map<String, V
 
 /// `styleTokens`: the DTCG token tree of a guide (the kit preset it is based on, with the
 /// guide's colour, type, shape and elevation on top).
-// One function as in style.mjs: the token groups are written in the order the Node code
-// assigned them, which is the order of the file users diff.
+// Over 120 lines: the token groups are written in one sequence, the key order of the
+// tokens.json users diff.
 #[allow(clippy::too_many_lines)]
 pub fn style_tokens(g: &Value, fonts: &str) -> Result<Value, DfwError> {
     let base = text(g.get("base"));
@@ -552,7 +552,12 @@ fn pattern(source: &str) -> Result<Regex, DfwError> {
 
 /// Seed DESIGN.md with the guide's reasoning so the DS gate starts from reasons, not from a
 /// blank page. A rationale the user has written is never replaced.
-fn seed_rationale(design_md: &Path, id: &str, rationale: &[String]) -> Result<(), DfwError> {
+fn seed_rationale(
+    root: &Path,
+    design_md: &Path,
+    id: &str,
+    rationale: &[String],
+) -> Result<(), DfwError> {
     let text = js::read_text(design_md)?;
     let lines: Vec<String> = rationale.iter().map(|r| format!("- {r}")).collect();
     let block = format!("## Rationale\n<!-- Seeded from style guide \"{id}\". Rewrite each line for THIS product: decision - because <context fact or principle>. -->\n{}\n", lines.join("\n"));
@@ -575,7 +580,7 @@ fn seed_rationale(design_md: &Path, id: &str, rationale: &[String]) -> Result<()
     } else {
         format!("{}\n\n{block}", js::trim_end(&text))
     };
-    write_atomic(design_md, out)?;
+    write_atomic_inside(root, design_md, out)?;
     Ok(())
 }
 
@@ -594,12 +599,16 @@ pub fn apply_style(root: &Path, id: &str, fonts: &str) -> Result<AppliedStyle, D
     let g = get_style(id)?;
     let p = project_paths(root);
     fs::create_dir_all(&p.tokens)?;
-    write_json(&p.tokens.join("tokens.json"), &style_tokens(&g, fonts)?)?;
+    write_json_inside(
+        root,
+        &p.tokens.join("tokens.json"),
+        &style_tokens(&g, fonts)?,
+    )?;
     let sys = p.design.join("system");
     fs::create_dir_all(sys.join("components"))?;
-    write_atomic(&sys.join("head.html"), head_for(&g, fonts))?;
+    write_atomic_inside(root, &sys.join("head.html"), head_for(&g, fonts))?;
     if let Some(motif) = motif_component(&g) {
-        write_atomic(&sys.join("components").join("motif.html"), motif)?;
+        write_atomic_inside(root, &sys.join("components").join("motif.html"), motif)?;
     }
     let font_set = fonts_for(&g, fonts).cloned();
     let mut style = Map::new();
@@ -644,7 +653,8 @@ pub fn apply_style(root: &Path, id: &str, fonts: &str) -> Result<AppliedStyle, D
     put("paletteNotes", or_empty("paletteNotes"));
     put("fonts", font_set.clone());
     put("fontsVariant", Some(json!(fonts)));
-    write_json(
+    write_json_inside(
+        root,
         &sys.join("style.json"),
         &js::key_order(Value::Object(style)),
     )?;
@@ -652,7 +662,7 @@ pub fn apply_style(root: &Path, id: &str, fonts: &str) -> Result<AppliedStyle, D
     let design_md = root.join("DESIGN.md");
     let rationale = strings(g.get("rationale"));
     if design_md.exists() && !rationale.is_empty() {
-        seed_rationale(&design_md, &id, &rationale)?;
+        seed_rationale(root, &design_md, &id, &rationale)?;
     }
     Ok(AppliedStyle {
         id,
@@ -925,7 +935,7 @@ mod tests {
         let md = dir.join("DESIGN.md");
         let seed = |text: &str, id: &str| {
             fs::write(&md, text).unwrap();
-            seed_rationale(&md, id, &["one".to_string(), "two".to_string()]).unwrap();
+            seed_rationale(&dir, &md, id, &["one".to_string(), "two".to_string()]).unwrap();
             fs::read_to_string(&md).unwrap()
         };
         let block = |id: &str| {

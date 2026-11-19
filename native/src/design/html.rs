@@ -540,7 +540,21 @@ impl Splice {
     }
 }
 
-/// `escAttr` of edit.mjs: a value written between double quotes.
+/// Text between tags: `&`, `<` and `>` escaped (an edited element text).
+pub fn escape_text(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
+/// Text that may land between tags or inside a double-quoted attribute: `&`, `<`, `>` and `"`
+/// escaped (composed instances, the Design System page, the Studio's component list).
+pub fn escape_html(s: &str) -> String {
+    escape_text(s).replace('"', "&quot;")
+}
+
+/// A value written between double quotes: `&`, `"` and `<` escaped (`set_attr`, the review
+/// proxy's injected tags).
 pub fn escape_attr(value: &str) -> String {
     value
         .replace('&', "&amp;")
@@ -924,5 +938,15 @@ mod tests {
         assert_eq!(open(src).name(src), "x_y-z1");
         assert_eq!(open_tag_at("<1a>", 0), None);
         assert_eq!(open_tag_at("</a>", 0), None);
+    }
+
+    /// The three escapers, one per place a value lands.
+    #[test]
+    fn escapers_escape_for_where_the_value_lands() {
+        let v = r#"a & <b> "c" 'd'"#;
+        assert_eq!(escape_text(v), r#"a &amp; &lt;b&gt; "c" 'd'"#);
+        assert_eq!(escape_html(v), "a &amp; &lt;b&gt; &quot;c&quot; 'd'");
+        assert_eq!(escape_attr(v), "a &amp; &lt;b> &quot;c&quot; 'd'");
+        assert_eq!(escape_html("&amp;"), "&amp;amp;");
     }
 }

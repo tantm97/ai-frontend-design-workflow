@@ -876,7 +876,7 @@ fn a_manifest_of_the_wrong_shape_is_an_error_where_node_dies() {
     assert_eq!(err.exit_code(), 1);
     assert_eq!(
         err.message(),
-        "Malformed design/design.json: \"pages\" must be a list (the Node CLI stops here with a TypeError)."
+        "Malformed design/design.json: \"pages\" must be a list. Correct it in design/design.json and run the command again."
     );
     // Of a text, each character is a screen id.
     write(

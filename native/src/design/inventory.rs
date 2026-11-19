@@ -15,7 +15,7 @@ use crate::assets::{self, Folder};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::project_paths;
-use crate::core::util::write_json;
+use crate::core::util::write_json_inside;
 
 /// Rules that block the DS gate (escalated from SHOULD).
 pub const DS_GATE_RULES: [&str; 4] = [
@@ -93,7 +93,8 @@ pub fn ensure_inventory(root: &Path) -> Result<bool, DfwError> {
     if f.exists() {
         return Ok(false);
     }
-    write_json(
+    write_json_inside(
+        root,
         &f,
         &json!({ "$comment": SKELETON_COMMENT, "components": [] }),
     )?;

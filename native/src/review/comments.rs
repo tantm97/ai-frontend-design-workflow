@@ -6,18 +6,16 @@
 //! Over 800 lines only with its tests (the ported cases of the JavaScript tests sit next to the code).
 
 use std::fs;
-use std::io;
 use std::path::{Path, PathBuf};
-use std::thread;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde_json::{json, Map, Value};
 
 use crate::core::error::DfwError;
 use crate::core::js;
+use crate::core::lock::{self, LockTimes};
 use crate::core::paths::project_paths;
-use crate::core::util::{iso_from_millis, now_iso, read_json, write_json};
-use crate::workflow::state::type_error;
+use crate::core::util::{iso_from_millis, now_iso, read_json, write_json_inside};
 
 /// Every status a comment can have.
 pub const STATUSES: [&str; 6] = [
@@ -39,43 +37,38 @@ const NEXT: [(&str, &[&str]); 6] = [
     ("dismissed", &["reopened"]),
 ];
 
-/// How long a writer waits for the lock before it takes it over.
-const LOCK_WAIT: Duration = Duration::from_millis(5000);
-/// A lock older than this was left by a process that died.
-const LOCK_STALE: Duration = Duration::from_millis(10_000);
-const LOCK_RETRY: Duration = Duration::from_millis(15);
-
-/// `locked(root, fn)`: run `f` holding the reviews lock (`.dfw/reviews/.lock`, a folder). The
-/// Studio server and the CLI (hooks, `dfw comments ...`) change the same session files from
-/// different processes: every read-modify-write runs under this one lock so no comment or status
-/// is lost.
+/// `locked(root, fn)`: run `f` holding the reviews lock (`.dfw/reviews/.lock`, see
+/// `core::lock`). The Studio server and the CLI (hooks, `dfw comments ...`) change the same
+/// session files from different processes: every read-modify-write runs under this one lock so
+/// no comment or status is lost.
 pub fn locked<T>(root: &Path, f: impl FnOnce() -> Result<T, DfwError>) -> Result<T, DfwError> {
-    let dir = project_paths(root).reviews;
-    fs::create_dir_all(&dir)?;
-    let lock = dir.join(".lock");
-    let start = Instant::now();
-    loop {
-        match fs::create_dir(&lock) {
-            Ok(()) => break,
-            Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {
-                let Ok(modified) = fs::metadata(&lock).and_then(|m| m.modified()) else {
-                    continue; // released meanwhile
-                };
-                let age = SystemTime::now()
-                    .duration_since(modified)
-                    .unwrap_or_default();
-                if age > LOCK_STALE || start.elapsed() > LOCK_WAIT {
-                    let _ = fs::remove_dir_all(&lock); // left by a process that died
-                    continue;
-                }
-                thread::sleep(LOCK_RETRY);
-            }
-            Err(err) => return Err(err.into()),
-        }
+    locked_with(root, &lock::STANDARD, f)
+}
+
+fn locked_with<T>(
+    root: &Path,
+    times: &LockTimes,
+    f: impl FnOnce() -> Result<T, DfwError>,
+) -> Result<T, DfwError> {
+    let _held = lock::acquire(&lock_path(root), times)?;
+    f()
+}
+
+/// [`locked`] for a hook: gives up after `give_up` and returns `None` without running `f`
+/// (`process-and-io.md` P8).
+pub fn try_locked<T>(
+    root: &Path,
+    give_up: Duration,
+    f: impl FnOnce() -> Result<T, DfwError>,
+) -> Result<Option<T>, DfwError> {
+    match lock::acquire_within(&lock_path(root), &lock::STANDARD, Some(give_up))? {
+        Some(_held) => f().map(Some),
+        None => Ok(None),
     }
-    let result = f();
-    let _ = fs::remove_dir_all(&lock);
-    result
+}
+
+fn lock_path(root: &Path) -> PathBuf {
+    project_paths(root).reviews.join(".lock")
 }
 
 /// The session files (`rv_*.json`) of a project, oldest first.
@@ -150,8 +143,8 @@ fn new_session_unlocked(root: &Path, design_version: Option<&str>) -> Result<Ses
     let p = project_paths(root);
     let state = read_json(&p.state, Some(json!({})))?;
     if state.is_null() {
-        return Err(DfwError::internal(
-            "Cannot read properties of null (reading 'design')",
+        return Err(DfwError::new(
+            ".dfw/state.json holds null instead of the workflow state. Restore it from version control (or remove it and run \"dfw init\"), then run the command again.",
         ));
     }
     for file in session_files(root)? {
@@ -160,7 +153,7 @@ fn new_session_unlocked(root: &Path, design_version: Option<&str>) -> Result<Ses
             if let Value::Object(map) = &mut session {
                 map.insert("closedAt".into(), now_iso().into());
             }
-            write_json(&file, &session)?;
+            write_json_inside(root, &file, &session)?;
         }
     }
     let version = match design_version.filter(|v| !v.is_empty()) {
@@ -181,7 +174,7 @@ fn new_session_unlocked(root: &Path, design_version: Option<&str>) -> Result<Ses
         "comments": [],
     });
     let file = p.reviews.join(format!("{id}.json"));
-    write_json(&file, &session)?;
+    write_json_inside(root, &file, &session)?;
     Ok(Session { file, session })
 }
 
@@ -196,11 +189,25 @@ fn session_stamp(millis: i64) -> String {
         .collect()
 }
 
-fn comments_of(session: &Value) -> Result<&Vec<Value>, DfwError> {
+fn comments_of<'a>(file: &Path, session: &'a Value) -> Result<&'a Vec<Value>, DfwError> {
     session
         .get("comments")
         .and_then(Value::as_array)
-        .ok_or_else(|| DfwError::internal("s.comments is not iterable"))
+        .ok_or_else(|| not_a_list(file, "\"comments\""))
+}
+
+/// A review session file whose list is something else: name the file, the field and the fix.
+fn not_a_list(file: &Path, what: &str) -> DfwError {
+    DfwError::new(format!(
+        "{}: {what} is not a list. Fix that review session file (or move it out of .dfw/reviews/) and run the command again.",
+        shown(file)
+    ))
+}
+
+/// A session file as the user finds it: `.dfw/reviews/<name>`.
+fn shown(file: &Path) -> String {
+    let name = file.file_name().unwrap_or_default().to_string_lossy();
+    format!(".dfw/reviews/{name}")
 }
 
 /// `allComments(root)`: every comment of every session, oldest first, each with the id of its
@@ -209,7 +216,7 @@ pub fn all_comments(root: &Path) -> Result<Vec<Value>, DfwError> {
     let mut out = Vec::new();
     for file in session_files(root)? {
         let session = read_session(&file)?;
-        for c in comments_of(&session)? {
+        for c in comments_of(&file, &session)? {
             let mut c = js::spread(Some(c));
             match session.get("id") {
                 Some(id) => {
@@ -287,7 +294,11 @@ fn add_comment_unlocked(root: &Path, input: &Value) -> Result<Value, DfwError> {
     let text = match input.get("comment") {
         None | Some(Value::Null) => "",
         Some(Value::String(text)) => js::trim(text),
-        Some(_) => return Err(DfwError::internal("input?.comment?.trim is not a function")),
+        Some(_) => {
+            return Err(DfwError::new(
+                "The comment must be text: give \"comment\" as a string.",
+            ))
+        }
     };
     if text.is_empty() {
         return Err(DfwError::new("A comment needs text."));
@@ -344,14 +355,15 @@ fn add_comment_unlocked(root: &Path, input: &Value) -> Result<Value, DfwError> {
     }
     match session.get_mut("comments") {
         Some(Value::Array(comments)) => comments.push(c.clone()),
-        _ => return Err(type_error("push")),
+        _ => return Err(not_a_list(&file, "\"comments\"")),
     }
-    write_json(&file, &session)?;
+    write_json_inside(root, &file, &session)?;
     Ok(c)
 }
 
 /// Where a comment is: its session file, the session and the comment's index in it.
 struct Found {
+    root: PathBuf,
     file: PathBuf,
     session: Value,
     index: usize,
@@ -370,7 +382,7 @@ impl Found {
     }
 
     fn save(mut self) -> Result<Value, DfwError> {
-        write_json(&self.file, &self.session)?;
+        write_json_inside(&self.root, &self.file, &self.session)?;
         Ok(Value::Object(self.comment()?.clone()))
     }
 }
@@ -378,11 +390,12 @@ impl Found {
 fn find_comment(root: &Path, id: Option<&str>) -> Result<Found, DfwError> {
     for file in session_files(root)? {
         let session = read_session(&file)?;
-        let index = comments_of(&session)?
+        let index = comments_of(&file, &session)?
             .iter()
             .position(|c| id.is_some() && c.get("id").and_then(Value::as_str) == id);
         if let Some(index) = index {
             return Ok(Found {
+                root: root.to_path_buf(),
                 file,
                 session,
                 index,
@@ -433,6 +446,7 @@ fn update_comment_unlocked(
 ) -> Result<Value, DfwError> {
     let mut found = find_comment(root, id)?;
     let id = id.unwrap_or("undefined");
+    let file = found.file.clone();
     let comment = found.comment()?;
     let at = now_iso();
     let status = update.status.as_deref().filter(|s| !s.is_empty());
@@ -450,7 +464,14 @@ fn update_comment_unlocked(
             .and_then(Value::as_str)
             .and_then(|c| NEXT.iter().find(|(from, _)| *from == c))
             .map(|(_, to)| *to)
-            .ok_or_else(|| type_error("includes"))?;
+            .ok_or_else(|| {
+                DfwError::new(format!(
+                    "Comment {id} in {} has the status {}, which is not one of {}. Correct it in that file and run the command again.",
+                    shown(&file),
+                    current.as_ref().map_or("none".into(), crate::core::util::to_json_compact),
+                    STATUSES.join(", ")
+                ))
+            })?;
         if !allowed.contains(&status) {
             return Err(DfwError::new(format!(
                 "Comment {id}: cannot go from \"{}\" to \"{status}\" (allowed: {}).",
@@ -484,7 +505,7 @@ fn update_comment_unlocked(
         ]);
         match comment.get_mut("thread") {
             Some(Value::Array(thread)) => thread.push(line),
-            _ => return Err(type_error("push")),
+            _ => return Err(not_a_list(&file, &format!("\"thread\" of comment {id}"))),
         }
     }
     comment.insert("updatedAt".into(), at.into());
@@ -852,5 +873,87 @@ mod tests {
         // The lock is released when the work under it fails.
         assert!(locked(&root, || Err::<(), _>(DfwError::new("boom"))).is_err());
         assert!(!lock.exists());
+    }
+
+    /// A lock held by a process that never releases it, and 30 writers: after the takeover
+    /// every comment is stored, and the old holder's late release removes nothing (review CO-2:
+    /// 16 of 31 comments were kept).
+    #[test]
+    fn a_held_lock_and_many_writers_keep_every_comment() {
+        let root = project("comments-held");
+        add_comment(&root, &json!({ "comment": "first" })).unwrap();
+        let times = LockTimes {
+            wait: Duration::from_millis(300),
+            stale: Duration::from_secs(10),
+            retry: Duration::from_millis(2),
+        };
+        let held = lock::acquire(&lock_path(&root), &times).unwrap();
+        std::thread::scope(|s| {
+            for i in 0..30 {
+                let root = &root;
+                s.spawn(move || {
+                    locked_with(root, &times, || {
+                        add_comment_unlocked(root, &json!({ "comment": format!("w{i}") }))
+                    })
+                    .unwrap();
+                });
+            }
+            std::thread::sleep(Duration::from_millis(350));
+            drop(held);
+        });
+        let all = all_comments(&root).unwrap();
+        assert_eq!(all.len(), 31);
+        let ids: std::collections::HashSet<String> =
+            all.iter().map(|c| js::to_string(c.get("id"))).collect();
+        assert_eq!(ids.len(), 31);
+        assert_eq!(
+            fs::read_dir(root.join(".dfw/reviews"))
+                .unwrap()
+                .filter(|e| e
+                    .as_ref()
+                    .unwrap()
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(".lock"))
+                .count(),
+            0,
+            "no lock folder is left"
+        );
+    }
+
+    /// A session file of the wrong shape and a comment that is not text are user errors that
+    /// name the file or field and say what to do (`errors.md` E2; `dfw status` printed
+    /// `s.comments is not iterable`).
+    #[test]
+    fn a_broken_session_file_is_named_with_the_fix() {
+        let root = project("comments-broken");
+        let err = add_comment(&root, &json!({ "comment": 5 })).unwrap_err();
+        assert_eq!(
+            err.report(),
+            "The comment must be text: give \"comment\" as a string."
+        );
+        fs::write(
+            root.join(".dfw/reviews/rv_20200101T000000.json"),
+            r#"{"id":"rv_20200101T000000","comments":5}"#,
+        )
+        .unwrap();
+        let err = all_comments(&root).unwrap_err();
+        assert_eq!(
+            err.report(),
+            ".dfw/reviews/rv_20200101T000000.json: \"comments\" is not a list. Fix that review session file (or move it out of .dfw/reviews/) and run the command again."
+        );
+        fs::write(
+            root.join(".dfw/reviews/rv_20200101T000000.json"),
+            r#"{"id":"rv_20200101T000000","comments":[{"id":"fb_001","status":"odd","thread":[]}]}"#,
+        )
+        .unwrap();
+        let err =
+            update_comment(&root, Some("fb_001"), &update("fixed", Some("x"), None)).unwrap_err();
+        assert!(
+            err.report().starts_with(
+                "Comment fb_001 in .dfw/reviews/rv_20200101T000000.json has the status \"odd\""
+            ),
+            "{err}"
+        );
     }
 }

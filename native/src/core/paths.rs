@@ -1,5 +1,5 @@
-//! Ports the path helpers of `core/lib/util.mjs`: plugin root, global and project directories,
-//! project root search, and the check every path built from an id or a request must pass.
+//! Path helpers: plugin root, global and project directories, project root search, real paths,
+//! and the check every path built from an id or a request must pass.
 
 use std::env;
 use std::path::{Component, Path, PathBuf, MAIN_SEPARATOR};
@@ -167,9 +167,33 @@ pub fn project_paths(root: &Path) -> ProjectPaths {
     }
 }
 
+/// The real path of `p`: symbolic links and letter case as the file system has them. It also
+/// works for a path that does not exist yet (its existing part is resolved, the rest is kept)
+/// and for a link whose target is missing (the target is followed as written), so a dangling
+/// link that points outside is seen as outside.
+pub fn real_path(p: &Path) -> PathBuf {
+    real_path_hops(&resolve(p), 40)
+}
+
+fn real_path_hops(p: &Path, hops: u32) -> PathBuf {
+    if let Ok(real) = p.canonicalize() {
+        return real;
+    }
+    let (Some(up), Some(name)) = (p.parent(), p.file_name()) else {
+        return p.to_path_buf();
+    };
+    let up = real_path_hops(up, hops);
+    let here = up.join(name);
+    match std::fs::read_link(&here) {
+        // A link whose target does not resolve: follow what it names (a cycle stops after `hops`).
+        Ok(target) if hops > 0 => real_path_hops(&resolve(up.join(target)), hops - 1),
+        _ => here,
+    }
+}
+
 /// Join a relative path that came from an id, a request or a file onto `root` and prove it stays
-/// inside: no absolute path, no `..`, and when the target (or its nearest existing ancestor)
-/// exists, its real path is still under the real root, so a symlink cannot lead out.
+/// inside: no absolute path, no `..`, and its real path (through every symbolic link, also one
+/// whose target is missing) is still under the real root, so a link cannot lead out.
 pub fn resolve_inside(root: &Path, rel: &str) -> Result<PathBuf, DfwError> {
     let outside = || DfwError::new(format!("Path \"{rel}\" is outside the project."));
     let rel_path = Path::new(rel);
@@ -183,15 +207,7 @@ pub fn resolve_inside(root: &Path, rel: &str) -> Result<PathBuf, DfwError> {
     }
     let target = root.join(rel_path);
     let real_root = root.canonicalize().map_err(|_| outside())?;
-    let mut existing = target.as_path();
-    while !existing.exists() {
-        existing = existing.parent().ok_or_else(outside)?;
-    }
-    if !existing
-        .canonicalize()
-        .map_err(|_| outside())?
-        .starts_with(&real_root)
-    {
+    if !real_path(&target).starts_with(&real_root) {
         return Err(outside());
     }
     Ok(target)
@@ -302,6 +318,24 @@ mod tests {
             std::os::unix::fs::symlink(tmp.join("elsewhere"), root.join("design").join("link"))
                 .unwrap();
             assert!(resolve_inside(&root, "design/link/x.html").is_err());
+            // A link whose target is missing is judged by where it points.
+            std::os::unix::fs::symlink(
+                tmp.join("elsewhere").join("gone.html"),
+                root.join("design").join("dangling.html"),
+            )
+            .unwrap();
+            assert!(resolve_inside(&root, "design/dangling.html").is_err());
+            std::os::unix::fs::symlink("../../elsewhere/no/dir", root.join("design").join("up"))
+                .unwrap();
+            assert!(resolve_inside(&root, "design/up/x.html").is_err());
+            std::os::unix::fs::symlink("a.html", root.join("design").join("near.html")).unwrap();
+            assert_eq!(
+                resolve_inside(&root, "design/near.html").unwrap(),
+                root.join("design/near.html"),
+                "a dangling link that stays inside is fine"
+            );
+            std::os::unix::fs::symlink("loop", root.join("design").join("loop")).unwrap();
+            assert!(resolve_inside(&root, "design/loop").is_ok(), "a cycle ends");
         }
         fs::remove_dir_all(&tmp).unwrap();
     }

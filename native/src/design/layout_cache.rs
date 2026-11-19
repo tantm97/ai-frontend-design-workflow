@@ -11,7 +11,7 @@ use super::tokens::dir_names;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{project_paths, resolve, ProjectPaths};
-use crate::core::util::{read_json, sha256, write_json};
+use crate::core::util::{read_json, sha256, write_json_inside};
 
 /// Files every screen loads besides the tokens.
 const SHARED: [&str; 2] = ["styles/base.css", "system/head.html"];
@@ -146,7 +146,7 @@ pub fn mark_checked(root: &Path) -> Result<(), DfwError> {
     for (_, file) in variants(&manifest) {
         cache.insert(format!("s:{file}"), value(hash_of(&design_file(&p, file))));
     }
-    write_json(&cache_file(&p), &Value::Object(cache))
+    write_json_inside(root, &cache_file(&p), &Value::Object(cache))
 }
 
 #[cfg(test)]

@@ -9,8 +9,8 @@ use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::js::regex::with_js_classes;
 use crate::design::color::contrast;
-use crate::design::compose::escape_html as esc;
 use crate::design::edit::TokenEntry;
+use crate::design::html::escape_html as esc;
 use crate::design::tokens::css_var_name;
 
 const ROLE_GROUPS: [(&str, &[&str]); 5] = [

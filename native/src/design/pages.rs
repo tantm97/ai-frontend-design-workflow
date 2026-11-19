@@ -177,8 +177,8 @@ struct Page {
 }
 
 /// `studioPages(manifest)`: the canvas pages, Design System first.
-// Over 120 lines: one function as in pages.mjs, so the page order rules (declared pages,
-// `screen.page`, Screens, Explorations, Flow) read in the same sequence side by side.
+// Over 120 lines: the page order rules (declared pages, `screen.page`, Screens,
+// Explorations, Flow) read in one sequence, the order the pages are shown in.
 #[allow(clippy::too_many_lines)]
 pub fn studio_pages(manifest: &Value) -> Vec<Value> {
     let screens = screens_of(manifest);

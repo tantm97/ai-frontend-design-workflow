@@ -1,7 +1,7 @@
-//! Ports the `DfwError` class of `core/lib/util.mjs` and the error handling of `core/bin/dfw.mjs`.
+//! `DfwError`, the one error type of the crate, and how `main` reports it (`errors.md` E1).
 //!
-//! The Node entry point prints `err.message` and exits with `err.exitCode` for a `DfwError`, and
-//! prints the stack and exits with 1 for anything else. Here the two cases are the two variants.
+//! A user error prints its message alone and exits with its code; an internal error prints
+//! `Error: <message>` and exits with 1.
 
 use std::fmt;
 
@@ -10,12 +10,12 @@ use std::fmt;
 pub enum DfwError {
     /// A mistake the user can fix; the message says what to do next.
     User { message: String, code: i32 },
-    /// Unexpected failure (io, broken JSON, a bug); the Node CLI printed a stack trace for these.
+    /// Unexpected failure (io, broken JSON, a bug), reported with an `Error: ` prefix.
     Internal(String),
 }
 
 impl DfwError {
-    /// User-facing error with exit code 1 (`new DfwError(message)`).
+    /// User-facing error with exit code 1.
     pub fn new(message: impl Into<String>) -> Self {
         DfwError::User {
             message: message.into(),
@@ -23,8 +23,8 @@ impl DfwError {
         }
     }
 
-    /// User-facing error with a specific exit code (`new DfwError(message, code)`). No
-    /// command needs one yet; the tests pin how such an error exits.
+    /// User-facing error with a specific exit code. No command needs one yet; the tests pin
+    /// how such an error exits.
     #[cfg(test)]
     pub fn with_code(message: impl Into<String>, code: i32) -> Self {
         DfwError::User {
@@ -33,7 +33,7 @@ impl DfwError {
         }
     }
 
-    /// Unexpected error (a plain `Error` in the Node code).
+    /// Unexpected error: something the user cannot fix by following a message.
     pub fn internal(message: impl Into<String>) -> Self {
         DfwError::Internal(message.into())
     }
@@ -46,17 +46,17 @@ impl DfwError {
         }
     }
 
-    /// Process exit code: the error's own code, or 1 (`err.exitCode || 1`).
+    /// Process exit code: the error's own code, or 1 for an internal error and for code 0.
     pub fn exit_code(&self) -> i32 {
         match self {
-            // A zero code is falsy in the Node entry point, so it also ends as 1.
+            // An error never exits 0 (`errors.md` E9).
             DfwError::User { code, .. } if *code != 0 => *code,
             _ => 1,
         }
     }
 
-    /// The text for stderr. Node printed `err.stack` for internal errors: its first line is
-    /// `Error: <message>`; the stack frames have no equivalent here.
+    /// The text for stderr: the message of a user error, `Error: <message>` otherwise (a user
+    /// error with code 0 is reported as internal, as it exits 1).
     pub fn report(&self) -> String {
         match self {
             DfwError::User { message, code } if *code != 0 => message.clone(),
@@ -104,7 +104,7 @@ mod tests {
     }
 
     #[test]
-    fn zero_code_behaves_like_the_node_entry_point() {
+    fn zero_code_exits_1_like_an_internal_error() {
         let e = DfwError::with_code("odd", 0);
         assert_eq!(e.exit_code(), 1);
         assert_eq!(e.report(), "Error: odd");

@@ -386,12 +386,10 @@ pub fn lint_screen(
     Ok(out)
 }
 
-/// A design.json value of a type the Node code could not handle: it stopped there with a
-/// TypeError, and so does the lint (a manifest of the wrong shape never passes a gate).
+/// A design.json value of the wrong type: the lint stops (a manifest of the wrong shape never
+/// passes a gate).
 fn malformed(what: &str) -> DfwError {
-    DfwError::internal(format!(
-        "Malformed design/design.json: {what} (the Node CLI stops here with a TypeError)."
-    ))
+    super::malformed("design/design.json", what)
 }
 
 /// `value || []` before an array method: a list, nothing for a missing or falsy value, and the

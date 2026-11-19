@@ -183,12 +183,10 @@ fn max_min(items: &[Value]) -> (f64, f64) {
     (max, min)
 }
 
-/// A token value of a type the Node code could not handle: it stopped there with a TypeError,
-/// and so does the audit (a token file of the wrong shape never passes a gate).
+/// A token value of the wrong type: the audit stops (a token file of the wrong shape never
+/// passes a gate).
 fn malformed(what: &str) -> DfwError {
-    DfwError::internal(format!(
-        "Malformed design/tokens/tokens.json: {what} (the Node CLI stops here with a TypeError)."
-    ))
+    super::malformed("design/tokens/tokens.json", what)
 }
 
 /// A shadow whose every layer is a neutral near-black. Like `every`, it stops at the first
@@ -302,8 +300,8 @@ fn count_decisions(body: &str) -> usize {
 
 /// `auditDesignSystem(root)`: findings `{ level, rule, file, line, message, source: "dfw-ds" }`.
 /// Nothing when the project has no `design/tokens/tokens.json`.
-// Over 120 lines, one function as in dsaudit.mjs: the checks run in the order their findings
-// are printed and share the resolved tokens.
+// Over 120 lines: the checks run in the order their findings are printed and share the
+// resolved tokens.
 #[allow(clippy::too_many_lines)]
 pub fn audit_design_system(root: &Path) -> Result<Vec<Value>, DfwError> {
     let p = project_paths(root);
@@ -384,10 +382,9 @@ pub fn audit_design_system(root: &Path) -> Result<Vec<Value>, DfwError> {
     // A malformed design.json is reported by lint (manifest-json).
     let manifest = read_json(&p.manifest, Some(json!({}))).unwrap_or_else(|_| json!({}));
     if manifest.is_null() {
-        // A design.json that holds `null`: the Node code reads `null.surface` and ends here
-        // with this TypeError (a Node bug, kept: lint reports the file as manifest-missing).
-        return Err(DfwError::internal(
-            "Cannot read properties of null (reading 'surface')",
+        // A design.json that holds `null` (lint reports it as manifest-missing).
+        return Err(DfwError::new(
+            "design/design.json holds null instead of the design manifest. Write the manifest there (\"dfw lint\" says what it needs) and run the command again.",
         ));
     }
     let body = r
@@ -633,7 +630,7 @@ mod tests {
             .iter()
             .all(|f| f["source"] == "dfw-ds" && f["line"] == 1));
     }
-    /// Where the Node code died on a TypeError the audit ends with an error too.
+    /// A token value of the wrong type ends the audit with an error that names the file.
     #[test]
     fn token_values_of_the_wrong_type_are_an_error_where_node_dies() {
         let audit = |tree: Value| {
@@ -677,7 +674,7 @@ mod tests {
         write(&root, "design/design.json", "null");
         assert_eq!(
             audit_design_system(&root).unwrap_err().message(),
-            "Cannot read properties of null (reading 'surface')"
+            "design/design.json holds null instead of the design manifest. Write the manifest there (\"dfw lint\" says what it needs) and run the command again."
         );
     }
 }
