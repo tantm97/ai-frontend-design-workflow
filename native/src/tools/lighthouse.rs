@@ -22,21 +22,41 @@ fn unverifiable(detail: &str) -> Value {
 /// `runLighthouse(url, { timeoutMs })`: a dfw check result (`{ tool, status, detail, findings }`).
 /// Node's default timeout is 240 s.
 pub fn run_lighthouse(url: &str, timeout_ms: u64) -> Value {
-    let (node, browser) = (node_executable(), find_browser());
-    let (Some(node), Some(browser)) = (node, browser) else {
-        return unverifiable(if node.is_none() {
-            "needs Node.js (npx)"
-        } else {
-            "no Chrome/Edge/Chromium"
-        });
+    let Some(node) = node_executable() else {
+        return unverifiable("needs Node.js (npx)");
     };
-    // Kept from Node: inside the binary `node` is a bare command name, so "next to it" is the
-    // working directory and npx is normally not found there.
-    let npx = if cfg!(windows) { "npx.cmd" } else { "npx" };
-    if !Path::new(npx).exists() {
-        return unverifiable(&format!("npx not found next to {node}"));
-    }
-    let args = [
+    let Some(browser) = find_browser() else {
+        return unverifiable("no Chrome/Edge/Chromium");
+    };
+    lighthouse_with(&node, &browser.path, url, timeout_ms)
+}
+
+/// How npx of the Node.js at `node` (an absolute path) runs: Node itself with npx's script, so
+/// neither cmd.exe nor a lookup by name is involved. That is `<dir>/npx` elsewhere (a link to
+/// `npx-cli.js`) and `<dir>\node_modules\npm\bin\npx-cli.js` on Windows, which is what
+/// `npx.cmd` runs. `None` when that script is not there (or `node` is not a `.exe` on Windows).
+fn npx_plan(
+    node: &str,
+    args: Vec<String>,
+    windows: bool,
+    exists: &dyn Fn(&str) -> bool,
+) -> Option<Spawn> {
+    let separators: &[char] = if windows { &['/', '\\'] } else { &['/'] };
+    let dir = &node[..node.rfind(separators)?];
+    let script = if windows {
+        if !node.to_ascii_lowercase().ends_with(".exe") {
+            return None;
+        }
+        format!("{dir}\\node_modules\\npm\\bin\\npx-cli.js")
+    } else {
+        format!("{dir}/npx")
+    };
+    exists(&script).then(|| Spawn::direct(node, std::iter::once(script).chain(args).collect()))
+}
+
+/// [`run_lighthouse`] with the Node.js and the browser given.
+fn lighthouse_with(node: &Path, browser: &Path, url: &str, timeout_ms: u64) -> Value {
+    let args = vec![
         "-y".to_string(),
         format!("lighthouse@{LIGHTHOUSE_VERSION}"),
         url.to_string(),
@@ -47,20 +67,12 @@ pub fn run_lighthouse(url: &str, timeout_ms: u64) -> Value {
         "--only-categories=performance,best-practices,seo".into(),
         "--chrome-flags=--headless=new --no-first-run --no-default-browser-check --disable-features=HttpsUpgrades,HttpsFirstBalancedModeAutoEnable,HttpsFirstModeV2ForTypicallySecureUsers".into(),
     ];
-    let plan = if cfg!(windows) {
-        Spawn {
-            cmd: npx.into(),
-            args: args.to_vec(),
-            shell: true,
-        }
-    } else {
-        Spawn::direct(npx, args.to_vec())
+    let node_text = node.display().to_string();
+    let Some(plan) = npx_plan(&node_text, args, cfg!(windows), &|p| Path::new(p).is_file()) else {
+        return unverifiable(&format!("npx not found next to {node_text}"));
     };
     let env = [
-        (
-            "CHROME_PATH".to_string(),
-            browser.path.display().to_string(),
-        ),
+        ("CHROME_PATH".to_string(), browser.display().to_string()),
         ("NO_UPDATE_NOTIFIER".to_string(), "1".to_string()),
     ];
     let (stdout, stderr, error) = run_with_timeout(&plan, &env, timeout_ms);
@@ -250,6 +262,80 @@ mod tests {
         assert_eq!(r["findings"].as_array().unwrap().len(), 1);
         assert_eq!(r["findings"][0]["level"], json!("info"));
         assert_eq!(r["findings"][0]["message"], json!("P: M"));
+    }
+
+    /// lighthouse: npx is the one next to the Node.js found on PATH (it was looked up in the
+    /// current folder, so --lighthouse never ran), started through Node, never through cmd.exe
+    #[test]
+    fn npx_comes_from_the_node_on_path() {
+        let files = [
+            "/opt/node/bin/npx",
+            "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npx-cli.js",
+        ];
+        let exists = |p: &str| files.contains(&p);
+        let url = vec!["http://localhost:3000/?a=1&calc".to_string()];
+        assert_eq!(
+            npx_plan("/opt/node/bin/node", url.clone(), false, &exists),
+            Some(Spawn::direct(
+                "/opt/node/bin/node",
+                vec!["/opt/node/bin/npx".into(), url[0].clone()]
+            ))
+        );
+        assert_eq!(npx_plan("/usr/bin/node", url.clone(), false, &exists), None);
+        let win = npx_plan(
+            "C:\\Program Files\\nodejs\\node.exe",
+            url.clone(),
+            true,
+            &exists,
+        )
+        .unwrap();
+        assert_eq!(
+            win,
+            Spawn::direct(
+                "C:\\Program Files\\nodejs\\node.exe",
+                vec![
+                    "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npx-cli.js".into(),
+                    url[0].clone()
+                ]
+            ),
+            "the URL is an argument of node.exe, not text for cmd.exe"
+        );
+        assert_eq!(
+            npx_plan("C:\\Program Files\\nodejs\\node.cmd", url, true, &exists),
+            None
+        );
+    }
+
+    /// The whole run with a stand-in Node.js: it gets npx's script, the URL and CHROME_PATH.
+    #[test]
+    #[cfg(unix)]
+    fn lighthouse_runs_with_the_npx_next_to_node() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = crate::core::util::test_dir("lighthouse-npx");
+        let node = dir.join("node");
+        let report = r#"{"categories":{"seo":{"title":"SEO","score":1,"auditRefs":[]}}}"#;
+        std::fs::write(
+            &node,
+            format!(
+                "#!/bin/sh\ncase \"$1\" in */npx) ;; *) echo \"not npx: $1\" >&2; exit 1 ;; esac\n[ \"$CHROME_PATH\" = /x/chrome ] || exit 2\necho '{report}'\n"
+            ),
+        )
+        .unwrap();
+        std::fs::write(dir.join("npx"), "// npx-cli.js\n").unwrap();
+        std::fs::set_permissions(&node, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let r = lighthouse_with(&node, Path::new("/x/chrome"), "http://localhost:3000", 5000);
+        assert_eq!(
+            (&r["status"], &r["detail"]),
+            (&json!("ran"), &json!("scores: SEO 100")),
+            "{r}"
+        );
+        std::fs::remove_file(dir.join("npx")).unwrap();
+        let r = lighthouse_with(&node, Path::new("/x/chrome"), "http://localhost:3000", 5000);
+        assert_eq!(r["status"], json!("unverifiable"));
+        assert_eq!(
+            r["detail"],
+            json!(format!("npx not found next to {}", node.display()))
+        );
     }
 
     #[test]
