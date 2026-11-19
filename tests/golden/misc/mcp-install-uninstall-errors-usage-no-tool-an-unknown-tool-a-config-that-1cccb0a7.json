@@ -1,0 +1,31 @@
+{
+  "test": "mcp install | uninstall > errors: usage, no tool, an unknown tool, a config that is not JSON",
+  "results": [
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Usage: dfw mcp | dfw mcp install|uninstall <opencode|codex|cursor|all> [--print]\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Which tool? opencode, codex, cursor, all\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Error: Unknown tool \"vim\". MCP install targets: opencode, codex, cursor, all.\n    at mcpInstall (file://<repo>/core/lib/mcp.mjs:242:19)\n    at main (file://<repo>/core/lib/cli.mjs:676:16)\n    at file://<repo>/core/bin/dfw.mjs:17:1\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Error: cannot parse the existing config (Expected property name or '}' in JSON at position 1 (line 1 column 2)); add dfw by hand or fix the file\n    at mcpConfigText (file://<repo>/core/lib/mcp.mjs:214:13)\n    at mcpInstall (file://<repo>/core/lib/mcp.mjs:245:18)\n    at main (file://<repo>/core/lib/cli.mjs:676:16)\n    at file://<repo>/core/bin/dfw.mjs:17:1\n",
+      "files": {
+        ".cursor/mcp.json": "{broken"
+      }
+    }
+  ]
+}

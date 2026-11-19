@@ -1,0 +1,1125 @@
+{
+  "test": "core: host > hook output is identical for every host, event and result kind",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"Some context\\nwith \\\"quotes\\\" and tiếng Việt\"}}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Not yet: approve the design first.\"}}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"Open comments remain.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"d\"}}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"b\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"Some context\\nwith \\\"quotes\\\" and tiếng Việt\"}}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Not yet: approve the design first.\"}}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"Open comments remain.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"d\"}}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"b\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"additionalContext\":\"Some context\\nwith \\\"quotes\\\" and tiếng Việt\"}}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Not yet: approve the design first.\"}}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"Open comments remain.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"d\"}}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"b\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"additionalContext\":\"Some context\\nwith \\\"quotes\\\" and tiếng Việt\"}}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Not yet: approve the design first.\"}}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"Open comments remain.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"d\"}}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"b\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"Stop\",\"additionalContext\":\"Some context\\nwith \\\"quotes\\\" and tiếng Việt\"}}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"Stop\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Not yet: approve the design first.\"}}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"Open comments remain.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"Stop\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"d\"}}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"b\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"Some context\\nwith \\\"quotes\\\" and tiếng Việt\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Not yet: approve the design first.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"Open comments remain.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"d\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"b\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Not yet: approve the design first.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"Open comments remain.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"d\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"b\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"Some context\\nwith \\\"quotes\\\" and tiếng Việt\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Not yet: approve the design first.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"Open comments remain.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"d\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"b\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"Some context\\nwith \\\"quotes\\\" and tiếng Việt\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Not yet: approve the design first.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"Open comments remain.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"d\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"b\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"Some context\\nwith \\\"quotes\\\" and tiếng Việt\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Not yet: approve the design first.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"Open comments remain.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"d\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"b\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"Some context\\nwith \\\"quotes\\\" and tiếng Việt\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Not yet: approve the design first.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"Open comments remain.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"d\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"b\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"Some context\\nwith \\\"quotes\\\" and tiếng Việt\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Not yet: approve the design first.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"Open comments remain.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"d\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"b\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"Some context\\nwith \\\"quotes\\\" and tiếng Việt\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Not yet: approve the design first.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"Open comments remain.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"d\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"b\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"Some context\\nwith \\\"quotes\\\" and tiếng Việt\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Not yet: approve the design first.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"Open comments remain.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"d\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"b\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"Some context\\nwith \\\"quotes\\\" and tiếng Việt\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Not yet: approve the design first.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"Open comments remain.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"d\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"b\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"Some context\\nwith \\\"quotes\\\" and tiếng Việt\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Not yet: approve the design first.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"Open comments remain.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"d\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"b\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"Some context\\nwith \\\"quotes\\\" and tiếng Việt\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Not yet: approve the design first.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"Open comments remain.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"d\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"b\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"Some context\\nwith \\\"quotes\\\" and tiếng Việt\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Not yet: approve the design first.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"Open comments remain.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"d\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"b\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"Some context\\nwith \\\"quotes\\\" and tiếng Việt\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Not yet: approve the design first.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"Open comments remain.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"d\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"b\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"Some context\\nwith \\\"quotes\\\" and tiếng Việt\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Not yet: approve the design first.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"Open comments remain.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"d\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"b\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"Some context\\nwith \\\"quotes\\\" and tiếng Việt\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Not yet: approve the design first.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"Open comments remain.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"d\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"b\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"Some context\\nwith \\\"quotes\\\" and tiếng Việt\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Not yet: approve the design first.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"Open comments remain.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"d\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"b\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"Some context\\nwith \\\"quotes\\\" and tiếng Việt\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Not yet: approve the design first.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"Open comments remain.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"d\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"b\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"Some context\\nwith \\\"quotes\\\" and tiếng Việt\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Not yet: approve the design first.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"Open comments remain.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"d\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"b\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"Some context\\nwith \\\"quotes\\\" and tiếng Việt\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Not yet: approve the design first.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"Open comments remain.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"d\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"b\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"Some context\\nwith \\\"quotes\\\" and tiếng Việt\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Not yet: approve the design first.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"Open comments remain.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"d\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"b\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"Some context\\nwith \\\"quotes\\\" and tiếng Việt\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Not yet: approve the design first.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"Open comments remain.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"d\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"b\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"Some context\\nwith \\\"quotes\\\" and tiếng Việt\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Not yet: approve the design first.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"Open comments remain.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"d\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"b\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"Some context\\nwith \\\"quotes\\\" and tiếng Việt\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Not yet: approve the design first.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"Open comments remain.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"d\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"b\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"Some context\\nwith \\\"quotes\\\" and tiếng Việt\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Not yet: approve the design first.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"Open comments remain.\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"d\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"decision\":\"block\",\"reason\":\"b\"}\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 0,
+      "stdout": "null\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    },
+    {
+      "code": 1,
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
+    }
+  ]
+}

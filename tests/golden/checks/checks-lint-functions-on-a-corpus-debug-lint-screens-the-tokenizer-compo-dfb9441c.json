@@ -1,0 +1,9 @@
+{
+  "test": "checks: lint functions on a corpus (__debug lint) > screens the tokenizer composes differently than the Node expressions did (by design)",
+  "results": [
+    "[{\"level\":\"warn\",\"rule\":\"page-layout\",\"file\":\"design/screens/unlisted/a.html\",\"line\":1,\"message\":\"Screen does not use the page layout master (<dfw-use c=\\\"page\\\" variant=\\\"task|flow|split\\\">): paddings, widths and overflow behaviour will drift from other screens.\",\"source\":\"dfw\"},{\"level\":\"warn\",\"rule\":\"app-shell\",\"file\":\"design/screens/unlisted/a.html\",\"line\":1,\"message\":\"Screen does not use the shared app-shell: every screen should be framed by the same navigation and layout (<dfw-use c=\\\"app-shell\\\" current=\\\"...\\\">).\",\"source\":\"dfw\"}]",
+    "[{\"level\":\"warn\",\"rule\":\"tokens-link\",\"file\":\"design/screens/unlisted/a.html\",\"line\":1,\"message\":\"Screen does not load design/tokens/tokens.css; values may not come from tokens.\",\"source\":\"dfw\"}]",
+    "[{\"level\":\"warn\",\"rule\":\"no-components\",\"file\":\"design/screens/unlisted/a.html\",\"line\":1,\"message\":\"Screen uses no design-system components; build screens from design/system/components.\",\"source\":\"dfw\"}]",
+    "[{\"level\":\"warn\",\"rule\":\"tokens-link\",\"file\":\"design/screens/unlisted/a.html\",\"line\":1,\"message\":\"Screen does not load design/tokens/tokens.css; values may not come from tokens.\",\"source\":\"dfw\"},{\"level\":\"warn\",\"rule\":\"dfw-id-missing\",\"file\":\"design/screens/unlisted/a.html\",\"line\":1,\"message\":\"1 structural/interactive element(s) have no data-dfw-id; click-to-comment cannot target them reliably.\",\"source\":\"dfw\"}]"
+  ]
+}

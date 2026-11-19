@@ -1,0 +1,567 @@
+{
+  "test": "hot: hooks > pre-tool-use: the presence note names the element about to be edited",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.title\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.title\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.title\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.title\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.title\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.title\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.note\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.note\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.note\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.note\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.note\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.note\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.export\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.export\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.export\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.export\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.export\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.export\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.export\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.export\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.export\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.export\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.export\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.export\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.summary\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.summary\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.summary\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.summary\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.summary\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.summary\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.title\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.note\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.export\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": \"items.summary\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"tokens/tokens.json\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/new/b.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"handoff/v1.md\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    }
+  ]
+}

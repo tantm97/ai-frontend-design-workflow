@@ -1,0 +1,11 @@
+{
+  "test": "edit: sources where the tokenizer and the Node tag scanner differ > an id inside a <script> that never closes: Node edits the script text",
+  "results": [
+    {
+      "result": {
+        "error": "\"p\" was not found in the source file (it may come from a component master or shared include)."
+      },
+      "file": "<html><head></head><body><script><p data-dfw-id=\"p\">x</p></body></html>"
+    }
+  ]
+}

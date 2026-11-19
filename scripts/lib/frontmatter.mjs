@@ -30,9 +30,17 @@ export function getKey(text, key) {
   if (!fm.has) return undefined;
   const r = keyRange(fm.lines, key);
   if (!r) return undefined;
-  const raw = fm.lines.slice(r[0], r[1]).join('\n').replace(new RegExp(`^${key}\\s*:\\s*`), '');
+  const raw = fm.lines
+    .slice(r[0], r[1])
+    .join('\n')
+    .replace(new RegExp(`^${key}\\s*:\\s*`), '');
   const v = raw.trim();
-  if (/^[>|][-+]?$/.test(v.split('\n')[0])) return v.split('\n').slice(1).map((l) => l.trim()).join(' ');
+  if (/^[>|][-+]?$/.test(v.split('\n')[0]))
+    return v
+      .split('\n')
+      .slice(1)
+      .map((l) => l.trim())
+      .join(' ');
   if (v.startsWith('"')) {
     try {
       return JSON.parse(v);

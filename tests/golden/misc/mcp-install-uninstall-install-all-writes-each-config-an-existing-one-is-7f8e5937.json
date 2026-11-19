@@ -1,0 +1,28 @@
+{
+  "test": "mcp install | uninstall > install all writes each config; an existing one is backed up once",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "OpenCode: added dfw to <home>/.config/opencode/opencode.json\nOpenAI Codex: added dfw to <home>/.codex/config.toml\nCursor: added dfw to <home>/.cursor/mcp.json\nRestart the tool, then ask it for UI work: it loads the guide through the dfw_guide tool. After moving or updating dfw, run this again.\n",
+      "stderr": "",
+      "files": {
+        ".codex/config.toml": "[mcp_servers.dfw]\ncommand = \"<repo>/core/bin/dfw\"\nargs = [\"mcp\"]\n",
+        ".config/opencode/opencode.json": "{\n  \"mcp\": {\n    \"dfw\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"<repo>/core/bin/dfw\",\n        \"mcp\"\n      ],\n      \"enabled\": true\n    }\n  },\n  \"$schema\": \"https://opencode.ai/config.json\"\n}\n",
+        ".cursor/mcp.json": "{\n  \"mcpServers\": {\n    \"dfw\": {\n      \"command\": \"<repo>/core/bin/dfw\",\n      \"args\": [\n        \"mcp\"\n      ]\n    }\n  }\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "OpenCode: added dfw to <home>/.config/opencode/opencode.json (backup: opencode.json.dfw-backup)\nOpenAI Codex: added dfw to <home>/.codex/config.toml (backup: config.toml.dfw-backup)\nCursor: added dfw to <home>/.cursor/mcp.json (backup: mcp.json.dfw-backup)\nRestart the tool, then ask it for UI work: it loads the guide through the dfw_guide tool. After moving or updating dfw, run this again.\n",
+      "stderr": "",
+      "files": {
+        ".codex/config.toml": "model = \"o3\"\r\n\r\n[mcp_servers.other]\r\ncommand = \"o\"\n\n[mcp_servers.dfw]\ncommand = \"<repo>/core/bin/dfw\"\nargs = [\"mcp\"]\n",
+        ".codex/config.toml.dfw-backup": "model = \"o3\"\r\n\r\n[mcp_servers.dfw]\r\ncommand = \"/old/dfw\"\r\nargs = [\"mcp\"]\r\n\r\n\r\n\r\n[mcp_servers.other]\r\ncommand = \"o\"\r\n",
+        ".config/opencode/opencode.json": "{\n  \"theme\": \"dark\",\n  \"mcp\": {\n    \"dfw\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"<repo>/core/bin/dfw\",\n        \"mcp\"\n      ],\n      \"enabled\": true\n    },\n    \"other\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"o\"\n      ]\n    }\n  },\n  \"$schema\": \"https://opencode.ai/config.json\"\n}\n",
+        ".config/opencode/opencode.json.dfw-backup": "{\n  \"theme\": \"dark\",\n  \"mcp\": {\n    \"dfw\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"/old\"\n      ]\n    },\n    \"other\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"o\"\n      ]\n    }\n  }\n}\n",
+        ".cursor/mcp.json": "{\n  \"mcpServers\": {\n    \"other\": {\n      \"command\": \"o\"\n    },\n    \"dfw\": {\n      \"command\": \"<repo>/core/bin/dfw\",\n      \"args\": [\n        \"mcp\"\n      ]\n    }\n  }\n}\n",
+        ".cursor/mcp.json.dfw-backup": "{\"mcpServers\":{\"other\":{\"command\":\"o\"}}}"
+      }
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "test": "tools: inspector > inspector setup --write: refused without G3 and the approved dependency",
+  "results": [
+    {
+      "code": 1,
+      "stdout": "",
+      "files": {},
+      "extra": null,
+      "stderr": "dfw inspector setup --write refused: G3 (technology stack) is not approved; .dfw/stack.json does not list \"code-inspector-plugin\" in its dependencies. New dependencies need the user's approval: propose code-inspector-plugin@2.0.9 (dev-only, MIT) with \"dfw stack set\" (dependencies: [{\"name\":\"code-inspector-plugin\",\"version\":\"2.0.9\",\"dev\":true}]), get the user's OK, \"dfw approve G3 --note ...\", then run this again.\n"
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "files": {},
+      "extra": null,
+      "stderr": "dfw inspector setup --write refused: G3 (technology stack) is not approved; .dfw/stack.json does not list \"code-inspector-plugin\" in its dependencies. New dependencies need the user's approval: propose code-inspector-plugin@2.0.9 (dev-only, MIT) with \"dfw stack set\" (dependencies: [{\"name\":\"code-inspector-plugin\",\"version\":\"2.0.9\",\"dev\":true}]), get the user's OK, \"dfw approve G3 --note ...\", then run this again.\n"
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "files": {},
+      "extra": null,
+      "stderr": "dfw inspector setup --write refused: .dfw/stack.json does not list \"code-inspector-plugin\" in its dependencies. New dependencies need the user's approval: propose code-inspector-plugin@2.0.9 (dev-only, MIT) with \"dfw stack set\" (dependencies: [{\"name\":\"code-inspector-plugin\",\"version\":\"2.0.9\",\"dev\":true}]), get the user's OK, \"dfw approve G3 --note ...\", then run this again.\n"
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "files": {},
+      "extra": null,
+      "stderr": "dfw inspector setup --write refused: G3 (technology stack) is not approved. New dependencies need the user's approval: propose code-inspector-plugin@2.0.9 (dev-only, MIT) with \"dfw stack set\" (dependencies: [{\"name\":\"code-inspector-plugin\",\"version\":\"2.0.9\",\"dev\":true}]), get the user's OK, \"dfw approve G3 --note ...\", then run this again.\n"
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "files": {},
+      "extra": null,
+      "stderr": "Usage: dfw inspector setup [--write] [--json]\n"
+    }
+  ]
+}

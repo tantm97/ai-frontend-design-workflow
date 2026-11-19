@@ -1,0 +1,95 @@
+{
+  "test": "align: node 0.5.2 behaviour > k: a config file that is not a JSON object is a clear error",
+  "results": [
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Config file <root>/.dfw/config.json must hold a JSON object. Fix it or delete it.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Config file <root>/.dfw/config.json must hold a JSON object. Fix it or delete it.\n",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "dfw: product=\"Fixture\" mode=new-product phase=discovery\ndesign: v1 draft\ngates: G1=open DS=open G2=open G3=open G4=open\ncomments: 0 active, 0 awaiting user verification, 0 resolved\nstudio: not running\nstack: not set\nnext: finish discovery (PRODUCT.md), then \"dfw phase direction\"\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Config file <root>/.dfw/config.json must hold a JSON object. Fix it or delete it.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Config file <root>/.dfw/config.json must hold a JSON object. Fix it or delete it.\n",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "dfw: product=\"Fixture\" mode=new-product phase=discovery\ndesign: v1 draft\ngates: G1=open DS=open G2=open G3=open G4=open\ncomments: 0 active, 0 awaiting user verification, 0 resolved\nstudio: not running\nstack: not set\nnext: finish discovery (PRODUCT.md), then \"dfw phase direction\"\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Config file <root>/.dfw/config.json must hold a JSON object. Fix it or delete it.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Config file <root>/.dfw/config.json must hold a JSON object. Fix it or delete it.\n",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "dfw: product=\"Fixture\" mode=new-product phase=discovery\ndesign: v1 draft\ngates: G1=open DS=open G2=open G3=open G4=open\ncomments: 0 active, 0 awaiting user verification, 0 resolved\nstudio: not running\nstack: not set\nnext: finish discovery (PRODUCT.md), then \"dfw phase direction\"\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Config file <root>/.dfw/config.json must hold a JSON object. Fix it or delete it.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Config file <root>/.dfw/config.json must hold a JSON object. Fix it or delete it.\n",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "dfw: product=\"Fixture\" mode=new-product phase=discovery\ndesign: v1 draft\ngates: G1=open DS=open G2=open G3=open G4=open\ncomments: 0 active, 0 awaiting user verification, 0 resolved\nstudio: not running\nstack: not set\nnext: finish discovery (PRODUCT.md), then \"dfw phase direction\"\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Config file <root>/.dfw/config.json must hold a JSON object. Fix it or delete it.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Config file <root>/.dfw/config.json must hold a JSON object. Fix it or delete it.\n",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "dfw: product=\"Fixture\" mode=new-product phase=discovery\ndesign: v1 draft\ngates: G1=open DS=open G2=open G3=open G4=open\ncomments: 0 active, 0 awaiting user verification, 0 resolved\nstudio: not running\nstack: not set\nnext: finish discovery (PRODUCT.md), then \"dfw phase direction\"\n",
+      "stderr": "",
+      "files": {}
+    }
+  ]
+}

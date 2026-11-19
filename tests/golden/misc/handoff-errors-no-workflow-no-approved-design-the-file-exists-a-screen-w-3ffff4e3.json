@@ -1,0 +1,29 @@
+{
+  "test": "handoff > errors: no workflow, no approved design, the file exists, a screen without variants",
+  "results": [
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "No dfw workflow in <root>. Run \"dfw init\" first.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Handoff is generated from an approved design (G2).\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "design/handoff/v1.md already exists.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "design/approved/v1/design.json: screen \"x\" has no \"variants\" list. The snapshot is frozen: run \"dfw verify-snapshot v1\", and if it was edited restore it from version control.\n",
+      "files": {}
+    }
+  ]
+}

@@ -1,9 +1,10 @@
 #!/bin/sh
-# Install dfw without Node.js: download the single-file dfw binary for this machine from the
-# GitHub release, verify its SHA-256, then let it register dfw and its skills with Claude Code.
+# Install dfw (no Node.js needed): download the native dfw binary for this machine from the GitHub
+# release, verify its SHA-256 against the release's SHA256SUMS, put it in ~/.config/dfw/bin/<version>/,
+# then let it register dfw and its skills with Claude Code and GitHub Copilot ("dfw install").
 #   curl -fsSL https://raw.githubusercontent.com/tantm97/ai-frontend-design-workflow/main/install.sh | sh
 #   ... | sh -s -- --scope project          (arguments go to "dfw install")
-#   DFW_VERSION=0.5.1 sh install.sh          (a specific release)
+#   DFW_VERSION=0.6.0 sh install.sh          (a specific release; 0.5.x is the last Node-based one)
 set -eu
 REPO="tantm97/ai-frontend-design-workflow"
 
@@ -53,9 +54,24 @@ chmod 755 "$DEST"
 echo "  installed $DEST"
 
 # A "dfw" command on PATH for use outside Claude Code (Claude Code itself uses the plugin's bin/).
+# Only a link of dfw's own (into $HOME_DIR/bin/, or one whose target is gone) is replaced: another
+# "dfw" there (a file, or a link elsewhere) is the user's and stays.
 LINK_DIR="$HOME/.local/bin"
+LINK="$LINK_DIR/dfw$EXT"
 mkdir -p "$LINK_DIR"
-ln -sf "$DEST" "$LINK_DIR/dfw$EXT"
+OURS=no
+if [ ! -e "$LINK" ] && [ ! -L "$LINK" ]; then
+  OURS=yes
+elif [ -L "$LINK" ]; then
+  case "$(readlink "$LINK")" in "$HOME_DIR/bin/"*) OURS=yes ;; esac
+  [ -e "$LINK" ] || OURS=yes
+fi
+if [ "$OURS" = yes ]; then
+  rm -f "$LINK"
+  ln -s "$DEST" "$LINK"
+else
+  echo "  $LINK is not a dfw link; left as it is. To use this dfw from a shell: ln -sf \"$DEST\" \"$LINK\""
+fi
 case ":$PATH:" in *":$LINK_DIR:"*) ;; *) echo "  add $LINK_DIR to PATH to run dfw from any shell" ;; esac
 
 exec "$DEST" install "$@"

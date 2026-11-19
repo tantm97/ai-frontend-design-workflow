@@ -1,0 +1,4 @@
+{
+  "test": "browser: shoot > native only: the browser and its profile go when dfw is killed mid-run (SIGTERM, SIGKILL)",
+  "results": []
+}

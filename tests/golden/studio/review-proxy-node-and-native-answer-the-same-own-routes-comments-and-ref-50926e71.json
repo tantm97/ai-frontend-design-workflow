@@ -1,0 +1,117 @@
+{
+  "test": "review proxy: Node and native answer the same > own routes, comments and refusals",
+  "results": [
+    {
+      "status": 200,
+      "type": "application/json; charset=utf-8",
+      "cache": "no-store",
+      "body": "{\"target\":\"http://localhost:<app>\",\"url\":\"http://localhost:<port>/\",\"shots\":false,\"shortcut\":\"alt+c\"}",
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "etag": null,
+      "location": null,
+      "set-cookie": null,
+      "content-encoding": null
+    },
+    {
+      "status": 200,
+      "type": "text/javascript; charset=utf-8",
+      "cache": "no-store",
+      "body": "<core/studio/overlay.js>",
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "etag": null,
+      "location": null,
+      "set-cookie": null,
+      "content-encoding": null
+    },
+    {
+      "status": 200,
+      "type": "text/javascript; charset=utf-8",
+      "cache": "no-store",
+      "body": "<core/studio/live.js>",
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "etag": null,
+      "location": null,
+      "set-cookie": null,
+      "content-encoding": null
+    },
+    {
+      "status": 403,
+      "type": "application/json; charset=utf-8",
+      "cache": "no-store",
+      "body": "{\"error\":\"host evil.example not allowed\"}",
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "etag": null,
+      "location": null,
+      "set-cookie": null,
+      "content-encoding": null
+    },
+    {
+      "status": 403,
+      "type": "application/json; charset=utf-8",
+      "cache": "no-store",
+      "body": "{\"error\":\"origin https://evil.example not allowed\"}",
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "etag": null,
+      "location": null,
+      "set-cookie": null,
+      "content-encoding": null
+    },
+    {
+      "status": 201,
+      "type": "application/json; charset=utf-8",
+      "cache": "no-store",
+      "body": "{\"id\":\"fb_001\",\"createdAt\":\"2026-01-02T03:04:05.678Z\",\"designVersion\":\"v1\",\"screen\":\"/cart?x=1\",\"variant\":\"live\",\"breakpoint\":\"mobile\",\"state\":null,\"theme\":null,\"file\":null,\"target\":{\"selector\":\"h1\",\"source\":\"src/App.tsx:3:5\",\"inspPath\":\"src/App.tsx:3:5:main\"},\"comment\":\"Bold title\",\"screenshot\":null,\"status\":\"open\",\"thread\":[],\"resolution\":null,\"provider\":\"dfw-live\",\"url\":\"/cart?x=1\"}",
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "etag": null,
+      "location": null,
+      "set-cookie": null,
+      "content-encoding": null
+    },
+    {
+      "status": 201,
+      "type": "application/json; charset=utf-8",
+      "cache": "no-store",
+      "body": "{\"id\":\"fb_002\",\"createdAt\":\"2026-01-02T03:04:05.678Z\",\"designVersion\":\"v1\",\"screen\":\"/\",\"variant\":\"live\",\"breakpoint\":\"desktop\",\"state\":null,\"theme\":null,\"file\":null,\"target\":{\"selector\":\"#x\",\"source\":null},\"comment\":\"No source\",\"screenshot\":null,\"status\":\"open\",\"thread\":[],\"resolution\":null,\"provider\":\"dfw-live\",\"url\":\"/\"}",
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "etag": null,
+      "location": null,
+      "set-cookie": null,
+      "content-encoding": null
+    },
+    {
+      "status": 400,
+      "type": "application/json; charset=utf-8",
+      "cache": "no-store",
+      "body": "{\"error\":\"A comment needs text.\"}",
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "etag": null,
+      "location": null,
+      "set-cookie": null,
+      "content-encoding": null
+    },
+    {
+      "status": 413,
+      "type": "application/json; charset=utf-8",
+      "cache": "no-store",
+      "body": "{\"error\":\"Request too large.\"}",
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "etag": null,
+      "location": null,
+      "set-cookie": null,
+      "content-encoding": null
+    },
+    {
+      ".dfw/reviews/rv_1.json": "{\n  \"schema\": 1,\n  \"id\": \"rv_1\",\n  \"startedAt\": \"2026-01-02T03:04:05.678Z\",\n  \"designVersion\": \"v1\",\n  \"comments\": [\n    {\n      \"id\": \"fb_001\",\n      \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n      \"designVersion\": \"v1\",\n      \"screen\": \"/cart?x=1\",\n      \"variant\": \"live\",\n      \"breakpoint\": \"mobile\",\n      \"state\": null,\n      \"theme\": null,\n      \"file\": null,\n      \"target\": {\n        \"selector\": \"h1\",\n        \"source\": \"src/App.tsx:3:5\",\n        \"inspPath\": \"src/App.tsx:3:5:main\"\n      },\n      \"comment\": \"Bold title\",\n      \"screenshot\": null,\n      \"status\": \"open\",\n      \"thread\": [],\n      \"resolution\": null,\n      \"provider\": \"dfw-live\",\n      \"url\": \"/cart?x=1\"\n    },\n    {\n      \"id\": \"fb_002\",\n      \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n      \"designVersion\": \"v1\",\n      \"screen\": \"/\",\n      \"variant\": \"live\",\n      \"breakpoint\": \"desktop\",\n      \"state\": null,\n      \"theme\": null,\n      \"file\": null,\n      \"target\": {\n        \"selector\": \"#x\",\n        \"source\": null\n      },\n      \"comment\": \"No source\",\n      \"screenshot\": null,\n      \"status\": \"open\",\n      \"thread\": [],\n      \"resolution\": null,\n      \"provider\": \"dfw-live\",\n      \"url\": \"/\"\n    }\n  ]\n}\n",
+      ".dfw/state.json": "{\n  \"schema\": 1,\n  \"product\": \"Fixture\",\n  \"mode\": \"new-product\",\n  \"phase\": \"discovery\",\n  \"active\": true,\n  \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n  \"updatedAt\": \"2026-01-02T03:04:05.678Z\",\n  \"design\": {\n    \"version\": 1,\n    \"status\": \"draft\",\n    \"locked\": false,\n    \"approved\": []\n  },\n  \"gates\": {\n    \"G1\": null,\n    \"DS\": null,\n    \"G2\": null,\n    \"G3\": null,\n    \"G4\": null\n  },\n  \"waived\": {},\n  \"history\": [\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"init\",\n      \"mode\": \"new-product\"\n    }\n  ]\n}\n"
+    }
+  ]
+}

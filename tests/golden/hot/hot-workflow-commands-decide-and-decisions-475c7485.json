@@ -1,0 +1,171 @@
+{
+  "test": "hot: workflow commands > decide and decisions",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "{\n  \"at\": \"2026-01-02T03:04:05.678Z\",\n  \"level\": 1,\n  \"topic\": \"general\",\n  \"decision\": \"Blue accent\",\n  \"by\": \"user\"\n}\n",
+      "stderr": "",
+      "files": {
+        ".dfw/decisions.jsonl": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"level\":1,\"topic\":\"general\",\"decision\":\"Blue accent\",\"by\":\"user\"}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"at\": \"2026-01-02T03:04:05.678Z\",\n  \"level\": 3,\n  \"topic\": \"type\",\n  \"decision\": \"Inter for UI text\",\n  \"by\": \"orchestrator\",\n  \"overrides\": \"d1\"\n}\n",
+      "stderr": "",
+      "files": {
+        ".dfw/decisions.jsonl": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"level\":3,\"topic\":\"type\",\"decision\":\"Inter for UI text\",\"by\":\"orchestrator\",\"overrides\":\"d1\"}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"at\": \"2026-01-02T03:04:05.678Z\",\n  \"level\": 2,\n  \"topic\": \"general\",\n  \"decision\": \"From a flag\",\n  \"by\": \"orchestrator\"\n}\n",
+      "stderr": "",
+      "files": {
+        ".dfw/decisions.jsonl": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"level\":2,\"topic\":\"general\",\"decision\":\"From a flag\",\"by\":\"orchestrator\"}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"at\": \"2026-01-02T03:04:05.678Z\",\n  \"level\": 5,\n  \"topic\": \"general\",\n  \"decision\": \"x\",\n  \"by\": \"orchestrator\"\n}\n",
+      "stderr": "",
+      "files": {
+        ".dfw/decisions.jsonl": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"level\":5,\"topic\":\"general\",\"decision\":\"x\",\"by\":\"orchestrator\"}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"at\": \"2026-01-02T03:04:05.678Z\",\n  \"level\": 2,\n  \"topic\": \"general\",\n  \"decision\": \"hex\",\n  \"by\": \"orchestrator\"\n}\n",
+      "stderr": "",
+      "files": {
+        ".dfw/decisions.jsonl": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"level\":2,\"topic\":\"general\",\"decision\":\"hex\",\"by\":\"orchestrator\"}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"at\": \"2026-01-02T03:04:05.678Z\",\n  \"level\": 4,\n  \"topic\": \"general\",\n  \"decision\": \"padded\",\n  \"by\": \"orchestrator\"\n}\n",
+      "stderr": "",
+      "files": {
+        ".dfw/decisions.jsonl": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"level\":4,\"topic\":\"general\",\"decision\":\"padded\",\"by\":\"orchestrator\"}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"at\": \"2026-01-02T03:04:05.678Z\",\n  \"level\": 2,\n  \"topic\": \"general\",\n  \"decision\": \"words first\",\n  \"by\": \"orchestrator\"\n}\n",
+      "stderr": "",
+      "files": {
+        ".dfw/decisions.jsonl": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"level\":2,\"topic\":\"general\",\"decision\":\"words first\",\"by\":\"orchestrator\"}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"at\": \"2026-01-02T03:04:05.678Z\",\n  \"level\": 2,\n  \"topic\": \"general\",\n  \"decision\": \"x\",\n  \"by\": \"orchestrator\"\n}\n",
+      "stderr": "",
+      "files": {
+        ".dfw/decisions.jsonl": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"level\":2,\"topic\":\"general\",\"decision\":\"x\",\"by\":\"orchestrator\"}\n"
+      }
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--level must be 1 (user) .. 5 (external skill recommendation).\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--level must be 1 (user) .. 5 (external skill recommendation).\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--level must be 1 (user) .. 5 (external skill recommendation).\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--level must be 1 (user) .. 5 (external skill recommendation).\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--level must be 1 (user) .. 5 (external skill recommendation).\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--level must be 1 (user) .. 5 (external skill recommendation).\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--level must be 1 (user) .. 5 (external skill recommendation).\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Decision text is required.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Decision text is required.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--level needs a value.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--text needs a value.\n",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "No decisions recorded.\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "[]\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "2026-01-02T03:04 L1 [gate:G1] Design direction approved - A\n2026-02-03T04:05 L2.5 [type] Inter\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "[\n  {\n    \"at\": \"2026-01-02T03:04:05.678Z\",\n    \"level\": 1,\n    \"topic\": \"gate:G1\",\n    \"decision\": \"Design direction approved - A\",\n    \"by\": \"user\"\n  },\n  {\n    \"at\": \"2026-02-03T04:05:06.007Z\",\n    \"level\": 2.5,\n    \"topic\": \"type\",\n    \"decision\": \"Inter\",\n    \"by\": \"orchestrator\",\n    \"overrides\": \"d1\"\n  }\n]\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    }
+  ]
+}

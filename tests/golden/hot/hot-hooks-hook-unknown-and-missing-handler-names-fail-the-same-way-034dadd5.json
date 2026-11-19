@@ -1,0 +1,23 @@
+{
+  "test": "hot: hooks > hook: unknown and missing handler names fail the same way",
+  "results": [
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown hook \"nope\"\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown hook \"nope\"\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown hook \"undefined\"\n",
+      "files": {}
+    }
+  ]
+}

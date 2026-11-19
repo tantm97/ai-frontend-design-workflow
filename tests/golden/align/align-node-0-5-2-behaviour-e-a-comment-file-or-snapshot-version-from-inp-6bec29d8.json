@@ -1,0 +1,85 @@
+{
+  "test": "align: node 0.5.2 behaviour > e: a comment file or snapshot version from input never leaves design/",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "{\n  \"id\": \"fb_001\",\n  \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n  \"designVersion\": \"v1\",\n  \"screen\": null,\n  \"variant\": null,\n  \"breakpoint\": null,\n  \"state\": null,\n  \"theme\": null,\n  \"file\": null,\n  \"target\": {\n    \"dfwId\": \"items.title\",\n    \"source\": null\n  },\n  \"comment\": \"x\",\n  \"screenshot\": null,\n  \"status\": \"open\",\n  \"thread\": [],\n  \"resolution\": null,\n  \"provider\": \"dfw-studio\"\n}\n",
+      "stderr": "",
+      "files": {
+        ".dfw/reviews/rv_<now>.json": "{\n  \"schema\": 1,\n  \"id\": \"rv_<now>\",\n  \"startedAt\": \"2026-01-02T03:04:05.678Z\",\n  \"designVersion\": \"v1\",\n  \"comments\": [\n    {\n      \"id\": \"fb_001\",\n      \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n      \"designVersion\": \"v1\",\n      \"screen\": null,\n      \"variant\": null,\n      \"breakpoint\": null,\n      \"state\": null,\n      \"theme\": null,\n      \"file\": null,\n      \"target\": {\n        \"dfwId\": \"items.title\",\n        \"source\": null\n      },\n      \"comment\": \"x\",\n      \"screenshot\": null,\n      \"status\": \"open\",\n      \"thread\": [],\n      \"resolution\": null,\n      \"provider\": \"dfw-studio\"\n    }\n  ]\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"id\": \"fb_001\",\n  \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n  \"designVersion\": \"v1\",\n  \"screen\": null,\n  \"variant\": null,\n  \"breakpoint\": null,\n  \"state\": null,\n  \"theme\": null,\n  \"file\": null,\n  \"target\": {\n    \"dfwId\": \"items.title\",\n    \"source\": null\n  },\n  \"comment\": \"x\",\n  \"screenshot\": null,\n  \"status\": \"open\",\n  \"thread\": [],\n  \"resolution\": null,\n  \"provider\": \"dfw-studio\"\n}\n",
+      "stderr": "",
+      "files": {
+        ".dfw/reviews/rv_<now>.json": "{\n  \"schema\": 1,\n  \"id\": \"rv_<now>\",\n  \"startedAt\": \"2026-01-02T03:04:05.678Z\",\n  \"designVersion\": \"v1\",\n  \"comments\": [\n    {\n      \"id\": \"fb_001\",\n      \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n      \"designVersion\": \"v1\",\n      \"screen\": null,\n      \"variant\": null,\n      \"breakpoint\": null,\n      \"state\": null,\n      \"theme\": null,\n      \"file\": null,\n      \"target\": {\n        \"dfwId\": \"items.title\",\n        \"source\": null\n      },\n      \"comment\": \"x\",\n      \"screenshot\": null,\n      \"status\": \"open\",\n      \"thread\": [],\n      \"resolution\": null,\n      \"provider\": \"dfw-studio\"\n    }\n  ]\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"id\": \"fb_001\",\n  \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n  \"designVersion\": \"v1\",\n  \"screen\": null,\n  \"variant\": null,\n  \"breakpoint\": null,\n  \"state\": null,\n  \"theme\": null,\n  \"file\": null,\n  \"target\": {\n    \"dfwId\": \"items.title\",\n    \"source\": null\n  },\n  \"comment\": \"x\",\n  \"screenshot\": null,\n  \"status\": \"open\",\n  \"thread\": [],\n  \"resolution\": null,\n  \"provider\": \"dfw-studio\"\n}\n",
+      "stderr": "",
+      "files": {
+        ".dfw/reviews/rv_<now>.json": "{\n  \"schema\": 1,\n  \"id\": \"rv_<now>\",\n  \"startedAt\": \"2026-01-02T03:04:05.678Z\",\n  \"designVersion\": \"v1\",\n  \"comments\": [\n    {\n      \"id\": \"fb_001\",\n      \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n      \"designVersion\": \"v1\",\n      \"screen\": null,\n      \"variant\": null,\n      \"breakpoint\": null,\n      \"state\": null,\n      \"theme\": null,\n      \"file\": null,\n      \"target\": {\n        \"dfwId\": \"items.title\",\n        \"source\": null\n      },\n      \"comment\": \"x\",\n      \"screenshot\": null,\n      \"status\": \"open\",\n      \"thread\": [],\n      \"resolution\": null,\n      \"provider\": \"dfw-studio\"\n    }\n  ]\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"id\": \"fb_001\",\n  \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n  \"designVersion\": \"v1\",\n  \"screen\": null,\n  \"variant\": null,\n  \"breakpoint\": null,\n  \"state\": null,\n  \"theme\": null,\n  \"file\": null,\n  \"target\": {\n    \"dfwId\": \"items.title\",\n    \"source\": null\n  },\n  \"comment\": \"x\",\n  \"screenshot\": null,\n  \"status\": \"open\",\n  \"thread\": [],\n  \"resolution\": null,\n  \"provider\": \"dfw-studio\"\n}\n",
+      "stderr": "",
+      "files": {
+        ".dfw/reviews/rv_<now>.json": "{\n  \"schema\": 1,\n  \"id\": \"rv_<now>\",\n  \"startedAt\": \"2026-01-02T03:04:05.678Z\",\n  \"designVersion\": \"v1\",\n  \"comments\": [\n    {\n      \"id\": \"fb_001\",\n      \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n      \"designVersion\": \"v1\",\n      \"screen\": null,\n      \"variant\": null,\n      \"breakpoint\": null,\n      \"state\": null,\n      \"theme\": null,\n      \"file\": null,\n      \"target\": {\n        \"dfwId\": \"items.title\",\n        \"source\": null\n      },\n      \"comment\": \"x\",\n      \"screenshot\": null,\n      \"status\": \"open\",\n      \"thread\": [],\n      \"resolution\": null,\n      \"provider\": \"dfw-studio\"\n    }\n  ]\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"id\": \"fb_001\",\n  \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n  \"designVersion\": \"v1\",\n  \"screen\": null,\n  \"variant\": null,\n  \"breakpoint\": null,\n  \"state\": null,\n  \"theme\": null,\n  \"file\": null,\n  \"target\": {\n    \"dfwId\": \"items.title\",\n    \"source\": null\n  },\n  \"comment\": \"x\",\n  \"screenshot\": null,\n  \"status\": \"open\",\n  \"thread\": [],\n  \"resolution\": null,\n  \"provider\": \"dfw-studio\"\n}\n",
+      "stderr": "",
+      "files": {
+        ".dfw/reviews/rv_<now>.json": "{\n  \"schema\": 1,\n  \"id\": \"rv_<now>\",\n  \"startedAt\": \"2026-01-02T03:04:05.678Z\",\n  \"designVersion\": \"v1\",\n  \"comments\": [\n    {\n      \"id\": \"fb_001\",\n      \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n      \"designVersion\": \"v1\",\n      \"screen\": null,\n      \"variant\": null,\n      \"breakpoint\": null,\n      \"state\": null,\n      \"theme\": null,\n      \"file\": null,\n      \"target\": {\n        \"dfwId\": \"items.title\",\n        \"source\": null\n      },\n      \"comment\": \"x\",\n      \"screenshot\": null,\n      \"status\": \"open\",\n      \"thread\": [],\n      \"resolution\": null,\n      \"provider\": \"dfw-studio\"\n    }\n  ]\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"id\": \"fb_001\",\n  \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n  \"designVersion\": \"v1\",\n  \"screen\": null,\n  \"variant\": null,\n  \"breakpoint\": null,\n  \"state\": null,\n  \"theme\": null,\n  \"file\": null,\n  \"target\": {\n    \"dfwId\": \"items.title\",\n    \"source\": null\n  },\n  \"comment\": \"x\",\n  \"screenshot\": null,\n  \"status\": \"open\",\n  \"thread\": [],\n  \"resolution\": null,\n  \"provider\": \"dfw-studio\"\n}\n",
+      "stderr": "",
+      "files": {
+        ".dfw/reviews/rv_<now>.json": "{\n  \"schema\": 1,\n  \"id\": \"rv_<now>\",\n  \"startedAt\": \"2026-01-02T03:04:05.678Z\",\n  \"designVersion\": \"v1\",\n  \"comments\": [\n    {\n      \"id\": \"fb_001\",\n      \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n      \"designVersion\": \"v1\",\n      \"screen\": null,\n      \"variant\": null,\n      \"breakpoint\": null,\n      \"state\": null,\n      \"theme\": null,\n      \"file\": null,\n      \"target\": {\n        \"dfwId\": \"items.title\",\n        \"source\": null\n      },\n      \"comment\": \"x\",\n      \"screenshot\": null,\n      \"status\": \"open\",\n      \"thread\": [],\n      \"resolution\": null,\n      \"provider\": \"dfw-studio\"\n    }\n  ]\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"id\": \"fb_001\",\n  \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n  \"designVersion\": \"v1\",\n  \"screen\": null,\n  \"variant\": null,\n  \"breakpoint\": null,\n  \"state\": null,\n  \"theme\": null,\n  \"file\": null,\n  \"target\": {\n    \"dfwId\": \"items.title\",\n    \"source\": null\n  },\n  \"comment\": \"x\",\n  \"screenshot\": null,\n  \"status\": \"open\",\n  \"thread\": [],\n  \"resolution\": null,\n  \"provider\": \"dfw-studio\"\n}\n",
+      "stderr": "",
+      "files": {
+        ".dfw/reviews/rv_<now>.json": "{\n  \"schema\": 1,\n  \"id\": \"rv_<now>\",\n  \"startedAt\": \"2026-01-02T03:04:05.678Z\",\n  \"designVersion\": \"v1\",\n  \"comments\": [\n    {\n      \"id\": \"fb_001\",\n      \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n      \"designVersion\": \"v1\",\n      \"screen\": null,\n      \"variant\": null,\n      \"breakpoint\": null,\n      \"state\": null,\n      \"theme\": null,\n      \"file\": null,\n      \"target\": {\n        \"dfwId\": \"items.title\",\n        \"source\": null\n      },\n      \"comment\": \"x\",\n      \"screenshot\": null,\n      \"status\": \"open\",\n      \"thread\": [],\n      \"resolution\": null,\n      \"provider\": \"dfw-studio\"\n    }\n  ]\n}\n"
+      }
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown snapshot \"../../snap\". A snapshot is named v<number>, for example v1.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown snapshot \"v\". A snapshot is named v<number>, for example v1.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown snapshot \"1\". A snapshot is named v<number>, for example v1.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown snapshot \"v1/../x\". A snapshot is named v<number>, for example v1.\n",
+      "files": {}
+    }
+  ]
+}

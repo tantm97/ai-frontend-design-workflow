@@ -1,0 +1,53 @@
+{
+  "test": "penpot tokens > tokens export and import: usage errors",
+  "results": [
+    {
+      "code": 1,
+      "files": {}
+    },
+    {
+      "code": 1,
+      "files": {}
+    },
+    {
+      "code": 1,
+      "files": {}
+    },
+    {
+      "code": 1,
+      "files": {}
+    },
+    {
+      "code": 1,
+      "files": {}
+    },
+    {
+      "code": 1,
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown --format \"figma\" (supported: penpot).\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Usage: dfw tokens import <penpot-tokens.json|folder> [--from penpot] [--dry-run] [--prune]\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "<root>/missing.json not found.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "design/tokens/tokens.json not found.\n",
+      "files": {}
+    }
+  ]
+}

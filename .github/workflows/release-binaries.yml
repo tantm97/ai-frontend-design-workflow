@@ -1,21 +1,22 @@
 name: release-binaries
-# Builds the single-file dfw binary (Node SEA) on each platform and publishes them, with
-# SHA256SUMS, as the GitHub release v<version>. Trigger: push a tag v<version> that matches
-# plugins/dfw/.claude-plugin/plugin.json (or run it by hand to get artifacts without a release).
+# Builds the native dfw binary (the Rust crate in native/) on each platform with cargo and
+# publishes the binaries, with SHA256SUMS, as the GitHub release v<version>. Trigger: push a tag
+# v<version> that matches native/Cargo.toml and the plugin manifest (or run it by hand to get
+# artifacts without a release). The telemetry secrets reach the build only for a tag v*, and a
+# tag is built only when its commit is on main (job verify): a run by hand on a branch builds
+# without them.
 on:
   push:
     tags: ['v*']
   workflow_dispatch:
 permissions:
   contents: read
-env:
-  # The embedded runtime: an official nodejs.org build (portable; Homebrew/distro builds are not).
-  NODE_VERSION: 26.13.0
 jobs:
-  # Nothing is built or published unless the tagged commit is on main, the unit tests pass and
-  # the committed plugins/ (what the binary embeds) equal a clean build.
+  # Nothing is built or published unless the tagged commit is on main, the tests pass and the
+  # committed plugins/ equal a clean build.
   verify:
     runs-on: ubuntu-24.04
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -28,59 +29,118 @@ jobs:
         run: |
           git fetch -q origin main
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "tag ${GITHUB_REF_NAME} ($GITHUB_SHA) is not on origin/main; not releasing"; exit 1; }
+      - name: Dev tools (esbuild for the Studio bundles, the unit tests' DOM; pinned in package-lock.json)
+        run: npm ci
+      - name: Lint, format and type check (Studio browser code and its tests)
+        run: npm run lint
       - name: Unit tests
         run: npm test
       - name: Committed plugins match a clean build from the lock
         run: node scripts/build.mjs --check
+      - name: Versions agree, marketplace valid
+        run: node scripts/validate.mjs
+      - name: Rust toolchain (pinned by native/rust-toolchain.toml)
+        working-directory: native
+        run: |
+          rustup toolchain install
+          rustc --version
+      - name: Rust formatting, build, tests and lints
+        working-directory: native
+        run: |
+          cargo fmt --check
+          cargo build --locked
+          cargo test --locked
+          cargo clippy --locked --all-targets -- -D warnings
+      - name: Golden tests (the binary against the recorded results)
+        env:
+          DFW_REQUIRE_BIN: '1'
+        run: node --test tests/golden/
 
   build:
     needs: verify
     strategy:
       fail-fast: false
       matrix:
+        # Each runner builds its own target with its own toolchain: no cross-compilation.
         include:
-          - { os: macos-15, target: darwin-arm64 }
-          - { os: macos-15-intel, target: darwin-x64 }
-          - { os: ubuntu-24.04, target: linux-x64 }
-          - { os: ubuntu-24.04-arm, target: linux-arm64 }
-          - { os: windows-2025, target: win32-x64 }
+          - { os: macos-15, platform: darwin-arm64, target: aarch64-apple-darwin }
+          - { os: macos-15-intel, platform: darwin-x64, target: x86_64-apple-darwin }
+          - { os: ubuntu-24.04, platform: linux-x64, target: x86_64-unknown-linux-gnu }
+          - { os: ubuntu-24.04-arm, platform: linux-arm64, target: aarch64-unknown-linux-gnu }
+          - { os: windows-2025, platform: win32-x64, target: x86_64-pc-windows-msvc }
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
     defaults:
       run:
         shell: bash
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-      - run: npm ci
-      - name: Tag matches the plugin version
+      - name: Tag matches the version
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
-          v=$(node -p "require('./plugins/dfw/.claude-plugin/plugin.json').version")
-          test "v$v" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} != plugin version v$v"; exit 1; }
-      - name: Build
-        run: node scripts/build-binary.mjs --out dist
+          v=$(sed -n 's/^version = "\(.*\)"$/\1/p' native/Cargo.toml | head -n 1)
+          test "v$v" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} != native/Cargo.toml version v$v"; exit 1; }
+      - name: Rust toolchain (pinned by native/rust-toolchain.toml)
+        working-directory: native
+        run: |
+          rustup toolchain install
+          rustc -vV | grep -q "host: ${{ matrix.target }}" || { echo "this runner does not build ${{ matrix.target }} natively"; rustc -vV; exit 1; }
+      # The collector address is compiled in from the repository secrets, on this step only and
+      # only for a tag (see native/README-telemetry.md); a run by hand on a branch gets none. No
+      # cache is shared with this build, and cargo runs without -vv so the build script's
+      # environment is never printed.
+      - name: Build the native binary
+        working-directory: native
+        env:
+          DFW_OTLP_ENDPOINT: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.DFW_OTLP_ENDPOINT || '' }}
+          DFW_OTLP_HEADERS: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.DFW_OTLP_HEADERS || '' }}
+        run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: Name the binary
+        run: |
+          v=$(sed -n 's/^version = "\(.*\)"$/\1/p' native/Cargo.toml | head -n 1)
+          ext=""; [ "${{ matrix.platform }}" = win32-x64 ] && ext=".exe"
+          mkdir -p dist
+          cp "native/target/${{ matrix.target }}/release/dfw$ext" "dist/dfw-$v-${{ matrix.platform }}$ext"
+          ls -l dist
+          echo "BIN=dist/dfw-$v-${{ matrix.platform }}$ext" >> "$GITHUB_ENV"
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+      # Prints only whether an address and headers are compiled in, never the values; fails when
+      # the binary and the secret disagree.
+      - name: Telemetry address compiled in when the secret is set
+        env:
+          EXPECT_ENDPOINT: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.DFW_OTLP_ENDPOINT != '' }}
+        run: |
+          built=$("$BIN" __debug telemetry-build)
+          echo "telemetry build: $built"
+          echo "$built" | grep -q "\"endpoint\":$EXPECT_ENDPOINT" || { echo "the binary's address does not match the secret (expected endpoint: $EXPECT_ENDPOINT)"; exit 1; }
       - name: Smoke test (standalone, through the plugin launcher, and a real render)
+        env:
+          DFW_TELEMETRY: 'off'
         run: |
           export DFW_HOME="$RUNNER_TEMP/dfwhome"
-          bin=$(ls dist/dfw-* | grep -v '\.sha256$')
-          "$bin" version | grep -q binary
-          "$bin" doctor
-          v=$(node -p "require('./plugins/dfw/.claude-plugin/plugin.json').version")
-          name=dfw; [ "${{ matrix.target }}" = win32-x64 ] && name=dfw.exe
-          mkdir -p "$DFW_HOME/bin/$v" && cp "$bin" "$DFW_HOME/bin/$v/$name"
-          plugins/dfw/bin/dfw version | grep -q binary
-          # Headless render through lib/cdp.mjs. The linux-arm64 runner image ships no Chrome
-          # (the render path is the same code as linux-x64, which runs it).
-          [ "${{ matrix.target }}" = linux-arm64 ] && exit 0
-          echo '<!doctype html><h1 style="font:40px sans-serif">dfw</h1>' > "$RUNNER_TEMP/t.html"
-          node -e "console.log(require('url').pathToFileURL(process.argv[1]).href)" "$RUNNER_TEMP/t.html" > "$RUNNER_TEMP/url"
-          "$bin" shoot --url "$(cat "$RUNNER_TEMP/url")" --bp desktop --out "$RUNNER_TEMP/t.png"
+          "$BIN" version | grep -q "^dfw $VERSION (native)"
+          "$BIN" doctor || true
+          name=dfw; [ "${{ matrix.platform }}" = win32-x64 ] && name=dfw.exe
+          mkdir -p "$DFW_HOME/bin/$VERSION" && cp "$BIN" "$DFW_HOME/bin/$VERSION/$name"
+          if [ "${{ matrix.platform }}" = win32-x64 ]; then
+            cmd //c "plugins\\dfw\\bin\\dfw.cmd version" | grep -q "^dfw $VERSION (native)"
+          else
+            plugins/dfw/bin/dfw version | grep -q "^dfw $VERSION (native)"
+          fi
+          # A headless render. The linux-arm64 runner image ships no Chrome (the render path is
+          # the same code as linux-x64, which runs it).
+          [ "${{ matrix.platform }}" = linux-arm64 ] && exit 0
+          mkdir -p "$RUNNER_TEMP/page"
+          echo '<!doctype html><h1 style="font:40px sans-serif">dfw</h1>' > "$RUNNER_TEMP/page/t.html"
+          case "${{ matrix.platform }}" in
+            win32-*) url="file:///$(cygpath -m "$RUNNER_TEMP/page/t.html")" ;;
+            *) url="file://$RUNNER_TEMP/page/t.html" ;;
+          esac
+          "$BIN" shoot --url "$url" --bp desktop --out "$RUNNER_TEMP/t.png"
           test -s "$RUNNER_TEMP/t.png"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: dfw-${{ matrix.target }}
+          name: dfw-${{ matrix.platform }}
           path: dist/dfw-*
           if-no-files-found: error
 
@@ -98,7 +158,6 @@ jobs:
       - name: SHA256SUMS
         working-directory: dist
         run: |
-          rm -f *.sha256
           sha256sum dfw-* > SHA256SUMS
           cat SHA256SUMS
       - name: Publish release
@@ -106,4 +165,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "dfw $GITHUB_REF_NAME" \
-            --notes "Single-file dfw binaries (no Node.js needed). Install: curl -fsSL https://raw.githubusercontent.com/$GITHUB_REPOSITORY/main/install.sh | sh  — or, with Node: npx github:$GITHUB_REPOSITORY"
+            --notes "Native dfw binaries (no Node.js needed). Install: curl -fsSL https://raw.githubusercontent.com/$GITHUB_REPOSITORY/main/install.sh | sh  (or, with Node: npx github:$GITHUB_REPOSITORY)"

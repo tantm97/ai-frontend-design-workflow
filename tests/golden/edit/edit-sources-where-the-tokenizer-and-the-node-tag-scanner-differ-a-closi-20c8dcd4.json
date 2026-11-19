@@ -1,0 +1,15 @@
+{
+  "test": "edit: sources where the tokenizer and the Node tag scanner differ > a closing tag inside a <script> string of the moved element: Node cuts the element there",
+  "results": [
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "changed": true,
+          "line": 1
+        }
+      },
+      "file": "<html><head></head><body><i data-dfw-id=\"b\">b</i><div data-dfw-id=\"a\"><script>var s = \"</div>\";</script><p data-dfw-id=\"p\">x</p></div></body></html>"
+    }
+  ]
+}

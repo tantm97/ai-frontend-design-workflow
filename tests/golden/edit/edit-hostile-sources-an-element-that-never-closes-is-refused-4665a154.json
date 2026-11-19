@@ -1,0 +1,24 @@
+{
+  "test": "edit: hostile sources > an element that never closes is refused",
+  "results": [
+    {
+      "result": {
+        "error": "Could not find the end of <div> for \"open\"."
+      },
+      "files": {}
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "changed": true,
+          "line": 1
+        }
+      },
+      "files": {
+        ".dfw/edits/#0": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"file\":\"design/screens/items/a.html\",\"op\":{\"op\":\"text\",\"id\":\"p\",\"value\":\"y\"},\"before\":\"<html><head></head><body><div data-dfw-id=\\\"open\\\"><p data-dfw-id=\\\"p\\\">x</p></body></html>\",\"after\":\"<html><head></head><body><div data-dfw-id=\\\"open\\\"><p data-dfw-id=\\\"p\\\">y</p></body></html>\"}",
+        "design/screens/items/a.html": "<html><head></head><body><div data-dfw-id=\"open\"><p data-dfw-id=\"p\">y</p></body></html>"
+      }
+    }
+  ]
+}

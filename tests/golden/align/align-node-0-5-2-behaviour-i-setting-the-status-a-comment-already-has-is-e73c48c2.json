@@ -1,0 +1,31 @@
+{
+  "test": "align: node 0.5.2 behaviour > i: setting the status a comment already has is refused",
+  "results": [
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Comment fb_002: cannot go from \"acknowledged\" to \"acknowledged\" (allowed: fixed, dismissed).\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Comment fb_002: cannot go from \"acknowledged\" to \"acknowledged\" (allowed: fixed, dismissed).\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Comment fb_003: cannot go from \"resolved\" to \"resolved\" (allowed: reopened).\n",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"id\": \"fb_002\",\n  \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n  \"designVersion\": \"v1\",\n  \"screen\": null,\n  \"variant\": null,\n  \"breakpoint\": null,\n  \"state\": null,\n  \"theme\": null,\n  \"file\": null,\n  \"target\": {},\n  \"comment\": \"x\",\n  \"screenshot\": null,\n  \"status\": \"acknowledged\",\n  \"thread\": [\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"by\": \"claude\",\n      \"message\": \"a reply still works\"\n    }\n  ],\n  \"resolution\": null,\n  \"provider\": \"dfw-studio\",\n  \"updatedAt\": \"2026-01-02T03:04:05.678Z\"\n}\n",
+      "stderr": "",
+      "files": {
+        ".dfw/reviews/rv_1.json": "{\n  \"schema\": 1,\n  \"id\": \"rv_1\",\n  \"startedAt\": \"2026-01-02T03:04:05.678Z\",\n  \"designVersion\": \"v1\",\n  \"comments\": [\n    {\n      \"id\": \"fb_001\",\n      \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n      \"designVersion\": \"v1\",\n      \"screen\": null,\n      \"variant\": null,\n      \"breakpoint\": null,\n      \"state\": null,\n      \"theme\": null,\n      \"file\": null,\n      \"target\": {},\n      \"comment\": \"x\",\n      \"screenshot\": null,\n      \"status\": \"open\",\n      \"thread\": [],\n      \"resolution\": null,\n      \"provider\": \"dfw-studio\"\n    },\n    {\n      \"id\": \"fb_002\",\n      \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n      \"designVersion\": \"v1\",\n      \"screen\": null,\n      \"variant\": null,\n      \"breakpoint\": null,\n      \"state\": null,\n      \"theme\": null,\n      \"file\": null,\n      \"target\": {},\n      \"comment\": \"x\",\n      \"screenshot\": null,\n      \"status\": \"acknowledged\",\n      \"thread\": [\n        {\n          \"at\": \"2026-01-02T03:04:05.678Z\",\n          \"by\": \"claude\",\n          \"message\": \"a reply still works\"\n        }\n      ],\n      \"resolution\": null,\n      \"provider\": \"dfw-studio\",\n      \"updatedAt\": \"2026-01-02T03:04:05.678Z\"\n    },\n    {\n      \"id\": \"fb_003\",\n      \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n      \"designVersion\": \"v1\",\n      \"screen\": null,\n      \"variant\": null,\n      \"breakpoint\": null,\n      \"state\": null,\n      \"theme\": null,\n      \"file\": null,\n      \"target\": {},\n      \"comment\": \"x\",\n      \"screenshot\": null,\n      \"status\": \"resolved\",\n      \"thread\": [],\n      \"resolution\": null,\n      \"provider\": \"dfw-studio\"\n    }\n  ]\n}\n"
+      }
+    }
+  ]
+}

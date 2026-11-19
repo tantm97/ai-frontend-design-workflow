@@ -1,0 +1,11 @@
+{
+  "test": "mcp server on stdio > dfw_can_write in a folder without a workflow",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "{\"jsonrpc\":\"2.0\",\"id\":32,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"No dfw workflow in this project: writes are not gated.\"}],\"isError\":false}}\n",
+      "stderr": "",
+      "files": {}
+    }
+  ]
+}

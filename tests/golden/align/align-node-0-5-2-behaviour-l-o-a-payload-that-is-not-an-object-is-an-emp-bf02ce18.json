@@ -1,0 +1,77 @@
+{
+  "test": "align: node 0.5.2 behaviour > l, o: a payload that is not an object is an empty one; only a string names a tool",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": unknown.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": unknown.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": unknown.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": unknown.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    }
+  ]
+}

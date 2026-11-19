@@ -1,0 +1,85 @@
+{
+  "test": "penpot screens > penpot import and plugin: usage and missing files",
+  "results": [
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Usage: dfw penpot export [--page <id>] [--bp <ids>] | plugin | import <changes.json> [--dry-run]\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Usage: dfw penpot export [--page <id>] [--bp <ids>] | plugin | import <changes.json> [--dry-run]\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Usage: dfw penpot import <changes.json> [--dry-run] [--json]\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "missing.json: not found or not JSON.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "changes.json: not found or not JSON.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "No Penpot export found (.dfw/penpot/export.json). Run \"dfw penpot export\" first; the change file must come from boards built from it.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Not a dfw Penpot change file (schema \"dfw-penpot-changes/2\", expected dfw-penpot-changes/1).\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "changes.json: not found or not JSON.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "changes.json: not found or not JSON.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "changes.json: not found or not JSON.\n",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "The Studio is not running: start it with \"dfw studio start\".\nPenpot plugin manifest: http://127.0.0.1:4600/__dfw/penpot/manifest.json\nIn Penpot: open a file, Plugins (Ctrl+Alt+P), paste the URL, Install, then open \"dfw bridge\".\n  Build boards: pulls the latest \"dfw penpot export\" from the Studio and creates pages, boards, components.\n  Live comments: while the panel is open, threads on dfw boards reach the agent like Studio comments; its replies come back into the thread.\n  Update boards: redraws the boards in place after the design changed (comment threads stay).\n  Send changes: sends layer edits and token changes back to the Studio, which records them as dfw comments (provider \"penpot\").\nNo Penpot API token is used: the plugin runs in your browser and only talks to 127.0.0.1.\nThe panel works only inside https://design.penpot.app. Penpot on your own server: dfw config set penpot.origins '[\"https://penpot.example.com\"]' --global, then restart the Studio.\n",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "The Studio is not running: start it with \"dfw studio start\".\nPenpot plugin manifest: http://127.0.0.1:4711/__dfw/penpot/manifest.json\nIn Penpot: open a file, Plugins (Ctrl+Alt+P), paste the URL, Install, then open \"dfw bridge\".\n  Build boards: pulls the latest \"dfw penpot export\" from the Studio and creates pages, boards, components.\n  Live comments: while the panel is open, threads on dfw boards reach the agent like Studio comments; its replies come back into the thread.\n  Update boards: redraws the boards in place after the design changed (comment threads stay).\n  Send changes: sends layer edits and token changes back to the Studio, which records them as dfw comments (provider \"penpot\").\nNo Penpot API token is used: the plugin runs in your browser and only talks to 127.0.0.1.\nThe panel works only inside https://design.penpot.app. Penpot on your own server: dfw config set penpot.origins '[\"https://penpot.example.com\"]' --global, then restart the Studio.\n",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "The Studio is not running: start it with \"dfw studio start\".\nPenpot plugin manifest: http://127.0.0.1:4600/__dfw/penpot/manifest.json\nIn Penpot: open a file, Plugins (Ctrl+Alt+P), paste the URL, Install, then open \"dfw bridge\".\n  Build boards: pulls the latest \"dfw penpot export\" from the Studio and creates pages, boards, components.\n  Live comments: while the panel is open, threads on dfw boards reach the agent like Studio comments; its replies come back into the thread.\n  Update boards: redraws the boards in place after the design changed (comment threads stay).\n  Send changes: sends layer edits and token changes back to the Studio, which records them as dfw comments (provider \"penpot\").\nNo Penpot API token is used: the plugin runs in your browser and only talks to 127.0.0.1.\nThe panel works only inside https://design.penpot.app. Penpot on your own server: dfw config set penpot.origins '[\"https://penpot.example.com\"]' --global, then restart the Studio.\n",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "Penpot plugin manifest: http://127.0.0.1:4999/__dfw/penpot/manifest.json\nIn Penpot: open a file, Plugins (Ctrl+Alt+P), paste the URL, Install, then open \"dfw bridge\".\n  Build boards: pulls the latest \"dfw penpot export\" from the Studio and creates pages, boards, components.\n  Live comments: while the panel is open, threads on dfw boards reach the agent like Studio comments; its replies come back into the thread.\n  Update boards: redraws the boards in place after the design changed (comment threads stay).\n  Send changes: sends layer edits and token changes back to the Studio, which records them as dfw comments (provider \"penpot\").\nNo Penpot API token is used: the plugin runs in your browser and only talks to 127.0.0.1.\nThe panel works only inside https://design.penpot.app. Penpot on your own server: dfw config set penpot.origins '[\"https://penpot.example.com\"]' --global, then restart the Studio.\n",
+      "files": {}
+    }
+  ]
+}

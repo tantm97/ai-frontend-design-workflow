@@ -1,0 +1,35 @@
+{
+  "test": "design commands > build errors: no tokens, a null value, a usage error",
+  "results": [
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "design/tokens/tokens.json not found.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "design/tokens/tokens.json: Token \"space.a\" has no value ($value is null). Fix that token and run the command again.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Usage: dfw tokens build | extract --url <u> | export --format penpot [--out <file>] | import <file> [--from penpot] [--dry-run]\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Usage: dfw tokens build | extract --url <u> | export --format penpot [--out <file>] | import <file> [--from penpot] [--dry-run]\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "design/tokens/tokens.json: <parser message>\n",
+      "files": {}
+    }
+  ]
+}

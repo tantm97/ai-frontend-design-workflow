@@ -1,0 +1,41 @@
+{
+  "test": "studio server: Node and native answer the same > API reads: manifest (with and without design.json), tokens, components, state",
+  "results": [
+    {
+      "status": 200,
+      "type": "application/json; charset=utf-8",
+      "cache": "no-store",
+      "body": "{\"breakpoints\":[{\"id\":\"desktop\",\"width\":1024,\"height\":640},{\"id\":\"mobile\",\"width\":390,\"height\":700}],\"themes\":[],\"states\":[],\"schema\":1,\"product\":\"Fixture\",\"pages\":[{\"id\":\"stock\",\"title\":\"Stock\",\"screens\":[\"items\"]}],\"screens\":[{\"id\":\"items\",\"title\":\"Items\",\"variants\":[{\"id\":\"a\",\"file\":\"screens/items/a.html\"}]}],\"flows\":[],\"studioPages\":[{\"id\":\"system\",\"title\":\"Design System\",\"system\":true,\"screens\":[]},{\"id\":\"stock\",\"title\":\"Stock\",\"screens\":[\"items\"]}]}"
+    },
+    {
+      "status": 200,
+      "type": "application/json; charset=utf-8",
+      "cache": "no-store",
+      "body": "[{\"name\":\"color.blue.600\",\"var\":\"--color-blue-600\",\"type\":\"color\"},{\"name\":\"color.canvas\",\"var\":\"--color-canvas\",\"type\":\"color\"},{\"name\":\"color.surface\",\"var\":\"--color-surface\",\"type\":\"color\"},{\"name\":\"color.ink\",\"var\":\"--color-ink\",\"type\":\"color\"},{\"name\":\"color.border\",\"var\":\"--color-border\",\"type\":\"color\"},{\"name\":\"color.accent\",\"var\":\"--color-accent\",\"type\":\"color\"},{\"name\":\"color.on-accent\",\"var\":\"--color-on-accent\",\"type\":\"color\"},{\"name\":\"space.2\",\"var\":\"--space-2\",\"type\":\"dimension\"},{\"name\":\"space.4\",\"var\":\"--space-4\",\"type\":\"dimension\"},{\"name\":\"radius.md\",\"var\":\"--radius-md\",\"type\":\"dimension\"},{\"name\":\"font.family.body\",\"var\":\"--font-family-body\",\"type\":\"fontFamily\"},{\"name\":\"font.size.md\",\"var\":\"--font-size-md\",\"type\":\"dimension\"}]"
+    },
+    {
+      "status": 200,
+      "type": "application/json; charset=utf-8",
+      "cache": "no-store",
+      "body": "[{\"name\":\"button\",\"file\":\"design/system/components/button.html\",\"line\":1,\"description\":\"Fixture button.\",\"group\":\"Components\",\"variants\":[\"primary\",\"ghost\"],\"sizes\":[],\"defaultVariant\":\"primary\",\"defaultSize\":\"\",\"props\":[],\"propDefaults\":{},\"replaces\":[],\"preview\":\"\",\"accepts\":[]}]"
+    },
+    {
+      "status": 200,
+      "type": "application/json; charset=utf-8",
+      "cache": "no-store",
+      "body": "{\"state\":{\"schema\":1,\"product\":\"Fixture\",\"mode\":\"new-product\",\"phase\":\"discovery\",\"active\":true,\"createdAt\":\"2026-01-02T03:04:05.678Z\",\"updatedAt\":\"2026-01-02T03:04:05.678Z\",\"design\":{\"version\":1,\"status\":\"draft\",\"locked\":false,\"approved\":[]},\"gates\":{\"G1\":null,\"DS\":null,\"G2\":null,\"G3\":null,\"G4\":null},\"waived\":{},\"history\":[{\"at\":\"2026-01-02T03:04:05.678Z\",\"event\":\"init\",\"mode\":\"new-product\"}]},\"summary\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\",\"session\":\"rv_1\"}"
+    },
+    {
+      "status": 200,
+      "type": "application/json; charset=utf-8",
+      "cache": "no-store",
+      "body": "[]"
+    },
+    {
+      "status": 200,
+      "type": "application/json; charset=utf-8",
+      "cache": "no-store",
+      "body": "{\"breakpoints\":[{\"id\":\"desktop\",\"label\":\"Desktop\",\"width\":1440,\"height\":900},{\"id\":\"tablet\",\"label\":\"Tablet\",\"width\":834,\"height\":1112},{\"id\":\"mobile\",\"label\":\"Mobile\",\"width\":390,\"height\":844}],\"themes\":[],\"states\":[],\"product\":\"project\",\"inferred\":true,\"screens\":[{\"id\":\"items\",\"title\":\"items\",\"variants\":[{\"id\":\"a\",\"label\":\"a\",\"file\":\"screens/items/a.html\"},{\"id\":\"detail\",\"label\":\"detail\",\"file\":\"screens/items/detail.html\"}]}],\"studioPages\":[{\"id\":\"system\",\"title\":\"Design System\",\"system\":true,\"screens\":[]},{\"id\":\"screens\",\"title\":\"Screens\",\"screens\":[\"items\"]}]}"
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "test": "design commands > blueprint: list, one screen, json",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "items · Items · layout table\n  goal: Find an item\n  primary action: Add item\n  above the fold: search; table\n  region 1 table: items\n  region  rail: a,b\n  data: empty → CTA | typical → 40 | max → ?\n  feedback: toast\n\ndetail ·  · layout undefined\n  goal: Read\n  above the fold: \n  data: empty → ? | typical → ? | max → ?\n  feedback: undefined\n\nbare: NO BLUEPRINT\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "items · Items · layout table\n  goal: Find an item\n  primary action: Add item\n  above the fold: search; table\n  region 1 table: items\n  region  rail: a,b\n  data: empty → CTA | typical → 40 | max → ?\n  feedback: toast\n\ndetail ·  · layout undefined\n  goal: Read\n  above the fold: \n  data: empty → ? | typical → ? | max → ?\n  feedback: undefined\n\nbare: NO BLUEPRINT\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "items · Items · layout table\n  goal: Find an item\n  primary action: Add item\n  above the fold: search; table\n  region 1 table: items\n  region  rail: a,b\n  data: empty → CTA | typical → 40 | max → ?\n  feedback: toast\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "_explore: NO BLUEPRINT\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "No screens.\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "[\n  {\n    \"id\": \"items\",\n    \"title\": \"Items\",\n    \"blueprint\": {\n      \"layout\": \"table\",\n      \"goal\": \"Find an item\",\n      \"primaryAction\": \"Add item\",\n      \"aboveFold\": [\n        \"search\",\n        \"table\"\n      ],\n      \"regions\": [\n        {\n          \"priority\": 1,\n          \"name\": \"table\",\n          \"content\": \"items\"\n        },\n        {\n          \"name\": \"rail\",\n          \"content\": [\n            \"a\",\n            \"b\"\n          ]\n        }\n      ],\n      \"data\": {\n        \"empty\": \"CTA\",\n        \"typical\": 40\n      },\n      \"feedback\": \"toast\"\n    }\n  },\n  {\n    \"id\": \"detail\",\n    \"blueprint\": {\n      \"goal\": \"Read\"\n    }\n  },\n  {\n    \"id\": \"bare\",\n    \"title\": \"Bare\",\n    \"blueprint\": null\n  }\n]\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "[\n  {\n    \"id\": \"detail\",\n    \"blueprint\": {\n      \"goal\": \"Read\"\n    }\n  }\n]\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "items: NO BLUEPRINT\n",
+      "stderr": "",
+      "files": {}
+    }
+  ]
+}

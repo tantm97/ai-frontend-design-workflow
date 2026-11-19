@@ -1,0 +1,21 @@
+{
+  "test": "tools: install, uninstall, doctor (fake host CLIs) > uninstall: every plugin and the marketplace, per host",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "\u001b[2m  $ claude plugin uninstall dfw@dfw-marketplace --scope user\u001b[0m\n\u001b[2m  $ claude plugin uninstall frontend-design@dfw-marketplace --scope user\u001b[0m\n\u001b[2m  $ claude plugin uninstall ux-research@dfw-marketplace --scope user\u001b[0m\n\u001b[2m  $ claude plugin uninstall ui-ux-pro-max@dfw-marketplace --scope user\u001b[0m\n\u001b[2m  $ claude plugin uninstall impeccable@dfw-marketplace --scope user\u001b[0m\n\u001b[2m  $ claude plugin uninstall emil-design-eng@dfw-marketplace --scope user\u001b[0m\n\u001b[2m  $ claude plugin uninstall hallmark@dfw-marketplace --scope user\u001b[0m\n\u001b[2m  $ claude plugin uninstall taste-reference@dfw-marketplace --scope user\u001b[0m\n\u001b[2m  $ claude plugin marketplace remove dfw-marketplace\u001b[0m\n\u001b[32mClaude Code: removed dfw and its skills.\u001b[0m\n\u001b[2m  $ copilot plugin uninstall dfw\u001b[0m\n\u001b[2m  $ copilot plugin uninstall frontend-design\u001b[0m\n\u001b[2m  $ copilot plugin uninstall ux-research\u001b[0m\n\u001b[2m  $ copilot plugin uninstall ui-ux-pro-max\u001b[0m\n\u001b[2m  $ copilot plugin uninstall impeccable\u001b[0m\n\u001b[2m  $ copilot plugin uninstall emil-design-eng\u001b[0m\n\u001b[2m  $ copilot plugin uninstall hallmark\u001b[0m\n\u001b[2m  $ copilot plugin uninstall taste-reference\u001b[0m\n\u001b[2m  $ copilot plugin marketplace remove dfw-marketplace\u001b[0m\n\u001b[32mGitHub Copilot: removed dfw and its skills.\u001b[0m\nProject files (.dfw/, design/) are untouched.\n",
+      "files": {},
+      "extra": {
+        "calls": "claude --version\ncopilot --version\nclaude plugin uninstall dfw@dfw-marketplace --scope user\nclaude plugin uninstall frontend-design@dfw-marketplace --scope user\nclaude plugin uninstall ux-research@dfw-marketplace --scope user\nclaude plugin uninstall ui-ux-pro-max@dfw-marketplace --scope user\nclaude plugin uninstall impeccable@dfw-marketplace --scope user\nclaude plugin uninstall emil-design-eng@dfw-marketplace --scope user\nclaude plugin uninstall hallmark@dfw-marketplace --scope user\nclaude plugin uninstall taste-reference@dfw-marketplace --scope user\nclaude plugin marketplace remove dfw-marketplace\ncopilot plugin uninstall dfw\ncopilot plugin uninstall frontend-design\ncopilot plugin uninstall ux-research\ncopilot plugin uninstall ui-ux-pro-max\ncopilot plugin uninstall impeccable\ncopilot plugin uninstall emil-design-eng\ncopilot plugin uninstall hallmark\ncopilot plugin uninstall taste-reference\ncopilot plugin marketplace remove dfw-marketplace\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "\u001b[32mClaude Code: removed dfw and its skills.\u001b[0m\nProject files (.dfw/, design/) are untouched.\n",
+      "files": {},
+      "extra": {
+        "calls": "claude --version\nclaude plugin uninstall dfw@dfw-marketplace --scope local\nclaude plugin uninstall frontend-design@dfw-marketplace --scope local\nclaude plugin uninstall ux-research@dfw-marketplace --scope local\nclaude plugin uninstall ui-ux-pro-max@dfw-marketplace --scope local\nclaude plugin uninstall impeccable@dfw-marketplace --scope local\nclaude plugin uninstall emil-design-eng@dfw-marketplace --scope local\nclaude plugin uninstall hallmark@dfw-marketplace --scope local\nclaude plugin uninstall taste-reference@dfw-marketplace --scope local\nclaude plugin marketplace remove dfw-marketplace\n"
+      }
+    }
+  ]
+}

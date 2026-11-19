@@ -1,6 +1,6 @@
 {
   "name": "ai-frontend-design-workflow",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "private": true,
   "description": "Design-first frontend workflow (dfw) for Claude Code, plus pinned, de-conflicted copies of the design skills it orchestrates.",
   "type": "module",
@@ -19,13 +19,25 @@
     "icons": "node scripts/vendor-icons.mjs",
     "styles": "node scripts/make-styles.mjs",
     "knowledge": "node scripts/knowledge.mjs",
-    "bench": "node tests/bench/run.mjs"
+    "bench": "node tests/bench/run.mjs",
+    "lint": "npm run lint:eslint && npm run lint:format && npm run lint:types",
+    "format": "prettier --write core/studio scripts tests/e2e tests/unit tests/golden/*.mjs tests/bench/*.mjs eslint.config.js types",
+    "lint:eslint": "eslint core/studio scripts tests/e2e tests/unit tests/golden/*.mjs tests/bench/*.mjs eslint.config.js",
+    "lint:format": "prettier --check core/studio scripts tests/e2e tests/unit tests/golden/*.mjs tests/bench/*.mjs eslint.config.js types",
+    "lint:types": "tsc -p tsconfig.json",
+    "build:overlay": "node scripts/build-overlay.mjs"
   },
   "bin": {
     "ai-frontend-design-workflow": "scripts/install.mjs"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "22.20.5",
     "esbuild": "0.28.2",
-    "postject": "1.0.0-alpha.6"
+    "eslint": "10.15.0",
+    "globals": "17.14.0",
+    "linkedom": "0.18.15",
+    "prettier": "3.9.10",
+    "typescript": "6.0.3"
   }
 }

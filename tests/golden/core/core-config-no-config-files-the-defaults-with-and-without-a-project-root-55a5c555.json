@@ -1,0 +1,15 @@
+{
+  "test": "core: config > no config files: the defaults, with and without a project root",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "{\"schema\":1,\"language\":{\"askPolicy\":\"session\",\"default\":\"en\"},\"gate\":{\"allow\":[\".dfw/**\",\"design/handoff/**\"],\"designPaths\":[\"design/**\",\"PRODUCT.md\",\"DESIGN.md\"],\"immutable\":[\"design/approved/**\",\".dfw/state.json\",\".dfw/config.json\",\".dfw/config.local.json\",\".dfw/decisions.jsonl\",\".dfw/stack.json\",\".dfw/reviews/**\"]},\"checks\":{\"onEdit\":\"fast\",\"timeoutMs\":8000,\"impeccable\":true,\"sloplint\":true,\"tasteCopyLint\":false,\"maxFindings\":12},\"studio\":{\"port\":4600,\"breakpoints\":[{\"id\":\"desktop\",\"label\":\"Desktop\",\"width\":1440,\"height\":900},{\"id\":\"tablet\",\"label\":\"Tablet\",\"width\":834,\"height\":1112},{\"id\":\"mobile\",\"label\":\"Mobile\",\"width\":390,\"height\":844}]},\"review\":{\"shortcut\":\"alt+c\"},\"accessibility\":{\"standard\":\"WCAG 2.2\",\"level\":\"AA\"},\"skills\":{\"optional\":{\"hallmark\":true,\"taste-reference\":true},\"disabled\":[]},\"env\":{\"DO_NOT_TRACK\":\"1\",\"IMPECCABLE_NO_UPDATE_CHECK\":\"1\",\"IMPECCABLE_HOOK_DISABLED\":\"1\"}}\n",
+      "stderr": ""
+    },
+    {
+      "code": 0,
+      "stdout": "{\"schema\":1,\"language\":{\"askPolicy\":\"session\",\"default\":\"en\"},\"gate\":{\"allow\":[\".dfw/**\",\"design/handoff/**\"],\"designPaths\":[\"design/**\",\"PRODUCT.md\",\"DESIGN.md\"],\"immutable\":[\"design/approved/**\",\".dfw/state.json\",\".dfw/config.json\",\".dfw/config.local.json\",\".dfw/decisions.jsonl\",\".dfw/stack.json\",\".dfw/reviews/**\"]},\"checks\":{\"onEdit\":\"fast\",\"timeoutMs\":8000,\"impeccable\":true,\"sloplint\":true,\"tasteCopyLint\":false,\"maxFindings\":12},\"studio\":{\"port\":4600,\"breakpoints\":[{\"id\":\"desktop\",\"label\":\"Desktop\",\"width\":1440,\"height\":900},{\"id\":\"tablet\",\"label\":\"Tablet\",\"width\":834,\"height\":1112},{\"id\":\"mobile\",\"label\":\"Mobile\",\"width\":390,\"height\":844}]},\"review\":{\"shortcut\":\"alt+c\"},\"accessibility\":{\"standard\":\"WCAG 2.2\",\"level\":\"AA\"},\"skills\":{\"optional\":{\"hallmark\":true,\"taste-reference\":true},\"disabled\":[]},\"env\":{\"DO_NOT_TRACK\":\"1\",\"IMPECCABLE_NO_UPDATE_CHECK\":\"1\",\"IMPECCABLE_HOOK_DISABLED\":\"1\"}}\n",
+      "stderr": ""
+    }
+  ]
+}

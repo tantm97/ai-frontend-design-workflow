@@ -1,0 +1,107 @@
+{
+  "test": "align: node 0.5.2 behaviour > j: names that are prototype keys are not ids",
+  "results": [
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown mode \"constructor\". Modes: new-product, existing-project, design-only, implement-approved, ui-refinement, quick-change, review-only\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown gate \"CONSTRUCTOR\". Gates: G1, DS, G2, G3, G4\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown hook \"constructor\"\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown mode \"constructor\". Modes: new-product, existing-project, design-only, implement-approved, ui-refinement, quick-change, review-only\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown mode \"toString\". Modes: new-product, existing-project, design-only, implement-approved, ui-refinement, quick-change, review-only\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown gate \"TOSTRING\". Gates: G1, DS, G2, G3, G4\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown hook \"toString\"\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown mode \"toString\". Modes: new-product, existing-project, design-only, implement-approved, ui-refinement, quick-change, review-only\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown mode \"__proto__\". Modes: new-product, existing-project, design-only, implement-approved, ui-refinement, quick-change, review-only\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown gate \"__PROTO__\". Gates: G1, DS, G2, G3, G4\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown hook \"__proto__\"\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown mode \"__proto__\". Modes: new-product, existing-project, design-only, implement-approved, ui-refinement, quick-change, review-only\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown mode \"hasOwnProperty\". Modes: new-product, existing-project, design-only, implement-approved, ui-refinement, quick-change, review-only\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown gate \"HASOWNPROPERTY\". Gates: G1, DS, G2, G3, G4\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown hook \"hasOwnProperty\"\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown mode \"hasOwnProperty\". Modes: new-product, existing-project, design-only, implement-approved, ui-refinement, quick-change, review-only\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown tool \"constructor\". MCP install targets: opencode, codex, cursor, all.\n",
+      "files": {}
+    }
+  ]
+}

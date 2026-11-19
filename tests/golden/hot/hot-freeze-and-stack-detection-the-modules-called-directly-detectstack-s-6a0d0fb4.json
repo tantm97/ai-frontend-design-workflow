@@ -1,0 +1,96 @@
+{
+  "test": "hot: freeze and stack detection (the modules, called directly) > detectStack: same result for JavaScript, other and static projects",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "{\"detectedAt\":\"<now>\",\"kind\":\"unknown\",\"framework\":null,\"styling\":[],\"uiLibraries\":[],\"language\":null,\"packageManager\":null,\"evidence\":[],\"isNewProject\":true}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"detectedAt\":\"<now>\",\"kind\":\"javascript\",\"framework\":{\"name\":\"Next.js (React)\",\"package\":\"next\",\"version\":\"15.1.0\"},\"styling\":[{\"name\":\"Tailwind CSS\",\"package\":\"tailwindcss\",\"version\":\"4.0.0\"},{\"name\":\"Sass\",\"package\":\"sass\",\"version\":\"1.80.0\"}],\"uiLibraries\":[{\"name\":\"MUI\",\"package\":\"@mui/material\",\"version\":\"6.0.0\"},{\"name\":\"Radix (likely shadcn/ui)\",\"package\":\"@radix-ui/react-slot\",\"version\":\"1\"},{\"name\":\"shadcn/ui\",\"package\":\"components.json\"}],\"language\":\"TypeScript\",\"packageManager\":\"pnpm\",\"evidence\":[\"components.json\",\"package.json\",\"pnpm-lock.yaml\"],\"isNewProject\":false}",
+      "stderr": "",
+      "files": {
+        "components.json": "{}",
+        "package.json": "{\"dependencies\":{\"next\":\"15.1.0\",\"react\":\"^19.0.0\",\"@mui/material\":\"6.0.0\",\"@radix-ui/react-slot\":\"1\"},\"devDependencies\":{\"tailwindcss\":\"4.0.0\",\"sass\":\"1.80.0\",\"typescript\":\"5.7.2\"}}",
+        "pnpm-lock.yaml": "",
+        "yarn.lock": ""
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\"detectedAt\":\"<now>\",\"kind\":\"javascript\",\"framework\":{\"name\":\"Vue\",\"package\":\"vue\",\"version\":\"3.6.0-beta\"},\"styling\":[],\"uiLibraries\":[{\"name\":\"Vuetify\",\"package\":\"vuetify\",\"version\":\"3.7.0\"}],\"language\":\"TypeScript\",\"packageManager\":\"bun\",\"evidence\":[\"bun.lock\",\"package.json\"],\"isNewProject\":false}",
+      "stderr": "",
+      "files": {
+        "bun.lock": "",
+        "package-lock.json": "{}",
+        "package.json": "{\"dependencies\":{\"vue\":\"3.5.0\",\"vuetify\":\"3.7.0\",\"react\":\"\"},\"devDependencies\":{\"vue\":\"3.6.0-beta\"}}",
+        "tsconfig.json": "{}"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\"detectedAt\":\"<now>\",\"kind\":\"javascript\",\"framework\":null,\"styling\":[],\"uiLibraries\":[],\"language\":\"JavaScript\",\"packageManager\":null,\"evidence\":[\"Cargo.toml\",\"package.json\"],\"isNewProject\":false}",
+      "stderr": "",
+      "files": {
+        "Cargo.toml": "",
+        "index.html": "",
+        "package.json": "{\"name\":\"empty\"}"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\"detectedAt\":\"<now>\",\"kind\":\"javascript\",\"framework\":null,\"styling\":[],\"uiLibraries\":[],\"language\":\"JavaScript\",\"packageManager\":null,\"evidence\":[\"package.json\"],\"isNewProject\":false}",
+      "stderr": "",
+      "files": {
+        "package.json": "{\"dependencies\":[\"odd\"],\"devDependencies\":\"text\"}"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\"detectedAt\":\"<now>\",\"kind\":\"php\",\"framework\":{\"name\":\"PHP (Composer; check for Laravel/Symfony)\"},\"styling\":[],\"uiLibraries\":[],\"language\":null,\"packageManager\":null,\"evidence\":[\"Gemfile\",\"composer.json\",\"go.mod\"],\"isNewProject\":false}",
+      "stderr": "",
+      "files": {
+        "Gemfile": "",
+        "composer.json": "{}",
+        "go.mod": ""
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\"detectedAt\":\"<now>\",\"kind\":\"python\",\"framework\":{\"name\":\"Django\"},\"styling\":[],\"uiLibraries\":[],\"language\":null,\"packageManager\":null,\"evidence\":[\"manage.py\",\"pyproject.toml\"],\"isNewProject\":false}",
+      "stderr": "",
+      "files": {
+        "manage.py": "",
+        "pyproject.toml": ""
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\"detectedAt\":\"<now>\",\"kind\":\"dart\",\"framework\":{\"name\":\"Flutter/Dart\"},\"styling\":[],\"uiLibraries\":[],\"language\":null,\"packageManager\":null,\"evidence\":[\"pubspec.yaml\"],\"isNewProject\":false}",
+      "stderr": "",
+      "files": {
+        "pubspec.yaml": ""
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\"detectedAt\":\"<now>\",\"kind\":\"static\",\"framework\":{\"name\":\"Plain HTML/CSS/JS\"},\"styling\":[],\"uiLibraries\":[],\"language\":null,\"packageManager\":null,\"evidence\":[\"about.html\",\"index.html\"],\"isNewProject\":false}",
+      "stderr": "",
+      "files": {
+        "about.html": "",
+        "index.html": "",
+        "readme.md": ""
+      }
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        "package.json": "{ nope"
+      }
+    }
+  ]
+}

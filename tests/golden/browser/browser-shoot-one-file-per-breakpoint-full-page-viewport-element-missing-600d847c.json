@@ -1,0 +1,58 @@
+{
+  "test": "browser: shoot > one file per breakpoint; full page, viewport, element, missing element",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "ok   shots/page__desktop.png\nok   shots/page__tablet.png\nok   shots/page__mobile.png\n",
+      "files": {
+        "project/shots/page__desktop.png": "(image)",
+        "project/shots/page__mobile.png": "(image)",
+        "project/shots/page__tablet.png": "(image)"
+      },
+      "extra": {
+        "shots/page__desktop.png": "1440x1620",
+        "shots/page__mobile.png": "390x1620",
+        "shots/page__tablet.png": "834x1620"
+      },
+      "stderr": ""
+    },
+    {
+      "code": 0,
+      "stdout": "ok   view-desktop.png\n",
+      "files": {
+        "project/view-desktop.png": "(image)"
+      },
+      "extra": {
+        "view-desktop.png": "1440x900"
+      },
+      "stderr": ""
+    },
+    {
+      "code": 0,
+      "stdout": "ok   card__desktop.png\nok   card__mobile.png\n",
+      "files": {
+        "project/card__desktop.png": "(image)",
+        "project/card__mobile.png": "(image)"
+      },
+      "extra": {
+        "card__desktop.png": "200x80",
+        "card__mobile.png": "200x80"
+      },
+      "stderr": ""
+    },
+    {
+      "code": 2,
+      "stdout": "FAIL none.png (selector not found: #missing)\n",
+      "files": {},
+      "extra": {},
+      "stderr": ""
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "files": {},
+      "extra": {},
+      "stderr": "Nothing to screenshot (check --screen/--variant/--bp).\n"
+    }
+  ]
+}

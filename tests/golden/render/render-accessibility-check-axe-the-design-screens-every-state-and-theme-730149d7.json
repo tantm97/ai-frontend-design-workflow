@@ -1,0 +1,20 @@
+{
+  "test": "render: accessibility check (axe) > the design screens: every state and theme, one screen, no screen",
+  "results": [
+    {
+      "tool": "axe",
+      "status": "ran",
+      "findings": []
+    },
+    {
+      "tool": "axe",
+      "status": "ran",
+      "findings": []
+    },
+    {
+      "tool": "axe",
+      "status": "skipped",
+      "findings": []
+    }
+  ]
+}

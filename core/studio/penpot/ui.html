@@ -56,7 +56,22 @@
     el.textContent = t;
     el.className = err ? 'err' : '';
   };
-  const toPlugin = (msg) => parent.postMessage(msg, '*');
+  // The Studio says which Penpot origins this panel talks to (penpot.origins of the user's dfw
+  // config) and gives the token its writes carry: a page that is not this panel cannot read it.
+  let bridge = null;
+  const ready = fetch('/__dfw/penpot/session.json')
+    .then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.statusText))))
+    .then((b) => (bridge = b))
+    .catch((e) => log(`Could not reach the dfw Studio: ${e.message}. Is it running ("dfw studio start")?`, true));
+  // Only to Penpot: the frame's own Penpot when the browser tells it, else each allowed origin
+  // (a message to an origin that is not the parent's is dropped by the browser).
+  const penpotOrigins = () => {
+    if (!bridge) return [];
+    const top = window.location.ancestorOrigins && window.location.ancestorOrigins[0];
+    return bridge.origins.includes(top) ? [top] : bridge.origins;
+  };
+  const toPlugin = (msg) => penpotOrigins().forEach((o) => parent.postMessage(msg, o));
+  const post = (url, body) => fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', 'x-dfw-bridge': bridge ? bridge.token : '' }, body });
   let downloadOnly = false;
 
   async function images(doc) {
@@ -84,14 +99,16 @@
 
   async function fromStudio(update) {
     const q = new URLSearchParams();
-    if (update || document.getElementById('refresh').checked) q.set('refresh', '1');
+    const render = update || document.getElementById('refresh').checked;
     const page = document.getElementById('page').value.trim();
     const bp = document.getElementById('bp').value.trim();
     if (page) q.set('page', page);
     if (bp) q.set('bp', bp);
     log('Rendering the dfw design in the Studio...');
     try {
-      const r = await fetch(`/__dfw/penpot/export.json?${q}`);
+      // A GET reads the last export; rendering is a POST. No export yet: render one.
+      let r = render ? null : await fetch('/__dfw/penpot/export.json');
+      if (!r || r.status === 404) r = await post(`/__dfw/penpot/export.json?${q}`, '{}');
       const doc = await r.json();
       if (!r.ok) throw new Error(doc.error || r.statusText);
       await build(doc, update);
@@ -109,6 +126,7 @@
   let posted = [];
   let busyAt = 0;
   function tick() {
+    if (!bridge) return;
     if (!document.getElementById('live').checked) return liveStatus('Live comments are off: use "Send changes to dfw".');
     if (busyAt && Date.now() - busyAt < 30000) return;
     busyAt = Date.now();
@@ -116,7 +134,7 @@
   }
   async function sync(data) {
     try {
-      const r = await fetch('/__dfw/penpot/sync', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...data, posted }) });
+      const r = await post('/__dfw/penpot/sync', JSON.stringify({ ...data, posted }));
       const res = await r.json();
       if (!r.ok) throw new Error(res.error || r.statusText);
       posted = [];
@@ -130,7 +148,7 @@
     busyAt = 0;
   }
   setInterval(tick, 5000);
-  tick();
+  ready.then(tick);
   document.getElementById('load').addEventListener('click', () => document.getElementById('file').click());
   document.getElementById('file').addEventListener('change', async (e) => {
     const f = e.target.files[0];
@@ -148,6 +166,9 @@
   });
 
   window.addEventListener('message', async (e) => {
+    // Only Penpot (the parent window, which relays penpot.ui.sendMessage, on an allowed origin)
+    // talks to this panel: a page that framed it is not Penpot.
+    if (e.source !== parent || !bridge || !bridge.origins.includes(e.origin)) return;
     const msg = e.data || {};
     if (msg.type === 'error') {
       if (msg.of === 'threads' || msg.of === 'reply') {
@@ -176,7 +197,7 @@
         return log('Downloaded. Import it with: dfw penpot import <file>');
       }
       try {
-        const r = await fetch('/__dfw/penpot/changes', { method: 'POST', headers: { 'content-type': 'application/json' }, body: json });
+        const r = await post('/__dfw/penpot/changes', json);
         const res = await r.json();
         if (!r.ok) throw new Error(res.error || r.statusText);
         log(res.summary);

@@ -1,0 +1,25 @@
+{
+  "test": "checks: lint functions on a corpus (__debug lint) > every shipped stylesheet and token file, and the files a project gets from system init",
+  "results": [
+    "[{\"level\":\"warn\",\"rule\":\"hardcoded-color\",\"file\":\"design/styles/x.css\",\"line\":3,\"message\":\"Hard-coded color \\\"#888\\\"; use a token (var(--...)).\",\"source\":\"dfw\"},{\"level\":\"warn\",\"rule\":\"hardcoded-color\",\"file\":\"design/styles/x.css\",\"line\":5,\"message\":\"Hard-coded color \\\"#cde\\\"; use a token (var(--...)).\",\"source\":\"dfw\"}]",
+    "[]",
+    "[]",
+    "[]",
+    "[{\"level\":\"error\",\"rule\":\"token-alias\",\"file\":\"design/tokens/t.json\",\"line\":1,\"message\":\"Token \\\"color.accent\\\" references unknown token \\\"{color.blue.600}\\\".\",\"source\":\"dfw\"}]",
+    "[{\"level\":\"error\",\"rule\":\"token-alias\",\"file\":\"design/tokens/t.json\",\"line\":1,\"message\":\"Token \\\"color.accent\\\" references unknown token \\\"{color.blue.600}\\\".\",\"source\":\"dfw\"}]",
+    "[]",
+    "[]",
+    "[{\"level\":\"error\",\"rule\":\"token-alias\",\"file\":\"design/tokens/t.json\",\"line\":1,\"message\":\"Token \\\"base.color.accent\\\" references unknown token \\\"{color.blue.600}\\\".\",\"source\":\"dfw\"},{\"level\":\"error\",\"rule\":\"token-alias\",\"file\":\"design/tokens/t.json\",\"line\":1,\"message\":\"Token \\\"base.space.4\\\" references unknown token \\\"{space.2}\\\".\",\"source\":\"dfw\"}]",
+    "[{\"level\":\"error\",\"rule\":\"token-alias\",\"file\":\"design/tokens/t.json\",\"line\":1,\"message\":\"Token \\\"base.color.accent\\\" references unknown token \\\"{color.blue.600}\\\".\",\"source\":\"dfw\"}]",
+    "[]",
+    "[]",
+    "[]",
+    "[]",
+    "[]",
+    "[]",
+    "[]",
+    "[]",
+    "[]",
+    "[]"
+  ]
+}

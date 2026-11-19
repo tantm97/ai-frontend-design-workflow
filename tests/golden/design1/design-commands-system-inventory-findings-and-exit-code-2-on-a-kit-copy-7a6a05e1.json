@@ -1,0 +1,23 @@
+{
+  "test": "design commands > system inventory: findings and exit code 2 on a kit copy",
+  "results": [
+    {
+      "code": 2,
+      "stdout": "button           items                        Actions\nprice                                         \nundefined                                     x\n\n- [MUST] (kit-copy) design/system/components/badge.html: Master is the starter kit's \"badge\" copied verbatim. Design it for this product (its job, content, states and the direction's look); the kit is a reference only (\"dfw system ref badge\").\n- [SHOULD] (inventory-invalid) design/system/inventory.json: Inventory entry \"price\" needs a purpose and at least one usedBy page/screen: a component nobody needs does not belong in the system.\n- [SHOULD] (inventory-unbuilt) design/system/inventory.json: Inventory lists \"price\" but there is no master for it in design/system/components/.\n- [SHOULD] (inventory-invalid) design/system/inventory.json: An inventory entry has no name.\n- [SHOULD] (inventory-orphan) design/system/components/badge.html: Master \"badge\" is not in design/system/inventory.json. Add it with the screens that need it, or delete it.\n- [SHOULD] (unused-master) design/system/components/badge.html: No screen or master uses \"badge\". Remove it (and its inventory entry) or use it.\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"inventory\": {\n    \"components\": [\n      {\n        \"name\": \"button\",\n        \"purpose\": \"Actions\",\n        \"usedBy\": [\n          \"items\"\n        ]\n      },\n      {\n        \"name\": \"price\"\n      },\n      {\n        \"purpose\": \"x\"\n      }\n    ]\n  },\n  \"findings\": [\n    {\n      \"level\": \"error\",\n      \"rule\": \"kit-copy\",\n      \"file\": \"design/system/components/badge.html\",\n      \"line\": 1,\n      \"message\": \"Master is the starter kit's \\\"badge\\\" copied verbatim. Design it for this product (its job, content, states and the direction's look); the kit is a reference only (\\\"dfw system ref badge\\\").\",\n      \"source\": \"dfw-ds\"\n    },\n    {\n      \"level\": \"warn\",\n      \"rule\": \"inventory-invalid\",\n      \"file\": \"design/system/inventory.json\",\n      \"line\": 1,\n      \"message\": \"Inventory entry \\\"price\\\" needs a purpose and at least one usedBy page/screen: a component nobody needs does not belong in the system.\",\n      \"source\": \"dfw-ds\"\n    },\n    {\n      \"level\": \"warn\",\n      \"rule\": \"inventory-unbuilt\",\n      \"file\": \"design/system/inventory.json\",\n      \"line\": 1,\n      \"message\": \"Inventory lists \\\"price\\\" but there is no master for it in design/system/components/.\",\n      \"source\": \"dfw-ds\"\n    },\n    {\n      \"level\": \"warn\",\n      \"rule\": \"inventory-invalid\",\n      \"file\": \"design/system/inventory.json\",\n      \"line\": 1,\n      \"message\": \"An inventory entry has no name.\",\n      \"source\": \"dfw-ds\"\n    },\n    {\n      \"level\": \"warn\",\n      \"rule\": \"inventory-orphan\",\n      \"file\": \"design/system/components/badge.html\",\n      \"line\": 1,\n      \"message\": \"Master \\\"badge\\\" is not in design/system/inventory.json. Add it with the screens that need it, or delete it.\",\n      \"source\": \"dfw-ds\"\n    },\n    {\n      \"level\": \"warn\",\n      \"rule\": \"unused-master\",\n      \"file\": \"design/system/components/badge.html\",\n      \"line\": 1,\n      \"message\": \"No screen or master uses \\\"badge\\\". Remove it (and its inventory entry) or use it.\",\n      \"source\": \"dfw-ds\"\n    }\n  ]\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "design/system/inventory.json: expected {\"components\": [...]}\n",
+      "files": {}
+    }
+  ]
+}

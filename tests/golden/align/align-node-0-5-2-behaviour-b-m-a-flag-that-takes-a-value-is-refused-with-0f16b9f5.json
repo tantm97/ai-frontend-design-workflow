@@ -1,0 +1,101 @@
+{
+  "test": "align: node 0.5.2 behaviour > b, m: a flag that takes a value is refused without one, before anything runs",
+  "results": [
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--level needs a value.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--timeout needs a value.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--root needs a value.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--port needs a value.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--note needs a value.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--reason needs a value.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--message needs a value.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--session needs a value.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--status needs a value.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--url needs a value.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--host needs a value.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--root needs a value.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--max needs a value.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--root needs a value.\n",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"root\": \"<root>\",\n  \"state\": {\n    \"schema\": 1,\n    \"product\": \"Fixture\",\n    \"mode\": \"new-product\",\n    \"phase\": \"discovery\",\n    \"active\": true,\n    \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n    \"updatedAt\": \"2026-01-02T03:04:05.678Z\",\n    \"design\": {\n      \"version\": 1,\n      \"status\": \"draft\",\n      \"locked\": false,\n      \"approved\": []\n    },\n    \"gates\": {\n      \"G1\": null,\n      \"DS\": null,\n      \"G2\": null,\n      \"G3\": null,\n      \"G4\": null\n    },\n    \"waived\": {},\n    \"history\": [\n      {\n        \"at\": \"2026-01-02T03:04:05.678Z\",\n        \"event\": \"init\",\n        \"mode\": \"new-product\"\n      }\n    ]\n  },\n  \"approved\": null,\n  \"comments\": {\n    \"active\": 0,\n    \"fixed\": 0,\n    \"resolved\": 0\n  },\n  \"studio\": null,\n  \"stack\": null\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "No comments.\n",
+      "stderr": "",
+      "files": {}
+    }
+  ]
+}

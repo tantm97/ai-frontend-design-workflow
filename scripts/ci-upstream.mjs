@@ -11,7 +11,8 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { REPO_ROOT } from './lib/build.mjs';
 
-const sh = (cmd, args, opts = {}) => execFileSync(cmd, args, { cwd: REPO_ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...opts }).trim();
+const sh = (cmd, args, opts = {}) =>
+  execFileSync(cmd, args, { cwd: REPO_ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...opts }).trim();
 const node = (...a) => sh(process.execPath, a);
 
 export const blockedTitle = (u) => `Upstream update blocked: ${u.id} ${u.pinned.slice(0, 7)} -> ${u.latest.slice(0, 7)}`;
@@ -32,7 +33,11 @@ export function issueExists(title, run = sh) {
 export function findReport(id, sha, root = REPO_ROOT) {
   const dir = path.join(root, 'reports', 'proposals');
   if (!fs.existsSync(dir)) return null;
-  const f = fs.readdirSync(dir).filter((x) => x.endsWith(`-${id}-${sha.slice(0, 7)}.md`)).sort().at(-1);
+  const f = fs
+    .readdirSync(dir)
+    .filter((x) => x.endsWith(`-${id}-${sha.slice(0, 7)}.md`))
+    .sort()
+    .at(-1);
   return f ? path.join('reports', 'proposals', f) : null;
 }
 
@@ -62,7 +67,13 @@ function main() {
     const outcome = proposeOutcome(err);
     const reportPath = findReport(u.id, u.latest);
     if (outcome === 'failed' || !reportPath) {
-      console.error(`${u.id}: proposal failed, skipped: ${String(err?.stderr || err?.message || 'no report written').trim().split('\n').slice(-3).join(' | ')}`);
+      console.error(
+        `${u.id}: proposal failed, skipped: ${String(err?.stderr || err?.message || 'no report written')
+          .trim()
+          .split('\n')
+          .slice(-3)
+          .join(' | ')}`,
+      );
       failed.push(u.id);
       continue;
     }
@@ -87,12 +98,29 @@ function main() {
     sh('git', ['add', '-A']);
     sh('git', ['commit', '-q', '-m', `chore(skills): update ${u.id} to ${u.latest.slice(0, 7)}\n\nProposal report: ${reportPath}`]);
     sh('git', ['push', '-q', 'origin', branch]);
-    sh('gh', ['pr', 'create', '--base', base, '--head', branch, '--title', `Update ${u.id} to ${u.latest.slice(0, 7)}`, '--body-file', path.join(REPO_ROOT, reportPath)]);
+    sh('gh', [
+      'pr',
+      'create',
+      '--base',
+      base,
+      '--head',
+      branch,
+      '--title',
+      `Update ${u.id} to ${u.latest.slice(0, 7)}`,
+      '--body-file',
+      path.join(REPO_ROOT, reportPath),
+    ]);
     // A PR opened with GITHUB_TOKEN does not fire pull_request workflows: start validate on the branch.
     try {
       sh('gh', ['workflow', 'run', 'validate.yml', '--ref', branch]);
     } catch (e) {
-      console.error(`${u.id}: could not start validate.yml on ${branch} (the workflow token needs "actions: write"): ${String(e.stderr || e.message).trim().split('\n')[0]}`);
+      console.error(
+        `${u.id}: could not start validate.yml on ${branch} (the workflow token needs "actions: write"): ${
+          String(e.stderr || e.message)
+            .trim()
+            .split('\n')[0]
+        }`,
+      );
     }
     console.log(`${u.id}: PR opened from ${branch}. Merging it is the approval.`);
   }

@@ -1,0 +1,10 @@
+{
+  "test": "penpot tokens > tokens import: the export of the same project changes nothing",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "base: no changes\nthemes/dark: no changes\nNothing to write.\n",
+      "files": {}
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "test": "tools: install, uninstall, doctor (fake host CLIs) > doctor: a bare machine, and one with plugins, an approved snapshot and MCP configs",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "ok   dfw runtime - <runtime>\nok   python3 (UI UX Pro Max search) - Python 3.9.6\nok   git\nok   plugin frontend-design - <repo>/plugins/frontend-design\nok   plugin ux-research - <repo>/plugins/ux-research\nok   plugin ui-ux-pro-max - <repo>/plugins/ui-ux-pro-max\nok   plugin impeccable - <repo>/plugins/impeccable\nok   plugin emil-design-eng - <repo>/plugins/emil-design-eng\nok   plugin hallmark - <repo>/plugins/hallmark\nok   plugin taste-reference - <repo>/plugins/taste-reference\nWARN impeccable engine verified - Engine not downloaded yet; run \"dfw check --setup\" once.\nok   sloplint\nok   taste copy-lint - optional\nok   browser for screenshots and layout check - env: <tmp>/fakebin/chrome\nWARN axe-core for the accessibility check - axe-core not downloaded (dfw setup --a11y, ~550 KB, once)\nok   duplicate install check - skipped (no installed_plugins.json; plugins may be loaded with --plugin-dir)\nok   project workflow - not initialized here\nWARN host Claude Code - 9.9.9 (fake claude); dfw plugin missing (dfw install --host claude)\nWARN host GitHub Copilot - 9.9.9 (fake copilot); dfw plugin missing (dfw install --host copilot)\nok   host OpenCode - plugin planned; use \"dfw mcp install opencode\"\nok   host OpenAI Codex - plugin planned; use \"dfw mcp install codex\"\nok   host Cursor - plugin planned; use \"dfw mcp install cursor\"\nok   global config dir - <tmp>/home/dfw-home\n",
+      "files": {},
+      "extra": {
+        "calls": "claude --version\ncopilot --version\n"
+      },
+      "stderr": ""
+    },
+    {
+      "code": 0,
+      "stdout": "ok   dfw runtime - <runtime>\nok   python3 (UI UX Pro Max search) - Python 3.9.6\nok   git\nok   plugin frontend-design - <repo>/plugins/frontend-design\nok   plugin ux-research - <repo>/plugins/ux-research\nok   plugin ui-ux-pro-max - <repo>/plugins/ui-ux-pro-max\nok   plugin impeccable - <repo>/plugins/impeccable\nok   plugin emil-design-eng - <repo>/plugins/emil-design-eng\nok   plugin hallmark - <repo>/plugins/hallmark\nok   plugin taste-reference - <repo>/plugins/taste-reference\nWARN impeccable engine verified - Engine not downloaded yet; run \"dfw check --setup\" once.\nok   sloplint\nok   taste copy-lint - optional\nok   browser for screenshots and layout check - env: <tmp>/fakebin/chrome\nWARN axe-core for the accessibility check - axe-core not downloaded (dfw setup --a11y, ~550 KB, once)\nWARN no duplicate upstream installs - also installed outside dfw-marketplace: impeccable@elsewhere, taste@other (skills would load twice; consider disabling them)\nok   project workflow - new-product/discovery\nWARN approved snapshot v1 intact - modified: changed.html; missing: gone.html; added: added.css\nok   host Claude Code - 9.9.9 (fake claude); dfw plugin installed\nok   host GitHub Copilot - 9.9.9 (fake copilot); dfw plugin installed\nok   host OpenCode - plugin planned; use \"dfw mcp install opencode\"\nok   host OpenAI Codex - plugin planned; dfw MCP server configured\nok   host Cursor - plugin planned; dfw MCP server configured\nok   global config dir - <tmp>/home/dfw-home\n",
+      "files": {},
+      "extra": {
+        "calls": "claude --version\ncopilot --version\n"
+      },
+      "stderr": ""
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "files": {},
+      "extra": {
+        "calls": ""
+      },
+      "stderr": "No approval.lock.json in <root>/design/approved/v1\n"
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "test": "align: node 0.5.2 behaviour > h: approve G3 refuses a stack.json that is not an object",
+  "results": [
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "G3 needs a stack proposal: .dfw/stack.json must hold a JSON object (run: dfw stack set ... or dfw stack detect --write).\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "G3 needs a stack proposal: .dfw/stack.json must hold a JSON object (run: dfw stack set ... or dfw stack detect --write).\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "G3 needs a stack proposal: .dfw/stack.json must hold a JSON object (run: dfw stack set ... or dfw stack detect --write).\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "G3 needs a stack proposal: .dfw/stack.json must hold a JSON object (run: dfw stack set ... or dfw stack detect --write).\n",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "G3 approved: Technology stack and major dependencies approved.\ndfw: product=\"Fixture\" mode=new-product phase=stack\ndesign: v1 approved (locked), approved v1\ngates: G1=approved DS=approved G2=approved G3=approved G4=open\n",
+      "stderr": "",
+      "files": {
+        ".dfw/decisions.jsonl": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"level\":1,\"topic\":\"gate:G3\",\"decision\":\"Technology stack and major dependencies approved - ok\",\"by\":\"user\"}\n",
+        ".dfw/stack.json": "{\n  \"framework\": {\n    \"name\": \"x\"\n  },\n  \"status\": \"approved\",\n  \"approvedAt\": \"2026-01-02T03:04:05.678Z\"\n}\n",
+        ".dfw/state.json": "{\n  \"schema\": 1,\n  \"product\": \"Fixture\",\n  \"mode\": \"new-product\",\n  \"phase\": \"stack\",\n  \"active\": true,\n  \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n  \"updatedAt\": \"2026-01-02T03:04:05.678Z\",\n  \"design\": {\n    \"version\": 1,\n    \"status\": \"approved\",\n    \"locked\": true,\n    \"approved\": [\n      {\n        \"version\": \"v1\",\n        \"hash\": \"abc\",\n        \"at\": \"2026-01-02T03:04:05.678Z\"\n      }\n    ]\n  },\n  \"gates\": {\n    \"G1\": {\n      \"approvedAt\": \"2026-01-02T03:04:05.678Z\",\n      \"note\": \"ok\"\n    },\n    \"DS\": {\n      \"approvedAt\": \"2026-01-02T03:04:05.678Z\",\n      \"note\": \"ok\"\n    },\n    \"G2\": {\n      \"approvedAt\": \"2026-01-02T03:04:05.678Z\",\n      \"note\": \"ok\",\n      \"version\": \"v1\",\n      \"hash\": \"abc\"\n    },\n    \"G3\": {\n      \"approvedAt\": \"2026-01-02T03:04:05.678Z\",\n      \"note\": \"ok\"\n    },\n    \"G4\": null\n  },\n  \"waived\": {},\n  \"history\": [\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"init\",\n      \"mode\": \"new-product\"\n    },\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"approve\",\n      \"gate\": \"G3\",\n      \"note\": \"ok\"\n    }\n  ]\n}\n"
+      }
+    }
+  ]
+}

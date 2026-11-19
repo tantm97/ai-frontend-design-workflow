@@ -1,0 +1,11 @@
+{
+  "test": "mcp server on stdio > a last line without its newline is not answered",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}\n",
+      "stderr": "",
+      "files": {}
+    }
+  ]
+}

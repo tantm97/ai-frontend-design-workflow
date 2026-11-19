@@ -1,0 +1,37 @@
+{
+  "test": "stack > set --file, set without input, set in a folder without a workflow, --json alone",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "Stack proposal written to .dfw/stack.json. Approve with \"dfw approve G3 --note ...\" after the user confirms.\n",
+      "stderr": "",
+      "files": {
+        ".dfw/stack.json": "{\n  \"framework\": {\n    \"name\": \"Astro\"\n  },\n  \"styling\": [\n    \"css\"\n  ],\n  \"status\": \"proposed\",\n  \"proposedAt\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "Stack proposal written to .dfw/stack.json. Approve with \"dfw approve G3 --note ...\" after the user confirms.\n",
+      "stderr": "",
+      "files": {
+        ".dfw/stack.json": "{\n  \"status\": \"proposed\",\n  \"proposedAt\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "Stack proposal written to .dfw/stack.json. Approve with \"dfw approve G3 --note ...\" after the user confirms.\n",
+      "stderr": "",
+      "files": {
+        ".dfw/stack.json": "{\n  \"0\": 1,\n  \"1\": \"a\",\n  \"status\": \"proposed\",\n  \"proposedAt\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "Stack proposal written to .dfw/stack.json. Approve with \"dfw approve G3 --note ...\" after the user confirms.\n",
+      "stderr": "",
+      "files": {
+        ".dfw/stack.json": "{\n  \"status\": \"proposed\",\n  \"proposedAt\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "test": "render: accessibility check (axe) > axe not downloaded: unverifiable, never a pass (no page is opened)",
+  "results": [
+    {
+      "tool": "axe",
+      "status": "unverifiable",
+      "detail": "axe-core not downloaded (dfw setup --a11y, ~550 KB, once)",
+      "findings": []
+    }
+  ]
+}

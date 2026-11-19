@@ -1,0 +1,170 @@
+{
+  "test": "edit: every op > variant, size and prop of a component instance",
+  "results": [
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "changed": true,
+          "line": 19
+        }
+      },
+      "files": {
+        ".dfw/edits/#0": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"file\":\"design/screens/items/a.html\",\"op\":{\"op\":\"variant\",\"id\":\"items.add\",\"value\":\"ghost\"},\"before\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\"><meta name=\\\"viewport\\\" content=\\\"width=device-width, initial-scale=1\\\">\\n  <title>Items - Fixture</title>\\n  <dfw-head></dfw-head>\\n  <style>\\n    body { margin: 0; background: var(--color-canvas); color: var(--color-ink); font-family: var(--font-family-body); font-size: var(--font-size-md); }\\n    main { padding: var(--space-4); display: grid; gap: var(--space-4); }\\n    .bar { display: flex; gap: var(--space-2); align-items: center; }\\n    .panel { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); }\\n    .rule { border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-2); }\\n  </style>\\n</head>\\n<body>\\n  <main data-dfw-id=\\\"items\\\">\\n    <div class=\\\"bar\\\">\\n      <h1 data-dfw-id=\\\"items.title\\\">Inventory</h1>\\n      <dfw-use c=\\\"button\\\" variant=\\\"primary\\\" id=\\\"items.add\\\">Add item</dfw-use>\\n      <dfw-use c=\\\"button\\\" variant=\\\"ghost\\\" id=\\\"items.export\\\">Export</dfw-use>\\n    </div>\\n    <section class=\\\"panel\\\" data-dfw-id=\\\"items.panel\\\">\\n      <p class=\\\"rule\\\" data-dfw-id=\\\"items.summary\\\">12 items, <strong>3</strong> low on stock</p>\\n      <p data-dfw-id=\\\"items.note\\\">Counted on Monday.</p>\\n    </section>\\n  </main>\\n</body>\\n</html>\\n\",\"after\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\"><meta name=\\\"viewport\\\" content=\\\"width=device-width, initial-scale=1\\\">\\n  <title>Items - Fixture</title>\\n  <dfw-head></dfw-head>\\n  <style>\\n    body { margin: 0; background: var(--color-canvas); color: var(--color-ink); font-family: var(--font-family-body); font-size: var(--font-size-md); }\\n    main { padding: var(--space-4); display: grid; gap: var(--space-4); }\\n    .bar { display: flex; gap: var(--space-2); align-items: center; }\\n    .panel { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); }\\n    .rule { border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-2); }\\n  </style>\\n</head>\\n<body>\\n  <main data-dfw-id=\\\"items\\\">\\n    <div class=\\\"bar\\\">\\n      <h1 data-dfw-id=\\\"items.title\\\">Inventory</h1>\\n      <dfw-use c=\\\"button\\\" variant=\\\"ghost\\\" id=\\\"items.add\\\">Add item</dfw-use>\\n      <dfw-use c=\\\"button\\\" variant=\\\"ghost\\\" id=\\\"items.export\\\">Export</dfw-use>\\n    </div>\\n    <section class=\\\"panel\\\" data-dfw-id=\\\"items.panel\\\">\\n      <p class=\\\"rule\\\" data-dfw-id=\\\"items.summary\\\">12 items, <strong>3</strong> low on stock</p>\\n      <p data-dfw-id=\\\"items.note\\\">Counted on Monday.</p>\\n    </section>\\n  </main>\\n</body>\\n</html>\\n\"}",
+        "design/screens/items/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <title>Items - Fixture</title>\n  <dfw-head></dfw-head>\n  <style>\n    body { margin: 0; background: var(--color-canvas); color: var(--color-ink); font-family: var(--font-family-body); font-size: var(--font-size-md); }\n    main { padding: var(--space-4); display: grid; gap: var(--space-4); }\n    .bar { display: flex; gap: var(--space-2); align-items: center; }\n    .panel { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); }\n    .rule { border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-2); }\n  </style>\n</head>\n<body>\n  <main data-dfw-id=\"items\">\n    <div class=\"bar\">\n      <h1 data-dfw-id=\"items.title\">Inventory</h1>\n      <dfw-use c=\"button\" variant=\"ghost\" id=\"items.add\">Add item</dfw-use>\n      <dfw-use c=\"button\" variant=\"ghost\" id=\"items.export\">Export</dfw-use>\n    </div>\n    <section class=\"panel\" data-dfw-id=\"items.panel\">\n      <p class=\"rule\" data-dfw-id=\"items.summary\">12 items, <strong>3</strong> low on stock</p>\n      <p data-dfw-id=\"items.note\">Counted on Monday.</p>\n    </section>\n  </main>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "changed": false,
+          "line": 19
+        }
+      },
+      "files": {}
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/lab/a.html",
+          "changed": true,
+          "line": 14
+        }
+      },
+      "files": {
+        ".dfw/edits/#1": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"file\":\"design/screens/lab/a.html\",\"op\":{\"op\":\"variant\",\"id\":\"lab.c\",\"value\":\"soft\"},\"before\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <style>.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4) }</style>\\n</head>\\n<body>\\n  <main data-dfw-id=\\\"lab\\\" style=\\\"color: var(--color-ink); padding: 4px; --colW: 3; GAP: 2px\\\">\\n    <section class=\\\"cards\\\" data-dfw-id=\\\"lab.cards\\\">\\n      <div data-dfw-id=\\\"lab.a\\\">A</div>\\n      <article data-dfw-id=\\\"lab.b\\\">\\n        <h2 data-dfw-id=\\\"lab.b.title\\\">B</h2>\\n      </article>\\n      <dfw-use c=\\\"chip\\\" id=\\\"lab.c\\\" tone=\\\"warm\\\">C</dfw-use>\\n    </section>\\n    <section class=\\\"cards\\\" data-dfw-id=\\\"lab.empty\\\">\\n    </section>\\n    <div class=\\\"cols\\\" data-dfw-id=\\\"lab.cols\\\"></div>\\n    <div class=\\\"row\\\" data-dfw-id=\\\"lab.row\\\"><span data-dfw-id=\\\"lab.x\\\">x</span><span data-dfw-id=\\\"lab.y\\\">y</span></div>\\n    <input data-dfw-id=\\\"lab.search\\\">\\n    <dfw-use c=\\\"shell\\\" id=\\\"lab.shell\\\">\\n      <dfw-fill slot=\\\"main\\\">\\n        <p data-dfw-id=\\\"lab.one\\\">One</p>\\n        <p data-dfw-id=\\\"lab.two\\\">Two</p>\\n      </dfw-fill>\\n    </dfw-use>\\n    <dfw-use c=\\\"nope\\\" id=\\\"lab.unknown\\\">?</dfw-use>\\n    <div data-dfw-id=\\\"dup\\\">a</div><div data-dfw-id=\\\"dup\\\">b</div>\\n  </main>\\n</body>\\n</html>\\n\",\"after\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <style>.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4) }</style>\\n</head>\\n<body>\\n  <main data-dfw-id=\\\"lab\\\" style=\\\"color: var(--color-ink); padding: 4px; --colW: 3; GAP: 2px\\\">\\n    <section class=\\\"cards\\\" data-dfw-id=\\\"lab.cards\\\">\\n      <div data-dfw-id=\\\"lab.a\\\">A</div>\\n      <article data-dfw-id=\\\"lab.b\\\">\\n        <h2 data-dfw-id=\\\"lab.b.title\\\">B</h2>\\n      </article>\\n      <dfw-use c=\\\"chip\\\" id=\\\"lab.c\\\" tone=\\\"warm\\\" variant=\\\"soft\\\">C</dfw-use>\\n    </section>\\n    <section class=\\\"cards\\\" data-dfw-id=\\\"lab.empty\\\">\\n    </section>\\n    <div class=\\\"cols\\\" data-dfw-id=\\\"lab.cols\\\"></div>\\n    <div class=\\\"row\\\" data-dfw-id=\\\"lab.row\\\"><span data-dfw-id=\\\"lab.x\\\">x</span><span data-dfw-id=\\\"lab.y\\\">y</span></div>\\n    <input data-dfw-id=\\\"lab.search\\\">\\n    <dfw-use c=\\\"shell\\\" id=\\\"lab.shell\\\">\\n      <dfw-fill slot=\\\"main\\\">\\n        <p data-dfw-id=\\\"lab.one\\\">One</p>\\n        <p data-dfw-id=\\\"lab.two\\\">Two</p>\\n      </dfw-fill>\\n    </dfw-use>\\n    <dfw-use c=\\\"nope\\\" id=\\\"lab.unknown\\\">?</dfw-use>\\n    <div data-dfw-id=\\\"dup\\\">a</div><div data-dfw-id=\\\"dup\\\">b</div>\\n  </main>\\n</body>\\n</html>\\n\"}",
+        "design/screens/lab/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <style>.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4) }</style>\n</head>\n<body>\n  <main data-dfw-id=\"lab\" style=\"color: var(--color-ink); padding: 4px; --colW: 3; GAP: 2px\">\n    <section class=\"cards\" data-dfw-id=\"lab.cards\">\n      <div data-dfw-id=\"lab.a\">A</div>\n      <article data-dfw-id=\"lab.b\">\n        <h2 data-dfw-id=\"lab.b.title\">B</h2>\n      </article>\n      <dfw-use c=\"chip\" id=\"lab.c\" tone=\"warm\" variant=\"soft\">C</dfw-use>\n    </section>\n    <section class=\"cards\" data-dfw-id=\"lab.empty\">\n    </section>\n    <div class=\"cols\" data-dfw-id=\"lab.cols\"></div>\n    <div class=\"row\" data-dfw-id=\"lab.row\"><span data-dfw-id=\"lab.x\">x</span><span data-dfw-id=\"lab.y\">y</span></div>\n    <input data-dfw-id=\"lab.search\">\n    <dfw-use c=\"shell\" id=\"lab.shell\">\n      <dfw-fill slot=\"main\">\n        <p data-dfw-id=\"lab.one\">One</p>\n        <p data-dfw-id=\"lab.two\">Two</p>\n      </dfw-fill>\n    </dfw-use>\n    <dfw-use c=\"nope\" id=\"lab.unknown\">?</dfw-use>\n    <div data-dfw-id=\"dup\">a</div><div data-dfw-id=\"dup\">b</div>\n  </main>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/lab/a.html",
+          "changed": true,
+          "line": 14
+        }
+      },
+      "files": {
+        ".dfw/edits/#2": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"file\":\"design/screens/lab/a.html\",\"op\":{\"op\":\"size\",\"id\":\"lab.c\",\"value\":\"sm\"},\"before\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <style>.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4) }</style>\\n</head>\\n<body>\\n  <main data-dfw-id=\\\"lab\\\" style=\\\"color: var(--color-ink); padding: 4px; --colW: 3; GAP: 2px\\\">\\n    <section class=\\\"cards\\\" data-dfw-id=\\\"lab.cards\\\">\\n      <div data-dfw-id=\\\"lab.a\\\">A</div>\\n      <article data-dfw-id=\\\"lab.b\\\">\\n        <h2 data-dfw-id=\\\"lab.b.title\\\">B</h2>\\n      </article>\\n      <dfw-use c=\\\"chip\\\" id=\\\"lab.c\\\" tone=\\\"warm\\\" variant=\\\"soft\\\">C</dfw-use>\\n    </section>\\n    <section class=\\\"cards\\\" data-dfw-id=\\\"lab.empty\\\">\\n    </section>\\n    <div class=\\\"cols\\\" data-dfw-id=\\\"lab.cols\\\"></div>\\n    <div class=\\\"row\\\" data-dfw-id=\\\"lab.row\\\"><span data-dfw-id=\\\"lab.x\\\">x</span><span data-dfw-id=\\\"lab.y\\\">y</span></div>\\n    <input data-dfw-id=\\\"lab.search\\\">\\n    <dfw-use c=\\\"shell\\\" id=\\\"lab.shell\\\">\\n      <dfw-fill slot=\\\"main\\\">\\n        <p data-dfw-id=\\\"lab.one\\\">One</p>\\n        <p data-dfw-id=\\\"lab.two\\\">Two</p>\\n      </dfw-fill>\\n    </dfw-use>\\n    <dfw-use c=\\\"nope\\\" id=\\\"lab.unknown\\\">?</dfw-use>\\n    <div data-dfw-id=\\\"dup\\\">a</div><div data-dfw-id=\\\"dup\\\">b</div>\\n  </main>\\n</body>\\n</html>\\n\",\"after\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <style>.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4) }</style>\\n</head>\\n<body>\\n  <main data-dfw-id=\\\"lab\\\" style=\\\"color: var(--color-ink); padding: 4px; --colW: 3; GAP: 2px\\\">\\n    <section class=\\\"cards\\\" data-dfw-id=\\\"lab.cards\\\">\\n      <div data-dfw-id=\\\"lab.a\\\">A</div>\\n      <article data-dfw-id=\\\"lab.b\\\">\\n        <h2 data-dfw-id=\\\"lab.b.title\\\">B</h2>\\n      </article>\\n      <dfw-use c=\\\"chip\\\" id=\\\"lab.c\\\" tone=\\\"warm\\\" variant=\\\"soft\\\" size=\\\"sm\\\">C</dfw-use>\\n    </section>\\n    <section class=\\\"cards\\\" data-dfw-id=\\\"lab.empty\\\">\\n    </section>\\n    <div class=\\\"cols\\\" data-dfw-id=\\\"lab.cols\\\"></div>\\n    <div class=\\\"row\\\" data-dfw-id=\\\"lab.row\\\"><span data-dfw-id=\\\"lab.x\\\">x</span><span data-dfw-id=\\\"lab.y\\\">y</span></div>\\n    <input data-dfw-id=\\\"lab.search\\\">\\n    <dfw-use c=\\\"shell\\\" id=\\\"lab.shell\\\">\\n      <dfw-fill slot=\\\"main\\\">\\n        <p data-dfw-id=\\\"lab.one\\\">One</p>\\n        <p data-dfw-id=\\\"lab.two\\\">Two</p>\\n      </dfw-fill>\\n    </dfw-use>\\n    <dfw-use c=\\\"nope\\\" id=\\\"lab.unknown\\\">?</dfw-use>\\n    <div data-dfw-id=\\\"dup\\\">a</div><div data-dfw-id=\\\"dup\\\">b</div>\\n  </main>\\n</body>\\n</html>\\n\"}",
+        "design/screens/lab/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <style>.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4) }</style>\n</head>\n<body>\n  <main data-dfw-id=\"lab\" style=\"color: var(--color-ink); padding: 4px; --colW: 3; GAP: 2px\">\n    <section class=\"cards\" data-dfw-id=\"lab.cards\">\n      <div data-dfw-id=\"lab.a\">A</div>\n      <article data-dfw-id=\"lab.b\">\n        <h2 data-dfw-id=\"lab.b.title\">B</h2>\n      </article>\n      <dfw-use c=\"chip\" id=\"lab.c\" tone=\"warm\" variant=\"soft\" size=\"sm\">C</dfw-use>\n    </section>\n    <section class=\"cards\" data-dfw-id=\"lab.empty\">\n    </section>\n    <div class=\"cols\" data-dfw-id=\"lab.cols\"></div>\n    <div class=\"row\" data-dfw-id=\"lab.row\"><span data-dfw-id=\"lab.x\">x</span><span data-dfw-id=\"lab.y\">y</span></div>\n    <input data-dfw-id=\"lab.search\">\n    <dfw-use c=\"shell\" id=\"lab.shell\">\n      <dfw-fill slot=\"main\">\n        <p data-dfw-id=\"lab.one\">One</p>\n        <p data-dfw-id=\"lab.two\">Two</p>\n      </dfw-fill>\n    </dfw-use>\n    <dfw-use c=\"nope\" id=\"lab.unknown\">?</dfw-use>\n    <div data-dfw-id=\"dup\">a</div><div data-dfw-id=\"dup\">b</div>\n  </main>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/lab/a.html",
+          "changed": true,
+          "line": 14
+        }
+      },
+      "files": {
+        ".dfw/edits/#3": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"file\":\"design/screens/lab/a.html\",\"op\":{\"op\":\"prop\",\"id\":\"lab.c\",\"prop\":\"tone\",\"value\":\"cool \\\"x\\\" <y> & z\"},\"before\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <style>.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4) }</style>\\n</head>\\n<body>\\n  <main data-dfw-id=\\\"lab\\\" style=\\\"color: var(--color-ink); padding: 4px; --colW: 3; GAP: 2px\\\">\\n    <section class=\\\"cards\\\" data-dfw-id=\\\"lab.cards\\\">\\n      <div data-dfw-id=\\\"lab.a\\\">A</div>\\n      <article data-dfw-id=\\\"lab.b\\\">\\n        <h2 data-dfw-id=\\\"lab.b.title\\\">B</h2>\\n      </article>\\n      <dfw-use c=\\\"chip\\\" id=\\\"lab.c\\\" tone=\\\"warm\\\" variant=\\\"soft\\\" size=\\\"sm\\\">C</dfw-use>\\n    </section>\\n    <section class=\\\"cards\\\" data-dfw-id=\\\"lab.empty\\\">\\n    </section>\\n    <div class=\\\"cols\\\" data-dfw-id=\\\"lab.cols\\\"></div>\\n    <div class=\\\"row\\\" data-dfw-id=\\\"lab.row\\\"><span data-dfw-id=\\\"lab.x\\\">x</span><span data-dfw-id=\\\"lab.y\\\">y</span></div>\\n    <input data-dfw-id=\\\"lab.search\\\">\\n    <dfw-use c=\\\"shell\\\" id=\\\"lab.shell\\\">\\n      <dfw-fill slot=\\\"main\\\">\\n        <p data-dfw-id=\\\"lab.one\\\">One</p>\\n        <p data-dfw-id=\\\"lab.two\\\">Two</p>\\n      </dfw-fill>\\n    </dfw-use>\\n    <dfw-use c=\\\"nope\\\" id=\\\"lab.unknown\\\">?</dfw-use>\\n    <div data-dfw-id=\\\"dup\\\">a</div><div data-dfw-id=\\\"dup\\\">b</div>\\n  </main>\\n</body>\\n</html>\\n\",\"after\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <style>.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4) }</style>\\n</head>\\n<body>\\n  <main data-dfw-id=\\\"lab\\\" style=\\\"color: var(--color-ink); padding: 4px; --colW: 3; GAP: 2px\\\">\\n    <section class=\\\"cards\\\" data-dfw-id=\\\"lab.cards\\\">\\n      <div data-dfw-id=\\\"lab.a\\\">A</div>\\n      <article data-dfw-id=\\\"lab.b\\\">\\n        <h2 data-dfw-id=\\\"lab.b.title\\\">B</h2>\\n      </article>\\n      <dfw-use c=\\\"chip\\\" id=\\\"lab.c\\\" tone=\\\"cool &quot;x&quot; &lt;y> &amp; z\\\" variant=\\\"soft\\\" size=\\\"sm\\\">C</dfw-use>\\n    </section>\\n    <section class=\\\"cards\\\" data-dfw-id=\\\"lab.empty\\\">\\n    </section>\\n    <div class=\\\"cols\\\" data-dfw-id=\\\"lab.cols\\\"></div>\\n    <div class=\\\"row\\\" data-dfw-id=\\\"lab.row\\\"><span data-dfw-id=\\\"lab.x\\\">x</span><span data-dfw-id=\\\"lab.y\\\">y</span></div>\\n    <input data-dfw-id=\\\"lab.search\\\">\\n    <dfw-use c=\\\"shell\\\" id=\\\"lab.shell\\\">\\n      <dfw-fill slot=\\\"main\\\">\\n        <p data-dfw-id=\\\"lab.one\\\">One</p>\\n        <p data-dfw-id=\\\"lab.two\\\">Two</p>\\n      </dfw-fill>\\n    </dfw-use>\\n    <dfw-use c=\\\"nope\\\" id=\\\"lab.unknown\\\">?</dfw-use>\\n    <div data-dfw-id=\\\"dup\\\">a</div><div data-dfw-id=\\\"dup\\\">b</div>\\n  </main>\\n</body>\\n</html>\\n\"}",
+        "design/screens/lab/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <style>.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4) }</style>\n</head>\n<body>\n  <main data-dfw-id=\"lab\" style=\"color: var(--color-ink); padding: 4px; --colW: 3; GAP: 2px\">\n    <section class=\"cards\" data-dfw-id=\"lab.cards\">\n      <div data-dfw-id=\"lab.a\">A</div>\n      <article data-dfw-id=\"lab.b\">\n        <h2 data-dfw-id=\"lab.b.title\">B</h2>\n      </article>\n      <dfw-use c=\"chip\" id=\"lab.c\" tone=\"cool &quot;x&quot; &lt;y> &amp; z\" variant=\"soft\" size=\"sm\">C</dfw-use>\n    </section>\n    <section class=\"cards\" data-dfw-id=\"lab.empty\">\n    </section>\n    <div class=\"cols\" data-dfw-id=\"lab.cols\"></div>\n    <div class=\"row\" data-dfw-id=\"lab.row\"><span data-dfw-id=\"lab.x\">x</span><span data-dfw-id=\"lab.y\">y</span></div>\n    <input data-dfw-id=\"lab.search\">\n    <dfw-use c=\"shell\" id=\"lab.shell\">\n      <dfw-fill slot=\"main\">\n        <p data-dfw-id=\"lab.one\">One</p>\n        <p data-dfw-id=\"lab.two\">Two</p>\n      </dfw-fill>\n    </dfw-use>\n    <dfw-use c=\"nope\" id=\"lab.unknown\">?</dfw-use>\n    <div data-dfw-id=\"dup\">a</div><div data-dfw-id=\"dup\">b</div>\n  </main>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/lab/a.html",
+          "changed": true,
+          "line": 14
+        }
+      },
+      "files": {
+        ".dfw/edits/#4": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"file\":\"design/screens/lab/a.html\",\"op\":{\"op\":\"prop\",\"id\":\"lab.c\",\"prop\":\"icon\",\"value\":7},\"before\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <style>.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4) }</style>\\n</head>\\n<body>\\n  <main data-dfw-id=\\\"lab\\\" style=\\\"color: var(--color-ink); padding: 4px; --colW: 3; GAP: 2px\\\">\\n    <section class=\\\"cards\\\" data-dfw-id=\\\"lab.cards\\\">\\n      <div data-dfw-id=\\\"lab.a\\\">A</div>\\n      <article data-dfw-id=\\\"lab.b\\\">\\n        <h2 data-dfw-id=\\\"lab.b.title\\\">B</h2>\\n      </article>\\n      <dfw-use c=\\\"chip\\\" id=\\\"lab.c\\\" tone=\\\"cool &quot;x&quot; &lt;y> &amp; z\\\" variant=\\\"soft\\\" size=\\\"sm\\\">C</dfw-use>\\n    </section>\\n    <section class=\\\"cards\\\" data-dfw-id=\\\"lab.empty\\\">\\n    </section>\\n    <div class=\\\"cols\\\" data-dfw-id=\\\"lab.cols\\\"></div>\\n    <div class=\\\"row\\\" data-dfw-id=\\\"lab.row\\\"><span data-dfw-id=\\\"lab.x\\\">x</span><span data-dfw-id=\\\"lab.y\\\">y</span></div>\\n    <input data-dfw-id=\\\"lab.search\\\">\\n    <dfw-use c=\\\"shell\\\" id=\\\"lab.shell\\\">\\n      <dfw-fill slot=\\\"main\\\">\\n        <p data-dfw-id=\\\"lab.one\\\">One</p>\\n        <p data-dfw-id=\\\"lab.two\\\">Two</p>\\n      </dfw-fill>\\n    </dfw-use>\\n    <dfw-use c=\\\"nope\\\" id=\\\"lab.unknown\\\">?</dfw-use>\\n    <div data-dfw-id=\\\"dup\\\">a</div><div data-dfw-id=\\\"dup\\\">b</div>\\n  </main>\\n</body>\\n</html>\\n\",\"after\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <style>.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4) }</style>\\n</head>\\n<body>\\n  <main data-dfw-id=\\\"lab\\\" style=\\\"color: var(--color-ink); padding: 4px; --colW: 3; GAP: 2px\\\">\\n    <section class=\\\"cards\\\" data-dfw-id=\\\"lab.cards\\\">\\n      <div data-dfw-id=\\\"lab.a\\\">A</div>\\n      <article data-dfw-id=\\\"lab.b\\\">\\n        <h2 data-dfw-id=\\\"lab.b.title\\\">B</h2>\\n      </article>\\n      <dfw-use c=\\\"chip\\\" id=\\\"lab.c\\\" tone=\\\"cool &quot;x&quot; &lt;y> &amp; z\\\" variant=\\\"soft\\\" size=\\\"sm\\\" icon=\\\"7\\\">C</dfw-use>\\n    </section>\\n    <section class=\\\"cards\\\" data-dfw-id=\\\"lab.empty\\\">\\n    </section>\\n    <div class=\\\"cols\\\" data-dfw-id=\\\"lab.cols\\\"></div>\\n    <div class=\\\"row\\\" data-dfw-id=\\\"lab.row\\\"><span data-dfw-id=\\\"lab.x\\\">x</span><span data-dfw-id=\\\"lab.y\\\">y</span></div>\\n    <input data-dfw-id=\\\"lab.search\\\">\\n    <dfw-use c=\\\"shell\\\" id=\\\"lab.shell\\\">\\n      <dfw-fill slot=\\\"main\\\">\\n        <p data-dfw-id=\\\"lab.one\\\">One</p>\\n        <p data-dfw-id=\\\"lab.two\\\">Two</p>\\n      </dfw-fill>\\n    </dfw-use>\\n    <dfw-use c=\\\"nope\\\" id=\\\"lab.unknown\\\">?</dfw-use>\\n    <div data-dfw-id=\\\"dup\\\">a</div><div data-dfw-id=\\\"dup\\\">b</div>\\n  </main>\\n</body>\\n</html>\\n\"}",
+        "design/screens/lab/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <style>.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4) }</style>\n</head>\n<body>\n  <main data-dfw-id=\"lab\" style=\"color: var(--color-ink); padding: 4px; --colW: 3; GAP: 2px\">\n    <section class=\"cards\" data-dfw-id=\"lab.cards\">\n      <div data-dfw-id=\"lab.a\">A</div>\n      <article data-dfw-id=\"lab.b\">\n        <h2 data-dfw-id=\"lab.b.title\">B</h2>\n      </article>\n      <dfw-use c=\"chip\" id=\"lab.c\" tone=\"cool &quot;x&quot; &lt;y> &amp; z\" variant=\"soft\" size=\"sm\" icon=\"7\">C</dfw-use>\n    </section>\n    <section class=\"cards\" data-dfw-id=\"lab.empty\">\n    </section>\n    <div class=\"cols\" data-dfw-id=\"lab.cols\"></div>\n    <div class=\"row\" data-dfw-id=\"lab.row\"><span data-dfw-id=\"lab.x\">x</span><span data-dfw-id=\"lab.y\">y</span></div>\n    <input data-dfw-id=\"lab.search\">\n    <dfw-use c=\"shell\" id=\"lab.shell\">\n      <dfw-fill slot=\"main\">\n        <p data-dfw-id=\"lab.one\">One</p>\n        <p data-dfw-id=\"lab.two\">Two</p>\n      </dfw-fill>\n    </dfw-use>\n    <dfw-use c=\"nope\" id=\"lab.unknown\">?</dfw-use>\n    <div data-dfw-id=\"dup\">a</div><div data-dfw-id=\"dup\">b</div>\n  </main>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/lab/a.html",
+          "changed": true,
+          "line": 14
+        }
+      },
+      "files": {
+        ".dfw/edits/#5": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"file\":\"design/screens/lab/a.html\",\"op\":{\"op\":\"prop\",\"id\":\"lab.c\",\"prop\":\"tone\",\"value\":\"\"},\"before\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <style>.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4) }</style>\\n</head>\\n<body>\\n  <main data-dfw-id=\\\"lab\\\" style=\\\"color: var(--color-ink); padding: 4px; --colW: 3; GAP: 2px\\\">\\n    <section class=\\\"cards\\\" data-dfw-id=\\\"lab.cards\\\">\\n      <div data-dfw-id=\\\"lab.a\\\">A</div>\\n      <article data-dfw-id=\\\"lab.b\\\">\\n        <h2 data-dfw-id=\\\"lab.b.title\\\">B</h2>\\n      </article>\\n      <dfw-use c=\\\"chip\\\" id=\\\"lab.c\\\" tone=\\\"cool &quot;x&quot; &lt;y> &amp; z\\\" variant=\\\"soft\\\" size=\\\"sm\\\" icon=\\\"7\\\">C</dfw-use>\\n    </section>\\n    <section class=\\\"cards\\\" data-dfw-id=\\\"lab.empty\\\">\\n    </section>\\n    <div class=\\\"cols\\\" data-dfw-id=\\\"lab.cols\\\"></div>\\n    <div class=\\\"row\\\" data-dfw-id=\\\"lab.row\\\"><span data-dfw-id=\\\"lab.x\\\">x</span><span data-dfw-id=\\\"lab.y\\\">y</span></div>\\n    <input data-dfw-id=\\\"lab.search\\\">\\n    <dfw-use c=\\\"shell\\\" id=\\\"lab.shell\\\">\\n      <dfw-fill slot=\\\"main\\\">\\n        <p data-dfw-id=\\\"lab.one\\\">One</p>\\n        <p data-dfw-id=\\\"lab.two\\\">Two</p>\\n      </dfw-fill>\\n    </dfw-use>\\n    <dfw-use c=\\\"nope\\\" id=\\\"lab.unknown\\\">?</dfw-use>\\n    <div data-dfw-id=\\\"dup\\\">a</div><div data-dfw-id=\\\"dup\\\">b</div>\\n  </main>\\n</body>\\n</html>\\n\",\"after\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <style>.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4) }</style>\\n</head>\\n<body>\\n  <main data-dfw-id=\\\"lab\\\" style=\\\"color: var(--color-ink); padding: 4px; --colW: 3; GAP: 2px\\\">\\n    <section class=\\\"cards\\\" data-dfw-id=\\\"lab.cards\\\">\\n      <div data-dfw-id=\\\"lab.a\\\">A</div>\\n      <article data-dfw-id=\\\"lab.b\\\">\\n        <h2 data-dfw-id=\\\"lab.b.title\\\">B</h2>\\n      </article>\\n      <dfw-use c=\\\"chip\\\" id=\\\"lab.c\\\" variant=\\\"soft\\\" size=\\\"sm\\\" icon=\\\"7\\\">C</dfw-use>\\n    </section>\\n    <section class=\\\"cards\\\" data-dfw-id=\\\"lab.empty\\\">\\n    </section>\\n    <div class=\\\"cols\\\" data-dfw-id=\\\"lab.cols\\\"></div>\\n    <div class=\\\"row\\\" data-dfw-id=\\\"lab.row\\\"><span data-dfw-id=\\\"lab.x\\\">x</span><span data-dfw-id=\\\"lab.y\\\">y</span></div>\\n    <input data-dfw-id=\\\"lab.search\\\">\\n    <dfw-use c=\\\"shell\\\" id=\\\"lab.shell\\\">\\n      <dfw-fill slot=\\\"main\\\">\\n        <p data-dfw-id=\\\"lab.one\\\">One</p>\\n        <p data-dfw-id=\\\"lab.two\\\">Two</p>\\n      </dfw-fill>\\n    </dfw-use>\\n    <dfw-use c=\\\"nope\\\" id=\\\"lab.unknown\\\">?</dfw-use>\\n    <div data-dfw-id=\\\"dup\\\">a</div><div data-dfw-id=\\\"dup\\\">b</div>\\n  </main>\\n</body>\\n</html>\\n\"}",
+        "design/screens/lab/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <style>.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4) }</style>\n</head>\n<body>\n  <main data-dfw-id=\"lab\" style=\"color: var(--color-ink); padding: 4px; --colW: 3; GAP: 2px\">\n    <section class=\"cards\" data-dfw-id=\"lab.cards\">\n      <div data-dfw-id=\"lab.a\">A</div>\n      <article data-dfw-id=\"lab.b\">\n        <h2 data-dfw-id=\"lab.b.title\">B</h2>\n      </article>\n      <dfw-use c=\"chip\" id=\"lab.c\" variant=\"soft\" size=\"sm\" icon=\"7\">C</dfw-use>\n    </section>\n    <section class=\"cards\" data-dfw-id=\"lab.empty\">\n    </section>\n    <div class=\"cols\" data-dfw-id=\"lab.cols\"></div>\n    <div class=\"row\" data-dfw-id=\"lab.row\"><span data-dfw-id=\"lab.x\">x</span><span data-dfw-id=\"lab.y\">y</span></div>\n    <input data-dfw-id=\"lab.search\">\n    <dfw-use c=\"shell\" id=\"lab.shell\">\n      <dfw-fill slot=\"main\">\n        <p data-dfw-id=\"lab.one\">One</p>\n        <p data-dfw-id=\"lab.two\">Two</p>\n      </dfw-fill>\n    </dfw-use>\n    <dfw-use c=\"nope\" id=\"lab.unknown\">?</dfw-use>\n    <div data-dfw-id=\"dup\">a</div><div data-dfw-id=\"dup\">b</div>\n  </main>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/lab/a.html",
+          "changed": true,
+          "line": 14
+        }
+      },
+      "files": {
+        ".dfw/edits/#6": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"file\":\"design/screens/lab/a.html\",\"op\":{\"op\":\"prop\",\"id\":\"lab.c\",\"prop\":\"icon\",\"value\":null},\"before\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <style>.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4) }</style>\\n</head>\\n<body>\\n  <main data-dfw-id=\\\"lab\\\" style=\\\"color: var(--color-ink); padding: 4px; --colW: 3; GAP: 2px\\\">\\n    <section class=\\\"cards\\\" data-dfw-id=\\\"lab.cards\\\">\\n      <div data-dfw-id=\\\"lab.a\\\">A</div>\\n      <article data-dfw-id=\\\"lab.b\\\">\\n        <h2 data-dfw-id=\\\"lab.b.title\\\">B</h2>\\n      </article>\\n      <dfw-use c=\\\"chip\\\" id=\\\"lab.c\\\" variant=\\\"soft\\\" size=\\\"sm\\\" icon=\\\"7\\\">C</dfw-use>\\n    </section>\\n    <section class=\\\"cards\\\" data-dfw-id=\\\"lab.empty\\\">\\n    </section>\\n    <div class=\\\"cols\\\" data-dfw-id=\\\"lab.cols\\\"></div>\\n    <div class=\\\"row\\\" data-dfw-id=\\\"lab.row\\\"><span data-dfw-id=\\\"lab.x\\\">x</span><span data-dfw-id=\\\"lab.y\\\">y</span></div>\\n    <input data-dfw-id=\\\"lab.search\\\">\\n    <dfw-use c=\\\"shell\\\" id=\\\"lab.shell\\\">\\n      <dfw-fill slot=\\\"main\\\">\\n        <p data-dfw-id=\\\"lab.one\\\">One</p>\\n        <p data-dfw-id=\\\"lab.two\\\">Two</p>\\n      </dfw-fill>\\n    </dfw-use>\\n    <dfw-use c=\\\"nope\\\" id=\\\"lab.unknown\\\">?</dfw-use>\\n    <div data-dfw-id=\\\"dup\\\">a</div><div data-dfw-id=\\\"dup\\\">b</div>\\n  </main>\\n</body>\\n</html>\\n\",\"after\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <style>.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4) }</style>\\n</head>\\n<body>\\n  <main data-dfw-id=\\\"lab\\\" style=\\\"color: var(--color-ink); padding: 4px; --colW: 3; GAP: 2px\\\">\\n    <section class=\\\"cards\\\" data-dfw-id=\\\"lab.cards\\\">\\n      <div data-dfw-id=\\\"lab.a\\\">A</div>\\n      <article data-dfw-id=\\\"lab.b\\\">\\n        <h2 data-dfw-id=\\\"lab.b.title\\\">B</h2>\\n      </article>\\n      <dfw-use c=\\\"chip\\\" id=\\\"lab.c\\\" variant=\\\"soft\\\" size=\\\"sm\\\">C</dfw-use>\\n    </section>\\n    <section class=\\\"cards\\\" data-dfw-id=\\\"lab.empty\\\">\\n    </section>\\n    <div class=\\\"cols\\\" data-dfw-id=\\\"lab.cols\\\"></div>\\n    <div class=\\\"row\\\" data-dfw-id=\\\"lab.row\\\"><span data-dfw-id=\\\"lab.x\\\">x</span><span data-dfw-id=\\\"lab.y\\\">y</span></div>\\n    <input data-dfw-id=\\\"lab.search\\\">\\n    <dfw-use c=\\\"shell\\\" id=\\\"lab.shell\\\">\\n      <dfw-fill slot=\\\"main\\\">\\n        <p data-dfw-id=\\\"lab.one\\\">One</p>\\n        <p data-dfw-id=\\\"lab.two\\\">Two</p>\\n      </dfw-fill>\\n    </dfw-use>\\n    <dfw-use c=\\\"nope\\\" id=\\\"lab.unknown\\\">?</dfw-use>\\n    <div data-dfw-id=\\\"dup\\\">a</div><div data-dfw-id=\\\"dup\\\">b</div>\\n  </main>\\n</body>\\n</html>\\n\"}",
+        "design/screens/lab/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <style>.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4) }</style>\n</head>\n<body>\n  <main data-dfw-id=\"lab\" style=\"color: var(--color-ink); padding: 4px; --colW: 3; GAP: 2px\">\n    <section class=\"cards\" data-dfw-id=\"lab.cards\">\n      <div data-dfw-id=\"lab.a\">A</div>\n      <article data-dfw-id=\"lab.b\">\n        <h2 data-dfw-id=\"lab.b.title\">B</h2>\n      </article>\n      <dfw-use c=\"chip\" id=\"lab.c\" variant=\"soft\" size=\"sm\">C</dfw-use>\n    </section>\n    <section class=\"cards\" data-dfw-id=\"lab.empty\">\n    </section>\n    <div class=\"cols\" data-dfw-id=\"lab.cols\"></div>\n    <div class=\"row\" data-dfw-id=\"lab.row\"><span data-dfw-id=\"lab.x\">x</span><span data-dfw-id=\"lab.y\">y</span></div>\n    <input data-dfw-id=\"lab.search\">\n    <dfw-use c=\"shell\" id=\"lab.shell\">\n      <dfw-fill slot=\"main\">\n        <p data-dfw-id=\"lab.one\">One</p>\n        <p data-dfw-id=\"lab.two\">Two</p>\n      </dfw-fill>\n    </dfw-use>\n    <dfw-use c=\"nope\" id=\"lab.unknown\">?</dfw-use>\n    <div data-dfw-id=\"dup\">a</div><div data-dfw-id=\"dup\">b</div>\n  </main>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/lab/a.html",
+          "changed": false,
+          "line": 14
+        }
+      },
+      "files": {}
+    },
+    {
+      "result": {
+        "error": "Component \"button\" has no sizes."
+      },
+      "files": {}
+    },
+    {
+      "result": {
+        "error": "Component \"button\" has no variant \"huge\" (primary, ghost)."
+      },
+      "files": {}
+    },
+    {
+      "result": {
+        "error": "Component \"button\" has no variant \"3\" (primary, ghost)."
+      },
+      "files": {}
+    },
+    {
+      "result": {
+        "error": "Component \"button\" has no variant \"undefined\" (primary, ghost)."
+      },
+      "files": {}
+    },
+    {
+      "result": {
+        "error": "Component \"button\" has no prop \"onclick\" (none)."
+      },
+      "files": {}
+    },
+    {
+      "result": {
+        "error": "Component \"chip\" has no prop \"href\" (tone, icon)."
+      },
+      "files": {}
+    },
+    {
+      "result": {
+        "error": "\"items.title\" is not a component instance (<dfw-use>)."
+      },
+      "files": {}
+    },
+    {
+      "result": {
+        "error": "\"items.title\" is not a component instance (<dfw-use>)."
+      },
+      "files": {}
+    },
+    {
+      "result": {
+        "error": "Unknown component \"nope\"."
+      },
+      "files": {}
+    }
+  ]
+}

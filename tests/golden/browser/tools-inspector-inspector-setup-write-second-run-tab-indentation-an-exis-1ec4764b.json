@@ -1,0 +1,22 @@
+{
+  "test": "tools: inspector > inspector setup --write: second run, tab indentation, an existing backup",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "Wrote vite.config.ts, package.json (code-inspector-plugin@2.0.9, dev-only). Now run: npm install, restart the dev server, then \"dfw review start --url <dev server>\".\n",
+      "files": {
+        "project/package.json": "{\n\t\"name\": \"x\",\n\t\"version\": \"1.0.0\",\n\t\"devDependencies\": {\n\t\t\"vite\": \"7.1.0\",\n\t\t\"code-inspector-plugin\": \"2.0.9\"\n\t},\n\t\"count\": 1e+21\n}",
+        "project/vite.config.ts": "import { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\nimport { codeInspectorPlugin } from 'code-inspector-plugin';\n\n// https://vite.dev/config/\nexport default defineConfig({\n  build: {\n    rollupOptions: { plugins: [] },\n  },\n  plugins: [codeInspectorPlugin({ bundler: 'vite', pathType: 'relative', hotKeys: false, showSwitch: false, hideConsole: true, server: 'close' }), react()],\n});\n"
+      },
+      "extra": null,
+      "stderr": ""
+    },
+    {
+      "code": 0,
+      "stdout": "code-inspector-plugin@2.0.9 is already set up.\n",
+      "files": {},
+      "extra": null,
+      "stderr": ""
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+{
+  "test": "hot: freeze and stack detection (the modules, called directly) > the reviews lock holds between concurrent writers on one project",
+  "results": []
+}

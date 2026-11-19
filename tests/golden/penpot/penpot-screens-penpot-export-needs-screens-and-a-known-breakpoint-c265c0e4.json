@@ -1,0 +1,41 @@
+{
+  "test": "penpot screens > penpot export needs screens and a known breakpoint",
+  "results": [
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "No breakpoint matches --bp tv (have: desktop, mobile).\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "No page \"nope\" in design/design.json.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--bp needs a value.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--page needs a value.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "design/design.json not found.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "No screens to export (check --page/--bp and design/design.json).\n",
+      "files": {}
+    }
+  ]
+}

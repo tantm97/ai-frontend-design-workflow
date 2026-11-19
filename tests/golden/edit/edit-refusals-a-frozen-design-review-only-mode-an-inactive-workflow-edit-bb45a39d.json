@@ -1,0 +1,78 @@
+{
+  "test": "edit: refusals > a frozen design, review-only mode; an inactive workflow edits",
+  "results": [
+    {
+      "result": {
+        "error": "Design v3 is approved and locked (G2); Studio edits are refused. Changing it needs your approval and \"dfw reopen --reason <why>\"."
+      },
+      "files": {}
+    },
+    {
+      "result": {
+        "error": "Design v3 is approved and locked (G2); Studio edits are refused. Changing it needs your approval and \"dfw reopen --reason <why>\"."
+      },
+      "files": {}
+    },
+    {
+      "result": {
+        "error": "Design v3 is approved and locked (G2); Studio edits are refused. Changing it needs your approval and \"dfw reopen --reason <why>\"."
+      },
+      "files": {}
+    },
+    {
+      "result": {
+        "error": "This project is in review-only mode; Studio edits are refused. Leave a comment instead."
+      },
+      "files": {}
+    },
+    {
+      "result": {
+        "error": "This project is in review-only mode; Studio edits are refused. Leave a comment instead."
+      },
+      "files": {}
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "changed": true,
+          "line": 18
+        }
+      },
+      "files": {
+        ".dfw/edits/#0": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"file\":\"design/screens/items/a.html\",\"op\":{\"op\":\"text\",\"id\":\"items.title\",\"value\":\"X\"},\"before\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\"><meta name=\\\"viewport\\\" content=\\\"width=device-width, initial-scale=1\\\">\\n  <title>Items - Fixture</title>\\n  <dfw-head></dfw-head>\\n  <style>\\n    body { margin: 0; background: var(--color-canvas); color: var(--color-ink); font-family: var(--font-family-body); font-size: var(--font-size-md); }\\n    main { padding: var(--space-4); display: grid; gap: var(--space-4); }\\n    .bar { display: flex; gap: var(--space-2); align-items: center; }\\n    .panel { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); }\\n    .rule { border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-2); }\\n  </style>\\n</head>\\n<body>\\n  <main data-dfw-id=\\\"items\\\">\\n    <div class=\\\"bar\\\">\\n      <h1 data-dfw-id=\\\"items.title\\\">Inventory</h1>\\n      <dfw-use c=\\\"button\\\" variant=\\\"primary\\\" id=\\\"items.add\\\">Add item</dfw-use>\\n      <dfw-use c=\\\"button\\\" variant=\\\"ghost\\\" id=\\\"items.export\\\">Export</dfw-use>\\n    </div>\\n    <section class=\\\"panel\\\" data-dfw-id=\\\"items.panel\\\">\\n      <p class=\\\"rule\\\" data-dfw-id=\\\"items.summary\\\">12 items, <strong>3</strong> low on stock</p>\\n      <p data-dfw-id=\\\"items.note\\\">Counted on Monday.</p>\\n    </section>\\n  </main>\\n</body>\\n</html>\\n\",\"after\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\"><meta name=\\\"viewport\\\" content=\\\"width=device-width, initial-scale=1\\\">\\n  <title>Items - Fixture</title>\\n  <dfw-head></dfw-head>\\n  <style>\\n    body { margin: 0; background: var(--color-canvas); color: var(--color-ink); font-family: var(--font-family-body); font-size: var(--font-size-md); }\\n    main { padding: var(--space-4); display: grid; gap: var(--space-4); }\\n    .bar { display: flex; gap: var(--space-2); align-items: center; }\\n    .panel { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); }\\n    .rule { border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-2); }\\n  </style>\\n</head>\\n<body>\\n  <main data-dfw-id=\\\"items\\\">\\n    <div class=\\\"bar\\\">\\n      <h1 data-dfw-id=\\\"items.title\\\">X</h1>\\n      <dfw-use c=\\\"button\\\" variant=\\\"primary\\\" id=\\\"items.add\\\">Add item</dfw-use>\\n      <dfw-use c=\\\"button\\\" variant=\\\"ghost\\\" id=\\\"items.export\\\">Export</dfw-use>\\n    </div>\\n    <section class=\\\"panel\\\" data-dfw-id=\\\"items.panel\\\">\\n      <p class=\\\"rule\\\" data-dfw-id=\\\"items.summary\\\">12 items, <strong>3</strong> low on stock</p>\\n      <p data-dfw-id=\\\"items.note\\\">Counted on Monday.</p>\\n    </section>\\n  </main>\\n</body>\\n</html>\\n\"}",
+        "design/screens/items/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <title>Items - Fixture</title>\n  <dfw-head></dfw-head>\n  <style>\n    body { margin: 0; background: var(--color-canvas); color: var(--color-ink); font-family: var(--font-family-body); font-size: var(--font-size-md); }\n    main { padding: var(--space-4); display: grid; gap: var(--space-4); }\n    .bar { display: flex; gap: var(--space-2); align-items: center; }\n    .panel { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); }\n    .rule { border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-2); }\n  </style>\n</head>\n<body>\n  <main data-dfw-id=\"items\">\n    <div class=\"bar\">\n      <h1 data-dfw-id=\"items.title\">X</h1>\n      <dfw-use c=\"button\" variant=\"primary\" id=\"items.add\">Add item</dfw-use>\n      <dfw-use c=\"button\" variant=\"ghost\" id=\"items.export\">Export</dfw-use>\n    </div>\n    <section class=\"panel\" data-dfw-id=\"items.panel\">\n      <p class=\"rule\" data-dfw-id=\"items.summary\">12 items, <strong>3</strong> low on stock</p>\n      <p data-dfw-id=\"items.note\">Counted on Monday.</p>\n    </section>\n  </main>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "changed": true,
+          "line": 18
+        }
+      },
+      "files": {
+        ".dfw/edits/#0": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"file\":\"design/screens/items/a.html\",\"op\":{\"op\":\"text\",\"id\":\"items.title\",\"value\":\"X\"},\"before\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\"><meta name=\\\"viewport\\\" content=\\\"width=device-width, initial-scale=1\\\">\\n  <title>Items - Fixture</title>\\n  <dfw-head></dfw-head>\\n  <style>\\n    body { margin: 0; background: var(--color-canvas); color: var(--color-ink); font-family: var(--font-family-body); font-size: var(--font-size-md); }\\n    main { padding: var(--space-4); display: grid; gap: var(--space-4); }\\n    .bar { display: flex; gap: var(--space-2); align-items: center; }\\n    .panel { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); }\\n    .rule { border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-2); }\\n  </style>\\n</head>\\n<body>\\n  <main data-dfw-id=\\\"items\\\">\\n    <div class=\\\"bar\\\">\\n      <h1 data-dfw-id=\\\"items.title\\\">Inventory</h1>\\n      <dfw-use c=\\\"button\\\" variant=\\\"primary\\\" id=\\\"items.add\\\">Add item</dfw-use>\\n      <dfw-use c=\\\"button\\\" variant=\\\"ghost\\\" id=\\\"items.export\\\">Export</dfw-use>\\n    </div>\\n    <section class=\\\"panel\\\" data-dfw-id=\\\"items.panel\\\">\\n      <p class=\\\"rule\\\" data-dfw-id=\\\"items.summary\\\">12 items, <strong>3</strong> low on stock</p>\\n      <p data-dfw-id=\\\"items.note\\\">Counted on Monday.</p>\\n    </section>\\n  </main>\\n</body>\\n</html>\\n\",\"after\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\"><meta name=\\\"viewport\\\" content=\\\"width=device-width, initial-scale=1\\\">\\n  <title>Items - Fixture</title>\\n  <dfw-head></dfw-head>\\n  <style>\\n    body { margin: 0; background: var(--color-canvas); color: var(--color-ink); font-family: var(--font-family-body); font-size: var(--font-size-md); }\\n    main { padding: var(--space-4); display: grid; gap: var(--space-4); }\\n    .bar { display: flex; gap: var(--space-2); align-items: center; }\\n    .panel { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); }\\n    .rule { border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-2); }\\n  </style>\\n</head>\\n<body>\\n  <main data-dfw-id=\\\"items\\\">\\n    <div class=\\\"bar\\\">\\n      <h1 data-dfw-id=\\\"items.title\\\">X</h1>\\n      <dfw-use c=\\\"button\\\" variant=\\\"primary\\\" id=\\\"items.add\\\">Add item</dfw-use>\\n      <dfw-use c=\\\"button\\\" variant=\\\"ghost\\\" id=\\\"items.export\\\">Export</dfw-use>\\n    </div>\\n    <section class=\\\"panel\\\" data-dfw-id=\\\"items.panel\\\">\\n      <p class=\\\"rule\\\" data-dfw-id=\\\"items.summary\\\">12 items, <strong>3</strong> low on stock</p>\\n      <p data-dfw-id=\\\"items.note\\\">Counted on Monday.</p>\\n    </section>\\n  </main>\\n</body>\\n</html>\\n\"}",
+        "design/screens/items/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <title>Items - Fixture</title>\n  <dfw-head></dfw-head>\n  <style>\n    body { margin: 0; background: var(--color-canvas); color: var(--color-ink); font-family: var(--font-family-body); font-size: var(--font-size-md); }\n    main { padding: var(--space-4); display: grid; gap: var(--space-4); }\n    .bar { display: flex; gap: var(--space-2); align-items: center; }\n    .panel { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); }\n    .rule { border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-2); }\n  </style>\n</head>\n<body>\n  <main data-dfw-id=\"items\">\n    <div class=\"bar\">\n      <h1 data-dfw-id=\"items.title\">X</h1>\n      <dfw-use c=\"button\" variant=\"primary\" id=\"items.add\">Add item</dfw-use>\n      <dfw-use c=\"button\" variant=\"ghost\" id=\"items.export\">Export</dfw-use>\n    </div>\n    <section class=\"panel\" data-dfw-id=\"items.panel\">\n      <p class=\"rule\" data-dfw-id=\"items.summary\">12 items, <strong>3</strong> low on stock</p>\n      <p data-dfw-id=\"items.note\">Counted on Monday.</p>\n    </section>\n  </main>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "op": {
+            "op": "text",
+            "id": "items.title",
+            "value": "X"
+          },
+          "remaining": 0
+        }
+      },
+      "files": {
+        ".dfw/edits/#0": null,
+        "design/screens/items/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <title>Items - Fixture</title>\n  <dfw-head></dfw-head>\n  <style>\n    body { margin: 0; background: var(--color-canvas); color: var(--color-ink); font-family: var(--font-family-body); font-size: var(--font-size-md); }\n    main { padding: var(--space-4); display: grid; gap: var(--space-4); }\n    .bar { display: flex; gap: var(--space-2); align-items: center; }\n    .panel { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); }\n    .rule { border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-2); }\n  </style>\n</head>\n<body>\n  <main data-dfw-id=\"items\">\n    <div class=\"bar\">\n      <h1 data-dfw-id=\"items.title\">Inventory</h1>\n      <dfw-use c=\"button\" variant=\"primary\" id=\"items.add\">Add item</dfw-use>\n      <dfw-use c=\"button\" variant=\"ghost\" id=\"items.export\">Export</dfw-use>\n    </div>\n    <section class=\"panel\" data-dfw-id=\"items.panel\">\n      <p class=\"rule\" data-dfw-id=\"items.summary\">12 items, <strong>3</strong> low on stock</p>\n      <p data-dfw-id=\"items.note\">Counted on Monday.</p>\n    </section>\n  </main>\n</body>\n</html>\n"
+      }
+    }
+  ]
+}

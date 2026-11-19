@@ -1,0 +1,65 @@
+{
+  "test": "review proxy: Node and native answer the same > HTML: strict CSP header and meta patched with a nonce, scripts injected; gzip, br and deflate decoded",
+  "results": [
+    {
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "cache": "no-store",
+      "body": "<!doctype html><html><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"script-src 'nonce-<n>' 'strict-dynamic' http://localhost:<port> 'nonce-<n>'\"><title>App</title><script defer src=\"/__dfw/overlay.js\" data-dfw-live nonce=\"<n>\"></script><script defer src=\"/__dfw/live.js\" data-shortcut=\"alt+c\" nonce=\"<n>\"></script></head><body><main data-insp-path=\"src/App.tsx:3:5:main\"><h1>App</h1></main></body></html>",
+      "content-security-policy": "default-src 'none'; script-src 'nonce-<n>' 'strict-dynamic' http://localhost:<port> 'nonce-<n>'; style-src 'self'; img-src 'self'; frame-ancestors 'none'; connect-src http://localhost:<port>",
+      "content-security-policy-report-only": "script-src 'nonce-<n>' http://localhost:<port> 'nonce-<n>'",
+      "etag": null,
+      "location": null,
+      "set-cookie": null,
+      "content-encoding": null
+    },
+    {
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "cache": "no-store",
+      "body": "<!doctype html><html><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"script-src 'nonce-<n>' 'strict-dynamic' http://localhost:<port> 'nonce-<n>'\"><title>App</title><script defer src=\"/__dfw/overlay.js\" data-dfw-live nonce=\"<n>\"></script><script defer src=\"/__dfw/live.js\" data-shortcut=\"alt+c\" nonce=\"<n>\"></script></head><body><main data-insp-path=\"src/App.tsx:3:5:main\"><h1>App</h1></main></body></html>",
+      "content-security-policy": "default-src 'none'; script-src 'nonce-<n>' 'strict-dynamic' http://localhost:<port> 'nonce-<n>'; style-src 'self'; img-src 'self'; frame-ancestors 'none'; connect-src http://localhost:<port>",
+      "content-security-policy-report-only": null,
+      "etag": null,
+      "location": null,
+      "set-cookie": null,
+      "content-encoding": null
+    },
+    {
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "cache": "no-store",
+      "body": "<!doctype html><html><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"script-src 'nonce-<n>' 'strict-dynamic' http://localhost:<port> 'nonce-<n>'\"><title>App</title><script defer src=\"/__dfw/overlay.js\" data-dfw-live nonce=\"<n>\"></script><script defer src=\"/__dfw/live.js\" data-shortcut=\"alt+c\" nonce=\"<n>\"></script></head><body><main data-insp-path=\"src/App.tsx:3:5:main\"><h1>App</h1></main></body></html>",
+      "content-security-policy": "default-src 'none'; script-src 'nonce-<n>' 'strict-dynamic' http://localhost:<port> 'nonce-<n>'; style-src 'self'; img-src 'self'; frame-ancestors 'none'; connect-src http://localhost:<port>",
+      "content-security-policy-report-only": null,
+      "etag": null,
+      "location": null,
+      "set-cookie": null,
+      "content-encoding": null
+    },
+    {
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "cache": "no-store",
+      "body": "<!doctype html><html><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"script-src 'nonce-<n>' 'strict-dynamic' http://localhost:<port> 'nonce-<n>'\"><title>App</title><script defer src=\"/__dfw/overlay.js\" data-dfw-live nonce=\"<n>\"></script><script defer src=\"/__dfw/live.js\" data-shortcut=\"alt+c\" nonce=\"<n>\"></script></head><body><main data-insp-path=\"src/App.tsx:3:5:main\"><h1>App</h1></main></body></html>",
+      "content-security-policy": "default-src 'none'; script-src 'nonce-<n>' 'strict-dynamic' http://localhost:<port> 'nonce-<n>'; style-src 'self'; img-src 'self'; frame-ancestors 'none'; connect-src http://localhost:<port>",
+      "content-security-policy-report-only": null,
+      "etag": null,
+      "location": null,
+      "set-cookie": null,
+      "content-encoding": null
+    },
+    {
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "cache": "no-store",
+      "body": "<!doctype html><html><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"script-src 'nonce-<n>' 'strict-dynamic' http://127.0.0.1:<port> 'nonce-<n>'\"><title>App</title><script defer src=\"/__dfw/overlay.js\" data-dfw-live nonce=\"<n>\"></script><script defer src=\"/__dfw/live.js\" data-shortcut=\"alt+c\" nonce=\"<n>\"></script></head><body><main data-insp-path=\"src/App.tsx:3:5:main\"><h1>App</h1></main></body></html>",
+      "content-security-policy": "default-src 'none'; script-src 'nonce-<n>' 'strict-dynamic' http://127.0.0.1:<port> 'nonce-<n>'; style-src 'self'; img-src 'self'; frame-ancestors 'none'; connect-src http://127.0.0.1:<port>",
+      "content-security-policy-report-only": "script-src 'nonce-<n>' http://127.0.0.1:<port> 'nonce-<n>'",
+      "etag": null,
+      "location": null,
+      "set-cookie": null,
+      "content-encoding": null
+    }
+  ]
+}

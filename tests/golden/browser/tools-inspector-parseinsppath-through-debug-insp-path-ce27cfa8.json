@@ -1,0 +1,30 @@
+{
+  "test": "tools: inspector > parseInspPath (through __debug insp-path)",
+  "results": [
+    "{\"file\":\"src/components/Foo.tsx\",\"line\":42,\"column\":7,\"tag\":\"div\",\"source\":\"src/components/Foo.tsx:42:7\"}\n",
+    "{\"file\":\"src/App.vue\",\"line\":3,\"column\":5,\"tag\":\"el-button\",\"source\":\"src/App.vue:3:5\"}\n",
+    "{\"file\":\"src/App.tsx\",\"line\":3,\"column\":5,\"tag\":null,\"source\":\"src/App.tsx:3:5\"}\n",
+    "{\"file\":\"src/App.tsx\",\"line\":3,\"column\":null,\"tag\":\"Header\",\"source\":\"src/App.tsx:3\"}\n",
+    "{\"file\":\"src/a.jsx\",\"line\":1,\"column\":1,\"tag\":\"p\",\"source\":\"src/a.jsx:1:1\"}\n",
+    "{\"file\":\"C:/work/shop/src/components/Foo.tsx\",\"line\":42,\"column\":7,\"tag\":\"div\",\"source\":\"C:/work/shop/src/components/Foo.tsx:42:7\"}\n",
+    "{\"file\":\"src/components/Foo.tsx\",\"line\":42,\"column\":7,\"tag\":\"div\",\"source\":\"src/components/Foo.tsx:42:7\"}\n",
+    "{\"file\":\"src/Foo.tsx\",\"line\":9,\"column\":1,\"tag\":\"span\",\"source\":\"src/Foo.tsx:9:1\"}\n",
+    "{\"file\":\"src/Foo.tsx\",\"line\":9,\"column\":1,\"tag\":\"span\",\"source\":\"src/Foo.tsx:9:1\"}\n",
+    "{\"file\":\"D:/work/shop/src/Foo.tsx\",\"line\":9,\"column\":1,\"tag\":\"span\",\"source\":\"D:/work/shop/src/Foo.tsx:9:1\"}\n",
+    "{\"file\":\"src/Foo.tsx\",\"line\":42,\"column\":7,\"tag\":\"div\",\"source\":\"src/Foo.tsx:42:7\"}\n",
+    "{\"file\":\"src/Foo.tsx\",\"line\":42,\"column\":7,\"tag\":\"div\",\"source\":\"src/Foo.tsx:42:7\"}\n",
+    "{\"file\":\"/home/me/shop/../other/x.tsx\",\"line\":1,\"column\":2,\"tag\":\"a\",\"source\":\"/home/me/shop/../other/x.tsx:1:2\"}\n",
+    "{\"file\":\"/elsewhere/lib/x.tsx\",\"line\":1,\"column\":2,\"tag\":\"a\",\"source\":\"/elsewhere/lib/x.tsx:1:2\"}\n",
+    "{\"file\":\"/home/me/shop\",\"line\":1,\"column\":2,\"tag\":\"a\",\"source\":\"/home/me/shop:1:2\"}\n",
+    "{\"file\":\"/home/me/shop/..x/y.ts\",\"line\":1,\"column\":null,\"tag\":null,\"source\":\"/home/me/shop/..x/y.ts:1\"}\n",
+    "{\"file\":\"src/a.ts\",\"line\":12,\"column\":3,\"tag\":\"a\",\"source\":\"src/a.ts:12:3\"}\n",
+    "{\"file\":\"src/a.ts\",\"line\":7,\"column\":8,\"tag\":\"b\",\"source\":\"src/a.ts:7:8\"}\n",
+    "{\"file\":\"a:b:c:1\",\"line\":2,\"column\":3,\"tag\":\"x\",\"source\":\"a:b:c:1:2:3\"}\n",
+    "{\"file\":\"src/a.ts:1\",\"line\":2,\"column\":3,\"tag\":null,\"source\":\"src/a.ts:1:2:3\"}\n",
+    "null\n",
+    "null\n",
+    "null\n",
+    "null\n",
+    "{\"file\":\"x\",\"line\":1e+23,\"column\":1,\"tag\":\"p\",\"source\":\"x:1e+23:1\"}\n"
+  ]
+}

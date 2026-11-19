@@ -1,0 +1,83 @@
+{
+  "test": "design commands > system: presets, ref, list, inventory",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "crisp        Crisp: neutral cool greys, cobalt accent, compact controls, small radii, hairline dividers. Productive SaaS / admin tools.\nindustrial   Industrial: high-contrast slate, signal blue accent, large targets, square-ish radii, flat surfaces. Operations, counters, factory floors.\nsoft         Soft: warm neutrals, deep teal accent, roomy controls, generous radii, soft elevation. Friendly consumer / service products.\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "Starter-kit references (read-only; design your own master, never copy):\napp-shell      variants: sidebar focus  states: hover, focus-visible, empty\navatar         sizes: md sm lg xl\nbadge          variants: neutral ok info warn err accent  sizes: md sm\nbanner         variants: info ok warn err  sizes: md xl  states: empty\nbutton         variants: primary secondary ghost danger  sizes: md sm lg  states: hover, focus-visible, active, disabled, aria-busy\ncard           variants: default raised flat  states: empty\ncheckbox       \ndata-table     variants: default dense  states: hover, placeholder\ndialog         sizes: md sm lg\nempty-state    states: empty\nfield          variants: default invalid  sizes: md lg  states: hover, placeholder\nfilter-chip    variants: default active  states: hover, focus-visible, active, disabled\nicon-button    variants: ghost secondary  sizes: md sm  states: hover, focus-visible, disabled\nkbd            \nnav-item       variants: sidebar rail  states: hover, focus-visible, aria-current\nnav            variants: sidebar rail\npage-header    \npage           variants: flow task split  states: empty\nsegmented      sizes: md sm  states: hover, focus-visible\nselect         sizes: md sm  states: hover, focus-visible\nstat           variants: default alert  states: hover\nstatus-bar     states: hover, focus-visible\ntabs           states: hover, focus-visible, aria-selected\ntext           variants: display-xl display-lg display-md display-sm title subtitle body body-sm caption eyebrow mono\nRead one: dfw system ref <name>\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "[\n  {\n    \"name\": \"app-shell\",\n    \"group\": \"Layout\",\n    \"description\": \"\",\n    \"variants\": \"sidebar focus\",\n    \"sizes\": \"\",\n    \"states\": [\n      \"hover\",\n      \"focus-visible\",\n      \"empty\"\n    ]\n  },\n  {\n    \"name\": \"avatar\",\n    \"group\": \"Display\",\n    \"description\": \"Person image or initials. name is the accessible label.\",\n    \"variants\": \"\",\n    \"sizes\": \"md sm lg xl\",\n    \"states\": []\n  },\n  {\n    \"name\": \"badge\",\n    \"group\": \"Display\",\n    \"description\": \"Status label: always text (+ optional icon or dot), never colour alone.\",\n    \"variants\": \"neutral ok info warn err accent\",\n    \"sizes\": \"md sm\",\n    \"states\": []\n  },\n  {\n    \"name\": \"banner\",\n    \"group\": \"Feedback\",\n    \"description\": \"Inline message. role=alert for err/warn that need action. size xl = docked feedback panel readable from a distance (counter/kiosk): tinted background, solid status icon, large title; errors get a stronger border and stay until dismissed.\",\n    \"variants\": \"info ok warn err\",\n    \"sizes\": \"md xl\",\n    \"states\": [\n      \"empty\"\n    ]\n  },\n  {\n    \"name\": \"button\",\n    \"group\": \"Actions\",\n    \"description\": \"Text button. One primary per view; secondary for alternatives; ghost for low-emphasis; danger for destructive actions.\",\n    \"variants\": \"primary secondary ghost danger\",\n    \"sizes\": \"md sm lg\",\n    \"states\": [\n      \"hover\",\n      \"focus-visible\",\n      \"active\",\n      \"disabled\",\n      \"aria-busy\"\n    ]\n  },\n  {\n    \"name\": \"card\",\n    \"group\": \"Layout\",\n    \"description\": \"Surface that groups related content. Header (title, subtitle, actions slot), body (default slot), footer slot. raised = the single active work object on a screen. body=flush puts a table edge to edge (no card-inside-card borders); body=scroll keeps header and footer fixed while the body scrolls (work objects in a task page).\",\n    \"variants\": \"default raised flat\",\n    \"sizes\": \"\",\n    \"states\": [\n      \"empty\"\n    ]\n  },\n  {\n    \"name\": \"checkbox\",\n    \"group\": \"Inputs\",\n    \"description\": \"Checkbox with label. checked=\",\n    \"variants\": \"\",\n    \"sizes\": \"\",\n    \"states\": []\n  },\n  {\n    \"name\": \"data-table\",\n    \"group\": \"Data\",\n    \"description\": \"\",\n    \"variants\": \"default dense\",\n    \"sizes\": \"\",\n    \"states\": [\n      \"hover\",\n      \"placeholder\"\n    ]\n  },\n  {\n    \"name\": \"dialog\",\n    \"group\": \"Overlays\",\n    \"description\": \"Modal dialog (shown open for design review). Body slot + actions slot (primary last).\",\n    \"variants\": \"\",\n    \"sizes\": \"md sm lg\",\n    \"states\": []\n  },\n  {\n    \"name\": \"empty-state\",\n    \"group\": \"Feedback\",\n    \"description\": \"Shown when a list/table has no data. Say why it is empty and the next action (actions slot).\",\n    \"variants\": \"\",\n    \"sizes\": \"\",\n    \"states\": [\n      \"empty\"\n    ]\n  },\n  {\n    \"name\": \"field\",\n    \"group\": \"Inputs\",\n    \"description\": \"Labelled text input with hint and error. Use variant=invalid with error text; never colour alone.\",\n    \"variants\": \"default invalid\",\n    \"sizes\": \"md lg\",\n    \"states\": [\n      \"hover\",\n      \"placeholder\"\n    ]\n  },\n  {\n    \"name\": \"filter-chip\",\n    \"group\": \"Inputs\",\n    \"description\": \"Compact filter trigger for toolbars: 'Label: value'. active = a non-default value is applied.\",\n    \"variants\": \"default active\",\n    \"sizes\": \"\",\n    \"states\": [\n      \"hover\",\n      \"focus-visible\",\n      \"active\",\n      \"disabled\"\n    ]\n  },\n  {\n    \"name\": \"icon-button\",\n    \"group\": \"Actions\",\n    \"description\": \"Square button with an icon only. label is required (accessible name).\",\n    \"variants\": \"ghost secondary\",\n    \"sizes\": \"md sm\",\n    \"states\": [\n      \"hover\",\n      \"focus-visible\",\n      \"disabled\"\n    ]\n  },\n  {\n    \"name\": \"kbd\",\n    \"group\": \"Display\",\n    \"description\": \"Keyboard key hint.\",\n    \"variants\": \"\",\n    \"sizes\": \"\",\n    \"states\": []\n  },\n  {\n    \"name\": \"nav-item\",\n    \"group\": \"Navigation\",\n    \"description\": \"One navigation link. current=page marks the active item (aria-current).\",\n    \"variants\": \"sidebar rail\",\n    \"sizes\": \"\",\n    \"states\": [\n      \"hover\",\n      \"focus-visible\",\n      \"aria-current\"\n    ]\n  },\n  {\n    \"name\": \"nav\",\n    \"group\": \"Navigation\",\n    \"description\": \"\",\n    \"variants\": \"sidebar rail\",\n    \"sizes\": \"\",\n    \"states\": []\n  },\n  {\n    \"name\": \"page-header\",\n    \"group\": \"Layout\",\n    \"description\": \"Top of a page: title, optional subtitle/breadcrumb, actions slot on the right.\",\n    \"variants\": \"\",\n    \"sizes\": \"\",\n    \"states\": []\n  },\n  {\n    \"name\": \"page\",\n    \"group\": \"Layout\",\n    \"description\": \"Page layout inside app-shell, so every screen of a kind has the same paddings, widths and behaviour. flow = dashboards, lists, forms (page scrolls). task = one work object filling the viewport (counter, kiosk, checkout): the object stretches to the available height, long lists scroll INSIDE it, the feedback slot is anchored at the bottom and the primary action stays on screen whatever the data. split = wide list (default slot) + fixed detail column (side slot, 340-400px; stacks under 1200px). Slots: default (primary), side (optional column), feedback (task: anchored status panel).\",\n    \"variants\": \"flow task split\",\n    \"sizes\": \"\",\n    \"states\": [\n      \"empty\"\n    ]\n  },\n  {\n    \"name\": \"segmented\",\n    \"group\": \"Inputs\",\n    \"description\": \"\",\n    \"variants\": \"\",\n    \"sizes\": \"md sm\",\n    \"states\": [\n      \"hover\",\n      \"focus-visible\"\n    ]\n  },\n  {\n    \"name\": \"select\",\n    \"group\": \"Inputs\",\n    \"description\": \"Single choice from a list (native select styled). For filters use filter-chip.\",\n    \"variants\": \"\",\n    \"sizes\": \"md sm\",\n    \"states\": [\n      \"hover\",\n      \"focus-visible\"\n    ]\n  },\n  {\n    \"name\": \"stat\",\n    \"group\": \"Data\",\n    \"description\": \"Key number with label and optional context/link. alert = needs attention (use sparingly).\",\n    \"variants\": \"default alert\",\n    \"sizes\": \"\",\n    \"states\": [\n      \"hover\"\n    ]\n  },\n  {\n    \"name\": \"status-bar\",\n    \"group\": \"Data\",\n    \"description\": \"\",\n    \"variants\": \"\",\n    \"sizes\": \"\",\n    \"states\": [\n      \"hover\",\n      \"focus-visible\"\n    ]\n  },\n  {\n    \"name\": \"tabs\",\n    \"group\": \"Navigation\",\n    \"description\": \"\",\n    \"variants\": \"\",\n    \"sizes\": \"\",\n    \"states\": [\n      \"hover\",\n      \"focus-visible\",\n      \"aria-selected\"\n    ]\n  },\n  {\n    \"name\": \"text\",\n    \"group\": \"Typography\",\n    \"description\": \"All type in screens goes through this component (screens may not set font properties). as = element (h1, h2, p, span...); tone = default, muted, accent, brand, signature, on-brand.\",\n    \"variants\": \"display-xl display-lg display-md display-sm title subtitle body body-sm caption eyebrow mono\",\n    \"sizes\": \"\",\n    \"states\": []\n  }\n]\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "<dfw-component name=\"button\" group=\"Actions\" variants=\"primary secondary ghost danger\" sizes=\"md sm lg\" props=\"icon icon-end kbd\" replaces=\"button\"\n  description=\"Text button. One primary per view; secondary for alternatives; ghost for low-emphasis; danger for destructive actions.\">\n<style>\n.btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: var(--size-control); padding: 0 var(--space-4); border: var(--border-width) solid transparent; border-radius: var(--radius-md); font: var(--font-weight-medium) var(--font-size-sm) / 1 var(--font-family-body); letter-spacing: var(--font-tracking-normal); white-space: nowrap; cursor: pointer; text-decoration: none; transition: background-color var(--duration-fast) var(--easing-out), border-color var(--duration-fast) var(--easing-out), color var(--duration-fast) var(--easing-out); }\n.btn .icon { width: var(--size-icon-sm); height: var(--size-icon-sm); flex: none; }\n.btn--primary { background: var(--color-accent); color: var(--color-on-accent); }\n.btn--primary:hover { background: var(--color-accent-hover); }\n.btn--secondary { background: var(--color-surface); color: var(--color-ink); border-color: var(--color-border); }\n.btn--secondary:hover { background: var(--color-surface-hover); border-color: var(--color-border-strong); }\n.btn--ghost { background: transparent; color: var(--color-ink); }\n.btn--ghost:hover { background: var(--color-surface-hover); }\n.btn--danger { background: var(--color-status-err); color: var(--color-on-fill); }\n.btn--danger:hover { background: var(--color-status-err-text); }\n.btn:active { transform: translateY(1px); }\n.btn:focus-visible { outline: var(--focus-width) solid var(--color-focus); outline-offset: var(--focus-offset); }\n.btn:disabled, .btn[aria-disabled=\"true\"] { background: var(--color-surface-sunken); color: var(--color-subtle); border-color: var(--color-rule); cursor: not-allowed; transform: none; }\n.btn[aria-busy=\"true\"] { cursor: progress; opacity: .7; }\n.btn--sm { min-height: var(--size-control-sm); padding: 0 var(--space-3); font-size: var(--font-size-xs); }\n.btn--lg { min-height: var(--size-control-lg); padding: 0 var(--space-6); font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); }\n.btn kbd { font: var(--font-weight-medium) var(--font-size-2xs) / 1 var(--font-family-mono); padding: var(--space-1) var(--space-1); border-radius: var(--radius-sm); background: color-mix(in srgb, currentColor 14%, transparent); }\n</style>\n<template>\n<button class=\"btn btn--{{variant}} btn--{{size}}\" type=\"button\"><dfw-icon data-dfw-if=\"icon\" name=\"{{icon}}\"></dfw-icon><span><dfw-slot>Button</dfw-slot></span><dfw-icon data-dfw-if=\"icon-end\" name=\"{{icon-end}}\"></dfw-icon><kbd data-dfw-if=\"kbd\">{{kbd}}</kbd></button>\n</template>\n<dfw-examples>\n<dfw-use c=\"button\" variant=\"primary\">Save changes</dfw-use>\n<dfw-use c=\"button\" variant=\"secondary\">Cancel</dfw-use>\n<dfw-use c=\"button\" variant=\"ghost\">Skip</dfw-use>\n<dfw-use c=\"button\" variant=\"danger\">Delete</dfw-use>\n<dfw-use c=\"button\" variant=\"primary\" size=\"lg\" kbd=\"Enter\">Confirm</dfw-use>\n<dfw-use c=\"button\" variant=\"secondary\" size=\"sm\">Small</dfw-use>\n<dfw-use c=\"button\" variant=\"primary\" disabled>Disabled</dfw-use>\n<dfw-use c=\"button\" variant=\"primary\" aria-busy=\"true\">Saving…</dfw-use>\n</dfw-examples>\n</dfw-component>\n\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "button         variants: primary|ghost\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "button         variants: primary|ghost\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"components\": [\n    {\n      \"name\": \"button\",\n      \"group\": \"Components\",\n      \"variants\": [\n        \"primary\",\n        \"ghost\"\n      ],\n      \"sizes\": [],\n      \"props\": [],\n      \"file\": \"design/system/components/button.html\"\n    }\n  ]\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "Inventory is empty: design/system/inventory.json\n\n- [SHOULD] (inventory-missing) design/system/inventory.json: No component inventory. List every component this product needs in design/system/inventory.json (name, purpose, usedBy, states) before designing masters, so the system holds only what the screens use.\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"inventory\": null,\n  \"findings\": [\n    {\n      \"level\": \"warn\",\n      \"rule\": \"inventory-missing\",\n      \"file\": \"design/system/inventory.json\",\n      \"line\": 1,\n      \"message\": \"No component inventory. List every component this product needs in design/system/inventory.json (name, purpose, usedBy, states) before designing masters, so the system holds only what the screens use.\",\n      \"source\": \"dfw-ds\"\n    }\n  ]\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "No kit reference \"nope\". Available: app-shell, avatar, badge, banner, button, card, checkbox, data-table, dialog, empty-state, field, filter-chip, icon-button, kbd, nav-item, nav, page-header, page, segmented, select, stat, status-bar, tabs, text\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Usage: dfw system init|inventory|ref|presets|options|choose|audit|list\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--only was removed: components are no longer copied from the kit. List what the product needs in design/system/inventory.json and design each master; read a kit master for its states with \"dfw system ref <name>\".\n",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "No components yet (dfw system init).\n",
+      "stderr": "",
+      "files": {}
+    }
+  ]
+}
