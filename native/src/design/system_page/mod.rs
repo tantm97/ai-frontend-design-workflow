@@ -18,10 +18,6 @@ use std::path::Path;
 
 use serde_json::{json, Value};
 
-// `describeParts` is exported for the tests in the Node code too; nothing else calls it yet.
-#[allow(unused_imports)]
-pub use components::{describe_parts, describe_text, Parts};
-
 use self::components::{comp_section, Inline};
 use self::text::encode_uri;
 use self::tokens::{load_tokens, Tokens, Vars};
@@ -37,8 +33,8 @@ const CSS: &str = include_str!("../system_page.css");
 
 /// `renderSystemPage`: the Design System page of a project. `design_base` is the URL prefix
 /// under which `design/` is served (`../` from `design/system/`).
-// The template of system-page.mjs in one piece, so the two can be compared side by side; the
-// sections are built by the other files of this module.
+// Over 120 lines: the page template in one piece, in page order; the sections are built by
+// the other files of this module.
 #[allow(clippy::too_many_lines)]
 pub fn render_system_page(root: &Path, design_base: &str) -> Result<String, DfwError> {
     let p = project_paths(root);

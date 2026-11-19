@@ -326,8 +326,8 @@ fn group<'a>(tree: &'a mut Value, path: &[&str]) -> Result<&'a mut Map<String, V
 
 /// `styleTokens`: the DTCG token tree of a guide (the kit preset it is based on, with the
 /// guide's colour, type, shape and elevation on top).
-// One function as in style.mjs: the token groups are written in the order the Node code
-// assigned them, which is the order of the file users diff.
+// Over 120 lines: the token groups are written in one sequence, the key order of the
+// tokens.json users diff.
 #[allow(clippy::too_many_lines)]
 pub fn style_tokens(g: &Value, fonts: &str) -> Result<Value, DfwError> {
     let base = text(g.get("base"));

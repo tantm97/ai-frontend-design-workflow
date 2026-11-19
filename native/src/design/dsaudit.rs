@@ -300,8 +300,8 @@ fn count_decisions(body: &str) -> usize {
 
 /// `auditDesignSystem(root)`: findings `{ level, rule, file, line, message, source: "dfw-ds" }`.
 /// Nothing when the project has no `design/tokens/tokens.json`.
-// Over 120 lines, one function as in dsaudit.mjs: the checks run in the order their findings
-// are printed and share the resolved tokens.
+// Over 120 lines: the checks run in the order their findings are printed and share the
+// resolved tokens.
 #[allow(clippy::too_many_lines)]
 pub fn audit_design_system(root: &Path) -> Result<Vec<Value>, DfwError> {
     let p = project_paths(root);

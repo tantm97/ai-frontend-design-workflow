@@ -7,6 +7,7 @@ use std::path::PathBuf;
 
 use regex::Regex;
 
+use super::components::{describe_text, Parts};
 use super::text::{alias, bullets, encode_uri, has_heading, md_parts, part_body, sentences};
 use super::*;
 use crate::core::util::{copy_dir, test_dir};
