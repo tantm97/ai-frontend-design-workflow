@@ -1,0 +1,13 @@
+{
+  "test": "stack > set --json writes the proposal; a status given in the JSON keeps its place",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "Stack proposal written to .dfw/stack.json. Approve with \"dfw approve G3 --note ...\" after the user confirms.\n",
+      "stderr": "",
+      "files": {
+        ".dfw/stack.json": "{\n  \"status\": \"proposed\",\n  \"framework\": {\n    \"name\": \"Vue\"\n  },\n  \"n\": 1.5,\n  \"proposedAt\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    }
+  ]
+}

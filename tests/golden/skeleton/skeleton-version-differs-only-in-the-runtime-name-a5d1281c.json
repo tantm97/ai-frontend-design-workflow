@@ -1,0 +1,11 @@
+{
+  "test": "skeleton > version differs only in the runtime name",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "dfw <version> (<runtime>)\n",
+      "stderr": "",
+      "files": {}
+    }
+  ]
+}

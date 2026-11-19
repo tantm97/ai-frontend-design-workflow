@@ -1,0 +1,319 @@
+{
+  "test": "hot: workflow commands > config get and set in every layer",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "{\n  \"schema\": 1,\n  \"language\": {\n    \"askPolicy\": \"session\",\n    \"default\": \"en\"\n  },\n  \"gate\": {\n    \"allow\": [\n      \".dfw/**\",\n      \"design/handoff/**\"\n    ],\n    \"designPaths\": [\n      \"design/**\",\n      \"PRODUCT.md\",\n      \"DESIGN.md\"\n    ],\n    \"immutable\": [\n      \"design/approved/**\"\n    ]\n  },\n  \"checks\": {\n    \"onEdit\": \"fast\",\n    \"timeoutMs\": 8000,\n    \"impeccable\": true,\n    \"sloplint\": true,\n    \"tasteCopyLint\": false,\n    \"maxFindings\": 12\n  },\n  \"studio\": {\n    \"port\": 4600,\n    \"breakpoints\": [\n      {\n        \"id\": \"desktop\",\n        \"label\": \"Desktop\",\n        \"width\": 1440,\n        \"height\": 900\n      },\n      {\n        \"id\": \"tablet\",\n        \"label\": \"Tablet\",\n        \"width\": 834,\n        \"height\": 1112\n      },\n      {\n        \"id\": \"mobile\",\n        \"label\": \"Mobile\",\n        \"width\": 390,\n        \"height\": 844\n      }\n    ]\n  },\n  \"review\": {\n    \"shortcut\": \"alt+c\"\n  },\n  \"accessibility\": {\n    \"standard\": \"WCAG 2.2\",\n    \"level\": \"AA\"\n  },\n  \"skills\": {\n    \"optional\": {\n      \"hallmark\": true,\n      \"taste-reference\": true\n    },\n    \"disabled\": []\n  },\n  \"env\": {\n    \"DO_NOT_TRACK\": \"1\",\n    \"IMPECCABLE_NO_UPDATE_CHECK\": \"1\",\n    \"IMPECCABLE_HOOK_DISABLED\": \"1\"\n  }\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"schema\": 1,\n  \"language\": {\n    \"askPolicy\": \"session\",\n    \"default\": \"en\",\n    \"lastUsed\": \"vi\"\n  },\n  \"gate\": {\n    \"allow\": [\n      \".dfw/**\",\n      \"design/handoff/**\",\n      \"global/**\",\n      \"docs/**\"\n    ],\n    \"designPaths\": [\n      \"design/**\",\n      \"PRODUCT.md\",\n      \"DESIGN.md\"\n    ],\n    \"immutable\": [\n      \"design/approved/**\"\n    ]\n  },\n  \"checks\": {\n    \"onEdit\": false,\n    \"timeoutMs\": 8000,\n    \"impeccable\": true,\n    \"sloplint\": true,\n    \"tasteCopyLint\": false,\n    \"maxFindings\": 12\n  },\n  \"studio\": {\n    \"port\": 4800,\n    \"breakpoints\": [\n      {\n        \"id\": \"desktop\",\n        \"label\": \"Desktop\",\n        \"width\": 1440,\n        \"height\": 900\n      },\n      {\n        \"id\": \"tablet\",\n        \"label\": \"Tablet\",\n        \"width\": 834,\n        \"height\": 1112\n      },\n      {\n        \"id\": \"mobile\",\n        \"label\": \"Mobile\",\n        \"width\": 390,\n        \"height\": 844\n      }\n    ]\n  },\n  \"review\": {\n    \"shortcut\": \"alt+c\"\n  },\n  \"accessibility\": {\n    \"standard\": \"WCAG 2.2\",\n    \"level\": \"AA\"\n  },\n  \"skills\": {\n    \"optional\": {\n      \"hallmark\": true,\n      \"taste-reference\": true\n    },\n    \"disabled\": []\n  },\n  \"env\": {\n    \"DO_NOT_TRACK\": \"1\",\n    \"IMPECCABLE_NO_UPDATE_CHECK\": \"1\",\n    \"IMPECCABLE_HOOK_DISABLED\": \"1\"\n  }\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "[\n  \".dfw/**\",\n  \"design/handoff/**\"\n]\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "[\n  \".dfw/**\",\n  \"design/handoff/**\",\n  \"global/**\",\n  \"docs/**\"\n]\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "4600\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "4800\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "[\n  {\n    \"id\": \"desktop\",\n    \"label\": \"Desktop\",\n    \"width\": 1440,\n    \"height\": 900\n  },\n  {\n    \"id\": \"tablet\",\n    \"label\": \"Tablet\",\n    \"width\": 834,\n    \"height\": 1112\n  },\n  {\n    \"id\": \"mobile\",\n    \"label\": \"Mobile\",\n    \"width\": 390,\n    \"height\": 844\n  }\n]\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "[\n  {\n    \"id\": \"desktop\",\n    \"label\": \"Desktop\",\n    \"width\": 1440,\n    \"height\": 900\n  },\n  {\n    \"id\": \"tablet\",\n    \"label\": \"Tablet\",\n    \"width\": 834,\n    \"height\": 1112\n  },\n  {\n    \"id\": \"mobile\",\n    \"label\": \"Mobile\",\n    \"width\": 390,\n    \"height\": 844\n  }\n]\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"onEdit\": \"fast\",\n  \"timeoutMs\": 8000,\n  \"impeccable\": true,\n  \"sloplint\": true,\n  \"tasteCopyLint\": false,\n  \"maxFindings\": 12\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"onEdit\": false,\n  \"timeoutMs\": 8000,\n  \"impeccable\": true,\n  \"sloplint\": true,\n  \"tasteCopyLint\": false,\n  \"maxFindings\": 12\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "undefined\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "\"vi\"\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "undefined\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "undefined\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "\"tablet\"\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "\"tablet\"\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"schema\": 1,\n  \"language\": {\n    \"askPolicy\": \"session\",\n    \"default\": \"en\"\n  },\n  \"gate\": {\n    \"allow\": [\n      \".dfw/**\",\n      \"design/handoff/**\"\n    ],\n    \"designPaths\": [\n      \"design/**\",\n      \"PRODUCT.md\",\n      \"DESIGN.md\"\n    ],\n    \"immutable\": [\n      \"design/approved/**\"\n    ]\n  },\n  \"checks\": {\n    \"onEdit\": \"fast\",\n    \"timeoutMs\": 8000,\n    \"impeccable\": true,\n    \"sloplint\": true,\n    \"tasteCopyLint\": false,\n    \"maxFindings\": 12\n  },\n  \"studio\": {\n    \"port\": 4600,\n    \"breakpoints\": [\n      {\n        \"id\": \"desktop\",\n        \"label\": \"Desktop\",\n        \"width\": 1440,\n        \"height\": 900\n      },\n      {\n        \"id\": \"tablet\",\n        \"label\": \"Tablet\",\n        \"width\": 834,\n        \"height\": 1112\n      },\n      {\n        \"id\": \"mobile\",\n        \"label\": \"Mobile\",\n        \"width\": 390,\n        \"height\": 844\n      }\n    ]\n  },\n  \"review\": {\n    \"shortcut\": \"alt+c\"\n  },\n  \"accessibility\": {\n    \"standard\": \"WCAG 2.2\",\n    \"level\": \"AA\"\n  },\n  \"skills\": {\n    \"optional\": {\n      \"hallmark\": true,\n      \"taste-reference\": true\n    },\n    \"disabled\": []\n  },\n  \"env\": {\n    \"DO_NOT_TRACK\": \"1\",\n    \"IMPECCABLE_NO_UPDATE_CHECK\": \"1\",\n    \"IMPECCABLE_HOOK_DISABLED\": \"1\"\n  }\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"schema\": 1,\n  \"language\": {\n    \"askPolicy\": \"session\",\n    \"default\": \"en\",\n    \"lastUsed\": \"vi\"\n  },\n  \"gate\": {\n    \"allow\": [\n      \".dfw/**\",\n      \"design/handoff/**\",\n      \"global/**\",\n      \"docs/**\"\n    ],\n    \"designPaths\": [\n      \"design/**\",\n      \"PRODUCT.md\",\n      \"DESIGN.md\"\n    ],\n    \"immutable\": [\n      \"design/approved/**\"\n    ]\n  },\n  \"checks\": {\n    \"onEdit\": false,\n    \"timeoutMs\": 8000,\n    \"impeccable\": true,\n    \"sloplint\": true,\n    \"tasteCopyLint\": false,\n    \"maxFindings\": 12\n  },\n  \"studio\": {\n    \"port\": 4800,\n    \"breakpoints\": [\n      {\n        \"id\": \"desktop\",\n        \"label\": \"Desktop\",\n        \"width\": 1440,\n        \"height\": 900\n      },\n      {\n        \"id\": \"tablet\",\n        \"label\": \"Tablet\",\n        \"width\": 834,\n        \"height\": 1112\n      },\n      {\n        \"id\": \"mobile\",\n        \"label\": \"Mobile\",\n        \"width\": 390,\n        \"height\": 844\n      }\n    ]\n  },\n  \"review\": {\n    \"shortcut\": \"alt+c\"\n  },\n  \"accessibility\": {\n    \"standard\": \"WCAG 2.2\",\n    \"level\": \"AA\"\n  },\n  \"skills\": {\n    \"optional\": {\n      \"hallmark\": true,\n      \"taste-reference\": true\n    },\n    \"disabled\": []\n  },\n  \"env\": {\n    \"DO_NOT_TRACK\": \"1\",\n    \"IMPECCABLE_NO_UPDATE_CHECK\": \"1\",\n    \"IMPECCABLE_HOOK_DISABLED\": \"1\"\n  }\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "undefined\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "4800\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "Set studio.port in <root>/.dfw/config.json\n",
+      "stderr": "",
+      "files": {
+        ".dfw/config.json": "{\n  \"studio\": {\n    \"port\": 4700\n  }\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "Set studio.port in <root>/.dfw/config.json\n",
+      "stderr": "",
+      "files": {
+        ".dfw/config.json": "{\n  \"schema\": 1,\n  \"gate\": {\n    \"allow\": [\n      \"docs/**\"\n    ]\n  },\n  \"checks\": {\n    \"onEdit\": false\n  },\n  \"studio\": {\n    \"port\": 4700\n  }\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "Set gate.allow in <root>/.dfw/config.json\n",
+      "stderr": "",
+      "files": {
+        ".dfw/config.json": "{\n  \"gate\": {\n    \"allow\": [\n      \"docs/**\",\n      \"notes/**\"\n    ]\n  }\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "Set gate.allow in <root>/.dfw/config.json\n",
+      "stderr": "",
+      "files": {
+        ".dfw/config.json": "{\n  \"schema\": 1,\n  \"gate\": {\n    \"allow\": [\n      \"docs/**\",\n      \"notes/**\"\n    ]\n  },\n  \"checks\": {\n    \"onEdit\": false\n  }\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "Set checks.onEdit in <root>/.dfw/config.json\n",
+      "stderr": "",
+      "files": {
+        ".dfw/config.json": "{\n  \"checks\": {\n    \"onEdit\": false\n  }\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "Set checks.onEdit in <root>/.dfw/config.json\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "Set review.shortcut in <root>/.dfw/config.json\n",
+      "stderr": "",
+      "files": {
+        ".dfw/config.json": "{\n  \"review\": {\n    \"shortcut\": \"ctrl+shift+k\"\n  }\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "Set review.shortcut in <root>/.dfw/config.json\n",
+      "stderr": "",
+      "files": {
+        ".dfw/config.json": "{\n  \"schema\": 1,\n  \"gate\": {\n    \"allow\": [\n      \"docs/**\"\n    ]\n  },\n  \"checks\": {\n    \"onEdit\": false\n  },\n  \"review\": {\n    \"shortcut\": \"ctrl+shift+k\"\n  }\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "Set custom.deep.key in <root>/.dfw/config.json\n",
+      "stderr": "",
+      "files": {
+        ".dfw/config.json": "{\n  \"custom\": {\n    \"deep\": {\n      \"key\": {\n        \"a\": [\n          1,\n          2.5,\n          null\n        ]\n      }\n    }\n  }\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "Set custom.deep.key in <root>/.dfw/config.json\n",
+      "stderr": "",
+      "files": {
+        ".dfw/config.json": "{\n  \"schema\": 1,\n  \"gate\": {\n    \"allow\": [\n      \"docs/**\"\n    ]\n  },\n  \"checks\": {\n    \"onEdit\": false\n  },\n  \"custom\": {\n    \"deep\": {\n      \"key\": {\n        \"a\": [\n          1,\n          2.5,\n          null\n        ]\n      }\n    }\n  }\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "Set studio.port in <root>/.dfw/config.local.json\n",
+      "stderr": "",
+      "files": {
+        ".dfw/config.local.json": "{\n  \"studio\": {\n    \"port\": 4900\n  }\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "Set studio.port in <root>/.dfw/config.local.json\n",
+      "stderr": "",
+      "files": {
+        ".dfw/config.local.json": "{\n  \"studio\": {\n    \"port\": 4900\n  }\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "Set language.default in .dfw/home/config.json\n",
+      "stderr": "",
+      "files": {
+        ".dfw/home/config.json": "{\n  \"language\": {\n    \"default\": \"vi\"\n  }\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "Set language.default in .dfw/home/config.json\n",
+      "stderr": "",
+      "files": {
+        ".dfw/home/config.json": "{\n  \"language\": {\n    \"lastUsed\": \"vi\",\n    \"default\": \"vi\"\n  },\n  \"gate\": {\n    \"allow\": [\n      \"global/**\"\n    ]\n  }\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "Set studio.port in <root>/.dfw/config.json\n",
+      "stderr": "",
+      "files": {
+        ".dfw/config.json": "{\n  \"studio\": {\n    \"port\": 4900\n  }\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "Set studio.port in <root>/.dfw/config.json\n",
+      "stderr": "",
+      "files": {
+        ".dfw/config.json": "{\n  \"schema\": 1,\n  \"gate\": {\n    \"allow\": [\n      \"docs/**\"\n    ]\n  },\n  \"checks\": {\n    \"onEdit\": false\n  },\n  \"studio\": {\n    \"port\": 4900\n  }\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "Set studio.port in <root>/.dfw/config.json\n",
+      "stderr": "",
+      "files": {
+        ".dfw/config.json": "{\n  \"studio\": {\n    \"port\": 4700\n  }\n}\n"
+      }
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Usage: dfw config set <key> <value> [--global|--project|--local]\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Usage: dfw config set <key> <value> [--global|--project|--local]\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Usage: dfw config set <key> <value> [--global|--project|--local]\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Usage: dfw config set <key> <value> [--global|--project|--local]\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Usage: dfw config set <key> <value> [--global|--project|--local]\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Usage: dfw config set <key> <value> [--global|--project|--local]\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Usage: dfw config get [key] | set <key> <value> [--global|--project|--local]\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Usage: dfw config get [key] | set <key> <value> [--global|--project|--local]\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    }
+  ]
+}

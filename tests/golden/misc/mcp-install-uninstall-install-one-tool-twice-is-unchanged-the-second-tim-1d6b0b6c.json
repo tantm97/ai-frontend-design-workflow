@@ -1,0 +1,24 @@
+{
+  "test": "mcp install | uninstall > install one tool twice is unchanged the second time; an earlier backup is kept",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "OpenAI Codex: added dfw to <home>/.codex/config.toml (backup: config.toml.dfw-backup)\nRestart the tool, then ask it for UI work: it loads the guide through the dfw_guide tool. After moving or updating dfw, run this again.\n",
+      "stderr": "",
+      "files": {
+        ".codex/config.toml": "model = \"o3\"\r\n\r\n[mcp_servers.other]\r\ncommand = \"o\"\n\n[mcp_servers.dfw]\ncommand = \"<repo>/core/bin/dfw\"\nargs = [\"mcp\"]\n",
+        ".codex/config.toml.dfw-backup": "the first backup",
+        ".config/opencode/opencode.json": "{\n  \"theme\": \"dark\",\n  \"mcp\": {\n    \"dfw\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"/old\"\n      ]\n    },\n    \"other\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"o\"\n      ]\n    }\n  }\n}\n",
+        ".cursor/mcp.json": "{\"mcpServers\":{\"other\":{\"command\":\"o\"}}}"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "OpenAI Codex: unchanged (<home>/.codex/config.toml)\nRestart the tool, then ask it for UI work: it loads the guide through the dfw_guide tool. After moving or updating dfw, run this again.\n",
+      "stderr": "",
+      "files": {
+        ".codex/config.toml": "[mcp_servers.dfw]\ncommand = \"<repo>/core/bin/dfw\"\nargs = [\"mcp\"]\n"
+      }
+    }
+  ]
+}

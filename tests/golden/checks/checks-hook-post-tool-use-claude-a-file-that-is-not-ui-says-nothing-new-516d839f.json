@@ -1,0 +1,70 @@
+{
+  "test": "checks: hook post-tool-use > claude: a file that is not UI says nothing; new Studio comments ride along where the host needs it",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n \"hookSpecificOutput\": {\n  \"hookEventName\": \"PostToolUse\",\n  \"additionalContext\": \"dfw checks on design/design.json:\\nChecks: 0 must, 1 should, 0 nice. Tools: dfw-lint=ran\\n- [SHOULD] design/design.json:1 (dfw/blueprint) Screen \\\"items\\\" has no blueprint (goal, layout, aboveFold, data, feedback). Agree it with the user before building: it is cheaper to fix a blueprint than a screen.\\nFix MUST items before moving on; SHOULD items unless the brief or a recorded decision says otherwise.\"\n }\n}",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n \"hookSpecificOutput\": {\n  \"hookEventName\": \"PostToolUse\",\n  \"additionalContext\": \"dfw checks on design/screens/items/a.html:\\nChecks: 9 must, 17 should, 1 nice. Tools: dfw-lint=ran\\n- [MUST] design/screens/items/a.html:3 (dfw/screen-visual-style) \\\"color\\\" set in a screen. Visual styling lives in the design system: use or extend a component variant (design/system/components/) or a token; screens only handle layout.\\n- [MUST] design/screens/items/a.html:3 (dfw/screen-visual-style) \\\"font-size\\\" set in a screen. Visual styling lives in the design system: use or extend a component variant (design/system/components/) or a token; screens only handle layout.\\n- [MUST] design/screens/items/a.html:5 (dfw/emoji-icon) Emoji in <h1> used as an icon. Use a monoline SVG icon (dfw icons add <name>) with currentColor.\\n- [MUST] design/screens/items/a.html:5 (dfw/filler-copy) Filler copy \\\"Lorem ipsum\\\". Write real, domain-specific content (PRODUCT.md data shapes), or solve the empty space with composition.\\n- [MUST] design/screens/items/a.html:6 (dfw/img-alt) <img> without alt (WCAG 1.1.1). Use alt=\\\"\\\" for decorative images.\\n- [MUST] design/screens/items/a.html:7 (dfw/dfw-id-duplicate) Duplicate data-dfw-id \\\"go\\\" (first on line 7).\\n- [MUST] design/screens/items/a.html:7 (dfw/screen-visual-style) Inline \\\"color\\\" in a screen; visual styling belongs to the design system.\\n- [MUST] design/screens/items/a.html:10 (dfw/component-variant) Component \\\"button\\\" has no variant \\\"nope\\\" (variants: primary, ghost).\\n- [MUST] design/screens/items/a.html:10 (dfw/component-unknown) Unknown component \\\"missing\\\". Define it in design/system/components/ first (design system before screens).\\n- [SHOULD] design/screens/items/a.html:1 (dfw/tokens-link) Screen does not load design/tokens/tokens.css; values may not come from tokens.\\n- [SHOULD] design/screens/items/a.html:1 (dfw/state-coverage) Screen \\\"items\\\" has a data surface but no loading/empty/error state. Add them to its \\\"states\\\" in design.json and design each (.when-<state> blocks): empty needs a headline, explanation and primary action; error says what happened and how to recover, keeping user input. Also check edge content (very long text, missing optional fields, large counts).\\n- [SHOULD] design/screens/items/a.html:2 (dfw/html-lang) <html> has no lang attribute.\\n- ... 15 more (run \\\"dfw check --json\\\" for all).\\nFix MUST items before moving on; SHOULD items unless the brief or a recorded decision says otherwise.\"\n }\n}",
+      "files": {}
+    }
+  ]
+}

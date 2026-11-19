@@ -1,0 +1,12 @@
+{
+  "test": "browser: shoot > without the Studio running, screens need --url",
+  "results": [
+    {
+      "code": 1,
+      "stdout": "",
+      "files": {},
+      "extra": null,
+      "stderr": "Start the studio first (dfw studio start) or pass --url.\n"
+    }
+  ]
+}

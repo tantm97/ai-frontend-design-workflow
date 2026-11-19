@@ -1,0 +1,58 @@
+{
+  "test": "browser: shoot > screens of the design, served by a running Studio",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "ok   .dfw/shots/v1/items__a__desktop.png\nok   .dfw/shots/v1/items__a__mobile.png\n",
+      "stderr": "",
+      "extra": {
+        "v1/items__a__desktop.png": "1024x640",
+        "v1/items__a__mobile.png": "390x700"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "ok   .dfw/shots/v1/items__a__mobile.png\n",
+      "stderr": "",
+      "extra": {
+        "v1/items__a__mobile.png": "390x700"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "ok   .dfw/shots/v1/items__a__desktop.png\n",
+      "stderr": "",
+      "extra": {
+        "v1/items__a__desktop.png": "1024x640"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "ok   .dfw/shots/v1/_system__desktop.png\n",
+      "stderr": "",
+      "extra": {
+        "v1/_system__desktop.png": "1024x3517"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "ok   .dfw/shots/v1/items__a__mobile__el-body.png\n",
+      "stderr": "",
+      "extra": {
+        "v1/items__a__mobile__el-body.png": "390x164"
+      }
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Nothing to screenshot (check --screen/--variant/--bp).\n",
+      "extra": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Nothing to screenshot (check --screen/--variant/--bp).\n",
+      "extra": {}
+    }
+  ]
+}

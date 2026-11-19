@@ -1,0 +1,10 @@
+{
+  "test": "core: config > project and project-local config: local wins, new keys keep their order",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "{\"schema\":1,\"language\":{\"askPolicy\":\"session\",\"default\":\"vi\"},\"gate\":{\"allow\":[\".dfw/**\",\"design/handoff/**\"],\"designPaths\":[\"design/**\",\"PRODUCT.md\",\"DESIGN.md\"],\"immutable\":[\"design/approved/**\"]},\"checks\":{\"onEdit\":\"fast\",\"timeoutMs\":8000,\"impeccable\":true,\"sloplint\":true,\"tasteCopyLint\":false,\"maxFindings\":12},\"studio\":{\"port\":4800,\"breakpoints\":[{\"id\":\"wide\",\"label\":\"Wide\",\"width\":1920,\"height\":1080}]},\"review\":{\"shortcut\":\"ctrl+shift+k\"},\"accessibility\":{\"standard\":\"WCAG 2.2\",\"level\":\"AA\"},\"skills\":{\"optional\":{\"hallmark\":true,\"taste-reference\":true},\"disabled\":[]},\"env\":{\"DO_NOT_TRACK\":\"1\",\"IMPECCABLE_NO_UPDATE_CHECK\":\"1\",\"IMPECCABLE_HOOK_DISABLED\":\"1\"},\"extra\":{\"nested\":{\"deep\":true}}}\n",
+      "stderr": "dfw: ignored env.MY_TOOL in <tmp>/project/.dfw/config.json (a project config cannot set it; use the global config: dfw config set env.MY_TOOL <value> --global)\ndfw: ignored env.DO_NOT_TRACK in <tmp>/project/.dfw/config.json (a project config cannot set it; use the global config: dfw config set env.DO_NOT_TRACK <value> --global)\ndfw: ignored env.LOCAL_ONLY in <tmp>/project/.dfw/config.local.json (a project config cannot set it; use the global config: dfw config set env.LOCAL_ONLY <value> --global)\n"
+    }
+  ]
+}

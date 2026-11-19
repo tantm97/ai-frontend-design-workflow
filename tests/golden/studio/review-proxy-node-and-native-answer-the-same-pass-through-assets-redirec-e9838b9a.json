@@ -1,0 +1,65 @@
+{
+  "test": "review proxy: Node and native answer the same > pass-through: assets, redirects, cookies, request bodies and Origin rewritten to the app",
+  "results": [
+    {
+      "status": 200,
+      "type": "text/javascript",
+      "cache": null,
+      "body": "console.log(1)",
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "etag": null,
+      "location": null,
+      "set-cookie": null,
+      "content-encoding": null
+    },
+    {
+      "status": 302,
+      "type": null,
+      "cache": null,
+      "body": "",
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "etag": null,
+      "location": "http://localhost:<port>/new?x=1",
+      "set-cookie": null,
+      "content-encoding": null
+    },
+    {
+      "status": 200,
+      "type": "text/plain",
+      "cache": null,
+      "body": "ok",
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "etag": null,
+      "location": null,
+      "set-cookie": "sid=s3cret; Path=/; HttpOnly\npref=1; Path=/\nx=2; Domain=example.test",
+      "content-encoding": null
+    },
+    {
+      "status": 200,
+      "type": "text/plain",
+      "cache": null,
+      "body": "POST localhost:<app> http://localhost:<app> hello",
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "etag": null,
+      "location": null,
+      "set-cookie": null,
+      "content-encoding": null
+    },
+    {
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "cache": null,
+      "body": "",
+      "content-security-policy": "default-src 'none'; script-src 'nonce-<n>' 'strict-dynamic'; style-src 'self'; img-src 'self'; frame-ancestors 'none'",
+      "content-security-policy-report-only": "script-src 'nonce-<n>'",
+      "etag": "\"v1\"",
+      "location": null,
+      "set-cookie": null,
+      "content-encoding": null
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "test": "edit: refusals > the boundary: approved/ in other letter case",
+  "results": [
+    {
+      "result": {
+        "error": "design/approved/ is frozen; edits there are refused."
+      },
+      "files": {}
+    },
+    {
+      "result": {
+        "error": "design/approved/ is frozen; edits there are refused."
+      },
+      "files": {}
+    }
+  ]
+}

@@ -1,0 +1,131 @@
+{
+  "test": "hot: comments > list and show",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "No comments.\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "[]\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "fb_001 [open] items/a -> items.title (design/screens/items/a.html:18)\n    \"Comment fb_001 \"quoted\" tiếng Việt\"\nfb_002 [acknowledged] items/a -> items.title (design/screens/items/a.html:18)\n    \"Comment fb_002 \"quoted\" tiếng Việt\"\n    last: claude: On it\nfb_003 [fixed]  -> main > p\n    \"Comment fb_003 \"quoted\" tiếng Việt\"\n    last: claude: Wider now\nfb_004 [resolved] items/a/mobile -> items.title (design/screens/items/a.html:18)\n    \"Comment fb_004 \"quoted\" tiếng Việt\"\nfb_005 [reopened] items/a -> items.title (design/screens/items/a.html:18)\n    \"Comment fb_005 \"quoted\" tiếng Việt\"\n    last: user: Still too small\nfb_006 [dismissed] items/a -> ?\n    \"Comment fb_006 \"quoted\" tiếng Việt\"\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "fb_001 [open] items/a -> items.title (design/screens/items/a.html:18)\n    \"Comment fb_001 \"quoted\" tiếng Việt\"\nfb_002 [acknowledged] items/a -> items.title (design/screens/items/a.html:18)\n    \"Comment fb_002 \"quoted\" tiếng Việt\"\n    last: claude: On it\nfb_003 [fixed]  -> main > p\n    \"Comment fb_003 \"quoted\" tiếng Việt\"\n    last: claude: Wider now\nfb_004 [resolved] items/a/mobile -> items.title (design/screens/items/a.html:18)\n    \"Comment fb_004 \"quoted\" tiếng Việt\"\nfb_005 [reopened] items/a -> items.title (design/screens/items/a.html:18)\n    \"Comment fb_005 \"quoted\" tiếng Việt\"\n    last: user: Still too small\nfb_006 [dismissed] items/a -> ?\n    \"Comment fb_006 \"quoted\" tiếng Việt\"\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "[\n  {\n    \"id\": \"fb_001\",\n    \"createdAt\": \"2026-01-01T00:00:00.000Z\",\n    \"designVersion\": \"v1\",\n    \"screen\": \"items\",\n    \"variant\": \"a\",\n    \"breakpoint\": null,\n    \"state\": null,\n    \"theme\": null,\n    \"file\": \"design/screens/items/a.html\",\n    \"target\": {\n      \"dfwId\": \"items.title\",\n      \"source\": \"design/screens/items/a.html:18\"\n    },\n    \"comment\": \"Comment fb_001 \\\"quoted\\\" tiếng Việt\",\n    \"screenshot\": null,\n    \"status\": \"open\",\n    \"thread\": [],\n    \"resolution\": null,\n    \"provider\": \"dfw-studio\",\n    \"session\": \"rv_1\"\n  },\n  {\n    \"id\": \"fb_002\",\n    \"createdAt\": \"2026-01-01T00:00:00.000Z\",\n    \"designVersion\": \"v1\",\n    \"screen\": \"items\",\n    \"variant\": \"a\",\n    \"breakpoint\": null,\n    \"state\": null,\n    \"theme\": null,\n    \"file\": \"design/screens/items/a.html\",\n    \"target\": {\n      \"dfwId\": \"items.title\",\n      \"source\": \"design/screens/items/a.html:18\"\n    },\n    \"comment\": \"Comment fb_002 \\\"quoted\\\" tiếng Việt\",\n    \"screenshot\": null,\n    \"status\": \"acknowledged\",\n    \"thread\": [\n      {\n        \"at\": \"2026-01-01T01:00:00.000Z\",\n        \"by\": \"claude\",\n        \"message\": \"On it\",\n        \"status\": \"acknowledged\"\n      }\n    ],\n    \"resolution\": null,\n    \"provider\": \"dfw-studio\",\n    \"updatedAt\": \"2026-01-01T01:00:00.000Z\",\n    \"session\": \"rv_1\"\n  },\n  {\n    \"id\": \"fb_003\",\n    \"createdAt\": \"2026-01-01T00:00:00.000Z\",\n    \"designVersion\": \"v1\",\n    \"screen\": null,\n    \"variant\": null,\n    \"breakpoint\": null,\n    \"state\": null,\n    \"theme\": null,\n    \"file\": \"design/screens/items/a.html\",\n    \"target\": {\n      \"selector\": \"main > p\"\n    },\n    \"comment\": \"Comment fb_003 \\\"quoted\\\" tiếng Việt\",\n    \"screenshot\": null,\n    \"status\": \"fixed\",\n    \"thread\": [\n      {\n        \"at\": \"2026-01-01T01:00:00.000Z\",\n        \"by\": \"claude\",\n        \"message\": \"Wider now\",\n        \"status\": \"fixed\"\n      }\n    ],\n    \"resolution\": {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"by\": \"claude\",\n      \"note\": \"Wider now\",\n      \"evidence\": null\n    },\n    \"provider\": \"dfw-studio\",\n    \"session\": \"rv_1\"\n  },\n  {\n    \"id\": \"fb_004\",\n    \"createdAt\": \"2026-01-01T00:00:00.000Z\",\n    \"designVersion\": \"v1\",\n    \"screen\": \"items\",\n    \"variant\": \"a\",\n    \"breakpoint\": \"mobile\",\n    \"state\": \"empty\",\n    \"theme\": \"dark\",\n    \"file\": \"design/screens/items/a.html\",\n    \"target\": {\n      \"dfwId\": \"items.title\",\n      \"source\": \"design/screens/items/a.html:18\"\n    },\n    \"comment\": \"Comment fb_004 \\\"quoted\\\" tiếng Việt\",\n    \"screenshot\": null,\n    \"status\": \"resolved\",\n    \"thread\": [],\n    \"resolution\": null,\n    \"provider\": \"dfw-studio\",\n    \"session\": \"rv_1\"\n  },\n  {\n    \"id\": \"fb_005\",\n    \"createdAt\": \"2026-01-01T00:00:00.000Z\",\n    \"designVersion\": \"v1\",\n    \"screen\": \"items\",\n    \"variant\": \"a\",\n    \"breakpoint\": null,\n    \"state\": null,\n    \"theme\": null,\n    \"file\": \"design/screens/items/a.html\",\n    \"target\": {\n      \"dfwId\": \"items.title\",\n      \"source\": \"design/screens/items/a.html:18\"\n    },\n    \"comment\": \"Comment fb_005 \\\"quoted\\\" tiếng Việt\",\n    \"screenshot\": null,\n    \"status\": \"reopened\",\n    \"thread\": [\n      {\n        \"at\": \"2026-01-01T01:00:00.000Z\",\n        \"by\": \"claude\",\n        \"message\": \"Done\",\n        \"status\": \"fixed\"\n      },\n      {\n        \"at\": \"2026-01-01T01:00:00.000Z\",\n        \"by\": \"user\",\n        \"message\": \"Still too small\",\n        \"status\": \"reopened\"\n      }\n    ],\n    \"resolution\": null,\n    \"provider\": \"dfw-studio\",\n    \"updatedAt\": \"2026-01-01T02:00:00.000Z\",\n    \"session\": \"rv_1\"\n  },\n  {\n    \"id\": \"fb_006\",\n    \"createdAt\": \"2026-01-01T00:00:00.000Z\",\n    \"designVersion\": \"v1\",\n    \"screen\": \"items\",\n    \"variant\": \"a\",\n    \"breakpoint\": null,\n    \"state\": null,\n    \"theme\": null,\n    \"file\": \"design/screens/items/a.html\",\n    \"target\": {},\n    \"comment\": \"Comment fb_006 \\\"quoted\\\" tiếng Việt\",\n    \"screenshot\": null,\n    \"status\": \"dismissed\",\n    \"thread\": [],\n    \"resolution\": null,\n    \"provider\": \"dfw-live\",\n    \"url\": \"http://localhost:3000/items\",\n    \"session\": \"rv_1\"\n  }\n]\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "fb_001 [open] items/a -> items.title (design/screens/items/a.html:18)\n    \"Comment fb_001 \"quoted\" tiếng Việt\"\nfb_002 [acknowledged] items/a -> items.title (design/screens/items/a.html:18)\n    \"Comment fb_002 \"quoted\" tiếng Việt\"\n    last: claude: On it\nfb_005 [reopened] items/a -> items.title (design/screens/items/a.html:18)\n    \"Comment fb_005 \"quoted\" tiếng Việt\"\n    last: user: Still too small\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "fb_003 [fixed]  -> main > p\n    \"Comment fb_003 \"quoted\" tiếng Việt\"\n    last: claude: Wider now\nfb_004 [resolved] items/a/mobile -> items.title (design/screens/items/a.html:18)\n    \"Comment fb_004 \"quoted\" tiếng Việt\"\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "No comments.\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--status needs a value.\n",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "[\n  {\n    \"id\": \"fb_001\",\n    \"createdAt\": \"2026-01-01T00:00:00.000Z\",\n    \"designVersion\": \"v1\",\n    \"screen\": \"items\",\n    \"variant\": \"a\",\n    \"breakpoint\": null,\n    \"state\": null,\n    \"theme\": null,\n    \"file\": \"design/screens/items/a.html\",\n    \"target\": {\n      \"dfwId\": \"items.title\",\n      \"source\": \"design/screens/items/a.html:18\"\n    },\n    \"comment\": \"Comment fb_001 \\\"quoted\\\" tiếng Việt\",\n    \"screenshot\": null,\n    \"status\": \"open\",\n    \"thread\": [],\n    \"resolution\": null,\n    \"provider\": \"dfw-studio\",\n    \"session\": \"rv_1\"\n  },\n  {\n    \"id\": \"fb_002\",\n    \"createdAt\": \"2026-01-01T00:00:00.000Z\",\n    \"designVersion\": \"v1\",\n    \"screen\": \"items\",\n    \"variant\": \"a\",\n    \"breakpoint\": null,\n    \"state\": null,\n    \"theme\": null,\n    \"file\": \"design/screens/items/a.html\",\n    \"target\": {\n      \"dfwId\": \"items.title\",\n      \"source\": \"design/screens/items/a.html:18\"\n    },\n    \"comment\": \"Comment fb_002 \\\"quoted\\\" tiếng Việt\",\n    \"screenshot\": null,\n    \"status\": \"acknowledged\",\n    \"thread\": [\n      {\n        \"at\": \"2026-01-01T01:00:00.000Z\",\n        \"by\": \"claude\",\n        \"message\": \"On it\",\n        \"status\": \"acknowledged\"\n      }\n    ],\n    \"resolution\": null,\n    \"provider\": \"dfw-studio\",\n    \"updatedAt\": \"2026-01-01T01:00:00.000Z\",\n    \"session\": \"rv_1\"\n  },\n  {\n    \"id\": \"fb_005\",\n    \"createdAt\": \"2026-01-01T00:00:00.000Z\",\n    \"designVersion\": \"v1\",\n    \"screen\": \"items\",\n    \"variant\": \"a\",\n    \"breakpoint\": null,\n    \"state\": null,\n    \"theme\": null,\n    \"file\": \"design/screens/items/a.html\",\n    \"target\": {\n      \"dfwId\": \"items.title\",\n      \"source\": \"design/screens/items/a.html:18\"\n    },\n    \"comment\": \"Comment fb_005 \\\"quoted\\\" tiếng Việt\",\n    \"screenshot\": null,\n    \"status\": \"reopened\",\n    \"thread\": [\n      {\n        \"at\": \"2026-01-01T01:00:00.000Z\",\n        \"by\": \"claude\",\n        \"message\": \"Done\",\n        \"status\": \"fixed\"\n      },\n      {\n        \"at\": \"2026-01-01T01:00:00.000Z\",\n        \"by\": \"user\",\n        \"message\": \"Still too small\",\n        \"status\": \"reopened\"\n      }\n    ],\n    \"resolution\": null,\n    \"provider\": \"dfw-studio\",\n    \"updatedAt\": \"2026-01-01T02:00:00.000Z\",\n    \"session\": \"rv_1\"\n  }\n]\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "fb_001 [open] items/a -> items.title (design/screens/items/a.html:18)\n    \"Comment fb_001 \"quoted\" tiếng Việt\"\nfb_002 [acknowledged] items/a -> items.title (design/screens/items/a.html:18)\n    \"Comment fb_002 \"quoted\" tiếng Việt\"\n    last: claude: On it\nfb_003 [fixed]  -> main > p\n    \"Comment fb_003 \"quoted\" tiếng Việt\"\n    last: claude: Wider now\nfb_004 [resolved] items/a/mobile -> items.title (design/screens/items/a.html:18)\n    \"Comment fb_004 \"quoted\" tiếng Việt\"\nfb_005 [reopened] items/a -> items.title (design/screens/items/a.html:18)\n    \"Comment fb_005 \"quoted\" tiếng Việt\"\n    last: user: Still too small\nfb_006 [dismissed] items/a -> ?\n    \"Comment fb_006 \"quoted\" tiếng Việt\"\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "fb_003 [fixed]  -> main > p\n    \"Comment fb_003 \"quoted\" tiếng Việt\"\n    last: claude: Wider now\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"id\": \"fb_005\",\n  \"createdAt\": \"2026-01-01T00:00:00.000Z\",\n  \"designVersion\": \"v1\",\n  \"screen\": \"items\",\n  \"variant\": \"a\",\n  \"breakpoint\": null,\n  \"state\": null,\n  \"theme\": null,\n  \"file\": \"design/screens/items/a.html\",\n  \"target\": {\n    \"dfwId\": \"items.title\",\n    \"source\": \"design/screens/items/a.html:18\"\n  },\n  \"comment\": \"Comment fb_005 \\\"quoted\\\" tiếng Việt\",\n  \"screenshot\": null,\n  \"status\": \"reopened\",\n  \"thread\": [\n    {\n      \"at\": \"2026-01-01T01:00:00.000Z\",\n      \"by\": \"claude\",\n      \"message\": \"Done\",\n      \"status\": \"fixed\"\n    },\n    {\n      \"at\": \"2026-01-01T01:00:00.000Z\",\n      \"by\": \"user\",\n      \"message\": \"Still too small\",\n      \"status\": \"reopened\"\n    }\n  ],\n  \"resolution\": null,\n  \"provider\": \"dfw-studio\",\n  \"updatedAt\": \"2026-01-01T02:00:00.000Z\",\n  \"session\": \"rv_1\"\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Comment fb_999 not found.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Comment undefined not found.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Comment undefined not found.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown comments subcommand \"nope\".\n",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "fb_001 [open] items/a -> items.title (design/screens/items/a.html:18)\n    \"Comment fb_001 \"quoted\" tiếng Việt\"\nfb_002 [acknowledged] items/a -> items.title (design/screens/items/a.html:18)\n    \"Comment fb_002 \"quoted\" tiếng Việt\"\n    last: claude: On it\nfb_007 [open] items/a -> items.title (design/screens/items/a.html:18)\n    \"Comment fb_007 \"quoted\" tiếng Việt\"\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    }
+  ]
+}

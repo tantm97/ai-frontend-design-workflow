@@ -1,0 +1,31 @@
+{
+  "test": "mcp install | uninstall > install all --print shows each config and writes nothing",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "# OpenCode: <home>/.config/opencode/opencode.json\n{\n  \"mcp\": {\n    \"dfw\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"<repo>/core/bin/dfw\",\n        \"mcp\"\n      ],\n      \"enabled\": true\n    }\n  },\n  \"$schema\": \"https://opencode.ai/config.json\"\n}\n\n# OpenAI Codex: <home>/.codex/config.toml\n[mcp_servers.dfw]\ncommand = \"<repo>/core/bin/dfw\"\nargs = [\"mcp\"]\n\n# Cursor: <home>/.cursor/mcp.json\n{\n  \"mcpServers\": {\n    \"dfw\": {\n      \"command\": \"<repo>/core/bin/dfw\",\n      \"args\": [\n        \"mcp\"\n      ]\n    }\n  }\n}\n\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "# OpenCode: <home>/.config/opencode/opencode.json\n{\n  \"theme\": \"dark\",\n  \"mcp\": {\n    \"dfw\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"<repo>/core/bin/dfw\",\n        \"mcp\"\n      ],\n      \"enabled\": true\n    },\n    \"other\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"o\"\n      ]\n    }\n  },\n  \"$schema\": \"https://opencode.ai/config.json\"\n}\n\n# OpenAI Codex: <home>/.codex/config.toml\nmodel = \"o3\"\r\n\r\n[mcp_servers.other]\r\ncommand = \"o\"\n\n[mcp_servers.dfw]\ncommand = \"<repo>/core/bin/dfw\"\nargs = [\"mcp\"]\n\n# Cursor: <home>/.cursor/mcp.json\n{\n  \"mcpServers\": {\n    \"other\": {\n      \"command\": \"o\"\n    },\n    \"dfw\": {\n      \"command\": \"<repo>/core/bin/dfw\",\n      \"args\": [\n        \"mcp\"\n      ]\n    }\n  }\n}\n\n",
+      "stderr": "",
+      "files": {
+        ".codex/config.toml": "model = \"o3\"\r\n\r\n[mcp_servers.dfw]\r\ncommand = \"/old/dfw\"\r\nargs = [\"mcp\"]\r\n\r\n\r\n\r\n[mcp_servers.other]\r\ncommand = \"o\"\r\n",
+        ".config/opencode/opencode.json": "{\n  \"theme\": \"dark\",\n  \"mcp\": {\n    \"dfw\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"/old\"\n      ]\n    },\n    \"other\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"o\"\n      ]\n    }\n  }\n}\n",
+        ".cursor/mcp.json": "{\"mcpServers\":{\"other\":{\"command\":\"o\"}}}"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "# OpenCode: <home>/.config/opencode/opencode.json\n{\n  \"theme\": \"dark\",\n  \"mcp\": {\n    \"other\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"o\"\n      ]\n    }\n  },\n  \"$schema\": \"https://opencode.ai/config.json\"\n}\n\n# OpenAI Codex: <home>/.codex/config.toml\nmodel = \"o3\"\r\n\r\n[mcp_servers.other]\r\ncommand = \"o\"\n\n# Cursor: <home>/.cursor/mcp.json\n{\n  \"mcpServers\": {\n    \"other\": {\n      \"command\": \"o\"\n    }\n  }\n}\n\n",
+      "stderr": "",
+      "files": {
+        ".codex/config.toml": "model = \"o3\"\r\n\r\n[mcp_servers.dfw]\r\ncommand = \"/old/dfw\"\r\nargs = [\"mcp\"]\r\n\r\n\r\n\r\n[mcp_servers.other]\r\ncommand = \"o\"\r\n",
+        ".config/opencode/opencode.json": "{\n  \"theme\": \"dark\",\n  \"mcp\": {\n    \"dfw\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"/old\"\n      ]\n    },\n    \"other\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"o\"\n      ]\n    }\n  }\n}\n",
+        ".cursor/mcp.json": "{\"mcpServers\":{\"other\":{\"command\":\"o\"}}}"
+      }
+    }
+  ]
+}

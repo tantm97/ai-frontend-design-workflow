@@ -1,0 +1,11 @@
+{
+  "test": "stack > detect: a folder with nothing to go on is a new project",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "{\n  \"detectedAt\": \"<time>\",\n  \"kind\": \"unknown\",\n  \"framework\": null,\n  \"styling\": [],\n  \"uiLibraries\": [],\n  \"language\": null,\n  \"packageManager\": null,\n  \"evidence\": [],\n  \"isNewProject\": true\n}\n",
+      "stderr": "",
+      "files": {}
+    }
+  ]
+}

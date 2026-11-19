@@ -1,0 +1,41 @@
+{
+  "test": "align: node 0.5.2 behaviour > d: the write gate applies to a file whose name starts with two dots",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"..x.ts\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"..x/y.ts\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"...\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"..x.ts\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}}",
+      "stderr": "",
+      "files": {}
+    }
+  ]
+}

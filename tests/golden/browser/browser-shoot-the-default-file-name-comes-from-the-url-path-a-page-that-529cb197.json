@@ -1,0 +1,23 @@
+{
+  "test": "browser: shoot > the default file name comes from the URL path; a page that cannot be opened fails that job",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "ok   .dfw/shots/url/text_html_p_hi_p___desktop.png\n",
+      "files": {
+        "project/.dfw/shots/url/text_html_p_hi_p___desktop.png": "(image)"
+      },
+      "extra": {
+        ".dfw/shots/url/text_html_p_hi_p___desktop.png": "1440x900"
+      },
+      "stderr": ""
+    },
+    {
+      "code": 2,
+      "stdout": "FAIL refused.png (cannot open http://127.0.0.1:9/nothing-listens-here: net::ERR_UNSAFE_PORT)\n",
+      "files": {},
+      "extra": {},
+      "stderr": ""
+    }
+  ]
+}

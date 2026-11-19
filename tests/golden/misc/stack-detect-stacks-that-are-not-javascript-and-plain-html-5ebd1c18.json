@@ -1,0 +1,53 @@
+{
+  "test": "stack > detect: stacks that are not JavaScript, and plain HTML",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "{\n  \"detectedAt\": \"<time>\",\n  \"kind\": \"php\",\n  \"framework\": {\n    \"name\": \"PHP (Composer; check for Laravel/Symfony)\"\n  },\n  \"styling\": [],\n  \"uiLibraries\": [],\n  \"language\": null,\n  \"packageManager\": null,\n  \"evidence\": [\n    \"composer.json\"\n  ],\n  \"isNewProject\": false\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"detectedAt\": \"<time>\",\n  \"kind\": \"ruby\",\n  \"framework\": {\n    \"name\": \"Ruby (check for Rails)\"\n  },\n  \"styling\": [],\n  \"uiLibraries\": [],\n  \"language\": null,\n  \"packageManager\": null,\n  \"evidence\": [\n    \"Gemfile\"\n  ],\n  \"isNewProject\": false\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"detectedAt\": \"<time>\",\n  \"kind\": \"go\",\n  \"framework\": {\n    \"name\": \"Go\"\n  },\n  \"styling\": [],\n  \"uiLibraries\": [],\n  \"language\": null,\n  \"packageManager\": null,\n  \"evidence\": [\n    \"go.mod\"\n  ],\n  \"isNewProject\": false\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"detectedAt\": \"<time>\",\n  \"kind\": \"dart\",\n  \"framework\": {\n    \"name\": \"Flutter/Dart\"\n  },\n  \"styling\": [],\n  \"uiLibraries\": [],\n  \"language\": null,\n  \"packageManager\": null,\n  \"evidence\": [\n    \"pubspec.yaml\"\n  ],\n  \"isNewProject\": false\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"detectedAt\": \"<time>\",\n  \"kind\": \"python\",\n  \"framework\": {\n    \"name\": \"Django\"\n  },\n  \"styling\": [],\n  \"uiLibraries\": [],\n  \"language\": null,\n  \"packageManager\": null,\n  \"evidence\": [\n    \"manage.py\",\n    \"pyproject.toml\"\n  ],\n  \"isNewProject\": false\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"detectedAt\": \"<time>\",\n  \"kind\": \"python\",\n  \"framework\": {\n    \"name\": \"Python\"\n  },\n  \"styling\": [],\n  \"uiLibraries\": [],\n  \"language\": null,\n  \"packageManager\": null,\n  \"evidence\": [\n    \"pyproject.toml\"\n  ],\n  \"isNewProject\": false\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"detectedAt\": \"<time>\",\n  \"kind\": \"rust\",\n  \"framework\": {\n    \"name\": \"Rust\"\n  },\n  \"styling\": [],\n  \"uiLibraries\": [],\n  \"language\": null,\n  \"packageManager\": null,\n  \"evidence\": [\n    \"Cargo.toml\"\n  ],\n  \"isNewProject\": false\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"detectedAt\": \"<time>\",\n  \"kind\": \"static\",\n  \"framework\": {\n    \"name\": \"Plain HTML/CSS/JS\"\n  },\n  \"styling\": [],\n  \"uiLibraries\": [],\n  \"language\": null,\n  \"packageManager\": null,\n  \"evidence\": [\n    \"index.html\"\n  ],\n  \"isNewProject\": false\n}\n",
+      "stderr": "",
+      "files": {}
+    }
+  ]
+}

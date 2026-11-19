@@ -1,0 +1,14 @@
+{
+  "test": "stack > set invalidates an approved G3",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "Stack proposal written to .dfw/stack.json. Approve with \"dfw approve G3 --note ...\" after the user confirms.\n",
+      "stderr": "",
+      "files": {
+        ".dfw/stack.json": "{\n  \"framework\": {\n    \"name\": \"Vue\"\n  },\n  \"status\": \"proposed\",\n  \"proposedAt\": \"2026-01-02T03:04:05.678Z\"\n}\n",
+        ".dfw/state.json": "{\n  \"schema\": 1,\n  \"product\": \"Fixture\",\n  \"mode\": \"new-product\",\n  \"phase\": \"discovery\",\n  \"active\": true,\n  \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n  \"updatedAt\": \"2026-01-02T03:04:05.678Z\",\n  \"design\": {\n    \"version\": 1,\n    \"status\": \"draft\",\n    \"locked\": false,\n    \"approved\": []\n  },\n  \"gates\": {\n    \"G1\": null,\n    \"DS\": null,\n    \"G2\": null,\n    \"G3\": null,\n    \"G4\": null\n  },\n  \"waived\": {},\n  \"history\": [\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"init\",\n      \"mode\": \"new-product\"\n    },\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"stack-changed\",\n      \"note\": \"G3 invalidated by a new stack proposal\"\n    }\n  ]\n}\n"
+      }
+    }
+  ]
+}

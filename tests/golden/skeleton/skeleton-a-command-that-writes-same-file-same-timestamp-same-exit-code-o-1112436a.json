@@ -1,0 +1,19 @@
+{
+  "test": "skeleton > a command that writes: same file, same timestamp, same exit code on error",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "{\n  \"at\": \"2026-01-02T03:04:05.678Z\",\n  \"level\": 2,\n  \"topic\": \"skeleton\",\n  \"decision\": \"keep the table\",\n  \"by\": \"orchestrator\"\n}\n",
+      "stderr": "",
+      "files": {
+        ".dfw/decisions.jsonl": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"level\":2,\"topic\":\"skeleton\",\"decision\":\"keep the table\",\"by\":\"orchestrator\"}\n"
+      }
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--level must be 1 (user) .. 5 (external skill recommendation).\n",
+      "files": {}
+    }
+  ]
+}

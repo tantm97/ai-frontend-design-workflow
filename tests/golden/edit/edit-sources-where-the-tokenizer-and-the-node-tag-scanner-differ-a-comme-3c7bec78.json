@@ -1,0 +1,15 @@
+{
+  "test": "edit: sources where the tokenizer and the Node tag scanner differ > a commented-out </head>: Node writes the layout block into the comment",
+  "results": [
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "changed": true,
+          "line": 6
+        }
+      },
+      "file": "<html><head><!-- </head> -->\n<style data-dfw-layout>\n  /* dfw Studio layout edits (drag/resize): layout properties only, one rule per element; :not(#dfw) lifts specificity over screen rules. */\n  [data-dfw-id='p']:not(#dfw) { width: 50%; }\n</style>\n</head><body><p data-dfw-id=\"p\">x</p></body></html>"
+    }
+  ]
+}

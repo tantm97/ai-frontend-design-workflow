@@ -1,0 +1,83 @@
+{
+  "test": "edit: refusals > ids: only in a master, unknown, duplicate, missing, unsafe in a rule; an unknown op",
+  "results": [
+    {
+      "result": {
+        "error": "\"shell.nav\" is part of the component master \"shell\" (design/system/components/shell.html), not of this screen, so the Studio cannot move or resize it here. Edit the master to change it, or leave a comment."
+      },
+      "files": {}
+    },
+    {
+      "result": {
+        "error": "\"shell.nav\" is part of the component master \"shell\" (design/system/components/shell.html), not of this screen, so the Studio cannot move or resize it here. Edit the master to change it, or leave a comment."
+      },
+      "files": {}
+    },
+    {
+      "result": {
+        "error": "\"shell.nav\" is part of the component master \"shell\" (design/system/components/shell.html), not of this screen, so the Studio cannot move or resize it here. Edit the master to change it, or leave a comment."
+      },
+      "files": {}
+    },
+    {
+      "result": {
+        "error": "\"shell.nav\" is part of the component master \"shell\" (design/system/components/shell.html), not of this screen, so the Studio cannot move or resize it here. Edit the master to change it, or leave a comment."
+      },
+      "files": {}
+    },
+    {
+      "result": {
+        "error": "\"nope\" was not found in the source file (it may come from a component master or shared include)."
+      },
+      "files": {}
+    },
+    {
+      "result": {
+        "error": "\"dup\" appears 2 times in the source file; ids must be unique per file."
+      },
+      "files": {}
+    },
+    {
+      "result": {
+        "error": "This element has no data-dfw-id, so it cannot be located in the source. Comment instead."
+      },
+      "files": {}
+    },
+    {
+      "result": {
+        "error": "This element has no data-dfw-id, so it cannot be located in the source. Comment instead."
+      },
+      "files": {}
+    },
+    {
+      "result": {
+        "error": "This element has no data-dfw-id, so it cannot be located in the source. Comment instead."
+      },
+      "files": {}
+    },
+    {
+      "result": {
+        "error": "\"12\" was not found in the source file (it may come from a component master or shared include)."
+      },
+      "files": {}
+    },
+    {
+      "result": {
+        "error": "Unknown edit op \"paint\"."
+      },
+      "files": {}
+    },
+    {
+      "result": {
+        "error": "Unknown edit op \"undefined\"."
+      },
+      "files": {}
+    },
+    {
+      "result": {
+        "error": "\"it's\" cannot be used in a layout rule."
+      },
+      "files": {}
+    }
+  ]
+}

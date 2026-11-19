@@ -1,0 +1,719 @@
+{
+  "test": "hot: hooks > pre-tool-use: every write tool; tools that do not write; a path outside the project",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ipynb\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/a.html\",\n  \"dfwId\": null,\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ts\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ts\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ts\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"dfw gate: implementation files cannot be modified yet (\\\"src/a.ts\\\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \\\"implement\\\" (current: \\\"discovery\\\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).\"}}",
+      "stderr": "",
+      "files": {}
+    }
+  ]
+}

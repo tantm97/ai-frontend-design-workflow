@@ -1,0 +1,65 @@
+{
+  "test": "hot: workflow commands > verify-snapshot: intact, modified, missing, added, no snapshot",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "Snapshot v1 intact.\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "Snapshot v1 intact.\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 2,
+      "stdout": "Snapshot v1 was modified:\nmodified: screens/items/a.html\nmissing: tokens/tokens.json\nmissing: docs/DESIGN.md\nadded: new/a.css\nadded: zz-extra.txt\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "Snapshot v1 intact.\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "No approved snapshot.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "No approval.lock.json in <root>/design/approved/v9\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "No approval.lock.json in <root>/design/approved/v1\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "No dfw workflow in <root>. Run \"dfw init\" first.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "No approved snapshot.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "test": "stack > detect: plain JavaScript without a lock file, tsconfig only, broken package.json",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "{\n  \"detectedAt\": \"<time>\",\n  \"kind\": \"javascript\",\n  \"framework\": null,\n  \"styling\": [],\n  \"uiLibraries\": [],\n  \"language\": \"JavaScript\",\n  \"packageManager\": null,\n  \"evidence\": [\n    \"package.json\"\n  ],\n  \"isNewProject\": false\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"detectedAt\": \"<time>\",\n  \"kind\": \"javascript\",\n  \"framework\": {\n    \"name\": \"SvelteKit\",\n    \"package\": \"@sveltejs/kit\",\n    \"version\": \"2\"\n  },\n  \"styling\": [\n    {\n      \"name\": \"UnoCSS\",\n      \"package\": \"unocss\",\n      \"version\": \"1\"\n    }\n  ],\n  \"uiLibraries\": [\n    {\n      \"name\": \"Bits UI\",\n      \"package\": \"bits-ui\",\n      \"version\": \"1\"\n    }\n  ],\n  \"language\": \"TypeScript\",\n  \"packageManager\": \"pnpm\",\n  \"evidence\": [\n    \"package.json\",\n    \"pnpm-lock.yaml\"\n  ],\n  \"isNewProject\": false\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Error: Invalid JSON in <root>/package.json: Expected property name or '}' in JSON at position 1 (line 1 column 2)\n    at readJson (file://<repo>/core/lib/util.mjs:39:13)\n    at detectStack (file://<repo>/core/lib/stack.mjs:55:17)\n    at main (file://<repo>/core/lib/cli.mjs:960:19)\n    at file://<repo>/core/bin/dfw.mjs:17:1\n",
+      "files": {}
+    }
+  ]
+}

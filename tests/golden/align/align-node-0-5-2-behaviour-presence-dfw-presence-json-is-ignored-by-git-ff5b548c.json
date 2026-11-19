@@ -1,0 +1,40 @@
+{
+  "test": "align: node 0.5.2 behaviour > presence: .dfw/presence.json is ignored by git in a new project; ids in comments are skipped",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "Initialized dfw (new-product) in <root>\nCreated: PRODUCT.md, DESIGN.md\ndfw: product=\"(unnamed)\" mode=new-product phase=discovery\ndesign: v1 draft\ngates: G1=open DS=open G2=open G3=open G4=open\n",
+      "stderr": "",
+      "files": {
+        ".dfw/.gitignore": "config.local.json\nstudio.json\nstudio.log\nreview.json\nreview.log\npresence.json\nshots/\nchecks/\n",
+        ".dfw/config.json": "{\n  \"schema\": 1\n}\n",
+        ".dfw/decisions.jsonl": "",
+        ".dfw/state.json": "{\n  \"schema\": 1,\n  \"product\": \"\",\n  \"mode\": \"new-product\",\n  \"phase\": \"discovery\",\n  \"active\": true,\n  \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n  \"updatedAt\": \"2026-01-02T03:04:05.678Z\",\n  \"design\": {\n    \"version\": 1,\n    \"status\": \"draft\",\n    \"locked\": false,\n    \"approved\": []\n  },\n  \"gates\": {\n    \"G1\": null,\n    \"DS\": null,\n    \"G2\": null,\n    \"G3\": null,\n    \"G4\": null\n  },\n  \"waived\": {},\n  \"history\": [\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"init\",\n      \"mode\": \"new-product\"\n    }\n  ]\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/presence.html\",\n  \"dfwId\": \"hero\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/presence.html\",\n  \"dfwId\": \"nav\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/presence.json": "{\n  \"file\": \"screens/items/presence.html\",\n  \"dfwId\": \"hero\",\n  \"at\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    }
+  ]
+}

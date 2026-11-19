@@ -1,0 +1,11 @@
+{
+  "test": "render: tokens extract > usage without --url",
+  "results": [
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Usage: dfw tokens extract --url <reference site or running app> [--out design/system/extracted.tokens.json]\n",
+      "files": {}
+    }
+  ]
+}

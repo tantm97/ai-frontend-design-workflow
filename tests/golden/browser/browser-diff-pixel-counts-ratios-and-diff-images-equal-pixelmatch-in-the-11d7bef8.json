@@ -1,0 +1,730 @@
+{
+  "test": "browser: diff > pixel counts, ratios and diff images equal pixelmatch in the browser",
+  "results": [
+    {
+      "code": 0,
+      "byFile": {
+        "alpha-both.png": {
+          "a": "<root>/a/alpha-both.png",
+          "b": "<root>/b/alpha-both.png",
+          "out": "<root>/out/alpha-both.png",
+          "diff": 217,
+          "w": 32,
+          "h": 8,
+          "ratio": 0.84765625,
+          "sizeChanged": null
+        },
+        "alpha.png": {
+          "a": "<root>/a/alpha.png",
+          "b": "<root>/b/alpha.png",
+          "out": "<root>/out/alpha.png",
+          "diff": 675,
+          "w": 32,
+          "h": 32,
+          "ratio": 0.6591796875,
+          "sizeChanged": null
+        },
+        "dark.png": {
+          "a": "<root>/a/dark.png",
+          "b": "<root>/b/dark.png",
+          "out": "<root>/out/dark.png",
+          "diff": 299,
+          "w": 64,
+          "h": 16,
+          "ratio": 0.2919921875,
+          "sizeChanged": null
+        },
+        "edge.png": {
+          "a": "<root>/a/edge.png",
+          "b": "<root>/b/edge.png",
+          "out": "<root>/out/edge.png",
+          "diff": 3,
+          "w": 40,
+          "h": 30,
+          "ratio": 0.0025,
+          "sizeChanged": null
+        },
+        "noise.png": {
+          "a": "<root>/a/noise.png",
+          "b": "<root>/b/noise.png",
+          "out": "<root>/out/noise.png",
+          "diff": 13,
+          "w": 48,
+          "h": 48,
+          "ratio": 0.005642361111111111,
+          "sizeChanged": null
+        },
+        "same.png": {
+          "a": "<root>/a/same.png",
+          "b": "<root>/b/same.png",
+          "out": "<root>/out/same.png",
+          "diff": 0,
+          "w": 40,
+          "h": 30,
+          "ratio": 0,
+          "sizeChanged": null
+        },
+        "size.png": {
+          "a": "<root>/a/size.png",
+          "b": "<root>/b/size.png",
+          "out": "<root>/out/size.png",
+          "diff": 136,
+          "w": 24,
+          "h": 14,
+          "ratio": 0.40476190476190477,
+          "sizeChanged": "20x10 -> 24x14"
+        },
+        "text.png": {
+          "a": "<root>/a/text.png",
+          "b": "<root>/b/text.png",
+          "out": "<root>/out/text.png",
+          "diff": 272,
+          "w": 60,
+          "h": 20,
+          "ratio": 0.22666666666666666,
+          "sizeChanged": null
+        },
+        "tint.png": {
+          "a": "<root>/a/tint.png",
+          "b": "<root>/b/tint.png",
+          "out": "<root>/out/tint.png",
+          "diff": 610,
+          "w": 64,
+          "h": 16,
+          "ratio": 0.595703125,
+          "sizeChanged": null
+        }
+      },
+      "extra": {
+        "alpha-both.png": {
+          "width": 32,
+          "height": 8,
+          "sha256": "3ed32e178f9631398ed31b313c1800e5bddd7b909ea03eca63b9f19cccf1e8c6"
+        },
+        "alpha.png": {
+          "width": 32,
+          "height": 32,
+          "sha256": "9a28a27cce870296c2b6c6c70e4be06fdb2565272dc2eb2f2e90ae53eba81c67"
+        },
+        "dark.png": {
+          "width": 64,
+          "height": 16,
+          "sha256": "2e21fb16457bcb4b22662854518380ce2d7312447ab8beec1f7503e4449fe3f2"
+        },
+        "edge.png": {
+          "width": 40,
+          "height": 30,
+          "sha256": "3727d72fd41565741df8f4a089482be8a8e7e34c921351fed0c115200798baf1"
+        },
+        "noise.png": {
+          "width": 48,
+          "height": 48,
+          "sha256": "5405b255be292db10dd6c933161992c84f3b2e50c84a70e91575ca4df868786c"
+        },
+        "same.png": {
+          "width": 40,
+          "height": 30,
+          "sha256": "89c7b52f44a83b474a7a1b67efe586e2200b1519ae878117bb5b48b4507ecde5"
+        },
+        "size.png": {
+          "width": 24,
+          "height": 14,
+          "sha256": "97409b34a3d6c9a725b76ab5b68f9fac925b6645d743b1899b1c3ca26c53984c"
+        },
+        "text.png": {
+          "width": 60,
+          "height": 20,
+          "sha256": "257777bdbf7652df92ed0b04a4877adcea1cbbe3f9eade14bf74b82d2992e15f"
+        },
+        "tint.png": {
+          "width": 64,
+          "height": 16,
+          "sha256": "a06af2a731738fc594e5b25014f677b5989bdb975f4b3c45b9213c8a8d4ceba1"
+        }
+      }
+    },
+    {
+      "lines": [
+        "  0.00%  same.png  -> b/_diff/same.png",
+        "  0.25%  edge.png  -> b/_diff/edge.png",
+        "  0.56%  noise.png  -> b/_diff/noise.png",
+        " 22.67%  text.png  -> b/_diff/text.png",
+        " 29.20%  dark.png  -> b/_diff/dark.png",
+        " 40.48%  size.png  (size 20x10 -> 24x14)  -> b/_diff/size.png",
+        " 59.57%  tint.png  -> b/_diff/tint.png",
+        " 65.92%  alpha.png  -> b/_diff/alpha.png",
+        "84.77%  alpha-both.png  -> b/_diff/alpha-both.png"
+      ],
+      "ratios": [
+        84.77,
+        65.92,
+        59.57,
+        40.48,
+        29.2,
+        22.67,
+        0.56,
+        0.25,
+        0
+      ],
+      "extra": {
+        "alpha-both.png": {
+          "width": 32,
+          "height": 8,
+          "sha256": "3ed32e178f9631398ed31b313c1800e5bddd7b909ea03eca63b9f19cccf1e8c6"
+        },
+        "alpha.png": {
+          "width": 32,
+          "height": 32,
+          "sha256": "9a28a27cce870296c2b6c6c70e4be06fdb2565272dc2eb2f2e90ae53eba81c67"
+        },
+        "dark.png": {
+          "width": 64,
+          "height": 16,
+          "sha256": "2e21fb16457bcb4b22662854518380ce2d7312447ab8beec1f7503e4449fe3f2"
+        },
+        "edge.png": {
+          "width": 40,
+          "height": 30,
+          "sha256": "3727d72fd41565741df8f4a089482be8a8e7e34c921351fed0c115200798baf1"
+        },
+        "noise.png": {
+          "width": 48,
+          "height": 48,
+          "sha256": "5405b255be292db10dd6c933161992c84f3b2e50c84a70e91575ca4df868786c"
+        },
+        "same.png": {
+          "width": 40,
+          "height": 30,
+          "sha256": "89c7b52f44a83b474a7a1b67efe586e2200b1519ae878117bb5b48b4507ecde5"
+        },
+        "size.png": {
+          "width": 24,
+          "height": 14,
+          "sha256": "97409b34a3d6c9a725b76ab5b68f9fac925b6645d743b1899b1c3ca26c53984c"
+        },
+        "text.png": {
+          "width": 60,
+          "height": 20,
+          "sha256": "257777bdbf7652df92ed0b04a4877adcea1cbbe3f9eade14bf74b82d2992e15f"
+        },
+        "tint.png": {
+          "width": 64,
+          "height": 16,
+          "sha256": "a06af2a731738fc594e5b25014f677b5989bdb975f4b3c45b9213c8a8d4ceba1"
+        }
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "[\n  {\n    \"a\": \"<root>/a/tint.png\",\n    \"b\": \"<root>/b/tint.png\",\n    \"out\": \"<root>/b/tint.diff.png\",\n    \"diff\": 930,\n    \"w\": 64,\n    \"h\": 16,\n    \"ratio\": 0.908203125,\n    \"sizeChanged\": null\n  }\n]\n",
+      "files": {
+        "project/b/tint.diff.png": "(image)"
+      },
+      "extra": {
+        "alpha-both.png": {
+          "width": 32,
+          "height": 8,
+          "sha256": "d3b2ff6a3c804c4a8b348c0789dde0b0e70a3966f5522521a13467945bae6491"
+        },
+        "alpha.png": {
+          "width": 32,
+          "height": 32,
+          "sha256": "adcfce7fb0bf2964fca779dd557d35f0db4374ce52273104c9feae8ff5356ff7"
+        },
+        "dark.png": {
+          "width": 64,
+          "height": 16,
+          "sha256": "93cd3f0b2150b8643ad39d7fedfcdc40b236a71dccd9bba8579d001b12fa5332"
+        },
+        "edge.png": {
+          "width": 40,
+          "height": 30,
+          "sha256": "36c02c2bb09852e0134a4f19021c584c6b96d49ec01f52703257a5fd2b03eafa"
+        },
+        "noise.png": {
+          "width": 48,
+          "height": 48,
+          "sha256": "c653c910b2169c89f53ed8cf624ae962ca4eb751907cf5df1678abf07afb5306"
+        },
+        "same.png": {
+          "width": 40,
+          "height": 30,
+          "sha256": "06f417cac82aca163e511fac26280246aa772f9d58d2ba58036839ef25a35c60"
+        },
+        "size.png": {
+          "width": 24,
+          "height": 14,
+          "sha256": "6c2a1af3557772432115df00611dea9c89c7fa8d3b670fdc765dc31a9531b967"
+        },
+        "text.png": {
+          "width": 60,
+          "height": 20,
+          "sha256": "8e0556ff9c2a13846903a190cb030e50cc6019d43a324ee1b16b9fb5b12e65d9"
+        },
+        "tint.diff.png": {
+          "width": 64,
+          "height": 16,
+          "sha256": "408dfd48b49aeb5da61c4fed641b6914e7bbb87cc5ce8d78071158a04dade791"
+        },
+        "tint.png": {
+          "width": 64,
+          "height": 16,
+          "sha256": "216ac1e0debe374f45f2238adb54b3ce005a46cfa0cd1ac170e7e3bad1926cff"
+        }
+      },
+      "stderr": ""
+    },
+    {
+      "code": 0,
+      "stdout": "  0.00%  tint.png  -> b/tint.diff.png\n",
+      "files": {
+        "project/b/tint.diff.png": "(image)"
+      },
+      "extra": {
+        "alpha-both.png": {
+          "width": 32,
+          "height": 8,
+          "sha256": "d3b2ff6a3c804c4a8b348c0789dde0b0e70a3966f5522521a13467945bae6491"
+        },
+        "alpha.png": {
+          "width": 32,
+          "height": 32,
+          "sha256": "adcfce7fb0bf2964fca779dd557d35f0db4374ce52273104c9feae8ff5356ff7"
+        },
+        "dark.png": {
+          "width": 64,
+          "height": 16,
+          "sha256": "93cd3f0b2150b8643ad39d7fedfcdc40b236a71dccd9bba8579d001b12fa5332"
+        },
+        "edge.png": {
+          "width": 40,
+          "height": 30,
+          "sha256": "36c02c2bb09852e0134a4f19021c584c6b96d49ec01f52703257a5fd2b03eafa"
+        },
+        "noise.png": {
+          "width": 48,
+          "height": 48,
+          "sha256": "c653c910b2169c89f53ed8cf624ae962ca4eb751907cf5df1678abf07afb5306"
+        },
+        "same.png": {
+          "width": 40,
+          "height": 30,
+          "sha256": "06f417cac82aca163e511fac26280246aa772f9d58d2ba58036839ef25a35c60"
+        },
+        "size.png": {
+          "width": 24,
+          "height": 14,
+          "sha256": "6c2a1af3557772432115df00611dea9c89c7fa8d3b670fdc765dc31a9531b967"
+        },
+        "text.png": {
+          "width": 60,
+          "height": 20,
+          "sha256": "8e0556ff9c2a13846903a190cb030e50cc6019d43a324ee1b16b9fb5b12e65d9"
+        },
+        "tint.diff.png": {
+          "width": 64,
+          "height": 16,
+          "sha256": "a862447001b69843c8b519701fbadf8c5cf86130942820e00a2501cff90fa370"
+        },
+        "tint.png": {
+          "width": 64,
+          "height": 16,
+          "sha256": "216ac1e0debe374f45f2238adb54b3ce005a46cfa0cd1ac170e7e3bad1926cff"
+        }
+      },
+      "stderr": ""
+    },
+    {
+      "code": 0,
+      "stdout": " 99.02%  dark.png  -> b/dark.diff.png\n",
+      "files": {
+        "project/b/dark.diff.png": "(image)"
+      },
+      "extra": {
+        "alpha-both.png": {
+          "width": 32,
+          "height": 8,
+          "sha256": "d3b2ff6a3c804c4a8b348c0789dde0b0e70a3966f5522521a13467945bae6491"
+        },
+        "alpha.png": {
+          "width": 32,
+          "height": 32,
+          "sha256": "adcfce7fb0bf2964fca779dd557d35f0db4374ce52273104c9feae8ff5356ff7"
+        },
+        "dark.diff.png": {
+          "width": 64,
+          "height": 16,
+          "sha256": "cef338d13ea3177048a9501e62a84534fe119fba0ba13ec16ff03fe1d6e9f7fb"
+        },
+        "dark.png": {
+          "width": 64,
+          "height": 16,
+          "sha256": "93cd3f0b2150b8643ad39d7fedfcdc40b236a71dccd9bba8579d001b12fa5332"
+        },
+        "edge.png": {
+          "width": 40,
+          "height": 30,
+          "sha256": "36c02c2bb09852e0134a4f19021c584c6b96d49ec01f52703257a5fd2b03eafa"
+        },
+        "noise.png": {
+          "width": 48,
+          "height": 48,
+          "sha256": "c653c910b2169c89f53ed8cf624ae962ca4eb751907cf5df1678abf07afb5306"
+        },
+        "same.png": {
+          "width": 40,
+          "height": 30,
+          "sha256": "06f417cac82aca163e511fac26280246aa772f9d58d2ba58036839ef25a35c60"
+        },
+        "size.png": {
+          "width": 24,
+          "height": 14,
+          "sha256": "6c2a1af3557772432115df00611dea9c89c7fa8d3b670fdc765dc31a9531b967"
+        },
+        "text.png": {
+          "width": 60,
+          "height": 20,
+          "sha256": "8e0556ff9c2a13846903a190cb030e50cc6019d43a324ee1b16b9fb5b12e65d9"
+        },
+        "tint.png": {
+          "width": 64,
+          "height": 16,
+          "sha256": "216ac1e0debe374f45f2238adb54b3ce005a46cfa0cd1ac170e7e3bad1926cff"
+        }
+      },
+      "stderr": ""
+    },
+    {
+      "code": 0,
+      "stdout": "  0.56%  noise.png  -> b/noise.diff.png\n",
+      "files": {
+        "project/b/noise.diff.png": "(image)"
+      },
+      "extra": {
+        "alpha-both.png": {
+          "width": 32,
+          "height": 8,
+          "sha256": "d3b2ff6a3c804c4a8b348c0789dde0b0e70a3966f5522521a13467945bae6491"
+        },
+        "alpha.png": {
+          "width": 32,
+          "height": 32,
+          "sha256": "adcfce7fb0bf2964fca779dd557d35f0db4374ce52273104c9feae8ff5356ff7"
+        },
+        "dark.png": {
+          "width": 64,
+          "height": 16,
+          "sha256": "93cd3f0b2150b8643ad39d7fedfcdc40b236a71dccd9bba8579d001b12fa5332"
+        },
+        "edge.png": {
+          "width": 40,
+          "height": 30,
+          "sha256": "36c02c2bb09852e0134a4f19021c584c6b96d49ec01f52703257a5fd2b03eafa"
+        },
+        "noise.diff.png": {
+          "width": 48,
+          "height": 48,
+          "sha256": "5405b255be292db10dd6c933161992c84f3b2e50c84a70e91575ca4df868786c"
+        },
+        "noise.png": {
+          "width": 48,
+          "height": 48,
+          "sha256": "c653c910b2169c89f53ed8cf624ae962ca4eb751907cf5df1678abf07afb5306"
+        },
+        "same.png": {
+          "width": 40,
+          "height": 30,
+          "sha256": "06f417cac82aca163e511fac26280246aa772f9d58d2ba58036839ef25a35c60"
+        },
+        "size.png": {
+          "width": 24,
+          "height": 14,
+          "sha256": "6c2a1af3557772432115df00611dea9c89c7fa8d3b670fdc765dc31a9531b967"
+        },
+        "text.png": {
+          "width": 60,
+          "height": 20,
+          "sha256": "8e0556ff9c2a13846903a190cb030e50cc6019d43a324ee1b16b9fb5b12e65d9"
+        },
+        "tint.png": {
+          "width": 64,
+          "height": 16,
+          "sha256": "216ac1e0debe374f45f2238adb54b3ce005a46cfa0cd1ac170e7e3bad1926cff"
+        }
+      },
+      "stderr": ""
+    },
+    {
+      "code": 0,
+      "stdout": " 84.77%  alpha-both.png  -> x/y/d.png\n",
+      "files": {
+        "project/x/y/d.png": "(image)"
+      },
+      "extra": {
+        "y/d.png": {
+          "width": 32,
+          "height": 8,
+          "sha256": "3ed32e178f9631398ed31b313c1800e5bddd7b909ea03eca63b9f19cccf1e8c6"
+        },
+        "alpha-both.png": {
+          "width": 32,
+          "height": 8,
+          "sha256": "d3b2ff6a3c804c4a8b348c0789dde0b0e70a3966f5522521a13467945bae6491"
+        },
+        "alpha.png": {
+          "width": 32,
+          "height": 32,
+          "sha256": "adcfce7fb0bf2964fca779dd557d35f0db4374ce52273104c9feae8ff5356ff7"
+        },
+        "dark.png": {
+          "width": 64,
+          "height": 16,
+          "sha256": "93cd3f0b2150b8643ad39d7fedfcdc40b236a71dccd9bba8579d001b12fa5332"
+        },
+        "edge.png": {
+          "width": 40,
+          "height": 30,
+          "sha256": "36c02c2bb09852e0134a4f19021c584c6b96d49ec01f52703257a5fd2b03eafa"
+        },
+        "noise.png": {
+          "width": 48,
+          "height": 48,
+          "sha256": "c653c910b2169c89f53ed8cf624ae962ca4eb751907cf5df1678abf07afb5306"
+        },
+        "same.png": {
+          "width": 40,
+          "height": 30,
+          "sha256": "06f417cac82aca163e511fac26280246aa772f9d58d2ba58036839ef25a35c60"
+        },
+        "size.png": {
+          "width": 24,
+          "height": 14,
+          "sha256": "6c2a1af3557772432115df00611dea9c89c7fa8d3b670fdc765dc31a9531b967"
+        },
+        "text.png": {
+          "width": 60,
+          "height": 20,
+          "sha256": "8e0556ff9c2a13846903a190cb030e50cc6019d43a324ee1b16b9fb5b12e65d9"
+        },
+        "tint.png": {
+          "width": 64,
+          "height": 16,
+          "sha256": "216ac1e0debe374f45f2238adb54b3ce005a46cfa0cd1ac170e7e3bad1926cff"
+        }
+      },
+      "stderr": ""
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "files": {},
+      "extra": {
+        "alpha-both.png": {
+          "width": 32,
+          "height": 8,
+          "sha256": "d3b2ff6a3c804c4a8b348c0789dde0b0e70a3966f5522521a13467945bae6491"
+        },
+        "alpha.png": {
+          "width": 32,
+          "height": 32,
+          "sha256": "adcfce7fb0bf2964fca779dd557d35f0db4374ce52273104c9feae8ff5356ff7"
+        },
+        "dark.png": {
+          "width": 64,
+          "height": 16,
+          "sha256": "93cd3f0b2150b8643ad39d7fedfcdc40b236a71dccd9bba8579d001b12fa5332"
+        },
+        "edge.png": {
+          "width": 40,
+          "height": 30,
+          "sha256": "36c02c2bb09852e0134a4f19021c584c6b96d49ec01f52703257a5fd2b03eafa"
+        },
+        "noise.png": {
+          "width": 48,
+          "height": 48,
+          "sha256": "c653c910b2169c89f53ed8cf624ae962ca4eb751907cf5df1678abf07afb5306"
+        },
+        "same.png": {
+          "width": 40,
+          "height": 30,
+          "sha256": "06f417cac82aca163e511fac26280246aa772f9d58d2ba58036839ef25a35c60"
+        },
+        "size.png": {
+          "width": 24,
+          "height": 14,
+          "sha256": "6c2a1af3557772432115df00611dea9c89c7fa8d3b670fdc765dc31a9531b967"
+        },
+        "text.png": {
+          "width": 60,
+          "height": 20,
+          "sha256": "8e0556ff9c2a13846903a190cb030e50cc6019d43a324ee1b16b9fb5b12e65d9"
+        },
+        "tint.png": {
+          "width": 64,
+          "height": 16,
+          "sha256": "216ac1e0debe374f45f2238adb54b3ce005a46cfa0cd1ac170e7e3bad1926cff"
+        }
+      },
+      "stderr": "Not found: <root>/b/missing.png\n"
+    },
+    {
+      "code": 0,
+      "stdout": "ERROR  notes.txt: Error: cannot decode image\n",
+      "files": {},
+      "extra": {
+        "alpha-both.png": {
+          "width": 32,
+          "height": 8,
+          "sha256": "d3b2ff6a3c804c4a8b348c0789dde0b0e70a3966f5522521a13467945bae6491"
+        },
+        "alpha.png": {
+          "width": 32,
+          "height": 32,
+          "sha256": "adcfce7fb0bf2964fca779dd557d35f0db4374ce52273104c9feae8ff5356ff7"
+        },
+        "dark.png": {
+          "width": 64,
+          "height": 16,
+          "sha256": "93cd3f0b2150b8643ad39d7fedfcdc40b236a71dccd9bba8579d001b12fa5332"
+        },
+        "edge.png": {
+          "width": 40,
+          "height": 30,
+          "sha256": "36c02c2bb09852e0134a4f19021c584c6b96d49ec01f52703257a5fd2b03eafa"
+        },
+        "noise.png": {
+          "width": 48,
+          "height": 48,
+          "sha256": "c653c910b2169c89f53ed8cf624ae962ca4eb751907cf5df1678abf07afb5306"
+        },
+        "same.png": {
+          "width": 40,
+          "height": 30,
+          "sha256": "06f417cac82aca163e511fac26280246aa772f9d58d2ba58036839ef25a35c60"
+        },
+        "size.png": {
+          "width": 24,
+          "height": 14,
+          "sha256": "6c2a1af3557772432115df00611dea9c89c7fa8d3b670fdc765dc31a9531b967"
+        },
+        "text.png": {
+          "width": 60,
+          "height": 20,
+          "sha256": "8e0556ff9c2a13846903a190cb030e50cc6019d43a324ee1b16b9fb5b12e65d9"
+        },
+        "tint.png": {
+          "width": 64,
+          "height": 16,
+          "sha256": "216ac1e0debe374f45f2238adb54b3ce005a46cfa0cd1ac170e7e3bad1926cff"
+        }
+      },
+      "stderr": ""
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "files": {},
+      "extra": {
+        "alpha-both.png": {
+          "width": 32,
+          "height": 8,
+          "sha256": "d3b2ff6a3c804c4a8b348c0789dde0b0e70a3966f5522521a13467945bae6491"
+        },
+        "alpha.png": {
+          "width": 32,
+          "height": 32,
+          "sha256": "adcfce7fb0bf2964fca779dd557d35f0db4374ce52273104c9feae8ff5356ff7"
+        },
+        "dark.png": {
+          "width": 64,
+          "height": 16,
+          "sha256": "93cd3f0b2150b8643ad39d7fedfcdc40b236a71dccd9bba8579d001b12fa5332"
+        },
+        "edge.png": {
+          "width": 40,
+          "height": 30,
+          "sha256": "36c02c2bb09852e0134a4f19021c584c6b96d49ec01f52703257a5fd2b03eafa"
+        },
+        "noise.png": {
+          "width": 48,
+          "height": 48,
+          "sha256": "c653c910b2169c89f53ed8cf624ae962ca4eb751907cf5df1678abf07afb5306"
+        },
+        "same.png": {
+          "width": 40,
+          "height": 30,
+          "sha256": "06f417cac82aca163e511fac26280246aa772f9d58d2ba58036839ef25a35c60"
+        },
+        "size.png": {
+          "width": 24,
+          "height": 14,
+          "sha256": "6c2a1af3557772432115df00611dea9c89c7fa8d3b670fdc765dc31a9531b967"
+        },
+        "text.png": {
+          "width": 60,
+          "height": 20,
+          "sha256": "8e0556ff9c2a13846903a190cb030e50cc6019d43a324ee1b16b9fb5b12e65d9"
+        },
+        "tint.png": {
+          "width": 64,
+          "height": 16,
+          "sha256": "216ac1e0debe374f45f2238adb54b3ce005a46cfa0cd1ac170e7e3bad1926cff"
+        }
+      },
+      "stderr": "No PNG file names in common between <root>/a and <root>/empty.\n"
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "files": {},
+      "extra": {
+        "alpha-both.png": {
+          "width": 32,
+          "height": 8,
+          "sha256": "d3b2ff6a3c804c4a8b348c0789dde0b0e70a3966f5522521a13467945bae6491"
+        },
+        "alpha.png": {
+          "width": 32,
+          "height": 32,
+          "sha256": "adcfce7fb0bf2964fca779dd557d35f0db4374ce52273104c9feae8ff5356ff7"
+        },
+        "dark.png": {
+          "width": 64,
+          "height": 16,
+          "sha256": "93cd3f0b2150b8643ad39d7fedfcdc40b236a71dccd9bba8579d001b12fa5332"
+        },
+        "edge.png": {
+          "width": 40,
+          "height": 30,
+          "sha256": "36c02c2bb09852e0134a4f19021c584c6b96d49ec01f52703257a5fd2b03eafa"
+        },
+        "noise.png": {
+          "width": 48,
+          "height": 48,
+          "sha256": "c653c910b2169c89f53ed8cf624ae962ca4eb751907cf5df1678abf07afb5306"
+        },
+        "same.png": {
+          "width": 40,
+          "height": 30,
+          "sha256": "06f417cac82aca163e511fac26280246aa772f9d58d2ba58036839ef25a35c60"
+        },
+        "size.png": {
+          "width": 24,
+          "height": 14,
+          "sha256": "6c2a1af3557772432115df00611dea9c89c7fa8d3b670fdc765dc31a9531b967"
+        },
+        "text.png": {
+          "width": 60,
+          "height": 20,
+          "sha256": "8e0556ff9c2a13846903a190cb030e50cc6019d43a324ee1b16b9fb5b12e65d9"
+        },
+        "tint.png": {
+          "width": 64,
+          "height": 16,
+          "sha256": "216ac1e0debe374f45f2238adb54b3ce005a46cfa0cd1ac170e7e3bad1926cff"
+        }
+      },
+      "stderr": "Not found: <root>/nowhere\n"
+    }
+  ]
+}

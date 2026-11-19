@@ -1,0 +1,29 @@
+{
+  "test": "handoff > errors: no workflow, no approved design, the file exists, a screen without variants",
+  "results": [
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "No dfw workflow in <root>. Run \"dfw init\" first.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Handoff is generated from an approved design (G2).\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "design/handoff/v1.md already exists.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "TypeError: Cannot read properties of undefined (reading 'find')\n    at file://<repo>/core/lib/cli.mjs:543:33\n    at Array.map (<anonymous>)\n    at cmdHandoff (file://<repo>/core/lib/cli.mjs:542:6)\n    at main (file://<repo>/core/lib/cli.mjs:954:14)\n    at file://<repo>/core/bin/dfw.mjs:17:1\n",
+      "files": {}
+    }
+  ]
+}

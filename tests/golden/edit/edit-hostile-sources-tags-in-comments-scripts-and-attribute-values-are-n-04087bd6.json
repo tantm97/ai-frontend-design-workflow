@@ -1,0 +1,158 @@
+{
+  "test": "edit: hostile sources > tags in comments, scripts and attribute values are not elements",
+  "results": [
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "changed": true,
+          "line": 4
+        }
+      },
+      "files": {
+        ".dfw/edits/#0": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"file\":\"design/screens/items/a.html\",\"op\":{\"op\":\"text\",\"id\":\"t\",\"value\":\"Hi\"},\"before\":\"<html><head><style>.x[data-dfw-id=\\\"t\\\"] { color: red }</style></head><body>\\n<!-- <h1 data-dfw-id=\\\"t\\\">commented out</h1> -->\\n<main data-dfw-id=\\\"m\\\" title=\\\"<p data-dfw-id='t'>\\\" data-x='a > b'>\\n  <h1 data-dfw-id=\\\"t\\\">\\n    Welcome back\\n  </h1>\\n  <p data-dfw-id=\\\"u\\\">a &amp; b</p>\\n</main>\\n<script>const s = '<p data-dfw-id=\\\"t\\\">x</p>';</script>\\n</body></html>\",\"after\":\"<html><head><style>.x[data-dfw-id=\\\"t\\\"] { color: red }</style></head><body>\\n<!-- <h1 data-dfw-id=\\\"t\\\">commented out</h1> -->\\n<main data-dfw-id=\\\"m\\\" title=\\\"<p data-dfw-id='t'>\\\" data-x='a > b'>\\n  <h1 data-dfw-id=\\\"t\\\">\\n    Hi\\n  </h1>\\n  <p data-dfw-id=\\\"u\\\">a &amp; b</p>\\n</main>\\n<script>const s = '<p data-dfw-id=\\\"t\\\">x</p>';</script>\\n</body></html>\"}",
+        "design/screens/items/a.html": "<html><head><style>.x[data-dfw-id=\"t\"] { color: red }</style></head><body>\n<!-- <h1 data-dfw-id=\"t\">commented out</h1> -->\n<main data-dfw-id=\"m\" title=\"<p data-dfw-id='t'>\" data-x='a > b'>\n  <h1 data-dfw-id=\"t\">\n    Hi\n  </h1>\n  <p data-dfw-id=\"u\">a &amp; b</p>\n</main>\n<script>const s = '<p data-dfw-id=\"t\">x</p>';</script>\n</body></html>"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "changed": true,
+          "line": 7
+        }
+      },
+      "files": {
+        ".dfw/edits/#1": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"file\":\"design/screens/items/a.html\",\"op\":{\"op\":\"text\",\"id\":\"u\",\"value\":\"c & d\"},\"before\":\"<html><head><style>.x[data-dfw-id=\\\"t\\\"] { color: red }</style></head><body>\\n<!-- <h1 data-dfw-id=\\\"t\\\">commented out</h1> -->\\n<main data-dfw-id=\\\"m\\\" title=\\\"<p data-dfw-id='t'>\\\" data-x='a > b'>\\n  <h1 data-dfw-id=\\\"t\\\">\\n    Hi\\n  </h1>\\n  <p data-dfw-id=\\\"u\\\">a &amp; b</p>\\n</main>\\n<script>const s = '<p data-dfw-id=\\\"t\\\">x</p>';</script>\\n</body></html>\",\"after\":\"<html><head><style>.x[data-dfw-id=\\\"t\\\"] { color: red }</style></head><body>\\n<!-- <h1 data-dfw-id=\\\"t\\\">commented out</h1> -->\\n<main data-dfw-id=\\\"m\\\" title=\\\"<p data-dfw-id='t'>\\\" data-x='a > b'>\\n  <h1 data-dfw-id=\\\"t\\\">\\n    Hi\\n  </h1>\\n  <p data-dfw-id=\\\"u\\\">c &amp; d</p>\\n</main>\\n<script>const s = '<p data-dfw-id=\\\"t\\\">x</p>';</script>\\n</body></html>\"}",
+        "design/screens/items/a.html": "<html><head><style>.x[data-dfw-id=\"t\"] { color: red }</style></head><body>\n<!-- <h1 data-dfw-id=\"t\">commented out</h1> -->\n<main data-dfw-id=\"m\" title=\"<p data-dfw-id='t'>\" data-x='a > b'>\n  <h1 data-dfw-id=\"t\">\n    Hi\n  </h1>\n  <p data-dfw-id=\"u\">c &amp; d</p>\n</main>\n<script>const s = '<p data-dfw-id=\"t\">x</p>';</script>\n</body></html>"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "changed": true,
+          "line": 3
+        }
+      },
+      "files": {
+        ".dfw/edits/#2": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"file\":\"design/screens/items/a.html\",\"op\":{\"op\":\"spacing\",\"id\":\"m\",\"prop\":\"gap\",\"value\":\"space.2\"},\"before\":\"<html><head><style>.x[data-dfw-id=\\\"t\\\"] { color: red }</style></head><body>\\n<!-- <h1 data-dfw-id=\\\"t\\\">commented out</h1> -->\\n<main data-dfw-id=\\\"m\\\" title=\\\"<p data-dfw-id='t'>\\\" data-x='a > b'>\\n  <h1 data-dfw-id=\\\"t\\\">\\n    Hi\\n  </h1>\\n  <p data-dfw-id=\\\"u\\\">c &amp; d</p>\\n</main>\\n<script>const s = '<p data-dfw-id=\\\"t\\\">x</p>';</script>\\n</body></html>\",\"after\":\"<html><head><style>.x[data-dfw-id=\\\"t\\\"] { color: red }</style></head><body>\\n<!-- <h1 data-dfw-id=\\\"t\\\">commented out</h1> -->\\n<main data-dfw-id=\\\"m\\\" title=\\\"<p data-dfw-id='t'>\\\" data-x='a > b' style=\\\"gap: var(--space-2)\\\">\\n  <h1 data-dfw-id=\\\"t\\\">\\n    Hi\\n  </h1>\\n  <p data-dfw-id=\\\"u\\\">c &amp; d</p>\\n</main>\\n<script>const s = '<p data-dfw-id=\\\"t\\\">x</p>';</script>\\n</body></html>\"}",
+        "design/screens/items/a.html": "<html><head><style>.x[data-dfw-id=\"t\"] { color: red }</style></head><body>\n<!-- <h1 data-dfw-id=\"t\">commented out</h1> -->\n<main data-dfw-id=\"m\" title=\"<p data-dfw-id='t'>\" data-x='a > b' style=\"gap: var(--space-2)\">\n  <h1 data-dfw-id=\"t\">\n    Hi\n  </h1>\n  <p data-dfw-id=\"u\">c &amp; d</p>\n</main>\n<script>const s = '<p data-dfw-id=\"t\">x</p>';</script>\n</body></html>"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "changed": true,
+          "line": 4
+        }
+      },
+      "files": {
+        ".dfw/edits/#3": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"file\":\"design/screens/items/a.html\",\"op\":{\"op\":\"move\",\"id\":\"u\",\"ref\":\"t\",\"position\":\"before\"},\"before\":\"<html><head><style>.x[data-dfw-id=\\\"t\\\"] { color: red }</style></head><body>\\n<!-- <h1 data-dfw-id=\\\"t\\\">commented out</h1> -->\\n<main data-dfw-id=\\\"m\\\" title=\\\"<p data-dfw-id='t'>\\\" data-x='a > b' style=\\\"gap: var(--space-2)\\\">\\n  <h1 data-dfw-id=\\\"t\\\">\\n    Hi\\n  </h1>\\n  <p data-dfw-id=\\\"u\\\">c &amp; d</p>\\n</main>\\n<script>const s = '<p data-dfw-id=\\\"t\\\">x</p>';</script>\\n</body></html>\",\"after\":\"<html><head><style>.x[data-dfw-id=\\\"t\\\"] { color: red }</style></head><body>\\n<!-- <h1 data-dfw-id=\\\"t\\\">commented out</h1> -->\\n<main data-dfw-id=\\\"m\\\" title=\\\"<p data-dfw-id='t'>\\\" data-x='a > b' style=\\\"gap: var(--space-2)\\\">\\n  <p data-dfw-id=\\\"u\\\">c &amp; d</p>\\n  <h1 data-dfw-id=\\\"t\\\">\\n    Hi\\n  </h1>\\n</main>\\n<script>const s = '<p data-dfw-id=\\\"t\\\">x</p>';</script>\\n</body></html>\"}",
+        "design/screens/items/a.html": "<html><head><style>.x[data-dfw-id=\"t\"] { color: red }</style></head><body>\n<!-- <h1 data-dfw-id=\"t\">commented out</h1> -->\n<main data-dfw-id=\"m\" title=\"<p data-dfw-id='t'>\" data-x='a > b' style=\"gap: var(--space-2)\">\n  <p data-dfw-id=\"u\">c &amp; d</p>\n  <h1 data-dfw-id=\"t\">\n    Hi\n  </h1>\n</main>\n<script>const s = '<p data-dfw-id=\"t\">x</p>';</script>\n</body></html>"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "changed": true,
+          "line": 9
+        }
+      },
+      "files": {
+        ".dfw/edits/#4": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"file\":\"design/screens/items/a.html\",\"op\":{\"op\":\"layout\",\"id\":\"u\",\"prop\":\"width\",\"value\":\"25%\"},\"before\":\"<html><head><style>.x[data-dfw-id=\\\"t\\\"] { color: red }</style></head><body>\\n<!-- <h1 data-dfw-id=\\\"t\\\">commented out</h1> -->\\n<main data-dfw-id=\\\"m\\\" title=\\\"<p data-dfw-id='t'>\\\" data-x='a > b' style=\\\"gap: var(--space-2)\\\">\\n  <p data-dfw-id=\\\"u\\\">c &amp; d</p>\\n  <h1 data-dfw-id=\\\"t\\\">\\n    Hi\\n  </h1>\\n</main>\\n<script>const s = '<p data-dfw-id=\\\"t\\\">x</p>';</script>\\n</body></html>\",\"after\":\"<html><head><style>.x[data-dfw-id=\\\"t\\\"] { color: red }</style>\\n<style data-dfw-layout>\\n  /* dfw Studio layout edits (drag/resize): layout properties only, one rule per element; :not(#dfw) lifts specificity over screen rules. */\\n  [data-dfw-id='u']:not(#dfw) { width: 25%; }\\n</style>\\n</head><body>\\n<!-- <h1 data-dfw-id=\\\"t\\\">commented out</h1> -->\\n<main data-dfw-id=\\\"m\\\" title=\\\"<p data-dfw-id='t'>\\\" data-x='a > b' style=\\\"gap: var(--space-2)\\\">\\n  <p data-dfw-id=\\\"u\\\">c &amp; d</p>\\n  <h1 data-dfw-id=\\\"t\\\">\\n    Hi\\n  </h1>\\n</main>\\n<script>const s = '<p data-dfw-id=\\\"t\\\">x</p>';</script>\\n</body></html>\"}",
+        "design/screens/items/a.html": "<html><head><style>.x[data-dfw-id=\"t\"] { color: red }</style>\n<style data-dfw-layout>\n  /* dfw Studio layout edits (drag/resize): layout properties only, one rule per element; :not(#dfw) lifts specificity over screen rules. */\n  [data-dfw-id='u']:not(#dfw) { width: 25%; }\n</style>\n</head><body>\n<!-- <h1 data-dfw-id=\"t\">commented out</h1> -->\n<main data-dfw-id=\"m\" title=\"<p data-dfw-id='t'>\" data-x='a > b' style=\"gap: var(--space-2)\">\n  <p data-dfw-id=\"u\">c &amp; d</p>\n  <h1 data-dfw-id=\"t\">\n    Hi\n  </h1>\n</main>\n<script>const s = '<p data-dfw-id=\"t\">x</p>';</script>\n</body></html>"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "op": {
+            "op": "layout",
+            "id": "u",
+            "prop": "width",
+            "value": "25%"
+          },
+          "remaining": 4
+        }
+      },
+      "files": {
+        ".dfw/edits/#4": null,
+        "design/screens/items/a.html": "<html><head><style>.x[data-dfw-id=\"t\"] { color: red }</style></head><body>\n<!-- <h1 data-dfw-id=\"t\">commented out</h1> -->\n<main data-dfw-id=\"m\" title=\"<p data-dfw-id='t'>\" data-x='a > b' style=\"gap: var(--space-2)\">\n  <p data-dfw-id=\"u\">c &amp; d</p>\n  <h1 data-dfw-id=\"t\">\n    Hi\n  </h1>\n</main>\n<script>const s = '<p data-dfw-id=\"t\">x</p>';</script>\n</body></html>"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "op": {
+            "op": "move",
+            "id": "u",
+            "ref": "t",
+            "position": "before"
+          },
+          "remaining": 3
+        }
+      },
+      "files": {
+        ".dfw/edits/#3": null,
+        "design/screens/items/a.html": "<html><head><style>.x[data-dfw-id=\"t\"] { color: red }</style></head><body>\n<!-- <h1 data-dfw-id=\"t\">commented out</h1> -->\n<main data-dfw-id=\"m\" title=\"<p data-dfw-id='t'>\" data-x='a > b' style=\"gap: var(--space-2)\">\n  <h1 data-dfw-id=\"t\">\n    Hi\n  </h1>\n  <p data-dfw-id=\"u\">c &amp; d</p>\n</main>\n<script>const s = '<p data-dfw-id=\"t\">x</p>';</script>\n</body></html>"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "op": {
+            "op": "spacing",
+            "id": "m",
+            "prop": "gap",
+            "value": "space.2"
+          },
+          "remaining": 2
+        }
+      },
+      "files": {
+        ".dfw/edits/#2": null,
+        "design/screens/items/a.html": "<html><head><style>.x[data-dfw-id=\"t\"] { color: red }</style></head><body>\n<!-- <h1 data-dfw-id=\"t\">commented out</h1> -->\n<main data-dfw-id=\"m\" title=\"<p data-dfw-id='t'>\" data-x='a > b'>\n  <h1 data-dfw-id=\"t\">\n    Hi\n  </h1>\n  <p data-dfw-id=\"u\">c &amp; d</p>\n</main>\n<script>const s = '<p data-dfw-id=\"t\">x</p>';</script>\n</body></html>"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "op": {
+            "op": "text",
+            "id": "u",
+            "value": "c & d"
+          },
+          "remaining": 1
+        }
+      },
+      "files": {
+        ".dfw/edits/#1": null,
+        "design/screens/items/a.html": "<html><head><style>.x[data-dfw-id=\"t\"] { color: red }</style></head><body>\n<!-- <h1 data-dfw-id=\"t\">commented out</h1> -->\n<main data-dfw-id=\"m\" title=\"<p data-dfw-id='t'>\" data-x='a > b'>\n  <h1 data-dfw-id=\"t\">\n    Hi\n  </h1>\n  <p data-dfw-id=\"u\">a &amp; b</p>\n</main>\n<script>const s = '<p data-dfw-id=\"t\">x</p>';</script>\n</body></html>"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "op": {
+            "op": "text",
+            "id": "t",
+            "value": "Hi"
+          },
+          "remaining": 0
+        }
+      },
+      "files": {
+        ".dfw/edits/#0": null,
+        "design/screens/items/a.html": "<html><head><style>.x[data-dfw-id=\"t\"] { color: red }</style></head><body>\n<!-- <h1 data-dfw-id=\"t\">commented out</h1> -->\n<main data-dfw-id=\"m\" title=\"<p data-dfw-id='t'>\" data-x='a > b'>\n  <h1 data-dfw-id=\"t\">\n    Welcome back\n  </h1>\n  <p data-dfw-id=\"u\">a &amp; b</p>\n</main>\n<script>const s = '<p data-dfw-id=\"t\">x</p>';</script>\n</body></html>"
+      }
+    }
+  ]
+}

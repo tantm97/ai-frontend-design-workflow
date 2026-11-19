@@ -1,0 +1,15 @@
+{
+  "test": "compose > inputs the tokenizer reads correctly where the regular expressions did not",
+  "results": [
+    "{\"html\":\"<section class=\\\"box\\\" data-dfw-component=\\\"t-box\\\"><p title=\\\"</dfw-use>\\\">x</p><footer></footer></section>\",\"instances\":[{\"component\":\"t-box\",\"variant\":\"\",\"size\":\"\",\"id\":null,\"line\":1}],\"issues\":[]}",
+    "{\"html\":\"<p title=\\\"<dfw-use c='button'>x</dfw-use>\\\">t</p>\",\"instances\":[],\"issues\":[]}",
+    "{\"html\":\"<section class=\\\"box\\\" data-dfw-component=\\\"t-box\\\"><p title=\\\"<dfw-fill slot='foot'>\\\">x</p><footer></footer></section>\",\"instances\":[{\"component\":\"t-box\",\"variant\":\"\",\"size\":\"\",\"id\":null,\"line\":1}],\"issues\":[]}",
+    "{\"html\":\"<script>const s = '<dfw-use c=\\\"button\\\">x</dfw-use>';</script>\",\"instances\":[],\"issues\":[]}",
+    "{\"html\":\"<style>/* <dfw-icon name=\\\"nope\\\"></dfw-icon> */</style>\",\"instances\":[],\"issues\":[]}",
+    "{\"html\":\"<!-- <dfw-head></dfw-head> --><head><link rel=\\\"preconnect\\\" href=\\\"https://fonts.googleapis.com\\\">\\n<link rel=\\\"preconnect\\\" href=\\\"https://fonts.gstatic.com\\\" crossorigin>\\n<link rel=\\\"stylesheet\\\" href=\\\"https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&family=JetBrains+Mono:wght@400;500&display=swap\\\">\\n<link rel=\\\"stylesheet\\\" href=\\\"../../tokens/tokens.css\\\">\\n<link rel=\\\"stylesheet\\\" href=\\\"../../system/components.css\\\"></head>\",\"instances\":[],\"issues\":[]}",
+    "{\"html\":\"<p class=\\\"p\\\" data-dfw-component=\\\"t-comment\\\"><!-- inner <dfw-slot></dfw-slot> -->content</p>\",\"instances\":[{\"component\":\"t-comment\",\"variant\":\"\",\"size\":\"\",\"id\":null,\"line\":1}],\"issues\":[]}",
+    "{\"html\":\"<section class=\\\"box\\\" data-dfw-component=\\\"t-box\\\">a<dfw-use-x>b<footer></footer></section>c</dfw-use-x>\",\"instances\":[{\"component\":\"t-box\",\"variant\":\"\",\"size\":\"\",\"id\":null,\"line\":1}],\"issues\":[]}",
+    "{\"html\":\"<dfw-use-x c=\\\"t-box\\\">x</dfw-use-x>\",\"instances\":[],\"issues\":[]}",
+    "{\"html\":\"<section class=\\\"box\\\" 2=\\\"b\\\" 1=\\\"a\\\" z=\\\"c\\\" data-dfw-component=\\\"t-box\\\">x<footer></footer></section>\",\"instances\":[{\"component\":\"t-box\",\"variant\":\"\",\"size\":\"\",\"id\":null,\"line\":1}],\"issues\":[]}"
+  ]
+}

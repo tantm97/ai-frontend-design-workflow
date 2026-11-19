@@ -1,0 +1,17 @@
+{
+  "test": "studio server: Node and native answer the same > live reload: a design change and a review file change reach the pages; presence is relayed",
+  "results": [
+    {
+      "name": "design",
+      "data": "{\"files\":[\"screens/items/a.html\"]}"
+    },
+    {
+      "name": "comments",
+      "data": "{}"
+    },
+    {
+      "name": "presence",
+      "data": "{\"file\":\"screens/items/a.html\",\"dfwId\":\"items.title\"}"
+    }
+  ]
+}
