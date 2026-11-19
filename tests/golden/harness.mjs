@@ -170,8 +170,18 @@ export function runWith(cmd, cmdArgs, args, opts = {}) {
     opts.setup?.(root);
     const before = snapshot(root);
     const env = { ...process.env };
-    for (const k of ['DFW_NO_BINARY', 'DFW_VERSION', 'XDG_CONFIG_HOME', 'CLAUDE_CONFIG_DIR']) delete env[k];
+    for (const k of ['DFW_NO_BINARY', 'DFW_VERSION']) delete env[k];
+    // Never the developer's home: every place the binary or a host CLI could read or write
+    // user-global config points into this run's temporary folder.
+    const userHome = path.join(tmp, 'userhome');
+    fs.mkdirSync(userHome);
     Object.assign(env, {
+      HOME: userHome,
+      USERPROFILE: userHome,
+      XDG_CONFIG_HOME: path.join(userHome, '.config'),
+      CLAUDE_CONFIG_DIR: path.join(userHome, '.claude'),
+      COPILOT_HOME: path.join(userHome, '.copilot'),
+      CODEX_HOME: path.join(userHome, '.codex'),
       DFW_HOME: path.join(tmp, 'home'),
       DFW_NOW: NOW,
       DFW_PROJECT_DIR: root,
