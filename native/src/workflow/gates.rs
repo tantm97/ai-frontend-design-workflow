@@ -1,7 +1,9 @@
 //! Ports `core/lib/gate.mjs`: the write gate decision (`decideWrite`) and the paths a tool call
 //! writes (`filesFromPatch`, `filesFromToolInput`).
 
-use std::path::{Component, Path};
+use std::ffi::OsStr;
+use std::fs;
+use std::path::{Component, Path, PathBuf};
 
 use serde_json::Value;
 
@@ -52,8 +54,61 @@ pub fn relative(from: &Path, to: &Path) -> String {
     up.chain(down).collect::<Vec<_>>().join("/")
 }
 
+/// Whether paths are compared without case: macOS (APFS, HFS+) and Windows (NTFS) volumes ignore
+/// case by default, so `design/Approved` is `design/approved` there. Decided per OS, without
+/// testing the volume: on the rare case-sensitive volume of those systems it only refuses more.
+const FOLD_CASE: bool = cfg!(any(target_os = "macos", target_os = "windows"));
+
+/// [`matches_any`], without case when `fold` is set.
+fn matches(rel: &str, globs: &[String], fold: bool) -> bool {
+    if !fold {
+        return matches_any(rel, globs);
+    }
+    let globs: Vec<String> = globs.iter().map(|g| g.to_lowercase()).collect();
+    matches_any(&rel.to_lowercase(), &globs)
+}
+
+/// The real path of an absolute, normalized path that may not exist yet: the nearest existing
+/// ancestor with its symlinks resolved, then the rest as given. A symlink whose target is
+/// missing is followed as well, since a write through it creates the target. `None` when the
+/// path cannot be resolved (a loop, an unreadable folder).
+pub fn real_path(path: &Path) -> Option<PathBuf> {
+    let mut path = path.to_path_buf();
+    for _ in 0..40 {
+        let mut existing = path.as_path();
+        let mut rest: Vec<&OsStr> = Vec::new();
+        while fs::symlink_metadata(existing).is_err() {
+            rest.push(existing.file_name()?);
+            existing = existing.parent()?;
+        }
+        let append = |base: PathBuf| rest.iter().rev().fold(base, |p, part| p.join(part));
+        match fs::canonicalize(existing) {
+            Ok(real) => return Some(append(real)),
+            Err(_) => {
+                // A dangling symlink: go on from its target.
+                let target = fs::read_link(existing).ok()?;
+                let next = append(resolve(existing.parent()?.join(target)));
+                path = next;
+            }
+        }
+    }
+    None
+}
+
+/// The path of `abs_file` relative to the project, by real path: a symlink, a case variant or
+/// an alias of the root (`/tmp` and `/private/tmp`) names the file it reaches. `None` when one
+/// of the two cannot be resolved.
+fn real_relative(root: &Path, abs_file: &Path) -> Option<String> {
+    let real_root = real_path(&resolve(root))?;
+    let real_file = real_path(&resolve(root.join(abs_file)))?;
+    Some(relative(&real_root, &real_file))
+}
+
 /// `decideWrite({ root, state, config, absFile })`: decide whether a write to `abs_file` is
 /// allowed. `state` is `None` when the project has no workflow.
+///
+/// The decision is made on the real path. A path that cannot be resolved is decided by its
+/// written form, and is never "outside the project".
 pub fn decide_write(
     root: &Path,
     state: Option<&Value>,
@@ -66,25 +121,47 @@ pub fn decide_write(
     if state.get("active") == Some(&Value::Bool(false)) {
         return Ok(Decision::allow());
     }
-    let rel = relative(&resolve(root), &resolve(root.join(abs_file)));
+    let (rel, resolved) = match real_relative(root, abs_file) {
+        Some(rel) => (rel, true),
+        None => (
+            relative(&resolve(root), &resolve(root.join(abs_file))),
+            false,
+        ),
+    };
+    decide_rel(state, config, &rel, resolved, FOLD_CASE)
+}
+
+/// The decision for a path relative to the project. `outside_allowed` is false for a path that
+/// could not be resolved; `fold` compares the frozen and locked paths without case.
+fn decide_rel(
+    state: &Value,
+    config: &Value,
+    rel: &str,
+    outside_allowed: bool,
+    fold: bool,
+) -> Result<Decision, DfwError> {
     // Outside the project; "..x.ts" is inside.
-    if rel == ".." || rel.starts_with("../") {
+    if outside_allowed && (rel == ".." || rel.starts_with("../")) {
         return Ok(Decision::allow());
     }
-    if matches_any(&rel, &gate_immutable(config)) {
+    if matches(rel, &gate_immutable(config), fold) {
         return Ok(Decision::deny(format!("dfw gate: \"{rel}\" is part of a frozen, approved design snapshot and is immutable. To change the approved design, ask the user, then run \"dfw reopen --reason <why>\" and edit the working copy in design/.")));
     }
-    if matches_any(&rel, &gate_allow(config)) {
+    if matches_any(rel, &gate_allow(config)) {
         return Ok(Decision::allow());
     }
     if state.get("mode").and_then(Value::as_str) == Some("review-only") {
         return Ok(Decision::deny("dfw gate: this project is in review-only mode; no files may be modified except under .dfw/. Report findings instead.".into()));
     }
-    if matches_any(&rel, &gate_design_paths(config)) {
-        let design = state.get("design");
-        if js::truthy_value(design.and_then(|d| d.get("locked"))).is_some() {
-            return Ok(Decision::deny(format!("dfw gate: design v{} is approved and locked. Visual changes to an approved design need user approval: ask the user, then run \"dfw reopen --reason <why>\".", js::to_string(design.and_then(|d| d.get("version"))))));
-        }
+    let design_paths = gate_design_paths(config);
+    let design = state.get("design");
+    // A locked design is refused under any case of its name; an open one is allowed as written.
+    if js::truthy_value(design.and_then(|d| d.get("locked"))).is_some()
+        && matches(rel, &design_paths, fold)
+    {
+        return Ok(Decision::deny(format!("dfw gate: design v{} is approved and locked. Visual changes to an approved design need user approval: ask the user, then run \"dfw reopen --reason <why>\".", js::to_string(design.and_then(|d| d.get("version"))))));
+    }
+    if matches_any(rel, &design_paths) {
         return Ok(Decision::allow());
     }
 
@@ -164,7 +241,6 @@ mod tests {
     use crate::core::host::normalize_hook_input;
     use crate::workflow::state::new_state;
     use serde_json::json;
-    use std::path::PathBuf;
 
     /// write gate decisions (tests/unit/dfw.test.mjs)
     #[test]
@@ -258,6 +334,117 @@ mod tests {
         assert!(!allow(Path::new("...")));
         assert!(allow(Path::new("../x.ts")), "outside the project");
         assert!(allow(Path::new("..")), "outside the project");
+    }
+
+    /// A frozen state: v1 approved and locked, G3 approved, phase implement.
+    fn implementing() -> Value {
+        let mut s = new_state("new-product", "".into()).unwrap();
+        s["design"] = json!({ "version": 1, "status": "approved", "locked": true, "approved": [{ "version": "v1" }] });
+        s["gates"]["G3"] = json!({ "approvedAt": "x" });
+        s["phase"] = "implement".into();
+        s
+    }
+
+    /// CO-4: a case variant of a frozen or locked path is refused where the volume ignores case.
+    #[test]
+    fn case_variants_of_frozen_and_locked_paths() {
+        let config = defaults();
+        let draft = new_state("new-product", "".into()).unwrap();
+        let allow = |s: &Value, rel: &str, fold: bool| {
+            decide_rel(s, &config, rel, true, fold).unwrap().allow
+        };
+        assert!(!allow(&draft, "design/Approved/v1/a.html", true));
+        assert!(!allow(&draft, "DESIGN/APPROVED/v1/a.html", true));
+        assert!(
+            allow(&draft, "design/Approved/v1/a.html", false),
+            "case-sensitive: another folder"
+        );
+        let s = implementing();
+        assert!(
+            !allow(&s, "Design/screens/a.html", true),
+            "locked under any case"
+        );
+        assert!(!allow(&s, "design.MD", true));
+        assert!(
+            allow(&s, "Design/screens/a.html", false),
+            "case-sensitive: app code"
+        );
+        assert!(allow(&s, "design/handoff/v1.md", true));
+        // On the file system of this machine: a reopened project, the frozen file by another case.
+        let root = crate::core::util::test_dir("gate-case");
+        fs::create_dir_all(root.join("design/approved/v1")).unwrap();
+        fs::write(root.join("design/approved/v1/a.html"), "x").unwrap();
+        let mut reopened = draft.clone();
+        reopened["design"]["version"] = 2.into();
+        let written = decide_write(
+            &root,
+            Some(&reopened),
+            &config,
+            &root.join("design/Approved/v1/a.html"),
+        )
+        .unwrap();
+        assert_eq!(written.allow, !FOLD_CASE);
+    }
+
+    /// CO-4: a symlink is decided by the file it reaches.
+    #[cfg(unix)]
+    #[test]
+    fn symlinks_are_decided_by_their_target() {
+        use std::os::unix::fs::symlink;
+        let config = defaults();
+        let root = crate::core::util::test_dir("gate-link");
+        fs::create_dir_all(root.join("design/approved/v1")).unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        symlink(root.join("design/approved"), root.join("design/snap")).unwrap();
+        symlink("../src/new.ts", root.join("design/dangling.html")).unwrap();
+        symlink(root.join("src"), root.join("design/code")).unwrap();
+        let s = new_state("new-product", "".into()).unwrap();
+        let decide = |f: &str| decide_write(&root, Some(&s), &config, &root.join(f)).unwrap();
+        let snap = decide("design/snap/v1/a.html");
+        assert!(!snap.allow);
+        assert!(snap
+            .reason
+            .unwrap()
+            .contains("\"design/approved/v1/a.html\" is part of a frozen"));
+        assert!(
+            !decide("design/dangling.html").allow,
+            "a write through a dangling link creates src/new.ts"
+        );
+        assert!(!decide("design/code/a.ts").allow);
+        assert!(decide("design/screens/a.html").allow);
+    }
+
+    /// CO-4: an alias of the project folder (`/tmp` and `/private/tmp` on macOS, a symlinked
+    /// root, `CLAUDE_PROJECT_DIR` set to the alias) is the project.
+    #[cfg(unix)]
+    #[test]
+    fn an_alias_of_the_root_is_the_project() {
+        use std::os::unix::fs::symlink;
+        let config = defaults();
+        let base = crate::core::util::test_dir("gate-alias");
+        let root = base.join("project");
+        fs::create_dir_all(root.join("src")).unwrap();
+        symlink(&root, base.join("alias")).unwrap();
+        let alias = base.join("alias");
+        let s = new_state("new-product", "".into()).unwrap();
+        let reason = |r: &Path, f: PathBuf| decide_write(r, Some(&s), &config, &f).unwrap();
+        for (r, f) in [
+            (&root, alias.join("src/a.ts")),
+            (&alias, root.join("src/a.ts")),
+            (&alias, alias.join("src/new/b.ts")),
+        ] {
+            let d = reason(r, f.clone());
+            assert!(!d.allow, "{} in {}", f.display(), r.display());
+            assert!(d.reason.unwrap().contains("cannot be modified yet (\"src/"));
+        }
+        assert!(
+            reason(&alias, base.join("elsewhere/x.ts")).allow,
+            "outside the project"
+        );
+        // A path that cannot be resolved (a symlink loop) is never "outside".
+        symlink("loop", base.join("loop")).unwrap();
+        assert_eq!(real_path(&base.join("loop/x.ts")), None);
+        assert!(!reason(&root, base.join("loop/x.ts")).allow);
     }
 
     #[test]
