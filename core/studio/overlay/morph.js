@@ -17,6 +17,13 @@ export const sheetPath = (/** @type {string} */ href) => {
     return href;
   }
 };
+/** @type {ReadonlySet<string>} */
+const NO_NAMES = new Set();
+/**
+ * Attributes of <html> the overlay owns: the theme and state the Studio picked (overlay/messages.js)
+ * and the tool's cursor. The source's own <html> attributes (lang, dir, class, data-*) follow it.
+ */
+export const ROOT_OWNED = new Set(['data-theme', 'data-state', 'style']);
 const hasScript = (/** @type {Node} */ n) =>
   n.nodeType === 1 && (n.nodeName === 'SCRIPT' || /** @type {Element} */ (n).querySelector('script'));
 
@@ -25,18 +32,19 @@ const hasScript = (/** @type {Node} */ n) =>
  * @param {Element} from
  * @param {Element} to
  * @param {Set<Node>} changed
+ * @param {ReadonlySet<string>} [keepNames] attributes the page sets at run time: left as they are
  */
-function syncAttrs(from, to, changed) {
+export function syncAttrs(from, to, changed, keepNames = NO_NAMES) {
   // A stylesheet link is refreshed by swapSheets (its href only differs by the cache key).
   if (from.nodeName === 'LINK' && sheetPath(from.getAttribute('href') || '') === sheetPath(to.getAttribute('href') || '')) return;
   let diff = false;
   for (const a of [...from.attributes]) {
-    if (a.name === 'contenteditable' || to.hasAttribute(a.name)) continue;
+    if (a.name === 'contenteditable' || keepNames.has(a.name) || to.hasAttribute(a.name)) continue;
     from.removeAttribute(a.name);
     diff = true;
   }
   for (const a of [...to.attributes]) {
-    if (from.getAttribute(a.name) === a.value) continue;
+    if (keepNames.has(a.name) || from.getAttribute(a.name) === a.value) continue;
     from.setAttribute(a.name, a.value);
     diff = true;
   }

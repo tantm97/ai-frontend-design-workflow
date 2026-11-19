@@ -64,7 +64,10 @@ export function fetchAt(repo, sha, cacheRoot, paths = null) {
 
 export function commitCount(repo, from, to) {
   try {
-    const out = execFileSync('gh', ['api', `repos/${repo}/compare/${from}...${to}`, '--jq', '.total_commits'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    const out = execFileSync('gh', ['api', `repos/${repo}/compare/${from}...${to}`, '--jq', '.total_commits'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
     return Number(out.trim());
   } catch {
     return null;

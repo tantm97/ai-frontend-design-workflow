@@ -23,7 +23,7 @@ function frameInfoHtml(/** @type {any} */ f) {
   <div class="isec"><h3>Frame</h3><dl class="kv">
     <dt>Screen</dt><dd>${esc(s.id)}</dd>
     <dt>Variant</dt><dd>${esc(f.variant.label || f.variant.id)}</dd>
-    <dt>Breakpoint</dt><dd>${esc(f.bp.label || f.bp.id)} · ${f.bp.width}×${f.bp.height}</dd>
+    <dt>Breakpoint</dt><dd>${esc(f.bp.label || f.bp.id)} · ${esc(f.bp.width)}×${esc(f.bp.height)}</dd>
     <dt>State</dt><dd>${esc(f.state || 'default')}</dd>
     <dt>File</dt><dd><code>design/${esc(f.file)}</code></dd>
   </dl><div class="btn-row"><a class="btn" href="${esc(f.src)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;text-decoration:none;color:inherit">Open in new tab ↗</a></div></div>`;

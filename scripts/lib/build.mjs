@@ -65,7 +65,10 @@ export function buildPlugin(skill, sha, { outRoot = path.join(REPO_ROOT, 'plugin
   fs.mkdirSync(dest, { recursive: true });
   for (const inc of skill.include) {
     const from = path.join(src, inc.from);
-    if (!fs.existsSync(from)) throw new Error(`${skill.id}: "${inc.from}" does not exist upstream at ${sha.slice(0, 7)}. Upstream layout changed; update registry/skills.json.`);
+    if (!fs.existsSync(from))
+      throw new Error(
+        `${skill.id}: "${inc.from}" does not exist upstream at ${sha.slice(0, 7)}. Upstream layout changed; update registry/skills.json.`,
+      );
     copyEntry(from, path.join(dest, inc.to), inc.exclude || []);
   }
   for (const lf of skill.licenseFiles || []) {
@@ -85,7 +88,15 @@ export function buildPlugin(skill, sha, { outRoot = path.join(REPO_ROOT, 'plugin
   };
   if (skill.skillsPath) manifest.skills = skill.skillsPath;
   writeJson(path.join(dest, '.claude-plugin', 'plugin.json'), manifest);
-  const upstream = { id: skill.id, repo: skill.repo, sha, track: skill.track, include: skill.include, overlay: overlayLog, mode: skill.mode || 'plugin' };
+  const upstream = {
+    id: skill.id,
+    repo: skill.repo,
+    sha,
+    track: skill.track,
+    include: skill.include,
+    overlay: overlayLog,
+    mode: skill.mode || 'plugin',
+  };
   writeJson(path.join(dest, 'UPSTREAM.json'), upstream);
   return upstream;
 }
@@ -146,15 +157,33 @@ export function writeMarketplace(registry, lock, { root = REPO_ROOT } = {}) {
   const skills = registry.skills.map((s) => {
     const sha = lock.skills[s.id]?.sha;
     if (!sha) throw new Error(`No lock entry for ${s.id}`);
-    return { name: s.plugin, source: `./plugins/${s.plugin}`, description: s.description, version: `0.0.0-${sha.slice(0, 7)}`, category: 'design', license: s.license };
+    return {
+      name: s.plugin,
+      source: `./plugins/${s.plugin}`,
+      description: s.description,
+      version: `0.0.0-${sha.slice(0, 7)}`,
+      category: 'design',
+      license: s.license,
+    };
   });
   const out = {};
   for (const l of registry.local || []) {
     const spec = readJson(path.join(root, 'adapters', l.adapter, 'assemble.json'));
     const pj = readJson(path.join(root, 'plugins', spec.plugin, spec.manifest));
-    const entry = { name: spec.name || spec.plugin, source: `./plugins/${spec.plugin}`, description: l.description, version: pj.version, category: l.category };
+    const entry = {
+      name: spec.name || spec.plugin,
+      source: `./plugins/${spec.plugin}`,
+      description: l.description,
+      version: pj.version,
+      category: l.category,
+    };
     const file = l.marketplace || path.join('.claude-plugin', 'marketplace.json');
-    const mp = { name: registry.marketplace.name, owner: registry.marketplace.owner, metadata: { description: registry.marketplace.description }, plugins: [entry, ...skills] };
+    const mp = {
+      name: registry.marketplace.name,
+      owner: registry.marketplace.owner,
+      metadata: { description: registry.marketplace.description },
+      plugins: [entry, ...skills],
+    };
     writeJson(path.join(root, file), mp);
     out[file] = mp;
   }
@@ -166,7 +195,12 @@ function crateNotices(root) {
   const file = path.join(root, 'native', 'crate-licenses.json');
   if (!fs.existsSync(file)) return [];
   const { crates, unresolvedTargets } = readJson(file);
-  const linkedOn = (c) => (Array.isArray(c.linked) ? (c.linked.length === 5 ? 'all release targets' : c.linked.join(', ')) : `not on the resolved targets (${unresolvedTargets.length ? `${unresolvedTargets.join(', ')} not resolved offline; ` : ''}a test-only, build-time, Windows-only or other-platform crate)`);
+  const linkedOn = (c) =>
+    Array.isArray(c.linked)
+      ? c.linked.length === 5
+        ? 'all release targets'
+        : c.linked.join(', ')
+      : `not on the resolved targets (${unresolvedTargets.length ? `${unresolvedTargets.join(', ')} not resolved offline; ` : ''}a test-only, build-time, Windows-only or other-platform crate)`;
   return [
     '## Rust crates in the dfw binary',
     '',
@@ -203,7 +237,7 @@ export function writeNotices(registry, lock, { root = REPO_ROOT } = {}) {
     '| pixelmatch 8.0.0 | https://github.com/mapbox/pixelmatch (Copyright (c) 2025, Mapbox) | ISC | Ported to Rust for `dfw diff` (`native/src/browser/pixeldiff.rs`); the original is kept in `core/assets/vendor/pixelmatch.js` with its licence |',
     '| Lucide icons | https://github.com/lucide-icons/lucide (Copyright (c) Lucide Icons and Contributors) | ISC | The icon set of `dfw icons`, vendored at tag 1.64.0 in `core/assets/icons/` (licence in `LICENSE-lucide`) and embedded in the binary |',
     '',
-    'Downloaded on the user\'s machine, not shipped: axe-core 4.14.0 (https://github.com/dequelabs/axe-core, MPL-2.0), fetched by `dfw setup --a11y` (or `dfw install`) from the npm registry with its integrity hash checked and injected unmodified into rendered pages by `dfw check`; Google\'s chrome-headless-shell (Chrome for Testing, BSD-3-Clause and its own notices), fetched only by `dfw setup --browser`, or by `dfw install` when no Chromium-based browser is found (`--no-runtime` skips it). dfw otherwise drives an already-installed Chromium-based browser.',
+    "Downloaded on the user's machine, not shipped: axe-core 4.14.0 (https://github.com/dequelabs/axe-core, MPL-2.0), fetched by `dfw setup --a11y` (or `dfw install`) from the npm registry with its integrity hash checked and injected unmodified into rendered pages by `dfw check`; Google's chrome-headless-shell (Chrome for Testing, BSD-3-Clause and its own notices), fetched only by `dfw setup --browser`, or by `dfw install` when no Chromium-based browser is found (`--no-runtime` skips it). dfw otherwise drives an already-installed Chromium-based browser.",
     '',
     ...crateNotices(root),
   );
@@ -214,7 +248,9 @@ export function buildAll({ only, root = REPO_ROOT, outRoot } = {}) {
   const registry = loadRegistry(root);
   const lock = loadLock(root);
   const results = [];
-  if (!only) for (const l of registry.local || []) assembleAdapter(l.adapter || 'claude-code', { root, outRoot: outRoot || path.join(root, 'plugins') });
+  if (!only)
+    for (const l of registry.local || [])
+      assembleAdapter(l.adapter || 'claude-code', { root, outRoot: outRoot || path.join(root, 'plugins') });
   for (const s of registry.skills) {
     if (only && !only.includes(s.id)) continue;
     const sha = lock.skills[s.id]?.sha;

@@ -36,7 +36,9 @@ describe('host text: the build and the binary render the same', { skip: skipReas
   });
 
   test('the placeholders and blocks the files do not use yet', () => {
-    const text = `${Object.keys(HOSTS.claude.text).map((k) => `${k}: {{${k}}}`).join('\n')}\n<!-- host:claude -->a<!-- /host -->\n<!--host:copilot,mcp-->\nb\n<!--/host-->\n\`impeccable:impeccable\` {{UNKNOWN}}\n`;
+    const text = `${Object.keys(HOSTS.claude.text)
+      .map((k) => `${k}: {{${k}}}`)
+      .join('\n')}\n<!-- host:claude -->a<!-- /host -->\n<!--host:copilot,mcp-->\nb\n<!--/host-->\n\`impeccable:impeccable\` {{UNKNOWN}}\n`;
     for (const host of Object.keys(HOSTS)) {
       const r = spawnSync(nativeBinary(), ['__debug', 'host-render', host], { input: text, encoding: 'utf8' });
       assert.equal(r.stdout, `${renderText(text, host)}\n`, host);

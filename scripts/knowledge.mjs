@@ -60,12 +60,16 @@ async function main() {
     for (const k of list) {
       const head = execFileSync('git', ['ls-remote', `https://github.com/${k.repo}`, 'HEAD'], { encoding: 'utf8' }).split(/\s/)[0];
       const upstream = await get(raw(k.repo, head, k.path));
-      console.log(`${k.id}: pinned ${k.commit.slice(0, 12)}, upstream ${head.slice(0, 12)}${sha256(upstream) === k.sha256 ? ' (same content)' : ' (CONTENT CHANGED: npm run knowledge -- bump ' + k.id + ')'}`);
+      console.log(
+        `${k.id}: pinned ${k.commit.slice(0, 12)}, upstream ${head.slice(0, 12)}${sha256(upstream) === k.sha256 ? ' (same content)' : ' (CONTENT CHANGED: npm run knowledge -- bump ' + k.id + ')'}`,
+      );
     }
   } else if (cmd === 'bump') {
     const k = list.find((x) => x.id === id);
     if (!k) throw new Error(`Unknown knowledge id "${id}"`);
-    const to = process.argv.includes('--to') ? process.argv[process.argv.indexOf('--to') + 1] : execFileSync('git', ['ls-remote', `https://github.com/${k.repo}`, 'HEAD'], { encoding: 'utf8' }).split(/\s/)[0];
+    const to = process.argv.includes('--to')
+      ? process.argv[process.argv.indexOf('--to') + 1]
+      : execFileSync('git', ['ls-remote', `https://github.com/${k.repo}`, 'HEAD'], { encoding: 'utf8' }).split(/\s/)[0];
     const body = await get(raw(k.repo, to, k.path));
     // Edit the pin as text so registry/skills.json keeps its formatting.
     const text = fs.readFileSync(REG, 'utf8').replace(k.commit, to).replace(k.sha256, sha256(body));
@@ -78,7 +82,8 @@ async function main() {
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) main().catch((e) => {
-  console.error(e.message);
-  process.exit(1);
-});
+if (process.argv[1] === fileURLToPath(import.meta.url))
+  main().catch((e) => {
+    console.error(e.message);
+    process.exit(1);
+  });

@@ -17,6 +17,10 @@
     return !!sc && e.altKey === sc.alt && e.ctrlKey === sc.ctrl && e.shiftKey === sc.shift && e.metaKey === sc.meta && (e.code === (/\d/.test(sc.key) ? "Digit" : "Key") + sc.key.toUpperCase() || String(e.key).toLowerCase() === sc.key);
   }
 
+  // core/studio/overlay/fields.js
+  var EDITABLE_FIELD = 'input, textarea, select, [contenteditable]:not([contenteditable="false"])';
+  var isTypingTarget = (t) => !!t && (t.isContentEditable === true || typeof t.closest === "function" && !!t.closest(EDITABLE_FIELD));
+
   // core/studio/live/main.js
   function main() {
     if (window.__dfwLive || window.top !== window) return;
@@ -48,7 +52,7 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
 .toast{position:fixed;left:50%;bottom:72px;transform:translateX(-50%);background:#111;color:#fff;padding:8px 14px;border-radius:6px;pointer-events:none}
 [hidden]{display:none!important}`;
     sh.innerHTML = `<div class="box" hidden><span class="tag"></span></div>
-<div class="bar" role="toolbar" aria-label="dfw review"><b>dfw</b><button type="button" class="toggle" aria-pressed="false" title="Comment on an element${label ? ` (${label})` : ""}">Comment</button></div>
+<div class="bar" role="toolbar" aria-label="dfw review"><b>dfw</b><button type="button" class="toggle" aria-pressed="false">Comment</button></div>
 <form class="pop" hidden><span class="src"></span><textarea aria-label="Comment for Claude" placeholder="What should change?"></textarea>
 <div class="row"><button type="button" class="ghost cancel">Cancel</button><button type="submit" class="primary">Send to Claude</button></div></form>
 <div class="toast" role="status" hidden></div>`;
@@ -64,6 +68,7 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
     const $ = (s) => sh.querySelector(s);
     const box = $(".box");
     const toggle = $(".toggle");
+    toggle.title = `Comment on an element${label ? ` (${label})` : ""}`;
     const pop = $(".pop");
     const text = $("textarea");
     const toastEl = $(".toast");
@@ -196,7 +201,7 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
           /** @type {any} */
           e.composedPath()[0] || e.target
         );
-        const typing = t && (t.isContentEditable || t.closest && t.closest("input, textarea, select, [contenteditable]:not([contenteditable=false])"));
+        const typing = isTypingTarget(t);
         if (e.key === "Escape" && (on || !pop.hidden)) {
           closeComposer();
           setOn(false);

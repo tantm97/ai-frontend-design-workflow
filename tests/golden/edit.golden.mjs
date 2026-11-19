@@ -27,7 +27,9 @@ after(() => fs.rmSync(TMP, { recursive: true, force: true }));
 /** False on a file system that ignores letter case (the default on macOS and Windows), else why to skip. */
 const CASE_SENSITIVE = (() => {
   fs.writeFileSync(path.join(TMP, 'probe-Case'), '');
-  return fs.existsSync(path.join(TMP, 'probe-case')) ? false : 'case-sensitive file system: the letter-case check of design/approved/ does not apply';
+  return fs.existsSync(path.join(TMP, 'probe-case'))
+    ? false
+    : 'case-sensitive file system: the letter-case check of design/approved/ does not apply';
 })();
 
 const write = (root, rel, text) => {
@@ -49,7 +51,13 @@ function pair(setup) {
 
 function native(args, stdin = '') {
   const env = { ...process.env, DFW_PLUGIN_ROOT: CORE, DFW_NOW: NOW };
-  const r = spawnSync(nativeBinary(), ['__debug', ...args], { env, input: stdin, encoding: 'utf8', timeout: 180_000, maxBuffer: 64 * 1024 * 1024 });
+  const r = spawnSync(nativeBinary(), ['__debug', ...args], {
+    env,
+    input: stdin,
+    encoding: 'utf8',
+    timeout: 180_000,
+    maxBuffer: 64 * 1024 * 1024,
+  });
   if (r.error) throw r.error;
   return r;
 }
@@ -83,7 +91,6 @@ function tree(root) {
   return out;
 }
 
-
 /** The files that changed since the last call on this pair: new content, or null when deleted. */
 function changes(roots, now) {
   const last = seen.get(roots);
@@ -100,7 +107,11 @@ function sameChanges(roots, label) {
   const got = changes(roots, tree(roots.native));
   const want = expected(got);
   assert.deepEqual(Object.keys(got), Object.keys(want), `${label}: files written`);
-  for (const rel of Object.keys(want)) assert.ok(want[rel] === got[rel], `${label}: ${rel} differs\n  expected: ${JSON.stringify(want[rel]?.slice(0, 600))}\n  binary:   ${JSON.stringify(got[rel]?.slice(0, 600))}`);
+  for (const rel of Object.keys(want))
+    assert.ok(
+      want[rel] === got[rel],
+      `${label}: ${rel} differs\n  expected: ${JSON.stringify(want[rel]?.slice(0, 600))}\n  binary:   ${JSON.stringify(got[rel]?.slice(0, 600))}`,
+    );
 }
 /** A result and the files the call changed, against the recorded ones. */
 function sameCall(roots, result, label) {
@@ -108,7 +119,11 @@ function sameCall(roots, result, label) {
   const want = expected({ result, files });
   assert.deepEqual(result, want.result, label);
   assert.deepEqual(Object.keys(files), Object.keys(want.files), `${label}: files written`);
-  for (const rel of Object.keys(want.files)) assert.ok(want.files[rel] === files[rel], `${label}: ${rel} differs\n  expected: ${JSON.stringify(want.files[rel]?.slice(0, 600))}\n  binary:   ${JSON.stringify(files[rel]?.slice(0, 600))}`);
+  for (const rel of Object.keys(want.files))
+    assert.ok(
+      want.files[rel] === files[rel],
+      `${label}: ${rel} differs\n  expected: ${JSON.stringify(want.files[rel]?.slice(0, 600))}\n  binary:   ${JSON.stringify(files[rel]?.slice(0, 600))}`,
+    );
 }
 /** One edit: the recorded result or refusal, the recorded files. Returns the result. */
 function edit(roots, op) {
@@ -185,7 +200,11 @@ function lab(root) {
 describe('edit: every op', { skip: skipReason() }, () => {
   test('text: element text, instance slot text, white space kept, HTML escaped, values that are not strings', () => {
     const roots = pair(lab);
-    assert.deepEqual(ok(edit(roots, { file: A, op: 'text', id: 'items.title', value: 'Stock <now> & "then"' })), { file: `design/${A}`, changed: true, line: 18 });
+    assert.deepEqual(ok(edit(roots, { file: A, op: 'text', id: 'items.title', value: 'Stock <now> & "then"' })), {
+      file: `design/${A}`,
+      changed: true,
+      line: 18,
+    });
     ok(edit(roots, { file: `design/${A}`, op: 'text', id: 'items.add', value: 'New\n   item' }));
     ok(edit(roots, { file: `/design/${A}`, op: 'text', id: 'items.note', value: 42 }));
     ok(edit(roots, { file: A, op: 'text', id: 'items.note', value: true }));
@@ -229,11 +248,21 @@ describe('edit: every op', { skip: skipReason() }, () => {
     ok(edit(roots, { file: A, op: 'spacing', id: 'items.panel', prop: 'padding', value: 'space.2' }));
     ok(edit(roots, { file: A, op: 'spacing', id: 'items.panel', prop: 'gap', value: '' }));
     ok(edit(roots, { file: A, op: 'spacing', id: 'items.panel', prop: 'padding', value: null }));
-    assert.equal(fs.readFileSync(path.join(roots.native, 'design', A), 'utf8'), fs.readFileSync(path.join(FIXTURE, 'design', A), 'utf8'), 'style attribute removed again');
+    assert.equal(
+      fs.readFileSync(path.join(roots.native, 'design', A), 'utf8'),
+      fs.readFileSync(path.join(FIXTURE, 'design', A), 'utf8'),
+      'style attribute removed again',
+    );
     ok(edit(roots, { file: LAB, op: 'spacing', id: 'lab', prop: 'gap', value: 'space.4' }));
-    assert.match(fs.readFileSync(path.join(roots.native, 'design', LAB), 'utf8'), /style="color: var\(--color-ink\); padding: 4px; --colW: 3; gap: var\(--space-4\)"/);
+    assert.match(
+      fs.readFileSync(path.join(roots.native, 'design', LAB), 'utf8'),
+      /style="color: var\(--color-ink\); padding: 4px; --colW: 3; gap: var\(--space-4\)"/,
+    );
     ok(edit(roots, { file: LAB, op: 'spacing', id: 'lab', prop: 'margin-inline', value: 'space.2' }));
-    refused(edit(roots, { file: A, op: 'spacing', id: 'items.panel', prop: 'padding', value: 'color.ink' }), /"color\.ink" is not a space\.\* token/);
+    refused(
+      edit(roots, { file: A, op: 'spacing', id: 'items.panel', prop: 'padding', value: 'color.ink' }),
+      /"color\.ink" is not a space\.\* token/,
+    );
     refused(edit(roots, { file: A, op: 'spacing', id: 'items.panel', prop: 'padding', value: '--space-9' }), /not a space\.\* token/);
     refused(edit(roots, { file: A, op: 'spacing', id: 'items.panel', prop: 'padding', value: 4 }), /"4" is not a space/);
     refused(edit(roots, { file: A, op: 'spacing', id: 'items.panel', prop: 'color', value: 'space.2' }), /not editable here/);
@@ -274,7 +303,10 @@ describe('edit: every op', { skip: skipReason() }, () => {
   test('layout: the data-dfw-layout block, @media scopes widest first, :not(#dfw), resets to auto', () => {
     const roots = pair(lab);
     ok(edit(roots, { file: A, op: 'layout', id: 'items.panel', prop: 'grid-column', value: 'span 2' }));
-    assert.match(fs.readFileSync(path.join(roots.native, 'design', A), 'utf8'), / {2}<style data-dfw-layout>\n {4}\/\* dfw Studio layout edits[^\n]*\*\/\n {4}\[data-dfw-id='items.panel'\]:not\(#dfw\) \{ grid-column: span 2; \}\n {2}<\/style>\n<\/head>/);
+    assert.match(
+      fs.readFileSync(path.join(roots.native, 'design', A), 'utf8'),
+      / {2}<style data-dfw-layout>\n {4}\/\* dfw Studio layout edits[^\n]*\*\/\n {4}\[data-dfw-id='items.panel'\]:not\(#dfw\) \{ grid-column: span 2; \}\n {2}<\/style>\n<\/head>/,
+    );
     assert.equal(ok(edit(roots, { file: A, op: 'layout', id: 'items.panel', prop: 'grid-column', value: 'span 2' })).changed, false);
     ok(edit(roots, { file: A, op: 'layout', id: 'items.panel', prop: 'grid-column', value: '03' }));
     ok(edit(roots, { file: A, op: 'layout', id: 'items.title', prop: 'width', value: '33.333%' }));
@@ -293,28 +325,55 @@ describe('edit: every op', { skip: skipReason() }, () => {
     ok(edit(roots, { file: A, op: 'layout', id: 'items.panel', maxWidth: 390 }));
     ok(edit(roots, { file: A, op: 'layout', id: 'items.panel' }));
     ok(edit(roots, { file: A, op: 'layout', id: 'items.add', maxWidth: '' }));
-    assert.equal(fs.readFileSync(path.join(roots.native, 'design', A), 'utf8'), fs.readFileSync(path.join(FIXTURE, 'design', A), 'utf8'), 'last rule removed: the block is gone');
+    assert.equal(
+      fs.readFileSync(path.join(roots.native, 'design', A), 'utf8'),
+      fs.readFileSync(path.join(FIXTURE, 'design', A), 'utf8'),
+      'last rule removed: the block is gone',
+    );
     ok(edit(roots, { file: LAB, op: 'layout', id: 'lab.c', prop: 'width', value: 'size.sidebar' }));
     ok(edit(roots, { file: LAB, op: 'layout', id: 'lab.one', prop: 'min-height', value: '--size-sidebar', maxWidth: 0 }));
-    refused(edit(roots, { file: A, op: 'layout', id: 'items.panel', prop: 'width', value: '37%' }), /snap to 25%, 33\.333%, 50%, 66\.667%, 75%, 100%/);
-    refused(edit(roots, { file: A, op: 'layout', id: 'items.panel', prop: 'width', value: '300px' }), /"300px" is not a size\.\* or space\.\* token/);
+    refused(
+      edit(roots, { file: A, op: 'layout', id: 'items.panel', prop: 'width', value: '37%' }),
+      /snap to 25%, 33\.333%, 50%, 66\.667%, 75%, 100%/,
+    );
+    refused(
+      edit(roots, { file: A, op: 'layout', id: 'items.panel', prop: 'width', value: '300px' }),
+      /"300px" is not a size\.\* or space\.\* token/,
+    );
     refused(edit(roots, { file: A, op: 'layout', id: 'items.panel', prop: 'min-height', value: 'color.ink' }), /token/);
-    refused(edit(roots, { file: A, op: 'layout', id: 'items.panel', prop: 'grid-column', value: 'span 99' }), /"span N" with N from 1 to 24/);
+    refused(
+      edit(roots, { file: A, op: 'layout', id: 'items.panel', prop: 'grid-column', value: 'span 99' }),
+      /"span N" with N from 1 to 24/,
+    );
     refused(edit(roots, { file: A, op: 'layout', id: 'items.panel', prop: 'grid-column', value: 'span 0' }), /span N/);
     refused(edit(roots, { file: A, op: 'layout', id: 'items.panel', prop: 'grid-column', value: '2 / 4' }), /span N/);
-    refused(edit(roots, { file: A, op: 'layout', id: 'items.panel', prop: 'color', value: 'x' }), /"color" is not resizable here; only grid-column, width, min-height/);
-    refused(edit(roots, { file: A, op: 'layout', id: 'items.panel', prop: 'width', value: '50%', maxWidth: 'wide' }), /Invalid breakpoint width "wide"/);
-    refused(edit(roots, { file: A, op: 'layout', id: 'items.panel', prop: 'width', value: '50%', maxWidth: 12.5 }), /Invalid breakpoint width "12\.5"/);
+    refused(
+      edit(roots, { file: A, op: 'layout', id: 'items.panel', prop: 'color', value: 'x' }),
+      /"color" is not resizable here; only grid-column, width, min-height/,
+    );
+    refused(
+      edit(roots, { file: A, op: 'layout', id: 'items.panel', prop: 'width', value: '50%', maxWidth: 'wide' }),
+      /Invalid breakpoint width "wide"/,
+    );
+    refused(
+      edit(roots, { file: A, op: 'layout', id: 'items.panel', prop: 'width', value: '50%', maxWidth: 12.5 }),
+      /Invalid breakpoint width "12\.5"/,
+    );
     refused(edit(roots, { file: A, op: 'layout', id: 'items.panel', prop: 'width', value: '50%', maxWidth: -1 }), /Invalid breakpoint/);
     refused(edit(roots, { file: A, op: 'layout', id: 'items.panel', prop: 'width', value: '50%', maxWidth: 10001 }), /Invalid breakpoint/);
   });
 
   test('layout: blocks written by hand: older rules without the suffix, double quotes, comments; unsafe forms refused', () => {
-    const head = (block) => (root) => write(root, `design/${A}`, fs.readFileSync(path.join(FIXTURE, 'design', A), 'utf8').replace('</head>', `${block}</head>`));
-    let roots = pair(head("  <style data-dfw-layout>\n    [data-dfw-id='items.panel'] { grid-column: span 2; WIDTH: 50% }\n    /* note */ @media (max-width: 390px) { [data-dfw-id=\"items.add\"]:not(#dfw){width:25%} }\n    @media (max-width:834px){}\n  </style>\n"));
+    const head = (block) => (root) =>
+      write(root, `design/${A}`, fs.readFileSync(path.join(FIXTURE, 'design', A), 'utf8').replace('</head>', `${block}</head>`));
+    let roots = pair(
+      head(
+        '  <style data-dfw-layout>\n    [data-dfw-id=\'items.panel\'] { grid-column: span 2; WIDTH: 50% }\n    /* note */ @media (max-width: 390px) { [data-dfw-id="items.add"]:not(#dfw){width:25%} }\n    @media (max-width:834px){}\n  </style>\n',
+      ),
+    );
     ok(edit(roots, { file: A, op: 'layout', id: 'items.title', prop: 'grid-column', value: 'span 1' }));
     ok(edit(roots, { file: A, op: 'layout', id: 'items.add', prop: 'width', value: '75%', maxWidth: 390 }));
-    roots = pair(head('<style data-dfw-layout>[data-dfw-id=\'items.panel\'] { width: 50%; }</style>'));
+    roots = pair(head("<style data-dfw-layout>[data-dfw-id='items.panel'] { width: 50%; }</style>"));
     ok(edit(roots, { file: A, op: 'layout', id: 'items.title', prop: 'grid-column', value: 'span 1' }));
     ok(edit(roots, { file: A, op: 'layout', id: 'items.title' }));
     ok(edit(roots, { file: A, op: 'layout', id: 'items.panel' }));
@@ -334,7 +393,13 @@ describe('edit: every op', { skip: skipReason() }, () => {
 });
 
 describe('edit: refusals', { skip: skipReason() }, () => {
-  const locked = { schema: 1, mode: 'new-product', phase: 'stack', active: true, design: { version: 3, status: 'approved', locked: true, approved: [] } };
+  const locked = {
+    schema: 1,
+    mode: 'new-product',
+    phase: 'stack',
+    active: true,
+    design: { version: 3, status: 'approved', locked: true, approved: [] },
+  };
   const state = (s) => (root) => write(root, '.dfw/state.json', JSON.stringify(s));
   const T = { file: A, op: 'text', id: 'items.title', value: 'X' };
 
@@ -391,12 +456,14 @@ describe('edit: refusals', { skip: skipReason() }, () => {
     const roots = pair((root) => write(root, 'design/approved/v1/index.html', frozen));
     refused(edit(roots, { file: 'Approved/v1/index.html', op: 'text', id: 't', value: 'X' }), /frozen/);
     refused(edit(roots, { file: 'design/APPROVED/v1/index.html', op: 'text', id: 't', value: 'X' }), /frozen/);
-    for (const root of Object.values(roots)) assert.equal(fs.readFileSync(path.join(root, 'design/approved/v1/index.html'), 'utf8'), frozen);
+    for (const root of Object.values(roots))
+      assert.equal(fs.readFileSync(path.join(root, 'design/approved/v1/index.html'), 'utf8'), frozen);
   });
 
   test('ids: only in a master, unknown, duplicate, missing, unsafe in a rule; an unknown op', () => {
     const roots = pair(lab);
-    const master = /"shell\.nav" is part of the component master "shell" \(design\/system\/components\/shell\.html\), not of this screen.*Edit the master/;
+    const master =
+      /"shell\.nav" is part of the component master "shell" \(design\/system\/components\/shell\.html\), not of this screen.*Edit the master/;
     refused(edit(roots, { file: LAB, op: 'move', id: 'shell.nav', ref: 'lab.one', position: 'after' }), master);
     refused(edit(roots, { file: LAB, op: 'move', id: 'lab.one', ref: 'shell.nav', position: 'before' }), master);
     refused(edit(roots, { file: LAB, op: 'layout', id: 'shell.nav', prop: 'width', value: '25%' }), master);
@@ -432,7 +499,9 @@ describe('edit: journal and undo', { skip: skipReason() }, () => {
       assert.equal(r.file, `design/${ops[i].file}`);
       assert.deepEqual(r.op, Object.fromEntries(Object.entries(ops[i]).filter(([k]) => k !== 'file')));
     }
-    for (const root of Object.values(roots)) for (const [rel, bytes] of Object.entries(before)) assert.ok(fs.readFileSync(path.join(root, 'design', rel)).equals(bytes), `${rel} is back to its original bytes`);
+    for (const root of Object.values(roots))
+      for (const [rel, bytes] of Object.entries(before))
+        assert.ok(fs.readFileSync(path.join(root, 'design', rel)).equals(bytes), `${rel} is back to its original bytes`);
     refused(undo(roots), /^Nothing to undo\.$/);
   });
 
@@ -475,14 +544,26 @@ describe('edit: hostile sources', { skip: skipReason() }, () => {
     '  <div data-dfw-id="empty"></div>',
     '</main>',
   ];
-  const page = (nl, tail) => ['<!doctype html>', '<html lang="en">', '<head>', '  <meta charset="utf-8">', '  <!-- <head> <style> p { } -->', '</head>', '<body>', ...BODY, '</body>', '</html>'].join(nl) + tail;
+  const page = (nl, tail) =>
+    [
+      '<!doctype html>',
+      '<html lang="en">',
+      '<head>',
+      '  <meta charset="utf-8">',
+      '  <!-- <head> <style> p { } -->',
+      '</head>',
+      '<body>',
+      ...BODY,
+      '</body>',
+      '</html>',
+    ].join(nl) + tail;
   const nested = `<html><head></head><body>\n${'<div>'.repeat(150)}<div data-dfw-id="deep">${'<div>'.repeat(149)}<b data-dfw-id="leaf">x</b>${'</div>'.repeat(300)}\n<p data-dfw-id="after">after</p>\n</body></html>\n`;
   const corpus = {
     'comments and single quotes': page('\n', '\n'),
     'CRLF line endings': page('\r\n', '\r\n'),
     'no trailing newline': page('\n', ''),
-    'byte order mark': `﻿${page('\n', '\n')}`,
-    'BOM and CRLF, no trailing newline': `﻿${page('\r\n', '')}`,
+    'byte order mark': `\uFEFF${page('\n', '\n')}`,
+    'BOM and CRLF, no trailing newline': `\uFEFF${page('\r\n', '')}`,
   };
   const ops = [
     { op: 'text', id: 't', value: 'New <text> & more' },
@@ -506,7 +587,8 @@ describe('edit: hostile sources', { skip: skipReason() }, () => {
       assert.ok(done >= 8, `${done} edits applied`);
       for (const root of Object.values(roots)) assert.notEqual(fs.readFileSync(path.join(root, 'design', A), 'utf8'), source);
       for (; done > 0; done--) ok(undo(roots));
-      for (const root of Object.values(roots)) assert.ok(fs.readFileSync(path.join(root, 'design', A)).equals(Buffer.from(source)), 'original bytes');
+      for (const root of Object.values(roots))
+        assert.ok(fs.readFileSync(path.join(root, 'design', A)).equals(Buffer.from(source)), 'original bytes');
     });
   }
 
@@ -543,7 +625,9 @@ describe('edit: hostile sources', { skip: skipReason() }, () => {
   });
 
   test('an element that never closes is refused', () => {
-    const roots = pair((root) => write(root, `design/${A}`, '<html><head></head><body><div data-dfw-id="open"><p data-dfw-id="p">x</p></body></html>'));
+    const roots = pair((root) =>
+      write(root, `design/${A}`, '<html><head></head><body><div data-dfw-id="open"><p data-dfw-id="p">x</p></body></html>'),
+    );
     refused(edit(roots, { file: A, op: 'text', id: 'open', value: 'x' }), /Could not find the end of <div> for "open"/);
     ok(edit(roots, { file: A, op: 'text', id: 'p', value: 'y' }));
   });
@@ -555,7 +639,8 @@ describe('edit: hostile sources', { skip: skipReason() }, () => {
 // stay in the cases as a record of what the defect did.
 describe('edit: sources where the tokenizer and the Node tag scanner differ', { skip: skipReason() }, () => {
   const H = (body, head = '') => `<html><head>${head}</head><body>${body}</body></html>`;
-  const BLOCK = (rule) => `\n<style data-dfw-layout>\n  /* dfw Studio layout edits (drag/resize): layout properties only, one rule per element; :not(#dfw) lifts specificity over screen rules. */\n  ${rule}\n</style>\n`;
+  const BLOCK = (rule) =>
+    `\n<style data-dfw-layout>\n  /* dfw Studio layout edits (drag/resize): layout properties only, one rule per element; :not(#dfw) lifts specificity over screen rules. */\n  ${rule}\n</style>\n`;
   const P = '<p data-dfw-id="p">x</p>';
   const W50 = { op: 'layout', id: 'p', prop: 'width', value: '50%' };
   const RULE = "[data-dfw-id='p']:not(#dfw) { width: 50%; }";
@@ -620,7 +705,10 @@ describe('edit: sources where the tokenizer and the Node tag scanner differ', { 
 
 describe('design system page', { skip: skipReason() }, () => {
   /** Temporary and checkout paths as <tmp> and <repo>, so a result can be recorded. */
-  const mask = (v) => JSON.parse(JSON.stringify(v).split(JSON.stringify(TMP).slice(1, -1)).join('<tmp>').split(JSON.stringify(REPO).slice(1, -1)).join('<repo>'));
+  const mask = (v) =>
+    JSON.parse(
+      JSON.stringify(v).split(JSON.stringify(TMP).slice(1, -1)).join('<tmp>').split(JSON.stringify(REPO).slice(1, -1)).join('<repo>'),
+    );
   /** The page of a project against the recorded one (rendering writes nothing). */
   function page(root, base) {
     const r = native(['system-page', root, ...(base === undefined ? [] : ['--base', base])]);
@@ -631,7 +719,9 @@ describe('design system page', { skip: skipReason() }, () => {
       const i = x.findIndex((l, k) => l !== y[k]);
       let c = 0;
       while (x[i]?.[c] === y[i]?.[c]) c++;
-      assert.fail(`page differs at line ${i + 1}, column ${c + 1}\n  expected: ${JSON.stringify(x[i]?.slice(Math.max(0, c - 80), c + 160))}\n  binary:   ${JSON.stringify(y[i]?.slice(Math.max(0, c - 80), c + 160))}`);
+      assert.fail(
+        `page differs at line ${i + 1}, column ${c + 1}\n  expected: ${JSON.stringify(x[i]?.slice(Math.max(0, c - 80), c + 160))}\n  binary:   ${JSON.stringify(y[i]?.slice(Math.max(0, c - 80), c + 160))}`,
+      );
     }
     assert.deepEqual(b, a);
     return b;
@@ -647,7 +737,13 @@ describe('design system page', { skip: skipReason() }, () => {
   };
   /** `dfw <args>` with the binary (setup only: the project is made as when recorded). Returns the exit code. */
   const cli = (root, args) => {
-    const env = { ...process.env, DFW_PLUGIN_ROOT: CORE, DFW_PROJECT_DIR: root, CLAUDE_PROJECT_DIR: root, DFW_HOME: path.join(root, '..', 'home') };
+    const env = {
+      ...process.env,
+      DFW_PLUGIN_ROOT: CORE,
+      DFW_PROJECT_DIR: root,
+      CLAUDE_PROJECT_DIR: root,
+      DFW_HOME: path.join(root, '..', 'home'),
+    };
     const r = spawnSync(nativeBinary(), args, { cwd: root, env, encoding: 'utf8', timeout: 180_000 });
     if (r.error) throw r.error;
     return r.status;
@@ -692,11 +788,32 @@ Second paragraph is not shown.
     for (const style of ['heritage-signboard', 'ops-dense', 'editorial-luxe']) {
       const root = project((r) => {
         fs.rmSync(path.join(r, 'design'), { recursive: true });
-        write(r, 'design/design.json', JSON.stringify({ schema: 1, product: 'Fixture & <Co>', lang: 'vi', sampleText: 'Kho hàng · 0123', surface: 'product', screens: [] }));
+        write(
+          r,
+          'design/design.json',
+          JSON.stringify({
+            schema: 1,
+            product: 'Fixture & <Co>',
+            lang: 'vi',
+            sampleText: 'Kho hàng · 0123',
+            surface: 'product',
+            screens: [],
+          }),
+        );
         must(r, ['system', 'init', '--style', style]);
         useKit(r);
         must(r, ['icons', 'add', 'plus', 'search', 'chevron-down']);
-        write(r, 'design/tokens/themes/dark.json', JSON.stringify({ color: { $type: 'color', ink: { $value: '#fafafa', $description: 'Dark ink. Used for: text' }, extra: { $value: '{color.ink}' } } }));
+        write(
+          r,
+          'design/tokens/themes/dark.json',
+          JSON.stringify({
+            color: {
+              $type: 'color',
+              ink: { $value: '#fafafa', $description: 'Dark ink. Used for: text' },
+              extra: { $value: '{color.ink}' },
+            },
+          }),
+        );
         write(r, 'design/assets/logo mark (1).svg', '<svg xmlns="http://www.w3.org/2000/svg"/>');
         write(r, 'design/assets/photo.JPG', 'x');
         write(r, 'design/assets/notes.txt', 'x');
@@ -762,21 +879,63 @@ Second paragraph is not shown.
         signature: { $value: '{color.missing}' },
         status: { ok: { $value: '#0a0' }, warn: { $value: '#fa0' }, 'ok-tint': { $value: '#efe' } },
       },
-      space: { $type: 'dimension', 10: { $value: { value: 40, unit: 'px' } }, 2: { $value: { value: 8, unit: 'px' } }, odd: { $value: { value: 7, unit: 'px' } }, raw: { $value: '1rem' }, none: { $value: { unit: 'px' } } },
+      space: {
+        $type: 'dimension',
+        10: { $value: { value: 40, unit: 'px' } },
+        2: { $value: { value: 8, unit: 'px' } },
+        odd: { $value: { value: 7, unit: 'px' } },
+        raw: { $value: '1rem' },
+        none: { $value: { unit: 'px' } },
+      },
       radius: { $type: 'dimension', sm: { $value: { value: 2, unit: 'px' } }, pill: { $value: { value: 999, unit: 'px' } } },
-      shadow: { $type: 'shadow', sm: { $value: { color: { colorSpace: 'srgb', components: [0, 0, 0], alpha: 0.2 }, offsetX: { value: 0, unit: 'px' }, offsetY: { value: 1, unit: 'px' }, blur: { value: 2, unit: 'px' }, spread: { value: 0, unit: 'px' } } } },
+      shadow: {
+        $type: 'shadow',
+        sm: {
+          $value: {
+            color: { colorSpace: 'srgb', components: [0, 0, 0], alpha: 0.2 },
+            offsetX: { value: 0, unit: 'px' },
+            offsetY: { value: 1, unit: 'px' },
+            blur: { value: 2, unit: 'px' },
+            spread: { value: 0, unit: 'px' },
+          },
+        },
+      },
       font: {
         family: { $type: 'fontFamily', display: { $value: 'Georgia' }, body: { $value: ['Arial', 'sans-serif'] }, mono: { $value: [] } },
-        size: { $type: 'dimension', md: { $value: { value: 16, unit: 'px' }, $description: 'Scale 1.2 <minor third>' }, sm: { $value: { value: 14, unit: 'px' } }, 'display-xl': { $value: { value: 60, unit: 'px' } } },
+        size: {
+          $type: 'dimension',
+          md: { $value: { value: 16, unit: 'px' }, $description: 'Scale 1.2 <minor third>' },
+          sm: { $value: { value: 14, unit: 'px' } },
+          'display-xl': { $value: { value: 60, unit: 'px' } },
+        },
       },
     };
-    const text = '<dfw-component name="text" variants="display-xl title body mono" description="Text styles. as = the tag to render; display-xl = one per screen (hero); mono = ids. Never bold a mono line! Use sparingly?  yes: it is loud." props="as" group="Type">\n<style>\n.text { font: 400 16px/1.5 "Inter", system-ui; padding: var(--space-2) var(--space-10); gap: var(--space-odd); color: red; border-radius: var(--radius-unknown) }\n</style>\n<template><span class="text text--{{variant}}"><dfw-slot></dfw-slot></span></template>\n</dfw-component>\n';
+    const text =
+      '<dfw-component name="text" variants="display-xl title body mono" description="Text styles. as = the tag to render; display-xl = one per screen (hero); mono = ids. Never bold a mono line! Use sparingly?  yes: it is loud." props="as" group="Type">\n<style>\n.text { font: 400 16px/1.5 "Inter", system-ui; padding: var(--space-2) var(--space-10); gap: var(--space-odd); color: red; border-radius: var(--radius-unknown) }\n</style>\n<template><span class="text text--{{variant}}"><dfw-slot></dfw-slot></span></template>\n</dfw-component>\n';
     const root = project((r) => {
       write(r, 'design/tokens/tokens.json', JSON.stringify(tokens));
       write(r, 'design/system/components/text.html', text);
-      write(r, 'design/system/components/bare.html', '<dfw-component name="bare_thing-x" sizes="sm lg" variants="a b"><template><i></i></template></dfw-component>');
+      write(
+        r,
+        'design/system/components/bare.html',
+        '<dfw-component name="bare_thing-x" sizes="sm lg" variants="a b"><template><i></i></template></dfw-component>',
+      );
       write(r, 'design/system/head.html', '<link rel="stylesheet" href="{{base}}fonts/a.css"><!-- {{base}} -->');
-      write(r, 'design/system/style.json', JSON.stringify({ id: 'x', name: 'Odd & <style>', concept: 'A concept with <tags> & **stars**', rationale: ['One thing Because of another', 'A rule'], do: ['Label: explain it', 'no label here.', '**Bold** and `code`'], dont: [], layout: '12 columns', motifs: [{ name: 'Rule', use: 'Under titles' }, {}], components: ['Buttons: one primary'] }));
+      write(
+        r,
+        'design/system/style.json',
+        JSON.stringify({
+          id: 'x',
+          name: 'Odd & <style>',
+          concept: 'A concept with <tags> & **stars**',
+          rationale: ['One thing Because of another', 'A rule'],
+          do: ['Label: explain it', 'no label here.', '**Bold** and `code`'],
+          dont: [],
+          layout: '12 columns',
+          motifs: [{ name: 'Rule', use: 'Under titles' }, {}],
+          components: ['Buttons: one primary'],
+        }),
+      );
     });
     const r = page(root, '../');
     assert.match(r.ok, /1\.6:1/);
@@ -805,7 +964,11 @@ describe('layout cache', { skip: skipReason() }, () => {
   test('nothing checked yet, checked, then a master, the base styles, the tokens and a screen change', () => {
     const roots = pair((root) => {
       write(root, 'design/styles/base.css', 'body{margin:0}');
-      write(root, 'design/system/components/card.html', '<dfw-component name="card"><template><div class="card"><dfw-use c="button">Go</dfw-use></div></template></dfw-component>');
+      write(
+        root,
+        'design/system/components/card.html',
+        '<dfw-component name="card"><template><div class="card"><dfw-use c="button">Go</dfw-use></div></template></dfw-component>',
+      );
       write(root, 'design/system/components/notes.txt', 'not a master');
       write(root, 'design/screens/items/b.html', '<html><body><dfw-use c="card"></dfw-use></body></html>');
       const m = JSON.parse(fs.readFileSync(path.join(root, 'design/design.json'), 'utf8'));
@@ -815,10 +978,20 @@ describe('layout cache', { skip: skipReason() }, () => {
       write(root, 'design/design.json', JSON.stringify(m));
     });
     const each = (fn) => Object.values(roots).forEach(fn);
-    assert.deepEqual(changed(roots, 'first run'), { screens: ['items', 'other'], changedComps: ['button', 'card', 'notes.txt'], tokensChanged: true });
+    assert.deepEqual(changed(roots, 'first run'), {
+      screens: ['items', 'other'],
+      changedComps: ['button', 'card', 'notes.txt'],
+      tokensChanged: true,
+    });
     mark(roots);
     assert.deepEqual(changed(roots, 'just checked'), { screens: [], changedComps: [], tokensChanged: false });
-    each((root) => write(root, 'design/system/components/button.html', fs.readFileSync(path.join(root, 'design/system/components/button.html'), 'utf8').replace('40px', '44px')));
+    each((root) =>
+      write(
+        root,
+        'design/system/components/button.html',
+        fs.readFileSync(path.join(root, 'design/system/components/button.html'), 'utf8').replace('40px', '44px'),
+      ),
+    );
     assert.deepEqual(changed(roots, 'a master').screens, ['items', 'other']);
     mark(roots);
     each((root) => write(root, 'design/styles/base.css', 'body{margin:0;width:3000px}'));
