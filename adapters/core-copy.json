@@ -1,6 +1,6 @@
 {
-  "$comment": "Core files copied into every host plugin, in this order, before the adapter's own copy list (adapters/<host>/assemble.json). One list so a new core directory cannot be missing from one host. The binary embeds what it reads (studio, kits, assets, templates, the MCP guide); a plugin carries only its launchers (bin/), the texts the host and agent read (skills, agents, templates, schemas) and its manifest.",
-  "copy": [
+  "$comment": "Core files of the one dfw plugin folder (plugins/dfw), which every supported host installs. `shared` is copied once to the plugin root: the launchers (bin/) and the texts every host reads the same (schemas, templates). `hostText` is rendered for each host into hosts/<host>/ and named only by that host's manifest (adapters/<host>/assemble.json). Nothing may land at the root where a host looks by default (skills/, agents/, hooks/, hooks.json, SKILL.md, .mcp.json): the build refuses it. The binary embeds what it reads (studio, kits, assets, the MCP guide).",
+  "shared": [
     {
       "from": "core/bin",
       "to": "bin"
@@ -12,7 +12,9 @@
     {
       "from": "core/templates",
       "to": "templates"
-    },
+    }
+  ],
+  "hostText": [
     {
       "from": "core/workflow/SKILL.md",
       "to": "skills/dfw/SKILL.md",

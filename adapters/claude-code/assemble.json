@@ -1,5 +1,5 @@
 {
-  "$comment": "How this host's plugin is assembled: the core copy list shared by every host (adapters/core-copy.json) first, then this adapter's own files. Host plugins must be self-contained, so core files are copied in. Generated: edit core/ or adapters/<host>/plugin/, then run npm run build.",
+  "$comment": "Claude Code's part of the one dfw plugin folder (plugins/dfw): the core files (adapters/core-copy.json) are shared at the root; this host's skill, agents and hooks are written under hosts/claude/ (`copy` targets are relative to it) and named only by .claude-plugin/plugin.json. Claude Code always scans a root skills/ folder, so nothing goes there. `agentFiles`: the build lists every rendered agent file in `agents` (the key takes .md files, not a folder). Generated: edit core/ or adapters/claude-code/plugin/, then run npm run build.",
   "host": "claude",
   "plugin": "dfw",
   "manifest": ".claude-plugin/plugin.json",
@@ -8,5 +8,11 @@
       "from": "adapters/claude-code/plugin",
       "to": "."
     }
-  ]
+  ],
+  "manifestExtra": {
+    "skills": "./hosts/claude/skills/",
+    "agents": "./hosts/claude/agents/",
+    "hooks": "./hosts/claude/hooks.json"
+  },
+  "agentFiles": true
 }

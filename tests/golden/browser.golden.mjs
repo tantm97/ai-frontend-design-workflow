@@ -372,6 +372,10 @@ if [ "$*" = "plugin marketplace list --json" ]; then
   printf '%s\\n' "$FAKE_LIST"
   exit 0
 fi
+if [ "$*" = "plugin list --json" ] && [ -n "$FAKE_PLUGINS" ]; then
+  printf '%s\\n' "$FAKE_PLUGINS"
+  exit 0
+fi
 if [ "$*" = "plugin marketplace list" ]; then
   printf '%s\\n' "$FAKE_LIST"
   exit 0
@@ -557,6 +561,62 @@ describe('tools: install, uninstall, doctor (fake host CLIs)', { skip: skipReaso
       }),
       undefined,
     );
+  });
+
+  test('install: a Copilot dfw of the two-folder layout is uninstalled, then installed, and the user is told', () => {
+    const dfwDir = (tmp) => path.join(tmp, 'home', '.copilot', 'installed-plugins', 'dfw-marketplace', 'dfw');
+    const layout = (entries) => (root, tmp) => {
+      for (const e of entries) {
+        const f = path.join(dfwDir(tmp), e);
+        fs.mkdirSync(path.dirname(f), { recursive: true });
+        if (e.endsWith('/')) fs.mkdirSync(f, { recursive: true });
+        else fs.writeFileSync(f, '{}');
+      }
+    };
+    const copilot = [...INSTALL, '--host', 'copilot'];
+    // The installed folder still has the root hooks.json and agents/ of plugins/dfw-copilot.
+    const old = same(run2(copilot, withFakes({ setup: layout(['plugin.json', 'hooks.json', 'agents/', 'skills/dfw/', 'bin/dfw']) })));
+    assert.equal(old.code, 0, old.stderr);
+    assert.match(
+      old.extra.calls,
+      /^copilot --version\ncopilot plugin list --json\ncopilot plugin uninstall dfw\ncopilot plugin marketplace add tantm97\/ai-frontend-design-workflow\n/,
+    );
+    assert.match(old.extra.calls, /\ncopilot plugin install dfw@dfw-marketplace\n/);
+    assert.match(
+      old.stdout,
+      /\nReplaced the old dfw for GitHub Copilot \(<tmp>\/home\/\.copilot\/installed-plugins\/dfw-marketplace\/dfw\): two-folder layout\.\n/,
+    );
+    // The doctor at the end still sees the fake (unchanged) folder and names the fix.
+    assert.match(
+      old.stdout,
+      /WARN host GitHub Copilot - 9\.9\.9 \(fake copilot\); dfw plugin installed with the old two-folder layout \(run dfw install --host copilot to replace it\)/,
+    );
+
+    // Installed from a dfw-copilot folder of a local clone: found in the plugin listing.
+    const listed = JSON.stringify([
+      { name: 'dfw', path: '/clone/plugins/dfw-copilot' },
+      { name: 'impeccable', path: '/x/_direct/y' },
+    ]);
+    const byPath = same(run2(copilot, withFakes({ env: { FAKE_PLUGINS: listed }, setup: layout(['plugin.json', 'hosts/', 'bin/dfw']) })));
+    assert.match(byPath.extra.calls, /copilot plugin list --json\ncopilot plugin uninstall dfw\n/);
+    assert.match(byPath.stdout, /\nReplaced the old dfw for GitHub Copilot \(\/clone\/plugins\/dfw-copilot\): two-folder layout\.\n/);
+    assert.match(byPath.stdout, /ok {3}host GitHub Copilot - 9\.9\.9 \(fake copilot\); dfw plugin installed\n/);
+
+    // Already on the one folder: installed as before, nothing replaced.
+    const current = JSON.stringify([{ name: 'dfw', path: '<home>/.copilot/installed-plugins/dfw-marketplace/dfw' }]);
+    const fine = same(run2(copilot, withFakes({ env: { FAKE_PLUGINS: current }, setup: layout(['plugin.json', 'hosts/', 'bin/dfw']) })));
+    assert.doesNotMatch(fine.extra.calls, /uninstall/);
+    assert.doesNotMatch(fine.stdout, /Replaced/);
+
+    // The uninstall fails: the run stops with the host's message, nothing is installed.
+    const failed = run2(copilot, withFakes({ env: { FAKE_FAIL: 'uninstall dfw' }, setup: layout(['hooks.json']) }));
+    same(failed, { stderr: firstTwoLines });
+    assert.equal(failed.native.code, 1);
+    assert.equal(
+      failed.native.stderr.split('\n').slice(0, 2).join('\n'),
+      'Error: copilot plugin uninstall dfw failed:\nboom: plugin uninstall dfw',
+    );
+    assert.doesNotMatch(failed.native.stdout, /Replaced|plugin install/);
   });
 
   test('uninstall: every plugin and the marketplace, per host', () => {

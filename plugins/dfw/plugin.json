@@ -17,7 +17,7 @@
   ],
   "homepage": "https://github.com/tantm97/ai-frontend-design-workflow",
   "repository": "https://github.com/tantm97/ai-frontend-design-workflow",
-  "agents": "agents/",
-  "skills": "skills/",
-  "hooks": "hooks.json"
+  "agents": "hosts/copilot/agents/",
+  "skills": "hosts/copilot/skills/",
+  "hooks": "hosts/copilot/hooks.json"
 }

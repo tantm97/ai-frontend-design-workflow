@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { REPO_ROOT, readJson, loadRegistry, loadLock } from './lib/build.mjs';
-import { xrefCheck, hooksCheck, leftoverCheck, conflictLint, versionMismatch } from './lib/checks.mjs';
+import { xrefCheck, hooksCheck, leftoverCheck, layoutCheck, conflictLint, versionMismatch } from './lib/checks.mjs';
 import { createHash } from 'node:crypto';
 import { unwrap } from './knowledge.mjs';
 import { lockPackages } from './crate-licenses.mjs';
@@ -29,24 +29,8 @@ for (const file of [path.join('.claude-plugin', 'marketplace.json'), path.join('
   const names = m.plugins.map((p) => p.name);
   if (new Set(names).size !== names.length) errors.push(`duplicate plugin names in ${file}`);
 }
-// Host plugins must not leak unrendered placeholders or another host's variables.
-for (const l of registry.local || []) {
-  const spec = readJson(path.join(REPO_ROOT, 'adapters', l.adapter, 'assemble.json'));
-  const dir = path.join(REPO_ROOT, 'plugins', spec.plugin);
-  for (const sub of ['skills', 'agents']) {
-    const walk = (d) =>
-      fs.existsSync(d)
-        ? fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]))
-        : [];
-    for (const f of walk(path.join(dir, sub)).filter((f) => f.endsWith('.md'))) {
-      const t = fs.readFileSync(f, 'utf8');
-      const left = t.match(/\{\{(SKILL_DIR|ASK_TOOL|BACKGROUND|HOST_NAME|HOST_SETTINGS|DFW_CLI|INVOKE_SKILL)\}\}/);
-      if (left) errors.push(`${path.relative(REPO_ROOT, f)}: unrendered ${left[0]}`);
-      if (spec.host !== 'claude' && /CLAUDE_SKILL_DIR|AskUserQuestion/.test(t))
-        errors.push(`${path.relative(REPO_ROOT, f)}: Claude Code-only wording in the ${spec.host} plugin`);
-    }
-  }
-}
+// The one dfw plugin folder for every host: layout, manifests, host text, marketplace entries.
+errors.push(...layoutCheck());
 
 // 2. Lock <-> built copies.
 for (const s of registry.skills) {

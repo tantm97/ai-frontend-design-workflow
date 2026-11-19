@@ -1,7 +1,7 @@
 {
-  "$comment": "How this host's plugin is assembled: the core copy list shared by every host (adapters/core-copy.json) first, then this adapter's own files. Host plugins must be self-contained, so core files are copied in. Generated: edit core/ or adapters/<host>/plugin/, then run npm run build.",
+  "$comment": "GitHub Copilot's part of the one dfw plugin folder (plugins/dfw): the core files (adapters/core-copy.json) are shared at the root; this host's skill, *.agent.md agents and version 1 hooks are written under hosts/copilot/ (`copy` targets are relative to it) and named only by the root plugin.json (legacy format: no Agent Plugins $schema). Copilot does not scan its default folders when the manifest names paths. Generated: edit core/ or adapters/copilot/plugin/, then run npm run build.",
   "host": "copilot",
-  "plugin": "dfw-copilot",
+  "plugin": "dfw",
   "manifest": "plugin.json",
   "copy": [
     {
@@ -9,10 +9,9 @@
       "to": "."
     }
   ],
-  "name": "dfw",
   "manifestExtra": {
-    "agents": "agents/",
-    "skills": "skills/",
-    "hooks": "hooks.json"
+    "agents": "hosts/copilot/agents/",
+    "skills": "hosts/copilot/skills/",
+    "hooks": "hosts/copilot/hooks.json"
   }
 }

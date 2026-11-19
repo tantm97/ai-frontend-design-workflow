@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "dfw",
-      "source": "./plugins/dfw-copilot",
+      "source": "./plugins/dfw",
       "description": "Design-first frontend workflow orchestrator for GitHub Copilot: gates, studio, click-to-comment review, routing, checks.",
       "version": "0.6.1",
       "category": "design"

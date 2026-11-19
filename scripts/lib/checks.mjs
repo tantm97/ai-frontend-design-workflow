@@ -2,10 +2,10 @@
 // "no upstream hooks" invariant, and conflict lint of upstream instructions.
 import fs from 'node:fs';
 import path from 'node:path';
-import { REPO_ROOT, readJson, listFiles } from './build.mjs';
+import { REPO_ROOT, RETIRED_PLUGINS, readJson, listFiles, rootDefaults } from './build.mjs';
 import { split, topLevelKeys } from './frontmatter.mjs';
 
-/** Skills and agents a plugin directory provides. */
+/** Skills and agents a plugin directory provides, where its Claude Code manifest says they are. */
 export function provided(pluginDir) {
   const pj = fs.existsSync(path.join(pluginDir, '.claude-plugin', 'plugin.json'))
     ? readJson(path.join(pluginDir, '.claude-plugin', 'plugin.json'))
@@ -14,16 +14,19 @@ export function provided(pluginDir) {
   const skills = fs.existsSync(skillsRoot)
     ? fs.readdirSync(skillsRoot).filter((d) => fs.existsSync(path.join(skillsRoot, d, 'SKILL.md')))
     : [];
-  const agentsDir = path.join(pluginDir, 'agents');
-  const agents = fs.existsSync(agentsDir)
-    ? fs
-        .readdirSync(agentsDir)
-        .filter((f) => f.endsWith('.md'))
-        .map((f) => {
-          const m = fs.readFileSync(path.join(agentsDir, f), 'utf8').match(/^name:\s*(\S+)/m);
-          return m ? m[1] : f.replace(/\.md$/, '');
-        })
-    : [];
+  // `agents`: a folder, or a list of .md files (the dfw plugin lists its files one by one).
+  const agentsDir = path.join(pluginDir, typeof pj.agents === 'string' ? pj.agents : 'agents');
+  const files = Array.isArray(pj.agents)
+    ? pj.agents.map((f) => path.join(pluginDir, f)).filter((f) => fs.existsSync(f))
+    : fs.existsSync(agentsDir)
+      ? fs.readdirSync(agentsDir).map((f) => path.join(agentsDir, f))
+      : [];
+  const agents = files
+    .filter((f) => f.endsWith('.md'))
+    .map((f) => {
+      const m = fs.readFileSync(f, 'utf8').match(/^name:\s*(\S+)/m);
+      return m ? m[1] : path.basename(f).replace(/\.md$/, '');
+    });
   return { skills, agents };
 }
 
@@ -186,4 +189,116 @@ export function versionMismatch(root = REPO_ROOT) {
     : `versions differ: ${Object.entries(versions)
         .map(([f, v]) => `${f} ${v ?? '(none)'}`)
         .join(', ')}. Bump them together.`;
+}
+
+/** Component paths a manifest names (`skills`, `agents`, `hooks`), as a flat list. */
+function componentPaths(manifest) {
+  return ['skills', 'agents', 'hooks'].flatMap((k) => (manifest[k] === undefined ? [] : [manifest[k]].flat()));
+}
+
+/** Every hook command of a hooks file: Claude Code's `command`, Copilot's `bash` and `powershell`. */
+function hookCommands(hooks) {
+  const out = [];
+  const walk = (v) => {
+    if (Array.isArray(v)) v.forEach(walk);
+    else if (v && typeof v === 'object')
+      for (const [k, x] of Object.entries(v)) {
+        if (['command', 'bash', 'powershell'].includes(k) && typeof x === 'string') out.push(x);
+        else walk(x);
+      }
+  };
+  walk(hooks.hooks);
+  return out;
+}
+
+/**
+ * The one dfw plugin folder (plugin-packaging spec): each host's skill, agents and hooks under
+ * hosts/<host>/ named only by that host's manifest, nothing at a root location a host reads by
+ * default, shared files once, no retired second folder, both marketplaces on ./plugins/dfw at the
+ * core version. Returns error lines.
+ */
+export function layoutCheck({ pluginsRoot = path.join(REPO_ROOT, 'plugins'), root = REPO_ROOT } = {}) {
+  const errors = [];
+  const dir = path.join(pluginsRoot, 'dfw');
+  const rel = (f) => `plugins/dfw/${f}`;
+  if (!fs.existsSync(dir)) return ['plugins/dfw: not built (run npm run build)'];
+  for (const old of RETIRED_PLUGINS)
+    if (fs.existsSync(path.join(pluginsRoot, old)))
+      errors.push(`plugins/${old}: retired (one plugins/dfw serves every host); delete it and run npm run build`);
+  errors.push(...rootDefaults(dir, 'plugins/dfw'));
+  const version = readJson(path.join(root, 'core', 'manifest.json')).version;
+  const hosts = {
+    claude: { manifest: '.claude-plugin/plugin.json', prefix: './hosts/claude/', agentExt: '.md' },
+    copilot: { manifest: 'plugin.json', prefix: 'hosts/copilot/', agentExt: '.agent.md' },
+  };
+  for (const [id, h] of Object.entries(hosts)) {
+    const file = path.join(dir, h.manifest);
+    if (!fs.existsSync(file)) {
+      errors.push(`${rel(h.manifest)}: missing (the ${id} manifest)`);
+      continue;
+    }
+    const pj = readJson(file);
+    if (pj.name !== 'dfw') errors.push(`${rel(h.manifest)}: name must be "dfw"`);
+    if (pj.version !== version) errors.push(`${rel(h.manifest)}: version ${pj.version}, core/manifest.json says ${version}`);
+    if (id === 'copilot' && pj.$schema) errors.push(`${rel(h.manifest)}: has a $schema (must stay a legacy manifest, not Agent Plugins)`);
+    for (const p of componentPaths(pj)) {
+      if (typeof p !== 'string' || !p.startsWith(h.prefix)) errors.push(`${rel(h.manifest)}: names ${p}, outside ${h.prefix}`);
+      else if (!fs.existsSync(path.join(dir, p))) errors.push(`${rel(h.manifest)}: names ${p}, which does not exist`);
+    }
+    if (id === 'claude' && !Array.isArray(pj.agents))
+      errors.push(`${rel(h.manifest)}: agents must list each .md file (Claude Code takes files, not a folder)`);
+    const hostDir = path.join(dir, 'hosts', id);
+    const files = listFiles(hostDir);
+    const agents = files.filter((f) => f.startsWith('agents/'));
+    if (!agents.length) errors.push(`${rel(`hosts/${id}/agents`)}: no agents`);
+    for (const a of agents)
+      if (!a.endsWith(h.agentExt) || (id === 'claude' && a.endsWith('.agent.md')))
+        errors.push(`${rel(`hosts/${id}/${a}`)}: a ${id} agent file ends in ${h.agentExt}`);
+    if (id === 'claude' && Array.isArray(pj.agents)) {
+      const listed = new Set(pj.agents.map((a) => a.replace(h.prefix, '')));
+      for (const a of agents) if (!listed.has(a)) errors.push(`${rel(h.manifest)}: does not list ${a} (Claude Code would not load it)`);
+    }
+    const hooksFile = path.join(hostDir, 'hooks.json');
+    if (fs.existsSync(hooksFile)) {
+      const hooks = readJson(hooksFile);
+      const cmds = hookCommands(hooks);
+      if (!cmds.length) errors.push(`${rel(`hosts/${id}/hooks.json`)}: no hook commands`);
+      if (id === 'copilot') {
+        if (hooks.version !== 1) errors.push(`${rel('hosts/copilot/hooks.json')}: version must be 1`);
+        for (const c of cmds)
+          if (!/--host copilot\b/.test(c))
+            errors.push(`${rel('hosts/copilot/hooks.json')}: a command without --host copilot: ${c.slice(0, 80)}`);
+      } else
+        for (const c of cmds)
+          if (/--host\b/.test(c)) errors.push(`${rel(`hosts/${id}/hooks.json`)}: a Claude Code hook with --host: ${c.slice(0, 80)}`);
+    }
+    for (const f of files.filter((x) => x.endsWith('.md'))) {
+      const t = fs.readFileSync(path.join(hostDir, f), 'utf8');
+      const left = t.match(/\{\{(SKILL_DIR|ASK_TOOL|BACKGROUND|HOST_NAME|HOST_SETTINGS|DFW_CLI|INVOKE_SKILL)\}\}/);
+      if (left) errors.push(`${rel(`hosts/${id}/${f}`)}: unrendered ${left[0]}`);
+      if (id !== 'claude' && /CLAUDE_SKILL_DIR|AskUserQuestion/.test(t))
+        errors.push(`${rel(`hosts/${id}/${f}`)}: Claude Code-only wording in the ${id} text`);
+      if (id === 'claude' && /\bask_user\b/.test(t)) errors.push(`${rel(`hosts/${id}/${f}`)}: Copilot-only wording in the claude text`);
+    }
+    // Shared files exist once: nothing under hosts/<id>/ repeats a root file.
+    for (const f of files) {
+      const twin = path.join(dir, f);
+      if (fs.existsSync(twin) && fs.statSync(twin).isFile() && fs.readFileSync(twin).equals(fs.readFileSync(path.join(hostDir, f))))
+        errors.push(`${rel(`hosts/${id}/${f}`)}: the same file is shared at ${rel(f)}; keep shared files once, at the root`);
+    }
+  }
+  for (const file of [path.join('.claude-plugin', 'marketplace.json'), path.join('.github', 'plugin', 'marketplace.json')]) {
+    const f = path.join(root, file);
+    if (!fs.existsSync(f)) {
+      errors.push(`${file}: missing`);
+      continue;
+    }
+    const e = readJson(f).plugins.find((p) => p.name === 'dfw');
+    if (!e) errors.push(`${file}: does not list dfw`);
+    else {
+      if (e.source !== './plugins/dfw') errors.push(`${file}: dfw source is ${e.source}, must be ./plugins/dfw`);
+      if (e.version !== version) errors.push(`${file}: dfw version ${e.version}, core/manifest.json says ${version}`);
+    }
+  }
+  return errors;
 }

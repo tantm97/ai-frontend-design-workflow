@@ -22,7 +22,7 @@ use crate::review::locate::{
 };
 use crate::tools::binary::{binary_status, install_binary, RELEASE_REPO};
 use crate::tools::inspector::{format_plan, inspector_setup, parse_insp_path, PACKAGE, VERSION};
-use crate::tools::install::{install, uninstall, InstallOptions};
+use crate::tools::install::{copilot_plugin_state, install, uninstall, InstallOptions};
 use crate::tools::mcp_install::mcp_installed;
 use crate::workflow::freeze::verify_snapshot;
 
@@ -343,19 +343,20 @@ fn doctor(ctx: &Ctx) -> Result<i32, DfwError> {
             );
             continue;
         }
-        let plugin = if h.id == "claude" {
-            read_json(&installed_file, Some(json!({})))?
+        let (plugin, state) = if h.id == "claude" {
+            let installed = read_json(&installed_file, Some(json!({})))?
                 .get("plugins")
                 .and_then(|p| p.get("dfw@dfw-marketplace"))
-                .is_some_and(js::truthy)
+                .is_some_and(js::truthy);
+            let state = if installed {
+                "installed".to_string()
+            } else {
+                format!("missing (dfw install --host {})", h.id)
+            };
+            (installed, state)
         } else {
-            h.dfw_plugin_dir()
-                .is_some_and(|dir| dir.join("bin").join("dfw").exists())
-        };
-        let state = if plugin {
-            "installed".to_string()
-        } else {
-            format!("missing (dfw install --host {})", h.id)
+            // Copilot: also says when the installed folder still has the two-folder layout.
+            copilot_plugin_state(&h.dfw_plugin_dir().unwrap_or_default())
         };
         ok(
             &name,
