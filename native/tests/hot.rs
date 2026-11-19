@@ -389,7 +389,10 @@ fn cli_init_gates_approve_g2_blocked_by_must_findings() {
         screen("<img src=\"x.png\" alt=\"\" data-dfw-id=\"hero.img\">"),
     )
     .unwrap();
-    assert!(ok(&["approve", "G2", "--note", "v1"]).contains("Design frozen as v1"));
+    // axe is not downloaded in this home: the freeze needs the user's acceptance (recorded).
+    fails(&["approve", "G2", "--note", "v1"], "--accept-unverified");
+    let frozen = ok(&["approve", "G2", "--note", "v1", "--accept-unverified"]);
+    assert!(frozen.contains("Design frozen as v1") && frozen.contains("NOT VERIFIED: axe"));
     fails(&["phase", "implement"], "G3");
     ok(&["stack", "set", "--json", r#"{"framework":{"name":"Vue"}}"#]);
     ok(&["approve", "G3", "--note", "Vue 3 + plain CSS"]);
@@ -399,6 +402,7 @@ fn cli_init_gates_approve_g2_blocked_by_must_findings() {
     let decisions = ok(&["decisions"]);
     assert!(decisions.contains("gate:G1"));
     assert!(decisions.contains("gate:G3"));
+    assert!(decisions.contains("gate:G2:accepted-unverified"));
     // The snapshot the Node side froze is intact for the native check.
     assert_eq!(ok(&["verify-snapshot"]), "Snapshot v1 intact.\n");
 }
