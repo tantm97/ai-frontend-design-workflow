@@ -16,7 +16,7 @@
       "extra": {
         "calls": "copilot --version\n"
       },
-      "stderr": "Error: GitHub Copilot CLI (\"copilot\") not found on PATH."
+      "stderr": "GitHub Copilot CLI (\"copilot\") not found on PATH."
     },
     {
       "code": 1,
@@ -25,7 +25,7 @@
       "extra": {
         "calls": "claude --version\ncopilot --version\n"
       },
-      "stderr": "Error: GitHub Copilot CLI (\"copilot\") not found on PATH."
+      "stderr": "GitHub Copilot CLI (\"copilot\") not found on PATH."
     },
     {
       "code": 1,
@@ -34,7 +34,7 @@
       "extra": {
         "calls": ""
       },
-      "stderr": "Error: Cursor support is planned but not available yet. Supported: claude, copilot."
+      "stderr": "Cursor support is planned but not available yet. Supported: claude, copilot."
     },
     {
       "code": 1,
@@ -52,7 +52,7 @@
       "extra": {
         "calls": "copilot --version\n"
       },
-      "stderr": "Error: GitHub Copilot CLI (\"copilot\") not found on PATH."
+      "stderr": "GitHub Copilot CLI (\"copilot\") not found on PATH."
     },
     {
       "code": 1,
@@ -61,7 +61,7 @@
       "extra": {
         "calls": "claude --version\ncopilot --version\n"
       },
-      "stderr": "Error: No supported AI coding tool found on PATH (claude, copilot). Install Claude Code or GitHub Copilot CLI first, or pass --host."
+      "stderr": "No supported AI coding tool found on PATH (claude, copilot). Install Claude Code or GitHub Copilot CLI first, or pass --host."
     },
     {
       "code": 0,

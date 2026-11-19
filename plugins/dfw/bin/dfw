@@ -42,6 +42,11 @@ if [ -d "$HOME_DIR/bin" ]; then
     done
   done
 fi
+# Nothing installed. A hook must not block the session (hooks fail open): one line, exit 0.
+if [ "${1:-}" = hook ]; then
+  echo "dfw: hook skipped, the dfw binary is not installed. Install it: curl -fsSL https://raw.githubusercontent.com/tantm97/ai-frontend-design-workflow/main/install.sh | sh" >&2
+  exit 0
+fi
 echo "dfw: the dfw binary is not installed (looked in $HOME_DIR/bin/${VER:-<version>}/)." >&2
 echo "  Install it: curl -fsSL https://raw.githubusercontent.com/tantm97/ai-frontend-design-workflow/main/install.sh | sh" >&2
 echo "  (with DFW_VERSION=${VER:-<version>} for this plugin's version; on Windows see the README)" >&2

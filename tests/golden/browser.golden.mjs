@@ -482,7 +482,7 @@ describe('tools: install, uninstall, doctor (fake host CLIs)', { skip: skipReaso
     same(none, { stderr: firstLine });
     assert.equal(
       firstLine(none.native.stderr),
-      'Error: No supported AI coding tool found on PATH (claude, copilot). Install Claude Code or GitHub Copilot CLI first, or pass --host.',
+      'No supported AI coding tool found on PATH (claude, copilot). Install Claude Code or GitHub Copilot CLI first, or pass --host.',
     );
 
     // A skill that does not install is skipped; dfw itself failing stops the install.

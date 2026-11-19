@@ -100,7 +100,7 @@
     {
       "code": 1,
       "stdout": "",
-      "stderr": "Error: Unknown tool \"constructor\". MCP install targets: opencode, codex, cursor, all.\n    at mcpInstall (file://<repo>/core/lib/mcp.mjs:242:19)\n    at main (file://<repo>/core/lib/cli.mjs:676:16)\n    at file://<repo>/core/bin/dfw.mjs:17:1\n",
+      "stderr": "Unknown tool \"constructor\". MCP install targets: opencode, codex, cursor, all.\n",
       "files": {}
     }
   ]

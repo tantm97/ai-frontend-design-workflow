@@ -10,6 +10,7 @@ use regex::Regex;
 use serde_json::{json, Value};
 
 use crate::core::error::DfwError;
+use crate::core::http;
 use crate::core::paths::global_dir;
 use crate::core::platform::{dfw_version, node_arch, node_platform};
 use crate::core::util::sha256;
@@ -53,27 +54,14 @@ pub fn binary_status() -> BinaryStatus {
 }
 
 /// `get(url)`: the body of a URL, following redirects; `HTTP <status> for <url>` otherwise.
+/// Two minutes and 256 MB at most.
 fn get(url: &str) -> Result<Vec<u8>, DfwError> {
-    let agent: ureq::Agent = ureq::Agent::config_builder()
-        .timeout_global(Some(Duration::from_secs(120)))
-        .http_status_as_error(false)
-        .build()
-        .into();
-    let mut res = agent
-        .get(url)
-        .call()
+    let res = http::get(url, &[], Duration::from_secs(120), 256 << 20)
         .map_err(|e| DfwError::internal(format!("{url}: {e}")))?;
-    if !res.status().is_success() {
-        return Err(DfwError::new(format!(
-            "HTTP {} for {url}",
-            res.status().as_u16()
-        )));
+    if !res.ok() {
+        return Err(DfwError::new(format!("HTTP {} for {url}", res.status)));
     }
-    res.body_mut()
-        .with_config()
-        .limit(1 << 30)
-        .read_to_vec()
-        .map_err(|e| DfwError::internal(format!("{url}: {e}")))
+    Ok(res.body)
 }
 
 /// The checksum SHA256SUMS lists for `name` (`<hash>  <file>` or `<hash> *<file>` per line).

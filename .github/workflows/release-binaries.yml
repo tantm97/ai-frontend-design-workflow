@@ -2,7 +2,9 @@ name: release-binaries
 # Builds the native dfw binary (the Rust crate in native/) on each platform with cargo and
 # publishes the binaries, with SHA256SUMS, as the GitHub release v<version>. Trigger: push a tag
 # v<version> that matches native/Cargo.toml and the plugin manifest (or run it by hand to get
-# artifacts without a release).
+# artifacts without a release). The telemetry secrets reach the build only for a tag v*, and a
+# tag is built only when its commit is on main (job verify): a run by hand on a branch builds
+# without them.
 on:
   push:
     tags: ['v*']
@@ -29,6 +31,8 @@ jobs:
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "tag ${GITHUB_REF_NAME} ($GITHUB_SHA) is not on origin/main; not releasing"; exit 1; }
       - name: Dev tools (esbuild for the Studio bundles, the unit tests' DOM; pinned in package-lock.json)
         run: npm ci
+      - name: Lint, format and type check (Studio browser code and its tests)
+        run: npm run lint
       - name: Unit tests
         run: npm test
       - name: Committed plugins match a clean build from the lock
@@ -37,12 +41,16 @@ jobs:
         run: node scripts/validate.mjs
       - name: Rust toolchain (pinned by native/rust-toolchain.toml)
         working-directory: native
-        run: rustup show active-toolchain || rustup toolchain install
-      - name: Rust build and tests
+        run: |
+          rustup toolchain install
+          rustc --version
+      - name: Rust formatting, build, tests and lints
         working-directory: native
         run: |
+          cargo fmt --check
           cargo build --locked
           cargo test --locked
+          cargo clippy --locked --all-targets -- -D warnings
       - name: Golden tests (the binary against the recorded results)
         env:
           DFW_REQUIRE_BIN: '1'
@@ -75,16 +83,17 @@ jobs:
       - name: Rust toolchain (pinned by native/rust-toolchain.toml)
         working-directory: native
         run: |
-          rustup show active-toolchain || rustup toolchain install
+          rustup toolchain install
           rustc -vV | grep -q "host: ${{ matrix.target }}" || { echo "this runner does not build ${{ matrix.target }} natively"; rustc -vV; exit 1; }
-      # The collector address is compiled in from the repository secrets, on this step only (see
-      # native/README-telemetry.md). No cache is shared with this build, and cargo runs without
-      # -vv so the build script's environment is never printed.
+      # The collector address is compiled in from the repository secrets, on this step only and
+      # only for a tag (see native/README-telemetry.md); a run by hand on a branch gets none. No
+      # cache is shared with this build, and cargo runs without -vv so the build script's
+      # environment is never printed.
       - name: Build the native binary
         working-directory: native
         env:
-          DFW_OTLP_ENDPOINT: ${{ secrets.DFW_OTLP_ENDPOINT }}
-          DFW_OTLP_HEADERS: ${{ secrets.DFW_OTLP_HEADERS }}
+          DFW_OTLP_ENDPOINT: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.DFW_OTLP_ENDPOINT || '' }}
+          DFW_OTLP_HEADERS: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.DFW_OTLP_HEADERS || '' }}
         run: cargo build --release --locked --target ${{ matrix.target }}
       - name: Name the binary
         run: |
@@ -99,7 +108,7 @@ jobs:
       # the binary and the secret disagree.
       - name: Telemetry address compiled in when the secret is set
         env:
-          EXPECT_ENDPOINT: ${{ secrets.DFW_OTLP_ENDPOINT != '' }}
+          EXPECT_ENDPOINT: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.DFW_OTLP_ENDPOINT != '' }}
         run: |
           built=$("$BIN" __debug telemetry-build)
           echo "telemetry build: $built"

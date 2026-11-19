@@ -3,20 +3,25 @@
 //! or Chromium.
 
 use std::fs;
-use std::io::{self, Cursor, Read};
-use std::path::{Component, Path, PathBuf};
+use std::io::{self, Cursor};
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use serde_json::{json, Value};
-use ureq::ResponseExt;
 
 use super::launch::browser_dir;
 use crate::core::error::DfwError;
+use crate::core::http;
 use crate::core::platform::{node_arch, node_platform};
-use crate::core::util::{to_json_compact, to_json_pretty};
+use crate::core::util::{sha256, to_json_compact, to_json_pretty};
 
 const CFT_URL: &str = "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json";
 const DOWNLOAD_HOST: &str = "storage.googleapis.com";
+/// The archive is about 100 MB: 20 minutes is a slow line, not a hung one.
+const ZIP_TIMEOUT_S: u64 = 20 * 60;
+/// Size caps: the index is a few hundred kB, an archive about 100 MB.
+const INDEX_LIMIT: u64 = 16 << 20;
+const ZIP_LIMIT: u64 = 1 << 30;
 
 /// Chrome for Testing's name of this platform, or `None` when it has no build for it.
 fn cft_platform() -> Option<&'static str> {
@@ -108,7 +113,7 @@ fn install_from(
     check: fn(&Value) -> Result<String, DfwError>,
     log: &dyn Fn(&str),
 ) -> Result<Value, DfwError> {
-    let index: Value = serde_json::from_slice(&fetch(index_url, Some(30))?.1)?;
+    let index: Value = serde_json::from_slice(&fetch(index_url, 30, INDEX_LIMIT)?.1)?;
     let stable = index.get("channels").and_then(|c| c.get("Stable"));
     let dl = stable
         .and_then(|s| s.get("downloads")?.get("chrome-headless-shell")?.as_array())
@@ -157,8 +162,16 @@ fn install_from(
         log(&format!(
             "Downloading headless Chrome {version} ({plat}) from {host} ..."
         ));
-        let (landed, zip) = fetch(&from, None)?;
-        check(&Value::String(landed))?; // a redirect must stay on the same host
+        let (landed, zip) = fetch(&from, ZIP_TIMEOUT_S, ZIP_LIMIT)?;
+        check(&Value::String(landed.clone()))?; // a redirect must stay on the same host
+                                                // Chrome for Testing publishes no checksum for its archives: what was unpacked is
+                                                // recorded instead, so a later question "which file was this" has an answer.
+        fs::write(
+            dir.join("archive.json"),
+            to_json_pretty(
+                &json!({ "url": from, "landed": landed, "bytes": zip.len(), "sha256": sha256(&zip) }),
+            ),
+        )?;
         let extracted = unpack(&zip, &dir);
         if extracted.is_err() || !exe.exists() {
             let why = extracted
@@ -178,45 +191,23 @@ fn install_from(
 }
 
 /// GET a URL: the URL it ended at (after redirects) and the body. `HTTP <status>` is an error.
-fn fetch(url: &str, timeout_s: Option<u64>) -> Result<(String, Vec<u8>), DfwError> {
-    let agent: ureq::Agent = ureq::Agent::config_builder()
-        .timeout_global(timeout_s.map(Duration::from_secs))
-        .http_status_as_error(false)
-        .build()
-        .into();
-    let failed = |e: ureq::Error| DfwError::internal(format!("fetch failed: {url}: {e}"));
-    let mut res = agent.get(url).call().map_err(failed)?;
-    if !res.status().is_success() {
+fn fetch(url: &str, timeout_s: u64, limit: u64) -> Result<(String, Vec<u8>), DfwError> {
+    let res = http::get(url, &[], Duration::from_secs(timeout_s), limit)
+        .map_err(|e| DfwError::internal(format!("fetch failed: {url}: {e}")))?;
+    if !res.ok() {
         return Err(DfwError::new(format!(
             "download failed: HTTP {}",
-            res.status().as_u16()
+            res.status
         )));
     }
-    let landed = res.get_uri().to_string();
-    let body = res
-        .body_mut()
-        .with_config()
-        .limit(1 << 30)
-        .read_to_vec()
-        .map_err(failed)?;
-    Ok((landed, body))
-}
-
-#[cfg(unix)]
-fn link(target: &str, to: &Path) -> io::Result<()> {
-    std::os::unix::fs::symlink(target, to)
-}
-
-#[cfg(not(unix))]
-fn link(_target: &str, _to: &Path) -> io::Result<()> {
-    Err(io::Error::new(
-        io::ErrorKind::InvalidData,
-        "the archive holds a symbolic link",
-    ))
+    Ok((res.landed, res.body))
 }
 
 /// Unpack a zip archive into `dir`, keeping executable bits. An entry that would land outside
-/// `dir` (an absolute name, `..`, a link pointing out) fails the whole archive.
+/// `dir` (an absolute name, `..`) or a symbolic link fails the whole archive. Links are refused
+/// outright: a link checked on its own can still be chained (`d/l -> ..`, then `e -> d/l/..`,
+/// then `e/x`) to write outside `dir`, and the headless shell archives hold none (plain files
+/// and folders: the binary, its libraries and resources).
 fn unpack(zip_bytes: &[u8], dir: &Path) -> io::Result<()> {
     let bad = |what: &str| io::Error::new(io::ErrorKind::InvalidData, what.to_string());
     let mut archive = zip::ZipArchive::new(Cursor::new(zip_bytes)).map_err(io::Error::other)?;
@@ -234,24 +225,7 @@ fn unpack(zip_bytes: &[u8], dir: &Path) -> io::Result<()> {
             fs::create_dir_all(parent)?;
         }
         if entry.is_symlink() {
-            let mut target = String::new();
-            entry.read_to_string(&mut target)?;
-            // The link may only name something below its own folder's archive root.
-            let depth = rel.components().count() as i64 - 1;
-            let mut level = 0i64;
-            for part in Path::new(&target).components() {
-                match part {
-                    Component::Normal(_) => level += 1,
-                    Component::CurDir => {}
-                    Component::ParentDir => level -= 1,
-                    _ => return Err(bad("a link has an absolute target")),
-                }
-                if level < -depth {
-                    return Err(bad("a link points outside the archive"));
-                }
-            }
-            link(&target, &to)?;
-            continue;
+            return Err(bad("the archive holds a symbolic link"));
         }
         let mode = entry.unix_mode();
         let mut file = fs::File::create(&to)?;
@@ -462,6 +436,14 @@ mod tests {
             )]
         );
         assert_eq!(file_hits.load(Ordering::SeqCst), 1);
+        // No checksum is published: the archive that was unpacked is recorded.
+        let record: Value = serde_json::from_str(
+            &fs::read_to_string(home.join("131.0.6778.85/archive.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(record["url"], json!(format!("{files}/shell.zip")));
+        assert!(record["bytes"].as_u64().unwrap() > 0);
+        assert_eq!(record["sha256"].as_str().unwrap().len(), 64);
 
         // Already there: the index is read again, the archive is not.
         install_from(
@@ -555,6 +537,25 @@ mod tests {
         let link_out = writer.finish().unwrap().into_inner();
         assert!(unpack(&link_out, &inside).is_err());
 
+        // A link checked on its own looks inside; chained, the next entry lands outside.
+        let mut writer = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        writer
+            .add_symlink("d/l", "..", SimpleFileOptions::default())
+            .unwrap();
+        writer
+            .add_symlink("e", "d/l/..", SimpleFileOptions::default())
+            .unwrap();
+        writer
+            .start_file("e/x", SimpleFileOptions::default())
+            .unwrap();
+        writer.write_all(b"escaped").unwrap();
+        let chained = writer.finish().unwrap().into_inner();
+        let chain = dir.join("chain");
+        fs::create_dir(&chain).unwrap();
+        let err = unpack(&chained, &chain).unwrap_err();
+        assert_eq!(err.to_string(), "the archive holds a symbolic link");
+        assert!(!dir.join("x").exists(), "nothing written outside");
+
         let mut writer = zip::ZipWriter::new(Cursor::new(Vec::new()));
         writer
             .start_file("d/real", SimpleFileOptions::default())
@@ -566,12 +567,9 @@ mod tests {
         let link_in = writer.finish().unwrap().into_inner();
         let fine = dir.join("fine");
         fs::create_dir(&fine).unwrap();
-        #[cfg(unix)]
-        {
-            unpack(&link_in, &fine).unwrap();
-            assert_eq!(fs::read(fine.join("d/link")).unwrap(), b"real");
-        }
-        #[cfg(not(unix))]
-        assert!(unpack(&link_in, &fine).is_err());
+        assert!(
+            unpack(&link_in, &fine).is_err(),
+            "even a link that stays inside"
+        );
     }
 }

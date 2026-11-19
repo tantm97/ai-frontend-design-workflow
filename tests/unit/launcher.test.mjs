@@ -81,6 +81,18 @@ test('launcher: nothing installed -> 127 and how to install, never Node', posix,
   assert.equal(run().status, 127);
 });
 
+test('launcher: nothing installed -> a hook fails open: exit 0, one stderr line, no stdout', posix, () => {
+  const { run } = launcherFixture([]);
+  for (const hook of ['session-start', 'pre-tool-use', 'post-tool-use']) {
+    const r = run({}, ['hook', hook]);
+    assert.equal(r.status, 0, hook);
+    assert.equal(r.stdout, '');
+    assert.match(r.stderr, /^dfw: hook skipped, the dfw binary is not installed\. Install it: curl -fsSL \S+install\.sh \| sh\n$/);
+  }
+  // Any other command still says it cannot run.
+  assert.equal(run({}, ['hooks']).status, 127);
+});
+
 test('launcher: DFW_BIN names an executable -> it runs, before any installed binary', posix, () => {
   const { plugin, run } = launcherFixture(['9.9.9']);
   const bin = path.join(path.dirname(plugin), 'native-dfw');
@@ -126,4 +138,12 @@ test('launcher (Windows): dfw.cmd has CRLF lines and the same order: DFW_BIN, th
   assert.match(text, /set "DFW_PLUGIN_ROOT=%ROOT%"/);
   assert.match(text, /\.config\\dfw/);
   assert.doesNotMatch(text, /node /i, 'no Node fallback');
+  // Delayed expansion would drop every "!" from the arguments (%*): it stays off, and no
+  // !VAR! is read anywhere.
+  assert.match(text, /setlocal EnableExtensions DisableDelayedExpansion/);
+  assert.doesNotMatch(text, /EnableDelayedExpansion/);
+  assert.doesNotMatch(text, /!\w+!/);
+  // A hook without a binary fails open: exit 0 before the 127 of every other command.
+  assert.ok(at('if /i "%~1"=="hook" goto hook_without_binary') < at('exit /b 127'));
+  assert.match(text, /:hook_without_binary\r\necho dfw: hook skipped[^\r]*>&2\r\nexit \/b 0\r\n/);
 });

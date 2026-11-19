@@ -5,9 +5,8 @@
 
 use std::env;
 use std::fs;
-use std::io;
 use std::path::Path;
-use std::process::Stdio;
+use std::time::Duration;
 
 use serde_json::Value;
 
@@ -18,8 +17,7 @@ use crate::browser::launch::{browser_status, make_temp_dir, BrowserStatus};
 use crate::core::error::DfwError;
 use crate::core::host::{get_host, supported_hosts, Host, Status, HOSTS};
 use crate::core::paths::{plugin_root, resolve};
-use crate::core::platform::node_platform;
-use crate::core::process::{command, quote_for_cmd, Spawn};
+use crate::core::process::{find_executable, plan_for, run_timed, Ran, Spawn};
 use crate::core::util::{out, plugin_manifest, read_json};
 
 /// The marketplace dfw and its skills are installed from.
@@ -60,51 +58,42 @@ pub fn plugin_list() -> Result<Vec<String>, DfwError> {
     Ok(plugins)
 }
 
-/// `path.win32.isAbsolute`.
-fn win32_is_absolute(p: &str) -> bool {
-    let b = p.as_bytes();
-    let sep = |c: Option<&u8>| matches!(c, Some(b'/') | Some(b'\\'));
-    sep(b.first()) || (b.len() > 2 && b[0].is_ascii_alphabetic() && b[1] == b':' && sep(b.get(2)))
+/// How a host CLI (`claude`, `copilot`, a bare name) or dfw itself (an absolute path) is
+/// started: a bare name is looked up on PATH, never in the current folder (a cloned repository's
+/// `claude.cmd` must not run); a Windows `.cmd` shim goes through cmd.exe with every part quoted.
+/// `None` when the program is not found.
+pub fn spawn_plan(bin: &str, args: &[String]) -> Option<Spawn> {
+    let exe = if Path::new(bin).is_absolute() {
+        bin.to_string()
+    } else {
+        find_executable(bin)?.display().to_string()
+    };
+    Some(plan_for(&exe, args.to_vec(), cfg!(windows)))
 }
 
-/// `spawnPlan(bin, args, platform)`: how to spawn on Windows. Host CLIs ("claude", "copilot")
-/// are .cmd shims and need a shell, where the arguments are joined unquoted: quote the ones
-/// cmd.exe would split or interpret. An absolute executable (dfw.exe, often under "Program
-/// Files") runs directly, no shell. Elsewhere everything runs directly.
-pub fn spawn_plan(bin: &str, args: &[String], platform: &str) -> Spawn {
-    if platform != "win32" || win32_is_absolute(bin) {
-        return Spawn::direct(bin, args.to_vec());
-    }
-    Spawn {
-        cmd: bin.to_string(),
-        args: args.iter().map(|a| quote_for_cmd(a, false)).collect(),
-        shell: true,
-    }
-}
+/// How long a host CLI call may take: `marketplace add` clones a repository.
+const HOST_CLI_TIMEOUT: Duration = Duration::from_secs(300);
+/// How long `<cli> --version` may take.
+const VERSION_TIMEOUT: Duration = Duration::from_secs(15);
+/// How long dfw's own `check --setup` may take: the engine download has three minutes inside.
+const SELF_TIMEOUT: Duration = Duration::from_secs(600);
 
-/// What a finished child left (`spawnSync` with `encoding: 'utf8'`).
-struct Ran {
-    /// The exit code; `None` when a signal ended it.
-    status: Option<i32>,
-    stdout: String,
-    stderr: String,
-}
-
-fn spawn_sync(bin: &str, args: &[String], env: &[(&str, &Path)]) -> io::Result<Ran> {
-    let plan = spawn_plan(bin, args, node_platform());
-    let output = command(&plan)
-        .envs(env.iter().copied())
-        .stdin(Stdio::null())
-        .output()?;
-    Ok(Ran {
-        status: output.status.code(),
-        stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
-        stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
-    })
+fn spawn_sync(bin: &str, args: &[String], env: &[(&str, &Path)], timeout: Duration) -> Ran {
+    let Some(plan) = spawn_plan(bin, args) else {
+        return Ran {
+            error: Some(format!("spawnSync {bin} ENOENT")),
+            ..Ran::default()
+        };
+    };
+    let env: Vec<(String, String)> = env
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.display().to_string()))
+        .collect();
+    run_timed(&plan, None, &env, timeout)
 }
 
 fn has_cli(bin: &str) -> bool {
-    spawn_sync(bin, &["--version".to_string()], &[]).is_ok_and(|r| r.status == Some(0))
+    spawn_sync(bin, &["--version".to_string()], &[], VERSION_TIMEOUT).status == Some(0)
 }
 
 /// `marketplaceAction(listOut, source, name)`: what to do with the marketplace in Claude Code,
@@ -165,7 +154,7 @@ pub fn resolve_hosts(host: &str) -> Result<Vec<&'static Host>, DfwError> {
     if host != "auto" {
         let h = get_host(Some(host))?;
         if h.status != Status::Supported {
-            return Err(DfwError::internal(format!(
+            return Err(DfwError::new(format!(
                 "{} support is planned but not available yet. Supported: {}.",
                 h.name,
                 supported_list()
@@ -173,7 +162,7 @@ pub fn resolve_hosts(host: &str) -> Result<Vec<&'static Host>, DfwError> {
         }
         let cli = h.cli.unwrap_or_default();
         if !has_cli(cli) {
-            return Err(DfwError::internal(format!(
+            return Err(DfwError::new(format!(
                 "{} CLI (\"{cli}\") not found on PATH.",
                 h.name
             )));
@@ -190,7 +179,7 @@ pub fn resolve_hosts(host: &str) -> Result<Vec<&'static Host>, DfwError> {
             .filter(|h| h.status == Status::Supported)
             .filter_map(|h| h.cli)
             .collect();
-        return Err(DfwError::internal(format!(
+        return Err(DfwError::new(format!(
             "No supported AI coding tool found on PATH ({}). Install Claude Code or GitHub Copilot CLI first, or pass --host.",
             clis.join(", ")
         )));
@@ -206,15 +195,17 @@ struct Runner {
 
 impl Runner {
     fn run(&self, bin: &str, args: &[&str], allow_fail: bool) -> Result<Ran, DfwError> {
-        self.run_env(bin, args, allow_fail, &[])
+        self.run_env(bin, args, allow_fail, &[], HOST_CLI_TIMEOUT)
     }
 
+    /// A timeout is an error also when the call allows a failure: nothing can be read from it.
     fn run_env(
         &self,
         bin: &str,
         args: &[&str],
         allow_fail: bool,
         env: &[(&str, &Path)],
+        timeout: Duration,
     ) -> Result<Ran, DfwError> {
         let line = format!("{bin} {}", args.join(" "));
         if !self.quiet {
@@ -229,18 +220,24 @@ impl Runner {
                 format!("{line} failed:\n{msg}")
             })
         };
-        match spawn_sync(bin, &args, env) {
-            Err(e) if e.kind() == io::ErrorKind::NotFound => {
-                Err(failed(&format!("spawnSync {bin} ENOENT")))
-            }
-            Err(e) => Err(failed(&e.to_string())),
-            Ok(r) if r.status != Some(0) && !allow_fail => Err(failed(if r.stderr.is_empty() {
+        let r = spawn_sync(bin, &args, env, timeout);
+        if let Some(e) = &r.error {
+            return Err(failed(e));
+        }
+        if r.timed_out {
+            return Err(failed(&format!(
+                "no answer after {} s; it was stopped",
+                timeout.as_secs()
+            )));
+        }
+        if r.status != Some(0) && !allow_fail {
+            return Err(failed(if r.stderr.is_empty() {
                 &r.stdout
             } else {
                 &r.stderr
-            })),
-            Ok(r) => Ok(r),
+            }));
         }
+        Ok(r)
     }
 }
 
@@ -433,6 +430,7 @@ pub fn install(opts: &InstallOptions) -> Result<(), DfwError> {
             &["check", "--setup"],
             true,
             &[("CLAUDE_PROJECT_DIR", &tmp)],
+            SELF_TIMEOUT,
         );
         let _ = fs::remove_dir_all(&tmp);
         ran?;
@@ -486,63 +484,19 @@ mod tests {
         list.iter().map(|a| a.to_string()).collect()
     }
 
-    /// install: Windows spawn plan quotes shell arguments and runs absolute executables directly
+    /// install: a host CLI is looked up on PATH, an absolute dfw runs as it is (the Windows
+    /// quoting is tested in core::process)
     #[test]
-    fn windows_spawn_plan() {
-        let direct = spawn_plan(
-            "C:\\Program Files\\nodejs\\node.exe",
-            &args(&["C:\\p\\dfw.mjs", "doctor"]),
-            "win32",
-        );
+    fn spawn_plan_resolves_bare_names_only() {
         assert_eq!(
-            direct,
-            Spawn {
-                cmd: "C:\\Program Files\\nodejs\\node.exe".into(),
-                args: args(&["C:\\p\\dfw.mjs", "doctor"]),
-                shell: false
-            }
+            spawn_plan("/opt/dfw/bin/dfw", &args(&["doctor"])),
+            Some(Spawn::direct("/opt/dfw/bin/dfw", args(&["doctor"])))
         );
-        let p = spawn_plan(
-            "claude",
-            &args(&[
-                "plugin",
-                "marketplace",
-                "add",
-                "C:\\Users\\John Doe\\repo",
-                "--scope",
-                "user",
-            ]),
-            "win32",
-        );
-        assert!(p.shell);
-        assert_eq!(
-            p.args,
-            args(&[
-                "plugin",
-                "marketplace",
-                "add",
-                "\"C:\\Users\\John Doe\\repo\"",
-                "--scope",
-                "user"
-            ])
-        );
-        assert_eq!(
-            spawn_plan("claude", &args(&["a&calc"]), "win32").args,
-            args(&["\"a&calc\""])
-        );
-        assert_eq!(
-            spawn_plan("claude", &args(&["a b"]), "linux"),
-            Spawn {
-                cmd: "claude".into(),
-                args: args(&["a b"]),
-                shell: false
-            }
-        );
-        assert_eq!(
-            spawn_plan("claude", &args(&["", "say \"hi\"", "plain"]), "win32").args,
-            args(&["\"\"", "\"say \"\"hi\"\"\"", "plain"])
-        );
-        assert!(!spawn_plan("\\\\server\\share\\dfw.exe", &[], "win32").shell);
+        assert_eq!(spawn_plan("dfw-no-such-host-cli", &[]), None);
+        if cfg!(unix) {
+            let sh = spawn_plan("sh", &args(&["a b"])).unwrap();
+            assert!(Path::new(&sh.cmd).is_absolute() && sh.args == args(&["a b"]) && !sh.shell);
+        }
     }
 
     /// install: marketplace is re-added only when registered from another source
@@ -581,6 +535,11 @@ mod tests {
             err.message(),
             "Cursor support is planned but not available yet. Supported: claude, copilot."
         );
+        assert_eq!(
+            err.report(),
+            err.message(),
+            "a user's choice, not an internal error"
+        );
         assert!(resolve_hosts("nope")
             .unwrap_err()
             .message()
@@ -604,6 +563,23 @@ mod tests {
                 .err()
                 .unwrap();
             assert_eq!(err.message(), "sh -c echo no >&2; exit 3 failed:\nno");
+            // A host CLI that hangs is stopped, also when the call allows a failure.
+            let err = run
+                .run_env(
+                    "sh",
+                    &["-c", "sleep 30"],
+                    true,
+                    &[],
+                    Duration::from_millis(200),
+                )
+                .err()
+                .unwrap();
+            assert!(
+                err.message()
+                    .starts_with("sh -c sleep 30 failed:\nno answer after "),
+                "{}",
+                err.message()
+            );
             assert_eq!(
                 run.run("sh", &["-c", "echo out; exit 3"], true)
                     .unwrap()

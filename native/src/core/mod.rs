@@ -3,6 +3,7 @@
 pub mod config;
 pub mod error;
 pub mod host;
+pub mod http;
 pub mod js;
 pub mod lock;
 pub mod paths;

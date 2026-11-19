@@ -37,8 +37,11 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      - name: Rust toolchain (stable, from the runner's rustup)
-        run: rustup toolchain install stable --profile minimal --component clippy,rustfmt
+      - name: Rust toolchain (the exact version of native/rust-toolchain.toml, with clippy and rustfmt)
+        working-directory: native
+        run: |
+          rustup toolchain install
+          rustc --version
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
@@ -91,12 +94,22 @@ jobs:
       - name: The dfw binary the e2e drives (native/target/debug/dfw)
         working-directory: native
         run: |
-          rustup show active-toolchain || rustup toolchain install
+          rustup toolchain install
           cargo build --locked
       - name: End-to-end (Studio)
         env:
           DFW_BIN: native/target/debug/dfw
         run: node tests/e2e/studio.e2e.mjs --shots "$RUNNER_TEMP/e2e-shots"
+      # The tests that launch a browser are off in job native (no Chrome there); this runner has
+      # one. One at a time: each starts its own headless Chrome.
+      - name: Rust tests that need Chrome
+        working-directory: native
+        run: cargo test --locked -- --ignored --test-threads=1
+      - name: Golden cases that render (Chrome)
+        env:
+          DFW_REQUIRE_BIN: '1'
+          DFW_TEST_CHROME: '1'
+        run: node --test --test-concurrency=1 tests/golden/
       - name: Upload screenshots
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

@@ -177,7 +177,7 @@ Other AI coding agents can be supported by adding an adapter under `adapters/` (
 
 ## Development
 
-The binary is the Rust crate in `native/` (stable toolchain, pinned by `native/rust-toolchain.toml`). Development needs Rust and Node.js 22+ for the scripts and tests; `npm ci` installs the pinned dev tools (esbuild for the Studio bundles, the linters, the DOM the browser-code tests use).
+The binary is the Rust crate in `native/` (Rust 1.100.0, pinned by `native/rust-toolchain.toml`). Development needs Rust and Node.js 22+ for the scripts and tests; `npm ci` installs the pinned dev tools (esbuild for the Studio bundles, the linters, the DOM the browser-code tests use).
 
 ```bash
 cd native && cargo build # the debug binary native/target/debug/dfw
