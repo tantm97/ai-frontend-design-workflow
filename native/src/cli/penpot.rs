@@ -41,13 +41,12 @@ fn flag_text(ctx: &Ctx, key: &str) -> Option<String> {
     }
 }
 
-/// A flag that names a file: given without a value it was `true` in Node, where joining it to
-/// a path threw.
+/// A flag that names a file: given without a value it is refused (Node threw a TypeError).
 fn path_flag(ctx: &Ctx, key: &str) -> Result<Option<String>, DfwError> {
     match ctx.args.get(key) {
-        Some(ArgValue::Flag) => Err(DfwError::internal(
-            "The \"paths[1]\" argument must be of type string. Received type boolean (true)",
-        )),
+        Some(ArgValue::Flag) => Err(DfwError::new(format!(
+            "--{key} needs a file name, e.g. --{key} out.json."
+        ))),
         _ => Ok(flag_text(ctx, key)),
     }
 }

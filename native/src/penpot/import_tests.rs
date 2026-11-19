@@ -111,6 +111,30 @@ fn frozen_design_comments_only_and_a_dry_run_writes_nothing() {
     assert!(format_import_changes(&r, false).contains("The design is frozen (G2)"));
 }
 
+/// penpot import: a dry run whose token comparison fails leaves no temporary file behind
+#[test]
+fn a_failed_dry_run_token_diff_leaves_no_temporary_file() {
+    let root = project("penpot-dry-fail", draft());
+    let mut changes = with_export(&root, &fixture_export(), "changes.json");
+    changes["tokens"] = json!({ "sets": [{ "name": "base", "tokens": [
+        { "name": "shadow.card", "type": "boxShadow", "value": [null] }
+    ] }] });
+    let dry = run(&root, &changes, None, true);
+    assert!(
+        dry.warnings
+            .iter()
+            .any(|w| w.starts_with("Token diff skipped: A shadow token")),
+        "{:?}",
+        dry.warnings
+    );
+    let leftovers: Vec<String> = dir_names(&root.join(".dfw/penpot"))
+        .unwrap()
+        .into_iter()
+        .filter(|f| f.starts_with(".tokens-"))
+        .collect();
+    assert!(leftovers.is_empty(), "{leftovers:?}");
+}
+
 /// penpot import: plugin token sets become a Penpot token file
 #[test]
 fn plugin_token_sets_become_a_penpot_token_file() {
@@ -135,8 +159,18 @@ fn plugin_token_sets_become_a_penpot_token_file() {
         json!({ "sets": [{ "name": "base", "tokens": 5 }] }),
         json!({ "sets": [{ "name": "base" }], "themes": [null] }),
     ] {
-        assert!(tokens_from_plugin(Some(&hostile)).is_err(), "{hostile}");
+        let err = tokens_from_plugin(Some(&hostile)).unwrap_err();
+        // A message that says what is wrong and what to do, not a JavaScript TypeError.
+        assert!(
+            matches!(err, DfwError::User { .. }) && err.message().contains("dfw bridge plugin"),
+            "{hostile}: {}",
+            err.message()
+        );
     }
+    assert_eq!(
+        tokens_from_plugin(Some(&json!({ "sets": "abc" }))).unwrap_err().message(),
+        "The change file's \"tokens.sets\" is text, not a list of token sets. Send the changes again from the dfw bridge plugin (\"Send changes to dfw\"), or fix the file."
+    );
 }
 
 /// penpot tokens: "__proto__" in a token or set name never reaches Object.prototype

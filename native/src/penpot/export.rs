@@ -905,7 +905,10 @@ fn snapshot(renderer: &Renderer, job: &Value, file: Option<&PathBuf>) -> Result<
     let page = renderer.page(size("width"), size("height"), 1.0)?;
     let result = (|| {
         let file = file.ok_or_else(|| {
-            DfwError::internal("The \"path\" argument must be of type string. Received undefined")
+            DfwError::new(format!(
+                "Could not prepare {} for rendering. Check that the variant's \"file\" in design/design.json names an HTML file under design/.",
+                js::to_string(job.get("file"))
+            ))
         })?;
         page.goto(&path_to_file_url(file), 30_000)?;
         fonts_ready(&page, 3000)?;

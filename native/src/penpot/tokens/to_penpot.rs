@@ -59,7 +59,7 @@ fn color_out(v: Option<&Value>, note: Note) -> Result<Value, String> {
     {
         match hex {
             Some(Value::String(h)) if opaque => return Ok(Value::String(h.to_lowercase())),
-            Some(_) if opaque => return Err("v.hex.toLowerCase is not a function".to_string()),
+            Some(_) if opaque => return Err("\"hex\" must be text like \"#0066ff\"".to_string()),
             _ => {}
         }
         list.iter()
@@ -67,7 +67,7 @@ fn color_out(v: Option<&Value>, note: Note) -> Result<Value, String> {
             .collect()
     } else if space == Some("oklch") && js::present(components).is_some() {
         let Some(list) = components.and_then(Value::as_array) else {
-            return Err("v.components?.every is not a function".to_string());
+            return Err("oklch \"components\" must be a list of three numbers".to_string());
         };
         if !numbers(list) {
             return hex_fallback(v, hex, opaque, note);
@@ -98,11 +98,7 @@ fn hex_fallback(v: &Value, hex: Option<&Value>, opaque: bool, note: Note) -> Res
     };
     note(format!("{space} colour exported through its hex fallback"));
     let Value::String(hex) = hex else {
-        return Err(if opaque {
-            "v.hex.toLowerCase is not a function".to_string()
-        } else {
-            "v.hex.slice is not a function".to_string()
-        });
+        return Err("\"hex\" must be text like \"#0066ff\"".to_string());
     };
     if opaque {
         return Ok(Value::String(hex.to_lowercase()));
@@ -164,9 +160,7 @@ fn shadow_out(v: &Value, note: Note) -> Result<Value, String> {
     fn one(s: &Value, note: Note) -> Result<Value, String> {
         match s {
             Value::String(_) => return Ok(s.clone()),
-            Value::Null => {
-                return Err("Cannot read properties of null (reading 'color')".to_string())
-            }
+            Value::Null => return Err("a shadow layer is empty (null)".to_string()),
             _ => {}
         }
         let zero = json!({ "value": 0, "unit": "px" });
@@ -354,7 +348,10 @@ fn to_penpot(name: &str, token: &Token, note: Note) -> Result<Converted, String>
                     .to_string(),
             );
             match value {
-                Value::Null => Err("Cannot read properties of null (reading 'unit')".to_string()),
+                Value::Null => Err(
+                    "the value is empty (null); give it {\"value\": 200, \"unit\": \"ms\"}"
+                        .to_string(),
+                ),
                 Value::Object(_) | Value::Array(_) => {
                     let n = js::to_number(value.get("value"));
                     let seconds = value.get("unit").and_then(Value::as_str) == Some("s");
@@ -378,7 +375,10 @@ fn to_penpot(name: &str, token: &Token, note: Note) -> Result<Converted, String>
                 return done("typography", value.clone());
             }
             if value.is_null() {
-                return Err("Cannot read properties of null (reading 'fontFamily')".to_string());
+                return Err(
+                    "the value is empty (null); give it fontFamily, fontSize and the other fields"
+                        .to_string(),
+                );
             }
             let mut v = Map::new();
             for (key, penpot_key) in TYPO_OUT {

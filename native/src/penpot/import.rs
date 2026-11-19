@@ -44,6 +44,13 @@ fn fingerprint(x: &Value) -> String {
     sha256(to_json_compact(x))[..16].to_string()
 }
 
+/// The change file's `tokens.sets` is not a list.
+fn sets_not_a_list(what: &str) -> DfwError {
+    DfwError::new(format!(
+        "The change file's \"tokens.sets\" is {what}, not a list of token sets. Send the changes again from the dfw bridge plugin (\"Send changes to dfw\"), or fix the file."
+    ))
+}
+
 /// `tokensFromPlugin`: Penpot token sets sent by the plugin as a Penpot token file (same shape
 /// as the Tokens panel export). `None` when the plugin sent no set.
 pub fn tokens_from_plugin(t: Option<&Value>) -> Result<Option<Value>, DfwError> {
@@ -53,11 +60,9 @@ pub fn tokens_from_plugin(t: Option<&Value>) -> Result<Option<Value>, DfwError> 
     // `t.sets.length`: an empty list or anything without a length is no token set at all.
     let all = match t.get("sets") {
         Some(Value::Array(sets)) if !sets.is_empty() => sets,
-        Some(Value::String(s)) if !s.is_empty() => {
-            return Err(DfwError::internal("t.sets.filter is not a function"))
-        }
+        Some(Value::String(s)) if !s.is_empty() => return Err(sets_not_a_list("text")),
         Some(Value::Object(sets)) if js::truthy(sets.get("length")) => {
-            return Err(DfwError::internal("t.sets.filter is not a function"))
+            return Err(sets_not_a_list("an object"))
         }
         _ => return Ok(None),
     };
@@ -476,23 +481,28 @@ fn token_diff(
     if !dry_run {
         write_json(&file, doc)?;
     }
-    let read_from = if dry_run {
-        let tmp = dir.join(format!(".tokens-{}.json", std::process::id()));
-        write_json(&tmp, doc)?;
-        tmp
-    } else {
-        file.clone()
-    };
-    // As in the Node code, a failed comparison leaves the temporary file of a dry run behind.
-    let result = import_penpot_tokens(root, &read_from, None, true, false)?;
-    if dry_run {
-        match fs::remove_file(&read_from) {
-            Ok(()) => {}
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
-            Err(err) => return Err(err.into()),
+    // A dry run compares through a temporary file, removed on every path (also when the
+    // comparison fails; the Node code left it behind then).
+    let tmp = dry_run.then(|| TempFile(dir.join(format!(".tokens-{}.json", std::process::id()))));
+    let read_from = match &tmp {
+        Some(t) => {
+            write_json(&t.0, doc)?;
+            t.0.clone()
         }
-    }
+        None => file.clone(),
+    };
+    let result = import_penpot_tokens(root, &read_from, None, true, false)?;
     Ok((result, relative_path(root, &file)))
+}
+
+/// A temporary file removed when dropped.
+struct TempFile(std::path::PathBuf);
+
+impl Drop for TempFile {
+    fn drop(&mut self) {
+        // Cleanup of a temporary file: the import's result does not depend on it.
+        let _ = fs::remove_file(&self.0);
+    }
 }
 
 /// The lines of the comment that reports token values changed in Penpot.
