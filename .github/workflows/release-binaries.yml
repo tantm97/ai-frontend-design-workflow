@@ -84,7 +84,9 @@ jobs:
         working-directory: native
         run: |
           rustup toolchain install
-          rustc -vV | grep -q "host: ${{ matrix.target }}" || { echo "this runner does not build ${{ matrix.target }} natively"; rustc -vV; exit 1; }
+          # Read the host first: `rustc -vV | grep -q` fails under pipefail when grep exits early.
+          host=$(rustc -vV | sed -n 's/^host: //p')
+          [ "$host" = "${{ matrix.target }}" ] || { echo "this runner builds $host, not ${{ matrix.target }}"; exit 1; }
       # The collector address is compiled in from the repository secrets, on this step only and
       # only for a tag (see native/README-telemetry.md); a run by hand on a branch gets none. No
       # cache is shared with this build, and cargo runs without -vv so the build script's
@@ -112,21 +114,23 @@ jobs:
         run: |
           built=$("$BIN" __debug telemetry-build)
           echo "telemetry build: $built"
-          echo "$built" | grep -q "\"endpoint\":$EXPECT_ENDPOINT" || { echo "the binary's address does not match the secret (expected endpoint: $EXPECT_ENDPOINT)"; exit 1; }
+          case "$built" in *"\"endpoint\":$EXPECT_ENDPOINT"*) ;; *) false ;; esac || { echo "the binary's address does not match the secret (expected endpoint: $EXPECT_ENDPOINT)"; exit 1; }
       - name: Smoke test (standalone, through the plugin launcher, and a real render)
         env:
           DFW_TELEMETRY: 'off'
         run: |
           export DFW_HOME="$RUNNER_TEMP/dfwhome"
-          "$BIN" version | grep -q "^dfw $VERSION (native)"
+          # Output is read whole before matching: `cmd | grep -q` can fail under pipefail.
+          out=$("$BIN" version); case "$out" in "dfw $VERSION (native)"*) ;; *) echo "unexpected: $out"; exit 1 ;; esac
           "$BIN" doctor || true
           name=dfw; [ "${{ matrix.platform }}" = win32-x64 ] && name=dfw.exe
           mkdir -p "$DFW_HOME/bin/$VERSION" && cp "$BIN" "$DFW_HOME/bin/$VERSION/$name"
           if [ "${{ matrix.platform }}" = win32-x64 ]; then
-            cmd //c "plugins\\dfw\\bin\\dfw.cmd version" | grep -q "^dfw $VERSION (native)"
+            out=$(cmd //c "plugins\\dfw\\bin\\dfw.cmd version")
           else
-            plugins/dfw/bin/dfw version | grep -q "^dfw $VERSION (native)"
+            out=$(plugins/dfw/bin/dfw version)
           fi
+          case "$out" in "dfw $VERSION (native)"*) ;; *) echo "unexpected from the launcher: $out"; exit 1 ;; esac
           # A headless render. The linux-arm64 runner image ships no Chrome (the render path is
           # the same code as linux-x64, which runs it).
           [ "${{ matrix.platform }}" = linux-arm64 ] && exit 0
