@@ -22,6 +22,46 @@ fn tmp_dir() -> PathBuf {
     dir.canonicalize().unwrap()
 }
 
+/// The output of `cmd` (stdin written first), or a failure after `limit` instead of a hang: a
+/// process the command started that keeps its output pipes open (Windows hands inheritable
+/// handles down to every child) would otherwise stall the whole test run.
+fn output_within(mut cmd: Command, stdin: &str, limit: Duration) -> Output {
+    let mut child = cmd
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    // A command that does not read its stdin may have closed it already.
+    let _ = child.stdin.take().unwrap().write_all(stdin.as_bytes());
+    let (mut out, mut err) = (child.stdout.take().unwrap(), child.stderr.take().unwrap());
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let (mut o, mut e) = (Vec::new(), Vec::new());
+        let reader = std::thread::spawn(move || {
+            let _ = err.read_to_end(&mut e);
+            e
+        });
+        let _ = out.read_to_end(&mut o);
+        let _ = tx.send((o, reader.join().unwrap_or_default()));
+    });
+    match rx.recv_timeout(limit) {
+        Ok((stdout, stderr)) => Output {
+            status: child.wait().unwrap(),
+            stdout,
+            stderr,
+        },
+        Err(_) => {
+            let exited = child.try_wait().unwrap();
+            let _ = child.kill();
+            panic!(
+                "{cmd:?}: no end of output after {limit:?} (the command {}): a process it started holds its stdout or stderr open",
+                exited.map_or("is still running".to_string(), |s| format!("exited with {s}"))
+            );
+        }
+    }
+}
+
 /// Where the copied binary runs: `<tmp>/bin/dfw`, a home of its own and a project folder.
 struct Standalone {
     tmp: PathBuf,
@@ -64,14 +104,7 @@ impl Standalone {
         if cfg!(unix) {
             cmd.env("PATH", "/usr/bin:/bin");
         }
-        let mut child = cmd
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .unwrap();
-        let _ = child.stdin.take().unwrap().write_all(stdin.as_bytes());
-        child.wait_with_output().unwrap()
+        output_within(cmd, stdin, Duration::from_secs(60))
     }
 
     /// Run a command that must succeed; its stdout.

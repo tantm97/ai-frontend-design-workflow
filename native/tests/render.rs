@@ -84,6 +84,10 @@ fn assert_no_browser_left(sandbox: &Path) {
         .map(|e| e.unwrap().file_name())
         .collect();
     assert!(profiles.is_empty(), "profiles left: {profiles:?}");
+    // pgrep is a POSIX tool: on Windows the profile check above is the evidence.
+    if cfg!(windows) {
+        return;
+    }
     let left = Command::new("pgrep")
         .args(["-f", &tmp.display().to_string()])
         .output()

@@ -44,6 +44,7 @@ fn dfw_command(dir: &Path, args: &[&str]) -> Command {
         cmd.env_remove(name);
     }
     cmd.env("HOME", dir)
+        .env("USERPROFILE", dir)
         .env("XDG_CONFIG_HOME", dir.join(".config"))
         .env("CODEX_HOME", dir.join(".codex"))
         .env("DFW_HOME", dir.join(".home"))

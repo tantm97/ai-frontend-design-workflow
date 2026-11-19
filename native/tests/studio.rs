@@ -4,7 +4,7 @@ use std::fs;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant};
 
 const DFW: &str = env!("CARGO_BIN_EXE_dfw");
@@ -29,15 +29,56 @@ fn cli(root: &Path, args: &[&str]) -> (i32, String, String) {
         cmd.env_remove(name);
     }
     cmd.env("HOME", root.join(".home"))
+        .env("USERPROFILE", root.join(".home"))
         .env("DFW_HOME", root.join(".home/dfw"))
         .env("DFW_TELEMETRY", "off")
         .env("DFW_PLUGIN_ROOT", repo().join("core"));
-    let out = cmd.output().unwrap();
+    let out = output_within(cmd, "", Duration::from_secs(60));
     (
         out.status.code().unwrap_or(-1),
         String::from_utf8_lossy(&out.stdout).into_owned(),
         String::from_utf8_lossy(&out.stderr).into_owned(),
     )
+}
+
+/// The output of `cmd` (stdin written first), or a failure after `limit` instead of a hang: a
+/// process the command started that keeps its output pipes open (Windows hands inheritable
+/// handles down to every child) would otherwise stall the whole test run.
+fn output_within(mut cmd: Command, stdin: &str, limit: Duration) -> Output {
+    let mut child = cmd
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    // A command that does not read its stdin may have closed it already.
+    let _ = child.stdin.take().unwrap().write_all(stdin.as_bytes());
+    let (mut out, mut err) = (child.stdout.take().unwrap(), child.stderr.take().unwrap());
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let (mut o, mut e) = (Vec::new(), Vec::new());
+        let reader = std::thread::spawn(move || {
+            let _ = err.read_to_end(&mut e);
+            e
+        });
+        let _ = out.read_to_end(&mut o);
+        let _ = tx.send((o, reader.join().unwrap_or_default()));
+    });
+    match rx.recv_timeout(limit) {
+        Ok((stdout, stderr)) => Output {
+            status: child.wait().unwrap(),
+            stdout,
+            stderr,
+        },
+        Err(_) => {
+            let exited = child.try_wait().unwrap();
+            let _ = child.kill();
+            panic!(
+                "{cmd:?}: no end of output after {limit:?} (the command {}): a process it started holds its stdout or stderr open",
+                exited.map_or("is still running".to_string(), |s| format!("exited with {s}"))
+            );
+        }
+    }
 }
 
 fn free_port() -> u16 {

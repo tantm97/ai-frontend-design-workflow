@@ -42,6 +42,7 @@ fn dfw(root: &Path, args: &[&str]) -> Command {
     }
     cmd.env("DFW_HOME", root.join(".home"))
         .env("HOME", root.join(".home"))
+        .env("USERPROFILE", root.join(".home"))
         .env("DFW_TELEMETRY", "0")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

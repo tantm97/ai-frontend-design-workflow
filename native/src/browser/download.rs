@@ -402,7 +402,10 @@ mod tests {
             &log,
         )
         .unwrap();
-        let exe = home.join("131.0.6778.85/chrome-headless-shell-test-plat/chrome-headless-shell");
+        let exe = home
+            .join("131.0.6778.85")
+            .join("chrome-headless-shell-test-plat")
+            .join("chrome-headless-shell");
         assert_eq!(
             r,
             json!({ "installed": true, "path": exe.display().to_string(), "source": "downloaded", "version": "131.0.6778.85" })

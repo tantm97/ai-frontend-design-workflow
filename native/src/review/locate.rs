@@ -549,7 +549,8 @@ mod tests {
                 (
                     "IMPECCABLE_SELF".to_string(),
                     o.skill_dir
-                        .join("scripts/impeccable")
+                        .join("scripts")
+                        .join("impeccable")
                         .to_string_lossy()
                         .into_owned()
                 )
