@@ -38,7 +38,7 @@ use crate::core::lock;
 use crate::core::paths::{project_paths, real_path, resolve, to_posix};
 use crate::core::util::{ensure_inside, now_iso, read_json, to_json_compact, write_atomic_inside};
 use crate::design::compose::{load_components, ComponentDef};
-use crate::design::html::{set_attr, Splice};
+use crate::design::html::{escape_text, set_attr, Splice};
 use crate::design::tokens::{dir_names, relative_path};
 
 /// `SPACING_PROPS`: what a spacing edit may set in an inline style.
@@ -67,13 +67,6 @@ pub const LAYOUT_PROPS: [&str; 3] = ["grid-column", "width", "min-height"];
 
 /// `MAX_JOURNAL`: undo depth; each record holds two full copies of the file.
 pub const MAX_JOURNAL: usize = 200;
-
-/// `escText`: text between tags.
-fn esc_text(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-}
 
 /// `lineAt`: 1-based line of byte `i`.
 fn line_at(text: &str, i: usize) -> usize {
@@ -230,7 +223,7 @@ pub fn transform(root: &Path, text: &str, op: &Value) -> Result<String, DfwError
             let trail = inner[lead..].len() - inner[lead..].trim_end_matches(js::is_space).len();
             let splice = Splice {
                 range: el.inner_start + lead..el.inner_end - trail,
-                text: esc_text(&value),
+                text: escape_text(&value),
             };
             Ok(splice.apply(text))
         }

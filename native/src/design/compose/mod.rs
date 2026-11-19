@@ -25,13 +25,8 @@ use crate::core::paths::{project_paths, resolve, to_posix};
 /// Attributes of `<dfw-use>` that are not props and are not copied to the root element.
 const RESERVED: [&str; 6] = ["c", "component", "variant", "size", "id", "class"];
 
-/// `escapeHtml`: `&`, `<`, `>` and `"`.
-pub fn escape_html(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-}
+// The one escaper lives in design::html; studio/api.rs still imports it from here.
+pub use super::html::escape_html;
 
 /// The object `parseAttrs` built: decoded values by name, in the order the names first appear;
 /// a repeated name keeps its place and takes the later value.
