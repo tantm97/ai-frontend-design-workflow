@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { leftoverCheck } from '../../scripts/lib/checks.mjs';
+import { leftoverCheck, versionMismatch } from '../../scripts/lib/checks.mjs';
 import { blockedTitle, proposeOutcome, issueExists, findReport } from '../../scripts/ci-upstream.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -147,4 +147,20 @@ test('adapters: every host plugin is assembled from the one shared core copy lis
     const spec = JSON.parse(fs.readFileSync(path.join(REPO, 'adapters', a, 'assemble.json'), 'utf8'));
     assert.deepEqual(spec.copy, [{ from: `adapters/${a}/plugin`, to: '.' }]);
   }
+});
+
+test('versions: core/manifest.json, package.json, package-lock.json and native/Cargo.toml must agree; the repo does', () => {
+  const root = tmp('dfw-versions-');
+  const files = {
+    'core/manifest.json': '{ "name": "dfw", "version": "1.2.3" }',
+    'package.json': '{ "version": "1.2.3" }',
+    'package-lock.json': '{ "version": "1.2.3", "packages": { "": { "version": "1.2.3" } } }',
+    'native/Cargo.toml': '[package]\nname = "dfw"\nversion = "1.2.3"\n',
+    'native/Cargo.lock': 'version = 4\n\n[[package]]\nname = "dfw"\nversion = "1.2.3"\n',
+  };
+  for (const [rel, text] of Object.entries(files)) write(path.join(root, rel), text);
+  assert.equal(versionMismatch(root), null);
+  write(path.join(root, 'native/Cargo.toml'), '[package]\nname = "dfw"\nversion = "1.2.4"\n');
+  assert.match(versionMismatch(root), /^versions differ: .*native\/Cargo\.toml 1\.2\.4.*Bump them together\.$/);
+  assert.equal(versionMismatch(), null);
 });

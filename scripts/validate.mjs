@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { REPO_ROOT, readJson, loadRegistry, loadLock } from './lib/build.mjs';
-import { xrefCheck, hooksCheck, leftoverCheck, conflictLint } from './lib/checks.mjs';
+import { xrefCheck, hooksCheck, leftoverCheck, conflictLint, versionMismatch } from './lib/checks.mjs';
 import { createHash } from 'node:crypto';
 import { unwrap } from './knowledge.mjs';
 
@@ -69,6 +69,10 @@ for (const k of registry.knowledge || []) {
   if (body == null || createHash('sha256').update(body).digest('hex') !== k.sha256) errors.push(`knowledge ${k.id}: ${k.dest} differs from the pinned upstream text (do not edit it; npm run knowledge -- sync)`);
   if (!/## License/.test(text)) errors.push(`knowledge ${k.id}: license section missing`);
 }
+
+// 3b. One release version everywhere (contracts.md C14).
+const versions = versionMismatch();
+if (versions) errors.push(versions);
 
 errors.push(...xrefCheck());
 // 4. Hooks invariant.
