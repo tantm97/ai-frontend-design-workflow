@@ -5,6 +5,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
 use serde_json::{json, Map, Value};
 
@@ -20,6 +21,10 @@ use crate::design::compose::{compose_html, escape_html, load_components, Compose
 use crate::design::edit::load_token_names;
 use crate::design::system_page::render_system_page;
 use crate::design::tokens::relative_path;
+
+/// `--name:` in tokens.css, compiled once (the token list is read on every Studio request).
+static TOKEN_DECL: LazyLock<Option<regex::Regex>> =
+    LazyLock::new(|| with_js_classes(r"(--[\w-]+)\s*:").ok());
 
 /// URL prefix under which `design/` is served.
 pub const DESIGN_BASE: &str = "/design/";
@@ -217,7 +222,9 @@ pub fn token_list(root: &Path) -> Result<Value, DfwError> {
     let css = project_paths(root).tokens.join("tokens.css");
     if css.exists() {
         let text = js::read_text(&css)?;
-        let decl = with_js_classes(r"(--[\w-]+)\s*:")?;
+        let decl = TOKEN_DECL
+            .as_ref()
+            .ok_or_else(|| DfwError::internal("the token declaration pattern does not compile"))?;
         for c in decl.captures_iter(&text) {
             let Some(name) = c.get(1).map(|m| m.as_str()) else {
                 continue;

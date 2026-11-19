@@ -4,6 +4,7 @@
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
 use regex::Regex;
 use serde_json::{json, Value};
@@ -16,6 +17,16 @@ use crate::core::paths::{env_nonempty, find_project_root, project_paths, resolve
 use crate::core::util::{now_iso, write_json};
 use crate::workflow::gates::{decide_write, files_from_tool_input, relative};
 use crate::workflow::state::load_state;
+
+// Compiled once: the hook runs on every tool call.
+// `\b` of JavaScript is ASCII. Either quote (JS: a back-reference to the opening one).
+static ELEMENT_ID: LazyLock<Option<Regex>> = LazyLock::new(|| {
+    Regex::new(r#"(?:data-dfw-id|<dfw-use(?-u:\b)[^>]*?(?-u:\b)id)=(?:"([^"']+)"|'([^"']+)')"#).ok()
+});
+// Ids inside HTML comments are not elements: blank them (same length, so offsets hold).
+// An unclosed comment runs to the end.
+static COMMENT: LazyLock<Option<Regex>> =
+    LazyLock::new(|| Regex::new(r"(?s)<!--.*?(?:-->|$)").ok());
 
 /// The session's working directory from the payload, else the process's. A `cwd` that is not
 /// text is an error, as Node cannot resolve a path against it.
@@ -101,15 +112,9 @@ pub fn note_presence(
     let mut dfw_id = None;
     if !old.is_empty() && rel.ends_with(".html") && abs_file.exists() {
         let text = String::from_utf8_lossy(&fs::read(abs_file)?).into_owned();
-        // `\b` of JavaScript is ASCII. Either quote (JS: a back-reference to the opening one).
-        let id = Regex::new(
-            r#"(?:data-dfw-id|<dfw-use(?-u:\b)[^>]*?(?-u:\b)id)=(?:"([^"']+)"|'([^"']+)')"#,
-        )
-        .map_err(|err| DfwError::internal(err.to_string()))?;
-        // Ids inside HTML comments are not elements: blank them (same length, so offsets hold).
-        // An unclosed comment runs to the end.
-        let comment = Regex::new(r"(?s)<!--.*?(?:-->|$)")
-            .map_err(|err| DfwError::internal(err.to_string()))?;
+        let (Some(id), Some(comment)) = (ELEMENT_ID.as_ref(), COMMENT.as_ref()) else {
+            return Err(DfwError::internal("the presence patterns do not compile"));
+        };
         let blank = |s: &str| -> String {
             comment
                 .replace_all(s, |c: &regex::Captures| " ".repeat(c[0].len()))
