@@ -266,7 +266,11 @@ pub fn system_choose(root: &Path, name: &str, fonts: &str) -> Result<String, Dfw
         }
     } else {
         let (tokens, head) = preset_files(name)?;
-        let tokens = if opt.exists() { fs::read(&opt)? } else { tokens.into_bytes() };
+        let tokens = if opt.exists() {
+            fs::read(&opt)?
+        } else {
+            tokens.into_bytes()
+        };
         write_atomic(&tok_file, tokens)?;
         write_atomic(&p.design.join("system").join("head.html"), head)?;
     }
