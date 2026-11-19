@@ -380,6 +380,15 @@ fn approve_g2(root: &Path, a: &Args, state: &mut Value, note: Value) -> Result<i
             }),
         )?;
     }
+    // A configured check that did not run is not a pass: freezing without it is the user's call.
+    let not_verified: Vec<&str> = report
+        .text
+        .lines()
+        .filter(|l| l.starts_with("NOT VERIFIED"))
+        .collect();
+    if !report.unverified.is_empty() && !a.truthy("accept-unverified") {
+        return Err(DfwError::new(format!("G2 blocked: {} configured check(s) did not run ({}), so the design is not verified.\n{}\nInstall what is missing (\"dfw doctor\" lists it; \"dfw setup --a11y\" downloads axe) or turn the check off in the config. If the user explicitly accepts freezing without these checks, re-run with --accept-unverified (it is recorded).", report.unverified.len(), report.unverified.join(", "), not_verified.join("\n"))));
+    }
     let open: Vec<String> = all_comments(root)?
         .iter()
         .filter(|c| {
@@ -400,12 +409,27 @@ fn approve_g2(root: &Path, a: &Args, state: &mut Value, note: Value) -> Result<i
         .and_then(|list| list.last())
         .ok_or_else(|| type_error("version"))?;
     let hash = js::to_string(last.get("hash"));
-    out(&format!(
-        "Design frozen as {} (sha256 {}).\n{}",
-        js::to_string(last.get("version")),
-        js::slice16(&hash, 0, 12),
-        summarize(Some(state))?
-    ));
+    let version = js::to_string(last.get("version"));
+    if !report.unverified.is_empty() {
+        append_jsonl(
+            &project_paths(root).decisions,
+            &json!({
+                "at": now_iso(),
+                "level": 1,
+                "topic": "gate:G2:accepted-unverified",
+                "decision": format!("User accepted freezing {version} with {} check(s) not run: {}.", report.unverified.len(), report.unverified.join(", ")),
+                "unverified": report.unverified,
+                "by": "user",
+            }),
+        )?;
+    }
+    let mut lines = vec![format!(
+        "Design frozen as {version} (sha256 {}).",
+        js::slice16(&hash, 0, 12)
+    )];
+    lines.extend(not_verified.iter().map(|l| l.to_string()));
+    lines.push(summarize(Some(state))?);
+    out(&lines.join("\n"));
     Ok(0)
 }
 

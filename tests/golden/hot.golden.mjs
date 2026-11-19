@@ -301,6 +301,29 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
     assert.ok(!('.dfw/state.json' in r.files));
   });
 
+  // RV-3 (0.6.1): a configured check that did not run (axe is never downloaded in the temporary
+  // home) blocks the freeze unless the user accepts it; the freeze then says so
+  // and records the acceptance. Asserted, not recorded: which tools run differs per machine.
+  test('approve G2: a check that did not run blocks the freeze unless the user accepts it', () => {
+    const concepts = st({ phase: 'concepts', gates: { ...MINIMAL_STATE.gates, G1: GATE, DS: GATE } });
+    const g2 = (...flags) => runWith(nativeBinary(), [], ['approve', 'G2', '--note', 'ok', '--accept-findings', ...flags], { state: concepts });
+    const blocked = g2();
+    assert.equal(blocked.code, 1);
+    assert.match(blocked.stderr, /^G2 blocked: \d+ configured check\(s\) did not run \([^)]*axe[^)]*\), so the design is not verified\.\n/);
+    assert.match(blocked.stderr, /^NOT VERIFIED: .*axe/m);
+    assert.match(blocked.stderr, /re-run with --accept-unverified/);
+    const frozenFiles = (r) => Object.keys(r.files).filter((f) => f === '.dfw/state.json' || f.startsWith('design/approved/'));
+    assert.deepEqual(frozenFiles(blocked), []);
+    const frozen = g2('--accept-unverified');
+    assert.equal(frozen.code, 0, frozen.stderr);
+    assert.match(frozen.stdout, /^Design frozen as v1 \(sha256 [0-9a-f]{12}\)\.\nNOT VERIFIED: [^\n]*axe/);
+    const decisions = frozen.files['.dfw/decisions.jsonl'].trim().split('\n').map((l) => JSON.parse(l));
+    const unverified = decisions.find((d) => d.topic === 'gate:G2:accepted-unverified');
+    assert.equal(unverified.by, 'user');
+    assert.ok(unverified.unverified.includes('axe'));
+    assert.equal(JSON.parse(frozen.files['.dfw/state.json']).design.status, 'approved');
+  });
+
   test('reopen, pause and resume', () => {
     for (const phase of ['stack', 'implement', 'verify', 'done', 'concepts', 'audit']) {
       const r = same(['reopen', '--reason', 'Client feedback'], { state: { ...FROZEN, phase, gates: { ...FROZEN.gates, G4: GATE } } });
