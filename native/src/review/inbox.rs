@@ -72,7 +72,9 @@ pub fn undelivered(root: &Path) -> Result<Vec<Value>, DfwError> {
 }
 
 /// `markDelivered(root, comments)`: remember that the agent was given these comment states.
-/// The read-modify-write of `.delivered.json` holds the reviews lock.
+/// The read-modify-write of `.delivered.json` holds the reviews lock. Callers deliver through
+/// [`take_undelivered`]; the tests mark by hand.
+#[cfg(test)]
 pub fn mark_delivered(root: &Path, comments: &[Value]) -> Result<(), DfwError> {
     if comments.is_empty() {
         return Ok(());

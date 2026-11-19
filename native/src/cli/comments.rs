@@ -8,7 +8,7 @@ use crate::core::js;
 use crate::core::util::{out, to_json_pretty, ArgValue};
 use crate::review::comments::{add_comment, all_comments, new_session, update_comment, Update};
 use crate::review::inbox::{
-    format_for_claude, mark_delivered, undelivered, wait_for_comments, WaitOptions,
+    format_for_claude, take_undelivered, undelivered, wait_for_comments, WaitOptions,
 };
 use crate::workflow::state::arg_truthy;
 
@@ -106,10 +106,11 @@ fn comments(ctx: &Ctx) -> Result<i32, DfwError> {
         }
         "new-round" => print_json(&new_session(&root, None)?.session),
         "inbox" => {
-            let list = undelivered(&root)?;
-            if !a.truthy("peek") {
-                mark_delivered(&root, &list)?;
-            }
+            let list = if a.truthy("peek") {
+                undelivered(&root)?
+            } else {
+                take_undelivered(&root, false)?
+            };
             if list.is_empty() {
                 out("No new comments.");
             } else {
