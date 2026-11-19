@@ -97,27 +97,101 @@ fn server_command() -> Result<ServerCommand, DfwError> {
     })
 }
 
-/// The `TOML_BLOCK` expression of mcp.mjs by hand (it needs a look-ahead): the
-/// `[mcp_servers.dfw]` header line and every following line up to the next table header.
-/// LF or CRLF files; a header without its newline is not a block.
-fn toml_block(text: &str) -> Option<Range<usize>> {
-    let mut start = 0;
+/// The keys of a TOML table header line (`[a.b]`, `[ a . "b" ]  # note`), or `None` when the
+/// line is not a table header (an array of tables `[[x]]` is not one either). `Err` when it
+/// starts like a header but cannot be read.
+fn table_header(line: &str) -> Option<Result<Vec<String>, ()>> {
+    let rest = line.trim_start().strip_prefix('[')?;
+    if rest.starts_with('[') {
+        return None;
+    }
+    let mut keys = Vec::new();
+    let mut chars = rest.chars().peekable();
+    let skip_space = |chars: &mut std::iter::Peekable<std::str::Chars>| {
+        while chars.next_if(|c| *c == ' ' || *c == '\t').is_some() {}
+    };
     loop {
-        let line_end = start + text[start..].find('\n')? + 1;
-        let line = &text[start..line_end - 1];
-        let line = line.strip_suffix('\r').unwrap_or(line);
-        let header = line
-            .strip_prefix("[mcp_servers.dfw]")
-            .is_some_and(|rest| rest.chars().all(|c| c == ' ' || c == '\t'));
-        if header {
-            let mut end = line_end;
-            while end < text.len() && !text[end..].starts_with('[') {
-                end = text[end..].find('\n').map_or(text.len(), |i| end + i + 1);
+        skip_space(&mut chars);
+        let mut key = String::new();
+        match chars.peek() {
+            Some(q @ ('"' | '\'')) => {
+                let quote = *q;
+                chars.next();
+                loop {
+                    match chars.next() {
+                        Some(c) if c == quote => break,
+                        // An escape in a basic string: dfw never writes one, so it is not read.
+                        Some('\\') if quote == '"' => return Some(Err(())),
+                        Some(c) => key.push(c),
+                        None => return Some(Err(())),
+                    }
+                }
             }
-            return Some(start..end);
+            _ => {
+                while let Some(c) =
+                    chars.next_if(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
+                {
+                    key.push(c);
+                }
+                if key.is_empty() {
+                    return Some(Err(()));
+                }
+            }
+        }
+        keys.push(key);
+        skip_space(&mut chars);
+        match chars.next() {
+            Some('.') => continue,
+            Some(']') => break,
+            _ => return Some(Err(())),
+        }
+    }
+    skip_space(&mut chars);
+    match chars.next() {
+        None | Some('#') => Some(Ok(keys)),
+        Some(_) => Some(Err(())),
+    }
+}
+
+/// The `TOML_BLOCK` expression of mcp.mjs by hand (it needs a look-ahead): the
+/// `[mcp_servers.dfw]` header line (also written `[ mcp_servers . "dfw" ]  # note`) and every
+/// following line up to the next table header. LF or CRLF files. A table header that cannot be
+/// read is an error: guessing would add a second dfw table and break the file.
+fn toml_block(text: &str) -> Result<Option<Range<usize>>, DfwError> {
+    let mut start = 0;
+    while start < text.len() {
+        let line_end = text[start..]
+            .find('\n')
+            .map_or(text.len(), |i| start + i + 1);
+        let line = text[start..line_end].trim_end_matches('\n');
+        let line = line.strip_suffix('\r').unwrap_or(line);
+        match table_header(line) {
+            Some(Ok(keys)) if keys == ["mcp_servers", "dfw"] => {
+                // The block ends at the next line that is a table header (`[x]` or `[[x]]`);
+                // an indented array element (`  ["a"],`) is not one.
+                let mut end = line_end;
+                while end < text.len() {
+                    let next = text[end..].find('\n').map_or(text.len(), |i| end + i + 1);
+                    let line = text[end..next].trim_end_matches(['\n', '\r']);
+                    let header = line.trim_start().starts_with("[[")
+                        || matches!(table_header(line), Some(Ok(_)));
+                    if header {
+                        break;
+                    }
+                    end = next;
+                }
+                return Ok(Some(start..end));
+            }
+            Some(Err(())) => {
+                return Err(DfwError::new(format!(
+                    "cannot read the table header {line:?} in the Codex config; fix it or add dfw by hand"
+                )))
+            }
+            _ => {}
         }
         start = line_end;
     }
+    Ok(None)
 }
 
 /// `text.replace(/\n{3,}/g, '\n\n')`.
@@ -152,7 +226,7 @@ pub fn mcp_config_text(
     cmd.extend(command.args.iter().cloned());
     cmd.push("mcp".into());
     if format == Format::Toml {
-        let without = match toml_block(current) {
+        let without = match toml_block(current)? {
             Some(block) => format!("{}{}", &current[..block.start], &current[block.end..]),
             None => current.to_string(),
         };
@@ -220,7 +294,7 @@ fn installed_in(format: Format, file: &Path) -> bool {
         return false;
     };
     if format == Format::Toml {
-        return toml_block(&text).is_some();
+        return toml_block(&text).is_ok_and(|b| b.is_some());
     }
     let key = if format == Format::Opencode {
         "mcp"
@@ -434,13 +508,61 @@ mod tests {
 
     #[test]
     fn toml_block_ends_at_the_next_table() {
+        let block = |t: &str| toml_block(t).unwrap().map(|r| t[r].to_string());
         let text = "a = 1\n[mcp_servers.dfw] \t\nx = 1\n\n[next]\n";
         assert_eq!(
-            &text[toml_block(text).unwrap()],
-            "[mcp_servers.dfw] \t\nx = 1\n\n"
+            block(text).as_deref(),
+            Some("[mcp_servers.dfw] \t\nx = 1\n\n")
         );
-        assert_eq!(toml_block("[mcp_servers.dfw]"), None);
-        assert_eq!(toml_block("[mcp_servers.dfwx]\n"), None);
+        // A header on the last line without its newline is a block too.
+        assert_eq!(
+            block("[mcp_servers.dfw]").as_deref(),
+            Some("[mcp_servers.dfw]")
+        );
+        assert_eq!(block("[mcp_servers.dfwx]\n"), None);
+        assert_eq!(block("[[mcp_servers.dfw]]\n"), None);
+        assert_eq!(block("x = \"[mcp_servers.dfw]\"\n"), None);
+        let multi = "[mcp_servers.dfw]\nargs = [\n  [\"a\"],\n]\n  [other]\nk = 1\n";
+        assert_eq!(
+            block(multi).as_deref(),
+            Some("[mcp_servers.dfw]\nargs = [\n  [\"a\"],\n]\n"),
+            "an array element is not a header, an indented header is"
+        );
+    }
+
+    /// mcp install: a header with a comment or spaces is the dfw table (a second one made the
+    /// Codex config invalid); a header that cannot be read is refused
+    #[test]
+    fn toml_header_with_a_comment_is_replaced_and_a_broken_one_refused() {
+        let c = command("/new/dfw");
+        for header in [
+            "[mcp_servers.dfw] # mine",
+            "[mcp_servers.dfw]# mine",
+            "  [ mcp_servers . dfw ]",
+            "[mcp_servers.\"dfw\"]",
+            "['mcp_servers'.dfw]  # quoted",
+        ] {
+            let text =
+                format!("model = \"o3\"\n\n{header}\ncommand = \"/old/dfw\"\nargs = [\"mcp\"]\n");
+            let next = mcp_config_text(Format::Toml, &text, false, &c).unwrap();
+            assert_eq!(next.matches("command = ").count(), 1, "{header}: {next}");
+            assert!(next.contains("command = \"/new/dfw\""), "{header}");
+            assert!(!next.contains("/old/dfw"), "{header}");
+        }
+        for broken in [
+            "[mcp_servers.dfw] trailing",
+            "[mcp_servers.\"dfw]",
+            "[mcp_servers..dfw]",
+            "[mcp_servers.dfw",
+        ] {
+            let text = format!("{broken}\ncommand = \"/old/dfw\"\n");
+            let err = mcp_config_text(Format::Toml, &text, false, &c).unwrap_err();
+            assert!(
+                err.message().starts_with("cannot read the table header"),
+                "{broken}"
+            );
+            assert_eq!(err.exit_code(), 1);
+        }
         assert_eq!(collapse_blank_lines("a\n\n\n\nb\n\n"), "a\n\nb\n\n");
         assert_eq!(end_with_newline("a \n\u{feff}\n"), "a\n");
         assert_eq!(end_with_newline(""), "\n");
