@@ -443,7 +443,11 @@ mod tests {
         assert_eq!(removed["mcpServers"].get("dfw"), None);
         let broken = mcp_config_text(Format::McpServers, "{broken", false, &c).unwrap_err();
         assert!(broken.message().contains("cannot parse"));
-        assert_eq!(broken.report(), broken.message(), "the user's file, the user's fix");
+        assert_eq!(
+            broken.report(),
+            broken.message(),
+            "the user's file, the user's fix"
+        );
 
         let toml = "model = \"o3\"\n\n[mcp_servers.other]\ncommand = \"o\"\n";
         let added = mcp_config_text(Format::Toml, toml, false, &c).unwrap();

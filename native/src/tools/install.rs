@@ -535,7 +535,11 @@ mod tests {
             err.message(),
             "Cursor support is planned but not available yet. Supported: claude, copilot."
         );
-        assert_eq!(err.report(), err.message(), "a user's choice, not an internal error");
+        assert_eq!(
+            err.report(),
+            err.message(),
+            "a user's choice, not an internal error"
+        );
         assert!(resolve_hosts("nope")
             .unwrap_err()
             .message()
