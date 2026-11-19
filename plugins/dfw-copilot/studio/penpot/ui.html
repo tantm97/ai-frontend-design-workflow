@@ -56,6 +56,7 @@
     el.textContent = t;
     el.className = err ? 'err' : '';
   };
+  // '*': Penpot's origin (the user's own instance) is not known here; only what the user syncs to that Penpot is sent.
   const toPlugin = (msg) => parent.postMessage(msg, '*');
   let downloadOnly = false;
 
@@ -148,6 +149,8 @@
   });
 
   window.addEventListener('message', async (e) => {
+    // Only Penpot (the parent window, which relays penpot.ui.sendMessage) talks to this panel.
+    if (e.source !== parent) return;
     const msg = e.data || {};
     if (msg.type === 'error') {
       if (msg.of === 'threads' || msg.of === 'reply') {
