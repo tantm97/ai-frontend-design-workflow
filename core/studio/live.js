@@ -17,6 +17,10 @@
     return !!sc && e.altKey === sc.alt && e.ctrlKey === sc.ctrl && e.shiftKey === sc.shift && e.metaKey === sc.meta && (e.code === (/\d/.test(sc.key) ? "Digit" : "Key") + sc.key.toUpperCase() || String(e.key).toLowerCase() === sc.key);
   }
 
+  // core/studio/overlay/fields.js
+  var EDITABLE_FIELD = 'input, textarea, select, [contenteditable]:not([contenteditable="false"])';
+  var isTypingTarget = (t) => !!t && (t.isContentEditable === true || typeof t.closest === "function" && !!t.closest(EDITABLE_FIELD));
+
   // core/studio/live/main.js
   function main() {
     if (window.__dfwLive || window.top !== window) return;
@@ -197,7 +201,7 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
           /** @type {any} */
           e.composedPath()[0] || e.target
         );
-        const typing = t && (t.isContentEditable || t.closest && t.closest("input, textarea, select, [contenteditable]:not([contenteditable=false])"));
+        const typing = isTypingTarget(t);
         if (e.key === "Escape" && (on || !pop.hidden)) {
           closeComposer();
           setOn(false);

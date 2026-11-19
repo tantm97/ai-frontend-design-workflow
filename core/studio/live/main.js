@@ -9,6 +9,7 @@
 // a constructed stylesheet, so the app's Content-Security-Policy style-src does not block it.
 // Bundled into core/studio/live.js (one classic script) by scripts/build-overlay.mjs.
 import { isShortcut, parseShortcut, shortcutLabel } from './shortcut.js';
+import { isTypingTarget } from '../overlay/fields.js';
 
 // main is about 190 lines (general.md GE4): the shadow-root UI, its state and its handlers share one
 // closure, as the injected script always had; the pure part (the shortcut) lives in shortcut.js.
@@ -198,8 +199,7 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
     (e) => {
       if (ours(e)) return;
       const t = /** @type {any} */ (e.composedPath()[0] || e.target); // the real target inside the app's own shadow roots
-      const typing =
-        t && (t.isContentEditable || (t.closest && t.closest('input, textarea, select, [contenteditable]:not([contenteditable=false])')));
+      const typing = isTypingTarget(t);
       if (e.key === 'Escape' && (on || !pop.hidden)) {
         closeComposer();
         setOn(false);

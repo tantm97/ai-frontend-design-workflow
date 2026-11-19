@@ -4,7 +4,7 @@
 import { post, st } from './state.js';
 import { isUi, labelOf, pick, rectOf } from './target.js';
 import { reportPins, reportSelection, reportSize } from './select.js';
-import { morph, sheetPath } from './morph.js';
+import { ROOT_OWNED, morph, sheetPath, syncAttrs } from './morph.js';
 
 /** Tell the Studio the overlay is ready (soft: after an in-place update). */
 export const ready = (/** @type {unknown} */ soft) => {
@@ -42,6 +42,7 @@ export async function softReload(/** @type {{ files?: string[], agent?: boolean 
     /** @type {Set<Node>} */
     const changed = new Set();
     const keep = st.editing ? st.editing.el : null;
+    syncAttrs(document.documentElement, doc.documentElement, changed, ROOT_OWNED);
     morph(document.head, doc.head, changed, keep);
     morph(document.body, doc.body, changed, keep);
     swapSheets(d.files || []);
@@ -56,6 +57,7 @@ export async function softReload(/** @type {{ files?: string[], agent?: boolean 
       (el) =>
         el.nodeType === 1 &&
         el.isConnected &&
+        el !== document.documentElement &&
         el !== document.body &&
         !document.head.contains(el) &&
         !isUi(el) &&

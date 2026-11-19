@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseHTML } from 'linkedom';
-import { morph } from '../../core/studio/overlay/morph.js';
+import { ROOT_OWNED, morph, syncAttrs } from '../../core/studio/overlay/morph.js';
 
 const page = (body, head = '') => parseHTML(`<!doctype html><html><head>${head}</head><body>${body}</body></html>`).document;
 
@@ -127,4 +127,27 @@ test('studio-overlay-morph: an element the user is editing is left exactly as it
   assert.equal(h1.textContent, 'Typing her', 'the text being typed is kept');
   assert.ok(!changed.has(h1), 'the edited element is not marked');
   assert.equal(live.querySelector('[data-dfw-id="p"]').textContent, 'New', 'the rest of the page is updated');
+});
+
+test('studio-overlay-morph: <html> attributes follow the source, except those the overlay owns', () => {
+  const live = parseHTML('<!doctype html><html lang="en" class="old" data-gone="1"><head></head><body></body></html>').document;
+  const next = parseHTML(
+    '<!doctype html><html lang="vi" class="new" dir="ltr" data-theme="light"><head></head><body></body></html>',
+  ).document;
+  const root = live.documentElement;
+  // Set at run time by the overlay (the theme the Studio picked, the tool's cursor).
+  root.setAttribute('data-theme', 'dark');
+  root.setAttribute('style', 'cursor: crosshair');
+  const changed = new Set();
+  syncAttrs(root, next.documentElement, changed, ROOT_OWNED);
+  assert.equal(root.getAttribute('lang'), 'vi');
+  assert.equal(root.getAttribute('class'), 'new');
+  assert.equal(root.getAttribute('dir'), 'ltr');
+  assert.equal(root.hasAttribute('data-gone'), false, 'an attribute the source dropped goes');
+  assert.equal(root.getAttribute('data-theme'), 'dark', 'the Studio theme stays');
+  assert.equal(root.getAttribute('style'), 'cursor: crosshair', 'the tool cursor stays');
+  assert.ok(changed.has(root));
+  const same = new Set();
+  syncAttrs(root, next.documentElement, same, ROOT_OWNED);
+  assert.equal(same.size, 0, 'nothing marked when the attributes already match');
 });
