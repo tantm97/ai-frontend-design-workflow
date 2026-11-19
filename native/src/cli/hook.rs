@@ -10,16 +10,14 @@ use super::{Ctx, Handler};
 use crate::core::error::DfwError;
 use crate::core::host::{current_host, format_hook_output, normalize_hook_input, HookResult};
 use crate::core::util::{require_flag_values, to_json_compact};
-use crate::hooks::post_tool_use::{post_tool_use, Outcome};
+use crate::hooks::post_tool_use::post_tool_use;
 use crate::hooks::pre_tool_use::pre_tool_use;
 use crate::hooks::session_start::session_start;
 use crate::hooks::stop::stop;
 use crate::hooks::user_prompt_submit::user_prompt_submit;
 use crate::telemetry::events::HookOutcome;
 
-/// The commands of this group. `session-start`, `pre-tool-use` and `user-prompt-submit` always
-/// run here; `post-tool-use` and `stop` hand the call to Node when it needs the checks of the
-/// design or browser group (see `hooks/post_tool_use.rs`, `hooks/stop.rs`).
+/// The commands of this group: `hook <name>` runs one handler of `hooks/`.
 pub fn commands() -> Vec<(&'static str, Handler)> {
     vec![("hook", Handler::Native(hook))]
 }
@@ -62,7 +60,7 @@ fn hook(ctx: &Ctx) -> Result<i32, DfwError> {
         serde_json::from_str(&text).unwrap_or_else(|_| json!({}))
     };
     let (kind, failed) = match run(ctx, name, event, &payload) {
-        Ok((kind, Outcome::Done(output))) => {
+        Ok((kind, output)) => {
             if let Some(output) = output {
                 let mut stdout = io::stdout().lock();
                 let _ = stdout
@@ -89,7 +87,7 @@ fn run(
     name: &str,
     event: &str,
     payload: &Value,
-) -> Result<(HookOutcome, Outcome<Value>), DfwError> {
+) -> Result<(HookOutcome, Option<Value>), DfwError> {
     require_flag_values(&ctx.args)?;
     let host = current_host(ctx.args.get("host"))?;
     let input = normalize_hook_input(payload)?;
@@ -97,15 +95,11 @@ fn run(
         "session-start" => session_start(&input)?,
         "pre-tool-use" => pre_tool_use(&input)?,
         "user-prompt-submit" => user_prompt_submit(&input, host)?,
-        "post-tool-use" => match post_tool_use(&input, host)? {
-            Outcome::Done(result) => result,
-        },
-        _ => match stop(&input)? {
-            Outcome::Done(result) => result,
-        },
+        "post-tool-use" => post_tool_use(&input, host)?,
+        _ => stop(&input)?,
     };
     let kind = HookOutcome::of(result.as_ref());
     let neutral = result.map_or(Value::Null, |r| r.to_value());
     let output = format_hook_output(host.id, event, &neutral)?;
-    Ok((kind, Outcome::Done(output)))
+    Ok((kind, output))
 }
