@@ -426,7 +426,8 @@ mod tests {
         }
         assert_eq!(
             fs::read_to_string(home.join("current.json")).unwrap(),
-            format!("{{\n  \"version\": \"131.0.6778.85\",\n  \"platform\": \"test-plat\",\n  \"path\": \"{}\"\n}}", exe.display())
+            // The path as a JSON string: a Windows path has its backslashes escaped.
+            format!("{{\n  \"version\": \"131.0.6778.85\",\n  \"platform\": \"test-plat\",\n  \"path\": {}\n}}", json!(exe.display().to_string()))
         );
         assert_eq!(
             *logged.borrow(),

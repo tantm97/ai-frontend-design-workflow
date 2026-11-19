@@ -1,7 +1,7 @@
 //! Browser commands of `core/lib/cli.mjs`: shoot, layout, diff (`cmdShoot`). The a11y check and the token
 //! extraction have no command of their own: they run inside `check` and `tokens extract`.
 
-use std::path::{Component, Path, PathBuf};
+use std::path::Path;
 
 use serde_json::{json, Value};
 
@@ -15,6 +15,7 @@ use crate::core::error::DfwError;
 use crate::core::paths::resolve;
 use crate::core::util::{out, sha256, to_json_pretty, Args};
 use crate::design::layout_cache::{changed_screens, mark_checked};
+use crate::design::tokens::relative_path as relative;
 
 /// The commands of this group.
 pub fn commands() -> Vec<(&'static str, Handler)> {
@@ -29,21 +30,6 @@ pub fn commands() -> Vec<(&'static str, Handler)> {
 /// (`require_flag_values`).
 fn flag(a: &Args, key: &str) -> Option<String> {
     a.text(key).filter(|t| !t.is_empty()).map(str::to_string)
-}
-
-/// `path.relative(from, to)` for two absolute, normalised paths.
-fn relative(from: &Path, to: &Path) -> String {
-    let (f, t): (Vec<Component>, Vec<Component>) =
-        (from.components().collect(), to.components().collect());
-    let common = f.iter().zip(&t).take_while(|(a, b)| a == b).count();
-    let mut rel = PathBuf::new();
-    for _ in common..f.len() {
-        rel.push("..");
-    }
-    for part in &t[common..] {
-        rel.push(part);
-    }
-    rel.display().to_string()
 }
 
 /// The flags of `dfw shoot` as [`ShootOptions`].

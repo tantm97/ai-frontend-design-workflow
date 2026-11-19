@@ -604,16 +604,27 @@ mod tests {
     #[test]
     fn unverified_locations_are_used_only_with_the_global_opt_in() {
         let root = test_dir("engine-unverified");
-        let o = skill(&root);
-        let env_bin = put(&root.join("own/impeccable"), "own build");
+        // The lookup of this machine's platform: a Windows path has a drive letter, so a PATH
+        // of real folders is split on ";" there, never on ":".
+        let (platform, exe, sep, build) = if cfg!(windows) {
+            ("win32", ".exe", ';', "windows-x64")
+        } else {
+            ("linux", "", ':', "linux-x64")
+        };
+        let o = EngineLookup {
+            platform: platform.into(),
+            ..skill(&root)
+        };
+        let name = format!("impeccable{exe}");
+        let env_bin = put(&root.join("own").join(&name), "own build");
         let sibling = put(
-            &o.skill_dir.join("scripts/bin/linux-x64/impeccable"),
+            &o.skill_dir.join("scripts/bin").join(build).join(&name),
             "sibling",
         );
-        let home_bin = put(&o.home.join(".impeccable/bin/impeccable"), "home");
-        let path_bin = put(&root.join("pathdir/impeccable"), "path");
+        let home_bin = put(&o.home.join(".impeccable/bin").join(&name), "home");
+        let path_bin = put(&root.join("pathdir").join(&name), "path");
         let path = format!(
-            "{}:{}",
+            "{}{sep}{}",
             root.join("empty").display(),
             root.join("pathdir").display()
         );
@@ -640,7 +651,7 @@ mod tests {
             ],
             "reported so setup can refuse to start the launcher"
         );
-        let cached = put(&o.home.join(".impeccable/bin/9.9.9/impeccable"), ENGINE);
+        let cached = put(&o.home.join(".impeccable/bin/9.9.9").join(&name), ENGINE);
         let e = resolve_engine(&with(both(), false));
         assert_eq!(
             (e.cmd.as_deref(), e.verified),

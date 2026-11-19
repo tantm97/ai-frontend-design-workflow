@@ -3,7 +3,7 @@
 use crate::core::js;
 use crate::design::edit::collect_tokens;
 use std::fs;
-use std::path::{Path, PathBuf, MAIN_SEPARATOR_STR};
+use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
@@ -16,19 +16,29 @@ pub fn css_var_name(name: &str) -> String {
     format!("--{}", name.replace('.', "-"))
 }
 
-/// `path.relative(from, to)` for two paths (made absolute first).
+/// `path.relative(from, to)` for two paths (made absolute first), with `/` between the parts on
+/// every platform: the form dfw prints and writes to JSON (`design/tokens/x.json`, never
+/// `design\tokens\x.json`). Windows accepts it as a path too. Two paths with nothing in
+/// common (another drive) give `to` itself.
 pub fn relative_path(from: &Path, to: &Path) -> String {
     let (from, to) = (resolve(from), resolve(to));
     let from: Vec<_> = from.components().collect();
-    let to: Vec<_> = to.components().collect();
-    let common = from.iter().zip(&to).take_while(|(a, b)| a == b).count();
+    let to_parts: Vec<_> = to.components().collect();
+    let common = from
+        .iter()
+        .zip(&to_parts)
+        .take_while(|(a, b)| a == b)
+        .count();
+    if common == 0 && !from.is_empty() {
+        return to.display().to_string();
+    }
     let mut parts: Vec<String> = vec!["..".to_string(); from.len() - common];
     parts.extend(
-        to[common..]
+        to_parts[common..]
             .iter()
             .map(|c| c.as_os_str().to_string_lossy().into_owned()),
     );
-    parts.join(MAIN_SEPARATOR_STR)
+    parts.join("/")
 }
 
 /// A token value of the wrong shape (where the Node code threw a `TypeError`). The caller
@@ -614,7 +624,7 @@ mod tests {
         );
         assert_eq!(
             relative_path(Path::new("/a/b/c"), Path::new("/a/d/e.txt")),
-            ["..", "..", "d", "e.txt"].join(MAIN_SEPARATOR_STR)
+            "../../d/e.txt"
         );
     }
 

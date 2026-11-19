@@ -229,11 +229,3 @@ fn pages_that_hold_screens() {
     );
     assert_eq!(screen_pages(&json!({})).len(), 1);
 }
-
-/// File URLs both ways, as the browser and Node write them.
-#[test]
-fn file_urls() {
-    let url = path_to_file_url(Path::new("/tmp/a b/é#1.html"));
-    assert_eq!(url, "file:///tmp/a%20b/%C3%A9%231.html");
-    assert_eq!(file_url_to_path(&url), Path::new("/tmp/a b/é#1.html"));
-}

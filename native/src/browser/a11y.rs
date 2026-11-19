@@ -20,11 +20,12 @@ use super::cdp::lock;
 use super::launch::{
     browser_status, fonts_ready, open_renderer_with, BrowserStatus, LaunchOptions, Renderer,
 };
-use super::layout_check::{file_url, head, manifest_breakpoints, states_of, Finding};
+use super::layout_check::{head, manifest_breakpoints, states_of, Finding};
 use crate::core::config::load_config;
 use crate::core::error::DfwError;
 use crate::core::http;
 use crate::core::js;
+use crate::core::paths::file_url;
 use crate::core::paths::{global_dir, project_paths};
 use crate::core::util::read_json;
 use crate::design::compose::{build_composed, build_system};

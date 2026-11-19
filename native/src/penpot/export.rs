@@ -25,7 +25,7 @@ use crate::browser::launch::{browser_status, fonts_ready, open_renderer, Rendere
 use crate::core::config::load_config;
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::{project_paths, resolve, to_posix};
+use crate::core::paths::{file_url, file_url_to_path, project_paths, resolve, to_posix};
 use crate::core::util::{
     get_path, now_iso, read_json, sha256, to_json_compact, write_json, write_json_inside,
 };
@@ -230,81 +230,6 @@ struct Linker<'a> {
     colors: &'a [ColorToken],
     radii: &'a [(String, Value)],
     project_root: Option<&'a Path>,
-}
-
-/// `fileURLToPath` for the `file:` URLs Chrome reports.
-fn file_url_to_path(url: &str) -> PathBuf {
-    let rest = url.strip_prefix("file:").unwrap_or(url);
-    // An authority (`//host`) comes before the path; a local file has an empty one.
-    let rest = match rest.strip_prefix("//") {
-        Some(after) => &after[after.find('/').unwrap_or(after.len())..],
-        None => rest,
-    };
-    let rest = &rest[..rest.find(['?', '#']).unwrap_or(rest.len())];
-    let bytes = rest.as_bytes();
-    let mut out = Vec::with_capacity(bytes.len());
-    let mut i = 0;
-    while i < bytes.len() {
-        let hex = (bytes[i] == b'%')
-            .then(|| rest.get(i + 1..i + 3))
-            .flatten()
-            .and_then(|h| u8::from_str_radix(h, 16).ok());
-        match hex {
-            Some(byte) => {
-                out.push(byte);
-                i += 3;
-            }
-            None => {
-                out.push(bytes[i]);
-                i += 1;
-            }
-        }
-    }
-    let path = String::from_utf8_lossy(&out).into_owned();
-    // "/C:/x" is "C:\x" on Windows.
-    if cfg!(windows) {
-        PathBuf::from(path.trim_start_matches('/').replace('/', "\\"))
-    } else {
-        PathBuf::from(path)
-    }
-}
-
-/// `pathToFileURL(path).href`.
-fn path_to_file_url(path: &Path) -> String {
-    let text = resolve(path).to_string_lossy().replace('\\', "/");
-    let mut url = String::from("file://");
-    if !text.starts_with('/') {
-        url.push('/');
-    }
-    for byte in text.bytes() {
-        let keep = byte.is_ascii_alphanumeric()
-            || matches!(
-                byte,
-                b'/' | b'-'
-                    | b'_'
-                    | b'.'
-                    | b'~'
-                    | b'!'
-                    | b'$'
-                    | b'&'
-                    | b'\''
-                    | b'('
-                    | b')'
-                    | b'*'
-                    | b'+'
-                    | b','
-                    | b';'
-                    | b'='
-                    | b':'
-                    | b'@'
-            );
-        if keep {
-            url.push(byte as char);
-        } else {
-            url.push_str(&format!("%{byte:02X}"));
-        }
-    }
-    url
 }
 
 impl Linker<'_> {
@@ -912,7 +837,7 @@ fn snapshot(renderer: &Renderer, job: &Value, file: Option<&PathBuf>) -> Result<
                 js::to_string(job.get("file"))
             ))
         })?;
-        page.goto(&path_to_file_url(file), 30_000)?;
+        page.goto(&file_url(file), 30_000)?;
         fonts_ready(&page, 3000)?;
         page.wait_for_timeout(40);
         page.evaluate(SNAPSHOT_PAGE.trim_end(), None)

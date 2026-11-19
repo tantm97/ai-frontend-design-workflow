@@ -388,6 +388,7 @@ pub fn studio_jobs(
 mod tests {
     use super::*;
     use crate::core::util::{test_dir, write_json};
+    use crate::design::tokens::relative_path;
 
     fn bp(id: &str, width: u32, height: u32) -> Breakpoint {
         Breakpoint {
@@ -554,7 +555,7 @@ mod tests {
         )
         .unwrap();
         write_json(&p.state, &json!({ "design": { "version": 3 } })).unwrap();
-        let rel = |f: &Path| f.strip_prefix(&root).unwrap().display().to_string();
+        let rel = |f: &Path| relative_path(&root, f);
         let list = |opts: ShootOptions| -> Vec<(String, String)> {
             jobs(&opts)
                 .unwrap()

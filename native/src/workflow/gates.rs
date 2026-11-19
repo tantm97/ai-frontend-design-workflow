@@ -82,7 +82,7 @@ pub fn real_path(path: &Path) -> Option<PathBuf> {
             existing = existing.parent()?;
         }
         let append = |base: PathBuf| rest.iter().rev().fold(base, |p, part| p.join(part));
-        match fs::canonicalize(existing) {
+        match crate::core::paths::canonicalize(existing) {
             Ok(real) => return Some(append(real)),
             Err(_) => {
                 // A dangling symlink: go on from its target.

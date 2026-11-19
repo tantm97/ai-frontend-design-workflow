@@ -93,7 +93,7 @@ pub fn unique_suffix() -> String {
 pub fn write_atomic(file: &Path, data: impl AsRef<[u8]>) -> Result<(), DfwError> {
     let linked = fs::symlink_metadata(file).is_ok_and(|m| m.file_type().is_symlink());
     let resolved = if linked {
-        fs::canonicalize(file).ok()
+        crate::core::paths::canonicalize(file).ok()
     } else {
         None
     };
@@ -750,7 +750,7 @@ pub fn test_dir(label: &str) -> std::path::PathBuf {
     ));
     fs::create_dir_all(&dir).unwrap();
     // macOS reaches its temporary directory through a symlink; tests compare real paths.
-    dir.canonicalize().unwrap()
+    crate::core::paths::canonicalize(&dir).unwrap()
 }
 
 #[cfg(test)]

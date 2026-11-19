@@ -24,7 +24,7 @@ use super::launch::{
 use crate::core::config::{load_config, studio_breakpoints, Breakpoint};
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::{project_paths, resolve, to_posix};
+use crate::core::paths::{file_url, project_paths, resolve, to_posix};
 use crate::core::util::read_json;
 use crate::design::compose::{
     build_composed, build_system, compose_html, load_components, ComposeOptions,
@@ -334,19 +334,6 @@ fn screen_jobs(manifest: &Value, bps: &[Breakpoint], opts: &LayoutOptions) -> Ve
         }
     }
     jobs
-}
-
-/// `pathToFileURL(file).href`.
-pub(crate) fn file_url(file: &Path) -> String {
-    let mut url = String::from("file://");
-    for b in to_posix(&resolve(file).display().to_string()).bytes() {
-        if b.is_ascii_alphanumeric() || b"/-._~!$&'()*+,;=:@[]|".contains(&b) {
-            url.push(b as char);
-        } else {
-            url.push_str(&format!("%{b:02X}"));
-        }
-    }
-    url
 }
 
 /// Write the composed Design System page to `.dfw/build/design/system/index.html` with its
@@ -852,9 +839,4 @@ mod tests {
         );
     }
 
-    #[test]
-    fn file_urls_are_percent_encoded() {
-        assert_eq!(file_url(Path::new("/tmp/a b/é#1?.html")), "file:///tmp/a%20b/%C3%A9%231%3F.html");
-        assert_eq!(file_url(Path::new("/x/../y/100%.html")), "file:///y/100%25.html");
-    }
 }

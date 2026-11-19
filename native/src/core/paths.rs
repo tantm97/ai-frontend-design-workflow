@@ -77,7 +77,7 @@ pub fn plugin_root() -> Option<PathBuf> {
         return Some(resolve(root));
     }
     let exe = env::current_exe().ok()?;
-    let exe = exe.canonicalize().unwrap_or(exe);
+    let exe = canonicalize(&exe).unwrap_or(exe);
     plugin_root_from(&exe)
 }
 
@@ -167,6 +167,99 @@ pub fn project_paths(root: &Path) -> ProjectPaths {
     }
 }
 
+/// `fs::canonicalize` without the Windows verbatim prefix: `\\?\C:\x` is `C:\x` and
+/// `\\?\UNC\host\share` is `\\host\share`. The prefix would reach messages, JSON and
+/// child processes, and a path with it never `starts_with` the same path without it. The
+/// standard library adds it again by itself where a long path needs it.
+pub fn canonicalize(p: &Path) -> std::io::Result<PathBuf> {
+    p.canonicalize().map(strip_verbatim)
+}
+
+/// The path without the Windows verbatim prefix of a drive or UNC path (unchanged elsewhere).
+pub fn strip_verbatim(p: PathBuf) -> PathBuf {
+    if !cfg!(windows) {
+        return p;
+    }
+    let Some(text) = p.to_str() else {
+        return p;
+    };
+    if let Some(rest) = text.strip_prefix(r"\\?\UNC\") {
+        return PathBuf::from(format!(r"\\{rest}"));
+    }
+    match text.strip_prefix(r"\\?\") {
+        Some(rest) if rest.as_bytes().get(1) == Some(&b':') => PathBuf::from(rest),
+        _ => p,
+    }
+}
+
+/// `pathToFileURL(path).href`: the absolute path percent-encoded as Node does it. A Windows
+/// drive path is `file:///C:/x` and a UNC path `file://host/share/x`.
+pub fn file_url(path: &Path) -> String {
+    let resolved = strip_verbatim(resolve(path)).to_string_lossy().into_owned();
+    let text = if cfg!(windows) {
+        resolved.replace('\\', "/")
+    } else {
+        resolved
+    };
+    let mut url = String::from("file://");
+    let text = match text.strip_prefix("//") {
+        Some(unc) => {
+            let end = unc.find('/').unwrap_or(unc.len());
+            url.push_str(&unc[..end]);
+            &unc[end..]
+        }
+        None => text.as_str(),
+    };
+    if !text.starts_with('/') {
+        url.push('/');
+    }
+    for byte in text.bytes() {
+        if byte.is_ascii_alphanumeric() || b"/-_.~!$&'()*+,;=:@".contains(&byte) {
+            url.push(byte as char);
+        } else {
+            url.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    url
+}
+
+/// `fileURLToPath` for the `file:` URLs Chrome reports.
+pub fn file_url_to_path(url: &str) -> PathBuf {
+    let rest = url.strip_prefix("file:").unwrap_or(url);
+    // An authority (`//host`) comes before the path; a local file has an empty one.
+    let rest = match rest.strip_prefix("//") {
+        Some(after) => &after[after.find('/').unwrap_or(after.len())..],
+        None => rest,
+    };
+    let rest = &rest[..rest.find(['?', '#']).unwrap_or(rest.len())];
+    let bytes = rest.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        let hex = (bytes[i] == b'%')
+            .then(|| rest.get(i + 1..i + 3))
+            .flatten()
+            .and_then(|h| u8::from_str_radix(h, 16).ok());
+        match hex {
+            Some(byte) => {
+                out.push(byte);
+                i += 3;
+            }
+            None => {
+                out.push(bytes[i]);
+                i += 1;
+            }
+        }
+    }
+    let path = String::from_utf8_lossy(&out).into_owned();
+    // "/C:/x" is "C:\x" on Windows.
+    if cfg!(windows) {
+        PathBuf::from(path.trim_start_matches('/').replace('/', "\\"))
+    } else {
+        PathBuf::from(path)
+    }
+}
+
 /// The real path of `p`: symbolic links and letter case as the file system has them. It also
 /// works for a path that does not exist yet (its existing part is resolved, the rest is kept)
 /// and for a link whose target is missing (the target is followed as written), so a dangling
@@ -176,7 +269,7 @@ pub fn real_path(p: &Path) -> PathBuf {
 }
 
 fn real_path_hops(p: &Path, hops: u32) -> PathBuf {
-    if let Ok(real) = p.canonicalize() {
+    if let Ok(real) = canonicalize(p) {
         return real;
     }
     let (Some(up), Some(name)) = (p.parent(), p.file_name()) else {
@@ -206,7 +299,7 @@ pub fn resolve_inside(root: &Path, rel: &str) -> Result<PathBuf, DfwError> {
         return Err(outside());
     }
     let target = root.join(rel_path);
-    let real_root = root.canonicalize().map_err(|_| outside())?;
+    let real_root = canonicalize(root).map_err(|_| outside())?;
     if !real_path(&target).starts_with(&real_root) {
         return Err(outside());
     }
@@ -218,6 +311,54 @@ mod tests {
     use super::*;
     use crate::core::util::test_dir;
     use std::fs;
+
+    /// File URLs both ways, as the browser and Node write them, for this platform's paths.
+    #[test]
+    fn file_urls_are_percent_encoded_both_ways() {
+        let (abs, dotted, base) = if cfg!(windows) {
+            (
+                r"C:\tmp\a b\é#1?[x]|.html",
+                r"C:\x\..\y\100%.html",
+                "file:///C:",
+            )
+        } else {
+            ("/tmp/a b/é#1?[x]|.html", "/x/../y/100%.html", "file://")
+        };
+        let url = file_url(Path::new(abs));
+        assert_eq!(
+            url,
+            format!("{base}/tmp/a%20b/%C3%A9%231%3F%5Bx%5D%7C.html")
+        );
+        assert_eq!(file_url(Path::new(dotted)), format!("{base}/y/100%25.html"));
+        assert_eq!(file_url_to_path(&url), Path::new(abs));
+        if cfg!(windows) {
+            assert_eq!(
+                file_url(Path::new(r"\\?\C:\a b.html")),
+                "file:///C:/a%20b.html",
+                "no verbatim prefix in a URL"
+            );
+            assert_eq!(
+                file_url(Path::new(r"\\host\share\a.html")),
+                "file://host/share/a.html"
+            );
+        }
+    }
+
+    #[test]
+    fn strip_verbatim_keeps_drive_and_unc_paths_usable() {
+        let p = |s: &str| PathBuf::from(s);
+        if cfg!(windows) {
+            assert_eq!(strip_verbatim(p(r"\\?\C:\a\b")), p(r"C:\a\b"));
+            assert_eq!(strip_verbatim(p(r"\\?\UNC\h\s\x")), p(r"\\h\s\x"));
+            assert_eq!(strip_verbatim(p(r"\\?\Volume{1}\x")), p(r"\\?\Volume{1}\x"));
+        }
+        assert_eq!(strip_verbatim(p("/a/b")), p("/a/b"));
+        let dir = test_dir("canonical");
+        assert!(!canonicalize(&dir)
+            .unwrap()
+            .to_string_lossy()
+            .starts_with(r"\\?\"));
+    }
 
     #[test]
     fn resolve_normalises_without_the_file_system() {

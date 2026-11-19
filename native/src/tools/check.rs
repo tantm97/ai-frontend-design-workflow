@@ -23,7 +23,7 @@ pub use self::report::{check_exit_code, format_report};
 use crate::core::config::env_map;
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::{project_paths, resolve, to_posix};
+use crate::core::paths::{canonicalize, project_paths, resolve, to_posix};
 use crate::core::process::{node_executable, plan_for, run_timed, Ran, Spawn};
 use crate::core::util::read_json;
 use crate::design::compose::{build_composed, build_system};
@@ -485,7 +485,7 @@ fn project_rel(root: &Path, target: &str) -> String {
     let mut rel = relative_path(root, &abs);
     if rel.starts_with("..") {
         // The same file reached through a symlinked directory (/tmp vs /private/tmp).
-        if let (Ok(real_root), Ok(real_abs)) = (fs::canonicalize(root), fs::canonicalize(&abs)) {
+        if let (Ok(real_root), Ok(real_abs)) = (canonicalize(root), canonicalize(&abs)) {
             rel = relative_path(&real_root, &real_abs);
         }
     }

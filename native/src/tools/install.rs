@@ -489,9 +489,15 @@ mod tests {
     /// quoting is tested in core::process)
     #[test]
     fn spawn_plan_resolves_bare_names_only() {
+        // An absolute path of this platform (`/opt/...` has no drive, so Windows looks it up).
+        let own = if cfg!(windows) {
+            r"C:\dfw\bin\dfw.exe"
+        } else {
+            "/opt/dfw/bin/dfw"
+        };
         assert_eq!(
-            spawn_plan("/opt/dfw/bin/dfw", &args(&["doctor"])),
-            Some(Spawn::direct("/opt/dfw/bin/dfw", args(&["doctor"])))
+            spawn_plan(own, &args(&["doctor"])),
+            Some(Spawn::direct(own, args(&["doctor"])))
         );
         assert_eq!(spawn_plan("dfw-no-such-host-cli", &[]), None);
         if cfg!(unix) {
