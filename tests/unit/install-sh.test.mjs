@@ -30,7 +30,11 @@ function fixture() {
   const dfwHome = path.join(home, '.config', 'dfw');
   const link = path.join(home, '.local', 'bin', 'dfw');
   const dest = path.join(dfwHome, 'bin', '9.9.9', 'dfw');
-  const run = () => spawnSync('/bin/sh', [path.join(REPO, 'install.sh'), '--no-runtime'], { encoding: 'utf8', env: { PATH: `${fakebin}:/usr/bin:/bin`, HOME: home, DFW_VERSION: '9.9.9' } });
+  const run = () =>
+    spawnSync('/bin/sh', [path.join(REPO, 'install.sh'), '--no-runtime'], {
+      encoding: 'utf8',
+      env: { PATH: `${fakebin}:/usr/bin:/bin`, HOME: home, DFW_VERSION: '9.9.9' },
+    });
   return { home, dfwHome, link, dest, run };
 }
 
