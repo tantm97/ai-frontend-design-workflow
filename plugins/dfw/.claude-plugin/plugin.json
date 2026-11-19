@@ -25,5 +25,13 @@
     "emil-design-eng",
     "hallmark",
     "taste-reference"
-  ]
+  ],
+  "skills": "./hosts/claude/skills/",
+  "agents": [
+    "./hosts/claude/agents/design-director.md",
+    "./hosts/claude/agents/screen-builder.md",
+    "./hosts/claude/agents/skill-steward.md",
+    "./hosts/claude/agents/visual-reviewer.md"
+  ],
+  "hooks": "./hosts/claude/hooks.json"
 }

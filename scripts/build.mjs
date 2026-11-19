@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
-import { buildAll, REPO_ROOT, loadRegistry, listFiles } from './lib/build.mjs';
+import { buildAll, REPO_ROOT, loadRegistry, listFiles, strayPlugins } from './lib/build.mjs';
 
 const args = process.argv.slice(2);
 const only = args.includes('--only') ? args[args.indexOf('--only') + 1].split(',') : undefined;
@@ -29,9 +29,18 @@ try {
     buildAll({ only, outRoot: tmp });
     const diffs = [];
     const targets = [
-      ...(only ? [] : (loadRegistry().local || []).map((l) => ({ plugin: l.plugin }))),
+      ...(only ? [] : [...new Set((loadRegistry().local || []).map((l) => l.plugin))].map((plugin) => ({ plugin }))),
       ...loadRegistry().skills.filter((s) => !only || only.includes(s.id)),
     ];
+    // A folder in plugins/ that a clean build does not make (a retired plugins/dfw-copilot, a
+    // plugin dropped from the registry) would still be committed and listed by nobody.
+    if (!only)
+      diffs.push(
+        ...strayPlugins(
+          path.join(REPO_ROOT, 'plugins'),
+          targets.map((t) => t.plugin),
+        ),
+      );
     for (const s of targets) {
       const a = path.join(REPO_ROOT, 'plugins', s.plugin);
       const b = path.join(tmp, s.plugin);
@@ -51,7 +60,7 @@ try {
     console.log('Build check: committed plugins match a clean build from the lock.');
   } else {
     const res = buildAll({ only });
-    if (!only) console.log('assembled dfw (core + adapters/claude-code)');
+    if (!only) console.log('assembled dfw (core + adapters/claude-code + adapters/copilot)');
     for (const r of res) console.log(`built ${r.id} @ ${r.sha.slice(0, 7)} (${r.overlay.length} overlay op(s))`);
   }
 } catch (e) {

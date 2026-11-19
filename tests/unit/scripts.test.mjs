@@ -1,6 +1,6 @@
-// The build, validation and maintenance scripts (scripts/): generated plugins, the leftover
-// check, vendored knowledge, overlays applied to Impeccable, the upstream bot, the core copy list,
-// and the workflow and README texts they guard.
+// The build, validation and maintenance scripts (scripts/): the leftover check, vendored
+// knowledge, overlays applied to Impeccable, the upstream bot, and the workflow and README texts
+// they guard. The dfw plugin folder and its marketplaces: plugin-layout.test.mjs.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -30,25 +30,6 @@ test('knowledge: vendored file keeps the upstream text byte for byte between mar
   assert.match(text, /## License \(MIT/);
   const reg = JSON.parse(fs.readFileSync(path.join(REPO, 'registry', 'skills.json'), 'utf8'));
   for (const k of reg.knowledge) assert.match(k.commit, /^[0-9a-f]{40}$/);
-});
-
-test('build: Copilot plugin and marketplace are generated', () => {
-  const dir = path.join(REPO, 'plugins', 'dfw-copilot');
-  const pj = JSON.parse(fs.readFileSync(path.join(dir, 'plugin.json'), 'utf8'));
-  assert.equal(pj.name, 'dfw');
-  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'dfw.json'), 'utf8')).host, 'copilot');
-  const hooks = JSON.parse(fs.readFileSync(path.join(dir, 'hooks.json'), 'utf8'));
-  assert.equal(hooks.version, 1);
-  for (const ev of ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop'])
-    assert.match(hooks.hooks[ev][0].bash, /--host copilot/);
-  assert.ok(fs.existsSync(path.join(dir, 'agents', 'screen-builder.agent.md')));
-  const skill = fs.readFileSync(path.join(dir, 'skills', 'dfw', 'SKILL.md'), 'utf8');
-  assert.doesNotMatch(skill, /CLAUDE_SKILL_DIR|AskUserQuestion|\{\{[A-Z_]+\}\}/);
-  const mp = JSON.parse(fs.readFileSync(path.join(REPO, '.github', 'plugin', 'marketplace.json'), 'utf8'));
-  assert.equal(mp.name, 'dfw-marketplace');
-  assert.equal(mp.plugins.find((p) => p.name === 'dfw').source, './plugins/dfw-copilot');
-  const claudeMp = JSON.parse(fs.readFileSync(path.join(REPO, '.claude-plugin', 'marketplace.json'), 'utf8'));
-  assert.equal(claudeMp.plugins.find((p) => p.name === 'dfw').source, './plugins/dfw');
 });
 
 test('overlay: the hooks reference is a short "not available" note and context is bounded', () => {
@@ -163,16 +144,6 @@ test('upstream bot: propose outcomes, one blocked issue per commit, missing repo
   fs.mkdirSync(path.join(root, 'reports', 'proposals'), { recursive: true });
   for (const d of ['2026-11-01', '2026-11-08']) fs.writeFileSync(path.join(root, 'reports', 'proposals', `${d}-hallmark-bbbbbbb.md`), '');
   assert.equal(findReport('hallmark', 'b'.repeat(40), root), path.join('reports', 'proposals', '2026-11-08-hallmark-bbbbbbb.md'));
-});
-
-test('adapters: every host plugin is assembled from the one shared core copy list', () => {
-  const core = JSON.parse(fs.readFileSync(path.join(REPO, 'adapters', 'core-copy.json'), 'utf8')).copy;
-  // The binary carries the code: the plugins get the launchers, browser files and texts, no lib/.
-  assert.ok(!core.some((c) => c.from === 'core/lib') && core.every((c) => c.from.startsWith('core/')));
-  for (const a of ['claude-code', 'copilot']) {
-    const spec = JSON.parse(fs.readFileSync(path.join(REPO, 'adapters', a, 'assemble.json'), 'utf8'));
-    assert.deepEqual(spec.copy, [{ from: `adapters/${a}/plugin`, to: '.' }]);
-  }
 });
 
 test('versions: core/manifest.json, package.json, package-lock.json and native/Cargo.toml must agree; the repo does', () => {

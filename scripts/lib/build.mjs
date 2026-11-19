@@ -121,37 +121,111 @@ function renderTree(dest, kind, host) {
   }
 }
 
-/** Assemble a host adapter's plugin (e.g. plugins/dfw, plugins/dfw-copilot) from core/ + adapters/<adapter>/. */
-export function assembleAdapter(agent = 'claude-code', { root = REPO_ROOT, outRoot = path.join(root, 'plugins') } = {}) {
-  const spec = readJson(path.join(root, 'adapters', agent, 'assemble.json'));
-  const host = getHost(spec.host || 'claude');
-  const dest = path.join(outRoot, spec.plugin);
-  fs.rmSync(dest, { recursive: true, force: true });
-  fs.mkdirSync(dest, { recursive: true });
-  const coreCopy = readJson(path.join(root, 'adapters', 'core-copy.json')).copy;
-  for (const c of [...coreCopy, ...spec.copy]) {
-    const from = path.join(root, c.from);
-    if (!fs.existsSync(from)) throw new Error(`assemble ${agent}: ${c.from} does not exist`);
-    copyEntry(from, path.join(dest, c.to));
-    if (c.render) renderTree(path.join(dest, c.to), c.render, c.host ? getHost(c.host) : host);
-  }
-  // One manifest source (core/manifest.json) rendered in each host's format and location.
-  const core = readJson(path.join(root, 'core', 'manifest.json'));
-  const manifest = { ...core, name: spec.name || core.name, ...(spec.manifestExtra || {}) };
-  if (spec.manifest !== '.claude-plugin/plugin.json') delete manifest.dependencies; // kept in dfw.json
-  writeJson(path.join(dest, spec.manifest), manifest);
-  writeJson(path.join(dest, 'dfw.json'), { host: host.id, version: core.version, dependencies: core.dependencies || [] });
-  fs.writeFileSync(
-    path.join(dest, 'GENERATED.md'),
-    `# Generated directory\n\nThis ${host.name} plugin is assembled by \`npm run build\` from \`core/\` and \`adapters/${agent}/\` (see \`adapters/${agent}/assemble.json\`). Do not edit files here; edit the sources and rebuild.\n`,
+/**
+ * Locations a host reads by default at a plugin root. The one dfw folder serves every host, so none
+ * may exist there: Claude Code always loads a root skills/ (and a root SKILL.md, agents/,
+ * hooks/hooks.json, .mcp.json), Copilot reads skills/, agents/, hooks.json and hooks/hooks.json
+ * when its manifest names nothing, and .plugin/ or .github/plugin/plugin.json would be read as a
+ * Copilot manifest before the root plugin.json. Each host's text lives under hosts/<host>/.
+ */
+export const ROOT_DEFAULTS = ['skills', 'agents', 'hooks', 'hooks.json', 'SKILL.md', '.mcp.json', '.plugin', '.github/plugin/plugin.json'];
+
+/** Plugin folders earlier versions generated; the build deletes them and the check reports them. */
+export const RETIRED_PLUGINS = ['dfw-copilot'];
+
+/** Folders in plugins/ a clean build does not make (a retired plugins/dfw-copilot, a dropped plugin). */
+export function strayPlugins(pluginsDir, built) {
+  if (!fs.existsSync(pluginsDir)) return [];
+  return fs
+    .readdirSync(pluginsDir, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && !built.includes(e.name))
+    .map((e) => `plugins/${e.name}: not part of a clean build (delete it, or run npm run build)`)
+    .sort();
+}
+
+/** The default locations present at a plugin root, as error lines naming the path and the rule. */
+export function rootDefaults(dir, label = path.basename(dir)) {
+  return ROOT_DEFAULTS.filter((rel) => fs.existsSync(path.join(dir, rel))).map(
+    (rel) =>
+      `${label}/${rel}: a host reads this location by default; the dfw plugin keeps each host's skill, agents and hooks under hosts/<host>/ (adapters/core-copy.json).`,
   );
-  return { plugin: spec.plugin, agent, host: host.id, manifest: spec.manifest };
+}
+
+/** The adapters of the dfw plugin, one per host (registry/skills.json `local`), each read once. */
+function dfwAdapters(root) {
+  const seen = new Set();
+  const out = [];
+  for (const l of loadRegistry(root).local || []) {
+    const adapter = l.adapter || 'claude-code';
+    if (seen.has(adapter)) continue;
+    seen.add(adapter);
+    out.push({ adapter, spec: readJson(path.join(root, 'adapters', adapter, 'assemble.json')) });
+  }
+  return out;
 }
 
 /**
- * One marketplace per host format, same name ("dfw-marketplace") and same vendored skills:
- * - .claude-plugin/marketplace.json (Claude Code): dfw -> ./plugins/dfw
- * - .github/plugin/marketplace.json (GitHub Copilot): dfw -> ./plugins/dfw-copilot
+ * Assemble the one dfw plugin folder (plugins/dfw) for every host adapter: the shared core files
+ * once at the root, then for each host its rendered skill and agents and its adapter files under
+ * hosts/<host>/, and its manifest. Built in a staging folder that replaces the old one only when
+ * no host default location appeared at the root.
+ */
+export function assembleDfw({ root = REPO_ROOT, outRoot = path.join(root, 'plugins') } = {}) {
+  const adapters = dfwAdapters(root);
+  const plugins = [...new Set(adapters.map((a) => a.spec.plugin))];
+  if (plugins.length !== 1) throw new Error(`assemble dfw: every adapter must build the same plugin folder (got ${plugins.join(', ')})`);
+  const plugin = plugins[0];
+  const coreCopy = readJson(path.join(root, 'adapters', 'core-copy.json'));
+  fs.mkdirSync(outRoot, { recursive: true });
+  const stage = fs.mkdtempSync(path.join(outRoot, `.${plugin}-build-`));
+  try {
+    const copy = (c, base, host, label) => {
+      const from = path.join(root, c.from);
+      if (!fs.existsSync(from)) throw new Error(`assemble ${label}: ${c.from} does not exist`);
+      copyEntry(from, path.join(base, c.to));
+      if (c.render) renderTree(path.join(base, c.to), c.render, c.host ? getHost(c.host) : host);
+    };
+    for (const c of coreCopy.shared) copy(c, stage, null, 'shared');
+    const core = readJson(path.join(root, 'core', 'manifest.json'));
+    for (const { adapter, spec } of adapters) {
+      const host = getHost(spec.host || 'claude');
+      const hostDir = path.join(stage, 'hosts', host.id);
+      for (const c of [...coreCopy.hostText, ...spec.copy]) copy(c, hostDir, host, adapter);
+      // One manifest source (core/manifest.json) rendered in each host's format and location.
+      const manifest = { ...core, name: spec.name || core.name, ...(spec.manifestExtra || {}) };
+      if (spec.agentFiles) {
+        // Claude Code: `agents` replaces the agents/ scan and takes .md files, one entry each.
+        const dir = manifest.agents.replace(/^\.\//, '');
+        manifest.agents = listFiles(path.join(stage, dir))
+          .filter((f) => f.endsWith('.md'))
+          .map((f) => `./${path.posix.join(dir, f)}`);
+      }
+      if (spec.manifest !== '.claude-plugin/plugin.json') delete manifest.dependencies; // kept in dfw.json
+      writeJson(path.join(stage, spec.manifest), manifest);
+    }
+    writeJson(path.join(stage, 'dfw.json'), { version: core.version, dependencies: core.dependencies || [] });
+    const names = adapters.map((a) => getHost(a.spec.host).name).join(' and ');
+    fs.writeFileSync(
+      path.join(stage, 'GENERATED.md'),
+      `# Generated directory\n\nThis plugin folder serves ${names}. It is assembled by \`npm run build\` from \`core/\` (\`adapters/core-copy.json\`: shared files at the root) and \`adapters/<host>/\` (each host's skill, agents and hooks under \`hosts/<host>/\`, named only by that host's manifest). Do not edit files here; edit the sources and rebuild.\n`,
+    );
+    const refused = rootDefaults(stage, plugin);
+    if (refused.length) throw new Error(`assemble dfw: refused, nothing written:\n${refused.join('\n')}`);
+    const dest = path.join(outRoot, plugin);
+    fs.rmSync(dest, { recursive: true, force: true });
+    fs.renameSync(stage, dest);
+  } finally {
+    fs.rmSync(stage, { recursive: true, force: true });
+  }
+  for (const old of RETIRED_PLUGINS) fs.rmSync(path.join(outRoot, old), { recursive: true, force: true });
+  return { plugin, hosts: adapters.map((a) => a.spec.host) };
+}
+
+/**
+ * One marketplace per host format, same name ("dfw-marketplace") and same vendored skills, both
+ * listing dfw from the one folder ./plugins/dfw at the core version:
+ * - .claude-plugin/marketplace.json (Claude Code)
+ * - .github/plugin/marketplace.json (GitHub Copilot, read before the Claude Code file)
  */
 export function writeMarketplace(registry, lock, { root = REPO_ROOT } = {}) {
   const skills = registry.skills.map((s) => {
@@ -166,15 +240,15 @@ export function writeMarketplace(registry, lock, { root = REPO_ROOT } = {}) {
       license: s.license,
     };
   });
+  const core = readJson(path.join(root, 'core', 'manifest.json'));
   const out = {};
   for (const l of registry.local || []) {
     const spec = readJson(path.join(root, 'adapters', l.adapter, 'assemble.json'));
-    const pj = readJson(path.join(root, 'plugins', spec.plugin, spec.manifest));
     const entry = {
-      name: spec.name || spec.plugin,
+      name: spec.name || core.name,
       source: `./plugins/${spec.plugin}`,
       description: l.description,
-      version: pj.version,
+      version: core.version,
       category: l.category,
     };
     const file = l.marketplace || path.join('.claude-plugin', 'marketplace.json');
@@ -248,9 +322,7 @@ export function buildAll({ only, root = REPO_ROOT, outRoot } = {}) {
   const registry = loadRegistry(root);
   const lock = loadLock(root);
   const results = [];
-  if (!only)
-    for (const l of registry.local || [])
-      assembleAdapter(l.adapter || 'claude-code', { root, outRoot: outRoot || path.join(root, 'plugins') });
+  if (!only) assembleDfw({ root, outRoot: outRoot || path.join(root, 'plugins') });
   for (const s of registry.skills) {
     if (only && !only.includes(s.id)) continue;
     const sha = lock.skills[s.id]?.sha;
