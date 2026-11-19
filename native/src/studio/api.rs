@@ -394,7 +394,7 @@ pub fn shoot_frames(root: &Path, port: u16, body: &Value) -> Result<Value, DfwEr
     if list.is_empty() {
         return Err(DfwError::new("Nothing to screenshot."));
     }
-    let dir = p.dfw.join("shots").join("studio").join(local_stamp());
+    let dir = new_run_dir(&p.dfw.join("shots").join("studio"), &local_stamp())?;
     let size = |v: Option<&Value>, fallback: f64| -> u32 {
         let n = js::to_number(v);
         let n = if n.is_nan() || n == 0.0 { fallback } else { n };
@@ -446,6 +446,30 @@ pub fn shoot_frames(root: &Path, port: u16, body: &Value) -> Result<Value, DfwEr
         })
         .collect();
     Ok(Value::Array(out))
+}
+
+/// A new folder `<base>/<stamp>` for one screenshot run; `<stamp>-2`, `-3`... when a run in
+/// the same second already has one, so two runs never overwrite each other's files.
+fn new_run_dir(base: &Path, stamp: &str) -> Result<PathBuf, DfwError> {
+    fs::create_dir_all(base)?;
+    for n in 1..1000 {
+        let name = if n == 1 {
+            stamp.to_string()
+        } else {
+            format!("{stamp}-{n}")
+        };
+        let dir = base.join(name);
+        // create_dir fails when the folder exists: the claim is atomic between two runs.
+        match fs::create_dir(&dir) {
+            Ok(()) => return Ok(dir),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(e) => return Err(e.into()),
+        }
+    }
+    Err(DfwError::new(format!(
+        "Too many screenshot runs named {stamp} in {}; remove old ones.",
+        base.display()
+    )))
 }
 
 /// `String(name).replace(/[^\w.-]+/g, '_').slice(0, 120)`.
@@ -537,6 +561,19 @@ mod tests {
         assert_eq!(extname("a.b/c"), "");
         assert_eq!(mime(".woff2"), Some("font/woff2"));
         assert_eq!(mime(".txt"), None);
+    }
+
+    /// two screenshot runs in the same second get two folders
+    #[test]
+    fn screenshot_runs_in_one_second_do_not_share_a_folder() {
+        let dir = crate::core::util::test_dir("studio-shot-runs");
+        let a = new_run_dir(&dir, "2026-11-19T10-20-30").unwrap();
+        let b = new_run_dir(&dir, "2026-11-19T10-20-30").unwrap();
+        let c = new_run_dir(&dir, "2026-11-19T10-20-30").unwrap();
+        assert_eq!(a, dir.join("2026-11-19T10-20-30"));
+        assert_eq!(b, dir.join("2026-11-19T10-20-30-2"));
+        assert_eq!(c, dir.join("2026-11-19T10-20-30-3"));
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
