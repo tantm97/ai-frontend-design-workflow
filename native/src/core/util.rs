@@ -21,7 +21,7 @@ use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 
 use super::error::DfwError;
-use super::paths::{env_nonempty, manifest_path, plugin_root};
+use super::paths::{env_nonempty, manifest_path, plugin_root, real_path, to_posix};
 
 /// Name of the marketplace the plugins are published in.
 pub const MARKETPLACE_NAME: &str = "dfw-marketplace";
@@ -61,10 +61,19 @@ pub fn write_json(file: &Path, data: &Value) -> Result<(), DfwError> {
     write_atomic(file, &(to_json_pretty(data) + "\n"))
 }
 
+/// Write a project file of `root` like [`write_json`], refusing a path whose real path leaves
+/// the project (see [`write_atomic_inside`]).
+pub fn write_json_inside(root: &Path, file: &Path, data: &Value) -> Result<(), DfwError> {
+    write_atomic_inside(root, file, to_json_pretty(data) + "\n")
+}
+
 /// Write a file through a temporary file and a rename, so a reader never sees half of it.
 /// The temporary name carries the pid and the time: two writers never share one.
 /// Like a plain write, it writes through a symbolic link (the link stays) and keeps the
 /// permissions of the file it replaces (a config readable by its owner only stays so).
+/// A file of a user's project goes through [`write_atomic_inside`] instead, so a link cannot
+/// send the write out of the project; this one is for files whose link the user made on
+/// purpose (user-global config, often a link into a dotfiles folder).
 pub fn write_atomic(file: &Path, data: impl AsRef<[u8]>) -> Result<(), DfwError> {
     let linked = fs::symlink_metadata(file).is_ok_and(|m| m.file_type().is_symlink());
     let resolved = if linked {
@@ -91,6 +100,32 @@ pub fn write_atomic(file: &Path, data: impl AsRef<[u8]>) -> Result<(), DfwError>
         return Err(err.into());
     }
     Ok(())
+}
+
+/// [`write_atomic`] for a file of the project at `root`: refused when the file, or a folder on
+/// its way, is a symbolic link whose real path leaves the project (also a link whose target is
+/// missing). A link that stays inside is written through, as before.
+pub fn write_atomic_inside(
+    root: &Path,
+    file: &Path,
+    data: impl AsRef<[u8]>,
+) -> Result<(), DfwError> {
+    ensure_inside(root, file)?;
+    write_atomic(file, data)
+}
+
+/// The refusal of [`write_atomic_inside`]: `file`'s real path must stay under the real `root`.
+pub fn ensure_inside(root: &Path, file: &Path) -> Result<(), DfwError> {
+    let real = real_path(file);
+    if real.starts_with(real_path(root)) {
+        return Ok(());
+    }
+    let shown = file.strip_prefix(root).unwrap_or(file);
+    Err(DfwError::new(format!(
+        "{} leads outside the project (to {}) through a symbolic link; dfw does not write there. Replace the link with a regular file, or remove it, and run the command again.",
+        to_posix(&shown.to_string_lossy()),
+        real.display()
+    )))
 }
 
 /// `appendJsonl(file, entry)`: one compact JSON value per line.
@@ -876,6 +911,43 @@ mod tests {
             .file_type()
             .is_symlink());
         assert_eq!(fs::read_to_string(&file).unwrap(), "[]");
+    }
+
+    /// A project file that is a link out of the project is refused; a link inside is written
+    /// through (review CO-3: `.dfw/config.local.json -> ../../victim/settings.json`).
+    #[cfg(unix)]
+    #[test]
+    fn write_atomic_inside_refuses_a_link_out_of_the_project() {
+        let dir = test_dir("atomic-inside");
+        let root = dir.join("project");
+        fs::create_dir_all(root.join(".dfw")).unwrap();
+        fs::create_dir_all(dir.join("victim")).unwrap();
+        let victim = dir.join("victim").join("settings.json");
+        fs::write(&victim, "{\"keep\":1}").unwrap();
+        let link = root.join(".dfw").join("config.local.json");
+        std::os::unix::fs::symlink("../../victim/settings.json", &link).unwrap();
+        let err = write_json_inside(&root, &link, &json!({})).unwrap_err();
+        assert!(
+            err.message()
+                .starts_with(".dfw/config.local.json leads outside the project"),
+            "{err}"
+        );
+        assert!(matches!(err, DfwError::User { .. }));
+        assert_eq!(fs::read_to_string(&victim).unwrap(), "{\"keep\":1}");
+        // A dangling link out of the project and a linked folder are refused too.
+        let gone = root.join(".dfw").join("gone.json");
+        std::os::unix::fs::symlink(dir.join("victim").join("new.json"), &gone).unwrap();
+        assert!(write_atomic_inside(&root, &gone, "x").is_err());
+        assert!(!dir.join("victim").join("new.json").exists());
+        std::os::unix::fs::symlink(dir.join("victim"), root.join("design")).unwrap();
+        assert!(write_atomic_inside(&root, &root.join("design").join("head.html"), "x").is_err());
+        // Inside the project: written through the link, a new file is created.
+        fs::write(root.join("real.json"), "1").unwrap();
+        std::os::unix::fs::symlink("../real.json", root.join(".dfw").join("near.json")).unwrap();
+        write_atomic_inside(&root, &root.join(".dfw").join("near.json"), "2").unwrap();
+        assert_eq!(fs::read_to_string(root.join("real.json")).unwrap(), "2");
+        write_atomic_inside(&root, &root.join(".dfw").join("new").join("a.json"), "3").unwrap();
+        fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

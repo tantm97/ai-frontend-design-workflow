@@ -12,7 +12,7 @@ use crate::assets::{self, Folder};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::project_paths;
-use crate::core::util::write_atomic;
+use crate::core::util::write_atomic_inside;
 
 /// `iconBundle`: the parsed icon library `{ svgRoot, icons: { name: [paths, ...tags] } }`.
 pub fn icon_bundle() -> Result<Value, DfwError> {
@@ -113,7 +113,7 @@ pub fn add_icons(root: &Path, names: &[String]) -> Result<AddedIcons, DfwError> 
     for n in names {
         match icon_svg(&bundle, n) {
             Some(svg) => {
-                write_atomic(&dir.join(format!("{n}.svg")), svg)?;
+                write_atomic_inside(root, &dir.join(format!("{n}.svg")), svg)?;
                 added.push(n.clone());
             }
             None => missing.push(n.clone()),

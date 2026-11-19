@@ -17,7 +17,7 @@ use crate::assets::{self, Folder};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::project_paths;
-use crate::core::util::{write_atomic, write_json};
+use crate::core::util::{write_atomic_inside, write_json_inside};
 
 /// The presets of the starter kit (`KIT_DIR/presets`), a folder of the embedded kits.
 const PRESETS_DIR: &str = "base/presets";
@@ -116,12 +116,12 @@ pub fn system_init(root: &Path, opts: &InitOptions) -> Result<SystemInit, DfwErr
     let mut tokens_written = false;
     let (tokens, head) = preset_files(&opts.preset)?;
     if opts.force || is_placeholder_tokens(&tok_file)? {
-        write_atomic(&tok_file, &tokens)?;
+        write_atomic_inside(root, &tok_file, &tokens)?;
         tokens_written = true;
     }
     let head_file = sys.join("head.html");
     if opts.force || !head_file.exists() {
-        write_atomic(&head_file, head)?;
+        write_atomic_inside(root, &head_file, head)?;
     }
     build_tokens(root)?;
     build_system(root)?;
@@ -145,7 +145,7 @@ fn remove_options(themes_dir: &Path) -> Result<(), DfwError> {
 
 /// Rewrite the `themes` of `design/design.json` (when the manifest exists): the option themes
 /// are dropped, then `add` is appended.
-fn set_manifest_themes(manifest: &Path, add: &[String]) -> Result<(), DfwError> {
+fn set_manifest_themes(root: &Path, manifest: &Path, add: &[String]) -> Result<(), DfwError> {
     let mut m = js::read_json(manifest, Some(Value::Null))?;
     let Some(map) = m.as_object_mut() else {
         return Ok(());
@@ -168,7 +168,7 @@ fn set_manifest_themes(manifest: &Path, add: &[String]) -> Result<(), DfwError> 
         }
     }
     map.insert("themes".into(), Value::Array(themes));
-    write_json(manifest, &m)
+    write_json_inside(root, manifest, &m)
 }
 
 /// `systemOptions`: write 2-3 style guides or presets as token themes `opt-<name>` so the same
@@ -195,11 +195,11 @@ pub fn system_options(root: &Path, names: &[String], fonts: &str) -> Result<Vec<
         let theme = themes_dir.join(format!("opt-{n}.json"));
         let head = if is_style(n) {
             let g = get_style(n)?;
-            write_json(&theme, &style_tokens(&g, fonts)?)?;
+            write_json_inside(root, &theme, &style_tokens(&g, fonts)?)?;
             head_for(&g, fonts)
         } else {
             let (tokens, head) = preset_files(n)?;
-            write_atomic(&theme, &tokens)?;
+            write_atomic_inside(root, &theme, &tokens)?;
             head
         };
         heads.push(js::trim(&js::strip_comments(&head)).to_string());
@@ -234,9 +234,9 @@ pub fn system_options(root: &Path, names: &[String], fonts: &str) -> Result<Vec<
         },
         None => format!("{}\n{block}\n", js::trim(&current)),
     };
-    write_atomic(&head_file, text)?;
+    write_atomic_inside(root, &head_file, text)?;
     let options: Vec<String> = names.iter().map(|n| format!("opt-{n}")).collect();
-    set_manifest_themes(&p.manifest, &options)?;
+    set_manifest_themes(root, &p.manifest, &options)?;
     let built = build_tokens(root)?;
     Ok(built
         .themes
@@ -262,7 +262,7 @@ pub fn system_choose(root: &Path, name: &str, fonts: &str) -> Result<String, Dfw
         };
         apply_style(root, name, fonts)?;
         if let Some(edited) = edited {
-            write_atomic(&tok_file, edited)?;
+            write_atomic_inside(root, &tok_file, edited)?;
         }
     } else {
         let (tokens, head) = preset_files(name)?;
@@ -271,11 +271,11 @@ pub fn system_choose(root: &Path, name: &str, fonts: &str) -> Result<String, Dfw
         } else {
             tokens.into_bytes()
         };
-        write_atomic(&tok_file, tokens)?;
-        write_atomic(&p.design.join("system").join("head.html"), head)?;
+        write_atomic_inside(root, &tok_file, tokens)?;
+        write_atomic_inside(root, &p.design.join("system").join("head.html"), head)?;
     }
     remove_options(&themes_dir)?;
-    set_manifest_themes(&p.manifest, &[])?;
+    set_manifest_themes(root, &p.manifest, &[])?;
     build_tokens(root)?;
     build_system(root)?;
     Ok(name.to_string())
@@ -749,5 +749,30 @@ mod tests {
         let err = system_options(&root, &names(&["industrial", "sotf"]), "vi").unwrap_err();
         assert!(err.message().contains("Unknown preset \"sotf\""), "{err}");
         assert_eq!(themes(), ["opt-crisp.json", "opt-soft.json"]);
+    }
+
+    /// `system init --force` with `design/system/head.html` linked to a file outside the project
+    /// refuses and leaves that file alone (review CO-3).
+    #[cfg(unix)]
+    #[test]
+    fn init_never_writes_through_a_link_out_of_the_project() {
+        let dir = test_dir("system-link");
+        let root = dir.join("project");
+        fs::create_dir_all(root.join("design/system")).unwrap();
+        fs::write(dir.join("head.html"), "theirs").unwrap();
+        std::os::unix::fs::symlink("../../../head.html", root.join("design/system/head.html"))
+            .unwrap();
+        let opts = InitOptions {
+            force: true,
+            ..InitOptions::default()
+        };
+        let err = system_init(&root, &opts).unwrap_err();
+        assert!(
+            err.message()
+                .starts_with("design/system/head.html leads outside the project"),
+            "{err}"
+        );
+        assert_eq!(fs::read_to_string(dir.join("head.html")).unwrap(), "theirs");
+        fs::remove_dir_all(&dir).unwrap();
     }
 }

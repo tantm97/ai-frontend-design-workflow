@@ -9,7 +9,7 @@ use serde_json::Value;
 
 use crate::core::error::DfwError;
 use crate::core::paths::{project_paths, resolve};
-use crate::core::util::to_json_compact;
+use crate::core::util::{to_json_compact, write_atomic_inside};
 
 /// `cssVarName`: `color.accent` is `--color-accent`.
 pub fn css_var_name(name: &str) -> String {
@@ -427,7 +427,7 @@ pub fn build_tokens(root: &Path) -> Result<BuiltTokens, DfwError> {
         )?);
     }
     let out = dir.join("tokens.css");
-    fs::write(&out, css)?;
+    write_atomic_inside(root, &out, css)?;
     Ok(BuiltTokens { out, themes })
 }
 
