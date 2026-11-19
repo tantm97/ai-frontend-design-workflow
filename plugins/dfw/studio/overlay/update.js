@@ -41,8 +41,9 @@ export async function softReload(/** @type {{ files?: string[], agent?: boolean 
     if ([...doc.scripts].some((s) => !s.hasAttribute('data-dfw-overlay'))) throw new Error('page script');
     /** @type {Set<Node>} */
     const changed = new Set();
-    morph(document.head, doc.head, changed);
-    morph(document.body, doc.body, changed);
+    const keep = st.editing ? st.editing.el : null;
+    morph(document.head, doc.head, changed, keep);
+    morph(document.body, doc.body, changed, keep);
     swapSheets(d.files || []);
     st.hoverEl = null;
     st.layerEls = [];

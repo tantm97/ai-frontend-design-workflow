@@ -49,8 +49,10 @@ function syncAttrs(from, to, changed) {
  * @param {Element} from the live element
  * @param {Element} to the same element in the new source
  * @param {Set<Node>} changed
+ * @param {Element | null} [keep] an element the user is editing right now: left exactly as it is
  */
-export function morph(from, to, changed) {
+export function morph(from, to, changed, keep = null) {
+  if (keep && from === keep) return; // never overwrite text the user is typing
   syncAttrs(from, to, changed);
   const olds = [...from.childNodes].filter((n) => !(n.nodeType === 1 && /** @type {Element} */ (n).hasAttribute('data-dfw-ui')));
   const keyed = new Map();
@@ -104,7 +106,7 @@ export function morph(from, to, changed) {
         }
       } else if (node.nodeName === 'SCRIPT') {
         if (/** @type {Element} */ (node).outerHTML !== /** @type {Element} */ (n).outerHTML) throw new Error('script changed');
-      } else if (!node.isEqualNode(n)) morph(/** @type {Element} */ (node), /** @type {Element} */ (n), changed);
+      } else if (!node.isEqualNode(n)) morph(/** @type {Element} */ (node), /** @type {Element} */ (n), changed, keep);
     }
     prev = node;
   }

@@ -1030,7 +1030,8 @@
     }
     if (diff) changed.add(from);
   }
-  function morph(from, to, changed) {
+  function morph(from, to, changed, keep = null) {
+    if (keep && from === keep) return;
     syncAttrs(from, to, changed);
     const olds = [...from.childNodes].filter((n) => !(n.nodeType === 1 && /** @type {Element} */
     n.hasAttribute("data-dfw-ui")));
@@ -1092,7 +1093,8 @@
           node,
           /** @type {Element} */
           n,
-          changed
+          changed,
+          keep
         );
       }
       prev = node;
@@ -1135,8 +1137,9 @@
       const doc = new DOMParser().parseFromString(await res.text(), "text/html");
       if ([...doc.scripts].some((s) => !s.hasAttribute("data-dfw-overlay"))) throw new Error("page script");
       const changed = /* @__PURE__ */ new Set();
-      morph(document.head, doc.head, changed);
-      morph(document.body, doc.body, changed);
+      const keep = st.editing ? st.editing.el : null;
+      morph(document.head, doc.head, changed, keep);
+      morph(document.body, doc.body, changed, keep);
       swapSheets(d.files || []);
       st.hoverEl = null;
       st.layerEls = [];

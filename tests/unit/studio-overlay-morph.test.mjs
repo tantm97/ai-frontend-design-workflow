@@ -116,3 +116,15 @@ test('studio-overlay-morph: a stylesheet link that only differs by the cache key
     delete globalThis.location;
   }
 });
+
+test('studio-overlay-morph: an element the user is editing is left exactly as it is', () => {
+  const live = page('<main data-dfw-id="m"><h1 data-dfw-id="t">Typing her</h1><p data-dfw-id="p">Old</p></main>');
+  const next = page('<main data-dfw-id="m"><h1 data-dfw-id="t">Agent text</h1><p data-dfw-id="p">New</p></main>');
+  const h1 = live.querySelector('[data-dfw-id="t"]');
+  h1.setAttribute('contenteditable', 'plaintext-only');
+  const changed = new Set();
+  morph(live.body, next.body, changed, h1);
+  assert.equal(h1.textContent, 'Typing her', 'the text being typed is kept');
+  assert.ok(!changed.has(h1), 'the edited element is not marked');
+  assert.equal(live.querySelector('[data-dfw-id="p"]').textContent, 'New', 'the rest of the page is updated');
+});
