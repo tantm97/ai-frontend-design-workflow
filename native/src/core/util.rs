@@ -67,8 +67,24 @@ pub fn write_json_inside(root: &Path, file: &Path, data: &Value) -> Result<(), D
     write_atomic_inside(root, file, to_json_pretty(data) + "\n")
 }
 
+/// A name part no other call of this process and no other process uses at the same time:
+/// `<pid>.<milliseconds>.<counter>`. The counter is the only state (an atomic, `process-and-io.md`
+/// P9): two threads of the Studio writing in the same millisecond still get two names.
+pub fn unique_suffix() -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    let ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis());
+    format!(
+        "{}.{ms}.{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    )
+}
+
 /// Write a file through a temporary file and a rename, so a reader never sees half of it.
-/// The temporary name carries the pid and the time: two writers never share one.
+/// The temporary name is unique per call ([`unique_suffix`]): two writers never share one.
 /// Like a plain write, it writes through a symbolic link (the link stays) and keeps the
 /// permissions of the file it replaces (a config readable by its owner only stays so).
 /// A file of a user's project goes through [`write_atomic_inside`] instead, so a link cannot
@@ -85,11 +101,8 @@ pub fn write_atomic(file: &Path, data: impl AsRef<[u8]>) -> Result<(), DfwError>
     if let Some(dir) = file.parent() {
         fs::create_dir_all(dir)?;
     }
-    let ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_millis());
     let mut tmp = file.as_os_str().to_owned();
-    tmp.push(format!(".{}.{ms}.tmp", std::process::id()));
+    tmp.push(format!(".{}.tmp", unique_suffix()));
     fs::write(&tmp, data)?;
     if let Ok(meta) = fs::metadata(file) {
         // Best effort: the new content matters more than its mode.
@@ -947,6 +960,32 @@ mod tests {
         write_atomic_inside(&root, &root.join(".dfw").join("near.json"), "2").unwrap();
         assert_eq!(fs::read_to_string(root.join("real.json")).unwrap(), "2");
         write_atomic_inside(&root, &root.join(".dfw").join("new").join("a.json"), "3").unwrap();
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// Threads of one process writing one file at the same time never share a temporary name
+    /// (review CO-1: `<pid>.<ms>.tmp` was the same for two Studio threads).
+    #[test]
+    fn concurrent_atomic_writes_use_their_own_temporary_files() {
+        let dir = test_dir("atomic-threads");
+        let file = dir.join("a.txt");
+        std::thread::scope(|s| {
+            for i in 0..16 {
+                let file = &file;
+                s.spawn(move || {
+                    for j in 0..20 {
+                        write_atomic(file, format!("{i}-{j}")).unwrap();
+                    }
+                });
+            }
+        });
+        assert_eq!(
+            fs::read_dir(&dir).unwrap().count(),
+            1,
+            "no temporary file is left"
+        );
+        let names: std::collections::HashSet<String> = (0..1000).map(|_| unique_suffix()).collect();
+        assert_eq!(names.len(), 1000);
         fs::remove_dir_all(&dir).unwrap();
     }
 

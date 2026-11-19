@@ -843,10 +843,10 @@ fn bytes_outside_the_edit_are_kept() {
 /// millisecond keep their order.
 #[test]
 fn journal_names_stay_in_order() {
-    assert!(next_stamp(&[]).ends_with("-0000"));
-    let next = next_stamp(&["00001700000000000-0041.json".to_string()]);
+    assert!(next_stamp(&[], None).ends_with("-0000"));
+    let next = next_stamp(&["00001700000000000-0041.json".to_string()], None);
     assert!(next.ends_with("-0042"), "{next}");
-    assert!(next_stamp(&["00001700000000000-9999.json".to_string()]).ends_with("-0000"));
+    assert!(next_stamp(&["00001700000000000-9999.json".to_string()], None).ends_with("-0000"));
     assert_eq!(next.len(), "00001700000000-0042".len());
 }
 
@@ -887,4 +887,48 @@ fn token_names() {
         ]
     );
     assert!(load_token_names(&test_dir("edit-none")).unwrap().is_empty());
+}
+
+/// Forty Studio threads editing one screen at once: every edit is kept, every edit has its own
+/// journal record, and undoing all of them gives the original bytes back (review CO-1: 16 of
+/// 40 edits were kept and undo records were lost).
+#[test]
+fn concurrent_edits_are_all_kept_and_journaled() {
+    let root = test_dir("edit-threads");
+    let paras: String = (0..40)
+        .map(|i| format!("<p data-dfw-id=\"p.{i}\">old {i}</p>\n"))
+        .collect();
+    let source = format!("<!doctype html><html><body>\n{paras}</body></html>\n");
+    write(&root, "design/screens/many/a.html", &source);
+    std::thread::scope(|s| {
+        for i in 0..40 {
+            let root = &root;
+            s.spawn(move || {
+                let op = json!({ "file": "screens/many/a.html", "op": "text", "id": format!("p.{i}"), "value": format!("new {i}") });
+                assert!(apply_edit(root, &op).unwrap().changed);
+            });
+        }
+    });
+    let text = read(&root, "design/screens/many/a.html");
+    for i in 0..40 {
+        assert!(text.contains(&format!(">new {i}<")), "edit {i} lost");
+    }
+    assert_eq!(journal(&root).unwrap().len(), 40);
+    for left in (0..40).rev() {
+        assert_eq!(undo_edit(&root).unwrap().remaining, left);
+    }
+    assert_eq!(read(&root, "design/screens/many/a.html"), source);
+    let names: Vec<String> = dir_names(&root.join(".dfw/edits")).unwrap();
+    assert!(names.is_empty(), "no lock or record is left: {names:?}");
+}
+
+/// The journal never replaces a record whose name is taken.
+#[test]
+fn a_journal_name_in_use_is_never_overwritten() {
+    let root = test_dir("edit-journal-name");
+    let taken = next_stamp(&[], None);
+    write(&root, &format!(".dfw/edits/{taken}.json"), "{}");
+    write_record(&root, &json!({ "a": 1 })).unwrap();
+    assert_eq!(read(&root, &format!(".dfw/edits/{taken}.json")), "{}");
+    assert_eq!(journal(&root).unwrap().len(), 2);
 }

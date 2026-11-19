@@ -34,8 +34,9 @@ pub use style::{
 
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::{project_paths, resolve, to_posix};
-use crate::core::util::{now_iso, read_json, to_json_compact, write_atomic};
+use crate::core::lock;
+use crate::core::paths::{project_paths, real_path, resolve, to_posix};
+use crate::core::util::{ensure_inside, now_iso, read_json, to_json_compact, write_atomic_inside};
 use crate::design::compose::{load_components, ComponentDef};
 use crate::design::html::{set_attr, Splice};
 use crate::design::tokens::{dir_names, relative_path};
@@ -77,26 +78,6 @@ fn esc_text(s: &str) -> String {
 /// `lineAt`: 1-based line of byte `i`.
 fn line_at(text: &str, i: usize) -> usize {
     text.as_bytes()[..i].iter().filter(|b| **b == b'\n').count() + 1
-}
-
-/// `realPath`: the canonical path (symlinks and letter case as the file system has them); also
-/// works for a path that does not exist yet: its existing part is resolved, the rest is kept.
-fn real_path(p: &Path) -> PathBuf {
-    let p = resolve(p);
-    let mut rest: Vec<&std::ffi::OsStr> = Vec::new();
-    let mut cur: &Path = &p;
-    loop {
-        if let Ok(real) = fs::canonicalize(cur) {
-            return rest.iter().rev().fold(real, |path, part| path.join(part));
-        }
-        match (cur.parent(), cur.file_name()) {
-            (Some(up), Some(name)) => {
-                rest.push(name);
-                cur = up;
-            }
-            _ => return p.clone(),
-        }
-    }
 }
 
 /// A design file an edit may write: its absolute path and its path from the project root.
@@ -402,22 +383,57 @@ fn journal(root: &Path) -> Result<Vec<String>, DfwError> {
     Ok(files)
 }
 
-/// Name of the next journal record: `<milliseconds, 14 digits>-<sequence, 4 digits>`. The Node
-/// code counted edits per process; here the sequence continues from the newest record, so
-/// records keep their order without a counter in memory (also across processes).
-fn next_stamp(journal: &[String]) -> String {
+/// Name of the next journal record: `<milliseconds, 14 digits>-<sequence, 4 digits>`. The
+/// sequence continues from the newest record, so records keep their order without a counter in
+/// memory; the edit lock makes that safe across threads and processes, and the record is made
+/// with `create_new`, so a name in use is never overwritten (`seq_after` moves on).
+fn next_stamp(journal: &[String], seq_after: Option<u32>) -> String {
     let last = journal
         .last()
         .and_then(|f| f.strip_suffix(".json"))
         .and_then(|f| f.rsplit_once('-'))
         .and_then(|(_, seq)| seq.parse::<u32>().ok());
-    let seq = last.map_or(0, |n| (n + 1) % 10000);
+    let seq = last.max(seq_after).map_or(0, |n| (n + 1) % 10000);
     format!(
         "{:014}-{seq:04}",
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_or(0, |d| d.as_millis())
     )
+}
+
+/// The edit lock of a project (`.dfw/edits/.lock`): the Studio serves one thread per
+/// connection, and the read, transform, write and journal of an edit or an undo run as one.
+fn edit_lock(root: &Path) -> Result<lock::Lock, DfwError> {
+    lock::acquire(&edits_dir(root).join(".lock"), &lock::STANDARD)
+}
+
+/// Write a journal record under a new name; never replaces a record.
+fn write_record(root: &Path, record: &Value) -> Result<(), DfwError> {
+    use std::io::Write;
+    let dir = edits_dir(root);
+    let text = to_json_compact(record);
+    let mut seq_after = None;
+    for _ in 0..10000 {
+        let stamp = next_stamp(&journal(root)?, seq_after);
+        let file = dir.join(format!("{stamp}.json"));
+        ensure_inside(root, &file)?;
+        match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&file)
+        {
+            Ok(mut f) => return Ok(f.write_all(text.as_bytes())?),
+            Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
+                seq_after = stamp.rsplit_once('-').and_then(|(_, s)| s.parse().ok());
+            }
+            Err(err) => return Err(err.into()),
+        }
+    }
+    Err(DfwError::internal(format!(
+        "No free journal name in {}.",
+        dir.display()
+    )))
 }
 
 /// What [`apply_edit`] did.
@@ -441,6 +457,7 @@ impl EditResult {
 /// `applyEdit`: apply one edit op `{file, op, id, value, prop, ref, position, maxWidth}` to
 /// its design file and journal it for undo.
 pub fn apply_edit(root: &Path, op: &Value) -> Result<EditResult, DfwError> {
+    let _held = edit_lock(root)?;
     assert_editable(root)?;
     let DesignFile { abs, rel } = resolve_design_file(root, op.get("file"))?;
     let before = js::read_text(&abs)?;
@@ -453,7 +470,7 @@ pub fn apply_edit(root: &Path, op: &Value) -> Result<EditResult, DfwError> {
             line,
         });
     }
-    write_atomic(&abs, &after)?;
+    write_atomic_inside(root, &abs, &after)?;
     let mut kept = Map::new();
     for key in ["op", "id", "prop", "value", "ref", "position", "maxWidth"] {
         if let Some(v) = op.get(key) {
@@ -463,8 +480,7 @@ pub fn apply_edit(root: &Path, op: &Value) -> Result<EditResult, DfwError> {
     let record =
         json!({ "at": now_iso(), "file": rel, "op": kept, "before": before, "after": after });
     let dir = edits_dir(root);
-    let stamp = next_stamp(&journal(root)?);
-    write_atomic(&dir.join(format!("{stamp}.json")), to_json_compact(&record))?;
+    write_record(root, &record)?;
     let records = journal(root)?;
     for old in &records[..records.len().saturating_sub(MAX_JOURNAL)] {
         match fs::remove_file(dir.join(old)) {
@@ -506,6 +522,7 @@ impl UndoResult {
 
 /// `undoEdit`: undo the most recent edit; refused when the file changed since.
 pub fn undo_edit(root: &Path) -> Result<UndoResult, DfwError> {
+    let _held = edit_lock(root)?;
     assert_editable(root)?;
     let dir = edits_dir(root);
     let mut files = journal(root)?;
@@ -539,7 +556,7 @@ pub fn undo_edit(root: &Path) -> Result<UndoResult, DfwError> {
         .get("before")
         .and_then(Value::as_str)
         .ok_or_else(|| DfwError::internal(format!("{}: no text to restore", rec_file.display())))?;
-    write_atomic(&target.abs, before)?;
+    write_atomic_inside(root, &target.abs, before)?;
     fs::remove_file(&rec_file)?;
     Ok(UndoResult {
         file: file.to_string(),
