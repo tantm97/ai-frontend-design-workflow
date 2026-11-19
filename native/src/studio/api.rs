@@ -78,11 +78,11 @@ pub fn clamp_rel(rel: &str) -> Vec<&str> {
     out
 }
 
-/// `base` joined with [`clamp_rel`] of `rel`.
-pub fn safe_join(base: &Path, rel: &str) -> PathBuf {
-    clamp_rel(rel)
-        .iter()
-        .fold(base.to_path_buf(), |acc, s| acc.join(s))
+/// `base` joined with [`clamp_rel`] of `rel`, proved inside `base` by real path: a symlink
+/// (file or folder) that leads out of `base` gives `None`, as does `base` itself.
+pub fn safe_join(base: &Path, rel: &str) -> Option<PathBuf> {
+    let clean = clamp_rel(rel).join("/");
+    resolve_inside(base, &clean).ok()
 }
 
 /// `manifest()`: `design/design.json` with the config's breakpoints, screen flows and canvas
@@ -331,6 +331,7 @@ pub fn system_page(root: &Path) -> Result<String, DfwError> {
 }
 
 /// What a request for a design file answers.
+#[derive(Debug, PartialEq)]
 pub enum DesignFile {
     /// 200 with this body and content type.
     Found(Vec<u8>, &'static str),
@@ -341,7 +342,10 @@ pub enum DesignFile {
 /// `serveDesignFile(rel)`: HTML prepared for a frame, anything else as it is.
 pub fn design_file(root: &Path, rel: &str) -> Result<DesignFile, DfwError> {
     let design = project_paths(root).design;
-    let abs = safe_join(&design, rel);
+    // A path through a symlink out of design/ is not served (it could be any file of the user).
+    let Some(abs) = safe_join(&design, rel) else {
+        return Ok(DesignFile::Missing);
+    };
     // Pages link the generated component CSS even before any component exists.
     if rel == "system/components.css" && !abs.exists() {
         return Ok(DesignFile::Found(
@@ -479,6 +483,44 @@ fn local_stamp() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// a design file or a screenshot reached through a symlink (file or folder) that leads
+    /// out of its root is not served
+    #[cfg(unix)]
+    #[test]
+    fn symlinks_out_of_the_base_are_refused() {
+        let dir = crate::core::util::test_dir("studio-symlink");
+        let outside = dir.join("outside");
+        fs::create_dir_all(outside.join("folder")).unwrap();
+        fs::write(outside.join("secret.txt"), "secret").unwrap();
+        fs::write(outside.join("folder/secret.png"), "secret").unwrap();
+        let design = dir.join("project/design");
+        fs::create_dir_all(design.join("screens")).unwrap();
+        fs::write(design.join("screens/a.html"), "<p>a</p>").unwrap();
+        std::os::unix::fs::symlink(outside.join("secret.txt"), design.join("leak.txt")).unwrap();
+        std::os::unix::fs::symlink(outside.join("folder"), design.join("linked")).unwrap();
+        // A link that stays inside is fine.
+        std::os::unix::fs::symlink(design.join("screens"), design.join("alias")).unwrap();
+        assert_eq!(safe_join(&design, "leak.txt"), None);
+        assert_eq!(safe_join(&design, "linked/secret.png"), None);
+        assert_eq!(safe_join(&design, "linked"), None);
+        assert_eq!(safe_join(&design, ""), None);
+        assert!(safe_join(&design, "alias/a.html").is_some());
+        assert!(
+            safe_join(&design, "../../outside/secret.txt").is_none_or(|p| p.starts_with(&design))
+        );
+        let root = dir.join("project");
+        assert_eq!(design_file(&root, "leak.txt").unwrap(), DesignFile::Missing);
+        assert_eq!(
+            design_file(&root, "linked/secret.png").unwrap(),
+            DesignFile::Missing
+        );
+        assert!(matches!(
+            design_file(&root, "alias/a.html").unwrap(),
+            DesignFile::Found(..)
+        ));
+        let _ = fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn safe_join_stays_inside_the_base() {

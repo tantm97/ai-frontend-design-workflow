@@ -257,9 +257,11 @@ describe('studio server: Node and native answer the same', { skip: skipReason() 
     assert.equal((await edit({ file: 'screens/items/a.html', op: 'text', id: 'items.title', value: 'Stock <now> & "then"' })).status, 200);
     await edit({ file: 'screens/items/a.html', op: 'text', id: 'items.summary', value: 'x' });
     await edit({ file: '../outside.html', op: 'text', id: 'x', value: 'y' });
-    // The JSON parsers word their errors differently: only the status is compared.
+    // A body that is not JSON is the client's mistake: 400 with a short message (Node said 500
+    // with the parser's wording).
     const bad = await request(R.port, { path: '/__dfw/api/edit', method: 'POST', body: '{not json' });
-    assert.equal(bad.status, 500);
+    assert.equal(bad.status, 400);
+    assert.deepEqual(JSON.parse(bad.raw), { error: 'The request body is not valid JSON.' });
     assert.equal(bad.status, expected(bad.status));
     const strip = (t) => Object.fromEntries(Object.entries(t).filter(([k]) => !k.startsWith('.dfw/edits/')));
     sameFiles(strip(tree(R)));

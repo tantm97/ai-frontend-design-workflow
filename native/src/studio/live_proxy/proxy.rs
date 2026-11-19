@@ -6,14 +6,12 @@
 //! the app closes (or for its Content-Length) without re-framing. An https app is reached
 //! through `ureq` (no TLS crate of its own here); its WebSocket upgrades are not passed through.
 
-use std::collections::hash_map::RandomState;
-use std::hash::{BuildHasher, Hasher};
 use std::io::{self, Cursor, Read, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Sender};
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use serde_json::{json, Map, Value};
 
@@ -22,7 +20,6 @@ use super::{
     patch_csp, patch_meta_csp, proxy_host, Target,
 };
 use crate::assets::studio_file;
-use crate::browser::cdp::encoding::base64_encode;
 use crate::browser::screenshot::{screenshot, Job};
 use crate::core::js;
 
@@ -32,15 +29,20 @@ use crate::core::util::to_json_compact;
 use crate::design::tokens::relative_path;
 use crate::review::comments::{add_comment, set_comment_screenshot};
 use crate::studio::http::{
-    drain, http_version, no_timeouts, node_headers, read_body, read_head, url_pathname, write_head,
-    write_response, BodyError, Head, READ_TIMEOUT,
+    drain, http_version, no_timeouts, node_headers, random_base64, read_body, read_head,
+    read_request_head, refusal, spawn_connection, url_pathname, write_error, write_head,
+    write_response, BodyError, Connections, Head, MAX_CONNECTIONS,
 };
+use crate::studio::server::json_body;
 use crate::tools::inspector::parse_insp_path;
 
 /// Largest comment a page may post (`readBody(req, 1_000_000)`).
 const MAX_COMMENT: usize = 1_000_000;
 /// Largest body passed to or read from the app in memory (request bodies, HTML to inject into).
 const MAX_PASS: usize = 256 * 1024 * 1024;
+/// Largest HTML page decoded (gzip, br, deflate) to inject into; a bigger one (or a
+/// compression bomb) is passed through as the app sent it.
+const MAX_HTML: usize = 64 * 1024 * 1024;
 
 /// What `createLiveServer` takes.
 #[derive(Debug, Clone)]
@@ -67,6 +69,8 @@ pub struct LiveServer {
     /// The host of the review URL: `localhost` for a localhost app, else `127.0.0.1`.
     pub public_host: String,
     shot_queue: Option<Sender<Shot>>,
+    /// Open connections, for the cap.
+    conns: Connections,
 }
 
 fn log(msg: &str) {
@@ -82,20 +86,9 @@ fn loopback(host: &str) -> bool {
     })
 }
 
-/// A fresh CSP nonce: 16 bytes, base64. The keys of `RandomState` come from the operating
-/// system's random source, so the hashes are unpredictable without a random-number crate.
+/// A fresh CSP nonce: 16 random bytes, base64.
 fn nonce() -> String {
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |d| d.as_nanos());
-    let mut bytes = Vec::with_capacity(16);
-    for i in 0..2u8 {
-        let mut h = RandomState::new().build_hasher();
-        h.write_u8(i);
-        h.write_u128(now);
-        bytes.extend_from_slice(&h.finish().to_le_bytes());
-    }
-    base64_encode(&bytes)
+    random_base64()
 }
 
 impl LiveServer {
@@ -120,6 +113,7 @@ impl LiveServer {
             shots: opts.shots,
             target_origins,
             shot_queue,
+            conns: Connections::default(),
         })
     }
 
@@ -127,7 +121,7 @@ impl LiveServer {
     pub fn serve(self: Arc<Self>, listener: TcpListener) {
         for stream in listener.incoming().flatten() {
             let me = Arc::clone(&self);
-            std::thread::spawn(move || me.handle(stream));
+            spawn_connection(&self.conns, MAX_CONNECTIONS, stream, move |s| me.handle(s));
         }
     }
 
@@ -145,20 +139,21 @@ impl LiveServer {
 
     /// Local user only: a rebinding page must not reach the app through the proxy (the proxy
     /// rewrites Host, which would defeat the dev server's own host check), and another site
-    /// must not post comments.
-    fn foreign(&self, head: &Head) -> Option<String> {
+    /// must not post comments or send writes to the app. A write (and a WebSocket upgrade) may
+    /// only come from the proxy's own origins: a loopback name with this proxy's `port`. Other
+    /// loopback ports are other sites.
+    fn foreign(&self, head: &Head, port: u16) -> Option<String> {
         let host = head.header("host").unwrap_or_default();
         if !loopback(host) {
             let shown = if host.is_empty() { "(none)" } else { host };
             return Some(format!("host {shown} not allowed"));
         }
-        let writes = !matches!(head.method(), "GET" | "HEAD" | "OPTIONS");
+        let writes = !matches!(head.method(), "GET" | "HEAD" | "OPTIONS") || head.is_upgrade();
         if let Some(from) = head.header("origin").filter(|_| writes) {
-            let bare = from
-                .strip_prefix("http://")
-                .or_else(|| from.strip_prefix("https://"))
-                .unwrap_or(from);
-            if !loopback(bare) {
+            let own = ["localhost", "127.0.0.1", "[::1]"]
+                .iter()
+                .any(|h| from.eq_ignore_ascii_case(&format!("http://{h}:{port}")));
+            if !own {
                 return Some(format!("origin {from} not allowed"));
             }
         }
@@ -166,11 +161,21 @@ impl LiveServer {
     }
 
     fn handle(&self, mut stream: TcpStream) {
-        let _ = stream.set_read_timeout(Some(READ_TIMEOUT));
-        let Ok(Some(head)) = read_head(&mut stream) else {
-            return;
+        let head = match read_request_head(&mut stream) {
+            Ok(Some(head)) => head,
+            Ok(None) => return,
+            Err(err) => {
+                if let Some((code, message)) = refusal(&err) {
+                    write_error(&mut stream, "GET", code, message);
+                }
+                return;
+            }
         };
+        let port = stream.local_addr().map_or(0, |a| a.port());
         if head.is_upgrade() {
+            if let Some(refused) = self.foreign(&head, port) {
+                return write_error(&mut stream, "GET", 403, &refused);
+            }
             return self.upgrade(stream, head);
         }
         let method = head.method().to_string();
@@ -180,8 +185,7 @@ impl LiveServer {
             } else {
                 500
             };
-            let body = to_json_compact(&json!({ "error": err.message() }));
-            let _ = write_response(&mut stream, &method, code, &json_headers(), body.as_bytes());
+            write_error(&mut stream, &method, code, err.message());
         }
     }
 
@@ -194,7 +198,10 @@ impl LiveServer {
             ];
             let _ = write_response(stream, &method, code, &headers, body);
         };
-        if let Some(refused) = self.foreign(&head) {
+        let port = stream.local_addr().map_or(0, |a| a.port());
+        if let Some(refused) = self.foreign(&head, port) {
+            let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+            drain(stream, &head, 1024 * 1024);
             let body = to_json_compact(&json!({ "error": refused }));
             send(stream, 403, body.as_bytes(), JSON);
             return Ok(());
@@ -206,7 +213,6 @@ impl LiveServer {
             send(stream, 200, &file, "text/javascript; charset=utf-8");
             return Ok(());
         }
-        let port = stream.local_addr().map_or(0, |a| a.port());
         if p == "/__dfw/api/live" {
             let info = json!({
                 "target": self.t.origin(),
@@ -222,17 +228,18 @@ impl LiveServer {
                 Ok(b) => b,
                 Err(BodyError::TooLarge) => {
                     let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
-                    drain(stream, &head);
-                    return Err(DfwError::new("Request too large."));
+                    drain(stream, &head, 64 * 1024 * 1024);
+                    write_error(stream, &method, 413, "Request too large.");
+                    return Ok(());
                 }
-                Err(BodyError::Io(e)) => return Err(e.into()),
+                Err(BodyError::Io(e)) => {
+                    if let Some((code, message)) = refusal(&e) {
+                        write_error(stream, &method, code, message);
+                    }
+                    return Ok(());
+                }
             };
-            let text = String::from_utf8_lossy(&body);
-            let b: Value = if text.is_empty() {
-                json!({})
-            } else {
-                serde_json::from_str(&text)?
-            };
+            let b = json_body(&body)?;
             let c = self.post_comment(&b)?;
             send(stream, 201, to_json_compact(&c).as_bytes(), JSON);
             return Ok(());
@@ -302,7 +309,15 @@ impl LiveServer {
         let self_origin = self.self_of(&head, port);
         let body = match read_body(stream, &head, MAX_PASS, false) {
             Ok(b) => b,
-            Err(_) => return,
+            Err(BodyError::TooLarge) => {
+                return write_error(stream, head.method(), 413, "Request too large.")
+            }
+            Err(BodyError::Io(e)) => {
+                if let Some((code, message)) = refusal(&e) {
+                    write_error(stream, head.method(), code, message);
+                }
+                return;
+            }
         };
         let mut headers = node_headers(&head.headers);
         let had_length = headers
@@ -405,9 +420,10 @@ impl LiveServer {
         let Ok(raw) = body.read_all() else {
             return;
         };
-        let decoded = decode(&raw, get(&h, "content-encoding").as_deref());
+        let decoded = decode(&raw, get(&h, "content-encoding").as_deref(), MAX_HTML);
         let Some(text) = decoded else {
-            // Unknown encoding (or one that does not decode): the body as the app sent it.
+            // Unknown encoding (or one that does not decode, or decodes too big): the body as
+            // the app sent it.
             h.retain(|(k, _)| k != "transfer-encoding" && k != "content-length");
             h.push(("content-length".into(), raw.len().to_string()));
             let _ = write_head(stream, status, &h).and_then(|_| stream.write_all(&raw));
@@ -445,7 +461,7 @@ impl LiveServer {
 
     /// WebSocket (HMR) passthrough: replay the upgrade request to the app and splice the sockets.
     fn upgrade(&self, client: TcpStream, head: Head) {
-        if !loopback(head.header("host").unwrap_or_default()) || self.t.protocol == "https:" {
+        if self.t.protocol == "https:" {
             return;
         }
         let host = self
@@ -488,24 +504,20 @@ impl LiveServer {
 
 const JSON: &str = "application/json; charset=utf-8";
 
-fn json_headers() -> Vec<(String, String)> {
-    vec![
-        ("Content-Type".into(), JSON.into()),
-        ("Cache-Control".into(), "no-store".into()),
-    ]
-}
-
 /// Copy both ways until either side closes, then close both.
 fn splice(a: TcpStream, b: TcpStream) {
     let (Ok(mut a2), Ok(mut b2)) = (a.try_clone(), b.try_clone()) else {
         return;
     };
     let (mut a, mut b) = (a, b);
-    let t = std::thread::spawn(move || {
+    // No thread for the other direction (the system is out of them): drop the connection.
+    let Ok(t) = std::thread::Builder::new().spawn(move || {
         let _ = io::copy(&mut a2, &mut b2);
         let _ = b2.shutdown(Shutdown::Both);
         let _ = a2.shutdown(Shutdown::Both);
-    });
+    }) else {
+        return;
+    };
     let _ = io::copy(&mut b, &mut a);
     let _ = a.shutdown(Shutdown::Both);
     let _ = b.shutdown(Shutdown::Both);
@@ -577,18 +589,26 @@ fn pass_through(
     let _ = stream.flush();
 }
 
-/// `decode(buf, enc)`: the body without its content encoding; `None` for an unknown encoding
-/// or one that does not decode.
-fn decode(buf: &[u8], enc: Option<&str>) -> Option<Vec<u8>> {
+/// `decode(buf, enc)`: the body without its content encoding; `None` for an unknown encoding,
+/// one that does not decode, or a page that decodes to more than `max` bytes (a compression
+/// bomb must not fill the memory).
+pub(super) fn decode(buf: &[u8], enc: Option<&str>, max: usize) -> Option<Vec<u8>> {
     let mut out = Vec::new();
+    let cap = max as u64 + 1;
     let ok = match enc.unwrap_or("") {
         "" | "identity" => return Some(buf.to_vec()),
-        "gzip" | "x-gzip" => flate2::read::MultiGzDecoder::new(buf).read_to_end(&mut out),
-        "br" => brotli_decompressor::Decompressor::new(buf, 4096).read_to_end(&mut out),
-        "deflate" => flate2::read::ZlibDecoder::new(buf).read_to_end(&mut out),
+        "gzip" | "x-gzip" => flate2::read::MultiGzDecoder::new(buf)
+            .take(cap)
+            .read_to_end(&mut out),
+        "br" => brotli_decompressor::Decompressor::new(buf, 4096)
+            .take(cap)
+            .read_to_end(&mut out),
+        "deflate" => flate2::read::ZlibDecoder::new(buf)
+            .take(cap)
+            .read_to_end(&mut out),
         _ => return None,
     };
-    ok.ok().map(|_| out)
+    ok.ok().filter(|_| out.len() <= max).map(|_| out)
 }
 
 /// The request to an http app, over a plain socket.
