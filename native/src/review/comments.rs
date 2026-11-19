@@ -16,7 +16,6 @@ use crate::core::js;
 use crate::core::lock::{self, LockTimes};
 use crate::core::paths::project_paths;
 use crate::core::util::{iso_from_millis, now_iso, read_json, write_json_inside};
-use crate::workflow::state::type_error;
 
 /// Every status a comment can have.
 pub const STATUSES: [&str; 6] = [
@@ -144,8 +143,8 @@ fn new_session_unlocked(root: &Path, design_version: Option<&str>) -> Result<Ses
     let p = project_paths(root);
     let state = read_json(&p.state, Some(json!({})))?;
     if state.is_null() {
-        return Err(DfwError::internal(
-            "Cannot read properties of null (reading 'design')",
+        return Err(DfwError::new(
+            ".dfw/state.json holds null instead of the workflow state. Restore it from version control (or remove it and run \"dfw init\"), then run the command again.",
         ));
     }
     for file in session_files(root)? {
@@ -190,11 +189,25 @@ fn session_stamp(millis: i64) -> String {
         .collect()
 }
 
-fn comments_of(session: &Value) -> Result<&Vec<Value>, DfwError> {
+fn comments_of<'a>(file: &Path, session: &'a Value) -> Result<&'a Vec<Value>, DfwError> {
     session
         .get("comments")
         .and_then(Value::as_array)
-        .ok_or_else(|| DfwError::internal("s.comments is not iterable"))
+        .ok_or_else(|| not_a_list(file, "\"comments\""))
+}
+
+/// A review session file whose list is something else: name the file, the field and the fix.
+fn not_a_list(file: &Path, what: &str) -> DfwError {
+    DfwError::new(format!(
+        "{}: {what} is not a list. Fix that review session file (or move it out of .dfw/reviews/) and run the command again.",
+        shown(file)
+    ))
+}
+
+/// A session file as the user finds it: `.dfw/reviews/<name>`.
+fn shown(file: &Path) -> String {
+    let name = file.file_name().unwrap_or_default().to_string_lossy();
+    format!(".dfw/reviews/{name}")
 }
 
 /// `allComments(root)`: every comment of every session, oldest first, each with the id of its
@@ -203,7 +216,7 @@ pub fn all_comments(root: &Path) -> Result<Vec<Value>, DfwError> {
     let mut out = Vec::new();
     for file in session_files(root)? {
         let session = read_session(&file)?;
-        for c in comments_of(&session)? {
+        for c in comments_of(&file, &session)? {
             let mut c = js::spread(Some(c));
             match session.get("id") {
                 Some(id) => {
@@ -281,7 +294,11 @@ fn add_comment_unlocked(root: &Path, input: &Value) -> Result<Value, DfwError> {
     let text = match input.get("comment") {
         None | Some(Value::Null) => "",
         Some(Value::String(text)) => js::trim(text),
-        Some(_) => return Err(DfwError::internal("input?.comment?.trim is not a function")),
+        Some(_) => {
+            return Err(DfwError::new(
+                "The comment must be text: give \"comment\" as a string.",
+            ))
+        }
     };
     if text.is_empty() {
         return Err(DfwError::new("A comment needs text."));
@@ -338,7 +355,7 @@ fn add_comment_unlocked(root: &Path, input: &Value) -> Result<Value, DfwError> {
     }
     match session.get_mut("comments") {
         Some(Value::Array(comments)) => comments.push(c.clone()),
-        _ => return Err(type_error("push")),
+        _ => return Err(not_a_list(&file, "\"comments\"")),
     }
     write_json_inside(root, &file, &session)?;
     Ok(c)
@@ -373,7 +390,7 @@ impl Found {
 fn find_comment(root: &Path, id: Option<&str>) -> Result<Found, DfwError> {
     for file in session_files(root)? {
         let session = read_session(&file)?;
-        let index = comments_of(&session)?
+        let index = comments_of(&file, &session)?
             .iter()
             .position(|c| id.is_some() && c.get("id").and_then(Value::as_str) == id);
         if let Some(index) = index {
@@ -429,6 +446,7 @@ fn update_comment_unlocked(
 ) -> Result<Value, DfwError> {
     let mut found = find_comment(root, id)?;
     let id = id.unwrap_or("undefined");
+    let file = found.file.clone();
     let comment = found.comment()?;
     let at = now_iso();
     let status = update.status.as_deref().filter(|s| !s.is_empty());
@@ -446,7 +464,14 @@ fn update_comment_unlocked(
             .and_then(Value::as_str)
             .and_then(|c| NEXT.iter().find(|(from, _)| *from == c))
             .map(|(_, to)| *to)
-            .ok_or_else(|| type_error("includes"))?;
+            .ok_or_else(|| {
+                DfwError::new(format!(
+                    "Comment {id} in {} has the status {}, which is not one of {}. Correct it in that file and run the command again.",
+                    shown(&file),
+                    current.as_ref().map_or("none".into(), crate::core::util::to_json_compact),
+                    STATUSES.join(", ")
+                ))
+            })?;
         if !allowed.contains(&status) {
             return Err(DfwError::new(format!(
                 "Comment {id}: cannot go from \"{}\" to \"{status}\" (allowed: {}).",
@@ -480,7 +505,7 @@ fn update_comment_unlocked(
         ]);
         match comment.get_mut("thread") {
             Some(Value::Array(thread)) => thread.push(line),
-            _ => return Err(type_error("push")),
+            _ => return Err(not_a_list(&file, &format!("\"thread\" of comment {id}"))),
         }
     }
     comment.insert("updatedAt".into(), at.into());
@@ -893,6 +918,42 @@ mod tests {
                 .count(),
             0,
             "no lock folder is left"
+        );
+    }
+
+    /// A session file of the wrong shape and a comment that is not text are user errors that
+    /// name the file or field and say what to do (`errors.md` E2; `dfw status` printed
+    /// `s.comments is not iterable`).
+    #[test]
+    fn a_broken_session_file_is_named_with_the_fix() {
+        let root = project("comments-broken");
+        let err = add_comment(&root, &json!({ "comment": 5 })).unwrap_err();
+        assert_eq!(
+            err.report(),
+            "The comment must be text: give \"comment\" as a string."
+        );
+        fs::write(
+            root.join(".dfw/reviews/rv_20200101T000000.json"),
+            r#"{"id":"rv_20200101T000000","comments":5}"#,
+        )
+        .unwrap();
+        let err = all_comments(&root).unwrap_err();
+        assert_eq!(
+            err.report(),
+            ".dfw/reviews/rv_20200101T000000.json: \"comments\" is not a list. Fix that review session file (or move it out of .dfw/reviews/) and run the command again."
+        );
+        fs::write(
+            root.join(".dfw/reviews/rv_20200101T000000.json"),
+            r#"{"id":"rv_20200101T000000","comments":[{"id":"fb_001","status":"odd","thread":[]}]}"#,
+        )
+        .unwrap();
+        let err =
+            update_comment(&root, Some("fb_001"), &update("fixed", Some("x"), None)).unwrap_err();
+        assert!(
+            err.report().starts_with(
+                "Comment fb_001 in .dfw/reviews/rv_20200101T000000.json has the status \"odd\""
+            ),
+            "{err}"
         );
     }
 }
