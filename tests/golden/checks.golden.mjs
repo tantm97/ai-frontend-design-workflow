@@ -374,7 +374,11 @@ describe('checks: lint', { skip: skipReason() }, () => {
           died++;
           assert.deepEqual(codeAndStdout(r), expected(codeAndStdout(r)), label);
           assert.deepEqual([r.code, r.stdout], [1, ''], label);
-          assert.match(r.stderr, /^Malformed design\/design\.json: .*\. Correct it in design\/design\.json and run the command again\.\n$/, label);
+          assert.match(
+            r.stderr,
+            /^Malformed design\/design\.json: .*\. Correct it in design\/design\.json and run the command again\.\n$/,
+            label,
+          );
         } else jsonSame(r);
       }
     }
