@@ -103,7 +103,6 @@ impl Machine {
         let mut cmd = Command::new(DFW);
         cmd.args(args).current_dir(&self.project);
         for name in [
-            "DFW_NATIVE",
             "DFW_HOST",
             "DFW_PROJECT_DIR",
             "CLAUDE_PROJECT_DIR",

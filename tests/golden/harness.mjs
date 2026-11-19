@@ -170,7 +170,7 @@ export function runWith(cmd, cmdArgs, args, opts = {}) {
     opts.setup?.(root);
     const before = snapshot(root);
     const env = { ...process.env };
-    for (const k of ['DFW_NATIVE', 'DFW_FORWARDED', 'DFW_NO_BINARY', 'DFW_VERSION', 'XDG_CONFIG_HOME', 'CLAUDE_CONFIG_DIR']) delete env[k];
+    for (const k of ['DFW_NO_BINARY', 'DFW_VERSION', 'XDG_CONFIG_HOME', 'CLAUDE_CONFIG_DIR']) delete env[k];
     Object.assign(env, {
       DFW_HOME: path.join(tmp, 'home'),
       DFW_NOW: NOW,

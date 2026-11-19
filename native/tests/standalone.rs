@@ -46,7 +46,6 @@ impl Standalone {
         for name in [
             "DFW_PLUGIN_ROOT",
             "DFW_BIN",
-            "DFW_NATIVE",
             "DFW_HOST",
             "DFW_PROJECT_DIR",
             "CLAUDE_PROJECT_DIR",

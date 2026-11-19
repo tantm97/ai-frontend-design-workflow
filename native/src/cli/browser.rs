@@ -19,9 +19,9 @@ use crate::design::layout_cache::{changed_screens, mark_checked};
 /// The commands of this group.
 pub fn commands() -> Vec<(&'static str, Handler)> {
     vec![
-        ("shoot", Handler::Native(shoot)),
-        ("layout", Handler::Native(layout)),
-        ("diff", Handler::Native(diff)),
+        ("shoot", shoot as Handler),
+        ("layout", layout as Handler),
+        ("diff", diff as Handler),
     ]
 }
 
@@ -212,7 +212,7 @@ fn diff(ctx: &Ctx) -> Result<i32, DfwError> {
     Ok(0)
 }
 
-/// `__debug png-info <file>`: size and a hash of the decoded pixels of a PNG, so the conformance
+/// `__debug png-info <file>`: size and a hash of the decoded pixels of a PNG, so the golden
 /// tests can compare images whatever encoder wrote them.
 pub(super) fn debug_png_info(ctx: &Ctx) -> Result<i32, DfwError> {
     let file = ctx.args.pos(2).unwrap_or_default();

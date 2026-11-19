@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fetchAt } from './git.mjs';
 import { loadOverlay, applyOverlay } from './overlay.mjs';
-import { renderText, getHost } from '../../core/lib/host.mjs';
+import { renderText, getHost } from './host.mjs';
 
 export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const CACHE = path.join(REPO_ROOT, '.cache', 'upstream');

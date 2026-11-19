@@ -23,7 +23,7 @@ use serde_json::Value;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{env_nonempty, resolve};
-use crate::core::util::list_files;
+use crate::core::util::{list_files, write_atomic};
 
 // build.rs makes cargo rebuild when one of these folders changes.
 static STUDIO: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/../core/studio");
@@ -187,7 +187,8 @@ pub fn template_text(rel: &str) -> Result<String, DfwError> {
         .ok_or_else(|| DfwError::internal(format!("template {rel} is missing from this build")))
 }
 
-/// `copyDir(path.join(templatesDir(), rel), dest)`: every file of a template folder.
+/// `copyDir(path.join(templatesDir(), rel), dest)`: every file of a template folder, each written
+/// atomically.
 pub fn copy_templates(rel: &str, dest: &Path) -> Result<(), DfwError> {
     let missing =
         || DfwError::internal(format!("template folder {rel} is missing from this build"));
@@ -195,11 +196,7 @@ pub fn copy_templates(rel: &str, dest: &Path) -> Result<(), DfwError> {
     if let Some(dir) = Folder::Templates.override_dir() {
         let src = parts.iter().fold(dir, |acc, p| acc.join(p));
         for file in list_files(&src, &[])? {
-            let to = dest.join(&file);
-            if let Some(parent) = to.parent() {
-                fs::create_dir_all(parent)?;
-            }
-            fs::copy(src.join(&file), &to)?;
+            write_atomic(&dest.join(&file), fs::read(src.join(&file))?)?;
         }
         return Ok(());
     }
@@ -207,11 +204,7 @@ pub fn copy_templates(rel: &str, dest: &Path) -> Result<(), DfwError> {
     fn copy(dir: &Dir<'_>, base: &Path, dest: &Path) -> Result<(), DfwError> {
         for file in dir.files() {
             let rel = file.path().strip_prefix(base).unwrap_or(file.path());
-            let to = dest.join(rel);
-            if let Some(parent) = to.parent() {
-                fs::create_dir_all(parent)?;
-            }
-            fs::write(&to, file.contents())?;
+            write_atomic(&dest.join(rel), file.contents())?;
         }
         for sub in dir.dirs() {
             copy(sub, base, dest)?;

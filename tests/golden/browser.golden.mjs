@@ -62,7 +62,7 @@ function run(args, opts = {}) {
     opts.setup?.(root, tmp);
     const before = new Map([...tree(root)].map(([k, v]) => [`project/${k}`, v]).concat([...tree(home)].map(([k, v]) => [`home/${k}`, v])));
     const env = { ...process.env };
-    for (const k of ['DFW_NATIVE', 'DFW_FORWARDED', 'DFW_NO_BINARY', 'DFW_VERSION', 'DFW_HOST', 'XDG_CONFIG_HOME', 'CLAUDE_CONFIG_DIR', 'COPILOT_HOME', 'CODEX_HOME', 'IMPECCABLE_BIN', 'IMPECCABLE_HOME']) delete env[k];
+    for (const k of ['DFW_NO_BINARY', 'DFW_VERSION', 'DFW_HOST', 'XDG_CONFIG_HOME', 'CLAUDE_CONFIG_DIR', 'COPILOT_HOME', 'CODEX_HOME', 'IMPECCABLE_BIN', 'IMPECCABLE_HOME']) delete env[k];
     Object.assign(env, {
       HOME: home,
       DFW_HOME: path.join(home, 'dfw-home'),
@@ -670,8 +670,7 @@ describe('browser: shoot', { skip: skipReason() || CHROME }, () => {
     const project = path.join(REPO, 'tests', 'fixtures', 'penpot', 'project');
     const studio = (root, tmp, sub) => {
       const env = { ...process.env, DFW_HOME: path.join(tmp, 'home', 'dfw-home'), DFW_PLUGIN_ROOT: path.join(REPO, 'core'), CLAUDE_PROJECT_DIR: root, DFW_NOW: NOW };
-      for (const k of ['DFW_NATIVE']) delete env[k];
-      const r = spawnSync(nativeBinary(), ['studio', sub], { cwd: root, env, encoding: 'utf8', timeout: 30_000 });
+            const r = spawnSync(nativeBinary(), ['studio', sub], { cwd: root, env, encoding: 'utf8', timeout: 30_000 });
       assert.equal(r.status, 0, r.stderr);
     };
     for (const flags of [[], ['--page', 'stock', '--bp', 'mobile', '--viewport'], ['--screen', 'items', '--variant', 'a', '--states', '--themes', '--bp', 'desktop'], ['--system'], ['--selector', 'body', '--bp', 'mobile'], ['--screen', 'nope'], ['--page', 'nope']]) {

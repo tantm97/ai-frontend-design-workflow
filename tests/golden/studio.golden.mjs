@@ -84,7 +84,6 @@ async function startStudio(tmp) {
   fs.copyFileSync(TOKENS_CSS, path.join(root, 'design/tokens/tokens.css'));
   const port = await freePort();
   const env = { ...process.env, DFW_HOME: path.join(tmp, 'native', 'home'), DFW_NOW: NOW, DFW_PLUGIN_ROOT: path.join(REPO, 'core'), DFW_STUDIO_WATCH: 'poll' };
-  for (const k of ['DFW_NATIVE', 'DFW_FORWARDED']) delete env[k];
   const child = spawn(nativeBinary(), ['__studio-server', '--root', root, '--port', String(port)], { env, stdio: 'ignore' });
   await ready(port);
   return { root, port, child };
@@ -369,7 +368,6 @@ async function startProxy(tmp, name, target) {
   write(root, '.dfw/reviews/rv_1.json', { schema: 1, id: 'rv_1', startedAt: NOW, designVersion: 'v1', comments: [] });
   const port = await freePort();
   const env = { ...process.env, DFW_HOME: path.join(tmp, name, 'home'), DFW_NOW: NOW, DFW_PLUGIN_ROOT: path.join(REPO, 'core') };
-  for (const k of ['DFW_NATIVE', 'DFW_FORWARDED']) delete env[k];
   const child = spawn(nativeBinary(), ['__review-server', '--root', root, '--url', target, '--port', String(port), '--no-shots'], { env, stdio: 'ignore' });
   await ready(port, '/__dfw/api/live');
   return { root, port, app: new URL(target).port, child };

@@ -34,7 +34,7 @@ cannot be put in an event, and a spool line that is not such an event is never s
 | Event | Fields |
 |---|---|
 | `dfw.command` | command name (`unknown` for a first argument that is no command), duration range, exit code |
-| `dfw.hook` | hook name, host, duration range, outcome kind (`none`, `context`, `deny`, `block`, `forwarded`, `error`) |
+| `dfw.hook` | hook name, host, duration range, outcome kind (`none`, `context`, `deny`, `block`, `error`) |
 | `dfw.gate_approved` | gate id |
 | `dfw.checks` | finding count per check tool |
 | `dfw.workflow` | mode, phase (after `init`, `mode`, `phase`, `approve`, `reopen`, `pause`, `resume`) |
@@ -114,9 +114,7 @@ Maintainer: add the two secrets under Settings > Secrets and variables > Actions
 
 Done at the merge: `dfw doctor` prints the telemetry row after the global config dir, `check` and
 `lint` record `dfw.checks` (one `CheckCount` per result whose tool is on the list), and the native
-help lists `dfw telemetry status|on|off|endpoint <url>|show|flush` (the conformance help test allows
+help lists `dfw telemetry status|on|off|endpoint <url>|show|flush` (the golden help test allows
 exactly that line). Still open:
 
 - **Docs** (tasks 4.1, 4.2 of the change): README privacy section and AGENTS.md rule 3.
-- `DFW_NATIVE=off` hands every command to Node before the hook dispatcher runs: such hook calls are not
-  recorded.

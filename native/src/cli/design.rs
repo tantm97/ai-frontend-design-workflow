@@ -1,9 +1,6 @@
-//! Design commands of `core/lib/cli.mjs`: build, tokens, lint, check, system, style, type, palette, icons,
-//! fonts, blueprint.
-//!
-//! Still on the Node CLI: `tokens extract` (browser), `tokens export|import` (penpot) and a
-//! `check` that renders pages for the accessibility check (whole design or `--url` without
-//! `--no-a11y`: browser/a11y).
+//! Design commands: build, tokens, lint, check, system, style, type, palette, icons, fonts,
+//! blueprint. `tokens extract` renders through `browser`, `tokens export|import` are in
+//! `cli/penpot.rs`, and the accessibility part of `check` is `browser::a11y`.
 // Over 800 lines: one arm of the cli.mjs switch per function, plus the `__debug` helpers.
 
 use std::path::Path;
@@ -47,17 +44,17 @@ use crate::tools::lighthouse::run_lighthouse;
 /// The commands of this group.
 pub fn commands() -> Vec<(&'static str, Handler)> {
     vec![
-        ("build", Handler::Native(build)),
-        ("tokens", Handler::Native(build)),
-        ("lint", Handler::Native(check)),
-        ("check", Handler::Native(check)),
-        ("system", Handler::Native(system)),
-        ("style", Handler::Native(style)),
-        ("type", Handler::Native(type_scale)),
-        ("palette", Handler::Native(palette)),
-        ("icons", Handler::Native(icons)),
-        ("fonts", Handler::Native(fonts)),
-        ("blueprint", Handler::Native(blueprint)),
+        ("build", build as Handler),
+        ("tokens", build as Handler),
+        ("lint", check as Handler),
+        ("check", check as Handler),
+        ("system", system as Handler),
+        ("style", style as Handler),
+        ("type", type_scale as Handler),
+        ("palette", palette as Handler),
+        ("icons", icons as Handler),
+        ("fonts", fonts as Handler),
+        ("blueprint", blueprint as Handler),
     ]
 }
 
@@ -1049,7 +1046,7 @@ pub(super) fn debug_compose(ctx: &Ctx) -> Result<i32, DfwError> {
 }
 
 /// Numbers rounded to nine decimals, so the last bits of a float (which differ between math
-/// libraries) do not show; the conformance test rounds the Node result the same way.
+/// libraries) do not show; the golden test rounds the recorded result the same way.
 fn rounded(value: Value) -> Value {
     match value {
         Value::Number(n) => {

@@ -298,7 +298,7 @@ describe('render: tokens extract', { skip: skipReason() }, () => {
           site(dir);
           const args = ['tokens', 'extract', '--url', url(dir), '--root', dir, ...out];
           const env = { ...process.env, DFW_HOME: path.join(dir, 'home'), DFW_NOW: NOW, DFW_PLUGIN_ROOT: path.join(REPO, 'core'), TMPDIR: tmp.dir };
-          for (const k of ['DFW_NATIVE', 'DFW_FORWARDED', 'DFW_PROJECT_DIR', 'CLAUDE_PROJECT_DIR']) delete env[k];
+          for (const k of ['DFW_PROJECT_DIR', 'CLAUDE_PROJECT_DIR']) delete env[k];
           const r = spawnSync(nativeBinary(), args, { cwd: dir, env, encoding: 'utf8', timeout: 120_000 });
           const file = path.join(dir, out[1] || 'design/system/extracted.tokens.json');
           native = { code: r.status, stdout: r.stdout, stderr: r.stderr.split(dir).join('<root>'), file: fs.existsSync(file) ? fs.readFileSync(file, 'utf8').split(dir).join('<root>') : null };
@@ -336,7 +336,7 @@ describe('render: accessibility check (axe)', { skip: skipReason() }, () => {
         const o = { ...opts, ...(opts.url ? { url: pathToFileURL(path.join(root, opts.url)).href } : {}) };
         const flags = [...(o.url ? ['--url', o.url] : []), ...(o.states ? ['--states'] : []), ...(o.themes ? ['--themes'] : []), ...(o.screens ? ['--screen', o.screens.join(',')] : [])];
         const env = { ...process.env, DFW_HOME: path.join(dir, 'home'), DFW_NOW: NOW, DFW_PLUGIN_ROOT: path.join(REPO, 'core'), TMPDIR: tmp.dir };
-        for (const k of ['DFW_NATIVE', 'DFW_FORWARDED', 'DFW_PROJECT_DIR', 'CLAUDE_PROJECT_DIR']) delete env[k];
+        for (const k of ['DFW_PROJECT_DIR', 'CLAUDE_PROJECT_DIR']) delete env[k];
         const r = spawnSync(nativeBinary(), ['__debug', 'a11y', '--root', root, ...flags], { cwd: root, env, encoding: 'utf8', timeout: 120_000 });
         assert.equal(r.status, 0, r.stderr);
         const res = JSON.parse(r.stdout.split(dir).join('<tmp>'));

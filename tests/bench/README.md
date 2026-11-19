@@ -15,12 +15,7 @@ The runner builds a temporary dfw project from them and runs dfw lint, the rende
 
 It compares with `baseline.json` and exits 1 when detection drops or false positives rise. `npm run bench -- --save` stores a new baseline.
 
-`npm run bench -- --core <dir>` runs the same fixtures against another checkout's `core/`, for example the previous release:
-
-```sh
-git archive origin/main core adapters | tar -x -C /tmp/old
-npm run bench -- --core /tmp/old/core
-```
+It runs the dfw binary (`DFW_BIN`, else `native/target/debug/dfw`: `cd native && cargo build` first). `npm run bench -- --bin <dfw>` runs the same fixtures against another binary, for example the previous release (`~/.config/dfw/bin/<version>/dfw`).
 
 Rules:
 

@@ -5,6 +5,8 @@
 // "dfw setup --a11y"; missing ones are reported as not measured, never as passing.
 //   npm run bench                 run and compare with tests/bench/baseline.json
 //   npm run bench -- --save       also store this run as the new baseline
+//   npm run bench -- --bin <dfw>  benchmark another dfw binary (e.g. the previous release); default
+//                                 DFW_BIN, else native/target/debug/dfw
 // Never edit a fixture to make a checker pass; fix the checker or add a dated note in the fixture.
 import fs from 'node:fs';
 import os from 'node:os';
@@ -14,16 +16,24 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..');
-// --core <dir>: benchmark another checkout's core/ (e.g. the previous release) with the same fixtures.
-const CORE = process.argv.includes('--core') ? path.resolve(process.argv[process.argv.indexOf('--core') + 1]) : path.join(REPO, 'core');
-const load = (f) => import(path.join(CORE, 'lib', f)).catch(() => ({}));
-const { lintDesign } = await load('lint.mjs');
-const { layoutCheck } = await load('layout.mjs');
-const { a11yCheck } = await load('a11y.mjs');
+const BIN = process.argv.includes('--bin') ? path.resolve(process.argv[process.argv.indexOf('--bin') + 1]) : process.env.DFW_BIN || path.join(REPO, 'native', 'target', 'debug', process.platform === 'win32' ? 'dfw.exe' : 'dfw');
+/** `dfw <args>` on the benchmark project; its stdout parsed as JSON, or null when it did not run. */
+const dfwJson = (args) => {
+  try {
+    return JSON.parse(execFileSync(BIN, [...args, '--root', root], { cwd: root, env: { ...process.env, CLAUDE_PROJECT_DIR: '', DFW_TELEMETRY: 'off' }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 << 20 }));
+  } catch (e) {
+    // lint and layout exit 2 when they found errors; their JSON is still the result.
+    try {
+      return JSON.parse(e.stdout);
+    } catch {
+      return null;
+    }
+  }
+};
 
 const fixtures = fs.readdirSync(path.join(HERE, 'fixtures')).filter((f) => f.endsWith('.html')).sort();
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dfw-bench-'));
-execFileSync(process.execPath, [path.join(CORE, 'bin/dfw.mjs'), 'init', '--root', root], { cwd: root, env: { ...process.env, CLAUDE_PROJECT_DIR: '' } });
+execFileSync(BIN, ['init', '--root', root], { cwd: root, env: { ...process.env, CLAUDE_PROJECT_DIR: '', DFW_TELEMETRY: 'off' } });
 fs.mkdirSync(path.join(root, 'design/screens/bench'), { recursive: true });
 const expect = new Map();
 const states = new Map();
@@ -46,9 +56,12 @@ const time = async (name, fn) => {
   checkers.push({ name, status: r.status, ms: Date.now() - t, findings: r.findings });
 };
 const missing = { status: 'not in this version', findings: [] };
-await time('lint', () => (lintDesign ? { status: 'ran', findings: lintDesign(root) } : missing));
-await time('layout', () => (layoutCheck ? layoutCheck(root, { system: false }) : missing));
-await time('axe', () => (a11yCheck ? a11yCheck(root, {}) : missing));
+await time('lint', () => {
+  const r = dfwJson(['lint', '--json'])?.results?.find((x) => x.tool === 'dfw-lint');
+  return r ? { status: r.status, findings: r.findings } : missing;
+});
+await time('layout', () => dfwJson(['layout', 'check', '--json', '--no-system']) || missing);
+await time('axe', () => dfwJson(['__debug', 'a11y']) || missing);
 const found = new Map();
 for (const c of checkers) for (const f of c.findings || []) {
   if (!found.has(f.file)) found.set(f.file, new Set());
@@ -76,10 +89,7 @@ for (const [file, rules] of expect) {
 const measured = Object.values(perRule).filter((x) => x.measured);
 const result = {
   at: new Date().toISOString(),
-  version: (() => {
-    for (const f of ['manifest.json', '../adapters/claude-code/plugin/.claude-plugin/plugin.json']) if (fs.existsSync(path.join(CORE, f))) return JSON.parse(fs.readFileSync(path.join(CORE, f), 'utf8')).version;
-    return '?';
-  })(),
+  version: execFileSync(BIN, ['version'], { encoding: 'utf8' }).split(' ')[1] || '?',
   fixtures: fixtures.length,
   detection: measured.reduce((n, x) => n + x.found, 0) / Math.max(1, measured.reduce((n, x) => n + x.seeded, 0)),
   coverage: Object.values(perRule).reduce((n, x) => n + x.found, 0) / Math.max(1, Object.values(perRule).reduce((n, x) => n + x.seeded, 0)),

@@ -1,6 +1,6 @@
 //! Hidden `__debug` helpers of the edit group (Studio edits, the Design System page, the layout
 //! cache). The group has no command of its own: the Studio server calls these modules. The
-//! helpers let `tests/conformance/edit.conformance.mjs` compare them with the Node functions.
+//! helpers let `tests/golden/edit.golden.mjs` compare them with the recorded results.
 
 use std::path::PathBuf;
 

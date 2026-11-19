@@ -49,7 +49,6 @@ function pair(setup) {
 
 function native(args, stdin = '') {
   const env = { ...process.env, DFW_PLUGIN_ROOT: CORE, DFW_NOW: NOW };
-  for (const k of ['DFW_NATIVE', 'DFW_FORWARDED']) delete env[k];
   const r = spawnSync(nativeBinary(), ['__debug', ...args], { env, input: stdin, encoding: 'utf8', timeout: 180_000, maxBuffer: 64 * 1024 * 1024 });
   if (r.error) throw r.error;
   return r;
@@ -649,7 +648,6 @@ describe('design system page', { skip: skipReason() }, () => {
   /** `dfw <args>` with the binary (setup only: the project is made as when recorded). Returns the exit code. */
   const cli = (root, args) => {
     const env = { ...process.env, DFW_PLUGIN_ROOT: CORE, DFW_PROJECT_DIR: root, CLAUDE_PROJECT_DIR: root, DFW_HOME: path.join(root, '..', 'home') };
-    for (const k of ['DFW_NATIVE', 'DFW_FORWARDED']) delete env[k];
     const r = spawnSync(nativeBinary(), args, { cwd: root, env, encoding: 'utf8', timeout: 180_000 });
     if (r.error) throw r.error;
     return r.status;

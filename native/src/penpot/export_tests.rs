@@ -205,14 +205,9 @@ fn only_the_newest_exports_are_kept() {
         .is_empty());
 }
 
-/// The function that runs in the page is the Node file's, byte for byte.
+/// The function that runs in the page is one self-contained function.
 #[test]
-fn the_page_function_is_the_one_of_the_node_module() {
-    let node = Path::new(env!("CARGO_MANIFEST_DIR")).join("../core/lib/penpot.mjs");
-    // The Node module goes when the port is complete; the function then lives here alone.
-    if let Ok(source) = fs::read_to_string(node) {
-        assert!(source.contains(SNAPSHOT_PAGE));
-    }
+fn the_page_function_is_one_function() {
     assert!(SNAPSHOT_PAGE.starts_with("function snapshotPage() {\n"));
     assert!(SNAPSHOT_PAGE.ends_with("\n}\n"));
 }

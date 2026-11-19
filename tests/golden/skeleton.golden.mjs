@@ -56,10 +56,4 @@ describe('skeleton', { skip: skipReason() }, () => {
     assertSame(bad, { stderr: true });
     assert.equal(bad.native.code, 1);
   });
-
-  test('DFW_NATIVE=off hands every command to Node', () => {
-    const r = run(['version'], { env: { DFW_NATIVE: 'off' } });
-    assert.match(r.native.stdout, /^dfw \S+ \(<runtime>\)\n$/);
-    assertSame(r);
-  });
 });

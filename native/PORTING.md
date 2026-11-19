@@ -1,9 +1,10 @@
 # Porting map
 
-Every Node file of `core/lib` and `core/studio/*.mjs` belongs to exactly one Rust module of `native/src`.
-A file that is split by job lists its other modules under "Also". The owner group is the one that ports
-it and edits only its own files; `Cargo.toml`, `src/main.rs` and `src/cli/mod.rs` belong to the integrator.
-Set the status to `done` in the same commit that registers the commands as native.
+The Node core (`core/lib`, `core/bin/dfw.mjs`, `core/studio/server.mjs` and `pages.mjs`) was deleted in 0.6.0, when
+the binary became the only runtime; the recorded results of its behaviour are the golden tests (`tests/golden`). This
+map stays so a Rust module can be traced to the Node file it came from (Rust test doc comments keep the JavaScript test
+titles). Every Node file belonged to exactly one Rust module of `native/src`.
+A file that is split by job lists its other modules under "Also".
 
 | Node file | Rust module | Also | Owner group | Status |
 |---|---|---|---|---|
@@ -60,8 +61,8 @@ guide) and core/manifest.json; nothing is read from the plugin folder, `DFW_PLUG
 
 | Group file | Commands | State |
 |---|---|---|
-| `cli/mod.rs` | version, help | native; `DFW_NATIVE=off` still hands the whole command line to Node (escape hatch until the Node core is deleted) |
-| `cli/debug.rs` | __debug (hidden helpers for the conformance tests) | native |
+| `cli/mod.rs` | version, help | native |
+| `cli/debug.rs` | __debug (hidden helpers for the golden tests) | native |
 | `cli/workflow.rs` | init, status, mode, phase, approve, reopen, pause, resume, decide, decisions, config, lang, verify-snapshot (hidden: `__debug hot`) | native |
 | `cli/hook.rs` | hook | native |
 | `cli/comments.rs` | comments | native (every subcommand, incl. wait and inbox) |
@@ -73,5 +74,4 @@ guide) and core/manifest.json; nothing is read from the plugin folder, `DFW_PLUG
 | `cli/tools.rs` | inspector, install, uninstall, setup, doctor, mcp, stack, handoff (`cmdHandoff` of cli.mjs is `tools/handoff`) | native |
 | `cli/telemetry.rs` | telemetry (new: status, on, off, endpoint, show, flush; hidden: `__debug telemetry-build`) | native; the Node CLI has no such command |
 
-The `HELP` text lives in `core/lib/cli.mjs` and in `src/cli/help.txt` until the Node CLI is deleted; the native
-text has one line more (the telemetry command).
+The `HELP` text is `src/cli/help.txt`; it is the Node CLI's text with one line more (the telemetry command).

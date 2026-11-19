@@ -53,7 +53,7 @@ fn post(address: &Address, body: &str) -> Result<(), String> {
 /// install id (it is made when the first event is recorded).
 pub fn resource(dir: &Path) -> Option<Resource> {
     Some(Resource {
-        version: crate::cli::dfw_version(),
+        version: crate::core::platform::dfw_version(),
         install_id: spool::install_id(dir, false)?,
     })
 }

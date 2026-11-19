@@ -1,8 +1,7 @@
-//! Ports `core/lib/cli.mjs`: the command table. Each `cli/<group>.rs` lists the commands of its
-//! group; a command is `Forward` until its group is ported, then `Native`.
+//! The command table. Each `cli/<group>.rs` lists the commands of its group with their handlers.
 //!
-//! `help.txt` is a copy of the `HELP` text in cli.mjs (with the mode and phase lists filled in).
-//! Until the Node CLI is deleted the text lives in both places: change both.
+//! `help.txt` is the `dfw help` text (the one of the Node CLI of 0.5.2, with the mode and phase
+//! lists filled in, plus the telemetry line); the golden tests record it.
 
 mod browser;
 mod comments;
@@ -16,13 +15,12 @@ mod telemetry;
 mod tools;
 mod workflow;
 
-use std::io;
 use std::path::PathBuf;
-use std::process::Command;
 
 use crate::core::error::DfwError;
-use crate::core::paths::{env_nonempty, find_project_root, plugin_root};
-use crate::core::util::{out, plugin_manifest, Args};
+use crate::core::paths::find_project_root;
+use crate::core::platform::dfw_version;
+use crate::core::util::{out, Args};
 
 /// What a command handler receives.
 pub struct Ctx {
@@ -45,11 +43,8 @@ impl Ctx {
     }
 }
 
-/// How a command runs.
-pub enum Handler {
-    /// Runs here and returns the exit code.
-    Native(fn(&Ctx) -> Result<i32, DfwError>),
-}
+/// A command's handler: runs the command and returns its exit code.
+pub type Handler = fn(&Ctx) -> Result<i32, DfwError>;
 
 /// Internal commands, recognised only as the first argument ("dfw studio start" and
 /// "dfw review start" spawn them).
@@ -60,10 +55,8 @@ pub const BEFORE_HELP: [&str; 3] = ["mcp", "install", "uninstall"];
 
 /// Every command of the CLI.
 pub fn commands() -> Vec<(&'static str, Handler)> {
-    let mut all: Vec<(&'static str, Handler)> = vec![
-        ("version", Handler::Native(version)),
-        ("help", Handler::Native(help)),
-    ];
+    let mut all: Vec<(&'static str, Handler)> =
+        vec![("version", version as Handler), ("help", help as Handler)];
     all.extend(workflow::commands());
     all.extend(hook::commands());
     all.extend(comments::commands());
@@ -77,24 +70,7 @@ pub fn commands() -> Vec<(&'static str, Handler)> {
     all
 }
 
-/// `dfwVersion()` of binary.mjs: the plugin manifest's version, else `DFW_VERSION`, else the
-/// version this binary was built as.
-pub fn dfw_version() -> String {
-    let manifest = plugin_manifest(None).ok();
-    let from_manifest = manifest
-        .as_ref()
-        .and_then(|m| m.get("version"))
-        .and_then(|v| v.as_str())
-        .filter(|v| !v.is_empty());
-    match from_manifest {
-        Some(v) => v.to_string(),
-        None => {
-            env_nonempty("DFW_VERSION").unwrap_or_else(|| env!("CARGO_PKG_VERSION").to_string())
-        }
-    }
-}
-
-/// `dfw version`: the Node CLI printed `node <version>` or `binary` in the brackets.
+/// `dfw version`: `dfw <version> (native)`.
 fn version(_ctx: &Ctx) -> Result<i32, DfwError> {
     out(&format!("dfw {} (native)", dfw_version()));
     Ok(0)
@@ -104,32 +80,6 @@ fn version(_ctx: &Ctx) -> Result<i32, DfwError> {
 fn help(_ctx: &Ctx) -> Result<i32, DfwError> {
     out(include_str!("help.txt"));
     Ok(0)
-}
-
-/// Run the Node CLI with the same arguments, stdin, stdout, stderr and environment, and return
-/// its exit code. Only for `DFW_NATIVE=off` (main.rs): no command forwards on its own.
-pub fn forward(argv: &[String]) -> Result<i32, DfwError> {
-    let script = plugin_root().map(|root| root.join("bin").join("dfw.mjs")).filter(|f| f.is_file()).ok_or_else(|| {
-        DfwError::new("DFW_NATIVE=off runs the Node.js CLI, and bin/dfw.mjs was not found. Set DFW_PLUGIN_ROOT to the dfw plugin folder, or unset DFW_NATIVE.")
-    })?;
-    // DFW_FORWARDED marks the child: the Node side never starts this binary for a forwarded command.
-    let status = Command::new("node").arg(&script).args(argv).env("DFW_FORWARDED", "1").status().map_err(|err| match err.kind() {
-        io::ErrorKind::NotFound => DfwError::new("DFW_NATIVE=off runs the Node.js CLI, and node was not found on PATH. Install Node.js 22 or newer, or unset DFW_NATIVE."),
-        _ => DfwError::internal(format!("Could not start node {}: {err}", script.display())),
-    })?;
-    Ok(status.code().unwrap_or_else(|| killed_by(&status)))
-}
-
-/// Exit code for a child that ended by a signal, as a shell reports it (128 + signal).
-#[cfg(unix)]
-fn killed_by(status: &std::process::ExitStatus) -> i32 {
-    use std::os::unix::process::ExitStatusExt;
-    status.signal().map_or(1, |signal| 128 + signal)
-}
-
-#[cfg(not(unix))]
-fn killed_by(_status: &std::process::ExitStatus) -> i32 {
-    1
 }
 
 #[cfg(test)]

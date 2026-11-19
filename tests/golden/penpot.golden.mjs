@@ -48,7 +48,6 @@ function same(args, opts, check = {}) {
 
 function native(args, { input = '', env = {}, cwd } = {}) {
   const e = { ...process.env, DFW_PLUGIN_ROOT: path.join(REPO, 'core'), ...env };
-  for (const k of ['DFW_NATIVE', 'DFW_FORWARDED']) delete e[k];
   const r = spawnSync(nativeBinary(), args, { cwd, env: e, input, encoding: 'utf8', timeout: 60_000, maxBuffer: 64 * 1024 * 1024 });
   if (r.error) throw r.error;
   return r;

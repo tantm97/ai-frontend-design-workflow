@@ -270,8 +270,8 @@ fn unpack(zip_bytes: &[u8], dir: &Path) -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::util::serve_routes as serve;
     use crate::core::util::test_dir;
-    use crate::tools::binary::tests::serve;
     use std::collections::HashMap;
     use std::io::Write;
     use std::sync::atomic::Ordering;

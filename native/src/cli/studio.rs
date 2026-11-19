@@ -25,10 +25,10 @@ use crate::studio::server;
 /// The commands of this group.
 pub fn commands() -> Vec<(&'static str, Handler)> {
     vec![
-        ("studio", Handler::Native(studio)),
-        ("review", Handler::Native(review)),
-        ("__studio-server", Handler::Native(studio_server)),
-        ("__review-server", Handler::Native(review_server)),
+        ("studio", studio as Handler),
+        ("review", review as Handler),
+        ("__studio-server", studio_server as Handler),
+        ("__review-server", review_server as Handler),
     ]
 }
 

@@ -11,13 +11,14 @@ use std::process::Stdio;
 
 use serde_json::Value;
 
-use super::binary::{node_platform, RELEASE_REPO};
+use super::binary::RELEASE_REPO;
 use crate::browser::a11y::{axe_status, install_axe, AxeStatus};
 use crate::browser::download::install_browser;
 use crate::browser::launch::{browser_status, make_temp_dir, BrowserStatus};
 use crate::core::error::DfwError;
 use crate::core::host::{get_host, supported_hosts, Host, Status, HOSTS};
 use crate::core::paths::{plugin_root, resolve};
+use crate::core::platform::node_platform;
 use crate::core::process::{command, quote_for_cmd, Spawn};
 use crate::core::util::{out, plugin_manifest, read_json};
 
@@ -478,7 +479,7 @@ pub fn uninstall(host: &str, scope: &str, quiet: bool) -> Result<(), DfwError> {
 mod tests {
     //! tests/unit/install-paths.test.mjs, the install.mjs cases (the launcher, checks and
     //! upstream bot cases test JavaScript that stays). `install` and `uninstall` themselves run
-    //! against fake host CLIs in tests/conformance/browser.conformance.mjs.
+    //! against fake host CLIs in tests/golden/browser.golden.mjs.
     use super::*;
 
     fn args(list: &[&str]) -> Vec<String> {

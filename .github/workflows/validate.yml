@@ -68,11 +68,11 @@ jobs:
           DFW_REQUIRE_BIN: '1'
         run: node --test tests/golden/
   e2e:
-    # Studio click-to-comment end to end (tests/e2e/studio.e2e.mjs). Playwright is a dev-only
+    # Studio click-to-comment end to end (tests/e2e/studio.e2e.mjs) against the binary. Playwright is a dev-only
     # driver installed outside the repo (DFW_RUNTIME_DIR, no repo dependency, no browser download):
     # it drives the runner's preinstalled Google Chrome.
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     env:
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
       PLAYWRIGHT_VERSION: 1.64.1
@@ -88,7 +88,14 @@ jobs:
           chrome="$(command -v google-chrome || command -v google-chrome-stable)"
           "$chrome" --version
           echo "DFW_BROWSER=$chrome" >> "$GITHUB_ENV"
+      - name: The dfw binary the e2e drives (native/target/debug/dfw)
+        working-directory: native
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          cargo build --locked
       - name: End-to-end (Studio)
+        env:
+          DFW_BIN: native/target/debug/dfw
         run: node tests/e2e/studio.e2e.mjs --shots "$RUNNER_TEMP/e2e-shots"
       - name: Upload screenshots
         if: failure()

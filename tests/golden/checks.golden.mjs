@@ -42,7 +42,7 @@ const st = (over = {}) => structuredClone({ ...MINIMAL_STATE, ...over });
  */
 function dfwIn(root, args) {
   const env = { ...process.env };
-  for (const k of ['DFW_NATIVE', 'DFW_FORWARDED', 'DFW_NO_BINARY', 'DFW_VERSION', 'XDG_CONFIG_HOME', 'CLAUDE_CONFIG_DIR']) delete env[k];
+  for (const k of ['DFW_NO_BINARY', 'DFW_VERSION', 'XDG_CONFIG_HOME', 'CLAUDE_CONFIG_DIR']) delete env[k];
   Object.assign(env, { DFW_HOME: path.join(path.dirname(root), 'setup-home'), DFW_NOW: NOW, DFW_PROJECT_DIR: root, CLAUDE_PROJECT_DIR: root, DFW_PLUGIN_ROOT: CORE });
   const r = spawnSync(nativeBinary(), args, { cwd: root, env, encoding: 'utf8', timeout: 180_000 });
   if (r.error) throw r.error;
@@ -799,7 +799,6 @@ describe('checks: lint functions on a corpus (__debug lint)', { skip: skipReason
 
   const native = (args) => {
     const env = { ...process.env, DFW_PLUGIN_ROOT: CORE };
-    for (const k of ['DFW_NATIVE', 'DFW_FORWARDED']) delete env[k];
     const r = spawnSync(nativeBinary(), ['__debug', 'lint', ...args], { env, encoding: 'utf8', timeout: 60_000, maxBuffer: 64 * 1024 * 1024 });
     if (r.error) throw r.error;
     assert.equal(r.status, 0, r.stderr);

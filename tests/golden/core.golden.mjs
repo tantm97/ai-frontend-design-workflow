@@ -18,7 +18,7 @@ const PLACEHOLDERS = ['HOST_NAME', 'SKILL_DIR', 'ASK_TOOL', 'BACKGROUND', 'HOST_
 
 function run(cmd, args, { env = {}, stdin = '' } = {}) {
   const clean = { ...process.env };
-  for (const k of ['DFW_NATIVE', 'DFW_FORWARDED', 'DFW_HOME', 'DFW_HOST', 'XDG_CONFIG_HOME']) delete clean[k];
+  for (const k of ['DFW_HOME', 'DFW_HOST', 'XDG_CONFIG_HOME']) delete clean[k];
   const r = spawnSync(cmd, args, { env: { ...clean, ...env }, input: stdin, encoding: 'utf8', timeout: 60_000 });
   if (r.error) throw r.error;
   return { code: r.status, stdout: r.stdout, stderr: r.stderr };

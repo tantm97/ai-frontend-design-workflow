@@ -964,7 +964,7 @@ describe('hot: freeze and stack detection (the modules, called directly)', { ski
       fs.rmSync(tmp, { recursive: true, force: true });
     }
   }
-  const env = { ...process.env, DFW_NOW: NOW, DFW_NATIVE: '', DFW_HOME: path.join(os.tmpdir(), 'dfw-golden-no-home') };
+  const env = { ...process.env, DFW_NOW: NOW, DFW_HOME: path.join(os.tmpdir(), 'dfw-golden-no-home') };
   const native = (what, args) => (root) => spawnSync(nativeBinary(), ['__debug', 'hot', what, root, ...args], { env, encoding: 'utf8' });
 
   test('freezeDesign: same snapshot, lock file, state and decision log', () => {

@@ -191,7 +191,7 @@ function withHome(args, { setup, stdin = '' } = {}) {
     try {
       setup?.(home);
       const env = { ...process.env };
-      for (const k of ['DFW_NATIVE', 'DFW_FORWARDED', 'DFW_NO_BINARY', 'DFW_VERSION', 'CLAUDE_PROJECT_DIR']) delete env[k];
+      for (const k of ['DFW_NO_BINARY', 'DFW_VERSION', 'CLAUDE_PROJECT_DIR']) delete env[k];
       Object.assign(env, { HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: path.join(home, '.config'), CODEX_HOME: path.join(home, '.codex'), DFW_HOME: path.join(home, '.dfw-home'), DFW_PLUGIN_ROOT: path.join(REPO, 'core') });
       const r = spawnSync(nativeBinary(), args, { cwd: home, env, input: stdin, encoding: 'utf8', timeout: 60_000 });
       if (r.error) throw r.error;

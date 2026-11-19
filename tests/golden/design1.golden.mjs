@@ -21,7 +21,6 @@ const FIXTURE = path.join(REPO, 'tests', 'fixtures', 'penpot', 'project');
 
 function native(args) {
   const env = { ...process.env, DFW_PLUGIN_ROOT: CORE };
-  for (const k of ['DFW_NATIVE', 'DFW_FORWARDED']) delete env[k];
   const r = spawnSync(nativeBinary(), args, { env, encoding: 'utf8', timeout: 180_000, maxBuffer: 64 * 1024 * 1024 });
   if (r.error) throw r.error;
   return r;
@@ -30,7 +29,6 @@ function native(args) {
 /** `dfw <args>` with the binary on a project (setup only: what a case compares is made after it). */
 function cli(root, args) {
   const env = { ...process.env, DFW_PLUGIN_ROOT: CORE, DFW_PROJECT_DIR: root, CLAUDE_PROJECT_DIR: root, DFW_HOME: path.join(root, '..', 'home') };
-  for (const k of ['DFW_NATIVE', 'DFW_FORWARDED']) delete env[k];
   const r = spawnSync(nativeBinary(), args, { cwd: root, env, encoding: 'utf8', timeout: 180_000 });
   if (r.error) throw r.error;
   assert.equal(r.status, 0, `dfw ${args.join(' ')}: ${r.stderr}`);
@@ -202,7 +200,6 @@ describe('design commands', { skip: skipReason() }, () => {
         fs.writeFileSync(path.join(root, 'DESIGN.md'), text);
         for (const id of ['warm-craft', ...(second ? [second] : [])]) {
           const env = { ...process.env, DFW_PLUGIN_ROOT: CORE, CLAUDE_PROJECT_DIR: root };
-          for (const k of ['DFW_NATIVE', 'DFW_FORWARDED']) delete env[k];
           const r = spawnSync(nativeBinary(), ['style', 'apply', id], { cwd: root, env, encoding: 'utf8', timeout: 180_000 });
           assert.equal(r.status, 0, r.stderr);
         }

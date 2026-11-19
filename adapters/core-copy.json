@@ -6,10 +6,6 @@
       "to": "bin"
     },
     {
-      "from": "core/lib",
-      "to": "lib"
-    },
-    {
       "from": "core/studio",
       "to": "studio"
     },

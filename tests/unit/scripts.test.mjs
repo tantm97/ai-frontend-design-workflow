@@ -1,0 +1,150 @@
+// The build, validation and maintenance scripts (scripts/): generated plugins, the leftover
+// check, vendored knowledge, overlays applied to Impeccable, the upstream bot, the core copy list,
+// and the workflow and README texts they guard.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { leftoverCheck } from '../../scripts/lib/checks.mjs';
+import { blockedTitle, proposeOutcome, issueExists, findReport } from '../../scripts/ci-upstream.mjs';
+
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const tmp = (p) => fs.mkdtempSync(path.join(os.tmpdir(), p));
+const write = (file, text, mode) => {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, text, mode ? { mode } : undefined);
+  return file;
+};
+
+test('knowledge: vendored file keeps the upstream text byte for byte between markers', async () => {
+  const { wrap, unwrap } = await import('../../scripts/knowledge.mjs');
+  const body = '# Rules\n- MUST: x ≥ 24px …\n';
+  const text = wrap({ repo: 'o/r', commit: 'a'.repeat(40), path: 'AGENTS.md', license: 'MIT', title: 'T', usage: 'U' }, body, 'MIT License\n...');
+  assert.equal(unwrap(text), body);
+  assert.match(text, /## License \(MIT/);
+  const reg = JSON.parse(fs.readFileSync(path.join(REPO, 'registry', 'skills.json'), 'utf8'));
+  for (const k of reg.knowledge) assert.match(k.commit, /^[0-9a-f]{40}$/);
+});
+
+test('build: Copilot plugin and marketplace are generated', () => {
+  const dir = path.join(REPO, 'plugins', 'dfw-copilot');
+  const pj = JSON.parse(fs.readFileSync(path.join(dir, 'plugin.json'), 'utf8'));
+  assert.equal(pj.name, 'dfw');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'dfw.json'), 'utf8')).host, 'copilot');
+  const hooks = JSON.parse(fs.readFileSync(path.join(dir, 'hooks.json'), 'utf8'));
+  assert.equal(hooks.version, 1);
+  for (const ev of ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop']) assert.match(hooks.hooks[ev][0].bash, /--host copilot/);
+  assert.ok(fs.existsSync(path.join(dir, 'agents', 'screen-builder.agent.md')));
+  const skill = fs.readFileSync(path.join(dir, 'skills', 'dfw', 'SKILL.md'), 'utf8');
+  assert.doesNotMatch(skill, /CLAUDE_SKILL_DIR|AskUserQuestion|\{\{[A-Z_]+\}\}/);
+  const mp = JSON.parse(fs.readFileSync(path.join(REPO, '.github', 'plugin', 'marketplace.json'), 'utf8'));
+  assert.equal(mp.name, 'dfw-marketplace');
+  assert.equal(mp.plugins.find((p) => p.name === 'dfw').source, './plugins/dfw-copilot');
+  const claudeMp = JSON.parse(fs.readFileSync(path.join(REPO, '.claude-plugin', 'marketplace.json'), 'utf8'));
+  assert.equal(claudeMp.plugins.find((p) => p.name === 'dfw').source, './plugins/dfw');
+});
+
+test('overlay: the hooks reference is a short "not available" note and context is bounded', () => {
+  const skillDir = path.join(REPO, 'plugins/impeccable/skills/impeccable');
+  const hooks = fs.readFileSync(path.join(skillDir, 'reference/hooks.md'), 'utf8');
+  assert.ok(hooks.length < 1500, 'short note, not the upstream guide');
+  assert.match(hooks, /not available under dfw-marketplace and must not be enabled/);
+  assert.doesNotMatch(hooks, /hooks on\b|settings\.local\.json|<skill-base-dir>/);
+  const skillMd = fs.readFileSync(path.join(skillDir, 'SKILL.md'), 'utf8');
+  assert.match(skillMd, /^\*\*Hooks:\*\* not available in dfw-marketplace and must not be enabled\./m);
+  assert.match(skillMd, /^\*\*Pin \/ Unpin:\*\* not available in dfw-marketplace and must not be run/m);
+  const setup = skillMd.split('\n').find((l) => l.startsWith('1. Run `"${CLAUDE_SKILL_DIR}/scripts/impeccable" context`'));
+  assert.match(setup, /run `context` only through this launcher with its defaults.*never run it with that variable unset or changed, or with hooks enabled/);
+  assert.match(fs.readFileSync(path.join(skillDir, 'reference/doctor.md'), 'utf8'), /any finding about the design hook: report it and do not repair it/);
+});
+
+test('checks: Impeccable text that tells how to enable hooks fails validation; the repo has none', () => {
+  const root = tmp('dfw-left-');
+  const ref = path.join(root, 'impeccable', 'skills', 'impeccable', 'reference');
+  write(path.join(ref, 'ok.md'), '**Hooks:** not available in dfw-marketplace. Never run `hooks on`.\nWhen the design hook is active it already enforces the checks.\n');
+  assert.deepEqual(leftoverCheck({ pluginsRoot: root }), []);
+  // Lines quoted from the upstream hooks reference.
+  write(path.join(ref, 'hooks.md'), '# /impeccable hooks\n\nstatus says so and gives `impeccable hooks on` as the repair command.\n');
+  write(path.join(ref, 'admin.md'), 'Invoke the admin script:\n\n   "<skill-base-dir>/scripts/impeccable" hooks <action> [args...]\n');
+  const errs = leftoverCheck({ pluginsRoot: root });
+  assert.deepEqual(errs, [
+    'impeccable/skills/impeccable/reference/admin.md:3: instructions to enable Impeccable hooks shipped (replace them in overlays/impeccable.json).',
+    'impeccable/skills/impeccable/reference/hooks.md:3: instructions to enable Impeccable hooks shipped (replace them in overlays/impeccable.json).',
+  ]);
+  // Other plugins may talk about hooks of their own (React hooks on a component, ...).
+  write(path.join(root, 'other', 'skills', 's', 'a.md'), 'Use hooks on the client only.\n');
+  assert.equal(leftoverCheck({ pluginsRoot: root }).length, 2);
+  assert.deepEqual(leftoverCheck(), []);
+});
+
+test('texts: R9 names generate-image, shape is planning only, the reviewer says what it writes, README lists what remains', () => {
+  const read = (rel) => fs.readFileSync(path.join(REPO, rel), 'utf8');
+  const conflicts = read('core/workflow/policies/conflicts.md');
+  const r9 = conflicts.split('\n').find((l) => l.includes('no paid APIs by default'));
+  assert.match(r9, /Impeccable `generate-image`/);
+  assert.doesNotMatch(r9, /Impeccable `generate` /);
+  const r3 = conflicts.slice(conflicts.indexOf('## R3.'), conflicts.indexOf('## R4.'));
+  assert.match(r3, /`shape` is allowed for UX planning only/);
+  assert.doesNotMatch(r3, /`\/impeccable shape` \/ concept seed/);
+  assert.match(read('core/workflow/references/phase-discovery.md'), /`shape` command for UX planning of a single feature \(planning only: stop before its design-direction phase/);
+
+  const reviewer = read('core/workflow/agents/visual-reviewer.md');
+  assert.doesNotMatch(reviewer, /read-only/i);
+  assert.match(reviewer, /never edits design or code/);
+  assert.match(reviewer, /records Impeccable `critique`\/`audit` save under `\.impeccable\/`/);
+  assert.doesNotMatch(read('core/workflow/SKILL.md'), /visual-reviewer.*\(read-only\)/);
+
+  const readme = read('README.md');
+  assert.doesNotMatch(readme, /Two calls remain/);
+  for (const host of ['api/roll', 'api/commands', 'api/version', 'api/chosen', 'api.openai.com', 'fonts.googleapis.com', 'api.impeccable.style']) assert.ok(readme.includes(host), `README lists ${host}`);
+  assert.match(readme, /"Observed" means seen at runtime.*"read" means/);
+  assert.match(readme, /impeccable\.allowUnverifiedEngine true --global/);
+  assert.doesNotMatch(readme, /\]\(\.?\/?docs\//, 'README has no links into docs/');
+});
+
+test('checks: built plugins with <skill-dir> or a hook installer are errors; the repo has none', () => {
+  const root = tmp('dfw-left-');
+  fs.mkdirSync(path.join(root, 'p', 'skills', 's', 'scripts'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'p', 'skills', 's', 'ok.md'), 'Run node ${CLAUDE_SKILL_DIR}/scripts/x.mjs\n');
+  assert.deepEqual(leftoverCheck({ pluginsRoot: root }), []);
+  fs.writeFileSync(path.join(root, 'p', 'skills', 's', 'ref.md'), 'a\nnode <skill-dir>/scripts/x.mjs\n');
+  fs.writeFileSync(path.join(root, 'p', 'skills', 's', 'scripts', 'install-hook.mjs'), '');
+  const errs = leftoverCheck({ pluginsRoot: root });
+  assert.equal(errs.length, 2);
+  assert.ok(errs.some((e) => e.startsWith('p/skills/s/ref.md:2: unresolved <skill-dir>')));
+  assert.ok(errs.some((e) => e.startsWith('p/skills/s/scripts/install-hook.mjs: upstream hook installer')));
+  assert.deepEqual(leftoverCheck(), []);
+});
+
+test('upstream bot: propose outcomes, one blocked issue per commit, missing report', () => {
+  assert.equal(proposeOutcome(null), 'ready');
+  assert.equal(proposeOutcome({ status: 2 }), 'blocked');
+  assert.equal(proposeOutcome({ status: 1 }), 'failed');
+  assert.equal(proposeOutcome(new Error('spawn ENOENT')), 'failed');
+  const title = blockedTitle({ id: 'hallmark', pinned: 'a'.repeat(40), latest: 'b'.repeat(40) });
+  assert.equal(title, 'Upstream update blocked: hallmark aaaaaaa -> bbbbbbb');
+  let seen;
+  const gh = (out) => (cmd, args) => ((seen = [cmd, ...args]), out);
+  assert.equal(issueExists(title, gh(`${title}\n`)), true);
+  assert.deepEqual(seen.slice(0, 3), ['gh', 'issue', 'list']);
+  assert.ok(seen.includes('open'));
+  assert.equal(issueExists(title, gh('Upstream update blocked: hallmark aaaaaaa -> ccccccc')), false); // fuzzy search hit
+  assert.equal(issueExists(title, gh('')), false);
+  const root = tmp('dfw-rep-');
+  assert.equal(findReport('hallmark', 'b'.repeat(40), root), null);
+  fs.mkdirSync(path.join(root, 'reports', 'proposals'), { recursive: true });
+  for (const d of ['2026-11-01', '2026-11-08']) fs.writeFileSync(path.join(root, 'reports', 'proposals', `${d}-hallmark-bbbbbbb.md`), '');
+  assert.equal(findReport('hallmark', 'b'.repeat(40), root), path.join('reports', 'proposals', '2026-11-08-hallmark-bbbbbbb.md'));
+});
+
+test('adapters: every host plugin is assembled from the one shared core copy list', () => {
+  const core = JSON.parse(fs.readFileSync(path.join(REPO, 'adapters', 'core-copy.json'), 'utf8')).copy;
+  // The binary carries the code: the plugins get the launchers, browser files and texts, no lib/.
+  assert.ok(!core.some((c) => c.from === 'core/lib') && core.every((c) => c.from.startsWith('core/')));
+  for (const a of ['claude-code', 'copilot']) {
+    const spec = JSON.parse(fs.readFileSync(path.join(REPO, 'adapters', a, 'assemble.json'), 'utf8'));
+    assert.deepEqual(spec.copy, [{ from: `adapters/${a}/plugin`, to: '.' }]);
+  }
+});

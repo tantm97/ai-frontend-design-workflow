@@ -19,7 +19,7 @@ use crate::telemetry::events::HookOutcome;
 
 /// The commands of this group: `hook <name>` runs one handler of `hooks/`.
 pub fn commands() -> Vec<(&'static str, Handler)> {
-    vec![("hook", Handler::Native(hook))]
+    vec![("hook", hook as Handler)]
 }
 
 /// Handler name and the host event its output is formatted for (`HANDLERS`, `HOOK_EVENTS`).

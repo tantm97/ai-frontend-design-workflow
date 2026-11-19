@@ -210,8 +210,6 @@ pub enum HookOutcome {
     Deny,
     /// The agent was told not to stop yet.
     Block,
-    /// The Node CLI ran the call (a part that is not ported).
-    Forwarded,
     /// An internal error; the hook failed open.
     Error,
 }
@@ -233,7 +231,6 @@ impl HookOutcome {
             Self::Context => "context",
             Self::Deny => "deny",
             Self::Block => "block",
-            Self::Forwarded => "forwarded",
             Self::Error => "error",
         }
     }
@@ -352,8 +349,8 @@ mod tests {
             "\"lt_10ms\""
         );
         assert_eq!(
-            serde_json::to_string(&HookOutcome::Forwarded).unwrap(),
-            "\"forwarded\""
+            serde_json::to_string(&HookOutcome::Context).unwrap(),
+            "\"context\""
         );
     }
 }
