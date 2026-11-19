@@ -13,6 +13,10 @@ export function renderComments() {
   const list = $('#comment-list');
   const items = S.comments.filter((c) => inFilter(S.filter, c)).sort((a, b) => b.id.localeCompare(a.id));
   $('#open-count').textContent = S.comments.filter((c) => ACTIVE.includes(c.status) || c.status === 'fixed').length;
+  // A re-render (a status change over SSE, a click) must not drop the keyboard focus inside the list.
+  const had = /** @type {HTMLElement | null} */ (list.contains(document.activeElement) ? document.activeElement : null);
+  const focusId = /** @type {HTMLElement | null} */ (had?.closest('.comment'))?.dataset.id;
+  const focusOpen = !!had?.matches('.open');
   list.innerHTML = items.length ? '' : `<li class="muted" style="padding:12px">Nothing here.</li>`;
   for (const c of items) {
     const li = document.createElement('li');
@@ -22,14 +26,16 @@ export function renderComments() {
     const target = c.target?.dfwId || c.target?.selector || '(area)';
     const last = c.thread?.slice(-2) || [];
     li.innerHTML = `
-      <div class="comment-top"><span class="num">#${esc(c.id.replace('fb_', ''))}</span><span>${esc(where)}</span><span class="status" data-s="${esc(c.status)}">${esc(statusLabel(c.status))}</span></div>
+      <div class="comment-top"><button type="button" class="num open" aria-label="Show comment #${esc(c.id.replace('fb_', ''))} on the canvas">#${esc(c.id.replace('fb_', ''))}</button><span>${esc(where)}</span><span class="status" data-s="${esc(c.status)}">${esc(statusLabel(c.status))}</span></div>
       <div class="comment-target">${esc(target)}${c.target?.source ? ` · ${esc(c.target.source)}` : ''}</div>
       <p class="comment-text">${esc(c.comment)}</p>
       ${last.length ? `<ul class="thread">${last.map((/** @type {any} */ t) => `<li><span class="by">${esc(t.by)} · ${esc(new Date(t.at).toLocaleString())}</span>${esc(t.message)}</li>`).join('')}</ul>` : ''}
       <div class="comment-actions"></div>`;
     commentActions(c, $('.comment-actions', li));
+    // The whole card is the mouse target; the "#n" button is the same action from the keyboard (studio-ui.md U7).
     li.onclick = () => focusComment(c);
     list.append(li);
+    if (focusOpen && c.id === focusId) $('.open', li).focus();
   }
 }
 
@@ -194,6 +200,10 @@ function setFilterTabs() {
 export function setTab(tab, { quiet = false } = {}) {
   if (quiet && tab === 'inspect' && !$('#tab-comments').hidden && S.mode === 'comment') return;
   for (const b of $$('.ptabs button')) b.setAttribute('aria-selected', String(b.dataset.tab === tab));
+  // Keyboard focus inside the panel that goes away moves to the tab of the panel that comes.
+  const leaving = $(tab === 'inspect' ? '#tab-comments' : '#tab-inspect');
+  if (!leaving.hidden && leaving.contains(document.activeElement))
+    $(`.ptabs button[data-tab="${tab === 'inspect' ? 'inspect' : 'comments'}"]`).focus();
   $('#tab-inspect').hidden = tab !== 'inspect';
   $('#tab-comments').hidden = tab !== 'comments';
 }

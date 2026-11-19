@@ -300,6 +300,17 @@ try {
   await frame.locator('[data-dfw-id="home.raw"]').click();
   await page.waitForFunction(() => /raw value \(no token\)/.test(document.querySelector('#inspector').textContent));
   if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-5-inspect.png') });
+  // Layers from the keyboard (studio-ui.md U7): one row is in the tab order; arrows move, Enter selects.
+  assert.equal(await page.locator('#layers .row[tabindex="0"]').count(), 1, 'one roving tab stop');
+  assert.equal(await page.getAttribute('#layers .row[tabindex="0"]', 'aria-selected'), 'true', 'the tab stop is the selected layer');
+  await page.focus('#layers .row[tabindex="0"]');
+  await page.keyboard.press('ArrowUp');
+  await page.waitForFunction(() => document.activeElement?.matches('#layers .row[tabindex="0"]:not([aria-selected="true"])'));
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => window.__dfwStudio.sel?.own?.id === 'home.cta');
+  await page.waitForFunction(() => document.activeElement?.matches('#layers .row[aria-selected="true"][tabindex="0"]'));
+  assert.equal(await page.evaluate(() => document.body.classList.contains('space')), false);
+  if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-5a-layers-keyboard.png') });
 
   // Direct text edit writes back to the source; Cmd/Ctrl+Z undoes it.
   const src = path.join(tmp, 'design/screens/home/a.html');
@@ -413,6 +424,22 @@ try {
   await page.waitForSelector('.comment[data-id="fb_002"] .status[data-s="fixed"]');
   assert.match(await page.textContent('.comment[data-id="fb_002"] .status'), /please verify/);
   if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-9-live-status.png') });
+  // A comment opens from the keyboard: Shift+Tab from its first action reaches its "#n" button; Space presses it, not the hand tool.
+  await page.focus('.comment[data-id="fb_002"] .comment-actions button');
+  await page.keyboard.press('Shift+Tab');
+  await page.waitForFunction(() => document.activeElement?.matches('.comment[data-id="fb_002"] button.open'));
+  await page.keyboard.press('Space');
+  await page.waitForSelector('.comment.selected[data-id="fb_002"]');
+  await page.waitForFunction(() => window.__dfwStudio.selKey?.startsWith('home::a::'));
+  assert.equal(await page.evaluate(() => document.body.classList.contains('space')), false, 'Space did not start panning');
+  // The selection shows the Inspect panel: the focus moves to its tab instead of falling to the page.
+  await page.waitForFunction(() => document.activeElement?.matches('.ptabs button[data-tab="inspect"]'));
+  if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-9a-comment-keyboard.png') });
+  // Opening the comment went to the first page with that screen (Flow): back to Screens.
+  await page.click('#page-list button[data-page="screens"]');
+  await page.waitForSelector('iframe[name="home::a::desktop"]');
+  await page.keyboard.press('Shift+1');
+  await frameReady('home::a::desktop');
 
   // Live update: the agent's edit shows up in the frame without a reload, with a cursor on what it touches.
   const homeFile = path.join(tmp, 'design/screens/home/a.html');

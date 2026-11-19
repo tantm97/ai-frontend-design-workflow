@@ -316,6 +316,8 @@ body[data-mode="hand"] .world iframe, body.space .world iframe, body.panning .wo
 .comment.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .comment-top { display: flex; gap: 6px; align-items: center; color: var(--ink-3); }
 .comment-top .num { font-weight: 700; color: var(--ink); }
+.comment-top button.num { padding: 0 2px; margin: 0 -2px; border: 0; border-radius: 3px; background: none; line-height: inherit; }
+.comment-top button.num:focus-visible { outline-offset: 1px; }
 .status { margin-left: auto; font-weight: 600; font-size: var(--ui-text-2xs); padding: 1px 7px; border-radius: 9px; white-space: nowrap; background: var(--panel-2); }
 .status[data-s="open"], .status[data-s="reopened"] { color: var(--open); background: color-mix(in srgb, var(--open) 12%, transparent); }
 .status[data-s="acknowledged"] { color: var(--accent); background: var(--accent-soft); }
