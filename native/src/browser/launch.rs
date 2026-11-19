@@ -244,6 +244,7 @@ impl Browser {
 
     /// Whether the browser is ended and its profile removed if this process dies first.
     #[cfg(test)]
+    #[cfg_attr(not(unix), allow(dead_code))] // used by the Unix-only tests
     pub fn guarded(&self) -> bool {
         lock(&self.guard).is_some()
     }
