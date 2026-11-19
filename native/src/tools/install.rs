@@ -154,7 +154,7 @@ pub fn resolve_hosts(host: &str) -> Result<Vec<&'static Host>, DfwError> {
     if host != "auto" {
         let h = get_host(Some(host))?;
         if h.status != Status::Supported {
-            return Err(DfwError::internal(format!(
+            return Err(DfwError::new(format!(
                 "{} support is planned but not available yet. Supported: {}.",
                 h.name,
                 supported_list()
@@ -162,7 +162,7 @@ pub fn resolve_hosts(host: &str) -> Result<Vec<&'static Host>, DfwError> {
         }
         let cli = h.cli.unwrap_or_default();
         if !has_cli(cli) {
-            return Err(DfwError::internal(format!(
+            return Err(DfwError::new(format!(
                 "{} CLI (\"{cli}\") not found on PATH.",
                 h.name
             )));
@@ -179,7 +179,7 @@ pub fn resolve_hosts(host: &str) -> Result<Vec<&'static Host>, DfwError> {
             .filter(|h| h.status == Status::Supported)
             .filter_map(|h| h.cli)
             .collect();
-        return Err(DfwError::internal(format!(
+        return Err(DfwError::new(format!(
             "No supported AI coding tool found on PATH ({}). Install Claude Code or GitHub Copilot CLI first, or pass --host.",
             clis.join(", ")
         )));
@@ -535,6 +535,7 @@ mod tests {
             err.message(),
             "Cursor support is planned but not available yet. Supported: claude, copilot."
         );
+        assert_eq!(err.report(), err.message(), "a user's choice, not an internal error");
         assert!(resolve_hosts("nope")
             .unwrap_err()
             .message()

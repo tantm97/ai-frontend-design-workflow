@@ -350,7 +350,7 @@ describe('tools: install, uninstall, doctor (fake host CLIs)', { skip: skipReaso
     }
     const none = run2(INSTALL, withFakes({ env: { FAKE_MISSING: 'copilot', FAKE_LIST: '[]' }, setup: (root, tmp) => fs.writeFileSync(path.join(tmp, 'fakebin', 'claude'), '#!/bin/sh\necho "claude $*" >> "$FAKE_LOG"\nexit 1\n', { mode: 0o755 }) }));
     same(none, { stderr: firstLine });
-    assert.equal(firstLine(none.native.stderr), 'Error: No supported AI coding tool found on PATH (claude, copilot). Install Claude Code or GitHub Copilot CLI first, or pass --host.');
+    assert.equal(firstLine(none.native.stderr), 'No supported AI coding tool found on PATH (claude, copilot). Install Claude Code or GitHub Copilot CLI first, or pass --host.');
 
     // A skill that does not install is skipped; dfw itself failing stops the install.
     const skill = same(run2(INSTALL, withFakes({ env: { FAKE_FAIL: 'install impeccable@' } })));

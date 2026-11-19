@@ -169,11 +169,11 @@ describe('align: node 0.5.2 behaviour', { skip: skipReason() }, () => {
       assert.equal(same(['hook', name], { stdin: '{"block":"x"}' }).code, 1);
       assert.equal(same(['init', '--mode', name], { state: null }).code, 1);
     }
-    // A plain Error in Node: its stack trace is not compared.
+    // A user's mistake: the message alone (a plain Error, with "Error: ", in Node 0.5.2).
     const r = run(['mcp', 'install', 'constructor', '--print']);
     assertSame(r);
-    assert.match(r.native.stderr, /^Error: Unknown tool "constructor"\. MCP install targets: /);
-    assert.match(r.expected.stderr, /^Error: Unknown tool "constructor"\. MCP install targets: /);
+    assert.match(r.native.stderr, /^Unknown tool "constructor"\. MCP install targets: /);
+    assert.match(r.expected.stderr, /^Unknown tool "constructor"\. MCP install targets: /);
   });
 
   test('p: a Studio pid that is not a positive integer is never signalled', () => {

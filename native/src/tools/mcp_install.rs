@@ -252,7 +252,7 @@ pub fn mcp_config_text(
         json!({})
     } else {
         serde_json::from_str::<Value>(current).map_err(|err| {
-            DfwError::internal(format!(
+            DfwError::new(format!(
                 "cannot parse the existing config ({err}); add dfw by hand or fix the file"
             ))
         })?
@@ -370,7 +370,7 @@ pub fn mcp_install(target: &str, remove: bool, print: bool) -> Result<String, Df
     } else {
         let found = MCP_TARGETS.iter().find(|t| t.id == target);
         vec![found.ok_or_else(|| {
-            DfwError::internal(format!(
+            DfwError::new(format!(
                 "Unknown tool \"{target}\". MCP install targets: {}, all.",
                 target_ids()
             ))
@@ -410,6 +410,8 @@ mod tests {
         assert!(err
             .message()
             .starts_with("Unknown tool \"constructor\". MCP install targets: "));
+        // A user's mistake: the message alone, not an internal "Error: ...".
+        assert_eq!(err.report(), err.message());
         assert!(!mcp_installed("constructor") && !mcp_installed("toString"));
     }
 
@@ -441,6 +443,7 @@ mod tests {
         assert_eq!(removed["mcpServers"].get("dfw"), None);
         let broken = mcp_config_text(Format::McpServers, "{broken", false, &c).unwrap_err();
         assert!(broken.message().contains("cannot parse"));
+        assert_eq!(broken.report(), broken.message(), "the user's file, the user's fix");
 
         let toml = "model = \"o3\"\n\n[mcp_servers.other]\ncommand = \"o\"\n";
         let added = mcp_config_text(Format::Toml, toml, false, &c).unwrap();
