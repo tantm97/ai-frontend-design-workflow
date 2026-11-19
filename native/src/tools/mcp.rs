@@ -440,20 +440,69 @@ fn reply_to(line: &str) -> Option<Value> {
 /// `serveMcp()`: serve MCP over stdio until stdin closes. A last line without its newline is
 /// never answered, as in Node.
 pub fn serve_mcp() -> Result<(), DfwError> {
-    let mut stdin = io::stdin().lock();
-    let mut stdout = io::stdout().lock();
+    serve_lines(&mut io::stdin().lock(), &mut io::stdout().lock())
+}
+
+/// The largest input line (one JSON-RPC message) the server reads. A longer one is answered
+/// with an error and skipped without being held in memory; the next line is served.
+pub const MAX_LINE: usize = 4 * 1024 * 1024;
+
+/// What one read of an input line gave.
+enum Line {
+    End,
+    TooLong,
+    Text,
+}
+
+/// Read one line into `line`, at most [`MAX_LINE`] bytes of it; the rest of a longer line is
+/// read and dropped.
+fn read_line(input: &mut impl BufRead, line: &mut Vec<u8>) -> io::Result<Line> {
+    line.clear();
+    let limit = u64::try_from(MAX_LINE).unwrap_or(u64::MAX);
+    input.by_ref().take(limit + 1).read_until(b'\n', line)?;
+    if line.last() == Some(&b'\n') {
+        return Ok(Line::Text);
+    }
+    if line.len() <= MAX_LINE {
+        // Closed, or a last line without its newline (never answered, as in Node).
+        return Ok(Line::End);
+    }
+    loop {
+        let buf = input.fill_buf()?;
+        if buf.is_empty() {
+            return Ok(Line::TooLong);
+        }
+        match buf.iter().position(|b| *b == b'\n') {
+            Some(at) => {
+                input.consume(at + 1);
+                return Ok(Line::TooLong);
+            }
+            None => {
+                let n = buf.len();
+                input.consume(n);
+            }
+        }
+    }
+}
+
+/// The server loop over any input and output (stdio in [`serve_mcp`]).
+fn serve_lines(input: &mut impl BufRead, output: &mut impl Write) -> Result<(), DfwError> {
     let mut line = Vec::new();
     loop {
-        line.clear();
-        if stdin.read_until(b'\n', &mut line)? == 0 || line.last() != Some(&b'\n') {
-            return Ok(());
-        }
-        let Some(reply) = reply_to(&String::from_utf8_lossy(&line)) else {
+        let reply = match read_line(input, &mut line)? {
+            Line::End => return Ok(()),
+            Line::TooLong => Some(json!({ "jsonrpc": "2.0", "id": null, "error": {
+                "code": -32600,
+                "message": format!("Request too large: a message may be at most {} MB.", MAX_LINE / (1024 * 1024)),
+            } })),
+            Line::Text => reply_to(&String::from_utf8_lossy(&line)),
+        };
+        let Some(reply) = reply else {
             continue;
         };
-        let sent = stdout
+        let sent = output
             .write_all((to_json_compact(&reply) + "\n").as_bytes())
-            .and_then(|()| stdout.flush());
+            .and_then(|()| output.flush());
         if sent.is_err() {
             return Ok(()); // the client is gone
         }
@@ -612,5 +661,33 @@ mod tests {
             concepts
         );
         assert!(topics().contains(&"policies/precedence.md".to_string()));
+    }
+
+    /// A line over the limit gets a JSON-RPC error and is dropped; the next request is served
+    /// (review TR-16: one endless line grew the memory without bound).
+    #[test]
+    fn a_line_over_the_limit_is_refused_and_the_server_goes_on() {
+        let mut input = vec![b'x'; MAX_LINE + 10];
+        input.extend_from_slice(b"\n{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"ping\"}\n");
+        let mut output = Vec::new();
+        serve_lines(&mut io::Cursor::new(input), &mut output).unwrap();
+        let lines: Vec<Value> = String::from_utf8(output)
+            .unwrap()
+            .lines()
+            .map(|l| serde_json::from_str(l).unwrap())
+            .collect();
+        assert_eq!(lines.len(), 2, "{lines:?}");
+        assert_eq!(lines[0]["error"]["code"], -32600);
+        assert!(lines[0]["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("at most 4 MB"));
+        assert_eq!(lines[1], json!({ "jsonrpc": "2.0", "id": 7, "result": {} }));
+        // A line of exactly the limit (newline included) is still read.
+        let mut input = vec![b' '; MAX_LINE - 1];
+        input.push(b'\n');
+        let mut output = Vec::new();
+        serve_lines(&mut io::Cursor::new(input), &mut output).unwrap();
+        assert!(output.is_empty(), "a blank line needs no reply");
     }
 }
