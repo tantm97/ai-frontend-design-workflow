@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{json, Map, Value};
 
-use super::html::{element_at, line_of, parse_attrs, Attr, Tag, Token, Tokenizer};
+use super::html::{element_at, escape_html, line_of, parse_attrs, Attr, Tag, Token, Tokenizer};
 use super::tokens::{dir_names, relative_path};
 use crate::core::error::DfwError;
 use crate::core::js;
@@ -24,9 +24,6 @@ use crate::core::paths::{project_paths, resolve, to_posix};
 
 /// Attributes of `<dfw-use>` that are not props and are not copied to the root element.
 const RESERVED: [&str; 6] = ["c", "component", "variant", "size", "id", "class"];
-
-// The one escaper lives in design::html; studio/api.rs still imports it from here.
-pub use super::html::escape_html;
 
 /// The object `parseAttrs` built: decoded values by name, in the order the names first appear;
 /// a repeated name keeps its place and takes the later value.

@@ -143,9 +143,6 @@ pub fn ensure_inside(root: &Path, file: &Path) -> Result<(), DfwError> {
 
 /// `fs.mkdtempSync(path.join(base, prefix))`: a new directory only its owner can enter, with a
 /// random six-letter suffix.
-// Its callers are `browser/launch.rs` (which still has its own copy) and `tools/install.rs`;
-// the allow goes in the commit that switches them to this one (review MA-9).
-#[allow(dead_code)]
 pub fn make_temp_dir(base: &Path, prefix: &str) -> io::Result<std::path::PathBuf> {
     use std::hash::{BuildHasher, Hasher};
     use std::sync::atomic::{AtomicU64, Ordering};

@@ -21,25 +21,24 @@
 //! built: it costs a PowerShell start (hundreds of milliseconds) per launch and has no test
 //! on the Windows runner yet.
 
-use std::collections::hash_map::RandomState;
 use std::collections::HashMap;
 use std::env;
 use std::fs;
-use std::hash::{BuildHasher, Hasher};
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStderr, Command, ExitStatus, Stdio};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
 
 use super::cdp::{lock, Connection, Context, ContextOptions, Page};
 use crate::core::error::DfwError;
 use crate::core::paths::{env_nonempty, global_dir};
+use crate::core::util::make_temp_dir;
 
 /* ---------------------------------------------------------------- finding a browser */
 
@@ -304,51 +303,6 @@ fn remove_dir(dir: &Path) {
             _ => return,
         }
     }
-}
-
-/// `fs.mkdtempSync(path.join(base, prefix))`: a new private directory with a random suffix.
-pub(crate) fn make_temp_dir(base: &Path, prefix: &str) -> io::Result<PathBuf> {
-    static NEXT: AtomicU64 = AtomicU64::new(0);
-    const DIGITS: &[u8; 36] = b"0123456789abcdefghijklmnopqrstuvwxyz";
-    for _ in 0..100 {
-        // RandomState is keyed per process by the standard library; time and a counter make
-        // every call different.
-        let mut hasher = RandomState::new().build_hasher();
-        hasher.write_u64(NEXT.fetch_add(1, Ordering::Relaxed));
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_or(0, |d| d.as_nanos());
-        hasher.write_u128(nanos);
-        let mut n = hasher.finish();
-        let mut name = String::from(prefix);
-        for _ in 0..6 {
-            name.push(char::from(DIGITS[(n % 36) as usize]));
-            n /= 36;
-        }
-        let dir = base.join(name);
-        match private_dir_builder().create(&dir) {
-            Ok(()) => return Ok(dir),
-            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {}
-            Err(e) => return Err(e),
-        }
-    }
-    Err(io::Error::new(
-        io::ErrorKind::AlreadyExists,
-        "no free temporary directory name",
-    ))
-}
-
-/// A directory only its owner can enter, as mkdtemp makes it.
-#[cfg(unix)]
-fn private_dir_builder() -> fs::DirBuilder {
-    let mut builder = fs::DirBuilder::new();
-    std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
-    builder
-}
-
-#[cfg(not(unix))]
-fn private_dir_builder() -> fs::DirBuilder {
-    fs::DirBuilder::new()
 }
 
 /// Ends the browser and removes its profile when this process ends without `Browser::close`
@@ -916,19 +870,5 @@ exec sleep 300
             Some("ws://127.0.0.1:9222/devtools/browser/ab-1".to_string())
         );
         assert_eq!(devtools_url("nothing yet\n"), None);
-    }
-
-    #[test]
-    fn temp_dirs_are_new_and_private() {
-        let base = test_dir("mkdtemp");
-        let a = make_temp_dir(&base, "dfw-browser-").unwrap();
-        let b = make_temp_dir(&base, "dfw-browser-").unwrap();
-        assert_ne!(a, b);
-        let name = a.file_name().unwrap().to_str().unwrap();
-        assert!(name.starts_with("dfw-browser-") && name.len() == "dfw-browser-".len() + 6);
-        assert_eq!(
-            fs::metadata(&a).unwrap().permissions().mode() & 0o777,
-            0o700
-        );
     }
 }

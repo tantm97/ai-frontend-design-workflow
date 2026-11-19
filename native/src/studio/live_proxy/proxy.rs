@@ -5,6 +5,8 @@
 //! The upstream request asks for `Connection: close`, so a passed-through body is copied until
 //! the app closes (or for its Content-Length) without re-framing. An https app is reached
 //! through `ureq` (no TLS crate of its own here); its WebSocket upgrades are not passed through.
+//! It keeps its own client rather than `core::http`, which only GETs into a capped buffer: the
+//! proxy passes any method, the request body and every header, and streams the answer.
 
 use std::io::{self, Cursor, Read, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};

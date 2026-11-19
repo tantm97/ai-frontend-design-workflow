@@ -200,8 +200,8 @@ fn kill_tree(child: &mut Child) {
     let _ = child.wait();
 }
 
-/// An argument for a cmd.exe command line. `always`: wrapped in quotes as it is
-/// (`launcherCommand` of locate.mjs, for paths and fixed words). Otherwise quoted, with inner
+/// An argument for a cmd.exe command line. `always`: wrapped in quotes as it is (the
+/// executable's path in [`plan_for`]). Otherwise quoted, with inner
 /// quotes doubled, only when cmd.exe would split or interpret it (`spawnPlan` of install.mjs).
 pub fn quote_for_cmd(arg: &str, always: bool) -> String {
     if always {

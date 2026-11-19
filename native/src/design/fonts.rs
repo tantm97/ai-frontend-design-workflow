@@ -3,10 +3,13 @@
 //! Asks the Google Fonts CSS API (free, no key) which subsets a family has (for example
 //! "vietnamese"). Only the family name is sent, and only when the user runs `dfw fonts check`.
 
+use std::time::Duration;
+
 use regex::Regex;
 use serde_json::{json, Value};
 
 use crate::core::error::DfwError;
+use crate::core::http;
 
 const USER_AGENT: &str =
     "Mozilla/5.0 (Macintosh) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36";
@@ -75,6 +78,11 @@ fn subsets_in(css: &str) -> Result<Vec<String>, DfwError> {
     Ok(subsets)
 }
 
+/// How long the Google Fonts lookup may take, and how large its stylesheet may be (a real one
+/// is a few kilobytes).
+const LOOKUP_DEADLINE: Duration = Duration::from_secs(15);
+const CSS_LIMIT: u64 = 1024 * 1024;
+
 /// `fontSubsets`: which subsets Google Fonts ships for `family`. A failed request is not an
 /// error here: it is reported in the result (`ok` false), as the Node CLI printed it.
 pub fn font_subsets(family: &str) -> Result<FontSubsets, DfwError> {
@@ -89,12 +97,14 @@ pub fn font_subsets(family: &str) -> Result<FontSubsets, DfwError> {
         error,
         subsets: Vec::new(),
     };
-    let css = match ureq::get(&url).header("user-agent", USER_AGENT).call() {
-        Ok(mut response) => match response.body_mut().read_to_string() {
-            Ok(css) => css,
-            Err(err) => return Ok(failed(None, Some(err.to_string()))),
-        },
-        Err(ureq::Error::StatusCode(code)) => return Ok(failed(Some(code), None)),
+    let css = match http::get(
+        &url,
+        &[("user-agent", USER_AGENT)],
+        LOOKUP_DEADLINE,
+        CSS_LIMIT,
+    ) {
+        Ok(res) if res.ok() => String::from_utf8_lossy(&res.body).into_owned(),
+        Ok(res) => return Ok(failed(Some(res.status), None)),
         Err(err) => return Ok(failed(None, Some(err.to_string()))),
     };
     Ok(FontSubsets {

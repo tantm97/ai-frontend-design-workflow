@@ -27,6 +27,7 @@ pub enum Flushed {
     Failed(String),
 }
 
+/// Its own client: `core::http` sends GETs and follows redirects; this is a POST that must not.
 fn post(address: &Address, body: &str) -> Result<(), String> {
     // No redirects: events go to the address that was configured and nowhere else.
     let agent: ureq::Agent = ureq::Agent::config_builder()

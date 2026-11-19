@@ -13,11 +13,12 @@ use serde_json::Value;
 use super::binary::RELEASE_REPO;
 use crate::browser::a11y::{axe_status, install_axe, AxeStatus};
 use crate::browser::download::install_browser;
-use crate::browser::launch::{browser_status, make_temp_dir, BrowserStatus};
+use crate::browser::launch::{browser_status, BrowserStatus};
 use crate::core::error::DfwError;
 use crate::core::host::{get_host, supported_hosts, Host, Status, HOSTS};
 use crate::core::paths::{plugin_root, resolve};
 use crate::core::process::{find_executable, plan_for, run_timed, Ran, Spawn};
+use crate::core::util::make_temp_dir;
 use crate::core::util::{out, plugin_manifest, read_json};
 
 /// The marketplace dfw and its skills are installed from.

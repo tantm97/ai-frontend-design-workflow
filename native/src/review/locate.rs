@@ -13,7 +13,7 @@ use crate::core::host::HOSTS;
 use crate::core::js;
 use crate::core::paths::{claude_dir, global_dir, manifest_path, plugin_root, resolve};
 use crate::core::platform::{node_arch, node_platform};
-use crate::core::process::{quote_for_cmd, Spawn};
+use crate::core::process::{plan_for, Spawn};
 use crate::core::util::{read_json, sha256, write_json, MARKETPLACE_NAME};
 
 /// The most recently changed folder directly under `dir`.
@@ -377,17 +377,10 @@ pub fn resolve_engine(o: &EngineLookup) -> Engine {
 }
 
 /// `launcherCommand(launcher, args, { platform })`: how to start the upstream launcher (only to
-/// download the engine). No sh on Windows: a .cmd file cannot be spawned directly, so cmd.exe
-/// gets the whole command line in one quoted string.
+/// download the engine). No sh on Windows: the `.cmd` launcher goes through cmd.exe with the
+/// quoting of [`plan_for`], the one home of Windows spawning (`process-and-io.md` P2).
 pub fn launcher_command(launcher: &str, args: &[String], platform: &str) -> Spawn {
-    if platform != "win32" {
-        return Spawn::direct(launcher, args.to_vec());
-    }
-    Spawn {
-        cmd: quote_for_cmd(launcher, true),
-        args: args.iter().map(|a| quote_for_cmd(a, true)).collect(),
-        shell: true,
-    }
+    plan_for(launcher, args.to_vec(), platform == "win32")
 }
 
 /// `impeccableEngine()`: the engine for the installed Impeccable plugin, or `None` when the
@@ -737,7 +730,7 @@ mod tests {
         assert!(c.shell, "through cmd.exe, the line as written");
         assert_eq!(
             format!("{} {}", c.cmd, c.args.join(" ")),
-            format!("\"{launcher}\" \"detect\" \"--json\" \"C:\\p\\setup.html\"")
+            format!("\"{launcher}\" detect --json C:\\p\\setup.html")
         );
         assert!(!std::iter::once(&c.cmd)
             .chain(&c.args)

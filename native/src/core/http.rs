@@ -1,7 +1,8 @@
 //! Plain HTTP GET for dfw's downloads (the headless shell and its index, the dfw binary,
-//! axe-core, the fonts a rendered page asks for): one place that sets the deadline and the size
-//! cap, so no download can hang a command or fill the memory. The telemetry POST, the Google
-//! Fonts lookup of `design/fonts.rs` and the review proxy keep their own clients.
+//! axe-core, the fonts a rendered page asks for, the Google Fonts lookup): one place that sets
+//! the deadline and the size cap, so no download can hang a command or fill the memory. The
+//! telemetry POST and the review proxy keep their own clients (see `telemetry/flush.rs` and
+//! `studio/live_proxy.rs` for why).
 
 use std::time::Duration;
 

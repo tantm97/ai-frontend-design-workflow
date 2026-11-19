@@ -17,8 +17,9 @@ use crate::core::error::DfwError;
 use crate::core::js::regex::with_js_classes;
 use crate::core::paths::{project_paths, resolve_inside, to_posix};
 use crate::core::util::{get_path, list_files, read_json};
-use crate::design::compose::{compose_html, escape_html, load_components, ComposeOptions};
+use crate::design::compose::{compose_html, load_components, ComposeOptions};
 use crate::design::edit::load_token_names;
+use crate::design::html::escape_html;
 use crate::design::system_page::render_system_page;
 use crate::design::tokens::relative_path;
 
