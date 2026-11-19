@@ -215,6 +215,14 @@ impl Head {
     }
 }
 
+/// [`random_base64`] as a token safe in a header and a URL (base64url, no padding).
+pub fn random_token() -> String {
+    random_base64()
+        .trim_end_matches('=')
+        .replace('+', "-")
+        .replace('/', "_")
+}
+
 /// Read a message head. `Ok(None)` when the peer closed before sending anything.
 pub fn read_head(stream: &mut impl Read) -> io::Result<Option<Head>> {
     let mut buf: Vec<u8> = Vec::with_capacity(2048);

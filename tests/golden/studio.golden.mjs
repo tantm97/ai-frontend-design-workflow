@@ -300,12 +300,23 @@ describe('studio server: Node and native answer the same', { skip: skipReason() 
     await same({ path: '/__dfw/penpot/plugin.js', method: 'OPTIONS', headers: { origin: 'https://design.penpot.app' } }, cors);
     const doc = fixtureExport();
     const changes = JSON.stringify({ ...read('changes.json'), exportId: doc.id });
-    await same({ path: '/__dfw/penpot/changes', method: 'POST', headers: { origin: 'https://design.penpot.app', 'content-type': 'application/json' }, body: changes });
-    assert.equal((await same({ path: '/__dfw/penpot/changes', method: 'POST', headers: { origin: 'http://127.0.0.1:<port>', 'content-type': 'application/json' }, body: changes })).status, 200);
+    // The panel's writes carry the token it reads from the Studio (same origin only).
+    const session = JSON.parse((await request(R.port, { path: '/__dfw/penpot/session.json' })).raw);
+    assert.deepEqual(session.origins, ['https://design.penpot.app']);
+    const token = { 'x-dfw-bridge': session.token };
+    const ui = await request(R.port, { path: '/__dfw/penpot/ui.html' });
+    assert.equal(ui.headers['content-security-policy'], 'frame-ancestors https://design.penpot.app');
+    await same({ path: '/__dfw/penpot/changes', method: 'POST', headers: { origin: 'https://design.penpot.app', 'content-type': 'application/json', ...token }, body: changes });
+    await same({ path: '/__dfw/penpot/changes', method: 'POST', headers: { origin: 'http://127.0.0.1:<port>', 'content-type': 'application/json' }, body: changes });
+    assert.equal((await same({ path: '/__dfw/penpot/changes', method: 'POST', headers: { origin: 'http://127.0.0.1:<port>', 'content-type': 'application/json', ...token }, body: changes })).status, 200);
     const thread = (seq, content) => ({ seq, resolved: false, page: 'Stock', boardKey: 'items|a|desktop', x: 120, y: 175, comments: [{ content, user: 'Designer' }] });
-    const sync = await same({ path: '/__dfw/penpot/sync', method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ fileId: 'file-1', exportId: doc.id, threads: [thread(1, 'Make low stock more visible')] }) });
+    const syncBody = JSON.stringify({ fileId: 'file-1', exportId: doc.id, threads: [thread(1, 'Make low stock more visible')] });
+    await same({ path: '/__dfw/penpot/sync', method: 'POST', headers: { 'content-type': 'application/json' }, body: syncBody });
+    const sync = await same({ path: '/__dfw/penpot/sync', method: 'POST', headers: { 'content-type': 'application/json', ...token }, body: syncBody });
     assert.equal(sync.status, 200, sync.body);
     await same({ path: '/__dfw/penpot/export.json', method: 'POST' });
+    // A GET never renders: refresh=1 reads the file as it is.
+    await same('/__dfw/penpot/export.json?refresh=1');
     const t = (s) => Object.fromEntries(Object.entries(tree(s)).filter(([k]) => !k.startsWith('.dfw/edits/')).map(([k, v]) => [k, v.replace(/"(at|createdAt|updatedAt|importedAt)":"[^"]*"/g, '"$1":"<t>"')]));
     sameFiles(t(R));
   });

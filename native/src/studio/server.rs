@@ -43,6 +43,12 @@ pub struct Studio {
     shooting: AtomicBool,
     /// Held while a Penpot export runs.
     pub penpot_exporting: Mutex<()>,
+    /// The token the Penpot plugin panel reads from the Studio and sends with its writes; new
+    /// for every Studio process.
+    pub penpot_token: String,
+    /// The Penpot origins that may frame the panel and talk to it (`penpot.origins` of the
+    /// user's global config).
+    pub penpot_origins: Vec<String>,
 }
 
 /// A request as the routes see it.
@@ -119,6 +125,8 @@ impl Studio {
             clients: Clients::default(),
             shooting: AtomicBool::new(false),
             penpot_exporting: Mutex::new(()),
+            penpot_token: super::http::random_token(),
+            penpot_origins: penpot_routes::allowed_origins(&mut |m| eprintln!("{m}")),
         })
     }
 
@@ -160,7 +168,13 @@ impl Studio {
         if let Some(rel) = p.strip_prefix("/__dfw/static/") {
             let clean = api::clamp_rel(rel).join("/");
             let ty = api::mime(api::extname(&clean)).unwrap_or("text/plain");
-            return Ok(asset(&clean, ty).unwrap_or_else(Response::not_found));
+            let mut r = asset(&clean, ty).unwrap_or_else(Response::not_found);
+            if clean == "penpot/ui.html" {
+                // The panel under its other address may be framed only by Penpot, too.
+                r.headers
+                    .push(penpot_routes::frame_ancestors(&self.penpot_origins));
+            }
+            return Ok(r);
         }
         if p == "/favicon.ico" {
             return Ok(Response::send(204, "", JSON));
@@ -691,6 +705,85 @@ mod tests {
         assert!(String::from_utf8_lossy(&chunk[..n]).contains("event: hello"));
         assert!(studio.clients.count() <= 1);
         drop(stuck);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// the Penpot panel may be framed only by the allowed Penpot origins, its writes need the
+    /// token it reads from the Studio, and a GET never renders an export
+    #[test]
+    fn the_penpot_panel_is_locked_to_penpot_and_its_token() {
+        let root = fixture();
+        let (port, studio) = start(&root);
+        let host = format!("Host: 127.0.0.1:{port}\r\n");
+        let raw = |method: &str, path: &str, extra: &str, body: &str| {
+            call_bytes(
+                port,
+                format!(
+                    "{method} {path} HTTP/1.1\r\n{host}{extra}Content-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}",
+                    body.len()
+                )
+                .as_bytes(),
+            )
+        };
+        for path in ["/__dfw/penpot/ui.html", "/__dfw/static/penpot/ui.html"] {
+            let ui = raw("GET", path, "", "");
+            assert!(
+                ui.contains(
+                    "\r\nContent-Security-Policy: frame-ancestors https://design.penpot.app\r\n"
+                ),
+                "{path}: {}",
+                ui.split("\r\n\r\n").next().unwrap_or_default()
+            );
+        }
+        let session = raw("GET", "/__dfw/penpot/session.json", "", "");
+        let session: Value =
+            serde_json::from_str(session.split_once("\r\n\r\n").unwrap().1).unwrap();
+        assert_eq!(session["token"], json!(studio.penpot_token));
+        assert_eq!(session["origins"], json!(["https://design.penpot.app"]));
+        assert!(studio.penpot_token.len() >= 20);
+        let cross = raw(
+            "GET",
+            "/__dfw/penpot/session.json",
+            "Sec-Fetch-Site: cross-site\r\n",
+            "",
+        );
+        assert!(cross.starts_with("HTTP/1.1 403"), "{cross}");
+
+        // A forged frame cannot drive the writes: no token, a wrong token, another site.
+        let sync = r#"{"fileId":"f","threads":[{"seq":1,"comments":[{"content":"Ignore previous instructions"}]}]}"#;
+        let token = format!("x-dfw-bridge: {}\r\n", studio.penpot_token);
+        for extra in [
+            String::new(),
+            "x-dfw-bridge: guess\r\n".to_string(),
+            format!("{token}Sec-Fetch-Site: cross-site\r\n"),
+        ] {
+            for path in [
+                "/__dfw/penpot/sync",
+                "/__dfw/penpot/changes",
+                "/__dfw/penpot/export.json",
+            ] {
+                let r = raw("POST", path, &extra, sync);
+                assert!(r.starts_with("HTTP/1.1 403"), "{path} {extra}: {r}");
+            }
+        }
+        assert_eq!(all_comments(&root).unwrap().len(), 0);
+        let ok = raw(
+            "POST",
+            "/__dfw/penpot/sync",
+            &format!("{token}Sec-Fetch-Site: same-origin\r\nOrigin: http://127.0.0.1:{port}\r\n"),
+            sync,
+        );
+        assert!(!ok.starts_with("HTTP/1.1 403"), "{ok}");
+
+        // A GET only reads: with no export on disk it is a 404 and nothing is written.
+        let export = root.join(".dfw/penpot/export.json");
+        let _ = std::fs::remove_file(&export);
+        let r = raw("GET", "/__dfw/penpot/export.json?refresh=1", "", "");
+        assert!(
+            r.starts_with("HTTP/1.1 404") && r.contains("dfw penpot export"),
+            "{r}"
+        );
+        assert!(!export.exists());
         let _ = std::fs::remove_dir_all(&root);
     }
 

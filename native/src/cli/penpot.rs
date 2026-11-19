@@ -139,6 +139,13 @@ fn plugin(root: &Path) -> Result<i32, DfwError> {
     } else {
         "The Studio is not running: start it with \"dfw studio start\".\n"
     };
+    // penpot.origins of the global config: the Penpot pages the panel may run in.
+    let origins = crate::studio::penpot_routes::allowed_origins(&mut |m| eprintln!("{m}"));
+    let origins = if origins.is_empty() {
+        "no Penpot (penpot.origins is empty)".to_string()
+    } else {
+        origins.join(", ")
+    };
     out(&format!(
         "{hint}Penpot plugin manifest: {base}__dfw/penpot/manifest.json
 In Penpot: open a file, Plugins (Ctrl+Alt+P), paste the URL, Install, then open \"dfw bridge\".
@@ -146,7 +153,8 @@ In Penpot: open a file, Plugins (Ctrl+Alt+P), paste the URL, Install, then open 
   Live comments: while the panel is open, threads on dfw boards reach the agent like Studio comments; its replies come back into the thread.
   Update boards: redraws the boards in place after the design changed (comment threads stay).
   Send changes: sends layer edits and token changes back to the Studio, which records them as dfw comments (provider \"penpot\").
-No Penpot API token is used: the plugin runs in your browser and only talks to 127.0.0.1."
+No Penpot API token is used: the plugin runs in your browser and only talks to 127.0.0.1.
+The panel works only inside {origins}. Penpot on your own server: dfw config set penpot.origins '[\"https://penpot.example.com\"]' --global, then restart the Studio."
     ));
     Ok(0)
 }
