@@ -112,4 +112,9 @@ test('launcher (Windows): dfw.cmd has CRLF lines and the same order: DFW_BIN, th
   assert.match(text, /set "DFW_PLUGIN_ROOT=%ROOT%"/);
   assert.match(text, /\.config\\dfw/);
   assert.doesNotMatch(text, /node /i, 'no Node fallback');
+  // Delayed expansion would drop every "!" from the arguments (%*): it stays off, and no
+  // !VAR! is read anywhere.
+  assert.match(text, /setlocal EnableExtensions DisableDelayedExpansion/);
+  assert.doesNotMatch(text, /EnableDelayedExpansion/);
+  assert.doesNotMatch(text, /!\w+!/);
 });
