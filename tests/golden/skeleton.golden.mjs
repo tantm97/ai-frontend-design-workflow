@@ -50,7 +50,10 @@ describe('skeleton', { skip: skipReason() }, () => {
   test('a command that writes: same file, same timestamp, same exit code on error', () => {
     const r = run(['decide', '--level', '2', '--topic', 'skeleton', 'keep', 'the', 'table']);
     assertSame(r, { stderr: true });
-    assert.equal(r.native.files['.dfw/decisions.jsonl'], `{"at":"${NOW}","level":2,"topic":"skeleton","decision":"keep the table","by":"orchestrator"}\n`);
+    assert.equal(
+      r.native.files['.dfw/decisions.jsonl'],
+      `{"at":"${NOW}","level":2,"topic":"skeleton","decision":"keep the table","by":"orchestrator"}\n`,
+    );
     const bad = run(['decide', '--level', '9', 'x']);
     assertSame(bad, { stderr: true });
     assert.equal(bad.native.code, 1);

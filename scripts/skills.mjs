@@ -27,13 +27,22 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 function skillById(id) {
   const s = loadRegistry().skills.find((x) => x.id === id);
-  if (!s) throw new Error(`Unknown skill "${id}". Known: ${loadRegistry().skills.map((x) => x.id).join(', ')}`);
+  if (!s)
+    throw new Error(
+      `Unknown skill "${id}". Known: ${loadRegistry()
+        .skills.map((x) => x.id)
+        .join(', ')}`,
+    );
   return s;
 }
 
 function history() {
   if (!fs.existsSync(HISTORY)) return [];
-  return fs.readFileSync(HISTORY, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  return fs
+    .readFileSync(HISTORY, 'utf8')
+    .split('\n')
+    .filter(Boolean)
+    .map((l) => JSON.parse(l));
 }
 
 function appendHistory(entry) {
@@ -57,7 +66,10 @@ function descriptions(dir) {
 
 function cmdStatus() {
   const lock = loadLock();
-  const rows = loadRegistry().skills.map((s) => `${s.id.padEnd(17)} ${s.repo.padEnd(38)} ${lock.skills[s.id]?.sha.slice(0, 12) || 'UNLOCKED'}  ${lock.skills[s.id]?.lockedAt || ''}${s.mode === 'reference' ? '  (reference mode)' : ''}`);
+  const rows = loadRegistry().skills.map(
+    (s) =>
+      `${s.id.padEnd(17)} ${s.repo.padEnd(38)} ${lock.skills[s.id]?.sha.slice(0, 12) || 'UNLOCKED'}  ${lock.skills[s.id]?.lockedAt || ''}${s.mode === 'reference' ? '  (reference mode)' : ''}`,
+  );
   console.log(rows.join('\n'));
 }
 
@@ -80,7 +92,10 @@ function cmdCheck() {
   else {
     for (const r of out) {
       if (r.error) console.log(`${r.id}: ERROR ${r.error}`);
-      else console.log(`${r.id.padEnd(17)} ${r.upToDate ? 'up to date' : `update available ${r.pinned.slice(0, 7)} -> ${r.latest.slice(0, 7)}${r.commits != null ? ` (${r.commits} commits)` : ''}`}`);
+      else
+        console.log(
+          `${r.id.padEnd(17)} ${r.upToDate ? 'up to date' : `update available ${r.pinned.slice(0, 7)} -> ${r.latest.slice(0, 7)}${r.commits != null ? ` (${r.commits} commits)` : ''}`}`,
+        );
     }
     const n = out.filter((r) => r.upToDate === false).length;
     console.log(n ? `\n${n} update(s) available. Next: node scripts/skills.mjs propose <id>` : '\nAll pinned skills are current.');
@@ -130,7 +145,9 @@ function cmdPropose(id) {
       removed: [...ea].filter((f) => !eb.includes(f)),
     };
     if (report.executables.added.length || report.executables.changed.length) {
-      report.warnings.push(`Executable code added/changed (${report.executables.added.length + report.executables.changed.length} file(s)). Review before applying.`);
+      report.warnings.push(
+        `Executable code added/changed (${report.executables.added.length + report.executables.changed.length} file(s)). Review before applying.`,
+      );
     }
     // Hooks invariant.
     const hooks = hooksCheck({ pluginsRoot: tmp, only: [s.plugin] });
@@ -143,11 +160,18 @@ function cmdPropose(id) {
     const key = (h) => `${h.rule}|${h.file}|${h.text}`;
     const before = new Set(conflictLint({ only: [s.plugin] }).map(key));
     report.newConflictHits = conflictLint({ pluginsRoot: tmp, only: [s.plugin] }).filter((h) => !before.has(key(h)));
-    if (report.newConflictHits.length) report.warnings.push(`${report.newConflictHits.length} new conflict-lint hit(s); check against policies/conflicts.md.`);
+    if (report.newConflictHits.length)
+      report.warnings.push(`${report.newConflictHits.length} new conflict-lint hit(s); check against policies/conflicts.md.`);
     // Size of loaded instructions.
-    const size = (dir) => listFiles(dir).filter((f) => f.endsWith('SKILL.md')).reduce((n, f) => n + fs.statSync(path.join(dir, f)).size, 0);
+    const size = (dir) =>
+      listFiles(dir)
+        .filter((f) => f.endsWith('SKILL.md'))
+        .reduce((n, f) => n + fs.statSync(path.join(dir, f)).size, 0);
     report.skillMdBytes = { before: size(current), after: size(cand) };
-    if (report.skillMdBytes.after > report.skillMdBytes.before * 1.3) report.warnings.push(`SKILL.md text grew ${Math.round((report.skillMdBytes.after / report.skillMdBytes.before - 1) * 100)}% (context cost).`);
+    if (report.skillMdBytes.after > report.skillMdBytes.before * 1.3)
+      report.warnings.push(
+        `SKILL.md text grew ${Math.round((report.skillMdBytes.after / report.skillMdBytes.before - 1) * 100)}% (context cost).`,
+      );
   }
   fs.rmSync(tmp, { recursive: true, force: true });
   fs.mkdirSync(REPORTS, { recursive: true });
@@ -156,12 +180,22 @@ function cmdPropose(id) {
   fs.writeFileSync(`${base}.md`, renderReport(report));
   console.log(renderReport(report));
   console.log(`\nReport: ${path.relative(REPO_ROOT, base)}.md`);
-  console.log(report.blocking.length ? 'BLOCKED: fix overlays/registry first (see above).' : `Ready for user review. Apply after approval: node scripts/skills.mjs apply ${id} --to ${to}`);
+  console.log(
+    report.blocking.length
+      ? 'BLOCKED: fix overlays/registry first (see above).'
+      : `Ready for user review. Apply after approval: node scripts/skills.mjs apply ${id} --to ${to}`,
+  );
   if (report.blocking.length) process.exitCode = 2;
 }
 
 function renderReport(r) {
-  const list = (a, n = 30) => (a?.length ? a.slice(0, n).map((x) => `- ${x}`).join('\n') + (a.length > n ? `\n- ... ${a.length - n} more` : '') : '- none');
+  const list = (a, n = 30) =>
+    a?.length
+      ? a
+          .slice(0, n)
+          .map((x) => `- ${x}`)
+          .join('\n') + (a.length > n ? `\n- ... ${a.length - n} more` : '')
+      : '- none';
   return `# Update proposal: ${r.id}
 
 - Upstream: https://github.com/${r.repo}
@@ -194,7 +228,14 @@ ${list(r.removed, 20)}
 ${list(r.changed, 20)}
 
 ## New conflict-lint hits
-${r.newConflictHits?.length ? r.newConflictHits.slice(0, 20).map((h) => `- [${h.rule}] ${h.file}:${h.line} ${h.text} (${h.note})`).join('\n') : '- none'}
+${
+  r.newConflictHits?.length
+    ? r.newConflictHits
+        .slice(0, 20)
+        .map((h) => `- [${h.rule}] ${h.file}:${h.line} ${h.text} (${h.note})`)
+        .join('\n')
+    : '- none'
+}
 
 ## Instruction size
 - SKILL.md bytes: ${r.skillMdBytes?.before ?? '?'} -> ${r.skillMdBytes?.after ?? '?'}
@@ -211,10 +252,17 @@ function cmdApply(id) {
   const from = loadLock().skills[id]?.sha;
   const to = opt('to');
   if (!to) throw new Error('apply needs --to <sha> (from the proposal report the user approved).');
-  const reports = fs.existsSync(REPORTS) ? fs.readdirSync(REPORTS).filter((f) => f.endsWith(`-${id}-${to.slice(0, 7)}.json`)).sort() : [];
-  if (!reports.length && !flag('force')) throw new Error(`No proposal report for ${id} @ ${to.slice(0, 7)}. Run propose first and get the user's approval.`);
+  const reports = fs.existsSync(REPORTS)
+    ? fs
+        .readdirSync(REPORTS)
+        .filter((f) => f.endsWith(`-${id}-${to.slice(0, 7)}.json`))
+        .sort()
+    : [];
+  if (!reports.length && !flag('force'))
+    throw new Error(`No proposal report for ${id} @ ${to.slice(0, 7)}. Run propose first and get the user's approval.`);
   const report = reports.length ? readJson(path.join(REPORTS, reports.at(-1))) : null;
-  if (report?.blocking.length && !flag('force')) throw new Error(`The proposal for ${id} @ ${to.slice(0, 7)} has blocking issues; fix them and propose again.`);
+  if (report?.blocking.length && !flag('force'))
+    throw new Error(`The proposal for ${id} @ ${to.slice(0, 7)} has blocking issues; fix them and propose again.`);
   setLock(id, to);
   try {
     buildAll({ only: [id] });
@@ -229,8 +277,18 @@ function cmdApply(id) {
     buildAll({ only: [id] });
     throw new Error(`Validation failed; lock restored to ${from.slice(0, 7)}.\n${v.out}`);
   }
-  appendHistory({ action: 'apply', id, plugin: s.plugin, from, to, report: report ? `reports/proposals/${reports.at(-1).replace(/\.json$/, '.md')}` : null, forced: flag('force') || undefined });
-  console.log(`Applied ${id}: ${from?.slice(0, 7)} -> ${to.slice(0, 7)}. Validation passed.\nNext: commit (with the user's approval), then in Claude Code: claude plugin marketplace update dfw-marketplace && /reload-plugins`);
+  appendHistory({
+    action: 'apply',
+    id,
+    plugin: s.plugin,
+    from,
+    to,
+    report: report ? `reports/proposals/${reports.at(-1).replace(/\.json$/, '.md')}` : null,
+    forced: flag('force') || undefined,
+  });
+  console.log(
+    `Applied ${id}: ${from?.slice(0, 7)} -> ${to.slice(0, 7)}. Validation passed.\nNext: commit (with the user's approval), then in Claude Code: claude plugin marketplace update dfw-marketplace && /reload-plugins`,
+  );
 }
 
 function cmdRollback(id) {
@@ -238,7 +296,9 @@ function cmdRollback(id) {
   const current = loadLock().skills[id]?.sha;
   let to = opt('to');
   if (!to) {
-    const prev = history().filter((h) => h.id === id && ['apply', 'rollback'].includes(h.action) && h.to === current).at(-1);
+    const prev = history()
+      .filter((h) => h.id === id && ['apply', 'rollback'].includes(h.action) && h.to === current)
+      .at(-1);
     if (!prev?.from) throw new Error(`No previous pin recorded for ${id}; pass --to <sha>.`);
     to = prev.from;
   }
@@ -256,7 +316,10 @@ function cmdRollback(id) {
 function cmdHistory(id) {
   const h = history().filter((x) => !id || x.id === id);
   if (!h.length) return console.log('No history yet.');
-  for (const e of h) console.log(`${e.at.slice(0, 16)} ${e.action.padEnd(8)} ${e.id.padEnd(17)} ${e.from?.slice(0, 7) || '-------'} -> ${e.to.slice(0, 7)}${e.report ? `  ${e.report}` : ''}`);
+  for (const e of h)
+    console.log(
+      `${e.at.slice(0, 16)} ${e.action.padEnd(8)} ${e.id.padEnd(17)} ${e.from?.slice(0, 7) || '-------'} -> ${e.to.slice(0, 7)}${e.report ? `  ${e.report}` : ''}`,
+    );
 }
 
 try {
@@ -280,7 +343,9 @@ try {
       cmdHistory(args[1]);
       break;
     default:
-      console.log('Usage: node scripts/skills.mjs status | check [--json] | propose <id> [--to <sha>] | apply <id> --to <sha> [--force] | rollback <id> [--to <sha>] | history [id]');
+      console.log(
+        'Usage: node scripts/skills.mjs status | check [--json] | propose <id> [--to <sha>] | apply <id> --to <sha> [--force] | rollback <id> [--to <sha>] | history [id]',
+      );
       if (cmd) process.exitCode = 1;
   }
 } catch (e) {

@@ -41,7 +41,10 @@ describe('stack', { skip: skipReason() }, () => {
 
   test('detect: a JavaScript project (framework, styling, UI libraries, language, package manager)', () => {
     const r = detect((root) => {
-      write(root, 'package.json', { dependencies: { react: '^19.0.0', next: '15.1.0', '@mui/material': '6', vue: '' }, devDependencies: { tailwindcss: '4.0.0', sass: '1', typescript: '5.7' } });
+      write(root, 'package.json', {
+        dependencies: { react: '^19.0.0', next: '15.1.0', '@mui/material': '6', vue: '' },
+        devDependencies: { tailwindcss: '4.0.0', sass: '1', typescript: '5.7' },
+      });
       write(root, 'components.json', {});
       write(root, 'yarn.lock', '');
       write(root, 'package-lock.json', {});
@@ -66,7 +69,16 @@ describe('stack', { skip: skipReason() }, () => {
   });
 
   test('detect: stacks that are not JavaScript, and plain HTML', () => {
-    for (const files of [['composer.json'], ['Gemfile'], ['go.mod'], ['pubspec.yaml'], ['manage.py', 'pyproject.toml', 'index.html'], ['pyproject.toml'], ['Cargo.toml'], ['index.html']]) {
+    for (const files of [
+      ['composer.json'],
+      ['Gemfile'],
+      ['go.mod'],
+      ['pubspec.yaml'],
+      ['manage.py', 'pyproject.toml', 'index.html'],
+      ['pyproject.toml'],
+      ['Cargo.toml'],
+      ['index.html'],
+    ]) {
       const r = detect((root) => files.forEach((f) => write(root, f, '')));
       assert.equal(JSON.parse(r.stdout).isNewProject, false, files.join());
     }
@@ -82,7 +94,10 @@ describe('stack', { skip: skipReason() }, () => {
 
   test('set --json writes the proposal; a status given in the JSON keeps its place', () => {
     const r = same(['stack', 'set', '--json', '{"status":"mine","framework":{"name":"Vue"},"n":1.50}']);
-    assert.equal(r.files['.dfw/stack.json'], `{\n  "status": "proposed",\n  "framework": {\n    "name": "Vue"\n  },\n  "n": 1.5,\n  "proposedAt": "${NOW}"\n}\n`);
+    assert.equal(
+      r.files['.dfw/stack.json'],
+      `{\n  "status": "proposed",\n  "framework": {\n    "name": "Vue"\n  },\n  "n": 1.5,\n  "proposedAt": "${NOW}"\n}\n`,
+    );
     assert.equal(r.files['.dfw/state.json'], undefined, 'G3 was not approved: the state is untouched');
   });
 
@@ -95,7 +110,9 @@ describe('stack', { skip: skipReason() }, () => {
   });
 
   test('set --file, set without input, set in a folder without a workflow, --json alone', () => {
-    same(['stack', 'set', '--file', 'proposal.json'], { setup: (root) => write(root, 'proposal.json', { framework: { name: 'Astro' }, styling: ['css'] }) });
+    same(['stack', 'set', '--file', 'proposal.json'], {
+      setup: (root) => write(root, 'proposal.json', { framework: { name: 'Astro' }, styling: ['css'] }),
+    });
     same(['stack', 'set']);
     same(['stack', 'set', '--json', '[1,"a"]'], { state: null });
     same(['stack', 'set', '--json']);
@@ -115,23 +132,50 @@ describe('handoff', { skip: skipReason() }, () => {
   const approved = (over = {}) =>
     st({
       phase: 'stack',
-      design: { version: 1, status: 'approved', locked: true, approved: [{ version: 'v1', hash: 'abc123', at: '2026-01-01T00:00:00.000Z', note: 'ok' }] },
+      design: {
+        version: 1,
+        status: 'approved',
+        locked: true,
+        approved: [{ version: 'v1', hash: 'abc123', at: '2026-01-01T00:00:00.000Z', note: 'ok' }],
+      },
       gates: { ...MINIMAL_STATE.gates, G2: { at: '2026-01-01T00:00:00.000Z' } },
       ...over,
     });
   const snapshot = (design) => (root) => {
     write(root, 'design/approved/v1/design.json', design);
-    write(root, 'design/approved/v1/tokens/tokens.css', ':root {\n  --color-bg: #fff;\n  --space-1: 4px; --x:1;\n  color: var(--color-bg);\n}\n');
+    write(
+      root,
+      'design/approved/v1/tokens/tokens.css',
+      ':root {\n  --color-bg: #fff;\n  --space-1: 4px; --x:1;\n  color: var(--color-bg);\n}\n',
+    );
     write(root, 'design/approved/v1/components/button.html', '<button></button>');
     write(root, 'design/approved/v1/components/forms/input.html', '<input>');
     write(root, 'design/approved/v1/components/notes.md', 'x');
   };
   const design = {
     product: 'Shop $& Co',
-    breakpoints: [{ id: 'mobile', width: 390 }, { id: 'desktop', width: 1440 }],
+    breakpoints: [
+      { id: 'mobile', width: 390 },
+      { id: 'desktop', width: 1440 },
+    ],
     screens: [
-      { id: 'home', title: 'Home', route: '/', approvedVariant: 'b', variants: [{ id: 'a', file: 'screens/home/a.html' }, { id: 'b', file: 'screens/home/b.html' }] },
-      { id: 'cart', variants: [{ id: 'a', file: 'screens/cart/a.html' }, { id: 'r', file: 'screens/cart/r.html', recommended: true }] },
+      {
+        id: 'home',
+        title: 'Home',
+        route: '/',
+        approvedVariant: 'b',
+        variants: [
+          { id: 'a', file: 'screens/home/a.html' },
+          { id: 'b', file: 'screens/home/b.html' },
+        ],
+      },
+      {
+        id: 'cart',
+        variants: [
+          { id: 'a', file: 'screens/cart/a.html' },
+          { id: 'r', file: 'screens/cart/r.html', recommended: true },
+        ],
+      },
       { id: 'pay', title: '', approvedVariant: 'zz', variants: [{ id: 'only', file: 'screens/pay/only.html' }] },
       { id: 'empty', approvedVariant: 'x', variants: [] },
     ],
@@ -142,7 +186,11 @@ describe('handoff', { skip: skipReason() }, () => {
       state: approved({ gates: { ...MINIMAL_STATE.gates, G2: { at: 'x' }, G3: { at: 'y' } } }),
       setup: (root) => {
         snapshot(design)(root);
-        write(root, '.dfw/stack.json', { framework: { name: 'Next.js (React)' }, styling: [{ name: 'Tailwind CSS' }, 'plain css'], uiLibraries: [] });
+        write(root, '.dfw/stack.json', {
+          framework: { name: 'Next.js (React)' },
+          styling: [{ name: 'Tailwind CSS' }, 'plain css'],
+          uiLibraries: [],
+        });
         write(root, '.dfw/reviews/rv_20260101T000000.json', {
           id: 'rv_20260101T000000',
           comments: [
@@ -155,13 +203,20 @@ describe('handoff', { skip: skipReason() }, () => {
       },
     });
     const body = r.files['design/handoff/v1.md'];
-    assert.match(body, /^# Handoff: Shop \{\{product\}\} Co design v1\n/, 'a "$&" in the product name is a replacement pattern, as in Node');
+    assert.match(
+      body,
+      /^# Handoff: Shop \{\{product\}\} Co design v1\n/,
+      'a "$&" in the product name is a replacement pattern, as in Node',
+    );
     assert.match(body, /Stack: Next\.js \(React\); styling: Tailwind CSS, plain css; UI libraries: none \(approved\)/);
     assert.match(body, /\| `cart` \| {2}\| `r` \(`design\/approved\/v1\/screens\/cart\/r\.html`\) \| TBD \|/);
     assert.match(body, /\| `empty` \| {2}\| `undefined` /);
     assert.match(body, /3 CSS custom properties/);
     assert.match(body, /- fb_002: no note -> \n/);
-    assert.equal(r.stdout, "Wrote design/handoff/v1.md. Fill in the sections marked TODO with the user's requirements before implementing.\n");
+    assert.equal(
+      r.stdout,
+      "Wrote design/handoff/v1.md. Fill in the sections marked TODO with the user's requirements before implementing.\n",
+    );
   });
 
   test('without a stack, tokens, components, screens or comments: the fallbacks; breakpoints from the config', () => {
@@ -192,7 +247,14 @@ function withHome(args, { setup, stdin = '' } = {}) {
       setup?.(home);
       const env = { ...process.env };
       for (const k of ['DFW_NO_BINARY', 'DFW_VERSION', 'CLAUDE_PROJECT_DIR']) delete env[k];
-      Object.assign(env, { HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: path.join(home, '.config'), CODEX_HOME: path.join(home, '.codex'), DFW_HOME: path.join(home, '.dfw-home'), DFW_PLUGIN_ROOT: path.join(REPO, 'core') });
+      Object.assign(env, {
+        HOME: home,
+        USERPROFILE: home,
+        XDG_CONFIG_HOME: path.join(home, '.config'),
+        CODEX_HOME: path.join(home, '.codex'),
+        DFW_HOME: path.join(home, '.dfw-home'),
+        DFW_PLUGIN_ROOT: path.join(REPO, 'core'),
+      });
       const r = spawnSync(nativeBinary(), args, { cwd: home, env, input: stdin, encoding: 'utf8', timeout: 60_000 });
       if (r.error) throw r.error;
       const norm = (t) => t.split(home).join('<home>').split(REPO).join('<repo>');
@@ -226,13 +288,23 @@ function sameHome(args, opts, { stderr = true } = {}) {
 describe('mcp install | uninstall', { skip: skipReason() }, () => {
   const existing = (home) => {
     write(home, '.cursor/mcp.json', '{"mcpServers":{"other":{"command":"o"}}}');
-    write(home, '.codex/config.toml', 'model = "o3"\r\n\r\n[mcp_servers.dfw]\r\ncommand = "/old/dfw"\r\nargs = ["mcp"]\r\n\r\n\r\n\r\n[mcp_servers.other]\r\ncommand = "o"\r\n');
-    write(home, '.config/opencode/opencode.json', { theme: 'dark', mcp: { dfw: { type: 'local', command: ['/old'] }, other: { type: 'local', command: ['o'] } } });
+    write(
+      home,
+      '.codex/config.toml',
+      'model = "o3"\r\n\r\n[mcp_servers.dfw]\r\ncommand = "/old/dfw"\r\nargs = ["mcp"]\r\n\r\n\r\n\r\n[mcp_servers.other]\r\ncommand = "o"\r\n',
+    );
+    write(home, '.config/opencode/opencode.json', {
+      theme: 'dark',
+      mcp: { dfw: { type: 'local', command: ['/old'] }, other: { type: 'local', command: ['o'] } },
+    });
   };
 
   test('install all --print shows each config and writes nothing', () => {
     const r = sameHome(['mcp', 'install', 'all', '--print']);
-    assert.match(r.stdout, /# OpenAI Codex: <home>\/\.codex\/config\.toml\n\[mcp_servers\.dfw\]\ncommand = ".*\/core\/bin\/dfw"\nargs = \["mcp"\]/);
+    assert.match(
+      r.stdout,
+      /# OpenAI Codex: <home>\/\.codex\/config\.toml\n\[mcp_servers\.dfw\]\ncommand = ".*\/core\/bin\/dfw"\nargs = \["mcp"\]/,
+    );
     assert.deepEqual(r.files, {});
     sameHome(['mcp', 'install', 'all', '--print'], { setup: existing });
     sameHome(['mcp', 'uninstall', 'all', '--print'], { setup: existing });
@@ -278,7 +350,10 @@ describe('mcp install | uninstall', { skip: skipReason() }, () => {
     // Plain errors: the recorded stderr is a Node stack trace, and the JSON parser words its message
     // its own way: only the exit code, stdout and files compare.
     assert.equal(sameHome(['mcp', 'install', 'vim'], {}, { stderr: false }).code, 1);
-    assert.equal(sameHome(['mcp', 'install', 'cursor'], { setup: (home) => write(home, '.cursor/mcp.json', '{broken') }, { stderr: false }).code, 1);
+    assert.equal(
+      sameHome(['mcp', 'install', 'cursor'], { setup: (home) => write(home, '.cursor/mcp.json', '{broken') }, { stderr: false }).code,
+      1,
+    );
   });
 });
 
@@ -298,7 +373,10 @@ describe('mcp server on stdio', { skip: skipReason() }, () => {
     const r = run(['mcp'], { stdin: lines.join('\n') + '\n', normalize, ...opts });
     assertSame(r, { stderr: true });
     assert.equal(r.native.code, 0);
-    return r.native.stdout.trim().split('\n').map((l) => JSON.parse(l));
+    return r.native.stdout
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l));
   }
 
   test('initialize, tools/list, prompts, ping, unknown method, a notification', () => {
@@ -320,7 +398,10 @@ describe('mcp server on stdio', { skip: skipReason() }, () => {
     assert.equal(replies.length, 12, 'the notification gets no reply');
     assert.equal(replies[0].result.serverInfo.name, 'dfw');
     assert.match(replies[0].result.instructions, /dfw_can_write/);
-    assert.deepEqual(replies[3].result.tools.map((t) => t.name), ['dfw_guide', 'dfw', 'dfw_can_write']);
+    assert.deepEqual(
+      replies[3].result.tools.map((t) => t.name),
+      ['dfw_guide', 'dfw', 'dfw_can_write'],
+    );
     assert.match(replies[5].result.messages[0].content.text, /dfw_can_write/);
     assert.equal(replies[9].error.code, -32601);
   });
@@ -378,10 +459,34 @@ describe('mcp server on stdio', { skip: skipReason() }, () => {
   });
 
   test('malformed lines and a batch array get an error reply; the next request is still served', () => {
-    const replies = session(['null', '42', '"text"', 'true', '{broken', '', '   ', '[{"jsonrpc":"2.0","id":1,"method":"ping"}]', '[]', '{"jsonrpc":"2.0","id":7,"method":"tools/call","params":null}', '{"id":8}', '{"jsonrpc":"2.0","id":2,"method":"ping"}']);
+    const replies = session([
+      'null',
+      '42',
+      '"text"',
+      'true',
+      '{broken',
+      '',
+      '   ',
+      '[{"jsonrpc":"2.0","id":1,"method":"ping"}]',
+      '[]',
+      '{"jsonrpc":"2.0","id":7,"method":"tools/call","params":null}',
+      '{"id":8}',
+      '{"jsonrpc":"2.0","id":2,"method":"ping"}',
+    ]);
     assert.deepEqual(
       replies.map((m) => [m.id, m.error?.code ?? 'ok']),
-      [[null, -32600], [null, -32600], [null, -32600], [null, -32600], [null, -32700], [null, -32600], [null, -32600], [7, -32603], [8, -32601], [2, 'ok']],
+      [
+        [null, -32600],
+        [null, -32600],
+        [null, -32600],
+        [null, -32600],
+        [null, -32700],
+        [null, -32600],
+        [null, -32600],
+        [7, -32603],
+        [8, -32601],
+        [2, 'ok'],
+      ],
     );
   });
 

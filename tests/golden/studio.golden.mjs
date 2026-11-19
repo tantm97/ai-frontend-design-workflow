@@ -63,7 +63,17 @@ async function ready(port, p = '/__dfw/api/manifest') {
 
 /** The fixture export, built by the binary (`__debug penpot-build-export`, as Node's buildExport). */
 function fixtureExport() {
-  const r = spawnSync(nativeBinary(), ['__debug', 'penpot-build-export', path.join(FIX, 'renders.json'), path.join(FIX, 'project/design/tokens/tokens.json'), '2026-11-16T10:00:00.000Z'], { encoding: 'utf8' });
+  const r = spawnSync(
+    nativeBinary(),
+    [
+      '__debug',
+      'penpot-build-export',
+      path.join(FIX, 'renders.json'),
+      path.join(FIX, 'project/design/tokens/tokens.json'),
+      '2026-11-16T10:00:00.000Z',
+    ],
+    { encoding: 'utf8' },
+  );
   assert.equal(r.status, 0, r.stderr);
   return JSON.parse(r.stdout);
 }
@@ -79,11 +89,21 @@ async function startStudio(tmp) {
   write(root, `.dfw/penpot/exports/${doc.id}.json`, doc);
   write(root, '.dfw/penpot/export.json', doc);
   write(root, 'design/assets/logo.svg', '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"/>\n');
-  write(root, 'design/screens/items/detail.html', '<!doctype html><html><head><title>D</title></head><body><a data-dfw-id="d.back" href="a.html">Back <b>to</b> list</a><dfw-use c="button" id="d.cta">Go</dfw-use></body></html>\n');
+  write(
+    root,
+    'design/screens/items/detail.html',
+    '<!doctype html><html><head><title>D</title></head><body><a data-dfw-id="d.back" href="a.html">Back <b>to</b> list</a><dfw-use c="button" id="d.cta">Go</dfw-use></body></html>\n',
+  );
   // tokens.css as the recording run built it (tokens only: no components.css yet).
   fs.copyFileSync(TOKENS_CSS, path.join(root, 'design/tokens/tokens.css'));
   const port = await freePort();
-  const env = { ...process.env, DFW_HOME: path.join(tmp, 'native', 'home'), DFW_NOW: NOW, DFW_PLUGIN_ROOT: path.join(REPO, 'core'), DFW_STUDIO_WATCH: 'poll' };
+  const env = {
+    ...process.env,
+    DFW_HOME: path.join(tmp, 'native', 'home'),
+    DFW_NOW: NOW,
+    DFW_PLUGIN_ROOT: path.join(REPO, 'core'),
+    DFW_STUDIO_WATCH: 'poll',
+  };
   const child = spawn(nativeBinary(), ['__studio-server', '--root', root, '--port', String(port)], { env, stdio: 'ignore' });
   await ready(port);
   return { root, port, child };
@@ -191,19 +211,46 @@ describe('studio server: Node and native answer the same', { skip: skipReason() 
   const sameFiles = (t) => assert.deepEqual(t, expected(t));
 
   test('static files, design files (composed, overlay injected), the system page, 404s', async () => {
-    for (const p of ['/', '/index.html', '/__dfw/static/app.js', '/__dfw/static/app.css', '/__dfw/static/penpot/ui.html', '/__dfw/static/nope.js', '/__dfw/static/../../package.json', '/__dfw/overlay.js', '/favicon.ico']) await same(p);
+    for (const p of [
+      '/',
+      '/index.html',
+      '/__dfw/static/app.js',
+      '/__dfw/static/app.css',
+      '/__dfw/static/penpot/ui.html',
+      '/__dfw/static/nope.js',
+      '/__dfw/static/../../package.json',
+      '/__dfw/overlay.js',
+      '/favicon.ico',
+    ])
+      await same(p);
     const page = await same('/design/screens/items/a.html');
     assert.match(page.body, /<script src="\/__dfw\/overlay\.js" data-dfw-overlay><\/script><\/body>/);
     const detail = await same('/design/screens/items/detail.html');
     assert.match(detail.body, /system\/components\.css/, 'component CSS linked for an instance');
-    for (const p of ['/design/tokens/tokens.json', '/design/tokens/tokens.css', '/design/system/components.css', '/design/assets/logo.svg', '/design/design.json', '/design/screens', '/design/missing.html', '/design/../../../etc/passwd', '/design/%E0%A4%A', '/nope', '/__dfw/shots/x.png', '/__dfw/api/edit', '/__dfw/api/comments/fb_1']) await same(p);
+    for (const p of [
+      '/design/tokens/tokens.json',
+      '/design/tokens/tokens.css',
+      '/design/system/components.css',
+      '/design/assets/logo.svg',
+      '/design/design.json',
+      '/design/screens',
+      '/design/missing.html',
+      '/design/../../../etc/passwd',
+      '/design/%E0%A4%A',
+      '/nope',
+      '/__dfw/shots/x.png',
+      '/__dfw/api/edit',
+      '/__dfw/api/comments/fb_1',
+    ])
+      await same(p);
     await same({ path: '/', method: 'HEAD' });
     const sys = await same('/__dfw/system.html');
     assert.match(sys.body, /data-dfw-overlay/);
   });
 
   test('API reads: manifest (with and without design.json), tokens, components, state', async () => {
-    for (const p of ['/__dfw/api/manifest', '/__dfw/api/tokens', '/__dfw/api/components', '/__dfw/api/state', '/__dfw/api/comments']) await same(p);
+    for (const p of ['/__dfw/api/manifest', '/__dfw/api/tokens', '/__dfw/api/components', '/__dfw/api/state', '/__dfw/api/comments'])
+      await same(p);
     fs.renameSync(path.join(R.root, 'design/design.json'), path.join(R.root, 'design.json.off'));
     try {
       const m = JSON.parse((await same('/__dfw/api/manifest')).body);
@@ -218,7 +265,12 @@ describe('studio server: Node and native answer the same', { skip: skipReason() 
     await same({ path: '/__dfw/api/manifest', headers: { host: 'localhost:<port>' } });
     await same({ path: '/__dfw/api/manifest', headers: { origin: 'https://evil.example' } });
     const body = JSON.stringify({ comment: 'from another site' });
-    await same({ path: '/__dfw/api/comments', method: 'POST', headers: { origin: 'https://evil.example', 'content-type': 'text/plain' }, body });
+    await same({
+      path: '/__dfw/api/comments',
+      method: 'POST',
+      headers: { origin: 'https://evil.example', 'content-type': 'text/plain' },
+      body,
+    });
     await same({ path: '/__dfw/api/edit', method: 'POST', headers: { origin: 'http://127.0.0.1:1' }, body: '{}' });
     sameFiles(tree(R));
   });
@@ -228,8 +280,27 @@ describe('studio server: Node and native answer the same', { skip: skipReason() 
     try {
       const hello = await er.next('hello');
       assert.deepEqual(hello, expected(hello));
-      const post = { path: '/__dfw/api/comments', method: 'POST', headers: { origin: 'http://127.0.0.1:<port>', 'content-type': 'application/json' } };
-      assert.equal((await same({ ...post, body: JSON.stringify({ comment: 'Make it bold', screen: 'items', variant: 'a', breakpoint: 'desktop', file: 'screens/items/a.html', target: { dfwId: 'items.title', tag: 'h1', text: 'Inventory' } }) })).status, 201);
+      const post = {
+        path: '/__dfw/api/comments',
+        method: 'POST',
+        headers: { origin: 'http://127.0.0.1:<port>', 'content-type': 'application/json' },
+      };
+      assert.equal(
+        (
+          await same({
+            ...post,
+            body: JSON.stringify({
+              comment: 'Make it bold',
+              screen: 'items',
+              variant: 'a',
+              breakpoint: 'desktop',
+              file: 'screens/items/a.html',
+              target: { dfwId: 'items.title', tag: 'h1', text: 'Inventory' },
+            }),
+          })
+        ).status,
+        201,
+      );
       const ev = await er.next('comments');
       assert.deepEqual(ev, expected(ev));
       await same({ ...post, body: '{"comment":"  "}' });
@@ -253,7 +324,8 @@ describe('studio server: Node and native answer the same', { skip: skipReason() 
   });
 
   test('edit and undo: same answers, same files written', async () => {
-    const edit = (op) => same({ path: '/__dfw/api/edit', method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(op) });
+    const edit = (op) =>
+      same({ path: '/__dfw/api/edit', method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(op) });
     assert.equal((await edit({ file: 'screens/items/a.html', op: 'text', id: 'items.title', value: 'Stock <now> & "then"' })).status, 200);
     await edit({ file: 'screens/items/a.html', op: 'text', id: 'items.summary', value: 'x' });
     await edit({ file: '../outside.html', op: 'text', id: 'x', value: 'y' });
@@ -263,7 +335,10 @@ describe('studio server: Node and native answer the same', { skip: skipReason() 
     assert.equal(bad.status, expected(bad.status));
     const strip = (t) => Object.fromEntries(Object.entries(t).filter(([k]) => !k.startsWith('.dfw/edits/')));
     sameFiles(strip(tree(R)));
-    const journal = (s) => Object.entries(tree(s)).filter(([k]) => k.startsWith('.dfw/edits/')).map(([, v]) => JSON.parse(v));
+    const journal = (s) =>
+      Object.entries(tree(s))
+        .filter(([k]) => k.startsWith('.dfw/edits/'))
+        .map(([, v]) => JSON.parse(v));
     sameFiles(journal(R));
     await same({ path: '/__dfw/api/undo', method: 'POST' });
     await same({ path: '/__dfw/api/undo', method: 'POST' });
@@ -294,17 +369,58 @@ describe('studio server: Node and native answer the same', { skip: skipReason() 
 
   test('penpot routes: plugin files over CORS, export.json, changes and sync', async () => {
     const cors = ['access-control-allow-origin', 'access-control-allow-private-network'];
-    for (const p of ['/__dfw/penpot/manifest.json', '/__dfw/penpot/plugin.js', '/__dfw/penpot/icon.svg', '/__dfw/penpot/ui.html', '/__dfw/penpot/export.json', '/__dfw/penpot/nope']) await same(p, cors);
+    for (const p of [
+      '/__dfw/penpot/manifest.json',
+      '/__dfw/penpot/plugin.js',
+      '/__dfw/penpot/icon.svg',
+      '/__dfw/penpot/ui.html',
+      '/__dfw/penpot/export.json',
+      '/__dfw/penpot/nope',
+    ])
+      await same(p, cors);
     await same({ path: '/__dfw/penpot/plugin.js', method: 'OPTIONS', headers: { origin: 'https://design.penpot.app' } }, cors);
     const doc = fixtureExport();
     const changes = JSON.stringify({ ...read('changes.json'), exportId: doc.id });
-    await same({ path: '/__dfw/penpot/changes', method: 'POST', headers: { origin: 'https://design.penpot.app', 'content-type': 'application/json' }, body: changes });
-    assert.equal((await same({ path: '/__dfw/penpot/changes', method: 'POST', headers: { origin: 'http://127.0.0.1:<port>', 'content-type': 'application/json' }, body: changes })).status, 200);
-    const thread = (seq, content) => ({ seq, resolved: false, page: 'Stock', boardKey: 'items|a|desktop', x: 120, y: 175, comments: [{ content, user: 'Designer' }] });
-    const sync = await same({ path: '/__dfw/penpot/sync', method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ fileId: 'file-1', exportId: doc.id, threads: [thread(1, 'Make low stock more visible')] }) });
+    await same({
+      path: '/__dfw/penpot/changes',
+      method: 'POST',
+      headers: { origin: 'https://design.penpot.app', 'content-type': 'application/json' },
+      body: changes,
+    });
+    assert.equal(
+      (
+        await same({
+          path: '/__dfw/penpot/changes',
+          method: 'POST',
+          headers: { origin: 'http://127.0.0.1:<port>', 'content-type': 'application/json' },
+          body: changes,
+        })
+      ).status,
+      200,
+    );
+    const thread = (seq, content) => ({
+      seq,
+      resolved: false,
+      page: 'Stock',
+      boardKey: 'items|a|desktop',
+      x: 120,
+      y: 175,
+      comments: [{ content, user: 'Designer' }],
+    });
+    const sync = await same({
+      path: '/__dfw/penpot/sync',
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ fileId: 'file-1', exportId: doc.id, threads: [thread(1, 'Make low stock more visible')] }),
+    });
     assert.equal(sync.status, 200, sync.body);
     await same({ path: '/__dfw/penpot/export.json', method: 'POST' });
-    const t = (s) => Object.fromEntries(Object.entries(tree(s)).filter(([k]) => !k.startsWith('.dfw/edits/')).map(([k, v]) => [k, v.replace(/"(at|createdAt|updatedAt|importedAt)":"[^"]*"/g, '"$1":"<t>"')]));
+    const t = (s) =>
+      Object.fromEntries(
+        Object.entries(tree(s))
+          .filter(([k]) => !k.startsWith('.dfw/edits/'))
+          .map(([k, v]) => [k, v.replace(/"(at|createdAt|updatedAt|importedAt)":"[^"]*"/g, '"$1":"<t>"')]),
+      );
     sameFiles(t(R));
   });
 });
@@ -331,7 +447,10 @@ async function fakeApp() {
       return res.end(zlib.deflateSync(APP_HTML));
     }
     if (req.url === '/login') {
-      res.writeHead(200, { 'content-type': 'text/plain', 'set-cookie': ['sid=s3cret; Path=/; HttpOnly', 'pref=1; Domain=127.0.0.1; Path=/', 'x=2; Domain=example.test'] });
+      res.writeHead(200, {
+        'content-type': 'text/plain',
+        'set-cookie': ['sid=s3cret; Path=/; HttpOnly', 'pref=1; Domain=127.0.0.1; Path=/', 'x=2; Domain=example.test'],
+      });
       return res.end('ok');
     }
     if (req.url === '/old') {
@@ -354,7 +473,9 @@ async function fakeApp() {
     res.end(APP_HTML);
   });
   app.on('upgrade', (req, socket) => {
-    socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nX-Seen-Host: ${req.headers.host}\r\n\r\n`);
+    socket.write(
+      `HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nX-Seen-Host: ${req.headers.host}\r\n\r\n`,
+    );
     socket.on('data', (d) => socket.write(`echo:${d}`));
   });
   await new Promise((r) => app.listen(0, '127.0.0.1', r));
@@ -368,7 +489,10 @@ async function startProxy(tmp, name, target) {
   write(root, '.dfw/reviews/rv_1.json', { schema: 1, id: 'rv_1', startedAt: NOW, designVersion: 'v1', comments: [] });
   const port = await freePort();
   const env = { ...process.env, DFW_HOME: path.join(tmp, name, 'home'), DFW_NOW: NOW, DFW_PLUGIN_ROOT: path.join(REPO, 'core') };
-  const child = spawn(nativeBinary(), ['__review-server', '--root', root, '--url', target, '--port', String(port), '--no-shots'], { env, stdio: 'ignore' });
+  const child = spawn(nativeBinary(), ['__review-server', '--root', root, '--url', target, '--port', String(port), '--no-shots'], {
+    env,
+    stdio: 'ignore',
+  });
   await ready(port, '/__dfw/api/live');
   return { root, port, app: new URL(target).port, child };
 }
@@ -392,7 +516,9 @@ describe('review proxy: Node and native answer the same', { skip: skipReason() }
   const HDRS = ['content-security-policy', 'content-security-policy-report-only', 'etag', 'location', 'set-cookie', 'content-encoding'];
   async function same(opts) {
     const o = typeof opts === 'string' ? { path: opts } : opts;
-    const headers = Object.fromEntries(Object.entries({ host: 'localhost:<port>', ...o.headers }).map(([k, v]) => [k, String(v).replaceAll('<port>', R.port)]));
+    const headers = Object.fromEntries(
+      Object.entries({ host: 'localhost:<port>', ...o.headers }).map(([k, v]) => [k, String(v).replaceAll('<port>', R.port)]),
+    );
     const y = seen(await request(R.port, { ...o, headers }), R, HDRS);
     assert.deepEqual(y, expected(y), `${o.method || 'GET'} ${o.path}`);
     return y;
@@ -412,7 +538,12 @@ describe('review proxy: Node and native answer the same', { skip: skipReason() }
     assert.equal(r.location, 'http://localhost:<port>/new?x=1');
     const c = await same('/login');
     assert.equal(c['set-cookie'], 'sid=s3cret; Path=/; HttpOnly\npref=1; Path=/\nx=2; Domain=example.test');
-    await same({ path: '/echo', method: 'POST', headers: { origin: 'http://localhost:<port>', 'content-type': 'text/plain' }, body: 'hello' });
+    await same({
+      path: '/echo',
+      method: 'POST',
+      headers: { origin: 'http://localhost:<port>', 'content-type': 'text/plain' },
+      body: 'hello',
+    });
     await same({ path: '/', method: 'HEAD' });
   });
 
@@ -421,7 +552,15 @@ describe('review proxy: Node and native answer the same', { skip: skipReason() }
     await same({ path: '/', headers: { host: 'evil.example' } });
     const post = { path: '/__dfw/api/comments', method: 'POST', headers: { 'content-type': 'application/json' } };
     await same({ ...post, headers: { ...post.headers, origin: 'https://evil.example' }, body: '{"comment":"x"}' });
-    const c = await same({ ...post, body: JSON.stringify({ comment: 'Bold title', url: '/cart?x=1', viewport: [390, 844], target: { selector: 'h1', insp: 'src/App.tsx:3:5:main', source: 'evil.ts:1' } }) });
+    const c = await same({
+      ...post,
+      body: JSON.stringify({
+        comment: 'Bold title',
+        url: '/cart?x=1',
+        viewport: [390, 844],
+        target: { selector: 'h1', insp: 'src/App.tsx:3:5:main', source: 'evil.ts:1' },
+      }),
+    });
     assert.equal(c.status, 201);
     assert.match(c.body, /"source":"src\/App\.tsx:3:5"/);
     await same({ ...post, body: JSON.stringify({ comment: 'No source', target: { selector: '#x' } }) });
@@ -434,7 +573,9 @@ describe('review proxy: Node and native answer the same', { skip: skipReason() }
   test('WebSocket upgrade is passed through with the Host rewritten', async () => {
     const ws = (s) =>
       new Promise((resolve, reject) => {
-        const sock = net.connect(s.port, '127.0.0.1', () => sock.write(`GET /hmr HTTP/1.1\r\nHost: localhost:${s.port}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n`));
+        const sock = net.connect(s.port, '127.0.0.1', () =>
+          sock.write(`GET /hmr HTTP/1.1\r\nHost: localhost:${s.port}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n`),
+        );
         let buf = '';
         sock.on('data', (d) => {
           buf += d;

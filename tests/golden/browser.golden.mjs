@@ -16,7 +16,18 @@ import zlib from 'node:zlib';
 import net from 'node:net';
 import { spawn, spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { REPO, NOW, MINIMAL_STATE, nativeBinary, skipReason, assertSame, run as runGolden, maskVersion, suite, expected } from './harness.mjs';
+import {
+  REPO,
+  NOW,
+  MINIMAL_STATE,
+  nativeBinary,
+  skipReason,
+  assertSame,
+  run as runGolden,
+  maskVersion,
+  suite,
+  expected,
+} from './harness.mjs';
 
 const test = suite('browser');
 const FIX = path.join(REPO, 'tests', 'fixtures', 'inspector');
@@ -62,7 +73,18 @@ function run(args, opts = {}) {
     opts.setup?.(root, tmp);
     const before = new Map([...tree(root)].map(([k, v]) => [`project/${k}`, v]).concat([...tree(home)].map(([k, v]) => [`home/${k}`, v])));
     const env = { ...process.env };
-    for (const k of ['DFW_NO_BINARY', 'DFW_VERSION', 'DFW_HOST', 'XDG_CONFIG_HOME', 'CLAUDE_CONFIG_DIR', 'COPILOT_HOME', 'CODEX_HOME', 'IMPECCABLE_BIN', 'IMPECCABLE_HOME']) delete env[k];
+    for (const k of [
+      'DFW_NO_BINARY',
+      'DFW_VERSION',
+      'DFW_HOST',
+      'XDG_CONFIG_HOME',
+      'CLAUDE_CONFIG_DIR',
+      'COPILOT_HOME',
+      'CODEX_HOME',
+      'IMPECCABLE_BIN',
+      'IMPECCABLE_HOME',
+    ])
+      delete env[k];
     Object.assign(env, {
       HOME: home,
       DFW_HOME: path.join(home, 'dfw-home'),
@@ -80,18 +102,32 @@ function run(args, opts = {}) {
     const normalize = (text) => {
       // How dfw starts itself again ("  $ <dfw> doctor").
       let t = text.split(nativeBinary()).join('<dfw>');
-      for (const [from, to] of [[root, '<root>'], [tmp, '<tmp>'], [REPO, '<repo>']]) t = t.split(escaped(from)).join(to).split(from).join(to);
+      for (const [from, to] of [
+        [root, '<root>'],
+        [tmp, '<tmp>'],
+        [REPO, '<repo>'],
+      ])
+        t = t.split(escaped(from)).join(to).split(from).join(to);
       t = maskVersion(t);
       return opts.normalize ? opts.normalize(t) : t;
     };
-    const printable = (buf) => (Buffer.from(buf.toString('utf8'), 'utf8').equals(buf) ? normalize(buf.toString('utf8')) : `base64:${buf.toString('base64')}`);
+    const printable = (buf) =>
+      Buffer.from(buf.toString('utf8'), 'utf8').equals(buf) ? normalize(buf.toString('utf8')) : `base64:${buf.toString('base64')}`;
     const now = new Map([...tree(root)].map(([k, v]) => [`project/${k}`, v]).concat([...tree(home)].map(([k, v]) => [`home/${k}`, v])));
     const files = {};
-    for (const [rel, buf] of now) if (!before.get(rel)?.equals(buf)) files[rel] = opts.images && rel.endsWith('.png') ? '(image)' : printable(buf);
+    for (const [rel, buf] of now)
+      if (!before.get(rel)?.equals(buf)) files[rel] = opts.images && rel.endsWith('.png') ? '(image)' : printable(buf);
     for (const rel of before.keys()) if (!now.has(rel)) files[rel] = null;
     const extra = opts.after ? opts.after({ root, tmp, normalize }) : null;
     const leftovers = fs.readdirSync(path.join(tmp, 'tmp')).filter((f) => f.startsWith('dfw-browser-'));
-    return { code: r.status, stdout: normalize(r.stdout), stderr: normalize(r.stderr), files: Object.fromEntries(Object.entries(files).sort(([a], [b]) => (a < b ? -1 : 1))), extra, leftovers };
+    return {
+      code: r.status,
+      stdout: normalize(r.stdout),
+      stderr: normalize(r.stderr),
+      files: Object.fromEntries(Object.entries(files).sort(([a], [b]) => (a < b ? -1 : 1))),
+      extra,
+      leftovers,
+    };
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
@@ -115,7 +151,13 @@ function run2(args, opts) {
  * collected extras and, when asked, stderr (true: all of it; a function: the part compared).
  */
 function seen(r, { stderr = false } = {}) {
-  return { code: r.code, stdout: r.stdout, files: r.files, extra: r.extra, ...(stderr ? { stderr: stderr === true ? r.stderr : stderr(r.stderr) } : {}) };
+  return {
+    code: r.code,
+    stdout: r.stdout,
+    files: r.files,
+    extra: r.extra,
+    ...(stderr ? { stderr: stderr === true ? r.stderr : stderr(r.stderr) } : {}),
+  };
 }
 
 /** The run is the recorded one, as `seen` shows it. Returns the run. */
@@ -129,10 +171,18 @@ function same(r, o = {}) {
 const firstLine = (s) => s.split('\n')[0];
 const firstTwoLines = (s) => s.split('\n').slice(0, 2).join('\n');
 
-const G3 = { ...MINIMAL_STATE, mode: 'existing-project', phase: 'implement', gates: { ...MINIMAL_STATE.gates, G3: { at: NOW, note: 'ok' } } };
+const G3 = {
+  ...MINIMAL_STATE,
+  mode: 'existing-project',
+  phase: 'implement',
+  gates: { ...MINIMAL_STATE.gates, G3: { at: NOW, note: 'ok' } },
+};
 const approvedStack = (root) => {
   fs.mkdirSync(path.join(root, '.dfw'), { recursive: true });
-  fs.writeFileSync(path.join(root, '.dfw', 'stack.json'), JSON.stringify({ kind: 'javascript', dependencies: [{ name: 'code-inspector-plugin', version: '2.0.9', dev: true }] }, null, 2) + '\n');
+  fs.writeFileSync(
+    path.join(root, '.dfw', 'stack.json'),
+    JSON.stringify({ kind: 'javascript', dependencies: [{ name: 'code-inspector-plugin', version: '2.0.9', dev: true }] }, null, 2) + '\n',
+  );
 };
 
 describe('tools: inspector', { skip: skipReason() }, () => {
@@ -160,7 +210,10 @@ describe('tools: inspector', { skip: skipReason() }, () => {
         fs.writeFileSync(path.join(root, 'pnpm-lock.yaml'), '');
       },
       'next 15.2 with --turbo, yarn': (root) => {
-        fs.writeFileSync(path.join(root, 'package.json'), '{"scripts":{"dev":"next dev --turbo"},"dependencies":{"next":"^15.2.4","react":"19.0.0"}}');
+        fs.writeFileSync(
+          path.join(root, 'package.json'),
+          '{"scripts":{"dev":"next dev --turbo"},"dependencies":{"next":"^15.2.4","react":"19.0.0"}}',
+        );
         fs.writeFileSync(path.join(root, 'next.config.mjs'), 'export default {};\n');
         fs.writeFileSync(path.join(root, 'yarn.lock'), '');
       },
@@ -176,19 +229,31 @@ describe('tools: inspector', { skip: skipReason() }, () => {
       'unknown bundler': (root) => fs.writeFileSync(path.join(root, 'package.json'), '{"dependencies":{"lit":"3.0.0"}}'),
       'vite already configured': (root) => {
         fs.writeFileSync(path.join(root, 'package.json'), '{"devDependencies":{"vite":"7.1.0","code-inspector-plugin":"2.0.9"}}');
-        fs.writeFileSync(path.join(root, 'vite.config.mjs'), "import { codeInspectorPlugin } from 'code-inspector-plugin';\nexport default { plugins: [codeInspectorPlugin({ bundler: 'vite' })] };\n");
+        fs.writeFileSync(
+          path.join(root, 'vite.config.mjs'),
+          "import { codeInspectorPlugin } from 'code-inspector-plugin';\nexport default { plugins: [codeInspectorPlugin({ bundler: 'vite' })] };\n",
+        );
       },
       'vite config function with a body': (root) => {
         fs.writeFileSync(path.join(root, 'package.json'), '{"devDependencies":{"vite":"7.1.0"}}');
-        fs.writeFileSync(path.join(root, 'vite.config.ts'), "import { defineConfig } from 'vite';\nexport default defineConfig(({ mode }) => {\n  return { plugins: [] };\n});\n");
+        fs.writeFileSync(
+          path.join(root, 'vite.config.ts'),
+          "import { defineConfig } from 'vite';\nexport default defineConfig(({ mode }) => {\n  return { plugins: [] };\n});\n",
+        );
       },
       'webpack CommonJS with one plugin per line, CRLF': (root) => {
         fs.writeFileSync(path.join(root, 'package.json'), '{"devDependencies":{"webpack":"5.0.0"}}');
-        fs.writeFileSync(path.join(root, 'webpack.config.js'), '"use strict"\r\nconst A = require("a"); // plugins: [x]\r\nmodule.exports = {\r\n  resolve: { plugins: [new B()] },\r\n  plugins: [\r\n    new A(),\r\n  ],\r\n};\r\n');
+        fs.writeFileSync(
+          path.join(root, 'webpack.config.js'),
+          '"use strict"\r\nconst A = require("a"); // plugins: [x]\r\nmodule.exports = {\r\n  resolve: { plugins: [new B()] },\r\n  plugins: [\r\n    new A(),\r\n  ],\r\n};\r\n',
+        );
       },
     };
     for (const [name, setup] of Object.entries(shapes)) {
-      for (const args of [['inspector', 'setup'], ['inspector', 'setup', '--json']]) {
+      for (const args of [
+        ['inspector', 'setup'],
+        ['inspector', 'setup', '--json'],
+      ]) {
         const r = same(run2(args, { state: null, setup }), { stderr: true });
         assert.equal(r.code, 0, name);
       }
@@ -211,7 +276,10 @@ describe('tools: inspector', { skip: skipReason() }, () => {
     const written = {};
     for (const shape of SHAPES) {
       for (const json of [[], ['--json']]) {
-        const r = same(run2(['inspector', 'setup', '--write', ...json], { project: path.join(FIX, shape), state: G3, setup: approvedStack }), { stderr: true });
+        const r = same(
+          run2(['inspector', 'setup', '--write', ...json], { project: path.join(FIX, shape), state: G3, setup: approvedStack }),
+          { stderr: true },
+        );
         written[shape] = Object.keys(r.files);
         assert.equal(r.code, shape === 'nuxt' ? 1 : 0, shape);
       }
@@ -224,7 +292,10 @@ describe('tools: inspector', { skip: skipReason() }, () => {
   test('inspector setup --write: second run, tab indentation, an existing backup', () => {
     const again = (root) => {
       approvedStack(root);
-      fs.writeFileSync(path.join(root, 'package.json'), '{\n\t"name": "x",\n\t"version": "1.0.0",\n\t"devDependencies": {\n\t\t"vite": "7.1.0",\n\t\t"code-inspector-plugin": "1.0.0"\n\t},\n\t"count": 1e21\n}');
+      fs.writeFileSync(
+        path.join(root, 'package.json'),
+        '{\n\t"name": "x",\n\t"version": "1.0.0",\n\t"devDependencies": {\n\t\t"vite": "7.1.0",\n\t\t"code-inspector-plugin": "1.0.0"\n\t},\n\t"count": 1e21\n}',
+      );
       fs.writeFileSync(path.join(root, 'vite.config.ts.dfw-backup'), 'the first original\n');
     };
     const r = same(run2(['inspector', 'setup', '--write'], { project: path.join(FIX, 'vite'), state: G3, setup: again }), { stderr: true });
@@ -233,21 +304,45 @@ describe('tools: inspector', { skip: skipReason() }, () => {
     const done = (root) => {
       approvedStack(root);
       fs.writeFileSync(path.join(root, 'package.json'), '{"devDependencies":{"vite":"7.1.0","code-inspector-plugin":"2.0.9"}}');
-      fs.writeFileSync(path.join(root, 'vite.config.ts'), "import { codeInspectorPlugin } from 'code-inspector-plugin';\nexport default { plugins: [codeInspectorPlugin({ bundler: 'vite' })] };\n");
+      fs.writeFileSync(
+        path.join(root, 'vite.config.ts'),
+        "import { codeInspectorPlugin } from 'code-inspector-plugin';\nexport default { plugins: [codeInspectorPlugin({ bundler: 'vite' })] };\n",
+      );
     };
-    const second = same(run2(['inspector', 'setup', '--write'], { project: path.join(FIX, 'vite'), state: G3, setup: done }), { stderr: true });
+    const second = same(run2(['inspector', 'setup', '--write'], { project: path.join(FIX, 'vite'), state: G3, setup: done }), {
+      stderr: true,
+    });
     assert.equal(second.stdout, 'code-inspector-plugin@2.0.9 is already set up.\n');
     assert.deepEqual(second.files, {});
   });
 
   test('parseInspPath (through __debug insp-path)', () => {
     const cases = [
-      ['src/components/Foo.tsx:42:7:div'], ['src/App.vue:3:5:el-button'], ['src/App.tsx:3:5'], ['src/App.tsx:3:Header'], ['./src/a.jsx:1:1:p'],
-      ['C:\\work\\shop\\src\\components\\Foo.tsx:42:7:div'], ['C:\\work\\shop\\src\\components\\Foo.tsx:42:7:div', 'C:\\work\\shop'],
-      ['C:/work/shop/src/Foo.tsx:9:1:span', 'C:\\work\\shop'], ['c:/Work/shop/src/Foo.tsx:9:1:span', 'C:/work/SHOP/'], ['D:/work/shop/src/Foo.tsx:9:1:span', 'C:\\work\\shop'],
-      ['/home/me/shop/src/Foo.tsx:42:7:div', '/home/me/shop'], ['/home/me/shop/src/Foo.tsx:42:7:div', '/home/me/shop/'], ['/home/me/shop/../other/x.tsx:1:2:a', '/home/me/shop'],
-      ['/elsewhere/lib/x.tsx:1:2:a', '/home/me/shop'], ['/home/me/shop:1:2:a', '/home/me/shop'], ['/home/me/shop/..x/y.ts:1', '/home/me/shop'],
-      ['  src/a.ts:12:3:a  '], ['src/a.ts:007:08:b'], ['a:b:c:1:2:3:x'], ['src/a.ts:1:2:3'], ['src/Foo.tsx'], ['div'], [':1:2'], ['   '], ['x:99999999999999999999999:1:p'],
+      ['src/components/Foo.tsx:42:7:div'],
+      ['src/App.vue:3:5:el-button'],
+      ['src/App.tsx:3:5'],
+      ['src/App.tsx:3:Header'],
+      ['./src/a.jsx:1:1:p'],
+      ['C:\\work\\shop\\src\\components\\Foo.tsx:42:7:div'],
+      ['C:\\work\\shop\\src\\components\\Foo.tsx:42:7:div', 'C:\\work\\shop'],
+      ['C:/work/shop/src/Foo.tsx:9:1:span', 'C:\\work\\shop'],
+      ['c:/Work/shop/src/Foo.tsx:9:1:span', 'C:/work/SHOP/'],
+      ['D:/work/shop/src/Foo.tsx:9:1:span', 'C:\\work\\shop'],
+      ['/home/me/shop/src/Foo.tsx:42:7:div', '/home/me/shop'],
+      ['/home/me/shop/src/Foo.tsx:42:7:div', '/home/me/shop/'],
+      ['/home/me/shop/../other/x.tsx:1:2:a', '/home/me/shop'],
+      ['/elsewhere/lib/x.tsx:1:2:a', '/home/me/shop'],
+      ['/home/me/shop:1:2:a', '/home/me/shop'],
+      ['/home/me/shop/..x/y.ts:1', '/home/me/shop'],
+      ['  src/a.ts:12:3:a  '],
+      ['src/a.ts:007:08:b'],
+      ['a:b:c:1:2:3:x'],
+      ['src/a.ts:1:2:3'],
+      ['src/Foo.tsx'],
+      ['div'],
+      [':1:2'],
+      ['   '],
+      ['x:99999999999999999999999:1:p'],
     ];
     for (const [value, root] of cases) {
       const r = spawnSync(nativeBinary(), ['__debug', 'insp-path', value, ...(root ? [root] : [])], { encoding: 'utf8' });
@@ -285,7 +380,9 @@ echo "done: $*"
 
 /** Options for run2: the fake CLIs first on a PATH without anything else of the user's. */
 function withFakes({ env = {}, setup, ...rest } = {}) {
-  for (const dir of ['/usr/bin', '/bin']) for (const cli of ['claude', 'copilot']) assert.ok(!fs.existsSync(path.join(dir, cli)), `a real ${cli} in ${dir} could be started: refusing to run`);
+  for (const dir of ['/usr/bin', '/bin'])
+    for (const cli of ['claude', 'copilot'])
+      assert.ok(!fs.existsSync(path.join(dir, cli)), `a real ${cli} in ${dir} could be started: refusing to run`);
   return {
     state: null,
     ...rest,
@@ -311,7 +408,13 @@ describe('tools: install, uninstall, doctor (fake host CLIs)', { skip: skipReaso
     const r = same(run2(INSTALL, withFakes()));
     assert.equal(r.code, 0, r.stderr);
     const calls = r.extra.calls.trim().split('\n');
-    assert.deepEqual(calls.slice(0, 5), ['claude --version', 'copilot --version', 'claude plugin marketplace list --json', 'claude plugin marketplace add tantm97/ai-frontend-design-workflow --scope user', 'claude plugin install dfw@dfw-marketplace --scope user']);
+    assert.deepEqual(calls.slice(0, 5), [
+      'claude --version',
+      'copilot --version',
+      'claude plugin marketplace list --json',
+      'claude plugin marketplace add tantm97/ai-frontend-design-workflow --scope user',
+      'claude plugin install dfw@dfw-marketplace --scope user',
+    ]);
     assert.ok(calls.includes('copilot plugin install dfw@dfw-marketplace'));
     assert.ok(!calls.some((c) => c.startsWith('copilot plugin marketplace remove')), 'the default source is not removed first');
     assert.deepEqual(calls.slice(-2), ['claude --version', 'copilot --version'], 'doctor ran last');
@@ -329,12 +432,25 @@ describe('tools: install, uninstall, doctor (fake host CLIs)', { skip: skipReaso
     assert.match(update.extra.calls, /claude plugin marketplace update dfw-marketplace\n/);
     assert.doesNotMatch(update.extra.calls, /marketplace add|copilot plugin/);
 
-    const readd = same(run2([...INSTALL, '--host', 'all', '--source', './my clone', '--scope', 'project', '--quiet'], withFakes({ env: { FAKE_LIST: repo } })));
-    assert.match(readd.extra.calls, /claude plugin marketplace remove dfw-marketplace\nclaude plugin marketplace add \.\/my clone --scope project\n/);
+    const readd = same(
+      run2(
+        [...INSTALL, '--host', 'all', '--source', './my clone', '--scope', 'project', '--quiet'],
+        withFakes({ env: { FAKE_LIST: repo } }),
+      ),
+    );
+    assert.match(
+      readd.extra.calls,
+      /claude plugin marketplace remove dfw-marketplace\nclaude plugin marketplace add \.\/my clone --scope project\n/,
+    );
     assert.match(readd.extra.calls, /copilot plugin marketplace remove dfw-marketplace\ncopilot plugin marketplace add \.\/my clone\n/);
     assert.doesNotMatch(readd.stdout, /\$ claude/, '--quiet hides the commands');
 
-    const old = same(run2([...INSTALL, '--host', 'claude'], withFakes({ env: { FAKE_NO_JSON: '1', FAKE_LIST: 'Configured marketplaces:\n  dfw-marketplace\n' } })));
+    const old = same(
+      run2(
+        [...INSTALL, '--host', 'claude'],
+        withFakes({ env: { FAKE_NO_JSON: '1', FAKE_LIST: 'Configured marketplaces:\n  dfw-marketplace\n' } }),
+      ),
+    );
     assert.match(old.extra.calls, /list --json\nclaude plugin marketplace list\nclaude plugin marketplace update dfw-marketplace\n/);
   });
 
@@ -344,14 +460,30 @@ describe('tools: install, uninstall, doctor (fake host CLIs)', { skip: skipReaso
     assert.match(auto.stdout, /Hosts: Claude Code · dfw <runtime>/);
     assert.match(auto.stdout, /host GitHub Copilot - "copilot" not found \(skip, or install it and run "dfw install --host copilot"\)/);
 
-    for (const args of [[...INSTALL, '--host', 'copilot'], [...INSTALL, '--host', 'all'], [...INSTALL, '--host', 'cursor'], [...INSTALL, '--host', 'nope'], ['uninstall', '--host', 'copilot']]) {
+    for (const args of [
+      [...INSTALL, '--host', 'copilot'],
+      [...INSTALL, '--host', 'all'],
+      [...INSTALL, '--host', 'cursor'],
+      [...INSTALL, '--host', 'nope'],
+      ['uninstall', '--host', 'copilot'],
+    ]) {
       const r = run2(args, withFakes({ env: { FAKE_MISSING: 'copilot' } }));
       same(r, { stderr: firstLine });
       assert.equal(r.native.code, 1);
     }
-    const none = run2(INSTALL, withFakes({ env: { FAKE_MISSING: 'copilot', FAKE_LIST: '[]' }, setup: (root, tmp) => fs.writeFileSync(path.join(tmp, 'fakebin', 'claude'), '#!/bin/sh\necho "claude $*" >> "$FAKE_LOG"\nexit 1\n', { mode: 0o755 }) }));
+    const none = run2(
+      INSTALL,
+      withFakes({
+        env: { FAKE_MISSING: 'copilot', FAKE_LIST: '[]' },
+        setup: (root, tmp) =>
+          fs.writeFileSync(path.join(tmp, 'fakebin', 'claude'), '#!/bin/sh\necho "claude $*" >> "$FAKE_LOG"\nexit 1\n', { mode: 0o755 }),
+      }),
+    );
     same(none, { stderr: firstLine });
-    assert.equal(firstLine(none.native.stderr), 'Error: No supported AI coding tool found on PATH (claude, copilot). Install Claude Code or GitHub Copilot CLI first, or pass --host.');
+    assert.equal(
+      firstLine(none.native.stderr),
+      'Error: No supported AI coding tool found on PATH (claude, copilot). Install Claude Code or GitHub Copilot CLI first, or pass --host.',
+    );
 
     // A skill that does not install is skipped; dfw itself failing stops the install.
     const skill = same(run2(INSTALL, withFakes({ env: { FAKE_FAIL: 'install impeccable@' } })));
@@ -360,28 +492,51 @@ describe('tools: install, uninstall, doctor (fake host CLIs)', { skip: skipReaso
     const dfw = run2([...INSTALL, '--host', 'claude'], withFakes({ env: { FAKE_FAIL: 'install dfw@' } }));
     same(dfw, { stderr: firstTwoLines });
     assert.equal(dfw.native.code, 1);
-    assert.equal(dfw.native.stderr.split('\n').slice(0, 2).join('\n'), 'Error: claude plugin install dfw@dfw-marketplace --scope user failed:\nboom: plugin install dfw@dfw-marketplace --scope user');
+    assert.equal(
+      dfw.native.stderr.split('\n').slice(0, 2).join('\n'),
+      'Error: claude plugin install dfw@dfw-marketplace --scope user failed:\nboom: plugin install dfw@dfw-marketplace --scope user',
+    );
   });
 
   test('install: ~/.local/bin/dfw is left alone when it is a file or links to another working dfw', () => {
-    const link = (make) => same(run2([...INSTALL, '--host', 'copilot', '--quiet'], withFakes({ setup: (root, tmp) => {
-      fs.mkdirSync(path.join(tmp, 'home', '.local', 'bin'), { recursive: true });
-      make(path.join(tmp, 'home', '.local', 'bin', 'dfw'), tmp);
-    } }))).files['home/.local/bin/dfw'];
-    assert.equal(link((file) => fs.writeFileSync(file, 'a real file')), undefined);
-    assert.equal(link((file, tmp) => {
-      fs.writeFileSync(path.join(tmp, 'other-dfw'), '');
-      fs.symlinkSync(path.join(tmp, 'other-dfw'), file);
-    }), undefined);
+    const link = (make) =>
+      same(
+        run2(
+          [...INSTALL, '--host', 'copilot', '--quiet'],
+          withFakes({
+            setup: (root, tmp) => {
+              fs.mkdirSync(path.join(tmp, 'home', '.local', 'bin'), { recursive: true });
+              make(path.join(tmp, 'home', '.local', 'bin', 'dfw'), tmp);
+            },
+          }),
+        ),
+      ).files['home/.local/bin/dfw'];
+    assert.equal(
+      link((file) => fs.writeFileSync(file, 'a real file')),
+      undefined,
+    );
+    assert.equal(
+      link((file, tmp) => {
+        fs.writeFileSync(path.join(tmp, 'other-dfw'), '');
+        fs.symlinkSync(path.join(tmp, 'other-dfw'), file);
+      }),
+      undefined,
+    );
     // A Node bug the binary keeps for now: fs.rmSync(force) does not remove a link whose target is gone, so it is not replaced either.
-    assert.equal(link((file, tmp) => fs.symlinkSync(path.join(tmp, 'gone'), file)), undefined);
+    assert.equal(
+      link((file, tmp) => fs.symlinkSync(path.join(tmp, 'gone'), file)),
+      undefined,
+    );
     // A link to the launcher itself is written again (same target: no change to see).
-    assert.equal(link((file, tmp) => {
-      const launcher = path.join(tmp, 'home', '.copilot', 'installed-plugins', 'dfw-marketplace', 'dfw', 'bin', 'dfw');
-      fs.mkdirSync(path.dirname(launcher), { recursive: true });
-      fs.writeFileSync(launcher, '');
-      fs.symlinkSync(launcher, file);
-    }), undefined);
+    assert.equal(
+      link((file, tmp) => {
+        const launcher = path.join(tmp, 'home', '.copilot', 'installed-plugins', 'dfw-marketplace', 'dfw', 'bin', 'dfw');
+        fs.mkdirSync(path.dirname(launcher), { recursive: true });
+        fs.writeFileSync(launcher, '');
+        fs.symlinkSync(launcher, file);
+      }),
+      undefined,
+    );
   });
 
   test('uninstall: every plugin and the marketplace, per host', () => {
@@ -404,25 +559,66 @@ describe('tools: install, uninstall, doctor (fake host CLIs)', { skip: skipReaso
     assert.match(bare.stdout, /\nok {3}global config dir - <tmp>\/home\/dfw-home\n$/);
 
     const state = { ...MINIMAL_STATE, design: { version: 2, status: 'draft', locked: false, approved: [{ version: 'v1', at: NOW }] } };
-    const full = same(run2(['doctor'], withFakes({ state, setup: (root, tmp) => {
-      const home = path.join(tmp, 'home');
-      const write = (file, text) => (fs.mkdirSync(path.dirname(file), { recursive: true }), fs.writeFileSync(file, text));
-      write(path.join(home, '.claude', 'plugins', 'installed_plugins.json'), JSON.stringify({ plugins: { 'dfw@dfw-marketplace': [{}], 'impeccable@elsewhere': [{}], 'hallmark@dfw-marketplace': [{}], 'taste@other': [{}], 'unrelated@x': [{}] } }));
-      write(path.join(home, '.copilot', 'installed-plugins', 'dfw-marketplace', 'dfw', 'bin', 'dfw'), '');
-      write(path.join(home, '.codex', 'config.toml'), 'model = "x"\r\n\r\n[mcp_servers.dfw]\r\ncommand = "dfw"\r\n');
-      write(path.join(home, '.cursor', 'mcp.json'), '{"mcpServers":{"dfw":{"command":"dfw"}}}');
-      write(path.join(home, '.config', 'opencode', 'opencode.json'), '{"mcp":{}}');
-      const approved = path.join(root, 'design', 'approved', 'v1');
-      write(path.join(approved, 'kept.html'), 'kept');
-      write(path.join(approved, 'changed.html'), 'now');
-      write(path.join(approved, 'added.css'), 'x');
-      const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
-      write(path.join(approved, 'approval.lock.json'), JSON.stringify({ files: [{ path: 'kept.html', sha256: sha('kept') }, { path: 'changed.html', sha256: sha('before') }, { path: 'gone.html', sha256: sha('gone') }] }));
-    } })), { stderr: true });
-    assert.match(full.stdout, /\nWARN no duplicate upstream installs - also installed outside dfw-marketplace: impeccable@elsewhere, taste@other \(skills would load twice; consider disabling them\)\n/);
-    assert.match(full.stdout, /\nok {3}project workflow - new-product\/discovery\nWARN approved snapshot v1 intact - modified: changed\.html; missing: gone\.html; added: added\.css\n/);
-    assert.match(full.stdout, /\nok {3}host Claude Code - 9\.9\.9 \(fake claude\); dfw plugin installed\nok {3}host GitHub Copilot - 9\.9\.9 \(fake copilot\); dfw plugin installed\n/);
-    assert.match(full.stdout, /\nok {3}host OpenCode - plugin planned; use "dfw mcp install opencode"\nok {3}host OpenAI Codex - plugin planned; dfw MCP server configured\nok {3}host Cursor - plugin planned; dfw MCP server configured\n/);
+    const full = same(
+      run2(
+        ['doctor'],
+        withFakes({
+          state,
+          setup: (root, tmp) => {
+            const home = path.join(tmp, 'home');
+            const write = (file, text) => (fs.mkdirSync(path.dirname(file), { recursive: true }), fs.writeFileSync(file, text));
+            write(
+              path.join(home, '.claude', 'plugins', 'installed_plugins.json'),
+              JSON.stringify({
+                plugins: {
+                  'dfw@dfw-marketplace': [{}],
+                  'impeccable@elsewhere': [{}],
+                  'hallmark@dfw-marketplace': [{}],
+                  'taste@other': [{}],
+                  'unrelated@x': [{}],
+                },
+              }),
+            );
+            write(path.join(home, '.copilot', 'installed-plugins', 'dfw-marketplace', 'dfw', 'bin', 'dfw'), '');
+            write(path.join(home, '.codex', 'config.toml'), 'model = "x"\r\n\r\n[mcp_servers.dfw]\r\ncommand = "dfw"\r\n');
+            write(path.join(home, '.cursor', 'mcp.json'), '{"mcpServers":{"dfw":{"command":"dfw"}}}');
+            write(path.join(home, '.config', 'opencode', 'opencode.json'), '{"mcp":{}}');
+            const approved = path.join(root, 'design', 'approved', 'v1');
+            write(path.join(approved, 'kept.html'), 'kept');
+            write(path.join(approved, 'changed.html'), 'now');
+            write(path.join(approved, 'added.css'), 'x');
+            const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
+            write(
+              path.join(approved, 'approval.lock.json'),
+              JSON.stringify({
+                files: [
+                  { path: 'kept.html', sha256: sha('kept') },
+                  { path: 'changed.html', sha256: sha('before') },
+                  { path: 'gone.html', sha256: sha('gone') },
+                ],
+              }),
+            );
+          },
+        }),
+      ),
+      { stderr: true },
+    );
+    assert.match(
+      full.stdout,
+      /\nWARN no duplicate upstream installs - also installed outside dfw-marketplace: impeccable@elsewhere, taste@other \(skills would load twice; consider disabling them\)\n/,
+    );
+    assert.match(
+      full.stdout,
+      /\nok {3}project workflow - new-product\/discovery\nWARN approved snapshot v1 intact - modified: changed\.html; missing: gone\.html; added: added\.css\n/,
+    );
+    assert.match(
+      full.stdout,
+      /\nok {3}host Claude Code - 9\.9\.9 \(fake claude\); dfw plugin installed\nok {3}host GitHub Copilot - 9\.9\.9 \(fake copilot\); dfw plugin installed\n/,
+    );
+    assert.match(
+      full.stdout,
+      /\nok {3}host OpenCode - plugin planned; use "dfw mcp install opencode"\nok {3}host OpenAI Codex - plugin planned; dfw MCP server configured\nok {3}host Cursor - plugin planned; dfw MCP server configured\n/,
+    );
 
     // A snapshot without its lock stops doctor.
     const noLock = run2(['doctor'], withFakes({ state }));
@@ -465,7 +661,12 @@ function png(w, h, rgba) {
   head.set([8, 6, 0, 0, 0], 8);
   const rows = Buffer.alloc(h * (w * 4 + 1));
   for (let y = 0; y < h; y++) Buffer.from(rgba.buffer, rgba.byteOffset + y * w * 4, w * 4).copy(rows, y * (w * 4 + 1) + 1);
-  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', head), chunk('IDAT', zlib.deflateSync(rows)), chunk('IEND', Buffer.alloc(0))]);
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', head),
+    chunk('IDAT', zlib.deflateSync(rows)),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
 }
 
 /** An image from a pixel function (x, y) -> [r, g, b, a]. */
@@ -476,7 +677,7 @@ function picture(w, h, pixel) {
 }
 
 /** Deterministic noise in 0..255. */
-const noise = (x, y, seed) => (Math.imul(x * 73856093 ^ y * 19349663 ^ seed * 83492791, 0x9e3779b1) >>> 24) & 255;
+const noise = (x, y, seed) => (Math.imul((x * 73856093) ^ (y * 19349663) ^ (seed * 83492791), 0x9e3779b1) >>> 24) & 255;
 
 /** Fixture folders a/ and b/ under the project: shapes with anti-aliased edges, colour shifts around the threshold, alpha, noise, sizes. */
 function diffFixtures(root) {
@@ -491,14 +692,29 @@ function diffFixtures(root) {
     'edge.png': [picture(40, 30, edge(0)), picture(40, 30, edge(1))],
     'tint.png': [picture(64, 16, () => [200, 180, 160, 255]), picture(64, 16, (x) => [200 - x * 2, 180, 160 + x, 255])],
     'dark.png': [picture(64, 16, (x) => [x, x, x, 255]), picture(64, 16, (x, y) => [x + y * 3, x, x + (x >> 2), 255])],
-    'noise.png': [picture(48, 48, (x, y) => [noise(x, y, 1), noise(x, y, 2), noise(x, y, 3), 255]), picture(48, 48, (x, y) => [noise(x, y, 1) ^ (x > 24 ? 9 : 0), noise(x, y, 2), noise(x, y, 3) ^ (y > 30 ? 40 : 0), 255])],
-    'alpha.png': [picture(32, 32, (x, y) => [x * 8, y * 8, 128, 255]), picture(32, 32, (x, y) => [x * 8, y * 8, 128, 255 - ((x * y) & 255)])],
+    'noise.png': [
+      picture(48, 48, (x, y) => [noise(x, y, 1), noise(x, y, 2), noise(x, y, 3), 255]),
+      picture(48, 48, (x, y) => [noise(x, y, 1) ^ (x > 24 ? 9 : 0), noise(x, y, 2), noise(x, y, 3) ^ (y > 30 ? 40 : 0), 255]),
+    ],
+    'alpha.png': [
+      picture(32, 32, (x, y) => [x * 8, y * 8, 128, 255]),
+      picture(32, 32, (x, y) => [x * 8, y * 8, 128, 255 - ((x * y) & 255)]),
+    ],
     'alpha-both.png': [picture(32, 8, (x) => [255, 0, 0, x * 8]), picture(32, 8, (x, y) => [0, 0, 255, x * 8 + y])],
-    'size.png': [picture(20, 10, () => [0, 0, 0, 255]), picture(24, 14, (x, y) => (x < 20 && y < 10 ? [0, 0, 0, 255] : [200, 60, 60, 255]))],
-    'text.png': [picture(60, 20, (x, y) => (noise(x >> 1, y >> 1, 7) > 150 ? [30, 30, 30, 255] : [255, 255, 255, 255])), picture(60, 20, (x, y) => (noise((x + 1) >> 1, y >> 1, 7) > 150 ? [30, 30, 30, 255] : [255, 255, 255, 255]))],
+    'size.png': [
+      picture(20, 10, () => [0, 0, 0, 255]),
+      picture(24, 14, (x, y) => (x < 20 && y < 10 ? [0, 0, 0, 255] : [200, 60, 60, 255])),
+    ],
+    'text.png': [
+      picture(60, 20, (x, y) => (noise(x >> 1, y >> 1, 7) > 150 ? [30, 30, 30, 255] : [255, 255, 255, 255])),
+      picture(60, 20, (x, y) => (noise((x + 1) >> 1, y >> 1, 7) > 150 ? [30, 30, 30, 255] : [255, 255, 255, 255])),
+    ],
   };
   for (const [name, [a, b]] of Object.entries(pictures)) {
-    for (const [dir, buf] of [['a', a], ['b', b]]) {
+    for (const [dir, buf] of [
+      ['a', a],
+      ['b', b],
+    ]) {
       fs.mkdirSync(path.join(root, dir), { recursive: true });
       fs.writeFileSync(path.join(root, dir, name), buf);
     }
@@ -537,7 +753,12 @@ describe('browser: diff', { skip: skipReason() }, () => {
     };
     const opts = { state: null, images: true, setup, after: ({ root }) => pixels(path.join(root, 'out')) };
     // --json keeps the order the folder was read in: compare by file.
-    const byFile = (r) => Object.fromEntries(JSON.parse(r.stdout).map((x) => [path.basename(x.b), x]).sort(([a], [b]) => (a < b ? -1 : 1)));
+    const byFile = (r) =>
+      Object.fromEntries(
+        JSON.parse(r.stdout)
+          .map((x) => [path.basename(x.b), x])
+          .sort(([a], [b]) => (a < b ? -1 : 1)),
+      );
     const dirs = run2(['diff', 'a', 'b', '--out', 'out', '--json'], opts);
     assert.equal(dirs.native.code, 0, dirs.native.stderr);
     const dirsSeen = { code: dirs.native.code, byFile: byFile(dirs.native), extra: dirs.native.extra };
@@ -549,8 +770,13 @@ describe('browser: diff', { skip: skipReason() }, () => {
     const nums = byFile(dirs.native);
     assert.equal(nums['same.png'].diff, 0);
     // The fixtures must exercise the comparison: differences found, and some of them only as anti-aliasing or below the threshold.
-    console.log(`      diff pixels: ${Object.entries(nums).map(([f, n]) => `${f.replace('.png', '')} ${n.diff}`).join(', ')}`);
-    for (const changed of ['tint.png', 'dark.png', 'noise.png', 'alpha.png', 'alpha-both.png', 'size.png', 'text.png']) assert.ok(nums[changed].diff > 0, `${changed}: ${JSON.stringify(nums[changed])}`);
+    console.log(
+      `      diff pixels: ${Object.entries(nums)
+        .map(([f, n]) => `${f.replace('.png', '')} ${n.diff}`)
+        .join(', ')}`,
+    );
+    for (const changed of ['tint.png', 'dark.png', 'noise.png', 'alpha.png', 'alpha-both.png', 'size.png', 'text.png'])
+      assert.ok(nums[changed].diff > 0, `${changed}: ${JSON.stringify(nums[changed])}`);
     assert.equal(nums['size.png'].sizeChanged, '20x10 -> 24x14');
 
     // Text output: most changed first, default output folder b/_diff.
@@ -575,7 +801,11 @@ describe('browser: diff', { skip: skipReason() }, () => {
     ]) {
       // The recorded Node CLI printed the page's stack line after "Error: cannot decode image".
       const normalize = (t) => t.replace(/\n {4}at img\.onerror \(<anonymous>:\d+:\d+\)/g, '');
-      const r = run2(args, { ...opts, normalize, after: ({ root }) => ({ ...pixels(path.join(root, 'x')), ...pixels(path.join(root, 'b')) }) });
+      const r = run2(args, {
+        ...opts,
+        normalize,
+        after: ({ root }) => ({ ...pixels(path.join(root, 'x')), ...pixels(path.join(root, 'b')) }),
+      });
       same(r, { stderr: true });
     }
   });
@@ -591,7 +821,8 @@ describe('browser: shoot', { skip: skipReason() || CHROME }, () => {
       images: true,
       timeout: 180_000,
       setup: (root) => fs.writeFileSync(path.join(root, 'page.html'), PAGE),
-      after: ({ root }) => Object.fromEntries(Object.entries(pixels(root)).map(([file, info]) => [file, info.error ? info : `${info.width}x${info.height}`])),
+      after: ({ root }) =>
+        Object.fromEntries(Object.entries(pixels(root)).map(([file, info]) => [file, info.error ? info : `${info.width}x${info.height}`])),
     });
     // Compared: exit code, stdout, the names of the files written, and that every PNG decodes
     // to the recorded width and height. Not compared: the pixels (two runs of a browser may
@@ -605,7 +836,11 @@ describe('browser: shoot', { skip: skipReason() || CHROME }, () => {
     const all = shoot(['--out', 'shots/page.png']);
     assert.equal(all.code, 0, all.stderr);
     assert.equal(all.stdout, 'ok   shots/page__desktop.png\nok   shots/page__tablet.png\nok   shots/page__mobile.png\n');
-    assert.deepEqual(all.extra, { 'shots/page__desktop.png': '1440x1620', 'shots/page__tablet.png': '834x1620', 'shots/page__mobile.png': '390x1620' });
+    assert.deepEqual(all.extra, {
+      'shots/page__desktop.png': '1440x1620',
+      'shots/page__tablet.png': '834x1620',
+      'shots/page__mobile.png': '390x1620',
+    });
 
     const viewport = shoot(['--bp', 'desktop', '--viewport', '--out', 'view-{bp}.png']);
     assert.deepEqual(viewport.extra, { 'view-desktop.png': '1440x900' });
@@ -637,7 +872,7 @@ describe('browser: shoot', { skip: skipReason() || CHROME }, () => {
     const stall = net.createServer(() => {});
     await new Promise((r) => stall.listen(0, '127.0.0.1', r));
     const until = async (done, ms = 15_000) => {
-      for (const end = Date.now() + ms; Date.now() < end; ) {
+      for (const end = Date.now() + ms; Date.now() < end;) {
         if (done()) return true;
         await new Promise((r) => setTimeout(r, 50));
       }
@@ -648,10 +883,24 @@ describe('browser: shoot', { skip: skipReason() || CHROME }, () => {
         const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'dfw-golden-kill-')));
         const profiles = () => fs.readdirSync(tmp).filter((f) => f.startsWith('dfw-browser-'));
         const browsers = () => spawnSync('pgrep', ['-f', `user-data-dir=${tmp}/dfw-browser-`], { encoding: 'utf8' }).stdout.trim();
-        const dfw = spawn(nativeBinary(), ['shoot', '--root', tmp, '--url', `http://127.0.0.1:${stall.address().port}/`, '--bp', 'desktop', '--out', path.join(tmp, 'never.png')], {
-          env: { ...process.env, TMPDIR: tmp, DFW_HOME: path.join(tmp, 'home'), DFW_PLUGIN_ROOT: path.join(REPO, 'core') },
-          stdio: 'ignore',
-        });
+        const dfw = spawn(
+          nativeBinary(),
+          [
+            'shoot',
+            '--root',
+            tmp,
+            '--url',
+            `http://127.0.0.1:${stall.address().port}/`,
+            '--bp',
+            'desktop',
+            '--out',
+            path.join(tmp, 'never.png'),
+          ],
+          {
+            env: { ...process.env, TMPDIR: tmp, DFW_HOME: path.join(tmp, 'home'), DFW_PLUGIN_ROOT: path.join(REPO, 'core') },
+            stdio: 'ignore',
+          },
+        );
         try {
           assert.ok(await until(() => profiles().length === 1 && browsers() !== ''), 'the browser started');
           dfw.kill(signal);
@@ -671,11 +920,25 @@ describe('browser: shoot', { skip: skipReason() || CHROME }, () => {
   test('screens of the design, served by a running Studio', () => {
     const project = path.join(REPO, 'tests', 'fixtures', 'penpot', 'project');
     const studio = (root, tmp, sub) => {
-      const env = { ...process.env, DFW_HOME: path.join(tmp, 'home', 'dfw-home'), DFW_PLUGIN_ROOT: path.join(REPO, 'core'), CLAUDE_PROJECT_DIR: root, DFW_NOW: NOW };
-            const r = spawnSync(nativeBinary(), ['studio', sub], { cwd: root, env, encoding: 'utf8', timeout: 30_000 });
+      const env = {
+        ...process.env,
+        DFW_HOME: path.join(tmp, 'home', 'dfw-home'),
+        DFW_PLUGIN_ROOT: path.join(REPO, 'core'),
+        CLAUDE_PROJECT_DIR: root,
+        DFW_NOW: NOW,
+      };
+      const r = spawnSync(nativeBinary(), ['studio', sub], { cwd: root, env, encoding: 'utf8', timeout: 30_000 });
       assert.equal(r.status, 0, r.stderr);
     };
-    for (const flags of [[], ['--page', 'stock', '--bp', 'mobile', '--viewport'], ['--screen', 'items', '--variant', 'a', '--states', '--themes', '--bp', 'desktop'], ['--system'], ['--selector', 'body', '--bp', 'mobile'], ['--screen', 'nope'], ['--page', 'nope']]) {
+    for (const flags of [
+      [],
+      ['--page', 'stock', '--bp', 'mobile', '--viewport'],
+      ['--screen', 'items', '--variant', 'a', '--states', '--themes', '--bp', 'desktop'],
+      ['--system'],
+      ['--selector', 'body', '--bp', 'mobile'],
+      ['--screen', 'nope'],
+      ['--page', 'nope'],
+    ]) {
       const r = run2(['shoot', ...flags], {
         project,
         state: MINIMAL_STATE,
@@ -683,7 +946,12 @@ describe('browser: shoot', { skip: skipReason() || CHROME }, () => {
         setup: (root, tmp) => studio(root, tmp, 'start'),
         after: ({ root, tmp }) => {
           studio(root, tmp, 'stop');
-          return Object.fromEntries(Object.entries(pixels(path.join(root, '.dfw', 'shots'))).map(([file, info]) => [file, info.error ? info : `${info.width}x${info.height}`]));
+          return Object.fromEntries(
+            Object.entries(pixels(path.join(root, '.dfw', 'shots'))).map(([file, info]) => [
+              file,
+              info.error ? info : `${info.width}x${info.height}`,
+            ]),
+          );
         },
       });
       // Compared: exit code, stdout, stderr, the files written and their decoded sizes.

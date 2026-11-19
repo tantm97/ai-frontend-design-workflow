@@ -8,7 +8,6 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
-
 function fakePenpot() {
   let ids = 0;
   const shape = (type) => {
@@ -32,13 +31,26 @@ function fakePenpot() {
     p.findCommentThreads = async () => p.threads;
     return p;
   };
-  const file = { id: 'file-1', name: 'Fixture', pages: [], _data: {}, setPluginData: (k, v) => (file._data[k] = v), getPluginData: (k) => file._data[k] || '' };
+  const file = {
+    id: 'file-1',
+    name: 'Fixture',
+    pages: [],
+    _data: {},
+    setPluginData: (k, v) => (file._data[k] = v),
+    getPluginData: (k) => file._data[k] || '',
+  };
   let current = null;
   const sent = [];
   const penpot = {
     ui: { open() {}, onMessage: (fn) => (penpot.handler = fn), sendMessage: (m) => sent.push(m) },
     currentFile: file,
-    library: { local: { components: [], tokens: { sets: [], themes: [] }, createComponent: () => ({ setPluginData() {}, mainInstance: () => null }) } },
+    library: {
+      local: {
+        components: [],
+        tokens: { sets: [], themes: [] },
+        createComponent: () => ({ setPluginData() {}, mainInstance: () => null }),
+      },
+    },
     fonts: { findByName: () => null },
     createPage: () => {
       const p = page('');
@@ -72,7 +84,23 @@ const exportDoc = (id, label) => ({
   schema: 'dfw-penpot-export/1',
   id,
   components: [],
-  pages: [{ title: 'Stock', boards: [{ key: 'items|a|desktop', name: 'items / desktop', x: 0, y: 0, width: 800, height: 600, background: { color: '#ffffff', opacity: 1 }, layers: [{ path: '0', name: label, kind: 'rect', x: 10, y: 10, w: 100, h: 40 }] }] }],
+  pages: [
+    {
+      title: 'Stock',
+      boards: [
+        {
+          key: 'items|a|desktop',
+          name: 'items / desktop',
+          x: 0,
+          y: 0,
+          width: 800,
+          height: 600,
+          background: { color: '#ffffff', opacity: 1 },
+          layers: [{ path: '0', name: label, kind: 'rect', x: 10, y: 10, w: 100, h: 40 }],
+        },
+      ],
+    },
+  ],
 });
 
 test('penpot plugin: Update boards redraws a board in place, so its comment threads stay', async () => {
@@ -85,7 +113,10 @@ test('penpot plugin: Update boards redraws a board in place, so its comment thre
   assert.equal(p.file.pages.length, 1);
   assert.equal(p.file.pages[0].root.children.length, 1);
   assert.equal(p.file.pages[0].root.children[0], board);
-  assert.deepEqual(board.children.map((c) => [c.name, c.x]), [['new', 510]]);
+  assert.deepEqual(
+    board.children.map((c) => [c.name, c.x]),
+    [['new', 510]],
+  );
   assert.equal(JSON.parse(board.getPluginData('dfw-board')).exportId, 'px_2');
 });
 
@@ -95,13 +126,25 @@ test('penpot plugin: live threads are the ones on dfw boards; replies are posted
   const page = p.file.pages[0];
   const board = page.root.children[0];
   const posted = [];
-  const mk = (seq, onBoard) => ({ seqNumber: seq, resolved: false, board: onBoard ? board : null, position: { x: 30, y: 40 }, findComments: async () => [{ content: `c${seq}`, user: { name: 'Designer' } }], reply: async (text) => posted.push([seq, text]) });
+  const mk = (seq, onBoard) => ({
+    seqNumber: seq,
+    resolved: false,
+    board: onBoard ? board : null,
+    position: { x: 30, y: 40 },
+    findComments: async () => [{ content: `c${seq}`, user: { name: 'Designer' } }],
+    reply: async (text) => posted.push([seq, text]),
+  });
   page.threads = [mk(1, true), mk(2, false)];
   const live = await p.send({ type: 'threads' });
   assert.deepEqual([live.data.fileId, live.data.exportId, live.data.threads.map((t) => t.seq)], ['file-1', 'px_1', [1]]);
   assert.equal(live.data.threads[0].boardKey, 'items|a|desktop');
-  const r = await p.send({ type: 'reply', replies: [{ seq: 1, key: 'k1', text: '[dfw] fb_001 fixed: done' }, { seq: 9, key: 'k9', text: 'gone' }] });
+  const r = await p.send({
+    type: 'reply',
+    replies: [
+      { seq: 1, key: 'k1', text: '[dfw] fb_001 fixed: done' },
+      { seq: 9, key: 'k9', text: 'gone' },
+    ],
+  });
   assert.deepEqual(r.done, [{ seq: 1, key: 'k1' }]);
   assert.deepEqual(posted, [[1, '[dfw] fb_001 fixed: done']]);
 });
-

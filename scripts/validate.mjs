@@ -20,7 +20,9 @@ const mp = readJson(path.join(REPO_ROOT, '.claude-plugin', 'marketplace.json'));
 for (const file of [path.join('.claude-plugin', 'marketplace.json'), path.join('.github', 'plugin', 'marketplace.json')]) {
   const m = readJson(path.join(REPO_ROOT, file));
   for (const p of m.plugins) {
-    const pj = [path.join(p.source, '.claude-plugin', 'plugin.json'), path.join(p.source, 'plugin.json')].map((f) => path.join(REPO_ROOT, f)).find((f) => fs.existsSync(f));
+    const pj = [path.join(p.source, '.claude-plugin', 'plugin.json'), path.join(p.source, 'plugin.json')]
+      .map((f) => path.join(REPO_ROOT, f))
+      .find((f) => fs.existsSync(f));
     if (!pj) errors.push(`${file} lists ${p.name} but ${p.source} has no plugin manifest`);
     else if (readJson(pj).name !== p.name) errors.push(`${p.source}: plugin manifest name differs from ${file} entry ${p.name}`);
   }
@@ -32,12 +34,16 @@ for (const l of registry.local || []) {
   const spec = readJson(path.join(REPO_ROOT, 'adapters', l.adapter, 'assemble.json'));
   const dir = path.join(REPO_ROOT, 'plugins', spec.plugin);
   for (const sub of ['skills', 'agents']) {
-    const walk = (d) => (fs.existsSync(d) ? fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)])) : []);
+    const walk = (d) =>
+      fs.existsSync(d)
+        ? fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]))
+        : [];
     for (const f of walk(path.join(dir, sub)).filter((f) => f.endsWith('.md'))) {
       const t = fs.readFileSync(f, 'utf8');
       const left = t.match(/\{\{(SKILL_DIR|ASK_TOOL|BACKGROUND|HOST_NAME|HOST_SETTINGS|DFW_CLI|INVOKE_SKILL)\}\}/);
       if (left) errors.push(`${path.relative(REPO_ROOT, f)}: unrendered ${left[0]}`);
-      if (spec.host !== 'claude' && /CLAUDE_SKILL_DIR|AskUserQuestion/.test(t)) errors.push(`${path.relative(REPO_ROOT, f)}: Claude Code-only wording in the ${spec.host} plugin`);
+      if (spec.host !== 'claude' && /CLAUDE_SKILL_DIR|AskUserQuestion/.test(t))
+        errors.push(`${path.relative(REPO_ROOT, f)}: Claude Code-only wording in the ${spec.host} plugin`);
     }
   }
 }
@@ -52,9 +58,11 @@ for (const s of registry.skills) {
   if (!/^[0-9a-f]{40}$/.test(entry.sha)) errors.push(`${s.id}: lock sha must be a full commit sha`);
   const up = path.join(REPO_ROOT, 'plugins', s.plugin, 'UPSTREAM.json');
   if (!fs.existsSync(up)) errors.push(`${s.plugin}: not built (run npm run build)`);
-  else if (readJson(up).sha !== entry.sha) errors.push(`${s.plugin}: built from ${readJson(up).sha.slice(0, 7)} but lock says ${entry.sha.slice(0, 7)} (run npm run build)`);
+  else if (readJson(up).sha !== entry.sha)
+    errors.push(`${s.plugin}: built from ${readJson(up).sha.slice(0, 7)} but lock says ${entry.sha.slice(0, 7)} (run npm run build)`);
 }
-for (const id of Object.keys(lock.skills)) if (!registry.skills.some((s) => s.id === id)) warnings.push(`lock has "${id}" which is not in the registry`);
+for (const id of Object.keys(lock.skills))
+  if (!registry.skills.some((s) => s.id === id)) warnings.push(`lock has "${id}" which is not in the registry`);
 
 // 3. dfw's references to other plugins and files.
 // Vendored knowledge files: pinned, unmodified upstream text plus its license.
@@ -67,7 +75,8 @@ for (const k of registry.knowledge || []) {
   }
   const text = fs.readFileSync(f, 'utf8');
   const body = unwrap(text);
-  if (body == null || createHash('sha256').update(body).digest('hex') !== k.sha256) errors.push(`knowledge ${k.id}: ${k.dest} differs from the pinned upstream text (do not edit it; npm run knowledge -- sync)`);
+  if (body == null || createHash('sha256').update(body).digest('hex') !== k.sha256)
+    errors.push(`knowledge ${k.id}: ${k.dest} differs from the pinned upstream text (do not edit it; npm run knowledge -- sync)`);
   if (!/## License/.test(text)) errors.push(`knowledge ${k.id}: license section missing`);
 }
 
@@ -76,9 +85,16 @@ const versions = versionMismatch();
 if (versions) errors.push(versions);
 // The crate list of THIRD_PARTY_NOTICES.md covers exactly native/Cargo.lock.
 {
-  const lock = lockPackages(fs.readFileSync(path.join(REPO_ROOT, 'native', 'Cargo.lock'), 'utf8')).map((p) => `${p.name} ${p.version}`).sort();
-  const listed = readJson(path.join(REPO_ROOT, 'native', 'crate-licenses.json')).crates.map((c) => `${c.name} ${c.version}`).sort();
-  if (JSON.stringify(lock) !== JSON.stringify(listed)) errors.push('native/crate-licenses.json does not list exactly the crates of native/Cargo.lock: run node scripts/crate-licenses.mjs, then npm run build');
+  const lock = lockPackages(fs.readFileSync(path.join(REPO_ROOT, 'native', 'Cargo.lock'), 'utf8'))
+    .map((p) => `${p.name} ${p.version}`)
+    .sort();
+  const listed = readJson(path.join(REPO_ROOT, 'native', 'crate-licenses.json'))
+    .crates.map((c) => `${c.name} ${c.version}`)
+    .sort();
+  if (JSON.stringify(lock) !== JSON.stringify(listed))
+    errors.push(
+      'native/crate-licenses.json does not list exactly the crates of native/Cargo.lock: run node scripts/crate-licenses.mjs, then npm run build',
+    );
 }
 
 errors.push(...xrefCheck());
@@ -97,16 +113,24 @@ for (const p of mp.plugins) {
     const text = fs.readFileSync(f, 'utf8');
     if (!/^---\r?\n(?:[\s\S]*?\n)?name:\s*\S+/.test(text)) errors.push(`${p.name}/${d}/SKILL.md: missing name`);
     if (!/\ndescription:\s*\S/.test(text)) errors.push(`${p.name}/${d}/SKILL.md: missing description`);
-    if (/\ndisable-model-invocation:\s*true/.test(text)) warnings.push(`${p.name}/${d}: disable-model-invocation is set; dfw cannot delegate to it`);
+    if (/\ndisable-model-invocation:\s*true/.test(text))
+      warnings.push(`${p.name}/${d}: disable-model-invocation is set; dfw cannot delegate to it`);
     const kb = Buffer.byteLength(text) / 1024;
-    if (kb > 48) warnings.push(`${p.name}/${d}/SKILL.md is ${kb.toFixed(0)} KB (~${Math.round((kb * 1024) / 4 / 1000)}k tokens) when loaded`);
+    if (kb > 48)
+      warnings.push(`${p.name}/${d}/SKILL.md is ${kb.toFixed(0)} KB (~${Math.round((kb * 1024) / 4 / 1000)}k tokens) when loaded`);
   }
 }
 // 6. Conflict lint (warnings).
 const lint = conflictLint();
 const byRule = {};
 for (const h of lint) (byRule[h.rule] ||= []).push(h);
-for (const [rule, list] of Object.entries(byRule)) warnings.push(`conflict-lint ${rule}: ${list.length} line(s), e.g. ${list.slice(0, 2).map((h) => `${h.plugin}/${h.file}:${h.line}`).join(', ')} (${list[0].note})`);
+for (const [rule, list] of Object.entries(byRule))
+  warnings.push(
+    `conflict-lint ${rule}: ${list.length} line(s), e.g. ${list
+      .slice(0, 2)
+      .map((h) => `${h.plugin}/${h.file}:${h.line}`)
+      .join(', ')} (${list[0].note})`,
+  );
 
 // 7. Claude Code's own validator when installed.
 const claude = spawnSync('claude', ['plugin', 'validate', REPO_ROOT], { encoding: 'utf8' });
