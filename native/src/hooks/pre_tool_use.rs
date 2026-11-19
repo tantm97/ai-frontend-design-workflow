@@ -4,9 +4,7 @@
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::LazyLock;
 
-use regex::Regex;
 use serde_json::{json, Value};
 
 use crate::core::config::load_config;
@@ -15,18 +13,65 @@ use crate::core::host::{HookInput, HookResult};
 use crate::core::js;
 use crate::core::paths::{env_nonempty, find_project_root, project_paths, resolve};
 use crate::core::util::{now_iso, write_json};
+use crate::design::html::{Attr, Quote, Token, Tokenizer};
 use crate::workflow::gates::{decide_write, files_from_tool_input, relative};
 use crate::workflow::state::load_state;
 
-// Compiled once: the hook runs on every tool call.
-// `\b` of JavaScript is ASCII. Either quote (JS: a back-reference to the opening one).
-static ELEMENT_ID: LazyLock<Option<Regex>> = LazyLock::new(|| {
-    Regex::new(r#"(?:data-dfw-id|<dfw-use(?-u:\b)[^>]*?(?-u:\b)id)=(?:"([^"']+)"|'([^"']+)')"#).ok()
-});
-// Ids inside HTML comments are not elements: blank them (same length, so offsets hold).
-// An unclosed comment runs to the end.
-static COMMENT: LazyLock<Option<Regex>> =
-    LazyLock::new(|| Regex::new(r"(?s)<!--.*?(?:-->|$)").ok());
+/// An element id as the regular expression of Node found it
+/// (`(?:data-dfw-id|<dfw-use\b[^>]*?\bid)=(?:"([^"']+)"|'([^"']+)')`): where that match
+/// started and ended, and the id.
+struct IdAt {
+    start: usize,
+    end: usize,
+    id: String,
+}
+
+/// The value of `name="v"` or `name='v'` written without spaces around `=`, when it is not
+/// empty and holds no quote (what `[^"']+` accepted).
+fn quoted_id(src: &str, attr: &Attr) -> Option<String> {
+    let value = attr.value.clone()?;
+    let quoted = matches!(attr.quote, Quote::Double | Quote::Single);
+    let value = (quoted && value.start == attr.name.end + 2).then(|| &src[value])?;
+    (!value.is_empty() && !value.contains(['"', '\''])).then(|| value.to_string())
+}
+
+/// The element ids of a design file in source order, read with the tokenizer: ids in comments
+/// are not elements, and a comment that never closes hides the rest of the file. On a
+/// `<dfw-use>` the first `id` (or `*-id`) attribute names the instance, as the Node pattern
+/// matched from the `<`; on every element `data-dfw-id` names it.
+fn element_ids(src: &str) -> Vec<IdAt> {
+    let mut out = Vec::new();
+    for token in Tokenizer::new(src) {
+        let tag = match token {
+            Token::Text(range) if src[range.clone()].starts_with("<!--") => break,
+            Token::Open(tag) => tag,
+            _ => continue,
+        };
+        let mut instance = tag.name(src) == "dfw-use";
+        for attr in &tag.attrs {
+            let name = &src[attr.name.clone()];
+            let own = name.ends_with("data-dfw-id");
+            if !(own || (instance && (name == "id" || name.ends_with("-id")))) {
+                continue;
+            }
+            let Some(id) = quoted_id(src, attr) else {
+                continue;
+            };
+            let start = if own {
+                attr.span.start
+            } else {
+                tag.range.start
+            };
+            instance = false;
+            out.push(IdAt {
+                start,
+                end: attr.span.end,
+                id,
+            });
+        }
+    }
+    out
+}
 
 /// The session's working directory from the payload, else the process's. A `cwd` that is not
 /// text is an error, as Node cannot resolve a path against it.
@@ -112,25 +157,14 @@ pub fn note_presence(
     let mut dfw_id = None;
     if !old.is_empty() && rel.ends_with(".html") && abs_file.exists() {
         let text = String::from_utf8_lossy(&fs::read(abs_file)?).into_owned();
-        let (Some(id), Some(comment)) = (ELEMENT_ID.as_ref(), COMMENT.as_ref()) else {
-            return Err(DfwError::internal("the presence patterns do not compile"));
-        };
-        let blank = |s: &str| -> String {
-            comment
-                .replace_all(s, |c: &regex::Captures| " ".repeat(c[0].len()))
-                .into_owned()
-        };
         if let Some(at) = text.find(&old) {
-            let name = |c: regex::Captures| {
-                c.get(1)
-                    .or_else(|| c.get(2))
-                    .map(|m| m.as_str().to_string())
-            };
-            let within = id.captures(&blank(&old)).and_then(name);
-            dfw_id = within.or_else(|| {
-                let blanked = blank(&text);
-                id.captures_iter(&blanked[..at]).last().and_then(name)
-            });
+            let ids = element_ids(&text);
+            let end = at + old.len();
+            dfw_id = ids
+                .iter()
+                .find(|m| m.start >= at && m.end <= end)
+                .or_else(|| ids.iter().rev().find(|m| m.end <= at))
+                .map(|m| m.id.clone());
         }
     }
     let note = json!({ "file": rel, "dfwId": dfw_id, "at": now_iso() });
@@ -216,5 +250,16 @@ mod tests {
             note_presence(&root, &json!({}), &dots).unwrap().unwrap()["file"],
             "..x.html"
         );
+    }
+
+    /// The ids the Node pattern read, now read from tags: the first `id` of an instance, every
+    /// `data-dfw-id`, no empty or quoted values, nothing after an unclosed comment.
+    #[test]
+    fn element_ids_read_like_the_node_pattern() {
+        let src = "<dfw-use c=\"x\" id=\"\" data-id=\"a\" id=\"b\" data-dfw-id='c'><p data-dfw-id=\"it's\" data-dfw-id = \"sp\" data-dfw-id=\"d\">p</p><!-- <i data-dfw-id=\"e\"> --><b data-dfw-id=\"f\"></b><!-- <i data-dfw-id=\"g\">";
+        let ids: Vec<String> = element_ids(src).into_iter().map(|m| m.id).collect();
+        assert_eq!(ids, ["a", "c", "d", "f"]);
+        let first = &element_ids(src)[0];
+        assert_eq!((first.start, &src[first.end - 4..first.end]), (0, "=\"a\""));
     }
 }
