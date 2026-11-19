@@ -93,6 +93,10 @@ function run(args, opts = {}) {
       CLAUDE_PROJECT_DIR: root,
       DFW_PLUGIN_ROOT: path.join(REPO, 'core'),
       TMPDIR: path.join(tmp, 'tmp'),
+      // Where a browser on Linux keeps its own caches and settings (fontconfig, crash reports,
+      // the NSS database): outside the recorded home, so only what dfw writes is compared.
+      XDG_CACHE_HOME: path.join(tmp, 'xdg', 'cache'),
+      XDG_DATA_HOME: path.join(tmp, 'xdg', 'data'),
       ...(opts.env ? opts.env(tmp) : {}),
     });
     const list = typeof args === 'function' ? args(root, tmp) : args;
@@ -378,6 +382,13 @@ fi
 echo "done: $*"
 `;
 
+/**
+ * The machine's own tools the doctor reports, made the same on every machine: python3 prints the
+ * version the recording was made with, and the browser is a file named by DFW_BROWSER (the doctor
+ * only looks for it), so neither the runner's Python nor where its Chrome lives reaches the output.
+ */
+const FAKE_PYTHON = '#!/bin/sh\necho "Python 3.9.6"\n';
+
 /** Options for run2: the fake CLIs first on a PATH without anything else of the user's. */
 function withFakes({ env = {}, setup, ...rest } = {}) {
   for (const dir of ['/usr/bin', '/bin'])
@@ -390,9 +401,18 @@ function withFakes({ env = {}, setup, ...rest } = {}) {
       const bin = path.join(tmp, 'fakebin');
       fs.mkdirSync(bin);
       for (const cli of ['claude', 'copilot']) fs.writeFileSync(path.join(bin, cli), FAKE_CLI, { mode: 0o755 });
+      fs.writeFileSync(path.join(bin, 'python3'), FAKE_PYTHON, { mode: 0o755 });
+      fs.writeFileSync(path.join(bin, 'chrome'), '');
       setup?.(root, tmp);
     },
-    env: (tmp) => ({ PATH: `${path.join(tmp, 'fakebin')}:/usr/bin:/bin`, FAKE_LOG: path.join(tmp, 'calls.log'), FAKE_LIST: '[]', ...env }),
+    env: (tmp) => ({
+      PATH: `${path.join(tmp, 'fakebin')}:/usr/bin:/bin`,
+      DFW_BROWSER: path.join(tmp, 'fakebin', 'chrome'),
+      CHROME_PATH: '',
+      FAKE_LOG: path.join(tmp, 'calls.log'),
+      FAKE_LIST: '[]',
+      ...env,
+    }),
     // What the binary says about itself (the recorded Node CLI said "on Node <version>").
     normalize: (t) => t.replace(/· dfw binary/, '· dfw <runtime>').replace(/^(\s*ok {3}dfw runtime) - .*$/m, '$1 - <runtime>'),
     after: ({ tmp, normalize }) => ({
@@ -812,6 +832,8 @@ describe('browser: diff', { skip: skipReason() }, () => {
 });
 
 describe('browser: shoot', { skip: skipReason() || CHROME }, () => {
+  // The browser's settings folder too (crash reports on Linux); dfw's own is DFW_HOME.
+  const browserConfig = (tmp) => ({ XDG_CONFIG_HOME: path.join(tmp, 'xdg', 'config') });
   const PAGE = `<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;background:#fff;font:16px sans-serif}#card{width:200px;height:80px;background:#d03030;margin:20px}.tall{height:1500px;background:linear-gradient(#fff,#ccd)}</style></head>
 <body><div id="card">Card</div><div class="tall"></div></body></html>`;
   /** `dfw shoot --url <the local page> ...flags`; .extra is the decoded size of every PNG written. */
@@ -820,6 +842,7 @@ describe('browser: shoot', { skip: skipReason() || CHROME }, () => {
       state: null,
       images: true,
       timeout: 180_000,
+      env: browserConfig,
       setup: (root) => fs.writeFileSync(path.join(root, 'page.html'), PAGE),
       after: ({ root }) =>
         Object.fromEntries(Object.entries(pixels(root)).map(([file, info]) => [file, info.error ? info : `${info.width}x${info.height}`])),
@@ -943,6 +966,7 @@ describe('browser: shoot', { skip: skipReason() || CHROME }, () => {
         project,
         state: MINIMAL_STATE,
         timeout: 180_000,
+        env: browserConfig,
         setup: (root, tmp) => studio(root, tmp, 'start'),
         after: ({ root, tmp }) => {
           studio(root, tmp, 'stop');
@@ -956,7 +980,15 @@ describe('browser: shoot', { skip: skipReason() || CHROME }, () => {
       });
       // Compared: exit code, stdout, stderr, the files written and their decoded sizes.
       const now = { code: r.native.code, stdout: r.native.stdout, stderr: r.native.stderr, extra: r.native.extra };
-      assert.deepEqual(now, expected(now), flags.join(' '));
+      const want = expected(now);
+      // The Design System page is long text: its full-page height follows the platform's fonts
+      // (macOS and Linux differ by a pixel). Its width and every other size compare exactly.
+      for (const [file, size] of Object.entries(now.extra)) {
+        const [w, h] = String(size).split('x').map(Number);
+        const [ww, wh] = String(want.extra?.[file]).split('x').map(Number);
+        if (file.startsWith('v1/_system__') && w === ww && Math.abs(h - wh) <= 8) now.extra[file] = want.extra[file];
+      }
+      assert.deepEqual(now, want, flags.join(' '));
       assert.deepEqual(r.native.leftovers, []);
       if (!flags.length) {
         assert.equal(r.native.stdout, 'ok   .dfw/shots/v1/items__a__desktop.png\nok   .dfw/shots/v1/items__a__mobile.png\n');

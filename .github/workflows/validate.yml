@@ -56,7 +56,8 @@ jobs:
         run: cargo build
       - name: Unit tests
         working-directory: native
-        run: cargo test
+        # Every test binary runs, so one red run shows every failure of the platform.
+        run: cargo test --no-fail-fast
       - name: Clippy (tests included)
         working-directory: native
         run: cargo clippy --all-targets -- -D warnings

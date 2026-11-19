@@ -84,10 +84,16 @@ fn dfw_command(root: &Path, args: &[&str]) -> Command {
         "CLAUDE_ENV_FILE",
         "DFW_NOW",
         "XDG_CONFIG_HOME",
+        "IMPECCABLE_BIN",
+        "IMPECCABLE_HOME",
     ] {
         cmd.env_remove(name);
     }
+    // An empty user home: no engine or tool the machine has installed is found.
+    let user_home = root.join(".user");
     cmd.env("DFW_HOME", root.join(".home"))
+        .env("HOME", &user_home)
+        .env("USERPROFILE", &user_home)
         .env("DFW_PLUGIN_ROOT", repo().join("core"));
     cmd
 }
@@ -389,10 +395,16 @@ fn cli_init_gates_approve_g2_blocked_by_must_findings() {
         screen("<img src=\"x.png\" alt=\"\" data-dfw-id=\"hero.img\">"),
     )
     .unwrap();
-    // axe is not downloaded in this home: the freeze needs the user's acceptance (recorded).
+    // Neither axe nor the Impeccable engine is downloaded in these empty homes: the freeze needs
+    // the user's acceptance (recorded), and both are reported as not verified.
     fails(&["approve", "G2", "--note", "v1"], "--accept-unverified");
     let frozen = ok(&["approve", "G2", "--note", "v1", "--accept-unverified"]);
-    assert!(frozen.contains("Design frozen as v1") && frozen.contains("NOT VERIFIED: axe"));
+    assert!(frozen.contains("Design frozen as v1"), "{frozen}");
+    assert!(
+        frozen.contains("NOT VERIFIED: impeccable (Engine not downloaded yet")
+            && frozen.contains("; axe (axe-core not downloaded"),
+        "{frozen}"
+    );
     fails(&["phase", "implement"], "G3");
     ok(&["stack", "set", "--json", r#"{"framework":{"name":"Vue"}}"#]);
     ok(&["approve", "G3", "--note", "Vue 3 + plain CSS"]);
