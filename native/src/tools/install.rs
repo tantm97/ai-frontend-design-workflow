@@ -5,9 +5,8 @@
 
 use std::env;
 use std::fs;
-use std::io;
 use std::path::Path;
-use std::process::Stdio;
+use std::time::Duration;
 
 use serde_json::Value;
 
@@ -19,7 +18,7 @@ use crate::core::error::DfwError;
 use crate::core::host::{get_host, supported_hosts, Host, Status, HOSTS};
 use crate::core::paths::{plugin_root, resolve};
 use crate::core::platform::node_platform;
-use crate::core::process::{command, quote_for_cmd, Spawn};
+use crate::core::process::{quote_for_cmd, run_timed, Ran, Spawn};
 use crate::core::util::{out, plugin_manifest, read_json};
 
 /// The marketplace dfw and its skills are installed from.
@@ -82,29 +81,24 @@ pub fn spawn_plan(bin: &str, args: &[String], platform: &str) -> Spawn {
     }
 }
 
-/// What a finished child left (`spawnSync` with `encoding: 'utf8'`).
-struct Ran {
-    /// The exit code; `None` when a signal ended it.
-    status: Option<i32>,
-    stdout: String,
-    stderr: String,
-}
+/// How long a host CLI call may take: `marketplace add` clones a repository.
+const HOST_CLI_TIMEOUT: Duration = Duration::from_secs(300);
+/// How long `<cli> --version` may take.
+const VERSION_TIMEOUT: Duration = Duration::from_secs(15);
+/// How long dfw's own `check --setup` may take: the engine download has three minutes inside.
+const SELF_TIMEOUT: Duration = Duration::from_secs(600);
 
-fn spawn_sync(bin: &str, args: &[String], env: &[(&str, &Path)]) -> io::Result<Ran> {
+fn spawn_sync(bin: &str, args: &[String], env: &[(&str, &Path)], timeout: Duration) -> Ran {
     let plan = spawn_plan(bin, args, node_platform());
-    let output = command(&plan)
-        .envs(env.iter().copied())
-        .stdin(Stdio::null())
-        .output()?;
-    Ok(Ran {
-        status: output.status.code(),
-        stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
-        stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
-    })
+    let env: Vec<(String, String)> = env
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.display().to_string()))
+        .collect();
+    run_timed(&plan, None, &env, timeout)
 }
 
 fn has_cli(bin: &str) -> bool {
-    spawn_sync(bin, &["--version".to_string()], &[]).is_ok_and(|r| r.status == Some(0))
+    spawn_sync(bin, &["--version".to_string()], &[], VERSION_TIMEOUT).status == Some(0)
 }
 
 /// `marketplaceAction(listOut, source, name)`: what to do with the marketplace in Claude Code,
@@ -206,15 +200,17 @@ struct Runner {
 
 impl Runner {
     fn run(&self, bin: &str, args: &[&str], allow_fail: bool) -> Result<Ran, DfwError> {
-        self.run_env(bin, args, allow_fail, &[])
+        self.run_env(bin, args, allow_fail, &[], HOST_CLI_TIMEOUT)
     }
 
+    /// A timeout is an error also when the call allows a failure: nothing can be read from it.
     fn run_env(
         &self,
         bin: &str,
         args: &[&str],
         allow_fail: bool,
         env: &[(&str, &Path)],
+        timeout: Duration,
     ) -> Result<Ran, DfwError> {
         let line = format!("{bin} {}", args.join(" "));
         if !self.quiet {
@@ -229,18 +225,24 @@ impl Runner {
                 format!("{line} failed:\n{msg}")
             })
         };
-        match spawn_sync(bin, &args, env) {
-            Err(e) if e.kind() == io::ErrorKind::NotFound => {
-                Err(failed(&format!("spawnSync {bin} ENOENT")))
-            }
-            Err(e) => Err(failed(&e.to_string())),
-            Ok(r) if r.status != Some(0) && !allow_fail => Err(failed(if r.stderr.is_empty() {
+        let r = spawn_sync(bin, &args, env, timeout);
+        if let Some(e) = &r.error {
+            return Err(failed(e));
+        }
+        if r.timed_out {
+            return Err(failed(&format!(
+                "no answer after {} s; it was stopped",
+                timeout.as_secs()
+            )));
+        }
+        if r.status != Some(0) && !allow_fail {
+            return Err(failed(if r.stderr.is_empty() {
                 &r.stdout
             } else {
                 &r.stderr
-            })),
-            Ok(r) => Ok(r),
+            }));
         }
+        Ok(r)
     }
 }
 
@@ -433,6 +435,7 @@ pub fn install(opts: &InstallOptions) -> Result<(), DfwError> {
             &["check", "--setup"],
             true,
             &[("CLAUDE_PROJECT_DIR", &tmp)],
+            SELF_TIMEOUT,
         );
         let _ = fs::remove_dir_all(&tmp);
         ran?;
@@ -604,6 +607,23 @@ mod tests {
                 .err()
                 .unwrap();
             assert_eq!(err.message(), "sh -c echo no >&2; exit 3 failed:\nno");
+            // A host CLI that hangs is stopped, also when the call allows a failure.
+            let err = run
+                .run_env(
+                    "sh",
+                    &["-c", "sleep 30"],
+                    true,
+                    &[],
+                    Duration::from_millis(200),
+                )
+                .err()
+                .unwrap();
+            assert!(
+                err.message()
+                    .starts_with("sh -c sleep 30 failed:\nno answer after "),
+                "{}",
+                err.message()
+            );
             assert_eq!(
                 run.run("sh", &["-c", "echo out; exit 3"], true)
                     .unwrap()

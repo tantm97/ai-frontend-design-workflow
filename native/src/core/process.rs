@@ -1,10 +1,16 @@
 //! Child processes: how to start one the way Node's `spawn` does (on Windows through cmd.exe when
-//! asked), whether a recorded pid is still alive, and whether Node.js is on PATH.
+//! asked), how to run one with a deadline, whether a recorded pid is still alive, and whether
+//! Node.js is on PATH.
 //!
 //! std has no kill(2) or OpenProcess, and this crate has no `unsafe`: the system tools (`kill`,
 //! `tasklist`, `taskkill`) answer those questions instead.
 
-use std::process::{Command, Stdio};
+use std::io::Read;
+use std::path::Path;
+use std::process::{Child, Command, Stdio};
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
@@ -50,6 +56,148 @@ pub fn command(plan: &Spawn) -> Command {
     let mut c = Command::new(&plan.cmd);
     c.args(&plan.args);
     c
+}
+
+/// What a finished (or killed) program left behind.
+#[derive(Debug, Default)]
+pub struct Ran {
+    /// The exit code; `None` when a signal ended it, it was killed or it did not start.
+    pub status: Option<i32>,
+    pub stdout: String,
+    pub stderr: String,
+    /// It ran past its deadline and was killed, with everything it started.
+    pub timed_out: bool,
+    /// Why it did not start: `spawnSync <cmd> <error>`.
+    pub error: Option<String>,
+}
+
+/// `spawnSync(cmd, args, { cwd, env: { ...process.env, ...env }, timeout })` with the output as
+/// text: the one way dfw runs an external program and waits for it. A program that runs past
+/// `timeout` is killed together with its children (its process group on Unix, its process tree
+/// on Windows), so a browser that `npx` started does not outlive it.
+pub fn run_timed(
+    plan: &Spawn,
+    cwd: Option<&Path>,
+    env: &[(String, String)],
+    timeout: Duration,
+) -> Ran {
+    let mut child = command(plan);
+    if let Some(cwd) = cwd {
+        child.current_dir(cwd);
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        child.process_group(0);
+    }
+    child
+        .envs(env.iter().map(|(k, v)| (k, v)))
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = match child.spawn() {
+        Ok(child) => child,
+        Err(err) => {
+            let why = if err.kind() == std::io::ErrorKind::NotFound {
+                "ENOENT".to_string()
+            } else {
+                err.to_string()
+            };
+            return Ran {
+                error: Some(format!("spawnSync {} {why}", plan.cmd)),
+                ..Ran::default()
+            };
+        }
+    };
+    // A grandchild can keep a pipe open after the program is gone: the readers fill shared
+    // buffers and are given a moment, not joined for ever.
+    let drain = |pipe: Option<Box<dyn Read + Send>>| {
+        let text = Arc::new(Mutex::new(Vec::new()));
+        let shared = Arc::clone(&text);
+        let reader = thread::spawn(move || {
+            let Some(mut pipe) = pipe else { return };
+            let mut chunk = [0u8; 8192];
+            while let Ok(n) = pipe.read(&mut chunk) {
+                if n == 0 {
+                    break;
+                }
+                if let Ok(mut buf) = shared.lock() {
+                    buf.extend_from_slice(&chunk[..n]);
+                }
+            }
+        });
+        (text, reader)
+    };
+    let (out, out_reader) = drain(
+        child
+            .stdout
+            .take()
+            .map(|p| Box::new(p) as Box<dyn Read + Send>),
+    );
+    let (err, err_reader) = drain(
+        child
+            .stderr
+            .take()
+            .map(|p| Box::new(p) as Box<dyn Read + Send>),
+    );
+    let deadline = Instant::now() + timeout;
+    let mut timed_out = false;
+    let mut status = None;
+    loop {
+        match child.try_wait() {
+            Ok(None) if Instant::now() < deadline => thread::sleep(Duration::from_millis(5)),
+            Ok(None) => {
+                kill_tree(&mut child);
+                timed_out = true;
+                break;
+            }
+            Ok(Some(s)) => {
+                status = s.code();
+                break;
+            }
+            Err(_) => break,
+        }
+    }
+    let settle = Instant::now() + Duration::from_secs(if timed_out { 1 } else { 5 });
+    while !(out_reader.is_finished() && err_reader.is_finished()) && Instant::now() < settle {
+        thread::sleep(Duration::from_millis(2));
+    }
+    let text = |buf: &Mutex<Vec<u8>>| {
+        buf.lock()
+            .map(|b| String::from_utf8_lossy(&b).into_owned())
+            .unwrap_or_default()
+    };
+    Ran {
+        status,
+        stdout: text(&out),
+        stderr: text(&err),
+        timed_out,
+        error: None,
+    }
+}
+
+/// End a child that ran past its deadline and everything it started. On Unix the child leads
+/// its own process group ([`run_timed`] starts it so), and the group is signalled: the one place
+/// dfw sends a signal to a negative pid, a group it made itself (P10 is about pids read from
+/// files). On Windows `taskkill /T` ends the process tree.
+fn kill_tree(child: &mut Child) {
+    let pid = child.id();
+    let mut c = if cfg!(windows) {
+        let mut c = Command::new("taskkill");
+        c.args(["/T", "/F", "/PID", &pid.to_string()]);
+        c
+    } else {
+        let mut c = Command::new("kill");
+        c.args(["-KILL", "--", &format!("-{pid}")]);
+        c
+    };
+    let _ = c
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+    let _ = child.kill();
+    let _ = child.wait();
 }
 
 /// An argument for a cmd.exe command line. `always`: wrapped in quotes as it is
@@ -178,6 +326,58 @@ mod tests {
     #[test]
     fn this_process_is_alive() {
         assert!(is_alive(Some(&json!(std::process::id()))));
+    }
+
+    /// A program past its deadline is killed with what it started: the orphaned `sleep` holds
+    /// stdout open and must neither delay the result nor survive it.
+    #[test]
+    #[cfg(unix)]
+    fn a_timed_out_program_is_killed_with_its_children() {
+        let plan = Spawn::direct("sh", vec!["-c".into(), "sleep 30 & echo $!; wait".into()]);
+        let started = Instant::now();
+        let ran = run_timed(&plan, None, &[], Duration::from_millis(300));
+        assert!(ran.timed_out && ran.status.is_none(), "{ran:?}");
+        assert!(started.elapsed() < Duration::from_secs(3));
+        let grandchild: u64 = ran.stdout.trim().parse().unwrap();
+        let gone = Instant::now() + Duration::from_secs(2);
+        while is_alive(Some(&json!(grandchild))) && Instant::now() < gone {
+            thread::sleep(Duration::from_millis(20));
+        }
+        assert!(
+            !is_alive(Some(&json!(grandchild))),
+            "sleep {grandchild} outlived the timeout"
+        );
+    }
+
+    #[test]
+    fn a_finished_program_gives_its_code_and_output() {
+        let ran = run_timed(
+            &Spawn::direct("dfw-no-such-program", Vec::new()),
+            None,
+            &[],
+            Duration::from_secs(5),
+        );
+        assert_eq!(
+            ran.error.as_deref(),
+            Some("spawnSync dfw-no-such-program ENOENT")
+        );
+        if cfg!(unix) {
+            let plan = Spawn::direct(
+                "sh",
+                vec!["-c".into(), "echo out; echo $X >&2; exit 3".into()],
+            );
+            let env = [("X".to_string(), "err".to_string())];
+            let ran = run_timed(&plan, None, &env, Duration::from_secs(5));
+            assert_eq!(
+                (
+                    ran.status,
+                    ran.stdout.as_str(),
+                    ran.stderr.as_str(),
+                    ran.timed_out
+                ),
+                (Some(3), "out\n", "err\n", false)
+            );
+        }
     }
 
     #[test]

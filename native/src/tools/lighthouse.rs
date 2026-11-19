@@ -4,19 +4,14 @@
 //! npm cache) against the Chrome dfw already uses. Accessibility is left to axe (dfw check).
 //! Error reporting stays off.
 
-use std::io::Read;
 use std::path::Path;
-use std::process::{Command, Stdio};
-use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use serde_json::{json, Value};
 
-use crate::browser::cdp::lock;
 use crate::browser::launch::find_browser;
 use crate::core::js;
-use crate::core::process::node_executable;
+use crate::core::process::{node_executable, run_timed, Spawn};
 
 const LIGHTHOUSE_VERSION: &str = "13.6.0";
 
@@ -52,81 +47,44 @@ pub fn run_lighthouse(url: &str, timeout_ms: u64) -> Value {
         "--only-categories=performance,best-practices,seo".into(),
         "--chrome-flags=--headless=new --no-first-run --no-default-browser-check --disable-features=HttpsUpgrades,HttpsFirstBalancedModeAutoEnable,HttpsFirstModeV2ForTypicallySecureUsers".into(),
     ];
-    let mut command = if cfg!(windows) {
-        let mut c = Command::new("cmd");
-        c.args(["/d", "/s", "/c", npx]);
-        c
+    let plan = if cfg!(windows) {
+        Spawn {
+            cmd: npx.into(),
+            args: args.to_vec(),
+            shell: true,
+        }
     } else {
-        Command::new(npx)
+        Spawn::direct(npx, args.to_vec())
     };
-    command
-        .args(args)
-        .env("CHROME_PATH", &browser.path)
-        .env("NO_UPDATE_NOTIFIER", "1");
-    let (stdout, stderr, error) = run_with_timeout(command, timeout_ms);
+    let env = [
+        (
+            "CHROME_PATH".to_string(),
+            browser.path.display().to_string(),
+        ),
+        ("NO_UPDATE_NOTIFIER".to_string(), "1".to_string()),
+    ];
+    let (stdout, stderr, error) = run_with_timeout(&plan, &env, timeout_ms);
     let detail = if stderr.is_empty() { error } else { stderr };
     lighthouse_report(stdout.as_deref(), url, &detail)
 }
 
 /// `spawnSync(..., { timeout })`: stdout (none when the start failed), stderr, and the error of
-/// a failed start or a timeout.
-fn run_with_timeout(mut command: Command, timeout_ms: u64) -> (Option<String>, String, String) {
-    let spawned = command
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn();
-    let mut child = match spawned {
-        Ok(child) => child,
-        Err(e) => return (None, String::new(), format!("spawnSync npx {e}")),
-    };
-    // A grandchild (the browser Lighthouse started) can keep a pipe open after npx is gone:
-    // the readers fill shared buffers, and are given a moment, not joined for ever.
-    let drain = |mut pipe: Option<Box<dyn Read + Send>>| {
-        let text = Arc::new(Mutex::new(Vec::new()));
-        let shared = Arc::clone(&text);
-        let reader = thread::spawn(move || {
-            let mut chunk = [0u8; 8192];
-            while let Some(n) = pipe
-                .as_mut()
-                .and_then(|p| p.read(&mut chunk).ok())
-                .filter(|n| *n > 0)
-            {
-                lock(&shared).extend_from_slice(&chunk[..n]);
-            }
-        });
-        (text, reader)
-    };
-    let mut child_out = child
-        .stdout
-        .take()
-        .map(|p| Box::new(p) as Box<dyn Read + Send>);
-    let mut child_err = child
-        .stderr
-        .take()
-        .map(|p| Box::new(p) as Box<dyn Read + Send>);
-    let (out, out_reader) = drain(child_out.take());
-    let (err, err_reader) = drain(child_err.take());
-    let deadline = Instant::now() + Duration::from_millis(timeout_ms);
-    let mut error = String::new();
-    loop {
-        match child.try_wait() {
-            Ok(None) if Instant::now() < deadline => thread::sleep(Duration::from_millis(50)),
-            Ok(None) => {
-                let _ = child.kill();
-                let _ = child.wait();
-                error = "spawnSync npx ETIMEDOUT".to_string();
-                break;
-            }
-            _ => break,
-        }
+/// a failed start or a timeout. A timeout ends npx and everything it started.
+fn run_with_timeout(
+    plan: &Spawn,
+    env: &[(String, String)],
+    timeout_ms: u64,
+) -> (Option<String>, String, String) {
+    let ran = run_timed(plan, None, env, Duration::from_millis(timeout_ms));
+    if let Some(error) = ran.error {
+        return (None, String::new(), error);
     }
-    let settle = Instant::now() + Duration::from_secs(2);
-    while !(out_reader.is_finished() && err_reader.is_finished()) && Instant::now() < settle {
-        thread::sleep(Duration::from_millis(10));
-    }
-    let text = |buf: &Mutex<Vec<u8>>| String::from_utf8_lossy(&lock(buf)).into_owned();
-    (Some(text(&out)), text(&err), error)
+    let error = if ran.timed_out {
+        "spawnSync npx ETIMEDOUT".to_string()
+    } else {
+        String::new()
+    };
+    (Some(ran.stdout), ran.stderr, error)
 }
 
 /// `Object.values(value || {})`.
@@ -296,17 +254,17 @@ mod tests {
 
     #[test]
     fn a_run_that_cannot_start_or_takes_too_long_reports_why() {
-        let (stdout, _, error) = run_with_timeout(Command::new("/no/such/npx"), 1000);
+        let missing = Spawn::direct("/no/such/npx", Vec::new());
+        let (stdout, _, error) = run_with_timeout(&missing, &[], 1000);
         assert!(
-            stdout.is_none() && error.starts_with("spawnSync npx "),
+            stdout.is_none() && error == "spawnSync /no/such/npx ENOENT",
             "{error}"
         );
         if cfg!(unix) {
             // The orphaned `sleep` keeps stdout open for 4 s: the result must not wait for it.
-            let mut slow = Command::new("sh");
-            slow.args(["-c", "echo partial; sleep 4"]);
-            let started = Instant::now();
-            let (stdout, _, error) = run_with_timeout(slow, 200);
+            let slow = Spawn::direct("sh", vec!["-c".into(), "echo partial; sleep 4".into()]);
+            let started = std::time::Instant::now();
+            let (stdout, _, error) = run_with_timeout(&slow, &[], 200);
             assert_eq!(
                 (stdout.as_deref(), error.as_str()),
                 (Some("partial\n"), "spawnSync npx ETIMEDOUT")

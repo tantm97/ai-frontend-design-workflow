@@ -17,6 +17,8 @@ use crate::core::util::{to_json_compact, to_json_pretty};
 
 const CFT_URL: &str = "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json";
 const DOWNLOAD_HOST: &str = "storage.googleapis.com";
+/// The archive is about 100 MB: 20 minutes is a slow line, not a hung one.
+const ZIP_TIMEOUT_S: u64 = 20 * 60;
 
 /// Chrome for Testing's name of this platform, or `None` when it has no build for it.
 fn cft_platform() -> Option<&'static str> {
@@ -157,7 +159,7 @@ fn install_from(
         log(&format!(
             "Downloading headless Chrome {version} ({plat}) from {host} ..."
         ));
-        let (landed, zip) = fetch(&from, None)?;
+        let (landed, zip) = fetch(&from, Some(ZIP_TIMEOUT_S))?;
         check(&Value::String(landed))?; // a redirect must stay on the same host
         let extracted = unpack(&zip, &dir);
         if extracted.is_err() || !exe.exists() {

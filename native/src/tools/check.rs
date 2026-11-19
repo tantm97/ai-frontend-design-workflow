@@ -12,20 +12,19 @@
 // over all of them).
 
 mod report;
-mod run;
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use serde_json::{json, Map, Value};
 
 pub use self::report::{check_exit_code, format_report};
-use self::run::{run, Ran};
 use crate::core::config::env_map;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{project_paths, resolve, to_posix};
-use crate::core::process::{node_executable, Spawn};
+use crate::core::process::{node_executable, run_timed, Ran, Spawn};
 use crate::core::util::read_json;
 use crate::design::compose::{build_composed, build_system};
 use crate::design::dsaudit::audit_design_system;
@@ -315,6 +314,11 @@ pub fn run_impeccable(
 
 /// Variables for a tool, on top of this process's environment.
 pub type Env = [(String, String)];
+
+/// A check tool run with its timeout in milliseconds (`checks.timeout`).
+fn run(command: &Spawn, cwd: Option<&Path>, env: &Env, timeout_ms: u64) -> Ran {
+    run_timed(command, cwd, env, Duration::from_millis(timeout_ms))
+}
 
 /// What starting the upstream launcher gave (`dfw check --setup`).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
