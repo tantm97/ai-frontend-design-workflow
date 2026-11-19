@@ -1,11 +1,10 @@
 //! Server commands of `core/lib/cli.mjs`: studio, review (`cmdStudio`, `cmdReview`) and the internal
 //! `__studio-server` and `__review-server` processes they spawn.
 
-use std::fs::{self, OpenOptions};
+use std::fs;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
@@ -15,7 +14,7 @@ use crate::core::config::{load_config, studio_port};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{project_paths, resolve};
-use crate::core::process::{is_alive, kill};
+use crate::core::process::{is_alive, kill, spawn_detached};
 use crate::core::util::{ensure_inside, now_iso, out, read_json, write_json_inside, Args};
 use crate::studio::live_proxy::{
     assert_local_target, configured_shortcut, start_live_server, LiveOptions,
@@ -72,26 +71,7 @@ fn wait_for(port: u16, path: &str) -> Option<String> {
 /// Start this binary again as a detached server process, its output appended to `log`.
 fn spawn_server(args: &[String], log: &Path) -> Result<u32, DfwError> {
     let exe = std::env::current_exe()?;
-    let file = OpenOptions::new().create(true).append(true).open(log)?;
-    let mut cmd = Command::new(exe);
-    cmd.args(args)
-        .stdin(Stdio::null())
-        .stdout(file.try_clone()?)
-        .stderr(file);
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        // Its own process group: closing the terminal or stopping the agent does not stop it.
-        cmd.process_group(0);
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const DETACHED_PROCESS: u32 = 0x0000_0008;
-        const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
-        cmd.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP);
-    }
-    Ok(cmd.spawn()?.id())
+    spawn_detached(&exe, args, Some(log))
 }
 
 /// `Number(flag || fallback)` for a port flag.

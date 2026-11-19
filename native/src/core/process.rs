@@ -396,6 +396,213 @@ pub fn node_executable() -> Option<PathBuf> {
     find_executable("node")
 }
 
+/* ---------------------------------------------------------------- detached processes */
+
+/// Start `exe args` as a process of its own that outlives dfw and that dfw does not wait for
+/// (the Studio and review servers, the telemetry flush), its stdout and stderr appended to
+/// `log` (else discarded). Returns its pid.
+///
+/// On Unix: a process group of its own, so closing the terminal does not stop it.
+///
+/// On Windows every child inherits all of dfw's inheritable handles, among them the pipes of
+/// whoever reads dfw's output (an agent's shell, a test): a server started directly kept them
+/// open, and the caller waited until the server stopped. Clearing the inherit flag needs FFI,
+/// which this crate does not use, so the child is started by PowerShell's `Start-Process`
+/// through ShellExecute, which hands down no handles. With a log, cmd.exe (started the same way)
+/// writes the output to it; the pid is the program's own, found as cmd.exe's child. PowerShell
+/// exits right away; dfw waits only for it (`process-and-io.md` P15).
+pub fn spawn_detached(
+    exe: &Path,
+    args: &[String],
+    log: Option<&Path>,
+) -> Result<u32, crate::core::error::DfwError> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        let mut cmd = Command::new(exe);
+        cmd.args(args).stdin(Stdio::null());
+        match log {
+            Some(log) => {
+                let file = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(log)?;
+                cmd.stdout(file.try_clone()?).stderr(file);
+            }
+            None => {
+                cmd.stdout(Stdio::null()).stderr(Stdio::null());
+            }
+        }
+        cmd.process_group(0);
+        Ok(cmd.spawn()?.id())
+    }
+    #[cfg(not(unix))]
+    {
+        spawn_detached_windows(exe, args, log)
+    }
+}
+
+#[cfg(not(unix))]
+fn spawn_detached_windows(
+    exe: &Path,
+    args: &[String],
+    log: Option<&Path>,
+) -> Result<u32, crate::core::error::DfwError> {
+    use crate::core::error::DfwError;
+    let root = ["SystemRoot", "windir"]
+        .iter()
+        .filter_map(|name| std::env::var(name).ok())
+        .find(|dir| win32_fully_qualified(dir))
+        .ok_or_else(|| {
+            DfwError::new(
+                "SystemRoot is not set to an absolute folder, so dfw cannot find PowerShell to start a background process.",
+            )
+        })?;
+    let system = Path::new(&root).join("System32");
+    let powershell = system.join(r"WindowsPowerShell\v1.0\powershell.exe");
+    if !powershell.is_file() {
+        return Err(DfwError::new(format!(
+            "PowerShell was not found at {}; dfw starts background processes with it on Windows.",
+            powershell.display()
+        )));
+    }
+    let cwd = std::env::current_dir()?;
+    let script = detached_script(exe, args, &cwd, log, &system.join("cmd.exe"));
+    let utf16: Vec<u8> = script.encode_utf16().flat_map(u16::to_le_bytes).collect();
+    let plan = Spawn::direct(
+        powershell.display().to_string(),
+        [
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-EncodedCommand",
+        ]
+        .iter()
+        .map(|a| (*a).to_string())
+        .chain([crate::browser::cdp::encoding::base64_encode(&utf16)])
+        .collect(),
+    );
+    let ran = run_timed(&plan, None, &[], Duration::from_secs(30));
+    ran.stdout.trim().parse::<u32>().map_err(|_| {
+        DfwError::new(format!(
+            "PowerShell could not start {}: {}",
+            exe.display(),
+            ran.error.unwrap_or_else(|| ran.stderr.trim().to_string())
+        ))
+    })
+}
+
+/// A PowerShell string literal: single quotes, each single quote doubled (PowerShell also reads
+/// the typographic single quotes as quotes).
+// Used on Windows only; its tests run everywhere.
+#[cfg_attr(unix, allow(dead_code))]
+pub fn quote_for_powershell(text: &str) -> String {
+    let mut out = String::from("'");
+    for c in text.chars() {
+        if matches!(c, '\'' | '\u{2018}' | '\u{2019}' | '\u{201A}' | '\u{201B}') {
+            out.push(c);
+        }
+        out.push(c);
+    }
+    out.push('\'');
+    out
+}
+
+/// One argument of a Windows command line, always in quotes, read back as written by the C
+/// runtime's rules (and Rust's): backslashes before a quote are doubled and a quote is written
+/// `""`, which also keeps cmd.exe's own quote state balanced, so `&`, `|`, `<`, `>` and `^`
+/// stay inside the quotes for it. cmd.exe still expands a `%NAME%` that names a variable.
+// Used on Windows only; its tests run everywhere.
+#[cfg_attr(unix, allow(dead_code))]
+pub fn quote_windows_arg(arg: &str) -> String {
+    let mut out = String::from("\"");
+    let mut backslashes = 0;
+    for c in arg.chars() {
+        match c {
+            '\\' => backslashes += 1,
+            '"' => {
+                out.push_str(&"\\".repeat(backslashes * 2));
+                out.push_str("\"\"");
+                backslashes = 0;
+            }
+            _ => {
+                out.push_str(&"\\".repeat(backslashes));
+                out.push(c);
+                backslashes = 0;
+            }
+        }
+    }
+    out.push_str(&"\\".repeat(backslashes * 2));
+    out.push('"');
+    out
+}
+
+/// The PowerShell script of [`spawn_detached`] on Windows: `Start-Process` (ShellExecute: no
+/// handle inheritance, the environment of this process), hidden, and the pid it prints.
+// Used on Windows only; its tests run everywhere.
+#[cfg_attr(unix, allow(dead_code))]
+fn detached_script(
+    exe: &Path,
+    args: &[String],
+    cwd: &Path,
+    log: Option<&Path>,
+    cmd_exe: &Path,
+) -> String {
+    let arg_line = args
+        .iter()
+        .map(|a| quote_windows_arg(a))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let program = format!(
+        "{} {arg_line}",
+        quote_windows_arg(&exe.display().to_string())
+    );
+    let q = |p: &Path| quote_for_powershell(&p.display().to_string());
+    let mut script = String::from("$ErrorActionPreference = 'Stop'\n");
+    match log {
+        None => {
+            script.push_str(&format!(
+                "$p = Start-Process -FilePath {} -ArgumentList {} -WorkingDirectory {} -WindowStyle Hidden -PassThru\n[Console]::Out.Write($p.Id)\n",
+                q(exe),
+                // Start-Process passes the arguments on as written.
+                quote_for_powershell(&arg_line),
+                q(cwd),
+            ));
+            if args.is_empty() {
+                script = script.replace(" -ArgumentList ''", "");
+            }
+        }
+        Some(log) => {
+            let log = quote_windows_arg(&log.display().to_string());
+            let line = format!("/d /s /c \"{program} >>{log} 2>&1\"");
+            let name = exe
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            // A WQL string: backslash escapes.
+            let wql = name.replace('\\', "\\\\").replace('\'', "\\'");
+            script.push_str(&format!(
+                "$p = Start-Process -FilePath {} -ArgumentList {} -WorkingDirectory {} -WindowStyle Hidden -PassThru\n\
+                 $name = {}\n\
+                 $id = $p.Id\n\
+                 for ($i = 0; $i -lt 400; $i++) {{\n\
+                 \x20 $c = Get-CimInstance Win32_Process -Filter \"ParentProcessId = $($p.Id) AND Name = '$name'\" | Select-Object -First 1\n\
+                 \x20 if ($c) {{ $id = $c.ProcessId; break }}\n\
+                 \x20 if ($p.HasExited) {{ break }}\n\
+                 \x20 Start-Sleep -Milliseconds 25\n\
+                 }}\n\
+                 [Console]::Out.Write($id)\n",
+                q(cmd_exe),
+                quote_for_powershell(&line),
+                q(cwd),
+                quote_for_powershell(&wql),
+            ));
+        }
+    }
+    script
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -591,5 +798,192 @@ mod tests {
         assert_eq!(quote_for_cmd("say \"hi\"", false), "\"say \"\"hi\"\"\"");
         assert_eq!(quote_for_cmd("plain", true), "\"plain\"");
         assert_eq!(quote_for_cmd("a\"b", true), "\"a\"b\"");
+    }
+
+    /// The C runtime's (and Rust's) reading of a Windows command line, for the round trips.
+    fn crt_args(line: &str) -> Vec<String> {
+        let chars: Vec<char> = line.chars().collect();
+        let (mut args, mut cur, mut quoted, mut any) = (Vec::new(), String::new(), false, false);
+        let mut i = 0;
+        while i < chars.len() {
+            let c = chars[i];
+            if c == '\\' {
+                let n = chars[i..].iter().take_while(|&&x| x == '\\').count();
+                i += n;
+                if chars.get(i) == Some(&'"') {
+                    cur.push_str(&"\\".repeat(n / 2));
+                    if n % 2 == 1 {
+                        cur.push('"');
+                        i += 1;
+                    }
+                } else {
+                    cur.push_str(&"\\".repeat(n));
+                }
+                any = true;
+                continue;
+            }
+            if c == '"' {
+                if quoted && chars.get(i + 1) == Some(&'"') {
+                    cur.push('"');
+                    i += 2;
+                    continue;
+                }
+                quoted = !quoted;
+                any = true;
+            } else if (c == ' ' || c == '\t') && !quoted {
+                if any {
+                    args.push(std::mem::take(&mut cur));
+                }
+                any = false;
+            } else {
+                cur.push(c);
+                any = true;
+            }
+            i += 1;
+        }
+        if any {
+            args.push(cur);
+        }
+        args
+    }
+
+    /// A PowerShell single-quoted literal read back (the quote at `start`): its text and the
+    /// index after it.
+    fn ps_literal(text: &str, start: usize) -> (String, usize) {
+        let chars: Vec<char> = text.chars().collect();
+        let quote = |c: char| matches!(c, '\'' | '\u{2018}' | '\u{2019}' | '\u{201A}' | '\u{201B}');
+        assert!(quote(chars[start]));
+        let (mut out, mut i) = (String::new(), start + 1);
+        loop {
+            if quote(chars[i]) {
+                if chars.get(i + 1).is_some_and(|&c| quote(c)) {
+                    out.push(chars[i]);
+                    i += 2;
+                    continue;
+                }
+                return (out, i + 1);
+            }
+            out.push(chars[i]);
+            i += 1;
+        }
+    }
+
+    const TRICKY: [&str; 12] = [
+        "plain",
+        "with space",
+        "it's",
+        "say \"hi\"",
+        "a & b | c < d > e ^ f",
+        "$env:PATH $(Get-Date) `n",
+        "trailing\\",
+        "C:\\dir with space\\",
+        "a\\\"b",
+        "",
+        "Tiếng Việt ‘quoted’ ✓",
+        "http://localhost:5173/a b?x=1&y='2'",
+    ];
+
+    /// Every argument comes back from a Windows command line as written, and cmd.exe sees each
+    /// `& | < > ^` inside quotes.
+    #[test]
+    fn windows_arguments_survive_the_command_line_and_cmd() {
+        for arg in TRICKY {
+            let quoted = quote_windows_arg(arg);
+            assert_eq!(
+                crt_args(&format!("prog {quoted}")),
+                ["prog", arg],
+                "{quoted}"
+            );
+            let mut inside = false;
+            for c in quoted.chars() {
+                if c == '"' {
+                    inside = !inside;
+                } else if "&|<>^".contains(c) {
+                    assert!(inside, "{c} outside quotes for cmd.exe in {quoted}");
+                }
+            }
+            assert!(!inside, "unbalanced quotes for cmd.exe: {quoted}");
+        }
+        let line = TRICKY.map(quote_windows_arg).join(" ");
+        assert_eq!(crt_args(&line), TRICKY);
+    }
+
+    #[test]
+    fn powershell_literals_keep_every_character() {
+        for text in TRICKY {
+            let literal = quote_for_powershell(text);
+            assert_eq!(
+                ps_literal(&literal, 0),
+                (text.to_string(), literal.chars().count())
+            );
+        }
+        assert_eq!(quote_for_powershell("it's"), "'it''s'");
+        assert_eq!(quote_for_powershell("‘x’"), "'‘‘x’’'");
+    }
+
+    /// The script `Start-Process` runs: the program, its arguments and the folder as literals,
+    /// the arguments and the log path back as written; the pid of the program (cmd.exe's
+    /// child) is what it prints.
+    #[test]
+    fn the_detached_script_carries_every_value_as_written() {
+        let exe = Path::new("C:\\Program Files\\dfw's\\dfw.exe");
+        let cwd = Path::new("C:\\work\\dự án $x");
+        let cmd = Path::new("C:\\Windows\\System32\\cmd.exe");
+        let args: Vec<String> = TRICKY.iter().map(|a| (*a).to_string()).collect();
+        // Every literal of a script, in order.
+        let literals = |script: &str| {
+            let mut out = Vec::new();
+            let mut i = 0;
+            let chars: Vec<char> = script.chars().collect();
+            while i < chars.len() {
+                if chars[i] == '\'' {
+                    let (text, next) = ps_literal(script, i);
+                    out.push(text);
+                    i = next;
+                } else {
+                    i += 1;
+                }
+            }
+            out
+        };
+
+        let plain = detached_script(exe, &args, cwd, None, cmd);
+        assert!(plain.contains("Start-Process -FilePath "));
+        assert!(plain.contains("-WindowStyle Hidden -PassThru"));
+        assert!(
+            !plain.contains("-Redirect"),
+            "a redirect makes Start-Process hand down handles"
+        );
+        let l = literals(&plain);
+        // 'Stop', the program, the arguments, the folder.
+        assert_eq!(l[1], exe.display().to_string());
+        assert_eq!(crt_args(&format!("x {}", l[2]))[1..], TRICKY);
+        assert_eq!(l[3], cwd.display().to_string());
+        assert!(plain.ends_with("[Console]::Out.Write($p.Id)\n"));
+        assert!(!detached_script(exe, &[], cwd, None, cmd).contains("-ArgumentList"));
+
+        let log = Path::new("C:\\work\\dự án\\.dfw\\studio.log");
+        let logged = detached_script(exe, &args, cwd, Some(log), cmd);
+        let l = literals(&logged);
+        assert_eq!(l[1], cmd.display().to_string());
+        let line = &l[2];
+        let inner = line
+            .strip_prefix("/d /s /c \"")
+            .and_then(|r| r.strip_suffix('"'))
+            .unwrap();
+        // cmd.exe /s drops the outer quotes and runs the rest: the program, its arguments,
+        // then the redirection.
+        let mut words = crt_args(inner);
+        assert_eq!(words.pop().as_deref(), Some("2>&1"));
+        assert_eq!(words.pop(), Some(format!(">>{}", log.display())));
+        assert_eq!(words[0], exe.display().to_string());
+        assert_eq!(words[1..], TRICKY);
+        assert_eq!(l[3], cwd.display().to_string());
+        // The program's file name as a WQL string (backslash escapes; on Unix the whole path is
+        // one name, so its quote and backslashes are escaped too).
+        let name = exe.file_name().unwrap().to_string_lossy().into_owned();
+        assert_eq!(l[4], name.replace('\\', "\\\\").replace('\'', "\\'"));
+        assert!(logged.contains("Get-CimInstance Win32_Process -Filter \"ParentProcessId = $($p.Id) AND Name = '$name'\""));
+        assert!(logged.ends_with("[Console]::Out.Write($id)\n"));
     }
 }

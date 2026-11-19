@@ -15,7 +15,6 @@ pub mod spool;
 use std::env;
 use std::io::Write;
 use std::path::Path;
-use std::process::{Command, Stdio};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use serde_json::Value;
@@ -23,6 +22,7 @@ use serde_json::Value;
 use crate::cli::Ctx;
 use crate::core::config::global_config_path;
 use crate::core::host::current_host;
+use crate::core::process::spawn_detached;
 use crate::core::util::{get_path, read_json, ArgValue};
 use crate::workflow::state::load_state;
 use events::{
@@ -253,31 +253,12 @@ pub fn status_line() -> String {
     describe(&current(&spool::dir()))
 }
 
-/// Start `dfw telemetry flush` as a process of its own and do not wait for it.
+/// Start `dfw telemetry flush` as a process of its own and do not wait for it. A failure to
+/// start it is silent: the events stay in the spool for the next command.
 fn spawn_flush() {
-    let Ok(exe) = env::current_exe() else {
-        return;
-    };
-    let mut flush = Command::new(exe);
-    flush
-        .args(["telemetry", "flush"])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
-    // A group of its own: the flush outlives this command and is not stopped with it.
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        flush.process_group(0);
+    if let Ok(exe) = env::current_exe() {
+        let _ = spawn_detached(&exe, &["telemetry".into(), "flush".into()], None);
     }
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const DETACHED_PROCESS: u32 = 0x0000_0008;
-        const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
-        flush.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP);
-    }
-    let _ = flush.spawn();
 }
 
 /// Record the events `build` returns, when telemetry is on. `may_show_notice` is false where
