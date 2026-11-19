@@ -10,6 +10,8 @@
 // Bundled into core/studio/live.js (one classic script) by scripts/build-overlay.mjs.
 import { isShortcut, parseShortcut, shortcutLabel } from './shortcut.js';
 
+// main is about 190 lines (general.md GE4): the shadow-root UI, its state and its handlers share one
+// closure, as the injected script always had; the pure part (the shortcut) lives in shortcut.js.
 function main() {
   if (window.__dfwLive || window.top !== window) return;
   window.__dfwLive = true;
