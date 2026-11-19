@@ -28,10 +28,16 @@ if exist "%HOME_DIR%\bin" (
   )
 )
 if defined NEWEST goto run_newest
+rem Nothing installed. A hook must not block the session (hooks fail open): one line, exit 0.
+if /i "%~1"=="hook" goto hook_without_binary
 echo dfw: the dfw binary is not installed ^(looked in %HOME_DIR%\bin\%VER%\^).>&2
 echo   Install it: download dfw-%VER%-win32-x64.exe from https://github.com/tantm97/ai-frontend-design-workflow/releases, check it against SHA256SUMS, save it as %HOME_DIR%\bin\%VER%\dfw.exe>&2
 echo   ^(or, with Node.js: npx github:tantm97/ai-frontend-design-workflow^)>&2
 exit /b 127
+
+:hook_without_binary
+echo dfw: hook skipped, the dfw binary is not installed. Install it: npx github:tantm97/ai-frontend-design-workflow ^(or see the README^)>&2
+exit /b 0
 
 :run_dfw_bin
 "%DFW_BIN%" %*
