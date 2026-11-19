@@ -329,9 +329,11 @@ describe('studio server: Node and native answer the same', { skip: skipReason() 
     assert.equal((await edit({ file: 'screens/items/a.html', op: 'text', id: 'items.title', value: 'Stock <now> & "then"' })).status, 200);
     await edit({ file: 'screens/items/a.html', op: 'text', id: 'items.summary', value: 'x' });
     await edit({ file: '../outside.html', op: 'text', id: 'x', value: 'y' });
-    // The JSON parsers word their errors differently: only the status is compared.
+    // A body that is not JSON is the client's mistake: 400 with a short message (Node said 500
+    // with the parser's wording).
     const bad = await request(R.port, { path: '/__dfw/api/edit', method: 'POST', body: '{not json' });
-    assert.equal(bad.status, 500);
+    assert.equal(bad.status, 400);
+    assert.deepEqual(JSON.parse(bad.raw), { error: 'The request body is not valid JSON.' });
     assert.equal(bad.status, expected(bad.status));
     const strip = (t) => Object.fromEntries(Object.entries(t).filter(([k]) => !k.startsWith('.dfw/edits/')));
     sameFiles(strip(tree(R)));
@@ -381,10 +383,22 @@ describe('studio server: Node and native answer the same', { skip: skipReason() 
     await same({ path: '/__dfw/penpot/plugin.js', method: 'OPTIONS', headers: { origin: 'https://design.penpot.app' } }, cors);
     const doc = fixtureExport();
     const changes = JSON.stringify({ ...read('changes.json'), exportId: doc.id });
+    // The panel's writes carry the token it reads from the Studio (same origin only).
+    const session = JSON.parse((await request(R.port, { path: '/__dfw/penpot/session.json' })).raw);
+    assert.deepEqual(session.origins, ['https://design.penpot.app']);
+    const token = { 'x-dfw-bridge': session.token };
+    const ui = await request(R.port, { path: '/__dfw/penpot/ui.html' });
+    assert.equal(ui.headers['content-security-policy'], 'frame-ancestors https://design.penpot.app');
     await same({
       path: '/__dfw/penpot/changes',
       method: 'POST',
-      headers: { origin: 'https://design.penpot.app', 'content-type': 'application/json' },
+      headers: { origin: 'https://design.penpot.app', 'content-type': 'application/json', ...token },
+      body: changes,
+    });
+    await same({
+      path: '/__dfw/penpot/changes',
+      method: 'POST',
+      headers: { origin: 'http://127.0.0.1:<port>', 'content-type': 'application/json' },
       body: changes,
     });
     assert.equal(
@@ -392,7 +406,7 @@ describe('studio server: Node and native answer the same', { skip: skipReason() 
         await same({
           path: '/__dfw/penpot/changes',
           method: 'POST',
-          headers: { origin: 'http://127.0.0.1:<port>', 'content-type': 'application/json' },
+          headers: { origin: 'http://127.0.0.1:<port>', 'content-type': 'application/json', ...token },
           body: changes,
         })
       ).status,
@@ -407,14 +421,18 @@ describe('studio server: Node and native answer the same', { skip: skipReason() 
       y: 175,
       comments: [{ content, user: 'Designer' }],
     });
+    const syncBody = JSON.stringify({ fileId: 'file-1', exportId: doc.id, threads: [thread(1, 'Make low stock more visible')] });
+    await same({ path: '/__dfw/penpot/sync', method: 'POST', headers: { 'content-type': 'application/json' }, body: syncBody });
     const sync = await same({
       path: '/__dfw/penpot/sync',
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ fileId: 'file-1', exportId: doc.id, threads: [thread(1, 'Make low stock more visible')] }),
+      headers: { 'content-type': 'application/json', ...token },
+      body: syncBody,
     });
     assert.equal(sync.status, 200, sync.body);
     await same({ path: '/__dfw/penpot/export.json', method: 'POST' });
+    // A GET never renders: refresh=1 reads the file as it is.
+    await same('/__dfw/penpot/export.json?refresh=1');
     const t = (s) =>
       Object.fromEntries(
         Object.entries(tree(s))

@@ -3,24 +3,36 @@
 
 use std::io::Write;
 use std::net::TcpStream;
-use std::sync::Mutex;
+use std::sync::mpsc::{sync_channel, Receiver, SyncSender, TrySendError};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use serde_json::Value;
 
-use super::http::{no_timeouts, write_head};
+use super::http::write_head;
 use crate::core::util::to_json_compact;
 
-/// The connected pages (`clients` in server.mjs).
+/// How long one event may take to reach a page; a page that does not read is dropped.
+const EVENT_WRITE_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Events waiting for one page; a page that falls this far behind is dropped.
+const QUEUE: usize = 64;
+
+/// The connected pages (`clients` in server.mjs): one queue per page. Each page's own
+/// connection thread writes its events, so a page that never reads cannot hold up a broadcast
+/// (the list lock is only held to put events in the queues).
 #[derive(Default)]
 pub struct Clients {
-    streams: Mutex<Vec<TcpStream>>,
+    queues: Mutex<Vec<SyncSender<Arc<str>>>>,
 }
 
 impl Clients {
-    /// Answer `/__dfw/events`: the stream head, a `hello` event, then keep the socket for
-    /// later events.
+    /// Answer `/__dfw/events`: the stream head, a `hello` event, then write this page's events
+    /// until it is gone. Runs on the connection's thread and returns when the page left, fell
+    /// behind or stopped reading.
     pub fn connect(&self, mut stream: TcpStream) {
-        no_timeouts(&stream);
+        let _ = stream.set_read_timeout(None);
+        let _ = stream.set_write_timeout(Some(EVENT_WRITE_TIMEOUT));
         let head = [
             ("Content-Type".to_string(), "text/event-stream".to_string()),
             ("Cache-Control".to_string(), "no-store".to_string()),
@@ -29,18 +41,46 @@ impl Clients {
             .and_then(|_| stream.write_all(b"event: hello\ndata: {}\n\n"))
             .and_then(|_| stream.flush())
             .is_ok();
-        if ok {
-            if let Ok(mut list) = self.streams.lock() {
-                list.push(stream);
-            }
+        if !ok {
+            return;
+        }
+        let (tx, rx) = sync_channel(QUEUE);
+        match self.queues.lock() {
+            Ok(mut list) => list.push(tx),
+            Err(_) => return,
+        }
+        write_events(&mut stream, &rx);
+    }
+
+    /// `broadcast(event, data)`: one event to every page; a page that is gone or too far
+    /// behind is dropped. Never waits on a socket.
+    pub fn broadcast(&self, event: &str, data: &Value) {
+        let msg: Arc<str> = format!("event: {event}\ndata: {}\n\n", to_json_compact(data)).into();
+        if let Ok(mut list) = self.queues.lock() {
+            list.retain(|tx| match tx.try_send(Arc::clone(&msg)) {
+                Ok(()) => true,
+                Err(TrySendError::Full(_) | TrySendError::Disconnected(_)) => false,
+            });
         }
     }
 
-    /// `broadcast(event, data)`: one event to every page; a page that is gone is dropped.
-    pub fn broadcast(&self, event: &str, data: &Value) {
-        let msg = format!("event: {event}\ndata: {}\n\n", to_json_compact(data));
-        if let Ok(mut list) = self.streams.lock() {
-            list.retain_mut(|s| s.write_all(msg.as_bytes()).and_then(|_| s.flush()).is_ok());
+    /// Pages connected now.
+    #[cfg(test)]
+    pub fn count(&self) -> usize {
+        self.queues.lock().map_or(0, |l| l.len())
+    }
+}
+
+/// Write queued events to one page until the queue is dropped or a write fails (the page left
+/// or did not read within [`EVENT_WRITE_TIMEOUT`]).
+fn write_events(stream: &mut TcpStream, rx: &Receiver<Arc<str>>) {
+    for msg in rx {
+        if stream
+            .write_all(msg.as_bytes())
+            .and_then(|_| stream.flush())
+            .is_err()
+        {
+            return;
         }
     }
 }

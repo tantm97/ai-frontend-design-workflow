@@ -153,7 +153,9 @@ pub fn import_penpot_tokens(
             // Node bug kept: a new theme with an inherited name read the built-in function as
             // the current tokens and failed on it, before anything was written.
             if INHERITED.contains(&name.as_str()) {
-                return Err(DfwError::internal("\"undefined\" is not valid JSON"));
+                return Err(DfwError::new(format!(
+                    "The Penpot set \"{set}\" names the theme \"{name}\", a reserved name. Rename the set in Penpot (for example \"themes/{name}-theme\") and export the tokens again."
+                )));
             }
         }
         let merged = merge_set(current, parsed.set(set).unwrap_or(&null), set, prune)?;

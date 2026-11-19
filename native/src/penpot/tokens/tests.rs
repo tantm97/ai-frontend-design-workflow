@@ -413,6 +413,15 @@ fn single_set_files_and_set_mapping() {
     assert_eq!(m.base_name.as_deref(), Some("brand"));
     assert_eq!(m.get("themes/dark"), Some(&SetKind::Theme("dark".into())));
     assert_eq!(m.skipped, ["Light/Colors"]);
+    // Theme names made of or starting with dots would be hidden files: skipped.
+    let dots = parse_penpot_json(
+        json!({ "base": {}, "themes/..": {}, "themes/.": {}, "themes/.env": {}, "themes/a.b": {}, "$themes": [], "$metadata": {} }),
+        "base",
+    )
+    .unwrap();
+    let m = map_sets(&dots).unwrap();
+    assert_eq!(m.skipped, ["themes/..", "themes/.", "themes/.env"]);
+    assert_eq!(m.get("themes/a.b"), Some(&SetKind::Theme("a.b".into())));
     // Multi-file export (folder of set files + $themes.json/$metadata.json).
     let dir = test_dir("penpot-multi");
     fs::create_dir_all(dir.join("themes")).unwrap();

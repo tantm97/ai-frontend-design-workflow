@@ -41,13 +41,12 @@ fn flag_text(ctx: &Ctx, key: &str) -> Option<String> {
     }
 }
 
-/// A flag that names a file: given without a value it was `true` in Node, where joining it to
-/// a path threw.
+/// A flag that names a file: given without a value it is refused (Node threw a TypeError).
 fn path_flag(ctx: &Ctx, key: &str) -> Result<Option<String>, DfwError> {
     match ctx.args.get(key) {
-        Some(ArgValue::Flag) => Err(DfwError::internal(
-            "The \"paths[1]\" argument must be of type string. Received type boolean (true)",
-        )),
+        Some(ArgValue::Flag) => Err(DfwError::new(format!(
+            "--{key} needs a file name, e.g. --{key} out.json."
+        ))),
         _ => Ok(flag_text(ctx, key)),
     }
 }
@@ -139,6 +138,13 @@ fn plugin(root: &Path) -> Result<i32, DfwError> {
     } else {
         "The Studio is not running: start it with \"dfw studio start\".\n"
     };
+    // penpot.origins of the global config: the Penpot pages the panel may run in.
+    let origins = crate::studio::penpot_routes::allowed_origins(&mut |m| eprintln!("{m}"));
+    let origins = if origins.is_empty() {
+        "no Penpot (penpot.origins is empty)".to_string()
+    } else {
+        origins.join(", ")
+    };
     out(&format!(
         "{hint}Penpot plugin manifest: {base}__dfw/penpot/manifest.json
 In Penpot: open a file, Plugins (Ctrl+Alt+P), paste the URL, Install, then open \"dfw bridge\".
@@ -146,7 +152,8 @@ In Penpot: open a file, Plugins (Ctrl+Alt+P), paste the URL, Install, then open 
   Live comments: while the panel is open, threads on dfw boards reach the agent like Studio comments; its replies come back into the thread.
   Update boards: redraws the boards in place after the design changed (comment threads stay).
   Send changes: sends layer edits and token changes back to the Studio, which records them as dfw comments (provider \"penpot\").
-No Penpot API token is used: the plugin runs in your browser and only talks to 127.0.0.1."
+No Penpot API token is used: the plugin runs in your browser and only talks to 127.0.0.1.
+The panel works only inside {origins}. Penpot on your own server: dfw config set penpot.origins '[\"https://penpot.example.com\"]' --global, then restart the Studio."
     ));
     Ok(0)
 }

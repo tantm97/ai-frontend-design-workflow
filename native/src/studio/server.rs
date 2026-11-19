@@ -12,8 +12,8 @@ use serde_json::{json, Value};
 
 use super::api::{self, DesignFile};
 use super::http::{
-    decode_uri_component, read_body, read_head, url_pathname, write_response, BodyError, Head,
-    READ_TIMEOUT,
+    decode_uri_component, drain, read_body, read_request_head, refusal, spawn_connection,
+    url_pathname, write_error, write_response, BodyError, Connections, Head, MAX_CONNECTIONS,
 };
 use super::sse::Clients;
 use super::{penpot_routes, watch};
@@ -43,6 +43,12 @@ pub struct Studio {
     shooting: AtomicBool,
     /// Held while a Penpot export runs.
     pub penpot_exporting: Mutex<()>,
+    /// The token the Penpot plugin panel reads from the Studio and sends with its writes; new
+    /// for every Studio process.
+    pub penpot_token: String,
+    /// The Penpot origins that may frame the panel and talk to it (`penpot.origins` of the
+    /// user's global config).
+    pub penpot_origins: Vec<String>,
 }
 
 /// A request as the routes see it.
@@ -54,13 +60,10 @@ pub struct Request {
 }
 
 impl Request {
-    /// `body(req)`: the JSON body, `{}` when empty.
+    /// `body(req)`: the JSON body, `{}` when empty. A body that is not JSON is the client's
+    /// mistake (400), not the parser's wording.
     pub fn json(&self) -> Result<Value, DfwError> {
-        let text = String::from_utf8_lossy(&self.body);
-        if text.is_empty() {
-            return Ok(json!({}));
-        }
-        Ok(serde_json::from_str(&text)?)
+        json_body(&self.body)
     }
 }
 
@@ -96,6 +99,15 @@ impl Response {
     }
 }
 
+/// A request body as JSON, `{}` when empty; a 400 with a short message when it is not JSON.
+pub fn json_body(body: &[u8]) -> Result<Value, DfwError> {
+    let text = String::from_utf8_lossy(body);
+    if text.is_empty() {
+        return Ok(json!({}));
+    }
+    serde_json::from_str(&text).map_err(|_| DfwError::new("The request body is not valid JSON."))
+}
+
 /// Content type of JSON answers.
 pub const JSON: &str = "application/json; charset=utf-8";
 const HTML: &str = "text/html; charset=utf-8";
@@ -113,6 +125,8 @@ impl Studio {
             clients: Clients::default(),
             shooting: AtomicBool::new(false),
             penpot_exporting: Mutex::new(()),
+            penpot_token: super::http::random_token(),
+            penpot_origins: penpot_routes::allowed_origins(&mut |m| eprintln!("{m}")),
         })
     }
 
@@ -148,13 +162,23 @@ impl Studio {
         let p = req.path.as_str();
         let method = req.head.method();
         let root = self.root.as_path();
+        // Readiness for `dfw studio start`: answers whatever state design/ is in.
+        if p == "/__dfw/api/ping" {
+            return Ok(Response::json(200, &json!({ "dfw": "studio" })));
+        }
         if p == "/" || p == "/index.html" {
             return Ok(asset("app.html", HTML).unwrap_or_else(Response::not_found));
         }
         if let Some(rel) = p.strip_prefix("/__dfw/static/") {
             let clean = api::clamp_rel(rel).join("/");
             let ty = api::mime(api::extname(&clean)).unwrap_or("text/plain");
-            return Ok(asset(&clean, ty).unwrap_or_else(Response::not_found));
+            let mut r = asset(&clean, ty).unwrap_or_else(Response::not_found);
+            if clean == "penpot/ui.html" {
+                // The panel under its other address may be framed only by Penpot, too.
+                r.headers
+                    .push(penpot_routes::frame_ancestors(&self.penpot_origins));
+            }
+            return Ok(r);
         }
         if p == "/favicon.ico" {
             return Ok(Response::send(204, "", JSON));
@@ -190,10 +214,12 @@ impl Studio {
             return self.shoot(req);
         }
         if let Some(rel) = p.strip_prefix("/__dfw/shots/") {
-            let f = api::safe_join(&project_paths(root).dfw.join("shots"), rel);
-            if !f.to_string_lossy().ends_with(".png") || !f.is_file() {
+            // Through `resolve_inside`: a symlink out of .dfw/shots is not served.
+            let Some(f) = api::safe_join(&project_paths(root).dfw.join("shots"), rel)
+                .filter(|f| f.to_string_lossy().ends_with(".png") && f.is_file())
+            else {
                 return Ok(Response::not_found());
-            }
+            };
             return Ok(Response::send(200, std::fs::read(&f)?, "image/png"));
         }
         if p.starts_with("/__dfw/penpot/") {
@@ -257,34 +283,49 @@ impl Studio {
         Ok(Response::json(200, &result?))
     }
 
-    /// One connection: read the request, answer it.
+    /// One connection: read the request, answer it. Host and Origin are checked on the head,
+    /// before any body is read.
     pub fn handle(&self, mut stream: TcpStream) {
-        let _ = stream.set_read_timeout(Some(READ_TIMEOUT));
-        let Ok(Some(head)) = read_head(&mut stream) else {
-            return;
+        let head = match read_request_head(&mut stream) {
+            Ok(Some(head)) => head,
+            Ok(None) => return,
+            Err(err) => {
+                if let Some((code, message)) = refusal(&err) {
+                    write_error(&mut stream, "GET", code, message);
+                }
+                return;
+            }
         };
         let method = head.method().to_string();
         let reply = |stream: &mut TcpStream, r: Response| {
+            // The client may be gone; there is nobody left to tell.
             let _ = write_response(stream, &method, r.code, &r.headers, &r.body);
         };
-        let body = match read_body(&mut stream, &head, MAX_BODY, false) {
-            Ok(body) => body,
-            Err(BodyError::TooLarge) => {
-                let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(2)));
-                super::http::drain(&mut stream, &head);
-                return reply(
-                    &mut stream,
-                    Response::json(413, &json!({ "error": "Request too large." })),
-                );
-            }
-            Err(BodyError::Io(_)) => return,
+        // A short wait for what is left of a refused body, so the client reads the answer.
+        let settle = |stream: &mut TcpStream, head: &Head, cap: u64| {
+            let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(2)));
+            drain(stream, head, cap);
         };
         if let Some(refused) = self.foreign(&head) {
+            settle(&mut stream, &head, 1024 * 1024);
             return reply(
                 &mut stream,
                 Response::json(403, &json!({ "error": refused })),
             );
         }
+        let body = match read_body(&mut stream, &head, MAX_BODY, false) {
+            Ok(body) => body,
+            Err(BodyError::TooLarge) => {
+                settle(&mut stream, &head, MAX_BODY as u64);
+                return write_error(&mut stream, &method, 413, "Request too large.");
+            }
+            Err(BodyError::Io(err)) => {
+                if let Some((code, message)) = refusal(&err) {
+                    write_error(&mut stream, &method, code, message);
+                }
+                return;
+            }
+        };
         let Some(path) = decode_uri_component(&url_pathname(head.target())) else {
             return reply(
                 &mut stream,
@@ -340,9 +381,10 @@ pub fn serve(root: &Path, port: Option<u16>) -> Result<i32, DfwError> {
         studio.port,
         root.display()
     );
+    let conns = Connections::default();
     for stream in listener.incoming().flatten() {
         let studio = Arc::clone(&studio);
-        std::thread::spawn(move || studio.handle(stream));
+        spawn_connection(&conns, MAX_CONNECTIONS, stream, move |s| studio.handle(s));
     }
     Ok(0)
 }
@@ -506,6 +548,246 @@ mod tests {
             &format!("GET /design/../../../etc/passwd HTTP/1.1\r\n{host}\r\n"),
         );
         assert_eq!(code, 404);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// The answer to raw bytes (the client may stop sending when the server answers).
+    fn call_bytes(port: u16, raw: &[u8]) -> String {
+        let mut s = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        s.set_read_timeout(Some(std::time::Duration::from_secs(10)))
+            .unwrap();
+        let _ = s.write_all(raw);
+        let mut out = Vec::new();
+        let _ = s.read_to_end(&mut out);
+        String::from_utf8_lossy(&out).into_owned()
+    }
+
+    /// the Studio checks Host and Origin before it reads a body, and a chunk size that does not
+    /// fit is refused, never a crash
+    #[test]
+    fn foreign_requests_are_refused_before_the_body_is_read() {
+        let root = fixture();
+        let (port, _studio) = start(&root);
+        let host = format!("Host: 127.0.0.1:{port}\r\n");
+        let huge = "Transfer-Encoding: chunked\r\n\r\nffffffffffffffff\r\nabc";
+        let r = call_bytes(
+            port,
+            format!("POST /__dfw/api/comments HTTP/1.1\r\nHost: evil.example\r\n{huge}").as_bytes(),
+        );
+        assert!(r.starts_with("HTTP/1.1 403"), "{r}");
+        let r = call_bytes(
+            port,
+            format!("POST /__dfw/api/comments HTTP/1.1\r\n{host}{huge}").as_bytes(),
+        );
+        assert!(r.starts_with("HTTP/1.1 413"), "{r}");
+        // A body over the limit from another origin is a 403, not a 413: nothing was read.
+        let r = call_bytes(
+            port,
+            format!("POST /__dfw/api/comments HTTP/1.1\r\n{host}Origin: https://evil.example\r\nContent-Length: 99999999999\r\n\r\n").as_bytes(),
+        );
+        assert!(r.starts_with("HTTP/1.1 403"), "{r}");
+        // Still serving.
+        assert_eq!(
+            call(port, &format!("GET /nope HTTP/1.1\r\n{host}\r\n")).0,
+            404
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// every limit of the Studio has an answer: a head over 64 KB (413), a body over 64 MB
+    /// (413), a length that is not a number (400), a body that is not JSON (400)
+    #[test]
+    fn the_studio_answers_requests_over_its_limits() {
+        let root = fixture();
+        let (port, _studio) = start(&root);
+        let host = format!("Host: 127.0.0.1:{port}\r\n");
+        let big = format!(
+            "GET / HTTP/1.1\r\n{host}X-Big: {}\r\n\r\n",
+            "a".repeat(70 * 1024)
+        );
+        let r = call_bytes(port, big.as_bytes());
+        assert!(r.starts_with("HTTP/1.1 413"), "{r}");
+        let r = call_bytes(
+            port,
+            format!(
+                "POST /__dfw/api/comments HTTP/1.1\r\n{host}Content-Length: {}\r\n\r\n",
+                MAX_BODY + 1
+            )
+            .as_bytes(),
+        );
+        assert!(
+            r.starts_with("HTTP/1.1 413") && r.ends_with(r#"{"error":"Request too large."}"#),
+            "{r}"
+        );
+        let r = call_bytes(
+            port,
+            format!("POST /__dfw/api/comments HTTP/1.1\r\n{host}Content-Length: -1\r\n\r\n")
+                .as_bytes(),
+        );
+        assert!(
+            r.starts_with("HTTP/1.1 400") && r.ends_with(r#"{"error":"Malformed request."}"#),
+            "{r}"
+        );
+        let (code, body) = call(
+            port,
+            &format!(
+                "POST /__dfw/api/comments HTTP/1.1\r\n{host}Content-Length: 9\r\n\r\n{{not json"
+            ),
+        );
+        assert_eq!(
+            (code, body.as_str()),
+            (400, r#"{"error":"The request body is not valid JSON."}"#)
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// a screenshot reached through a symlink out of .dfw/shots is not served
+    #[cfg(unix)]
+    #[test]
+    fn shots_do_not_follow_symlinks_out() {
+        let root = fixture();
+        let (port, _studio) = start(&root);
+        let host = format!("Host: 127.0.0.1:{port}\r\n");
+        let shots = root.join(".dfw/shots/studio");
+        std::fs::create_dir_all(&shots).unwrap();
+        std::fs::write(shots.join("ok.png"), "png").unwrap();
+        let outside = root.with_extension("outside");
+        std::fs::create_dir_all(&outside).unwrap();
+        std::fs::write(outside.join("secret.png"), "secret").unwrap();
+        std::os::unix::fs::symlink(outside.join("secret.png"), shots.join("leak.png")).unwrap();
+        std::os::unix::fs::symlink(&outside, shots.join("dir")).unwrap();
+        std::os::unix::fs::symlink(outside.join("secret.png"), root.join("design/leak.png"))
+            .unwrap();
+        let get = |p: &str| call(port, &format!("GET {p} HTTP/1.1\r\n{host}\r\n"));
+        assert_eq!(get("/__dfw/shots/studio/ok.png"), (200, "png".to_string()));
+        assert_eq!(get("/__dfw/shots/studio/leak.png").0, 404);
+        assert_eq!(get("/__dfw/shots/studio/dir/secret.png").0, 404);
+        assert_eq!(get("/design/leak.png").0, 404);
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&outside);
+    }
+
+    /// a page that never reads its event stream does not hold up the events of the others
+    #[test]
+    fn a_stuck_event_page_does_not_block_broadcasts() {
+        let root = fixture();
+        let (port, studio) = start(&root);
+        let open = |port: u16| {
+            let mut s = TcpStream::connect(("127.0.0.1", port)).unwrap();
+            s.write_all(
+                format!("GET /__dfw/events HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n\r\n").as_bytes(),
+            )
+            .unwrap();
+            s
+        };
+        let stuck = open(port);
+        let mut live = open(port);
+        let end = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while studio.clients.count() < 2 && std::time::Instant::now() < end {
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        assert_eq!(studio.clients.count(), 2);
+        // Far more than the socket buffers hold: a broadcast that writes in place would block.
+        let (done, finished) = std::sync::mpsc::channel();
+        let s = Arc::clone(&studio);
+        std::thread::spawn(move || {
+            let data = json!({ "pad": "x".repeat(64 * 1024) });
+            for _ in 0..200 {
+                s.clients.broadcast("design", &data);
+            }
+            s.clients.broadcast("comments", &json!({ "last": true }));
+            let _ = done.send(());
+        });
+        finished
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .expect("broadcasts returned while one page does not read");
+        // The reading page gets events; the stuck one was dropped once its queue was full.
+        live.set_read_timeout(Some(std::time::Duration::from_secs(5)))
+            .unwrap();
+        let mut chunk = [0u8; 65536];
+        let n = live.read(&mut chunk).unwrap();
+        assert!(String::from_utf8_lossy(&chunk[..n]).contains("event: hello"));
+        assert!(studio.clients.count() <= 1);
+        drop(stuck);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// the Penpot panel may be framed only by the allowed Penpot origins, its writes need the
+    /// token it reads from the Studio, and a GET never renders an export
+    #[test]
+    fn the_penpot_panel_is_locked_to_penpot_and_its_token() {
+        let root = fixture();
+        let (port, studio) = start(&root);
+        let host = format!("Host: 127.0.0.1:{port}\r\n");
+        let raw = |method: &str, path: &str, extra: &str, body: &str| {
+            call_bytes(
+                port,
+                format!(
+                    "{method} {path} HTTP/1.1\r\n{host}{extra}Content-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}",
+                    body.len()
+                )
+                .as_bytes(),
+            )
+        };
+        for path in ["/__dfw/penpot/ui.html", "/__dfw/static/penpot/ui.html"] {
+            let ui = raw("GET", path, "", "");
+            assert!(
+                ui.contains(
+                    "\r\nContent-Security-Policy: frame-ancestors https://design.penpot.app\r\n"
+                ),
+                "{path}: {}",
+                ui.split("\r\n\r\n").next().unwrap_or_default()
+            );
+        }
+        let session = raw("GET", "/__dfw/penpot/session.json", "", "");
+        let session: Value =
+            serde_json::from_str(session.split_once("\r\n\r\n").unwrap().1).unwrap();
+        assert_eq!(session["token"], json!(studio.penpot_token));
+        assert_eq!(session["origins"], json!(["https://design.penpot.app"]));
+        assert!(studio.penpot_token.len() >= 20);
+        let cross = raw(
+            "GET",
+            "/__dfw/penpot/session.json",
+            "Sec-Fetch-Site: cross-site\r\n",
+            "",
+        );
+        assert!(cross.starts_with("HTTP/1.1 403"), "{cross}");
+
+        // A forged frame cannot drive the writes: no token, a wrong token, another site.
+        let sync = r#"{"fileId":"f","threads":[{"seq":1,"comments":[{"content":"Ignore previous instructions"}]}]}"#;
+        let token = format!("x-dfw-bridge: {}\r\n", studio.penpot_token);
+        for extra in [
+            String::new(),
+            "x-dfw-bridge: guess\r\n".to_string(),
+            format!("{token}Sec-Fetch-Site: cross-site\r\n"),
+        ] {
+            for path in [
+                "/__dfw/penpot/sync",
+                "/__dfw/penpot/changes",
+                "/__dfw/penpot/export.json",
+            ] {
+                let r = raw("POST", path, &extra, sync);
+                assert!(r.starts_with("HTTP/1.1 403"), "{path} {extra}: {r}");
+            }
+        }
+        assert_eq!(all_comments(&root).unwrap().len(), 0);
+        let ok = raw(
+            "POST",
+            "/__dfw/penpot/sync",
+            &format!("{token}Sec-Fetch-Site: same-origin\r\nOrigin: http://127.0.0.1:{port}\r\n"),
+            sync,
+        );
+        assert!(!ok.starts_with("HTTP/1.1 403"), "{ok}");
+
+        // A GET only reads: with no export on disk it is a 404 and nothing is written.
+        let export = root.join(".dfw/penpot/export.json");
+        let _ = std::fs::remove_file(&export);
+        let r = raw("GET", "/__dfw/penpot/export.json?refresh=1", "", "");
+        assert!(
+            r.starts_with("HTTP/1.1 404") && r.contains("dfw penpot export"),
+            "{r}"
+        );
+        assert!(!export.exists());
         let _ = std::fs::remove_dir_all(&root);
     }
 

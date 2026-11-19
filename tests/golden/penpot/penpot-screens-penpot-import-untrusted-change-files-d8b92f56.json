@@ -220,9 +220,7 @@
     {
       "code": 0,
       "stdout": "Compared with export px_20261116100000_fe69fbf2: 1 text, 1 move, 1 fill, 1 removed, 1 added, 2 comment.\n(dry run) items/a/desktop -> items.add\n    [Penpot] \"items.add\":\n    - Text changed: \"Add item\" -> \"Add stock\"\n(dry run) items/a/desktop -> items.panel\n    [Penpot] \"items.panel\":\n    - Moved by 0, 24 px (now x 16, y 136)\n    - Colour changed: #ffffff (color.surface) -> #f7f7f8 (color.canvas)\n    - Added in Penpot: text \"Last audit\" at 33, 212, 160, 17 with text \"Last audit: 2 days ago\"\n(dry run) items/a/desktop -> items.note\n    [Penpot] \"items.note\":\n    - Removed in Penpot: text \"items.note\" (\"Counted on Monday.\")\n(dry run) items/a/desktop -> items.summary\n    [Penpot comment]\n    Designer: Can low stock be more visible?\n    Lead: Maybe a badge.\n1 skipped (already imported, or a resolved Penpot thread).\nNote: Token diff skipped: No base token set found in the Penpot file (expected a set named \"base\").\nDry run: no comments written.\n",
-      "files": {
-        ".dfw/penpot/.tokens-<pid>.json": "{\n  \"themes/dark\": {\n    \"color\": {\n      \"ink\": {\n        \"$value\": \"#000\",\n        \"$type\": \"color\"\n      }\n    }\n  },\n  \"$themes\": [],\n  \"$metadata\": {\n    \"tokenSetOrder\": [\n      \"themes/dark\"\n    ],\n    \"activeSets\": []\n  }\n}\n"
-      }
+      "files": {}
     },
     {
       "code": 0,

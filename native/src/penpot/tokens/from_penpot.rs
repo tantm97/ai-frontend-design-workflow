@@ -309,8 +309,8 @@ fn shadow_in(s: &Value) -> Result<Value, DfwError> {
     match s {
         Value::String(_) => return Ok(s.clone()),
         Value::Null => {
-            return Err(DfwError::internal(
-                "Cannot read properties of null (reading 'color')",
+            return Err(DfwError::new(
+                "A shadow token in the Penpot file has an empty (null) layer. Fix the token in Penpot and export the tokens again.",
             ))
         }
         _ => {}

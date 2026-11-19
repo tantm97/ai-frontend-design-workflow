@@ -372,6 +372,97 @@ fn the_proxy_refuses_foreign_origins_and_hosts() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
+/// dfw review accepts writes and WebSocket upgrades only from its own origin: another
+/// loopback port is another site
+#[test]
+fn the_proxy_refuses_other_loopback_origins_and_foreign_upgrades() {
+    let root = test_dir("live-origins");
+    let app = fake_app("");
+    let (port, _server) = proxy_for(&root, &format!("http://127.0.0.1:{app}"));
+    let comment = r#"{"comment":"from another local site"}"#;
+    for origin in [
+        "http://localhost:8888",
+        "http://127.0.0.1:1",
+        "https://localhost:{port}",
+    ] {
+        let origin = origin.replace("{port}", &port.to_string());
+        let r = post_comment(port, &format!("Origin: {origin}\r\n"), comment);
+        assert!(r.starts_with("HTTP/1.1 403"), "{origin}: {r}");
+    }
+    let pass = call(port, &format!("POST /echo HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nOrigin: http://localhost:8888\r\nContent-Length: 2\r\n\r\nhi"));
+    assert!(pass.starts_with("HTTP/1.1 403"), "{pass}");
+    assert_eq!(all_comments(&root).unwrap().len(), 0);
+    for origin in [
+        format!("http://localhost:{port}"),
+        format!("http://[::1]:{port}"),
+    ] {
+        let r = post_comment(port, &format!("Origin: {origin}\r\n"), comment);
+        assert!(r.starts_with("HTTP/1.1 201"), "{origin}: {r}");
+    }
+    let upgrade = |extra: &str| {
+        call(port, &format!("GET /hmr HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n{extra}Upgrade: websocket\r\nConnection: Upgrade\r\n\r\n"))
+    };
+    let r = upgrade("Origin: https://evil.example\r\n");
+    assert!(r.starts_with("HTTP/1.1 403"), "{r}");
+    let r = call(port, "GET /hmr HTTP/1.1\r\nHost: evil.example\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n");
+    assert!(r.starts_with("HTTP/1.1 403"), "{r}");
+    // The page's own HMR socket still upgrades.
+    let mut s = TcpStream::connect(("127.0.0.1", port)).unwrap();
+    s.write_all(format!("GET /hmr HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nOrigin: http://127.0.0.1:{port}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n").as_bytes()).unwrap();
+    let mut chunk = [0u8; 256];
+    let n = s.read(&mut chunk).unwrap();
+    assert!(String::from_utf8_lossy(&chunk[..n]).starts_with("HTTP/1.1 101"));
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// dfw review answers every limit: a comment over MAX_COMMENT (413), a chunk size that does
+/// not fit (413, no crash), a body that is not JSON (400)
+#[test]
+fn the_proxy_answers_requests_over_its_limits() {
+    let root = test_dir("live-limits");
+    let (port, _server) = proxy_for(&root, "http://127.0.0.1:9");
+    let big = format!(r#"{{"comment":"{}"}}"#, "x".repeat(1_000_001));
+    let r = post_comment(port, "", &big);
+    assert!(
+        r.starts_with("HTTP/1.1 413") && body(&r) == r#"{"error":"Request too large."}"#,
+        "{r}"
+    );
+    let r = call(port, &format!("POST /__dfw/api/comments HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nTransfer-Encoding: chunked\r\n\r\nffffffffffffffff\r\nabc"));
+    assert!(r.starts_with("HTTP/1.1 413"), "{r}");
+    let r = call(port, &format!("POST /app HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nTransfer-Encoding: chunked\r\n\r\nffffffffffffffff\r\nabc"));
+    assert!(r.starts_with("HTTP/1.1 413"), "{r}");
+    let r = post_comment(port, "", "{not json");
+    assert!(
+        r.starts_with("HTTP/1.1 400")
+            && body(&r) == r#"{"error":"The request body is not valid JSON."}"#,
+        "{r}"
+    );
+    let r = call(port, &format!("POST /__dfw/api/comments HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nContent-Length: -1\r\n\r\n"));
+    assert!(r.starts_with("HTTP/1.1 400"), "{r}");
+    assert!(get(port, "/__dfw/api/live", &format!("127.0.0.1:{port}")).starts_with("HTTP/1.1 200"));
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// a compressed page that decodes past the cap is not decoded (a gzip bomb), it passes as sent
+#[test]
+fn decoding_stops_at_the_cap() {
+    let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::best());
+    gz.write_all(&vec![b'a'; 1_000_000]).unwrap();
+    let packed = gz.finish().unwrap();
+    assert!(packed.len() < 10_000);
+    assert_eq!(super::proxy::decode(&packed, Some("gzip"), 999_999), None);
+    assert_eq!(
+        super::proxy::decode(&packed, Some("gzip"), 1_000_000).map(|d| d.len()),
+        Some(1_000_000)
+    );
+    let mut z = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::best());
+    z.write_all(&vec![b'a'; 100_000]).unwrap();
+    assert_eq!(
+        super::proxy::decode(&z.finish().unwrap(), Some("deflate"), 1000),
+        None
+    );
+}
+
 /// dfw review proxy: app down -> readable 502
 #[test]
 fn the_proxy_answers_502_when_the_app_is_down() {

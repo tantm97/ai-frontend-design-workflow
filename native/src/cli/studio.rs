@@ -163,7 +163,11 @@ fn studio(ctx: &Ctx) -> Result<i32, DfwError> {
     ];
     let pid = spawn_server(&args, &log)?;
     let url = format!("http://127.0.0.1:{port}/");
-    if wait_for(port, "/__dfw/api/manifest").is_none() {
+    // The ping route answers even when design.json is broken (the manifest route does not).
+    if wait_for(port, "/__dfw/api/ping").is_none_or(|b| !b.contains(r#""dfw":"studio""#)) {
+        // Never leave a server running that no studio.json names: "studio stop" could not
+        // reach it.
+        kill(Some(&json!(pid)));
         return Err(DfwError::new(format!(
             "Studio did not start; see {}",
             log.display()
@@ -267,6 +271,7 @@ fn review(ctx: &Ctx) -> Result<i32, DfwError> {
     // Always bound on 127.0.0.1; served as http://localhost:<port>/ for a localhost app (its
     // cookies then reach the proxy).
     let Some(body) = wait_for(port, "/__dfw/api/live") else {
+        kill(Some(&json!(pid)));
         return Err(DfwError::new(format!(
             "dfw review did not start; see {}",
             log.display()

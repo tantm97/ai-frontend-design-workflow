@@ -7,16 +7,171 @@
 //! streams through untouched. Both are a few lines on a `TcpStream` and awkward through
 //! `tiny_http`'s buffered response writer; with this layer the two servers share one parser.
 
+use std::collections::hash_map::RandomState;
+use std::hash::{BuildHasher, Hasher};
 use std::io::{self, Read, Write};
 use std::net::TcpStream;
-use std::time::Duration;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 /// Largest request or response head accepted (Node's default is 16 KiB; dev servers send big
 /// cookies, so a little more).
-const MAX_HEAD: usize = 64 * 1024;
+pub const MAX_HEAD: usize = 64 * 1024;
 
-/// How long a client may take to send its request.
+/// How long one read of a request (head or body) may wait.
 pub const READ_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// How long a client may take to send its whole request head: a client that sends one byte at
+/// a time must not hold a connection for ever.
+pub const HEAD_DEADLINE: Duration = Duration::from_secs(10);
+
+/// How long one write of an answer may wait for a client that does not read.
+pub const WRITE_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Most connections one server handles at once; above it a client gets a 503. One thread per
+/// connection: without a cap a few thousand slow clients exhaust the threads and the process.
+pub const MAX_CONNECTIONS: usize = 512;
+
+/// The marker of a head over [`MAX_HEAD`] inside an `io::Error`, so callers answer 413.
+#[derive(Debug)]
+struct HeadTooLarge;
+
+impl std::fmt::Display for HeadTooLarge {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("message head too large")
+    }
+}
+
+impl std::error::Error for HeadTooLarge {}
+
+/// The answer to a request that could not be read: 413 for a head or body over its limit, 400
+/// for a malformed one; `None` when the client is gone or too slow (nothing to answer).
+pub fn refusal(err: &io::Error) -> Option<(u16, &'static str)> {
+    if err
+        .get_ref()
+        .is_some_and(|inner| inner.is::<HeadTooLarge>())
+    {
+        return Some((413, "Request too large."));
+    }
+    (err.kind() == io::ErrorKind::InvalidData).then_some((400, "Malformed request."))
+}
+
+/// A reader over a socket that gives up at `end`: every read waits at most until then (and
+/// never longer than [`READ_TIMEOUT`]).
+pub struct Deadline<'a> {
+    pub stream: &'a TcpStream,
+    pub end: Instant,
+}
+
+impl Read for Deadline<'_> {
+    fn read(&mut self, out: &mut [u8]) -> io::Result<usize> {
+        let left = self.end.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "request head deadline passed",
+            ));
+        }
+        self.stream.set_read_timeout(Some(left.min(READ_TIMEOUT)))?;
+        let mut s = self.stream;
+        s.read(out)
+    }
+}
+
+/// Read a request head from a client socket within [`HEAD_DEADLINE`]; the socket keeps
+/// [`READ_TIMEOUT`] for the body and [`WRITE_TIMEOUT`] for the answer.
+pub fn read_request_head(stream: &mut TcpStream) -> io::Result<Option<Head>> {
+    stream.set_write_timeout(Some(WRITE_TIMEOUT))?;
+    let mut reader = Deadline {
+        stream: &*stream,
+        end: Instant::now() + HEAD_DEADLINE,
+    };
+    let head = read_head(&mut reader);
+    stream.set_read_timeout(Some(READ_TIMEOUT))?;
+    head
+}
+
+/// A short JSON error answer (`{"error": message}`) for a request that was refused before any
+/// route saw it.
+pub fn write_error(stream: &mut impl Write, method: &str, code: u16, message: &str) {
+    let body = format!("{{\"error\":{}}}", serde_json::Value::from(message));
+    let headers = [
+        (
+            "Content-Type".to_string(),
+            "application/json; charset=utf-8".to_string(),
+        ),
+        ("Cache-Control".to_string(), "no-store".to_string()),
+    ];
+    // The client may be gone; there is nobody left to tell.
+    let _ = write_response(stream, method, code, &headers, body.as_bytes());
+}
+
+/// The count of open connections of one server, shared by its threads.
+#[derive(Debug, Clone, Default)]
+pub struct Connections(Arc<AtomicUsize>);
+
+/// One counted connection; dropping it frees the place.
+pub struct Slot(Arc<AtomicUsize>);
+
+impl Drop for Slot {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+impl Connections {
+    /// A place for one more connection, or `None` at `max`.
+    pub fn enter(&self, max: usize) -> Option<Slot> {
+        let taken = self.0.fetch_add(1, Ordering::SeqCst);
+        let slot = Slot(Arc::clone(&self.0));
+        (taken < max).then_some(slot)
+    }
+}
+
+/// Handle `stream` on a thread of its own when there is a place for it: over the cap the
+/// client gets a 503, and when no thread can be started the connection is dropped (the server
+/// keeps running either way).
+pub fn spawn_connection(
+    conns: &Connections,
+    max: usize,
+    mut stream: TcpStream,
+    handle: impl FnOnce(TcpStream) + Send + 'static,
+) {
+    let Some(slot) = conns.enter(max) else {
+        // A short answer that fits the socket buffer: the accept loop must not wait on it.
+        let _ = stream.set_write_timeout(Some(Duration::from_secs(1)));
+        write_error(
+            &mut stream,
+            "GET",
+            503,
+            "Too many connections; try again in a moment.",
+        );
+        return;
+    };
+    // No thread (the system is out of them): the closure, the stream and the slot are dropped,
+    // which closes the connection and frees the place.
+    let _ = std::thread::Builder::new().spawn(move || {
+        let _slot = slot;
+        handle(stream);
+    });
+}
+
+/// 16 random bytes in base64 (a CSP nonce). The keys of `RandomState` come from the operating
+/// system's random source, so the hashes are unpredictable without a random-number crate.
+pub fn random_base64() -> String {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos());
+    let mut bytes = Vec::with_capacity(16);
+    for i in 0..2u8 {
+        let mut h = RandomState::new().build_hasher();
+        h.write_u8(i);
+        h.write_u128(now);
+        bytes.extend_from_slice(&h.finish().to_le_bytes());
+    }
+    crate::browser::cdp::encoding::base64_encode(&bytes)
+}
 
 /// A parsed message head (request or response) and the bytes read past it.
 #[derive(Debug, Clone, Default)]
@@ -60,6 +215,14 @@ impl Head {
     }
 }
 
+/// [`random_base64`] as a token safe in a header and a URL (base64url, no padding).
+pub fn random_token() -> String {
+    random_base64()
+        .trim_end_matches('=')
+        .replace('+', "-")
+        .replace('/', "_")
+}
+
 /// Read a message head. `Ok(None)` when the peer closed before sending anything.
 pub fn read_head(stream: &mut impl Read) -> io::Result<Option<Head>> {
     let mut buf: Vec<u8> = Vec::with_capacity(2048);
@@ -69,7 +232,7 @@ pub fn read_head(stream: &mut impl Read) -> io::Result<Option<Head>> {
             break i;
         }
         if buf.len() > MAX_HEAD {
-            return Err(invalid("message head too large"));
+            return Err(io::Error::new(io::ErrorKind::InvalidData, HeadTooLarge));
         }
         let n = stream.read(&mut chunk)?;
         if n == 0 {
@@ -149,10 +312,13 @@ pub fn read_body(
         return read_chunked(&mut reader, limit);
     }
     if let Some(len) = head.header("content-length") {
-        let len: usize = len
-            .trim()
-            .parse()
-            .map_err(|_| invalid("bad content-length"))?;
+        // Digits only: `-1`, `+5` or an empty value is a malformed request (400), and a number
+        // too big for memory is too large (413).
+        let len = len.trim();
+        if len.is_empty() || !len.bytes().all(|b| b.is_ascii_digit()) {
+            return Err(invalid("bad content-length").into());
+        }
+        let len: usize = len.parse().map_err(|_| BodyError::TooLarge)?;
         if len > limit {
             return Err(BodyError::TooLarge);
         }
@@ -174,16 +340,22 @@ pub fn read_body(
     Ok(body)
 }
 
-/// Read and drop what is left of a body that was refused as too large (at most 64 MiB), so the
-/// client is not cut off while it still sends and can read the answer.
-pub fn drain(stream: &mut impl Read, head: &Head) {
+/// Read and drop what is left of a body that was refused (at most `cap` bytes), so the client
+/// is not cut off while it still sends and can read the answer. Bytes only: nothing is parsed.
+pub fn drain(stream: &mut impl Read, head: &Head, cap: u64) {
+    // Without a length a chunked body runs until the client stops; without either there is
+    // no body.
+    let unframed = if head.header("transfer-encoding").is_some() {
+        cap
+    } else {
+        0
+    };
     let left = head
         .header("content-length")
         .and_then(|l| l.trim().parse::<u64>().ok())
-        .map_or(64 * 1024 * 1024, |l| {
-            l.saturating_sub(head.rest.len() as u64)
-        })
-        .min(64 * 1024 * 1024);
+        .map_or(unframed, |l| l.saturating_sub(head.rest.len() as u64))
+        .min(cap);
+    // Cleanup of a refused request: the answer does not depend on it.
     let _ = io::copy(&mut stream.take(left), &mut io::sink());
 }
 
@@ -192,13 +364,18 @@ fn read_chunked(reader: &mut impl Read, limit: usize) -> Result<Vec<u8>, BodyErr
     loop {
         let line = read_line(reader)?;
         let size = line.split(';').next().unwrap_or_default().trim();
-        let size = usize::from_str_radix(size, 16).map_err(|_| invalid("bad chunk size"))?;
+        if size.is_empty() || !size.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return Err(invalid("bad chunk size").into());
+        }
+        // A size that does not fit, or that passes the limit, is too large; checked so that a
+        // chunk of `ffffffffffffffff` cannot overflow (release builds abort on a panic).
+        let size = usize::from_str_radix(size, 16).map_err(|_| BodyError::TooLarge)?;
         if size == 0 {
             // Trailers until the blank line.
             while !read_line(reader)?.is_empty() {}
             return Ok(body);
         }
-        if body.len() + size > limit {
+        if size > limit.saturating_sub(body.len()) {
             return Err(BodyError::TooLarge);
         }
         let start = body.len();
@@ -495,6 +672,142 @@ mod tests {
             read_body(&mut r, &head, 4, false),
             Err(BodyError::TooLarge)
         ));
+    }
+
+    fn head_of(raw: &[u8]) -> (Head, &[u8]) {
+        let mut r: &[u8] = raw;
+        let head = read_head(&mut r).unwrap().unwrap();
+        (head, r)
+    }
+
+    /// a chunk size that does not fit in memory is too large, never an overflow (release
+    /// builds abort on a panic)
+    #[test]
+    fn huge_chunk_sizes_are_too_large_not_a_panic() {
+        for size in ["ffffffffffffffff", "fffffffffffffffffffff", "10000"] {
+            let raw = format!(
+                "POST / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n3\r\nabc\r\n{size}\r\n"
+            );
+            let (head, mut r) = head_of(raw.as_bytes());
+            assert!(
+                matches!(
+                    read_body(&mut r, &head, 100, false),
+                    Err(BodyError::TooLarge)
+                ),
+                "{size}"
+            );
+        }
+        let (head, mut r) = head_of(
+            b"POST / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n+5\r\nabcde\r\n0\r\n\r\n",
+        );
+        match read_body(&mut r, &head, 100, false) {
+            Err(BodyError::Io(e)) => assert_eq!(refusal(&e), Some((400, "Malformed request."))),
+            other => panic!("{other:?}"),
+        }
+    }
+
+    /// a length that is not a number is malformed (400); one too big for memory is too large
+    #[test]
+    fn content_lengths_are_digits_only() {
+        for bad in ["-1", "+5", "", "5 5", "0x10"] {
+            let raw = format!("POST / HTTP/1.1\r\nContent-Length: {bad}\r\n\r\n");
+            let (head, mut r) = head_of(raw.as_bytes());
+            match read_body(&mut r, &head, 100, false) {
+                Err(BodyError::Io(e)) => assert_eq!(refusal(&e).map(|r| r.0), Some(400), "{bad}"),
+                other => panic!("{bad}: {other:?}"),
+            }
+        }
+        let (head, mut r) =
+            head_of(b"POST / HTTP/1.1\r\nContent-Length: 99999999999999999999999\r\n\r\n");
+        assert!(matches!(
+            read_body(&mut r, &head, 100, false),
+            Err(BodyError::TooLarge)
+        ));
+    }
+
+    /// a head over MAX_HEAD is answered 413, a broken one 400
+    #[test]
+    fn oversized_and_broken_heads_have_answers() {
+        let mut big = b"GET / HTTP/1.1\r\nX: ".to_vec();
+        big.extend(std::iter::repeat_n(b'a', MAX_HEAD + 10));
+        let mut r: &[u8] = &big;
+        let err = read_head(&mut r).unwrap_err();
+        assert_eq!(refusal(&err), Some((413, "Request too large.")));
+        let mut r: &[u8] = b"GET / HTTP/1.1\r\nno colon\r\n\r\n";
+        let err = read_head(&mut r).unwrap_err();
+        assert_eq!(refusal(&err), Some((400, "Malformed request.")));
+        let timed_out = io::Error::new(io::ErrorKind::TimedOut, "slow");
+        assert_eq!(refusal(&timed_out), None);
+    }
+
+    /// a client that sends its head one byte at a time is cut off at the head deadline
+    #[test]
+    fn the_head_deadline_stops_a_slow_client() {
+        let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let slow = std::thread::spawn(move || {
+            let mut c = TcpStream::connect(("127.0.0.1", port)).unwrap();
+            for _ in 0..40 {
+                if c.write_all(b"a").is_err() {
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+        });
+        let (server, _) = listener.accept().unwrap();
+        let started = Instant::now();
+        let mut reader = Deadline {
+            stream: &server,
+            end: Instant::now() + Duration::from_millis(300),
+        };
+        let err = read_head(&mut reader).unwrap_err();
+        // The last read times out (WouldBlock on Unix) or the deadline is already gone.
+        assert!(
+            matches!(
+                err.kind(),
+                io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock
+            ),
+            "{err}"
+        );
+        assert_eq!(
+            refusal(&err),
+            None,
+            "nothing to answer a client that is too slow"
+        );
+        assert!(
+            started.elapsed() < Duration::from_secs(1),
+            "{:?}",
+            started.elapsed()
+        );
+        drop(server);
+        slow.join().unwrap();
+    }
+
+    /// over the connection cap a client gets a 503 and the place comes back when one closes
+    #[test]
+    fn the_connection_cap_answers_503() {
+        let conns = Connections::default();
+        let first = conns.enter(1).unwrap();
+        assert!(conns.enter(1).is_none());
+        drop(first);
+        assert!(conns.enter(1).is_some());
+
+        let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let (release, wait) = std::sync::mpsc::channel::<()>();
+        let held = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        let (a, _) = listener.accept().unwrap();
+        spawn_connection(&conns, 1, a, move |_s| {
+            let _ = wait.recv();
+        });
+        let mut second = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        let (b, _) = listener.accept().unwrap();
+        spawn_connection(&conns, 1, b, |_s| panic!("over the cap"));
+        let mut answer = String::new();
+        second.read_to_string(&mut answer).unwrap();
+        assert!(answer.starts_with("HTTP/1.1 503"), "{answer}");
+        release.send(()).unwrap();
+        drop(held);
     }
 
     #[test]

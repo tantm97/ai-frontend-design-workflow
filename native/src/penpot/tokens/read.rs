@@ -236,7 +236,8 @@ impl SetMap {
 }
 
 /// `mapSets`: `base` feeds tokens.json, `themes/<n>` (or `theme/<n>`) feeds a theme, the rest
-/// is skipped.
+/// is skipped. A theme name that starts with a dot (`..`, `.`, `.env`) is skipped too: it would
+/// name a hidden file under design/tokens/themes/.
 pub fn map_sets(parsed: &PenpotFile) -> Result<SetMap, DfwError> {
     let listed: Vec<String> = match js::truthy_value(parsed.metadata.get("tokenSetOrder")) {
         None => Vec::new(),
@@ -247,8 +248,8 @@ pub fn map_sets(parsed: &PenpotFile) -> Result<SetMap, DfwError> {
             .collect(),
         Some(Value::String(s)) => s.chars().map(String::from).collect(),
         Some(_) => {
-            return Err(DfwError::internal(
-                "parsed.metadata.tokenSetOrder is not iterable",
+            return Err(DfwError::new(
+                "\"$metadata.tokenSetOrder\" in the Penpot token file must be a list of set names. Export the tokens again from Penpot's Tokens panel, or fix the file.",
             ))
         }
     };
@@ -279,7 +280,7 @@ pub fn map_sets(parsed: &PenpotFile) -> Result<SetMap, DfwError> {
         let theme = THEME_SET
             .captures(&s)
             .map(|m| m[1].to_string())
-            .filter(|name| THEME_NAME.is_match(name));
+            .filter(|name| THEME_NAME.is_match(name) && !name.starts_with('.'));
         if Some(&s) == base_name.as_ref() {
             map.push((s, SetKind::Base));
         } else if let Some(name) = theme {

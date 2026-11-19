@@ -46,13 +46,13 @@ pub(super) fn walkable(
         None => Ok(()),
         Some(Value::String(_)) if !method => Ok(()),
         Some(Value::Array(items)) => match reads.filter(|_| items.iter().any(Value::is_null)) {
-            Some(property) => Err(DfwError::internal(format!(
-                "Cannot read properties of null (reading '{property}')"
+            Some(property) => Err(DfwError::new(format!(
+                "The change file has an empty entry (null) in a list of items with \"{property}\". Send the changes again from the dfw bridge plugin, or remove the null entry."
             ))),
             None => Ok(()),
         },
-        Some(other) => Err(DfwError::internal(format!(
-            "{} is not a list",
+        Some(other) => Err(DfwError::new(format!(
+            "The change file has {} where a list was expected. Send the changes again from the dfw bridge plugin, or fix the file.",
             js::slice16(&js::stringify(Some(other)), 0, 60)
         ))),
     }
