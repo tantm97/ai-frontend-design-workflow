@@ -373,7 +373,7 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
     const ok = [
       ['--level', '1', 'Blue', 'accent'],
       ['--level', '3', '--topic', 'type', '--overrides', 'd1', 'Inter for UI text'],
-      ['--level', '2.5', '--text', 'From a flag'],
+      ['--level', '2', '--text', 'From a flag'],
       ['--level=5', 'x'],
       ['--level', '0x2', 'hex'],
       ['--level', ' 4 ', 'padded'],
@@ -386,7 +386,8 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
     }
     assert.equal(same(['decide', '--level', '2', 'x'], { state: null }).code, 0, 'decide needs no workflow');
     // 0.5.2: --level and --text alone are refused, no longer read as level 1 and an empty text.
-    for (const args of [['x'], ['--level', '0', 'x'], ['--level', '6', 'x'], ['--level', 'two', 'x'], ['--level', '', 'x'], ['--level', '2'], ['--level', '2', '--text', ''], ['--level', '--topic', 't', 'x'], ['--level', ' 4 ', '--text']]) {
+    // 0.6.1 (CO-13): a level is a whole number, 1.5 and 2.5 are refused.
+    for (const args of [['--level', '1.5', 'x'], ['--level', '2.5', '--text', 'From a flag'], ['x'], ['--level', '0', 'x'], ['--level', '6', 'x'], ['--level', 'two', 'x'], ['--level', '', 'x'], ['--level', '2'], ['--level', '2', '--text', ''], ['--level', '--topic', 't', 'x'], ['--level', ' 4 ', '--text']]) {
       const r = same(['decide', ...args]);
       assert.equal(r.code, 1, args.join(' '));
       assert.deepEqual(r.files, {});

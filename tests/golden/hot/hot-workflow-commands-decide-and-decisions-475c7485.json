@@ -19,10 +19,10 @@
     },
     {
       "code": 0,
-      "stdout": "{\n  \"at\": \"2026-01-02T03:04:05.678Z\",\n  \"level\": 2.5,\n  \"topic\": \"general\",\n  \"decision\": \"From a flag\",\n  \"by\": \"orchestrator\"\n}\n",
+      "stdout": "{\n  \"at\": \"2026-01-02T03:04:05.678Z\",\n  \"level\": 2,\n  \"topic\": \"general\",\n  \"decision\": \"From a flag\",\n  \"by\": \"orchestrator\"\n}\n",
       "stderr": "",
       "files": {
-        ".dfw/decisions.jsonl": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"level\":2.5,\"topic\":\"general\",\"decision\":\"From a flag\",\"by\":\"orchestrator\"}\n"
+        ".dfw/decisions.jsonl": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"level\":2,\"topic\":\"general\",\"decision\":\"From a flag\",\"by\":\"orchestrator\"}\n"
       }
     },
     {
@@ -64,6 +64,18 @@
       "files": {
         ".dfw/decisions.jsonl": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"level\":2,\"topic\":\"general\",\"decision\":\"x\",\"by\":\"orchestrator\"}\n"
       }
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--level must be 1 (user) .. 5 (external skill recommendation).\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--level must be 1 (user) .. 5 (external skill recommendation).\n",
+      "files": {}
     },
     {
       "code": 1,
