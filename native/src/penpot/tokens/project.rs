@@ -60,10 +60,18 @@ pub fn export_penpot_tokens(
     let (json, mut report) = dfw_to_penpot(Some(&tokens.base), &tokens.themes);
     report.skipped_themes = tokens.skipped;
     let file = match out.filter(|o| !o.is_empty()) {
-        Some(out) => resolve(root.join(out)),
-        None => resolve(root.join(".dfw").join("penpot").join("tokens.penpot.json")),
+        // A file the user named may be outside the project on purpose.
+        Some(out) => {
+            let file = resolve(root.join(out));
+            write_json(&file, &json)?;
+            file
+        }
+        None => {
+            let file = resolve(root.join(".dfw").join("penpot").join("tokens.penpot.json"));
+            write_json_inside(root, &file, &json)?;
+            file
+        }
     };
-    write_json(&file, &json)?;
     Ok(TokenExport { file, json, report })
 }
 
@@ -169,7 +177,7 @@ pub fn import_penpot_tokens(
     result.diff = js::key_order_pairs(std::mem::take(&mut result.diff));
     if !dry_run {
         for (file, tree) in &writes {
-            write_json(file, tree)?;
+            write_json_inside(root, file, tree)?;
             result.written.push(relative_path(root, file));
         }
     }

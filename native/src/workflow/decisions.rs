@@ -8,7 +8,7 @@ use serde_json::{json, Value};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::project_paths;
-use crate::core::util::{append_jsonl, now_iso, read_jsonl};
+use crate::core::util::{append_jsonl_inside, now_iso, read_jsonl};
 
 /// The entry `approveGate` appends: a level 1 (user) decision named after the gate.
 pub fn gate_entry(at: &str, gate: &str, title: &str, note: Option<&Value>) -> Value {
@@ -52,7 +52,7 @@ pub fn decide(
         ),
         ("overrides", overrides),
     ]);
-    append_jsonl(&project_paths(root).decisions, &entry)?;
+    append_jsonl_inside(root, &project_paths(root).decisions, &entry)?;
     Ok(entry)
 }
 

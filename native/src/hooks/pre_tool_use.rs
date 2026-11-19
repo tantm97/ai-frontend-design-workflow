@@ -12,7 +12,7 @@ use crate::core::error::DfwError;
 use crate::core::host::{HookInput, HookResult};
 use crate::core::js;
 use crate::core::paths::{env_nonempty, find_project_root, project_paths, resolve};
-use crate::core::util::{now_iso, write_json};
+use crate::core::util::{now_iso, write_json_inside};
 use crate::design::html::{Attr, Quote, Token, Tokenizer};
 use crate::workflow::gates::{decide_write, files_from_tool_input, relative};
 use crate::workflow::state::load_state;
@@ -169,7 +169,7 @@ pub fn note_presence(
         }
     }
     let note = json!({ "file": rel, "dfwId": dfw_id, "at": now_iso() });
-    write_json(&p.dfw.join("presence.json"), &note)?;
+    write_json_inside(root, &p.dfw.join("presence.json"), &note)?;
     Ok(Some(note))
 }
 

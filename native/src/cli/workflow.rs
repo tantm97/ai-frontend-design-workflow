@@ -16,8 +16,8 @@ use crate::core::js;
 use crate::core::paths::project_paths;
 use crate::core::process::is_alive;
 use crate::core::util::{
-    append_jsonl, now_iso, out, parse_value, read_json, to_json_compact, to_json_pretty,
-    write_atomic, write_json, Args,
+    append_jsonl_inside, now_iso, out, parse_value, read_json, to_json_compact, to_json_pretty,
+    write_atomic_inside, write_json_inside, Args,
 };
 use crate::design::compose::{build_system, load_components};
 use crate::design::dsaudit::audit_design_system;
@@ -79,24 +79,25 @@ fn init(ctx: &Ctx) -> Result<i32, DfwError> {
     save_state(&root, &mut state)?;
     fs::create_dir_all(&p.reviews)?;
     if !p.config.exists() {
-        write_json(&p.config, &json!({ "schema": 1 }))?;
+        write_json_inside(&root, &p.config, &json!({ "schema": 1 }))?;
     }
     if !p.decisions.exists() {
-        write_atomic(&p.decisions, "")?;
+        write_atomic_inside(&root, &p.decisions, "")?;
     }
-    write_atomic(
+    write_atomic_inside(
+        &root,
         &p.dfw.join(".gitignore"),
         "config.local.json\nstudio.json\nstudio.log\nreview.json\nreview.log\npresence.json\nshots/\nchecks/\n",
     )?;
     let mut created = Vec::new();
     for doc in ["PRODUCT.md", "DESIGN.md"] {
         if !root.join(doc).exists() {
-            write_atomic(&root.join(doc), crate::assets::template_text(doc)?)?;
+            write_atomic_inside(&root, &root.join(doc), crate::assets::template_text(doc)?)?;
             created.push(doc);
         }
     }
     if !p.design.exists() {
-        crate::assets::copy_templates("design", &p.design)?;
+        crate::assets::copy_templates(&root, "design", &p.design)?;
         let mut m = read_json(&p.manifest, None)?;
         let product = js::truthy_value(state.get("product"))
             .cloned()
@@ -110,7 +111,7 @@ fn init(ctx: &Ctx) -> Result<i32, DfwError> {
         if let Value::Object(map) = &mut m {
             map.insert("product".into(), product);
         }
-        write_json(&p.manifest, &m)?;
+        write_json_inside(&root, &p.manifest, &m)?;
         created.push("design/");
         // `try { buildTokens(root) } catch {}`: a starter that does not build is not an error here.
         let _ = build_tokens(&root);
@@ -401,7 +402,8 @@ fn approve_g2(root: &Path, a: &Args, state: &mut Value, note: Value) -> Result<i
             .take(50)
             .cloned()
             .collect();
-        append_jsonl(
+        append_jsonl_inside(
+            root,
             &project_paths(root).decisions,
             &json!({
                 "at": now_iso(),
@@ -414,7 +416,8 @@ fn approve_g2(root: &Path, a: &Args, state: &mut Value, note: Value) -> Result<i
         )?;
     }
     if !report.unverified.is_empty() {
-        append_jsonl(
+        append_jsonl_inside(
+            root,
             &project_paths(root).decisions,
             &json!({
                 "at": now_iso(),
@@ -463,7 +466,7 @@ fn approve(ctx: &Ctx) -> Result<i32, DfwError> {
     if let Value::Object(map) = &mut stack {
         map.insert("status".into(), "approved".into());
         map.insert("approvedAt".into(), now_iso().into());
-        write_json(&file, &stack)?;
+        write_json_inside(&root, &file, &stack)?;
     }
     out(&format!(
         "{gate} approved: {}.\n{}",

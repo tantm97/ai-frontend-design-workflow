@@ -379,7 +379,7 @@ fn doctor(ctx: &Ctx) -> Result<i32, DfwError> {
 
 /* ---------------------------------------------------------------- mcp, stack, handoff */
 
-use crate::core::util::{now_iso, write_json};
+use crate::core::util::{now_iso, write_json_inside};
 use crate::tools::handoff::write_handoff;
 use crate::tools::mcp::serve_mcp;
 use crate::tools::mcp_install::{mcp_install, which_tool};
@@ -417,7 +417,7 @@ fn stack(ctx: &Ctx) -> Result<i32, DfwError> {
                 let mut data = js::spread(Some(&detected));
                 data.insert("status".into(), json!("proposed"));
                 data.insert("source".into(), json!("detected"));
-                write_json(&file, &Value::Object(data))?;
+                write_json_inside(&root, &file, &Value::Object(data))?;
             }
             out(&to_json_pretty(&detected));
         }
@@ -438,7 +438,7 @@ fn stack(ctx: &Ctx) -> Result<i32, DfwError> {
             let mut data = js::spread(Some(&given));
             data.insert("status".into(), json!("proposed"));
             data.insert("proposedAt".into(), json!(now_iso()));
-            write_json(&file, &Value::Object(data))?;
+            write_json_inside(&root, &file, &Value::Object(data))?;
             if let Some(mut state) = load_state(&root)? {
                 let gates = state
                     .get_mut("gates")

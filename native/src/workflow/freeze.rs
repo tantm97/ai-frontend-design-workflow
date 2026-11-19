@@ -8,7 +8,9 @@ use serde_json::{json, Map, Value};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{project_paths, resolve};
-use crate::core::util::{copy_dir, list_files, now_iso, read_json, sha256, write_json};
+use crate::core::util::{
+    copy_dir, ensure_inside, list_files, now_iso, read_json, sha256, write_json_inside,
+};
 
 use super::gates::relative;
 use super::state::{approve_gate, push_history, save_state, state_field_error};
@@ -100,6 +102,8 @@ pub fn freeze_design(root: &Path, state: &mut Value, note: Option<Value>) -> Res
         )));
     }
     let DesignHash { files, hash } = hash_design(root)?;
+    // The snapshot is new: `design/approved` linked out of the project must not receive it.
+    ensure_inside(root, &dest)?;
     copy_dir(&p.design, &dest, &EXCLUDE)?;
     for doc in ROOT_DOCS {
         let abs = root.join(doc);
@@ -120,7 +124,7 @@ pub fn freeze_design(root: &Path, state: &mut Value, note: Option<Value>) -> Res
         ("note", note.clone()),
         ("files", Some(Value::Array(files))),
     ]);
-    write_json(&dest.join("approval.lock.json"), &lock)?;
+    write_json_inside(root, &dest.join("approval.lock.json"), &lock)?;
     design.insert("status".into(), "approved".into());
     design.insert("locked".into(), true.into());
     let entry = js::object(vec![
@@ -250,7 +254,7 @@ pub fn reopen_design(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::util::test_dir;
+    use crate::core::util::{test_dir, write_json};
     use crate::workflow::state::{load_state, new_state};
 
     /// e: a comment file or snapshot version from input never leaves design/

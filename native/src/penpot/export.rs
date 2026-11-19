@@ -26,7 +26,9 @@ use crate::core::config::load_config;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{project_paths, resolve, to_posix};
-use crate::core::util::{get_path, now_iso, read_json, sha256, to_json_compact, write_json};
+use crate::core::util::{
+    get_path, now_iso, read_json, sha256, to_json_compact, write_json, write_json_inside,
+};
 use crate::design::compose::{build_composed, build_system};
 use crate::design::pages::studio_pages;
 use crate::design::tokens::{dir_names, relative_path};
@@ -1007,19 +1009,28 @@ pub fn export_penpot(root: &Path, opts: &ExportOptions) -> Result<(PathBuf, Valu
     });
     doc["errors"] = Value::Array(errors);
     let dir = penpot_dir(root);
-    write_json(
+    write_json_inside(
+        root,
         &dir.join("exports")
             .join(format!("{}.json", js::to_string(doc.get("id")))),
         &doc,
     )?;
     prune_exports(&dir, KEEP_EXPORTS)?;
     let file = match opts.out.as_deref().filter(|o| !o.is_empty()) {
-        Some(out) => resolve(root.join(out)),
-        None => resolve(dir.join("export.json")),
+        // A file the user named may be outside the project on purpose.
+        Some(out) => {
+            let file = resolve(root.join(out));
+            write_json(&file, &doc)?;
+            file
+        }
+        None => {
+            let file = resolve(dir.join("export.json"));
+            write_json_inside(root, &file, &doc)?;
+            file
+        }
     };
-    write_json(&file, &doc)?;
     if let Some(tokens) = js::truthy_value(doc.get("tokens")) {
-        write_json(&dir.join("tokens.penpot.json"), tokens)?;
+        write_json_inside(root, &dir.join("tokens.penpot.json"), tokens)?;
     }
     Ok((file, doc))
 }

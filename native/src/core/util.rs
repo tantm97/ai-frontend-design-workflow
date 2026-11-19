@@ -205,6 +205,12 @@ pub fn append_jsonl(file: &Path, entry: &Value) -> Result<(), DfwError> {
     Ok(())
 }
 
+/// [`append_jsonl`] for a file of the project at `root`, refused like [`write_atomic_inside`].
+pub fn append_jsonl_inside(root: &Path, file: &Path, entry: &Value) -> Result<(), DfwError> {
+    ensure_inside(root, file)?;
+    append_jsonl(file, entry)
+}
+
 /// `readJsonl(file)`: every non-blank line parsed; a missing file is an empty list.
 pub fn read_jsonl(file: &Path) -> Result<Vec<Value>, DfwError> {
     if !file.exists() {

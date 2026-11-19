@@ -14,7 +14,9 @@ use crate::core::config::load_config;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{project_paths, resolve};
-use crate::core::util::{out, to_json_compact, to_json_pretty, write_json, ArgValue, Args};
+use crate::core::util::{
+    out, to_json_compact, to_json_pretty, write_atomic_inside, write_json_inside, ArgValue, Args,
+};
 use crate::design::color::{self, Names, Oklch, Ramp, Seeds, Signature};
 use crate::design::compose::{
     build_system, compose_html, load_components, parse_component_file, ComposeOptions,
@@ -241,10 +243,7 @@ fn check(ctx: &Ctx) -> Result<i32, DfwError> {
     let config = load_config(Some(&root))?;
     if setup {
         let page = project_paths(&root).dfw.join("checks").join("setup.html");
-        if let Some(dir) = page.parent() {
-            std::fs::create_dir_all(dir)?;
-        }
-        std::fs::write(&page, SETUP_PAGE)?;
+        write_atomic_inside(&root, &page, SETUP_PAGE)?;
         let done = setup_engine(
             &env_map(&config),
             &page.to_string_lossy(),
@@ -712,7 +711,7 @@ fn type_scale(ctx: &Ctx) -> Result<i32, DfwError> {
                 ))
             }
         };
-        write_json(&file, &js::key_order(t))?;
+        write_json_inside(&root, &file, &js::key_order(t))?;
         build_tokens(&root)?;
     }
     let row = |steps: &[(&str, f64)]| -> String {

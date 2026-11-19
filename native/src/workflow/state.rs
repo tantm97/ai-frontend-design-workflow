@@ -11,7 +11,9 @@ use serde_json::{json, Map, Value};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::project_paths;
-use crate::core::util::{append_jsonl, now_iso, read_json, write_json, ArgValue, Args};
+use crate::core::util::{
+    append_jsonl_inside, now_iso, read_json, write_json_inside, ArgValue, Args,
+};
 
 use super::decisions::gate_entry;
 
@@ -207,7 +209,7 @@ pub fn require_state(root: &Path) -> Result<Value, DfwError> {
 /// `saveState(root, state)`: stamps `updatedAt` and writes `.dfw/state.json`.
 pub fn save_state(root: &Path, state: &mut Value) -> Result<(), DfwError> {
     set_field(state, "updatedAt", Some(Value::String(now_iso())))?;
-    write_json(&project_paths(root).state, state)
+    write_json_inside(root, &project_paths(root).state, state)
 }
 
 fn unknown_mode(mode: &str) -> DfwError {
@@ -434,7 +436,11 @@ pub fn approve_gate(
     }
     object_mut(state, "gates")?.insert(gate.to_string(), Value::Object(record));
     push_history(state, Value::Object(event))?;
-    append_jsonl(&p.decisions, &gate_entry(&at, gate, title, note.as_ref()))?;
+    append_jsonl_inside(
+        root,
+        &p.decisions,
+        &gate_entry(&at, gate, title, note.as_ref()),
+    )?;
     save_state(root, state)
 }
 

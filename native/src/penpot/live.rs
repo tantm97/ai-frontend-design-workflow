@@ -20,7 +20,7 @@ use super::import::{import_changes, ImportOptions};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::project_paths;
-use crate::core::util::{list_files, read_json, write_json};
+use crate::core::util::{list_files, read_json, write_json_inside};
 
 use crate::review::comments::{all_comments, update_comment, Update};
 
@@ -232,7 +232,7 @@ pub fn mark_posted(root: &Path, file_id: &str, posted: Option<&Value>) -> Result
         changed = true;
     }
     if changed {
-        write_json(&threads_file(root), &threads)?;
+        write_json_inside(root, &threads_file(root), &threads)?;
     }
     Ok(())
 }

@@ -16,7 +16,9 @@ use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{project_paths, resolve};
 use crate::core::process::{is_alive, kill};
-use crate::core::util::{now_iso, out, read_json, write_json, ArgValue, Args};
+use crate::core::util::{
+    ensure_inside, now_iso, out, read_json, write_json_inside, ArgValue, Args,
+};
 use crate::studio::live_proxy::{
     assert_local_target, configured_shortcut, start_live_server, LiveOptions,
 };
@@ -154,6 +156,9 @@ fn studio(ctx: &Ctx) -> Result<i32, DfwError> {
     let port = free_from(port_arg(a, studio_port(&config))?);
     fs::create_dir_all(&p.dfw)?;
     let log = p.dfw.join("studio.log");
+    // Both files are the project's: refuse a link out before a server runs that no file names.
+    ensure_inside(&root, &log)?;
+    ensure_inside(&root, &p.studio)?;
     let args: Vec<String> = vec![
         "__studio-server".into(),
         "--root".into(),
@@ -173,7 +178,8 @@ fn studio(ctx: &Ctx) -> Result<i32, DfwError> {
             log.display()
         )));
     }
-    write_json(
+    write_json_inside(
+        &root,
         &p.studio,
         &json!({ "pid": pid, "port": port, "url": url, "startedAt": now_iso() }),
     )?;
@@ -250,6 +256,8 @@ fn review(ctx: &Ctx) -> Result<i32, DfwError> {
     let port = free_from(port_arg(a, 4700)?);
     fs::create_dir_all(&p.dfw)?;
     let log = p.dfw.join("review.log");
+    ensure_inside(&root, &log)?;
+    ensure_inside(&root, &file)?;
     let mut args: Vec<String> = [
         "__review-server",
         "--root",
@@ -282,7 +290,8 @@ fn review(ctx: &Ctx) -> Result<i32, DfwError> {
         .and_then(|v| v.get("url").and_then(Value::as_str).map(str::to_string))
         .filter(|u| !u.is_empty())
         .unwrap_or_else(|| format!("http://127.0.0.1:{port}/"));
-    write_json(
+    write_json_inside(
+        &root,
         &file,
         &json!({ "pid": pid, "port": port, "url": url, "target": target, "shortcut": shortcut, "startedAt": now_iso() }),
     )?;

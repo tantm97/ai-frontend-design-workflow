@@ -30,7 +30,7 @@ use super::tokens::{
 
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::util::{now_iso, read_json, sha256, to_json_compact, write_json};
+use crate::core::util::{now_iso, read_json, sha256, to_json_compact, write_json_inside};
 use crate::design::compose::{load_components, Library};
 use crate::design::tokens::relative_path;
 use crate::review::comments::add_comment;
@@ -479,14 +479,14 @@ fn token_diff(
 ) -> Result<(TokenImport, String), DfwError> {
     let file = dir.join("tokens.from-penpot.json");
     if !dry_run {
-        write_json(&file, doc)?;
+        write_json_inside(root, &file, doc)?;
     }
     // A dry run compares through a temporary file, removed on every path (also when the
     // comparison fails; the Node code left it behind then).
     let tmp = dry_run.then(|| TempFile(dir.join(format!(".tokens-{}.json", std::process::id()))));
     let read_from = match &tmp {
         Some(t) => {
-            write_json(&t.0, doc)?;
+            write_json_inside(root, &t.0, doc)?;
             t.0.clone()
         }
         None => file.clone(),
@@ -734,9 +734,9 @@ pub fn import_changes(
             &mut result.warnings,
         )?;
     }
-    write_json(&ledger_file, &Value::Array(ledger))?;
+    write_json_inside(root, &ledger_file, &Value::Array(ledger))?;
     if threads_written {
-        write_json(&threads_file(root), &threads)?;
+        write_json_inside(root, &threads_file(root), &threads)?;
     }
     if !opts.live {
         // The archive name comes from the change file: digits, T and Z only.
@@ -747,7 +747,11 @@ pub fn import_changes(
             .filter(|c| c.is_ascii_digit() || *c == 'T' || *c == 'Z')
             .collect();
         let name = if stamp.is_empty() { "changes" } else { &stamp };
-        write_json(&dir.join("changes").join(format!("{name}.json")), changes)?;
+        write_json_inside(
+            root,
+            &dir.join("changes").join(format!("{name}.json")),
+            changes,
+        )?;
     }
     Ok(result)
 }

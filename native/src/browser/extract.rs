@@ -12,7 +12,7 @@ use super::launch::{fonts_ready, open_renderer_with, LaunchOptions};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::resolve;
-use crate::core::util::{now_iso, to_json_pretty, write_atomic};
+use crate::core::util::{ensure_inside, now_iso, to_json_pretty, write_atomic};
 use crate::design::color::{hex_to_oklch, hex_to_rgb, Oklch};
 use crate::design::tokens::relative_path;
 
@@ -211,8 +211,12 @@ pub fn extract_tokens_to_file(
     url: &str,
     out: Option<&str>,
 ) -> Result<String, DfwError> {
-    // As in Node, `--out` may name any file the user can write, also outside the project.
+    // As in Node, `--out` may name any file the user can write, also outside the project. The
+    // default is a project file: a link must not send it out (checked before the browser runs).
     let file = resolve(root.join(out.unwrap_or("design/system/extracted.tokens.json")));
+    if out.is_none() {
+        ensure_inside(root, &file)?;
+    }
     let tokens = extract_tokens(url)?;
     if let Some(dir) = file.parent() {
         fs::create_dir_all(dir)?;
@@ -300,5 +304,25 @@ mod tests {
             .as_str()
             .unwrap()
             .ends_with("then build tokens.json with dfw palette build / dfw type scale."));
+    }
+
+    /// The default seed file is the project's: `design/system` linked out of the project is
+    /// refused before any browser starts (review CO-3).
+    #[cfg(unix)]
+    #[test]
+    fn the_default_seed_file_is_not_written_through_a_link_out() {
+        let base = crate::core::util::test_dir("extract-link-out");
+        let root = base.join("app");
+        fs::create_dir_all(root.join("design")).unwrap();
+        fs::create_dir_all(base.join("victim")).unwrap();
+        std::os::unix::fs::symlink("../../victim", root.join("design/system")).unwrap();
+        let err = extract_tokens_to_file(&root, "http://127.0.0.1:9/", None).unwrap_err();
+        assert!(
+            err.message().contains("outside the project"),
+            "{}",
+            err.message()
+        );
+        assert!(fs::read_dir(base.join("victim")).unwrap().next().is_none());
+        fs::remove_dir_all(&base).unwrap();
     }
 }

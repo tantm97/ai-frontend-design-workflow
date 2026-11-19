@@ -23,7 +23,7 @@ use serde_json::Value;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{env_nonempty, resolve};
-use crate::core::util::{list_files, write_atomic};
+use crate::core::util::{list_files, write_atomic_inside};
 
 // build.rs makes cargo rebuild when one of these folders changes.
 static STUDIO: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/../core/studio");
@@ -188,30 +188,30 @@ pub fn template_text(rel: &str) -> Result<String, DfwError> {
 }
 
 /// `copyDir(path.join(templatesDir(), rel), dest)`: every file of a template folder, each written
-/// atomically.
-pub fn copy_templates(rel: &str, dest: &Path) -> Result<(), DfwError> {
+/// atomically into the project at `root` (a link must not lead the copy out of it).
+pub fn copy_templates(root: &Path, rel: &str, dest: &Path) -> Result<(), DfwError> {
     let missing =
         || DfwError::internal(format!("template folder {rel} is missing from this build"));
     let parts = clean_file(rel).ok_or_else(missing)?;
     if let Some(dir) = Folder::Templates.override_dir() {
         let src = parts.iter().fold(dir, |acc, p| acc.join(p));
         for file in list_files(&src, &[])? {
-            write_atomic(&dest.join(&file), fs::read(src.join(&file))?)?;
+            write_atomic_inside(root, &dest.join(&file), fs::read(src.join(&file))?)?;
         }
         return Ok(());
     }
     let dir = TEMPLATES.get_dir(parts.join("/")).ok_or_else(missing)?;
-    fn copy(dir: &Dir<'_>, base: &Path, dest: &Path) -> Result<(), DfwError> {
+    fn copy(root: &Path, dir: &Dir<'_>, base: &Path, dest: &Path) -> Result<(), DfwError> {
         for file in dir.files() {
             let rel = file.path().strip_prefix(base).unwrap_or(file.path());
-            write_atomic(&dest.join(rel), file.contents())?;
+            write_atomic_inside(root, &dest.join(rel), file.contents())?;
         }
         for sub in dir.dirs() {
-            copy(sub, base, dest)?;
+            copy(root, sub, base, dest)?;
         }
         Ok(())
     }
-    copy(dir, dir.path(), dest)
+    copy(root, dir, dir.path(), dest)
 }
 
 /// `core/manifest.json` as it was at build time (name, version, the design skills it depends on).
@@ -243,7 +243,7 @@ mod tests {
     fn the_templates_are_embedded() {
         assert!(template_text("PRODUCT.md").unwrap().len() > 10);
         let dest = crate::core::util::test_dir("templates");
-        copy_templates("design", &dest).unwrap();
+        copy_templates(&dest, "design", &dest).unwrap();
         assert!(dest.join("design.json").is_file());
         assert!(dest.join("tokens/tokens.json").is_file());
         assert!(dest.join("screens/.gitkeep").is_file());

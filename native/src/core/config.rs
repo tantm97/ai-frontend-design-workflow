@@ -16,7 +16,7 @@ use serde_json::{json, Map, Value};
 
 use super::error::DfwError;
 use super::paths::{global_dir, project_paths};
-use super::util::{deep_merge, get_path, read_json, set_path, write_json};
+use super::util::{deep_merge, get_path, read_json, set_path, write_json, write_json_inside};
 
 /// `DEFAULTS`: the plugin's own layer.
 pub fn defaults() -> Value {
@@ -253,7 +253,13 @@ pub fn set_config_value(
     let file = config_file_for(scope, root);
     let mut data = read_layer(&file)?;
     set_path(&mut data, key, value)?;
-    write_json(&file, &data)?;
+    // A project layer is a file of the project: a link must not send the write out of it. The
+    // global file may be a link the user made on purpose (a dotfiles folder).
+    if scope == Scope::Global {
+        write_json(&file, &data)?;
+    } else {
+        write_json_inside(root, &file, &data)?;
+    }
     Ok(file)
 }
 
@@ -918,5 +924,38 @@ mod tests {
         assert_eq!(get_path(&c, "review.shortcut"), Some(&json!("off")));
         assert_eq!(get_path(&c, "studio.nope"), None);
         fs::remove_dir_all(&root).unwrap();
+    }
+
+    /// `config set --local` through `.dfw/config.local.json -> ../../victim/settings.json`
+    /// writes nothing outside the project (review CO-3); `--project` likewise.
+    #[cfg(unix)]
+    #[test]
+    fn a_project_layer_linked_out_of_the_project_is_refused() {
+        let base = test_dir("config-link-out");
+        let root = base.join("work").join("app");
+        let victim = base.join("victim");
+        fs::create_dir_all(root.join(".dfw")).unwrap();
+        fs::create_dir_all(&victim).unwrap();
+        fs::write(victim.join("settings.json"), "{}").unwrap();
+        for name in ["config.local.json", "config.json"] {
+            std::os::unix::fs::symlink(
+                "../../../victim/settings.json",
+                root.join(".dfw").join(name),
+            )
+            .unwrap();
+        }
+        for scope in [Scope::Local, Scope::Project] {
+            let err = set_config_value(scope, &root, "studio.port", json!(1)).unwrap_err();
+            assert!(
+                err.message().contains("outside the project"),
+                "{}",
+                err.message()
+            );
+        }
+        assert_eq!(
+            fs::read_to_string(victim.join("settings.json")).unwrap(),
+            "{}"
+        );
+        fs::remove_dir_all(&base).unwrap();
     }
 }

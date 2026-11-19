@@ -11,7 +11,7 @@ use crate::core::config::load_config;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::project_paths;
-use crate::core::util::{get_path, list_files, read_json, write_atomic};
+use crate::core::util::{get_path, list_files, read_json, write_atomic_inside};
 use crate::review::comments::all_comments;
 use crate::workflow::gates::relative;
 use crate::workflow::state::{current_approval, require_state, type_error};
@@ -248,8 +248,7 @@ pub fn write_handoff(root: &Path) -> Result<String, DfwError> {
     ] {
         body = js_replace_all(&body, mark, &value);
     }
-    fs::create_dir_all(&p.handoff)?;
-    write_atomic(&file, body)?;
+    write_atomic_inside(root, &file, body)?;
     Ok(format!("Wrote {rel}. Fill in the sections marked TODO with the user's requirements before implementing."))
 }
 
