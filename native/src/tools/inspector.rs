@@ -16,7 +16,7 @@ use serde_json::{json, Map, Value};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{project_paths, resolve};
-use crate::core::util::{read_json, to_json_pretty};
+use crate::core::util::{read_json, to_json_pretty, write_atomic};
 use crate::workflow::stack::detect_stack;
 use crate::workflow::state::{gate_passed, load_state};
 
@@ -718,7 +718,7 @@ pub fn inspector_setup(root: &Path, write: bool) -> Result<(Value, Vec<String>),
         if !Path::new(&backup).exists() {
             fs::copy(&file, &backup)?; // the user's original, kept once
         }
-        fs::write(&file, text_of(&plan, "patched"))?;
+        write_atomic(&file, text_of(&plan, "patched"))?;
         written.push(config.to_string());
     }
     let pkg_file = root.join("package.json");
@@ -739,7 +739,7 @@ pub fn inspector_setup(root: &Path, write: bool) -> Result<(Value, Vec<String>),
             .and_then(|m| m.get(1))
             .map_or("  ", |m| m.as_str());
         let newline = if raw.ends_with('\n') { "\n" } else { "" };
-        fs::write(&pkg_file, to_json_indented(&pkg, indent) + newline)?;
+        write_atomic(&pkg_file, to_json_indented(&pkg, indent) + newline)?;
         written.push("package.json".to_string());
     }
     Ok((plan, written))

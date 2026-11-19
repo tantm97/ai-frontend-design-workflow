@@ -11,7 +11,7 @@ use serde_json::{json, Value};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{env_nonempty, plugin_root};
-use crate::core::util::{to_json_compact, to_json_pretty};
+use crate::core::util::{to_json_compact, to_json_pretty, write_atomic};
 
 /// How a tool's config file holds its MCP servers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -276,7 +276,7 @@ fn install_into(
     if let Some(dir) = file.parent() {
         fs::create_dir_all(dir)?;
     }
-    fs::write(file, next)?;
+    write_atomic(file, next)?;
     let action = if remove {
         "removed dfw from"
     } else {

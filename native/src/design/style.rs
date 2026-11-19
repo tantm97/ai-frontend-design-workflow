@@ -17,7 +17,7 @@ use super::tokens::dir_names;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{project_paths, resolve};
-use crate::core::util::write_json;
+use crate::core::util::{write_atomic, write_json};
 
 /// `STYLES_DIR`: the guides shipped with dfw.
 pub fn styles_dir() -> Result<PathBuf, DfwError> {
@@ -579,7 +579,7 @@ fn seed_rationale(design_md: &Path, id: &str, rationale: &[String]) -> Result<()
     } else {
         format!("{}\n\n{block}", js::trim_end(&text))
     };
-    fs::write(design_md, out)?;
+    write_atomic(design_md, out)?;
     Ok(())
 }
 
@@ -601,9 +601,9 @@ pub fn apply_style(root: &Path, id: &str, fonts: &str) -> Result<AppliedStyle, D
     write_json(&p.tokens.join("tokens.json"), &style_tokens(&g, fonts)?)?;
     let sys = p.design.join("system");
     fs::create_dir_all(sys.join("components"))?;
-    fs::write(sys.join("head.html"), head_for(&g, fonts))?;
+    write_atomic(&sys.join("head.html"), head_for(&g, fonts))?;
     if let Some(motif) = motif_component(&g) {
-        fs::write(sys.join("components").join("motif.html"), motif)?;
+        write_atomic(&sys.join("components").join("motif.html"), motif)?;
     }
     let font_set = fonts_for(&g, fonts).cloned();
     let mut style = Map::new();
