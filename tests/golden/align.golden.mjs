@@ -6,7 +6,7 @@ import { describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { run, assertSame, skipReason, MINIMAL_STATE, NOW, suite, expected } from './harness.mjs';
+import { run, assertSame, skipReason, MINIMAL_STATE, NOW, suite } from './harness.mjs';
 
 const test = suite('align');
 

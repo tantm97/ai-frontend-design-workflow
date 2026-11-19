@@ -124,7 +124,7 @@ describe('penpot tokens', { skip: skipReason() }, () => {
     assert.match(real.stdout, /Wrote design\/tokens\/tokens\.json, design\/tokens\/themes\/dark\.json; tokens\.css rebuilt\./);
     assert.deepEqual(Object.keys(real.files), ['design/system/components.css', 'design/tokens/themes/dark.json', 'design/tokens/tokens.css', 'design/tokens/tokens.json']);
     const pruned = same(['tokens', 'import', EDITED, '--prune', '--from', 'penpot'], { setup: tokenProject });
-    assert.match(pruned.stdout, /  - color\.veil\n/);
+    assert.match(pruned.stdout, / {2}- color\.veil\n/);
     same(['tokens', 'import', EDITED, '--json'], { setup: tokenProject });
     same(['tokens', 'import', EDITED, '--dry-run', '--json', '--prune'], { setup: tokenProject });
     // Into the fixture project's own tokens, and into a project without tokens.

@@ -481,8 +481,8 @@ describe('edit: hostile sources', { skip: skipReason() }, () => {
     'comments and single quotes': page('\n', '\n'),
     'CRLF line endings': page('\r\n', '\r\n'),
     'no trailing newline': page('\n', ''),
-    'byte order mark': `﻿${page('\n', '\n')}`,
-    'BOM and CRLF, no trailing newline': `﻿${page('\r\n', '')}`,
+    'byte order mark': `\uFEFF${page('\n', '\n')}`,
+    'BOM and CRLF, no trailing newline': `\uFEFF${page('\r\n', '')}`,
   };
   const ops = [
     { op: 'text', id: 't', value: 'New <text> & more' },

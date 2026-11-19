@@ -57,7 +57,7 @@ describe('design commands', { skip: skipReason() }, () => {
     }
     const themed = same(['build'], { setup: (root) => write(root, 'design/tokens/themes/dark.json', '{"color":{"$type":"color","ink":{"$value":"#fafafa"},"10":{"$value":"#000"},"2":{"$value":{"colorSpace":"oklch","components":[0.5,0.1,"none"],"alpha":0.25}}}}') });
     assert.match(themed.stdout, /\(themes: dark\)/);
-    assert.match(themed.files['design/tokens/tokens.css'], /\[data-theme="dark"\] \{\n  --color-2: oklch\(0\.5 0\.1 none \/ 0\.25\);\n  --color-10: #000;\n  --color-ink: #fafafa;/);
+    assert.match(themed.files['design/tokens/tokens.css'], /\[data-theme="dark"\] \{\n {2}--color-2: oklch\(0\.5 0\.1 none \/ 0\.25\);\n {2}--color-10: #000;\n {2}--color-ink: #fafafa;/);
   });
 
   test('build errors: no tokens, a null value, a usage error', () => {
@@ -96,7 +96,7 @@ describe('design commands', { skip: skipReason() }, () => {
     };
     const r = same(['build'], { setup: (root) => write(root, 'design/tokens/tokens.json', JSON.stringify(tokens)) });
     assert.equal(r.code, 0);
-    assert.match(r.files['design/tokens/tokens.css'], /--space-1: 4px;\n  --space-2: 0\.1235rem;\n  --space-half: 2px;\n  --space-1-5: 6px;/);
+    assert.match(r.files['design/tokens/tokens.css'], /--space-1: 4px;\n {2}--space-2: 0\.1235rem;\n {2}--space-half: 2px;\n {2}--space-1-5: 6px;/);
   });
 
   test('system: presets, ref, list, inventory', () => {
@@ -143,7 +143,7 @@ describe('design commands', { skip: skipReason() }, () => {
   test('system options and choose (presets and style guides)', () => {
     const o = same(['system', 'options', 'crisp', 'soft', 'industrial-utility']);
     assert.equal(o.stdout, 'Option themes: opt-crisp, opt-industrial-utility, opt-soft. Compare them in the studio (theme menu / "Themes" toggle), then: dfw system choose <preset>.\n');
-    assert.match(o.files['design/design.json'], /"themes": \[\n    "opt-crisp",\n    "opt-soft",\n    "opt-industrial-utility"\n  \]/);
+    assert.match(o.files['design/design.json'], /"themes": \[\n {4}"opt-crisp",\n {4}"opt-soft",\n {4}"opt-industrial-utility"\n {2}\]/);
     assertSame(run(['system', 'options', 'crisp']), { stderr: true });
     assertSame(run(['system', 'options', 'crisp', 'sotf']), { stderr: true });
     // A second run replaces the block in head.html and the option themes.
@@ -224,7 +224,7 @@ describe('design commands', { skip: skipReason() }, () => {
     }
     assertSame(run(['type']), { stderr: true });
     const w = same(['type', 'scale', '--write'], { setup: (root) => write(root, 'design/tokens/tokens.json', '{"font":{"size":{"md":{"$value":{"value":1,"unit":"px"},"$extra":1},"2":{"$value":"x"},"zz":{"$value":"y"}}},"space":{"b":{"$value":1},"1":{"$value":2}}}') });
-    assert.match(w.files['design/tokens/tokens.json'], /"size": \{\n      "2": /);
+    assert.match(w.files['design/tokens/tokens.json'], /"size": \{\n {6}"2": /);
   });
 
   test('palette build: text and json, light and dark, every accent source', () => {

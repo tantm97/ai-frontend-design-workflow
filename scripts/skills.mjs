@@ -221,7 +221,7 @@ function cmdApply(id) {
   } catch (e) {
     setLock(id, from);
     buildAll({ only: [id] });
-    throw new Error(`Build failed; lock restored to ${from.slice(0, 7)}: ${e.message}`);
+    throw new Error(`Build failed; lock restored to ${from.slice(0, 7)}: ${e.message}`, { cause: e });
   }
   const v = validate();
   if (!v.ok) {

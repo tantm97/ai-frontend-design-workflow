@@ -68,7 +68,7 @@ async function installBinary() {
   try {
     sums = (await fetchBytes(`${base}/SHA256SUMS`)).toString('utf8');
   } catch (e) {
-    throw new Error(`No dfw release v${VERSION} to download (${e.message}).`);
+    throw new Error(`No dfw release v${VERSION} to download (${e.message}).`, { cause: e });
   }
   const want = wantedSum(sums, name);
   if (!want) throw new Error(`Release v${VERSION} has no binary for ${process.platform}-${process.arch}.`);

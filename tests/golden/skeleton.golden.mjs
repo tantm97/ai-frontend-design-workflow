@@ -2,7 +2,7 @@
 // Run: node --test tests/golden/
 import { describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { run, assertSame, skipReason, NOW, suite, expected } from './harness.mjs';
+import { run, assertSame, skipReason, NOW, suite } from './harness.mjs';
 
 const test = suite('skeleton');
 
@@ -17,7 +17,7 @@ describe('skeleton', { skip: skipReason() }, () => {
       assertSame(r, { stderr: true });
       assert.equal(r.native.code, 0);
       assert.match(r.native.stdout, /^dfw - design-first workflow CLI\n/);
-      assert.match(r.native.stdout, /^  dfw telemetry status\|on\|off\|endpoint <url>\|show\|flush /m);
+      assert.match(r.native.stdout, /^ {2}dfw telemetry status\|on\|off\|endpoint <url>\|show\|flush /m);
     }
   });
 

@@ -317,6 +317,7 @@ describe('tools: install, uninstall, doctor (fake host CLIs)', { skip: skipReaso
     assert.deepEqual(calls.slice(-2), ['claude --version', 'copilot --version'], 'doctor ran last');
     assert.match(r.stdout, /Hosts: Claude Code, GitHub Copilot · dfw <runtime>/);
     assert.match(r.stdout, /\n {2}ok {3}dfw runtime - <runtime>\n/);
+    // eslint-disable-next-line no-control-regex -- the installer colours its output (ESC [0m)
     assert.match(r.stdout, /Done\.\x1b\[0m Restart Claude Code .* Restart GitHub Copilot /);
     // Copilot does not put the plugin's bin/ on PATH: the launcher is linked into ~/.local/bin.
     assert.equal(r.files['home/.local/bin/dfw'], '-> <tmp>/home/.copilot/installed-plugins/dfw-marketplace/dfw/bin/dfw');
@@ -389,6 +390,7 @@ describe('tools: install, uninstall, doctor (fake host CLIs)', { skip: skipReaso
     assert.match(r.extra.calls, /claude plugin uninstall dfw@dfw-marketplace --scope user\n/);
     assert.match(r.extra.calls, /copilot plugin uninstall dfw\n/);
     assert.match(r.extra.calls, /copilot plugin marketplace remove dfw-marketplace\n$/);
+    // eslint-disable-next-line no-control-regex -- the installer colours its output (ESC [0m)
     assert.match(r.stdout, /GitHub Copilot: removed dfw and its skills\.\x1b\[0m\nProject files \(\.dfw\/, design\/\) are untouched\.\n$/);
     same(run2(['uninstall', '--host', 'claude', '--scope', 'local', '--quiet'], withFakes({ env: { FAKE_FAIL: 'uninstall' } })));
   });

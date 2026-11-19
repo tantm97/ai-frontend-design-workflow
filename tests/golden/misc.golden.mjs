@@ -157,8 +157,8 @@ describe('handoff', { skip: skipReason() }, () => {
     const body = r.files['design/handoff/v1.md'];
     assert.match(body, /^# Handoff: Shop \{\{product\}\} Co design v1\n/, 'a "$&" in the product name is a replacement pattern, as in Node');
     assert.match(body, /Stack: Next\.js \(React\); styling: Tailwind CSS, plain css; UI libraries: none \(approved\)/);
-    assert.match(body, /\| `cart` \|  \| `r` \(`design\/approved\/v1\/screens\/cart\/r\.html`\) \| TBD \|/);
-    assert.match(body, /\| `empty` \|  \| `undefined` /);
+    assert.match(body, /\| `cart` \| {2}\| `r` \(`design\/approved\/v1\/screens\/cart\/r\.html`\) \| TBD \|/);
+    assert.match(body, /\| `empty` \| {2}\| `undefined` /);
     assert.match(body, /3 CSS custom properties/);
     assert.match(body, /- fb_002: no note -> \n/);
     assert.equal(r.stdout, "Wrote design/handoff/v1.md. Fill in the sections marked TODO with the user's requirements before implementing.\n");
