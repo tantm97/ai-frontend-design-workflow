@@ -27,15 +27,9 @@ use crate::workflow::state::load_state;
 
 /// Rendered into `mcp/` at build time (host.mjs "mcp").
 const SKILL_DIR_MARK: &str = "__DFW_SKILL_DIR__";
-/// Commands a model may not run through the `dfw` tool.
-const BLOCKED: [&str; 6] = [
-    "hook",
-    "mcp",
-    "__studio-server",
-    "install",
-    "uninstall",
-    "setup",
-];
+/// Commands a model may not run through the `dfw` tool, besides every internal `__*` command
+/// (the Studio and review servers, `__debug`): see [`blocked`].
+const BLOCKED: [&str; 5] = ["hook", "mcp", "install", "uninstall", "setup"];
 const TOOL_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 
 const INSTRUCTIONS: &str = "dfw is a design-first frontend workflow: design, design system and approval gates come before UI code. \
@@ -137,6 +131,12 @@ fn collect(
     })
 }
 
+/// True for a command the `dfw` tool refuses: one of [`BLOCKED`] or an internal `__*` command
+/// (a server started by the CLI itself, never by a model).
+fn blocked(command: &str) -> bool {
+    BLOCKED.contains(&command) || command.starts_with("__")
+}
+
 /// `runDfw(args, cwd)`: run this binary with the given arguments and return what it printed
 /// (stdout and stderr in the order they arrived).
 fn run_dfw(args: Option<&Value>, cwd: Option<&Value>) -> Result<ToolResult, ToolError> {
@@ -147,7 +147,7 @@ fn run_dfw(args: Option<&Value>, cwd: Option<&Value>) -> Result<ToolResult, Tool
     let Some(list) = list else {
         return Err("\"args\" must be a non-empty list of strings, e.g. [\"status\"].".into());
     };
-    if BLOCKED.contains(&list[0]) {
+    if blocked(list[0]) {
         return Err(format!(
             "\"dfw {}\" is not available through MCP; ask the user to run it in a terminal.",
             list[0]
@@ -477,6 +477,14 @@ mod tests {
         assert!(run_dfw(Some(&json!(["status", 1])), None).is_err());
         assert!(run_dfw(Some(&json!(["install"])), None)
             .is_err_and(|e| e.contains("not available through MCP")));
+        for internal in ["__studio-server", "__review-server", "__debug"] {
+            assert_eq!(
+                run_dfw(Some(&json!([internal, "--port", "1"])), None).err(),
+                Some(format!(
+                    "\"dfw {internal}\" is not available through MCP; ask the user to run it in a terminal."
+                )),
+            );
+        }
         assert!(can_write(Some(&json!([])), None).is_err());
         assert!(guide(Some(&json!("../../package.json")))
             .is_err_and(|e| e.starts_with("Unknown topic \"../../package.json\". Topics: ")));
