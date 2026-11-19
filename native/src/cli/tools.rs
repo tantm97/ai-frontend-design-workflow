@@ -2,7 +2,7 @@
 //! (`cmdInspector`, `cmdDoctor`, `cmdHandoff`). Lighthouse has no command of its own: it runs inside `check`.
 
 use std::env;
-use std::process::{Command, Stdio};
+use std::time::Duration;
 
 use serde_json::{json, Value};
 
@@ -15,6 +15,7 @@ use crate::core::error::DfwError;
 use crate::core::host::{Status, HOSTS};
 use crate::core::js;
 use crate::core::paths::{claude_dir, global_dir, project_paths, resolve};
+use crate::core::process::{find_executable, plan_for, run_timed};
 use crate::core::util::{out, read_json, to_json_compact, to_json_pretty, ArgValue, Args};
 use crate::review::locate::{
     impeccable_engine, plugin_root_of, sloplint_script, taste_copy_lint_script,
@@ -141,25 +142,20 @@ pub(super) fn debug_insp_path(ctx: &Ctx) -> Result<i32, DfwError> {
 
 /* ---------------------------------------------------------------- doctor */
 
-/// `spawnSync(bin, ['--version'])`: whether it ran and succeeded, and what it printed.
+/// `spawnSync(bin, ['--version'])`: whether it ran and succeeded, and what it printed. The
+/// program is looked up on PATH, never in the current folder (`claude.bat` in a cloned
+/// repository must not run on `dfw doctor`), and gets 15 seconds.
 fn version_of(bin: &str) -> (bool, String, String) {
-    let mut probe = if cfg!(windows) {
-        let mut c = Command::new("cmd");
-        c.args(["/d", "/s", "/c", bin, "--version"]);
-        c
-    } else {
-        let mut c = Command::new(bin);
-        c.arg("--version");
-        c
+    let Some(exe) = find_executable(bin) else {
+        return (false, String::new(), String::new());
     };
-    match probe.stdin(Stdio::null()).output() {
-        Ok(o) => (
-            o.status.success(),
-            String::from_utf8_lossy(&o.stdout).into_owned(),
-            String::from_utf8_lossy(&o.stderr).into_owned(),
-        ),
-        Err(_) => (false, String::new(), String::new()),
-    }
+    let plan = plan_for(
+        &exe.display().to_string(),
+        vec!["--version".into()],
+        cfg!(windows),
+    );
+    let ran = run_timed(&plan, None, &[], Duration::from_secs(15));
+    (ran.status == Some(0), ran.stdout, ran.stderr)
 }
 
 /// `dfw doctor`: environment and installation checks (`cmdDoctor`).
@@ -188,13 +184,13 @@ fn doctor(ctx: &Ctx) -> Result<i32, DfwError> {
         true,
         &format!("binary {} ({exe})", bin.version),
     );
-    let (py, py_out, py_err) = version_of_plain("python3");
+    let (py, py_out, py_err) = version_of("python3");
     let py_text = [py_out, py_err]
         .into_iter()
         .find(|t| !t.is_empty())
         .unwrap_or_else(|| "not found".into());
     ok("python3 (UI UX Pro Max search)", py, py_text.trim());
-    ok("git", version_of_plain("git").0, "");
+    ok("git", version_of("git").0, "");
     for name in [
         "frontend-design",
         "ux-research",
@@ -379,22 +375,6 @@ fn doctor(ctx: &Ctx) -> Result<i32, DfwError> {
     ok("telemetry", true, &crate::telemetry::status_line());
     out(&rows.join("\n"));
     Ok(0)
-}
-
-/// `spawnSync(bin, ['--version'])` without a shell (python3, git).
-fn version_of_plain(bin: &str) -> (bool, String, String) {
-    match Command::new(bin)
-        .arg("--version")
-        .stdin(Stdio::null())
-        .output()
-    {
-        Ok(o) => (
-            o.status.success(),
-            String::from_utf8_lossy(&o.stdout).into_owned(),
-            String::from_utf8_lossy(&o.stderr).into_owned(),
-        ),
-        Err(_) => (false, String::new(), String::new()),
-    }
 }
 
 /* ---------------------------------------------------------------- mcp, stack, handoff */

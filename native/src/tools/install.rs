@@ -17,8 +17,7 @@ use crate::browser::launch::{browser_status, make_temp_dir, BrowserStatus};
 use crate::core::error::DfwError;
 use crate::core::host::{get_host, supported_hosts, Host, Status, HOSTS};
 use crate::core::paths::{plugin_root, resolve};
-use crate::core::platform::node_platform;
-use crate::core::process::{quote_for_cmd, run_timed, Ran, Spawn};
+use crate::core::process::{find_executable, plan_for, run_timed, Ran, Spawn};
 use crate::core::util::{out, plugin_manifest, read_json};
 
 /// The marketplace dfw and its skills are installed from.
@@ -59,26 +58,17 @@ pub fn plugin_list() -> Result<Vec<String>, DfwError> {
     Ok(plugins)
 }
 
-/// `path.win32.isAbsolute`.
-fn win32_is_absolute(p: &str) -> bool {
-    let b = p.as_bytes();
-    let sep = |c: Option<&u8>| matches!(c, Some(b'/') | Some(b'\\'));
-    sep(b.first()) || (b.len() > 2 && b[0].is_ascii_alphabetic() && b[1] == b':' && sep(b.get(2)))
-}
-
-/// `spawnPlan(bin, args, platform)`: how to spawn on Windows. Host CLIs ("claude", "copilot")
-/// are .cmd shims and need a shell, where the arguments are joined unquoted: quote the ones
-/// cmd.exe would split or interpret. An absolute executable (dfw.exe, often under "Program
-/// Files") runs directly, no shell. Elsewhere everything runs directly.
-pub fn spawn_plan(bin: &str, args: &[String], platform: &str) -> Spawn {
-    if platform != "win32" || win32_is_absolute(bin) {
-        return Spawn::direct(bin, args.to_vec());
-    }
-    Spawn {
-        cmd: bin.to_string(),
-        args: args.iter().map(|a| quote_for_cmd(a, false)).collect(),
-        shell: true,
-    }
+/// How a host CLI (`claude`, `copilot`, a bare name) or dfw itself (an absolute path) is
+/// started: a bare name is looked up on PATH, never in the current folder (a cloned repository's
+/// `claude.cmd` must not run); a Windows `.cmd` shim goes through cmd.exe with every part quoted.
+/// `None` when the program is not found.
+pub fn spawn_plan(bin: &str, args: &[String]) -> Option<Spawn> {
+    let exe = if Path::new(bin).is_absolute() {
+        bin.to_string()
+    } else {
+        find_executable(bin)?.display().to_string()
+    };
+    Some(plan_for(&exe, args.to_vec(), cfg!(windows)))
 }
 
 /// How long a host CLI call may take: `marketplace add` clones a repository.
@@ -89,7 +79,12 @@ const VERSION_TIMEOUT: Duration = Duration::from_secs(15);
 const SELF_TIMEOUT: Duration = Duration::from_secs(600);
 
 fn spawn_sync(bin: &str, args: &[String], env: &[(&str, &Path)], timeout: Duration) -> Ran {
-    let plan = spawn_plan(bin, args, node_platform());
+    let Some(plan) = spawn_plan(bin, args) else {
+        return Ran {
+            error: Some(format!("spawnSync {bin} ENOENT")),
+            ..Ran::default()
+        };
+    };
     let env: Vec<(String, String)> = env
         .iter()
         .map(|(k, v)| (k.to_string(), v.display().to_string()))
@@ -489,63 +484,19 @@ mod tests {
         list.iter().map(|a| a.to_string()).collect()
     }
 
-    /// install: Windows spawn plan quotes shell arguments and runs absolute executables directly
+    /// install: a host CLI is looked up on PATH, an absolute dfw runs as it is (the Windows
+    /// quoting is tested in core::process)
     #[test]
-    fn windows_spawn_plan() {
-        let direct = spawn_plan(
-            "C:\\Program Files\\nodejs\\node.exe",
-            &args(&["C:\\p\\dfw.mjs", "doctor"]),
-            "win32",
-        );
+    fn spawn_plan_resolves_bare_names_only() {
         assert_eq!(
-            direct,
-            Spawn {
-                cmd: "C:\\Program Files\\nodejs\\node.exe".into(),
-                args: args(&["C:\\p\\dfw.mjs", "doctor"]),
-                shell: false
-            }
+            spawn_plan("/opt/dfw/bin/dfw", &args(&["doctor"])),
+            Some(Spawn::direct("/opt/dfw/bin/dfw", args(&["doctor"])))
         );
-        let p = spawn_plan(
-            "claude",
-            &args(&[
-                "plugin",
-                "marketplace",
-                "add",
-                "C:\\Users\\John Doe\\repo",
-                "--scope",
-                "user",
-            ]),
-            "win32",
-        );
-        assert!(p.shell);
-        assert_eq!(
-            p.args,
-            args(&[
-                "plugin",
-                "marketplace",
-                "add",
-                "\"C:\\Users\\John Doe\\repo\"",
-                "--scope",
-                "user"
-            ])
-        );
-        assert_eq!(
-            spawn_plan("claude", &args(&["a&calc"]), "win32").args,
-            args(&["\"a&calc\""])
-        );
-        assert_eq!(
-            spawn_plan("claude", &args(&["a b"]), "linux"),
-            Spawn {
-                cmd: "claude".into(),
-                args: args(&["a b"]),
-                shell: false
-            }
-        );
-        assert_eq!(
-            spawn_plan("claude", &args(&["", "say \"hi\"", "plain"]), "win32").args,
-            args(&["\"\"", "\"say \"\"hi\"\"\"", "plain"])
-        );
-        assert!(!spawn_plan("\\\\server\\share\\dfw.exe", &[], "win32").shell);
+        assert_eq!(spawn_plan("dfw-no-such-host-cli", &[]), None);
+        if cfg!(unix) {
+            let sh = spawn_plan("sh", &args(&["a b"])).unwrap();
+            assert!(Path::new(&sh.cmd).is_absolute() && sh.args == args(&["a b"]) && !sh.shell);
+        }
     }
 
     /// install: marketplace is re-added only when registered from another source

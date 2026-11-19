@@ -24,7 +24,7 @@ use crate::core::config::env_map;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{project_paths, resolve, to_posix};
-use crate::core::process::{node_executable, run_timed, Ran, Spawn};
+use crate::core::process::{node_executable, plan_for, run_timed, Ran, Spawn};
 use crate::core::util::read_json;
 use crate::design::compose::{build_composed, build_system};
 use crate::design::dsaudit::audit_design_system;
@@ -88,9 +88,9 @@ impl Lookup<'static> {
     }
 }
 
-/// The Node.js on PATH, as the scripts' runner.
+/// The Node.js on PATH (its absolute path), as the scripts' runner.
 fn installed_node() -> Option<String> {
-    node_executable().map(String::from)
+    node_executable().map(|p| p.display().to_string())
 }
 
 /// `parseJsonLoose`: the JSON that starts at the first `[` or `{` of a tool's output.
@@ -203,7 +203,7 @@ pub fn run_sloplint(
     args.extend(files.iter().map(|f| f.to_string()));
     args.extend(["--json", "--scope", scope].map(String::from));
     let ran = run(
-        &Spawn::direct(node, args),
+        &plan_for(&node, args, cfg!(windows)),
         Some(root),
         opts.env,
         opts.timeout_ms,
@@ -421,7 +421,7 @@ pub fn run_taste_copy_lint(
     args.extend(files.iter().map(|f| f.to_string()));
     args.push("--json".into());
     let ran = run(
-        &Spawn::direct(node, args),
+        &plan_for(&node, args, cfg!(windows)),
         Some(root),
         opts.env,
         opts.timeout_ms,

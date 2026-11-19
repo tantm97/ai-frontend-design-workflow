@@ -6,7 +6,7 @@
 //! `tasklist`, `taskkill`) answer those questions instead.
 
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -275,24 +275,125 @@ pub fn kill(pid: Option<&Value>) {
         .status();
 }
 
-/// `nodeExecutable()` of util.mjs inside the dfw binary: "node" when it runs, else nothing.
-pub fn node_executable() -> Option<&'static str> {
-    let mut probe = if cfg!(windows) {
-        let mut c = Command::new("cmd");
-        c.args(["/d", "/s", "/c", "node", "--version"]);
-        c
+/// Whether a Windows path names its drive or share (`C:\\x`, `\\\\server\\x`): it does not depend
+/// on the current folder or the current drive.
+pub fn win32_fully_qualified(p: &str) -> bool {
+    let b = p.as_bytes();
+    let sep = |c: Option<&u8>| matches!(c, Some(b'/') | Some(b'\\'));
+    (sep(b.first()) && sep(b.get(1)))
+        || (b.len() > 2 && b[0].is_ascii_alphabetic() && b[1] == b':' && sep(b.get(2)))
+}
+
+/// Where a bare program name (`node`, `claude`, `npx`) is found on `path`, as an absolute path.
+/// Only absolute PATH entries are searched, and never the current folder: cmd.exe looks there
+/// first, so a cloned repository's `node.cmd` or `claude.bat` would run. On Windows each
+/// extension of `pathext` is tried (`.COM;.EXE;.BAT;.CMD` when it is not set). `is_program`
+/// answers whether a candidate is a runnable file (injected by the tests).
+pub fn find_in_path(
+    name: &str,
+    path: &str,
+    pathext: Option<&str>,
+    windows: bool,
+    is_program: &dyn Fn(&str) -> bool,
+) -> Option<String> {
+    let separators: &[char] = if windows { &['/', '\\'] } else { &['/'] };
+    if name.is_empty() || name.contains(separators) || name == "." || name == ".." {
+        return None;
+    }
+    let exts: Vec<String> = if windows {
+        let list = pathext
+            .filter(|e| !e.trim().is_empty())
+            .unwrap_or(".COM;.EXE;.BAT;.CMD");
+        let exts: Vec<String> = list
+            .split(';')
+            .map(str::trim)
+            .filter(|e| e.starts_with('.') && e.len() > 1)
+            .map(str::to_string)
+            .collect();
+        let lower = name.to_ascii_lowercase();
+        if exts
+            .iter()
+            .any(|e| lower.ends_with(&e.to_ascii_lowercase()))
+        {
+            vec![String::new()]
+        } else {
+            exts
+        }
     } else {
-        let mut c = Command::new("node");
-        c.arg("--version");
-        c
+        vec![String::new()]
     };
-    probe
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .is_ok_and(|s| s.success())
-        .then_some("node")
+    let list_separator = if windows { ';' } else { ':' };
+    for dir in path.split(list_separator) {
+        let dir = if windows {
+            dir.trim().trim_matches('"')
+        } else {
+            dir
+        };
+        let absolute = if windows {
+            win32_fully_qualified(dir)
+        } else {
+            dir.starts_with('/')
+        };
+        if !absolute {
+            continue;
+        }
+        let dir = dir.trim_end_matches(separators);
+        for ext in &exts {
+            let candidate = if windows {
+                format!("{dir}\\{name}{ext}")
+            } else {
+                format!("{dir}/{name}")
+            };
+            if is_program(&candidate) {
+                return Some(candidate);
+            }
+        }
+    }
+    None
+}
+
+/// Whether a path is a file this user may run.
+fn is_program(path: &str) -> bool {
+    let Ok(meta) = std::fs::metadata(path) else {
+        return false;
+    };
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        meta.is_file() && meta.permissions().mode() & 0o111 != 0
+    }
+    #[cfg(not(unix))]
+    meta.is_file()
+}
+
+/// [`find_in_path`] on this process's `PATH` (and `PATHEXT` on Windows).
+pub fn find_executable(name: &str) -> Option<PathBuf> {
+    let path = std::env::var("PATH").unwrap_or_default();
+    let pathext = std::env::var("PATHEXT").ok();
+    find_in_path(name, &path, pathext.as_deref(), cfg!(windows), &is_program).map(PathBuf::from)
+}
+
+/// How to start a program found by [`find_executable`] (or another absolute path). A Windows
+/// `.cmd` or `.bat` cannot be started directly: it goes through cmd.exe with its absolute path
+/// in quotes and every argument quoted for cmd.exe ([`quote_for_cmd`]). cmd.exe still expands
+/// `%NAME%` inside quotes, so arguments from untrusted input do not belong here.
+pub fn plan_for(exe: &str, args: Vec<String>, windows: bool) -> Spawn {
+    let lower = exe.to_ascii_lowercase();
+    if windows && (lower.ends_with(".cmd") || lower.ends_with(".bat")) {
+        return Spawn {
+            cmd: quote_for_cmd(exe, true),
+            args: args.iter().map(|a| quote_for_cmd(a, false)).collect(),
+            shell: true,
+        };
+    }
+    Spawn::direct(exe, args)
+}
+
+/// `nodeExecutable()` of util.mjs inside the dfw binary: the absolute path of the Node.js on
+/// PATH ([`find_executable`]), else nothing. It is not started to ask: a hook pays for every
+/// process it starts.
+pub fn node_executable() -> Option<PathBuf> {
+    find_executable("node")
 }
 
 #[cfg(test)]
@@ -376,6 +477,108 @@ mod tests {
                     ran.timed_out
                 ),
                 (Some(3), "out\n", "err\n", false)
+            );
+        }
+    }
+
+    /// A Windows lookup never takes a program from the current folder or a relative PATH entry,
+    /// tries PATHEXT in order, and runs a .cmd through cmd.exe with every part quoted.
+    #[test]
+    fn windows_lookup_skips_the_current_folder_and_quotes_cmd_shims() {
+        let files = [
+            "C:\\Program Files\\nodejs\\node.exe",
+            "C:\\Users\\me\\AppData\\Roaming\\npm\\claude.cmd",
+            "node.cmd",
+            ".\\claude.bat",
+            "repo\\bin\\npx.cmd",
+            "\\\\server\\tools\\git.exe",
+        ];
+        // Windows file names do not care about case.
+        let exists = |p: &str| files.iter().any(|f| f.eq_ignore_ascii_case(p));
+        let path = ".;repo\\bin;;\\rooted;\"C:\\Program Files\\nodejs\\\";C:\\Users\\me\\AppData\\Roaming\\npm;\\\\server\\tools";
+        let find = |name: &str| find_in_path(name, path, None, true, &exists);
+        assert_eq!(
+            find("node").as_deref(),
+            Some("C:\\Program Files\\nodejs\\node.EXE")
+        );
+        assert_eq!(
+            find("claude").as_deref(),
+            Some("C:\\Users\\me\\AppData\\Roaming\\npm\\claude.CMD")
+        );
+        assert_eq!(find("npx"), None, "a relative PATH entry is not searched");
+        assert_eq!(find("git").as_deref(), Some("\\\\server\\tools\\git.EXE"));
+        assert_eq!(find("..\\node"), None);
+        // PATHEXT decides which extensions count, in its order.
+        assert_eq!(
+            find_in_path("claude", path, Some(".EXE"), true, &exists),
+            None
+        );
+        assert_eq!(
+            find_in_path("claude.cmd", path, Some(".EXE;.CMD"), true, &exists).as_deref(),
+            Some("C:\\Users\\me\\AppData\\Roaming\\npm\\claude.cmd")
+        );
+
+        let shim = plan_for(
+            "C:\\Users\\me\\AppData\\Roaming\\npm\\claude.cmd",
+            vec![
+                "a&calc".into(),
+                "C:\\Users\\John Doe\\repo".into(),
+                "plain".into(),
+            ],
+            true,
+        );
+        assert_eq!(
+            shim,
+            Spawn {
+                cmd: "\"C:\\Users\\me\\AppData\\Roaming\\npm\\claude.cmd\"".into(),
+                args: vec![
+                    "\"a&calc\"".into(),
+                    "\"C:\\Users\\John Doe\\repo\"".into(),
+                    "plain".into()
+                ],
+                shell: true
+            }
+        );
+        let exe = plan_for(
+            "C:\\Program Files\\nodejs\\node.exe",
+            vec!["a&b".into()],
+            true,
+        );
+        assert_eq!(
+            exe,
+            Spawn::direct("C:\\Program Files\\nodejs\\node.exe", vec!["a&b".into()])
+        );
+        assert!(!plan_for("/usr/bin/claude.cmd", Vec::new(), false).shell);
+    }
+
+    #[test]
+    fn posix_lookup_skips_relative_entries() {
+        let files = ["node", "./node", "bin/node", "/opt/node/bin/node"];
+        let exists = |p: &str| files.contains(&p);
+        let find = |path: &str| find_in_path("node", path, None, false, &exists);
+        assert_eq!(
+            find(":.:bin:/opt/node/bin/").as_deref(),
+            Some("/opt/node/bin/node")
+        );
+        assert_eq!(find("::.:bin"), None);
+        assert_eq!(find_in_path("a/node", "/opt", None, false, &exists), None);
+        // The real lookup: a program in the current folder is not found through a "." entry.
+        let dir = crate::core::util::test_dir("lookup");
+        let bin = dir.join("dfw-lookup-probe");
+        std::fs::write(&bin, "#!/bin/sh\n").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+            let abs = dir.display().to_string();
+            assert_eq!(
+                find_in_path("dfw-lookup-probe", &abs, None, false, &is_program),
+                Some(bin.display().to_string())
+            );
+            std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o644)).unwrap();
+            assert_eq!(
+                find_in_path("dfw-lookup-probe", &abs, None, false, &is_program),
+                None
             );
         }
     }
