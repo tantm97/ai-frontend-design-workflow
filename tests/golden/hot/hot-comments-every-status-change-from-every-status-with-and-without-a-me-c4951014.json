@@ -592,7 +592,7 @@
     {
       "code": 1,
       "stdout": "",
-      "stderr": "Comment undefined not found.\n",
+      "stderr": "\"dfw comments ack\" needs a comment id: dfw comments ack <id> (\"dfw comments list\" shows the ids).\n",
       "files": {}
     }
   ]

@@ -62,9 +62,9 @@
       "files": {}
     },
     {
-      "code": 0,
-      "stdout": "undefined\n",
-      "stderr": "",
+      "code": 1,
+      "stdout": "",
+      "stderr": "\"language.lastUsed\" is not set in the config; \"dfw config get\" prints every setting.\n",
       "files": {}
     },
     {
@@ -74,15 +74,15 @@
       "files": {}
     },
     {
-      "code": 0,
-      "stdout": "undefined\n",
-      "stderr": "",
+      "code": 1,
+      "stdout": "",
+      "stderr": "\"no.such.key\" is not set in the config; \"dfw config get\" prints every setting.\n",
       "files": {}
     },
     {
-      "code": 0,
-      "stdout": "undefined\n",
-      "stderr": "",
+      "code": 1,
+      "stdout": "",
+      "stderr": "\"no.such.key\" is not set in the config; \"dfw config get\" prints every setting.\n",
       "files": {}
     },
     {
@@ -110,9 +110,9 @@
       "files": {}
     },
     {
-      "code": 0,
-      "stdout": "undefined\n",
-      "stderr": "",
+      "code": 1,
+      "stdout": "",
+      "stderr": "\"no.such.key\" is not set in the config; \"dfw config get\" prints every setting.\n",
       "files": {}
     },
     {

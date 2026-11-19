@@ -545,11 +545,12 @@ fn config(ctx: &Ctx) -> Result<i32, DfwError> {
     match a.pos(1) {
         Some("get") => {
             let value = match a.pos(2).filter(|k| !k.is_empty()) {
-                Some(key) => get_config_value(Some(&root), key)?,
-                None => Some(load_config(Some(&root))?),
+                Some(key) => get_config_value(Some(&root), key)?.ok_or_else(|| {
+                    DfwError::new(format!("\"{key}\" is not set in the config; \"dfw config get\" prints every setting."))
+                })?,
+                None => load_config(Some(&root))?,
             };
-            // A key that is not set prints as JavaScript's undefined.
-            out(&value.map_or("undefined".to_string(), |v| to_json_pretty(&v)));
+            out(&to_json_pretty(&value));
             Ok(0)
         }
         Some("set") => {

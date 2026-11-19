@@ -31,6 +31,14 @@ fn comments(ctx: &Ctx) -> Result<i32, DfwError> {
     let by = |fallback: &str| arg_truthy(a, "by").or_else(|| Some(fallback.into()));
     let change = |update: Update| print_json(&update_comment(&root, id, &update)?);
     let to = |status: &str| Some(status.to_string());
+    let takes_id = [
+        "show", "ack", "fixed", "reply", "dismiss", "resolve", "reopen",
+    ];
+    if takes_id.contains(&sub) && id.is_none_or(str::is_empty) {
+        return Err(DfwError::new(format!(
+            "\"dfw comments {sub}\" needs a comment id: dfw comments {sub} <id> (\"dfw comments list\" shows the ids)."
+        )));
+    }
     match sub {
         "wait" => wait(ctx),
         "list" => list(ctx),
@@ -42,7 +50,7 @@ fn comments(ctx: &Ctx) -> Result<i32, DfwError> {
                 Some(c) => print_json(&c),
                 None => Err(DfwError::new(format!(
                     "Comment {} not found.",
-                    id.unwrap_or("undefined")
+                    id.unwrap_or_default()
                 ))),
             }
         }

@@ -408,7 +408,8 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
       same(['config', 'get', ...args], { env });
       same(['config', 'get', ...args], { env, setup: layers });
     }
-    assert.equal(same(['config', 'get', 'no.such.key']).stdout, 'undefined\n');
+    // 0.6.1 (CO-9): a key that is not set is an error that says so, no longer "undefined".
+    assert.equal(same(['config', 'get', 'no.such.key']).stderr, '"no.such.key" is not set in the config; "dfw config get" prints every setting.\n');
     assert.equal(same(['config', 'get', 'studio.port'], { env, setup: layers }).stdout, '4800\n');
     const sets = [
       [['studio.port', '4700'], '.dfw/config.json'],
@@ -503,7 +504,8 @@ describe('hot: comments', { skip: skipReason() }, () => {
     assert.equal(same(['comments', 'list', '--status', 'fixed'], opts()).stdout, 'fb_003 [fixed]  -> main > p\n    "Comment fb_003 "quoted" tiếng Việt"\n    last: claude: Wider now\n');
     assert.equal(JSON.parse(same(['comments', 'show', 'fb_005'], opts()).stdout).session, 'rv_1');
     for (const args of [['show', 'fb_999'], ['show']]) assert.equal(same(['comments', ...args], opts()).code, 1);
-    assert.equal(same(['comments', 'show'], opts()).stderr, 'Comment undefined not found.\n');
+    // 0.6.1 (CO-9): a missing id is named as such, no longer "Comment undefined not found."
+    assert.equal(same(['comments', 'show'], opts()).stderr, '"dfw comments show" needs a comment id: dfw comments show <id> ("dfw comments list" shows the ids).\n');
     assert.equal(same(['comments', 'nope'], opts()).stderr, 'Unknown comments subcommand "nope".\n');
     // Comments of every session are listed, oldest session first.
     same(['comments', 'list'], { setup: all(withSession(MIXED.slice(0, 2), { closedAt: NOW }), (root) => write(root, '.dfw/reviews/rv_2.json', { schema: 1, id: 'rv_2', startedAt: NOW, designVersion: 'v2', comments: [comment('fb_007')] })) });
@@ -540,7 +542,7 @@ describe('hot: comments', { skip: skipReason() }, () => {
     assert.equal(at(['reply', 'fb_001']).stderr, '--message is required.\n');
     assert.match(at(['dismiss', 'fb_001']).stderr, /^Dismissing needs --message/);
     assert.equal(at(['ack', 'fb_999']).stderr, 'Comment fb_999 not found.\n');
-    assert.equal(at(['ack']).stderr, 'Comment undefined not found.\n');
+    assert.equal(at(['ack']).stderr, '"dfw comments ack" needs a comment id: dfw comments ack <id> ("dfw comments list" shows the ids).\n');
   });
 
   test('message, author and evidence flags', () => {

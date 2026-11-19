@@ -88,13 +88,13 @@
     {
       "code": 1,
       "stdout": "",
-      "stderr": "Comment undefined not found.\n",
+      "stderr": "\"dfw comments show\" needs a comment id: dfw comments show <id> (\"dfw comments list\" shows the ids).\n",
       "files": {}
     },
     {
       "code": 1,
       "stdout": "",
-      "stderr": "Comment undefined not found.\n",
+      "stderr": "\"dfw comments show\" needs a comment id: dfw comments show <id> (\"dfw comments list\" shows the ids).\n",
       "files": {}
     },
     {
