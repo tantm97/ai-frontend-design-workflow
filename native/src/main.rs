@@ -1,8 +1,7 @@
 //! dfw: design-first frontend workflow CLI (native core).
 //!
 //! The command line: the arguments select one command of the table (`cli`), its handler runs
-//! and its exit code is the process's. The dispatch order is the one of the Node CLI of 0.5.2,
-//! which the golden tests (tests/golden) recorded.
+//! and its exit code is the process's. The golden tests (tests/golden) hold the dispatch order.
 //! The end of every command is a record point of `telemetry` (off unless a collector address exists).
 
 mod assets;
@@ -95,7 +94,7 @@ mod tests {
     }
 
     #[test]
-    fn command_selection_follows_cli_mjs() {
+    fn command_selection() {
         assert_eq!(name(&[]), "help");
         assert_eq!(name(&[""]), "help");
         assert_eq!(name(&["help"]), "help");

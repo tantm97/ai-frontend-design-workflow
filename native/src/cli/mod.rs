@@ -1,7 +1,6 @@
 //! The command table. Each `cli/<group>.rs` lists the commands of its group with their handlers.
 //!
-//! `help.txt` is the `dfw help` text (the one of the Node CLI of 0.5.2, with the mode and phase
-//! lists filled in, plus the telemetry line); the golden tests record it.
+//! `help.txt` is the `dfw help` text, one line per public command; the golden tests record it.
 
 mod browser;
 mod comments;
@@ -26,7 +25,7 @@ use crate::core::util::{out, Args};
 pub struct Ctx {
     /// The arguments as typed, without the program name.
     pub argv: Vec<String>,
-    /// The same, parsed (`a` in cli.mjs; `args.pos(0)` is the command).
+    /// The same, parsed (`args.pos(0)` is the command).
     pub args: Args,
 }
 
@@ -218,7 +217,7 @@ mod tests {
         let names: Vec<&str> = commands().iter().map(|(n, _)| *n).collect();
         let unique: HashSet<&str> = names.iter().copied().collect();
         assert_eq!(names.len(), unique.len(), "{names:?}");
-        // The switch of cli.mjs and the cases before it.
+        // Every public command.
         for cmd in [
             "version",
             "help",
@@ -270,11 +269,10 @@ mod tests {
                 "{cmd} is missing from the command table"
             );
         }
-        // `__debug` (hidden; see cli/debug.rs) and `telemetry` (new with the telemetry change)
-        // are the commands the Node CLI does not have.
+        // Besides those: `__debug` (hidden; see cli/debug.rs) and `telemetry`.
         assert!(unique.contains("__debug") && !include_str!("help.txt").contains("__debug"));
         assert!(unique.contains("telemetry"));
-        assert_eq!(names.len(), 46, "a command the Node CLI does not have");
+        assert_eq!(names.len(), 46, "a command missing from the list above");
         for name in INTERNAL
             .iter()
             .chain(["mcp", "install", "uninstall"].iter())

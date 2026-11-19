@@ -1,5 +1,5 @@
-//! The `hook` command of `core/lib/cli.mjs`: reads the host's JSON on stdin, runs a handler of `hooks/`,
-//! prints the host-specific result; fails open.
+//! The `hook` command: reads the host's JSON on stdin, runs a handler of `hooks/`, prints the
+//! host-specific result; fails open.
 
 use std::io::{self, IsTerminal, Read, Write};
 use std::time::Instant;
@@ -36,7 +36,7 @@ fn read_stdin_bytes() -> Vec<u8> {
     let mut bytes = Vec::new();
     let mut stdin = io::stdin();
     if !stdin.is_terminal() {
-        // A stdin that cannot be read is an empty payload, as for Node.
+        // A stdin that cannot be read is an empty payload.
         let _ = stdin.read_to_end(&mut bytes);
     }
     bytes

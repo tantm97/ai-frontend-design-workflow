@@ -1,5 +1,5 @@
-//! Workflow commands of `core/lib/cli.mjs`: init, status, mode, phase, approve, reopen, pause, resume,
-//! decide, decisions, config, lang, verify-snapshot (`cmdInit`, `cmdStatus`, `nextStep`, `cmdApprove`).
+//! Workflow commands: init, status, mode, phase, approve, reopen, pause, resume, decide,
+//! decisions, config, lang, verify-snapshot.
 //! Every branch runs here; `approve DS` and `approve G2` run their gate's checks first (G2 with
 //! the rendered accessibility check).
 

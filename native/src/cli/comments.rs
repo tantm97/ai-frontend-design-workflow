@@ -1,4 +1,4 @@
-//! The `comments` command of `core/lib/cli.mjs` (`cmdComments`, `cmdCommentsWait`).
+//! The `comments` command and its subcommands, `comments wait` included.
 
 use serde_json::Value;
 
