@@ -1,0 +1,169 @@
+// @ts-check
+// Keyboard: the shortcuts of the canvas and the presenter (also forwarded by the frames' overlay),
+// the tools (select, hand, comment, interact) and Space-to-pan. Shortcuts never fire in a field
+// (studio-ui.md U7).
+import { $, $$, P, S, post, postAll } from './state.js';
+import { clearSelection } from './frames.js';
+import { zoomCenter, zoomStep, zoomToFit, zoomToSelection } from './canvas.js';
+import { updateHud } from './hud.js';
+import { renderLayers } from './layers.js';
+import { renderInspector } from './inspector.js';
+import { undo } from './edits.js';
+import { closeComposer, saveComment } from './comments.js';
+import { closePop, cyclePins } from './pins.js';
+import { closePresent, openPresent, presentStep, setPresentMode, toggleFullscreen, togglePresentPins } from './present.js';
+
+/** @typedef {{ phase: 'down' | 'up', key: string, code: string, meta: boolean, ctrl: boolean, shift: boolean, alt: boolean }} KeyInput */
+
+function setSpace(/** @type {boolean} */ on) {
+  if (S.space === on) return;
+  S.space = on;
+  document.body.classList.toggle('space', on);
+}
+
+/** Tool of the canvas: 'select', 'hand', 'comment' or 'interact'. */
+export function setMode(/** @type {string} */ mode) {
+  S.mode = mode;
+  document.body.dataset.mode = mode;
+  for (const b of $$('.seg button')) b.setAttribute('aria-checked', String(b.dataset.mode === mode));
+  if (mode !== 'comment') closeComposer();
+  S.hover = null;
+  postAll({ type: 'dfw:mode', mode });
+  updateHud();
+}
+
+/** Keys of the presenter. */
+function presentKey(/** @type {KeyInput} */ d, /** @type {boolean} */ mod) {
+  const key = d.key;
+  if (mod || d.alt) return;
+  if (key === 'Escape') {
+    if (!$('#composer').hidden) return closeComposer();
+    if (S.pop) return closePop();
+    if (P.mode === 'comment') return setPresentMode('present');
+    return closePresent();
+  }
+  if (key === 'ArrowLeft') return presentStep(-1);
+  if (key === 'ArrowRight') return presentStep(1);
+  if (key === 'C' && d.shift) return togglePresentPins();
+  if (key === 'c' || key === 'C') return setPresentMode(P.mode === 'comment' ? 'present' : 'comment');
+  if (key === 'f' || key === 'F') return toggleFullscreen();
+  if (key === 'p' || key === 'P') return closePresent();
+  if (key === '?') $('#shortcuts').hidden = false;
+}
+
+/** Escape: close the composer, the popover, the selection, then go back to the select tool. */
+function escape() {
+  if (!$('#composer').hidden) return closeComposer();
+  if (S.pop) return closePop();
+  if (S.sel) {
+    postAll({ type: 'dfw:clear-selection' });
+    S.sel = null;
+    renderLayers();
+    renderInspector();
+    return updateHud();
+  }
+  if (S.selKey) return clearSelection();
+  if (S.mode !== 'select') setMode('select');
+}
+
+/** A key from the Studio page or forwarded by a frame. */
+export function handleKey(/** @type {KeyInput} */ d) {
+  const key = d.key;
+  if (d.phase === 'up') {
+    if (key === ' ') setSpace(false);
+    return;
+  }
+  const mod = d.meta || d.ctrl;
+  if (!$('#shortcuts').hidden) {
+    if (key === 'Escape' || key === '?') $('#shortcuts').hidden = true;
+    return;
+  }
+  if (P.open) return presentKey(d, mod);
+  if (key === ' ') return setSpace(true);
+  if (mod && (key === 'z' || key === 'Z') && !d.shift) return undo();
+  if (mod && (key === '=' || key === '+')) return zoomStep(1);
+  if (mod && key === '-') return zoomStep(-1);
+  if (mod && key === '0') return zoomCenter(1);
+  if (d.alt && !mod && (key.startsWith('Arrow') || (d.shift && d.code === 'Digit0')) && S.sel && S.mode === 'select') {
+    const f = S.frames.get(S.sel.key);
+    if (f && !f.system && f.file) post(f, { type: 'dfw:layout-key', key: key.startsWith('Arrow') ? key : 'reset', shift: d.shift });
+    return;
+  }
+  if (mod || d.alt) return;
+  if (d.shift && (d.code === 'Digit1' || key === '!')) return zoomToFit();
+  if (d.shift && (d.code === 'Digit2' || key === '@')) return zoomToSelection();
+  switch (key) {
+    case 'Escape':
+      return escape();
+    case 'v':
+    case 'V':
+      return setMode('select');
+    case 'h':
+    case 'H':
+      return setMode('hand');
+    case 'i':
+    case 'I':
+      return setMode('interact');
+    case 'p':
+    case 'P':
+      return openPresent();
+    case 'f':
+    case 'F':
+      return toggleFullscreen();
+    case 'C':
+      if (d.shift) return cyclePins();
+    // falls through
+    case 'c':
+      return setMode(S.mode === 'comment' ? 'select' : 'comment');
+    case '+':
+    case '=':
+      return zoomStep(1);
+    case '-':
+    case '_':
+      return zoomStep(-1);
+    case '0':
+      return zoomCenter(1);
+    case '?':
+      $('#shortcuts').hidden = false;
+      return;
+    case 'ArrowUp':
+    case 'ArrowDown':
+    case 'ArrowLeft':
+    case 'ArrowRight':
+      if (S.sel) post(S.frames.get(S.sel.key), { type: 'dfw:nav', dir: key.slice(5).toLowerCase() });
+      return;
+    case 'Enter':
+      if (S.sel?.textEditable) post(S.frames.get(S.sel.key), { type: 'dfw:edit' });
+  }
+}
+
+/** Keys on the Studio page itself (fields keep theirs). */
+export function initKeys() {
+  document.addEventListener('keydown', (e) => {
+    const t = /** @type {HTMLElement} */ (e.target);
+    if (t.closest('textarea, input, select')) {
+      if (t.id === 'composer-text' && e.key === 'Enter' && (e.metaKey || e.ctrlKey)) saveComment();
+      if (e.key === 'Escape') {
+        closeComposer();
+        t.blur();
+      }
+      return;
+    }
+    /** @type {KeyInput} */
+    const d = { phase: 'down', key: e.key, code: e.code, meta: e.metaKey, ctrl: e.ctrlKey, shift: e.shiftKey, alt: e.altKey };
+    if (e.key === ' ' || e.key.startsWith('Arrow') || ((e.metaKey || e.ctrlKey) && ['z', '=', '-', '0', '+'].includes(e.key)))
+      e.preventDefault();
+    handleKey(d);
+  });
+  document.addEventListener('keyup', (e) => {
+    if (e.key !== ' ') return;
+    // Space is the hand tool: never let it activate a focused toolbar button.
+    if (!(/** @type {HTMLElement} */ (e.target).closest('textarea, input, select'))) e.preventDefault();
+    setSpace(false);
+  });
+  // Toolbar buttons should not keep keyboard focus after a click (Space/Enter belong to the canvas).
+  document
+    .querySelector('.topbar')
+    .addEventListener('mousedown', (e) => /** @type {HTMLElement} */ (e.target).closest('button') && e.preventDefault());
+  window.addEventListener('blur', () => setSpace(false));
+}
