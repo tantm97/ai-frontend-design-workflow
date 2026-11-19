@@ -80,6 +80,13 @@ pub fn freeze_design(root: &Path, state: &mut Value, note: Option<Value>) -> Res
     }
     let design = design_of(state)?;
     let version = format!("v{}", js::to_string(design.get("version")));
+    // The state is the user's file: its version names a folder only in the form freeze writes.
+    check_snapshot_name(&version).map_err(|_| {
+        DfwError::new(format!(
+            "Cannot freeze: design.version in .dfw/state.json is {}, not a whole number. Set it to the number of this design version (1, 2, ...) and run the command again.",
+            js::to_string(design.get("version"))
+        ))
+    })?;
     if design.get("status").and_then(Value::as_str) == Some("approved") {
         return Err(DfwError::new(format!(
             "Version {version} is already approved. Use \"dfw reopen\" to start a new version."
@@ -266,6 +273,33 @@ mod tests {
             .unwrap_err()
             .message()
             .starts_with("No approval.lock.json in "));
+    }
+
+    /// RV-1: a version in the state that is not a number never names the snapshot folder.
+    #[test]
+    fn a_version_from_the_state_never_leaves_design_approved() {
+        let root = test_dir("freeze-escape");
+        fs::create_dir_all(root.join("design")).unwrap();
+        fs::write(root.join("design/design.json"), "{}").unwrap();
+        for bad in [
+            json!("1/../../../../escaped"),
+            json!("../x"),
+            json!(1.5),
+            json!(null),
+            json!(""),
+        ] {
+            let mut s = new_state("new-product", "".into()).unwrap();
+            s["design"]["version"] = bad.clone();
+            let err = freeze_design(&root, &mut s, None).unwrap_err();
+            assert!(
+                err.message()
+                    .starts_with("Cannot freeze: design.version in .dfw/state.json is "),
+                "{bad}"
+            );
+            assert_eq!(s["design"]["status"], "draft", "{bad}");
+        }
+        assert!(!root.join("escaped").exists() && !root.parent().unwrap().join("escaped").exists());
+        assert!(!root.join("design/approved").exists());
     }
 
     /// freeze: snapshot, lock, tamper detection, reopen (tests/unit/dfw.test.mjs)
