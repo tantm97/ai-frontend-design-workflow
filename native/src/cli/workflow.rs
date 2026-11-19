@@ -17,7 +17,7 @@ use crate::core::paths::project_paths;
 use crate::core::process::is_alive;
 use crate::core::util::{
     append_jsonl, now_iso, out, parse_value, read_json, to_json_compact, to_json_pretty,
-    write_atomic, write_json, ArgValue, Args,
+    write_atomic, write_json, Args,
 };
 use crate::design::compose::{build_system, load_components};
 use crate::design::dsaudit::audit_design_system;
@@ -508,12 +508,8 @@ fn pause_resume(ctx: &Ctx) -> Result<i32, DfwError> {
 
 fn decide_cmd(ctx: &Ctx) -> Result<i32, DfwError> {
     let a = &ctx.args;
-    // `Number(a.level)`: the flag alone is `true`, which is 1.
-    let level = match a.get("level") {
-        Some(ArgValue::Flag) => 1.0,
-        Some(ArgValue::Text(text)) => js::str_to_number(text),
-        None => f64::NAN,
-    };
+    // `Number(a.level)`; `--level` alone never gets here (`require_flag_values`).
+    let level = a.text("level").map_or(f64::NAN, js::str_to_number);
     let words = a.positionals.get(1..).unwrap_or_default().join(" ");
     let text = if words.is_empty() {
         arg_truthy(a, "text")
@@ -578,14 +574,8 @@ fn config(ctx: &Ctx) -> Result<i32, DfwError> {
 
 fn lang(ctx: &Ctx) -> Result<i32, DfwError> {
     let a = &ctx.args;
-    let session = match a.get("session") {
-        // `--session` alone is `true` in Node, which has no text to make a file name from.
-        Some(ArgValue::Flag) => {
-            return Err(DfwError::internal("id.replace is not a function"));
-        }
-        Some(ArgValue::Text(text)) => Some(text.as_str()),
-        None => None,
-    };
+    // `--session` alone never gets here (`require_flag_values`).
+    let session = a.text("session");
     match a.pos(1).filter(|s| !s.is_empty()).unwrap_or("status") {
         "status" => print_json(&language_status(session)?),
         "set" => print_json(&set_language(a.pos(2), session)?),

@@ -184,12 +184,9 @@ fn list(ctx: &Ctx) -> Result<i32, DfwError> {
 
 /// `dfw comments wait [--timeout <seconds>]`: block until the user posts comments.
 fn wait(ctx: &Ctx) -> Result<i32, DfwError> {
-    // `(Number(a.timeout) || 3600) * 1000`: the flag alone is `true`, which is 1.
-    let seconds = match ctx.args.get("timeout") {
-        Some(ArgValue::Flag) => 1.0,
-        Some(ArgValue::Text(text)) => js::str_to_number(text),
-        None => f64::NAN,
-    };
+    // `(Number(a.timeout) || 3600) * 1000`; `--timeout` alone never gets here
+    // (`require_flag_values`).
+    let seconds = ctx.args.text("timeout").map_or(f64::NAN, js::str_to_number);
     let seconds = Some(seconds)
         .filter(|s| *s != 0.0 && !s.is_nan())
         .unwrap_or(3600.0);
