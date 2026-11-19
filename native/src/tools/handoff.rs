@@ -13,6 +13,7 @@ use crate::core::js;
 use crate::core::paths::project_paths;
 use crate::core::util::{get_path, list_files, read_json, write_atomic_inside};
 use crate::review::comments::all_comments;
+use crate::workflow::freeze::check_snapshot_name;
 use crate::workflow::gates::relative;
 use crate::workflow::state::{current_approval, require_state, type_error};
 
@@ -159,6 +160,13 @@ pub fn write_handoff(root: &Path) -> Result<String, DfwError> {
         ));
     };
     let version = js::to_string(appr.get("version"));
+    // The state is the user's file: its version names folders and files only in the form
+    // freeze writes (`v<number>`), never `../x`.
+    check_snapshot_name(&version).map_err(|_| {
+        DfwError::new(format!(
+            ".dfw/state.json: the last design.approved entry has version \"{version}\", not a snapshot name (v1, v2, ...). Restore the file from version control, or set that version to the folder under design/approved/, and run the command again."
+        ))
+    })?;
     let dir = p.approved.join(&version);
     let m = read_json(&dir.join("design.json"), Some(json!({})))?;
     let stack = read_json(&p.stack, Some(Value::Null))?;
@@ -268,5 +276,25 @@ mod tests {
             "a [a | b] b"
         );
         assert_eq!(js_replace_all("{{x}}", "{{x}}", "cost: 5$"), "cost: 5$");
+    }
+
+    /// A version in the state that is not `v<number>` never names a folder or the handoff file
+    /// (review RV-1: `../../x` wrote the handoff outside `design/handoff`).
+    #[test]
+    fn an_approved_version_that_is_not_a_snapshot_name_is_refused() {
+        let root = crate::core::util::test_dir("handoff-version");
+        crate::core::util::write_json(
+            &root.join(".dfw/state.json"),
+            &json!({ "design": { "status": "approved", "approved": [{ "version": "../../x", "hash": "h" }] } }),
+        )
+        .unwrap();
+        let err = write_handoff(&root).unwrap_err();
+        assert!(
+            err.message().contains("not a snapshot name"),
+            "{}",
+            err.message()
+        );
+        assert!(!root.join("x.md").exists() && !root.parent().unwrap().join("x.md").exists());
+        std::fs::remove_dir_all(&root).unwrap();
     }
 }
