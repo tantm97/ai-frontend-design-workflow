@@ -10,8 +10,6 @@ use crate::core::js;
 use crate::core::paths::project_paths;
 use crate::core::util::{append_jsonl, now_iso, read_jsonl};
 
-use super::state::type_error;
-
 /// The entry `approveGate` appends: a level 1 (user) decision named after the gate.
 pub fn gate_entry(at: &str, gate: &str, title: &str, note: Option<&Value>) -> Value {
     let note = note.map_or(String::new(), |n| format!(" - {}", js::to_string(Some(n))));
@@ -71,10 +69,11 @@ pub fn format_decisions(list: &[Value]) -> Result<String, DfwError> {
     let lines: Result<Vec<String>, DfwError> = list
         .iter()
         .map(|d| {
-            let at = d
-                .get("at")
-                .and_then(Value::as_str)
-                .ok_or_else(|| type_error("slice"))?;
+            let at = d.get("at").and_then(Value::as_str).ok_or_else(|| {
+                DfwError::new(
+                    ".dfw/decisions.jsonl: a decision has no \"at\" time. Fix or remove that line.",
+                )
+            })?;
             // slice(0, 16) counts UTF-16 units; a timestamp is ASCII.
             let units: Vec<u16> = at.encode_utf16().take(16).collect();
             Ok(format!(

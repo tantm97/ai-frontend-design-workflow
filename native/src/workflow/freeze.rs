@@ -11,7 +11,7 @@ use crate::core::paths::{project_paths, resolve};
 use crate::core::util::{copy_dir, list_files, now_iso, read_json, sha256, write_json};
 
 use super::gates::relative;
-use super::state::{approve_gate, push_history, save_state, type_error};
+use super::state::{approve_gate, push_history, save_state, state_field_error};
 
 const EXCLUDE: [&str; 2] = ["approved", "handoff"];
 
@@ -64,7 +64,7 @@ pub fn hash_design(root: &Path) -> Result<DesignHash, DfwError> {
 fn design_of(state: &mut Value) -> Result<&mut Map<String, Value>, DfwError> {
     match state.get_mut("design") {
         Some(Value::Object(design)) => Ok(design),
-        _ => Err(type_error("status")),
+        _ => Err(state_field_error("design", "an object")),
     }
 }
 
@@ -131,7 +131,7 @@ pub fn freeze_design(root: &Path, state: &mut Value, note: Option<Value>) -> Res
     ]);
     match design.get_mut("approved") {
         Some(Value::Array(approved)) => approved.push(entry),
-        _ => return Err(type_error("push")),
+        _ => return Err(state_field_error("design.approved", "a list")),
     }
     let mut extra = Map::new();
     extra.insert("version".into(), version.into());
@@ -225,7 +225,7 @@ pub fn reopen_design(
             gates.insert("G2".into(), Value::Null);
             gates.insert("G4".into(), Value::Null);
         }
-        _ => return Err(type_error("G2")),
+        _ => return Err(state_field_error("gates", "an object")),
     }
     let late = matches!(
         state.get("phase").and_then(Value::as_str),

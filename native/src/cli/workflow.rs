@@ -31,8 +31,8 @@ use crate::workflow::lang::{language_status, set_language};
 use crate::workflow::stack::detect_stack;
 use crate::workflow::state::{
     approve_gate, arg_raw, arg_truthy, current_approval, gate_title, load_state, mode_info,
-    new_state, push_history, require_state, save_state, set_field, set_mode, set_phase, summarize,
-    type_error,
+    new_state, push_history, require_state, save_state, set_field, set_mode, set_phase,
+    state_field_error, summarize, type_error,
 };
 
 /// The commands of this group.
@@ -180,7 +180,9 @@ fn status(ctx: &Ctx) -> Result<i32, DfwError> {
     }
     let mut lines = vec![summarize(state.as_ref())?];
     if let Some(state) = &state {
-        let gates = state.get("gates").ok_or_else(|| type_error("G3"))?;
+        let gates = state
+            .get("gates")
+            .ok_or_else(|| state_field_error("gates", "an object"))?;
         let gate = |g: &str| js::truthy_value(gates.get(g)).is_some();
         lines.push(format!(
             "comments: {active} active, {fixed} awaiting user verification, {resolved} resolved"
@@ -603,7 +605,7 @@ fn verify_snapshot_cmd(ctx: &Ctx) -> Result<i32, DfwError> {
                 .get("design")
                 .and_then(|d| d.get("approved"))
                 .and_then(Value::as_array)
-                .ok_or_else(|| type_error("at"))?;
+                .ok_or_else(|| state_field_error("design.approved", "a list"))?;
             version_of(approved.last())
         }
     };

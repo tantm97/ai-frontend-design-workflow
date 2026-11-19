@@ -219,21 +219,21 @@ pub fn files_from_tool_input(
         return Ok(Vec::new());
     };
     if input.is_null() {
-        return Err(DfwError::internal(
-            "Cannot read properties of null (reading 'input')",
-        ));
+        return Err(DfwError::new(format!("the host sent no tool input for {tool}; the write gate could not check this call. Update the host CLI or report it to the dfw maintainers.")));
     }
     let first = |keys: &[&str]| keys.iter().find_map(|k| js::truthy_value(input.get(k)));
     if tool == "ApplyPatch" {
         let body = first(&["input", "patch", "content"]);
         return Ok(body.map_or(Vec::new(), |b| files_from_patch(&js::to_string(Some(b)))));
     }
-    match first(&["file_path", "notebook_path", "path", "filePath"]) {
+    const KEYS: [&str; 4] = ["file_path", "notebook_path", "path", "filePath"];
+    match KEYS.iter().find_map(|k| js::truthy_value(input.get(k)).map(|v| (k, v))) {
         None => Ok(Vec::new()),
-        Some(Value::String(f)) => Ok(vec![f.clone()]),
-        Some(_) => Err(DfwError::internal(
-            "The \"paths[1]\" argument must be of type string.",
-        )),
+        Some((_, Value::String(f))) => Ok(vec![f.clone()]),
+        Some((key, other)) => Err(DfwError::new(format!(
+            "the {tool} call has a \"{key}\" that is not a path ({}); the write gate could not check it. Update the host CLI or report it to the dfw maintainers.",
+            js::to_string(Some(other))
+        ))),
     }
 }
 
@@ -493,8 +493,15 @@ mod tests {
         assert!(files_from_tool_input(None, &json!({ "file_path": "a.ts" }))
             .unwrap()
             .is_empty());
-        assert!(files_from_tool_input(Some("Write"), &json!({ "file_path": 5 })).is_err());
-        assert!(files_from_tool_input(Some("Write"), &Value::Null).is_err());
+        // E2: the field and what happened, not a JavaScript TypeError.
+        assert_eq!(
+            files_from_tool_input(Some("Write"), &json!({ "file_path": 5 })).unwrap_err().message(),
+            "the Write call has a \"file_path\" that is not a path (5); the write gate could not check it. Update the host CLI or report it to the dfw maintainers."
+        );
+        assert!(files_from_tool_input(Some("Write"), &Value::Null)
+            .unwrap_err()
+            .message()
+            .starts_with("the host sent no tool input for Write;"));
         assert_eq!(
             files(
                 "ApplyPatch",
