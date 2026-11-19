@@ -149,8 +149,6 @@ pub enum BrowserStatus {
 
 impl BrowserStatus {
     /// `status.installed`.
-    // For the next browser groups (layout check, a11y, extract, Penpot export, Studio).
-    #[allow(dead_code)]
     pub fn installed(&self) -> bool {
         matches!(self, BrowserStatus::Installed(_))
     }
@@ -227,20 +225,6 @@ impl Browser {
     /// `newContext(opts)`.
     pub fn new_context(&self, opts: ContextOptions) -> Result<Context, DfwError> {
         Context::create(&self.conn, opts)
-    }
-
-    /// The DevTools connection, for browser-level commands.
-    // For the next browser groups (layout check, a11y, extract, Penpot export, Studio).
-    #[allow(dead_code)]
-    pub fn connection(&self) -> &Arc<Connection> {
-        &self.conn
-    }
-
-    /// Process id of the browser.
-    // For the next browser groups (layout check, a11y, extract, Penpot export, Studio).
-    #[allow(dead_code)]
-    pub fn pid(&self) -> u32 {
-        lock(&self.proc).id()
     }
 
     /// Whether the browser is ended and its profile removed if this process dies first.
@@ -399,13 +383,6 @@ impl Guard {
         let _ = self.watchdog.kill();
         let _ = self.watchdog.wait();
     }
-}
-
-/// `launch()`: start the browser [`find_browser`] picks and connect to it.
-// For the next browser groups (layout check, a11y, extract, Penpot export, Studio).
-#[allow(dead_code)]
-pub fn launch() -> Result<Browser, DfwError> {
-    launch_with(&LaunchOptions::default())
 }
 
 /// `launch({ timeoutMs, commandTimeoutMs })`: start a headless browser and connect to it.
@@ -591,13 +568,6 @@ impl Renderer {
         Ok(page)
     }
 
-    /// The browser behind the renderer.
-    // For the next browser groups (layout check, a11y, extract, Penpot export, Studio).
-    #[allow(dead_code)]
-    pub fn browser(&self) -> &Browser {
-        &self.browser
-    }
-
     /// `r.close()`: close the browser.
     pub fn close(&self) {
         self.browser.close();
@@ -605,8 +575,6 @@ impl Renderer {
 }
 
 /// `openRenderer()`: start a browser for a batch of renders.
-// For the next browser groups (layout check, a11y, extract, Penpot export, Studio).
-#[allow(dead_code)]
 pub fn open_renderer() -> Result<Renderer, DfwError> {
     open_renderer_with(&LaunchOptions::default())
 }

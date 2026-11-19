@@ -198,27 +198,6 @@ impl Subscription {
         }
     }
 
-    /// `waitFor(event, timeoutMs)` on the events seen since this subscription was created.
-    // For the next browser groups (layout check, a11y, extract, Penpot export, Studio).
-    #[allow(dead_code)]
-    pub fn wait_for(&self, event: &str, timeout_ms: u64) -> Result<Value, DfwError> {
-        let deadline = Instant::now() + Duration::from_millis(timeout_ms);
-        loop {
-            let left = deadline.saturating_duration_since(Instant::now());
-            match self.rx.recv_timeout(left) {
-                Ok(Incoming::Event { method, params }) if method == event => return Ok(params),
-                Ok(_) => {}
-                Err(RecvTimeoutError::Timeout) => {
-                    return Err(DfwError::internal(format!(
-                        "timeout {timeout_ms}ms waiting for {event}"
-                    )))
-                }
-                // Node kept waiting for its timer here; the answer is known already.
-                Err(RecvTimeoutError::Disconnected) => return Err(DfwError::internal(CLOSED)),
-            }
-        }
-    }
-
     fn id(&self) -> u64 {
         self.guard.id
     }
@@ -602,20 +581,6 @@ impl Page {
         self.conn.send(method, params, Some(&self.session_id))
     }
 
-    /// The events of this page from now on; subscribe before the action that causes the event.
-    // For the next browser groups (layout check, a11y, extract, Penpot export, Studio).
-    #[allow(dead_code)]
-    pub fn subscribe(&self) -> Subscription {
-        self.conn.subscribe(&self.session_id)
-    }
-
-    /// `waitFor(event, timeoutMs)`: block until the page fires `event`; returns its params.
-    // For the next browser groups (layout check, a11y, extract, Penpot export, Studio).
-    #[allow(dead_code)]
-    pub fn wait_for(&self, event: &str, timeout_ms: u64) -> Result<Value, DfwError> {
-        self.subscribe().wait_for(event, timeout_ms)
-    }
-
     /// `setViewportSize({ width, height })`.
     pub fn set_viewport_size(&mut self, width: u32, height: u32) -> Result<(), DfwError> {
         self.width = width;
@@ -702,13 +667,6 @@ impl Page {
             .and_then(|res| res.get("value"))
             .cloned()
             .unwrap_or(Value::Null))
-    }
-
-    /// `evaluate('<expression>')`: the value of a JavaScript expression.
-    // For the next browser groups (layout check, a11y, extract, Penpot export, Studio).
-    #[allow(dead_code)]
-    pub fn evaluate_expression(&self, expression: &str) -> Result<Value, DfwError> {
-        self.evaluate(&format!("() => ({expression})"), None)
     }
 
     /// `waitForTimeout(ms)`.

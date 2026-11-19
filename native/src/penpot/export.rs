@@ -1047,8 +1047,7 @@ pub fn prune_exports(dir: &Path, keep: usize) -> Result<Vec<String>, DfwError> {
 
 /// `exportStructure`: a geometry-free outline of an export (stable across platforms and
 /// fonts), for tests.
-// Only the tests read it today; the Studio group's export route may print it.
-#[allow(dead_code)]
+#[cfg(test)]
 pub fn export_structure(doc: &Value) -> Vec<String> {
     fn list(v: Option<&Value>) -> impl Iterator<Item = &Value> {
         v.and_then(Value::as_array).into_iter().flatten()

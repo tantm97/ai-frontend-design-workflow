@@ -26,10 +26,6 @@ pub const PACKAGE: &str = "code-inspector-plugin";
 pub const VERSION: &str = "2.0.9";
 pub const LICENSE: &str = "MIT";
 const REPO: &str = "https://github.com/zh-lx/code-inspector";
-/// The attribute the plugin adds to every element.
-// For studio/live_proxy (the review overlay reads it).
-#[allow(dead_code)]
-pub const ATTRIBUTE: &str = "data-insp-path";
 const PURPOSE: &str = "dev-only source mapping (element -> file:line:col) for click-to-comment on the running app (dfw review)";
 
 // Relative paths in the attribute; no hotkeys, switch, console tips or editor-launch server:

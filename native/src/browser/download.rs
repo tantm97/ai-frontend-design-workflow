@@ -36,8 +36,9 @@ fn cft_platform() -> Option<&'static str> {
 ///
 /// Stricter than `new URL()` in Node on purpose: a URL the WHATWG parser would first repair
 /// (backslashes, an empty user name, a percent-encoded host, tabs) is refused, never repaired.
-// Exported as in cdp.mjs; the download itself checks the index entry as it came (`checked`).
-#[allow(dead_code)]
+// The tests prove the URL rules with it; the download itself checks the index entry as it
+// came (`checked`).
+#[cfg(test)]
 pub fn checked_download_url(url: &str) -> Result<String, DfwError> {
     checked(&Value::String(url.to_string()))
 }

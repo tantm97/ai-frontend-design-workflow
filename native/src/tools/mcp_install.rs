@@ -234,8 +234,6 @@ fn installed_in(format: Format, file: &Path) -> bool {
 }
 
 /// `mcpInstalled(id)`: whether a tool's config already has the dfw server.
-// The doctor line of cli/tools.rs has its own copy until the wave is merged.
-#[allow(dead_code)]
 pub fn mcp_installed(id: &str) -> bool {
     MCP_TARGETS
         .iter()
