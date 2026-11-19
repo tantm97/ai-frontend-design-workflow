@@ -6,6 +6,9 @@
 //! raw header list (several `Set-Cookie`, header case for the replayed upgrade) and a body that
 //! streams through untouched. Both are a few lines on a `TcpStream` and awkward through
 //! `tiny_http`'s buffered response writer; with this layer the two servers share one parser.
+//!
+//! Over 800 lines only with its tests: every cap and deadline of this layer is tested against a real
+//! socket next to the code.
 
 use std::collections::hash_map::RandomState;
 use std::hash::{BuildHasher, Hasher};
@@ -620,12 +623,6 @@ pub fn node_headers(raw: &[(String, String)]) -> Vec<(String, String)> {
         }
     }
     out
-}
-
-/// Clear the timeouts of a socket that now carries a long-lived stream.
-pub fn no_timeouts(stream: &TcpStream) {
-    let _ = stream.set_read_timeout(None);
-    let _ = stream.set_write_timeout(None);
 }
 
 #[cfg(test)]

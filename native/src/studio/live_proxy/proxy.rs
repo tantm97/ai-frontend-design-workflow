@@ -9,7 +9,7 @@
 //! proxy passes any method, the request body and every header, and streams the answer.
 
 use std::io::{self, Cursor, Read, Write};
-use std::net::{Shutdown, TcpListener, TcpStream};
+use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Sender};
 use std::sync::Arc;
@@ -31,9 +31,9 @@ use crate::core::util::to_json_compact;
 use crate::design::tokens::relative_path;
 use crate::review::comments::{add_comment, set_comment_screenshot};
 use crate::studio::http::{
-    drain, http_version, no_timeouts, node_headers, random_base64, read_body, read_head,
-    read_request_head, refusal, spawn_connection, url_pathname, write_error, write_head,
-    write_response, BodyError, Connections, Head, MAX_CONNECTIONS,
+    drain, http_version, node_headers, random_base64, read_body, read_head, read_request_head,
+    refusal, spawn_connection, url_pathname, write_error, write_head, write_response, BodyError,
+    Connections, Head, MAX_CONNECTIONS,
 };
 use crate::studio::server::json_body;
 use crate::tools::inspector::parse_insp_path;
@@ -106,7 +106,8 @@ impl LiveServer {
         ];
         let shot_queue = opts
             .shots
-            .then(|| spawn_shots(opts.root.clone(), t.origin()));
+            .then(|| spawn_shots(opts.root.clone(), t.origin()))
+            .flatten();
         Ok(LiveServer {
             root: opts.root.clone(),
             public_host: proxy_host(&t).to_string(),
@@ -499,32 +500,11 @@ impl LiveServer {
         {
             return;
         }
-        no_timeouts(&client);
-        splice(client, up);
+        super::tunnel::splice(client, up);
     }
 }
 
 const JSON: &str = "application/json; charset=utf-8";
-
-/// Copy both ways until either side closes, then close both.
-fn splice(a: TcpStream, b: TcpStream) {
-    let (Ok(mut a2), Ok(mut b2)) = (a.try_clone(), b.try_clone()) else {
-        return;
-    };
-    let (mut a, mut b) = (a, b);
-    // No thread for the other direction (the system is out of them): drop the connection.
-    let Ok(t) = std::thread::Builder::new().spawn(move || {
-        let _ = io::copy(&mut a2, &mut b2);
-        let _ = b2.shutdown(Shutdown::Both);
-        let _ = a2.shutdown(Shutdown::Both);
-    }) else {
-        return;
-    };
-    let _ = io::copy(&mut b, &mut a);
-    let _ = a.shutdown(Shutdown::Both);
-    let _ = b.shutdown(Shutdown::Both);
-    let _ = t.join();
-}
 
 /// The app's answer: status, header lines and the body still to read.
 struct Upstream {
@@ -701,9 +681,9 @@ fn https_upstream(
 
 /// `queueShot`: one screenshot at a time, in comment order, of the app itself (not the proxy):
 /// what the route renders, without the review UI.
-fn spawn_shots(root: PathBuf, origin: String) -> Sender<Shot> {
+fn spawn_shots(root: PathBuf, origin: String) -> Option<Sender<Shot>> {
     let (tx, rx) = channel::<Shot>();
-    std::thread::spawn(move || {
+    let started = std::thread::Builder::new().spawn(move || {
         for (id, route, vw, vh) in rx {
             let out = project_paths(&root)
                 .dfw
@@ -737,7 +717,14 @@ fn spawn_shots(root: PathBuf, origin: String) -> Sender<Shot> {
             }
         }
     });
-    tx
+    // No thread for the queue: comments still work, without screenshots.
+    if let Err(err) = started {
+        log(&format!(
+            "screenshots are off: the screenshot thread did not start ({err})"
+        ));
+        return None;
+    }
+    Some(tx)
 }
 
 /// `startLiveServer(opts)`: listen on 127.0.0.1:`port` (never 0.0.0.0). For a localhost app

@@ -12,6 +12,7 @@
 //! This file holds the pure parts; `live_proxy/proxy.rs` the server.
 
 mod proxy;
+mod tunnel;
 
 use std::path::Path;
 use std::sync::LazyLock;

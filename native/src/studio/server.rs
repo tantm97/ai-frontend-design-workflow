@@ -2,6 +2,9 @@
 //! renders the project's `design/` as a multi-screen canvas, takes direct edits and collects
 //! element-level review comments. Split by job: `api` (the data it serves), `pages` (canvas
 //! pages), `sse` (events), `watch` (live reload), `penpot_routes`, `http` (the wire).
+//!
+//! Over 800 lines only with its tests: the Host and Origin checks, the routes and the limits are
+//! tested against a real server on the fixture project.
 
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
@@ -375,7 +378,15 @@ pub fn serve(root: &Path, port: Option<u16>) -> Result<i32, DfwError> {
         }
     };
     let watcher = Arc::clone(&studio);
-    std::thread::spawn(move || watch::run(watcher.root.clone(), &watcher.clients));
+    // Without its watcher the Studio would show stale frames: a start failure ends the start
+    // (`dfw studio start` then points at the log), it never panics.
+    let watching = std::thread::Builder::new()
+        .name("watch".into())
+        .spawn(move || watch::run(watcher.root.clone(), &watcher.clients));
+    if let Err(err) = watching {
+        eprintln!("dfw studio: the file watcher did not start ({err}); try again when the system has threads to spare.");
+        return Ok(1);
+    }
     println!(
         "dfw studio: http://127.0.0.1:{}/  (project: {})",
         studio.port,

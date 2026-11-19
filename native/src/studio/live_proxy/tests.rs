@@ -737,3 +737,44 @@ fn review_in_a_browser_strict_csp_localhost_cookies_and_the_shortcut() {
     );
     assert_eq!(all_comments(&root).unwrap()[0]["comment"], "Bigger title");
 }
+
+/// A tunnel that carries nothing for its idle deadline is closed both ways, so a stuck peer
+/// cannot hold the connection (and its slot) for ever; traffic keeps it open (review P13).
+#[test]
+fn an_idle_websocket_tunnel_is_closed() {
+    use std::time::{Duration, Instant};
+    // Two socket pairs: (client, proxy side) and (proxy side, app).
+    let pair = || {
+        let l = TcpListener::bind("127.0.0.1:0").unwrap();
+        let outer = TcpStream::connect(l.local_addr().unwrap()).unwrap();
+        let (inner, _) = l.accept().unwrap();
+        (outer, inner)
+    };
+    let (mut client, from_client) = pair();
+    let (mut app, to_app) = pair();
+    let idle = Duration::from_millis(300);
+    let tunnel = thread::spawn(move || super::tunnel::splice_with(from_client, to_app, idle));
+    // Traffic within the deadline passes and keeps the tunnel open.
+    for _ in 0..3 {
+        thread::sleep(Duration::from_millis(150));
+        client.write_all(b"ping").unwrap();
+        let mut got = [0u8; 4];
+        app.read_exact(&mut got).unwrap();
+        assert_eq!(&got, b"ping");
+    }
+    let quiet = Instant::now();
+    app.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+    let mut rest = Vec::new();
+    // Both peers see the end once the tunnel idled.
+    assert_eq!(app.read_to_end(&mut rest).unwrap(), 0);
+    client
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    assert_eq!(client.read_to_end(&mut rest).unwrap(), 0);
+    tunnel.join().unwrap();
+    let waited = quiet.elapsed();
+    assert!(
+        waited >= Duration::from_millis(250) && waited < Duration::from_secs(3),
+        "{waited:?}"
+    );
+}
