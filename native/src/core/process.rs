@@ -68,11 +68,13 @@ pub fn quote_for_cmd(arg: &str, always: bool) -> String {
 }
 
 /// `Number.isInteger(pid) && pid > 0`: a pid that names one process (`1.0` is an integer too).
-/// 0 and negative numbers address process groups, so they never count.
+/// 0 and negative numbers address process groups, so they never count. Nor does a number above
+/// `i32::MAX`: `kill` reads it as a negative pid_t, which is a process group again.
 pub fn positive_pid(pid: &Value) -> Option<u64> {
-    pid.as_u64().filter(|p| *p > 0).or_else(|| {
+    const MAX: u64 = i32::MAX as u64;
+    pid.as_u64().filter(|p| (1..=MAX).contains(p)).or_else(|| {
         pid.as_f64()
-            .filter(|f| *f >= 1.0 && f.fract() == 0.0 && *f <= f64::from(u32::MAX))
+            .filter(|f| *f >= 1.0 && f.fract() == 0.0 && *f <= MAX as f64)
             .map(|f| f as u64)
     })
 }
@@ -154,7 +156,19 @@ mod tests {
     fn only_a_positive_integer_is_a_pid() {
         assert_eq!(positive_pid(&json!(42)), Some(42));
         assert_eq!(positive_pid(&json!(42.0)), Some(42));
-        for not in [json!(0), json!(-1), json!(1.5), json!("42"), json!(null)] {
+        assert_eq!(positive_pid(&json!(2147483647)), Some(2147483647));
+        // Above i32::MAX a pid_t wraps to a negative number: a process group.
+        for not in [
+            json!(0),
+            json!(-1),
+            json!(1.5),
+            json!("42"),
+            json!(null),
+            json!(2147483648u64),
+            json!(4294967295u64),
+            json!(u64::MAX),
+            json!(4294967295.0),
+        ] {
             assert_eq!(positive_pid(&not), None, "{not}");
         }
         assert!(!is_alive(Some(&json!(0))));
