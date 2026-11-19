@@ -63,9 +63,10 @@ fn run(ctx: &Ctx, name: &str) -> Result<i32, DfwError> {
     }
 }
 
-/// Which command the arguments select, in the order `main()` of cli.mjs decides it: an internal
-/// server command as first argument, `version`, the commands checked before `--help`, `help`,
-/// then the first positional.
+/// Which command the arguments select: an internal server command as first argument,
+/// `version`, `help` (also `--help` on any command), then the first positional. The Node CLI ran
+/// `mcp`, `install` and `uninstall` before it looked at `--help`, so `dfw install --help`
+/// installed; here it prints the help.
 fn command_name(argv: &[String], args: &Args) -> String {
     let first = argv.first().map(String::as_str).unwrap_or_default();
     if cli::INTERNAL.contains(&first) {
@@ -74,8 +75,6 @@ fn command_name(argv: &[String], args: &Args) -> String {
     let cmd = args.pos(0).unwrap_or_default();
     if cmd == "version" || args.truthy("version") {
         "version".into()
-    } else if cli::BEFORE_HELP.contains(&cmd) {
-        cmd.into()
     } else if cmd.is_empty() || cmd == "help" || args.truthy("help") {
         "help".into()
     } else {
@@ -107,12 +106,11 @@ mod tests {
         assert_eq!(name(&["status", "--version"]), "version");
         assert_eq!(name(&["--version"]), "version");
         assert_eq!(name(&["--version="]), "help", "an empty value is falsy");
-        assert_eq!(
-            name(&["mcp", "--help"]),
-            "mcp",
-            "mcp, install and uninstall are decided before --help"
-        );
-        assert_eq!(name(&["install", "--help"]), "install");
+        // `dfw install --help` must never install (the Node CLI did).
+        for cmd in ["mcp", "install", "uninstall"] {
+            assert_eq!(name(&[cmd, "--help"]), "help", "{cmd}");
+        }
+        assert_eq!(name(&["install", "--host", "claude"]), "install");
         assert_eq!(name(&["hook", "stop", "--help"]), "help");
         assert_eq!(name(&["__studio-server", "--help"]), "__studio-server");
         assert_eq!(name(&["nope"]), "nope");

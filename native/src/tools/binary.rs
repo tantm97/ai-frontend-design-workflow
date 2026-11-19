@@ -1,6 +1,6 @@
-//! Ports `core/lib/binary.mjs`: the single-file dfw binary, built per platform by CI and
-//! attached to the GitHub release v<version>. "dfw setup --binary" downloads the one matching
-//! this plugin version and verifies it against the release's SHA256SUMS; bin/dfw then prefers it.
+//! The dfw binary of a release: built per platform by CI (cargo) and attached to the GitHub
+//! release v<version>. "dfw setup --binary" downloads the one matching this plugin version and
+//! verifies it against the release's SHA256SUMS; the plugin launcher (bin/dfw) runs it.
 
 use std::fs;
 use std::path::PathBuf;
@@ -103,12 +103,12 @@ fn install_binary_from(base: &str, version: &str, log: &dyn Fn(&str)) -> Result<
     ));
     let sums = get(&format!("{base}/SHA256SUMS")).map_err(|e| {
         DfwError::new(format!(
-            "No dfw binary release for v{version} yet ({e}). dfw keeps running on Node."
+            "No dfw binary release for v{version} yet ({e}). The installed dfw keeps running."
         ))
     })?;
     let want = wanted_sum(&String::from_utf8_lossy(&sums), &name).ok_or_else(|| {
         DfwError::new(format!(
-            "Release v{version} has no binary for {}-{}. dfw keeps running on Node.",
+            "Release v{version} has no binary for {}-{}. The installed dfw keeps running.",
             node_platform(),
             node_arch()
         ))
@@ -216,7 +216,7 @@ mod tests {
         assert_eq!(
             err.message(),
             format!(
-                "Release v7.7.7 has no binary for {}-{}. dfw keeps running on Node.",
+                "Release v7.7.7 has no binary for {}-{}. The installed dfw keeps running.",
                 node_platform(),
                 node_arch()
             )
@@ -224,7 +224,7 @@ mod tests {
         let err = install_binary_from(&format!("{base}/none"), "7.7.7", &quiet).unwrap_err();
         assert_eq!(
             err.message(),
-            format!("No dfw binary release for v7.7.7 yet (HTTP 404 for {base}/none/SHA256SUMS). dfw keeps running on Node.")
+            format!("No dfw binary release for v7.7.7 yet (HTTP 404 for {base}/none/SHA256SUMS). The installed dfw keeps running.")
         );
     }
 }

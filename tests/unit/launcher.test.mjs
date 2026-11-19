@@ -97,3 +97,19 @@ test('launcher: a symlink to the launcher (~/.local/bin/dfw) finds its plugin fo
   const r = spawnSync('/bin/sh', [link, 'version'], { encoding: 'utf8', env: { PATH: '/usr/bin:/bin', HOME: root, DFW_HOME: path.join(root, 'home') } });
   assert.match(r.stdout, /^fake 9\.9\.9 root=.*\/plugin args=version$/m);
 });
+
+// cmd.exe cannot run here: the Windows launcher is checked for what it must contain, and the
+// release workflow runs it on the Windows runner (`plugins\dfw\bin\dfw.cmd version`).
+test('launcher (Windows): dfw.cmd has CRLF lines and the same order: DFW_BIN, this version, newest, 127', () => {
+  const text = fs.readFileSync(path.join(REPO, 'core', 'bin', 'dfw.cmd'), 'utf8');
+  assert.ok(!/[^\r]\n/.test(text), 'every line ends with CRLF (labels and calls break on LF in cmd.exe)');
+  const at = (s) => {
+    const i = text.indexOf(s);
+    assert.ok(i >= 0, s);
+    return i;
+  };
+  assert.ok(at('if defined DFW_BIN') < at('%HOME_DIR%\\bin\\%VER%\\dfw.exe') && at('%HOME_DIR%\\bin\\%VER%\\dfw.exe') < at('call :newer') && at('call :newer') < at('exit /b 127'));
+  assert.match(text, /set "DFW_PLUGIN_ROOT=%ROOT%"/);
+  assert.match(text, /\.config\\dfw/);
+  assert.doesNotMatch(text, /node /i, 'no Node fallback');
+});

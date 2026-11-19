@@ -7,18 +7,17 @@ import { run, assertSame, skipReason, NOW, suite, expected } from './harness.mjs
 const test = suite('skeleton');
 
 describe('skeleton', { skip: skipReason() }, () => {
-  // The help has exactly one line more than the recorded Node help: the telemetry command, which
-  // the Node CLI never had. Everything else is identical.
-  const TELEMETRY_LINE = /^  dfw telemetry status\|on\|off\|endpoint <url>\|show\|flush .*\n/m;
-  test('help is identical except the native telemetry line (dfw help, dfw, --help on a command)', () => {
-    for (const args of [['help'], [], ['status', '--help']]) {
+  // The recorded help was the Node CLI's plus the telemetry line, then the 0.6.0 lines of
+  // `setup --binary` and `install` (no --no-binary). `--help` wins on every command: the Node
+  // CLI ran install, uninstall and mcp before it looked at --help, so `dfw install --help`
+  // installed; these cases were recorded from the binary.
+  test('help: dfw help, dfw, and --help on any command, install, uninstall and mcp included', () => {
+    for (const args of [['help'], [], ['status', '--help'], ['install', '--help'], ['uninstall', '--help'], ['mcp', '--help']]) {
       const r = run(args);
-      assert.match(r.native.stdout, TELEMETRY_LINE);
-      assert.doesNotMatch(r.expected.stdout, TELEMETRY_LINE, 'the recorded help');
-      r.native.stdout = r.native.stdout.replace(TELEMETRY_LINE, '');
       assertSame(r, { stderr: true });
       assert.equal(r.native.code, 0);
       assert.match(r.native.stdout, /^dfw - design-first workflow CLI\n/);
+      assert.match(r.native.stdout, /^  dfw telemetry status\|on\|off\|endpoint <url>\|show\|flush /m);
     }
   });
 

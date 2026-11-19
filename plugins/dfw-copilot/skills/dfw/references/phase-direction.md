@@ -19,7 +19,7 @@ Skills (budget: base + 1 lead + 2 support):
 8. Self-check (`references/quality-rubric.md`, one round): `dfw shoot --screen _directions --themes`, look at every image, fix obvious issues.
 9. Present each direction: name, concept sentence, why it was chosen (brief axes it matches, what it trades off), named palette with its rules, typography (license, Vietnamese support when there is Vietnamese text; English-only fonts are fine for English-only products — `--fonts latin`), signature motif, density, why it fits these users. Recommend one. Ask the user to choose / combine / redirect (the ask_user tool).
 10. On the choice: `dfw system choose <id>` (it promotes the opt-<id> theme as compared, edits included); adapt it to the product (rename palette entries to the product's world, adjust hues, write usage rules in each token's `$description`); write DESIGN.md (Concept, Principles, Color with rules, Typography, Layout, Motifs, Motion); `dfw approve G1 --note "<direction + key choices>"`; `dfw phase system`.
-   - No library guide fits? Write a project guide (same JSON format as `kits/styles/*.json`: id, name, concept, base, fonts, fontsLatin, type, palette {name: {hex, usage}}, roles, radius, shadowTint, density, motifs, layout, components, do, dont) to `design/system/style-source.json` and `dfw style apply design/system/style-source.json`.
+   - No library guide fits? Write a project guide (same JSON format as the library guides, see `dfw style show <id> --json`: id, name, concept, base, fonts, fontsLatin, type, palette {name: {hex, usage}}, roles, radius, shadowTint, density, motifs, layout, components, do, dont) to `design/system/style-source.json` and `dfw style apply design/system/style-source.json`.
 
 ## Motion budget
 

@@ -81,8 +81,8 @@ fn inspector(ctx: &Ctx) -> Result<i32, DfwError> {
     Ok(0)
 }
 
-/// `dfw install [--host ...] [--scope ...] [--source ...] [--no-runtime] [--no-binary] [--quiet]`.
-/// `--no-binary` is accepted and changes nothing: only the Node CLI downloads the binary.
+/// `dfw install [--host ...] [--scope ...] [--source ...] [--no-runtime] [--quiet]`.
+/// `--no-binary` (an option of the 0.5 installers) is still accepted and changes nothing.
 fn cmd_install(ctx: &Ctx) -> Result<i32, DfwError> {
     let a = &ctx.args;
     install(&InstallOptions {

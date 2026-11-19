@@ -50,9 +50,6 @@ pub type Handler = fn(&Ctx) -> Result<i32, DfwError>;
 /// "dfw review start" spawn them).
 pub const INTERNAL: [&str; 2] = ["__studio-server", "__review-server"];
 
-/// Commands cli.mjs dispatches before it looks at `--help`.
-pub const BEFORE_HELP: [&str; 3] = ["mcp", "install", "uninstall"];
-
 /// Every command of the CLI.
 pub fn commands() -> Vec<(&'static str, Handler)> {
     let mut all: Vec<(&'static str, Handler)> =
@@ -149,7 +146,10 @@ mod tests {
         assert!(unique.contains("__debug") && !include_str!("help.txt").contains("__debug"));
         assert!(unique.contains("telemetry"));
         assert_eq!(names.len(), 46, "a command the Node CLI does not have");
-        for name in INTERNAL.iter().chain(BEFORE_HELP.iter()) {
+        for name in INTERNAL
+            .iter()
+            .chain(["mcp", "install", "uninstall"].iter())
+        {
             assert!(unique.contains(name));
         }
     }
