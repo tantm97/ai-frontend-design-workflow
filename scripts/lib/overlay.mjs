@@ -30,7 +30,9 @@ export function applyOverlay(pluginDir, overlay, repoRoot) {
       case 'dropKeys': {
         const r = dropKeys(read(), op.keys);
         if (r.dropped.length !== op.keys.length) {
-          throw new OverlayError(`${where}: keys not present upstream (${op.keys.filter((k) => !r.dropped.includes(k)).join(', ')}). Upstream may have changed; review the patch.`);
+          throw new OverlayError(
+            `${where}: keys not present upstream (${op.keys.filter((k) => !r.dropped.includes(k)).join(', ')}). Upstream may have changed; review the patch.`,
+          );
         }
         fs.writeFileSync(file, r.text);
         break;
@@ -39,7 +41,10 @@ export function applyOverlay(pluginDir, overlay, repoRoot) {
         const re = new RegExp(op.pattern, op.flags ?? 'g');
         const text = read();
         const count = (text.match(new RegExp(op.pattern, (op.flags || '').includes('g') ? op.flags : `${op.flags || ''}g`)) || []).length;
-        if (count < (op.min ?? 1)) throw new OverlayError(`${where}: pattern /${op.pattern}/ matched ${count} time(s), expected >= ${op.min ?? 1}. Review the patch.`);
+        if (count < (op.min ?? 1))
+          throw new OverlayError(
+            `${where}: pattern /${op.pattern}/ matched ${count} time(s), expected >= ${op.min ?? 1}. Review the patch.`,
+          );
         fs.writeFileSync(file, text.replace(re, op.with));
         break;
       }

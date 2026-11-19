@@ -29,7 +29,11 @@ function launcherFixture(versions, { manifest = '.claude-plugin/plugin.json' } =
     fs.writeFileSync(path.join(home, 'bin', v, 'dfw'), `#!/bin/sh\necho "fake ${v} root=$DFW_PLUGIN_ROOT args=$*"\n`, { mode: 0o755 });
   }
   // Only the system tools on PATH: no Node.js.
-  const run = (env = {}, args = ['version']) => spawnSync('/bin/sh', [path.join(plugin, 'bin', 'dfw'), ...args], { encoding: 'utf8', env: { PATH: '/usr/bin:/bin', HOME: root, DFW_HOME: home, ...env } });
+  const run = (env = {}, args = ['version']) =>
+    spawnSync('/bin/sh', [path.join(plugin, 'bin', 'dfw'), ...args], {
+      encoding: 'utf8',
+      env: { PATH: '/usr/bin:/bin', HOME: root, DFW_HOME: home, ...env },
+    });
   return { root, plugin, home, run };
 }
 
@@ -67,7 +71,10 @@ test('launcher: nothing installed -> 127 and how to install, never Node', posix,
   assert.equal(r.status, 127);
   assert.equal(r.stdout, '');
   assert.match(r.stderr, /^dfw: the dfw binary is not installed \(looked in .*\/home\/bin\/9\.9\.9\/\)\.\n/);
-  assert.match(r.stderr, /Install it: curl -fsSL https:\/\/raw\.githubusercontent\.com\/tantm97\/ai-frontend-design-workflow\/main\/install\.sh \| sh/);
+  assert.match(
+    r.stderr,
+    /Install it: curl -fsSL https:\/\/raw\.githubusercontent\.com\/tantm97\/ai-frontend-design-workflow\/main\/install\.sh \| sh/,
+  );
   // A version folder without an executable is not a binary.
   fs.mkdirSync(path.join(home, 'bin', '9.9.9'));
   fs.writeFileSync(path.join(home, 'bin', '9.9.9', 'dfw'), 'not executable');
@@ -106,7 +113,10 @@ test('launcher: a symlink to the launcher (~/.local/bin/dfw) finds its plugin fo
   const link = path.join(root, 'link', 'dfw');
   fs.mkdirSync(path.dirname(link));
   fs.symlinkSync(path.join(plugin, 'bin', 'dfw'), link);
-  const r = spawnSync('/bin/sh', [link, 'version'], { encoding: 'utf8', env: { PATH: '/usr/bin:/bin', HOME: root, DFW_HOME: path.join(root, 'home') } });
+  const r = spawnSync('/bin/sh', [link, 'version'], {
+    encoding: 'utf8',
+    env: { PATH: '/usr/bin:/bin', HOME: root, DFW_HOME: path.join(root, 'home') },
+  });
   assert.match(r.stdout, /^fake 9\.9\.9 root=.*\/plugin args=version$/m);
 });
 
@@ -120,7 +130,11 @@ test('launcher (Windows): dfw.cmd has CRLF lines and the same order: DFW_BIN, th
     assert.ok(i >= 0, s);
     return i;
   };
-  assert.ok(at('if defined DFW_BIN') < at('%HOME_DIR%\\bin\\%VER%\\dfw.exe') && at('%HOME_DIR%\\bin\\%VER%\\dfw.exe') < at('call :newer') && at('call :newer') < at('exit /b 127'));
+  assert.ok(
+    at('if defined DFW_BIN') < at('%HOME_DIR%\\bin\\%VER%\\dfw.exe') &&
+      at('%HOME_DIR%\\bin\\%VER%\\dfw.exe') < at('call :newer') &&
+      at('call :newer') < at('exit /b 127'),
+  );
   assert.match(text, /set "DFW_PLUGIN_ROOT=%ROOT%"/);
   assert.match(text, /\.config\\dfw/);
   assert.doesNotMatch(text, /node /i, 'no Node fallback');

@@ -5,6 +5,8 @@ import assert from 'node:assert/strict';
 import { specificity } from '../../core/studio/overlay/verify.js';
 import { nearest } from '../../core/studio/overlay/layout.js';
 import { match, semanticFirst } from '../../core/studio/overlay/tokens.js';
+import { isTypingTarget } from '../../core/studio/overlay/fields.js';
+import { parseHTML } from 'linkedom';
 
 test('studio-overlay-pure: specificity counts ids, classes/attributes/pseudo-classes and types', () => {
   assert.deepEqual(specificity('#a'), [1, 0, 0]);
@@ -33,4 +35,24 @@ test('studio-overlay-pure: match keeps the tokens of the style group family', ()
   assert.deepEqual(match('font-size', '16px', map), ['size.icon', 'font.size.md']);
   assert.deepEqual(match('color', '16px', map), ['size.icon', 'radius.lg', 'font.size.md', 'space.4'], 'no family: every name');
   assert.deepEqual(match('padding', '3px', map), []);
+});
+
+test('studio-overlay-pure: isTypingTarget is one definition of a field for the overlay and live.js', () => {
+  const { document } = parseHTML(
+    '<!doctype html><html><body><input id="i"><textarea id="t"></textarea><select id="s"></select>' +
+      '<div contenteditable id="ce"><b id="in">x</b></div><div contenteditable="false" id="off"></div><button id="b">B</button></body></html>',
+  );
+  const el = (id) => document.getElementById(id);
+  for (const id of ['i', 't', 's', 'ce', 'in']) assert.equal(isTypingTarget(el(id)), true, id);
+  // linkedom reports isContentEditable true for contenteditable="false"; a browser reports false.
+  const off = el('off');
+  assert.equal(
+    isTypingTarget({ isContentEditable: false, closest: (s) => off.closest(s) }),
+    false,
+    'contenteditable="false" is not a field',
+  );
+  assert.equal(isTypingTarget(el('b')), false);
+  assert.equal(isTypingTarget(null), false);
+  assert.equal(isTypingTarget({ isContentEditable: true }), true, 'editable by inheritance');
+  assert.equal(isTypingTarget(document), false, 'a node without closest()');
 });

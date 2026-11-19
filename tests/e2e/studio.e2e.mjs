@@ -13,6 +13,7 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { setTimeout as delay } from 'node:timers/promises';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const DFW = process.env.DFW_BIN
@@ -141,6 +142,32 @@ try {
   const painted = () => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   /** The Studio has the frame's overlay ready (tool, tokens and layout settings sent). */
   const frameReady = (key) => page.waitForFunction((k) => window.__dfwStudio.frames.get(k)?.loaded === true, key);
+  /**
+   * Wait until a file on disk passes `ok`. A file has no page event to wait on, so it is read again
+   * every 50 ms until the deadline (testing.md T12: a condition with a deadline, not a fixed sleep).
+   */
+  const fileUntil = async (file, ok, timeout = 5000) => {
+    for (const end = Date.now() + timeout; !ok(fs.readFileSync(file, 'utf8')) && Date.now() < end;) await delay(50);
+  };
+  /** Wait until an element of a frame has a computed grid-column-start (the frame may reload meanwhile). */
+  const waitSpan = async (name, id, want, msg) => {
+    const fr = page.frame({ name });
+    const get = ([i]) => {
+      const el = document.querySelector(`[data-dfw-id="${i}"]`);
+      return el ? getComputedStyle(el).gridColumnStart : null;
+    };
+    await fr
+      .waitForFunction(
+        ([i, w]) => {
+          const el = document.querySelector(`[data-dfw-id="${i}"]`);
+          return !!el && getComputedStyle(el).gridColumnStart === w;
+        },
+        [id, want],
+        { timeout: 6000 },
+      )
+      .catch(() => {});
+    assert.equal(await fr.evaluate(get, [id]), want, msg);
+  };
   const count = () => page.$$eval('.frame[data-key]', (f) => f.length); // frames, not iframes (off-screen iframes load lazily)
   const summary = (id) => page.textContent(`#${id} summary`);
   // Default: every breakpoint and every state. 2 screens x 3 breakpoints + 1 variant + 2 screens x 3 states.
@@ -300,11 +327,22 @@ try {
   await frame.locator('[data-dfw-id="home.raw"]').click();
   await page.waitForFunction(() => /raw value \(no token\)/.test(document.querySelector('#inspector').textContent));
   if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-5-inspect.png') });
+  // Layers from the keyboard (studio-ui.md U7): one row is in the tab order; arrows move, Enter selects.
+  assert.equal(await page.locator('#layers .row[tabindex="0"]').count(), 1, 'one roving tab stop');
+  assert.equal(await page.getAttribute('#layers .row[tabindex="0"]', 'aria-selected'), 'true', 'the tab stop is the selected layer');
+  await page.focus('#layers .row[tabindex="0"]');
+  await page.keyboard.press('ArrowUp');
+  await page.waitForFunction(() => document.activeElement?.matches('#layers .row[tabindex="0"]:not([aria-selected="true"])'));
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => window.__dfwStudio.sel?.own?.id === 'home.cta');
+  await page.waitForFunction(() => document.activeElement?.matches('#layers .row[aria-selected="true"][tabindex="0"]'));
+  assert.equal(await page.evaluate(() => document.body.classList.contains('space')), false);
+  if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-5a-layers-keyboard.png') });
 
   // Direct text edit writes back to the source; Cmd/Ctrl+Z undoes it.
   const src = path.join(tmp, 'design/screens/home/a.html');
   const waitFile = async (re, msg) => {
-    for (let i = 0; i < 50 && !re.test(fs.readFileSync(src, 'utf8')); i++) await page.waitForTimeout(100);
+    await fileUntil(src, (t) => re.test(t));
     assert.match(fs.readFileSync(src, 'utf8'), re, msg);
   };
   await frame.locator('[data-dfw-id="home.title"]').dblclick();
@@ -413,6 +451,22 @@ try {
   await page.waitForSelector('.comment[data-id="fb_002"] .status[data-s="fixed"]');
   assert.match(await page.textContent('.comment[data-id="fb_002"] .status'), /please verify/);
   if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-9-live-status.png') });
+  // A comment opens from the keyboard: Shift+Tab from its first action reaches its "#n" button; Space presses it, not the hand tool.
+  await page.focus('.comment[data-id="fb_002"] .comment-actions button');
+  await page.keyboard.press('Shift+Tab');
+  await page.waitForFunction(() => document.activeElement?.matches('.comment[data-id="fb_002"] button.open'));
+  await page.keyboard.press('Space');
+  await page.waitForSelector('.comment.selected[data-id="fb_002"]');
+  await page.waitForFunction(() => window.__dfwStudio.selKey?.startsWith('home::a::'));
+  assert.equal(await page.evaluate(() => document.body.classList.contains('space')), false, 'Space did not start panning');
+  // The selection shows the Inspect panel: the focus moves to its tab instead of falling to the page.
+  await page.waitForFunction(() => document.activeElement?.matches('.ptabs button[data-tab="inspect"]'));
+  if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-9a-comment-keyboard.png') });
+  // Opening the comment went to the first page with that screen (Flow): back to Screens.
+  await page.click('#page-list button[data-page="screens"]');
+  await page.waitForSelector('iframe[name="home::a::desktop"]');
+  await page.keyboard.press('Shift+1');
+  await frameReady('home::a::desktop');
 
   // Live update: the agent's edit shows up in the frame without a reload, with a cursor on what it touches.
   const homeFile = path.join(tmp, 'design/screens/home/a.html');
@@ -451,30 +505,24 @@ try {
   const detail = page.frameLocator('iframe[name="detail::a::desktop"]');
   const detailFile = path.join(tmp, 'design/screens/detail/a.html');
   const kept = () => detail.locator('html').evaluate(() => window.__dfwKept === true);
-  const reloaded = async (what) => {
-    for (let i = 0; i < 50 && (await kept().catch(() => true)); i++) await page.waitForTimeout(100);
+  /** The frame took the change (it posts dfw:ready after the design event) and lost the marker: it reloaded. */
+  const reloaded = async (what, since) => {
+    await settled('detail::a::desktop', since);
     assert.equal(await kept(), false, `${what}: the frame was reloaded`);
   };
   assert.equal(await detail.locator('#made li').count(), 2);
   await detail.locator('html').evaluate(() => (window.__dfwKept = true));
+  let since = await mark();
   fs.writeFileSync(detailFile, fs.readFileSync(detailFile, 'utf8').replace('Order 1042', 'Order 1043'));
-  await reloaded('a screen with a script');
+  await reloaded('a screen with a script', since);
   assert.equal(await detail.locator('[data-dfw-id="detail.title"]').textContent(), 'Order 1043');
   assert.equal(await detail.locator('#made li').count(), 2, 'the list its script builds is still there');
   await detail.locator('html').evaluate(() => (window.__dfwKept = true));
+  since = await mark();
   fs.writeFileSync(logoFile, logo('#0000ff'));
-  await reloaded('a changed image');
+  await reloaded('a changed image', since);
   fs.writeFileSync(detailFile, fs.readFileSync(detailFile, 'utf8').replace('Order 1043', 'Order 1042'));
-  for (
-    let i = 0;
-    i < 50 &&
-    (await detail
-      .locator('[data-dfw-id="detail.title"]')
-      .textContent()
-      .catch(() => '')) !== 'Order 1042';
-    i++
-  )
-    await page.waitForTimeout(100);
+  await detail.locator('[data-dfw-id="detail.title"]', { hasText: 'Order 1042' }).waitFor();
 
   // Constrained layout edits: drag to reorder grid items, drag the handle to change the column span.
   const boardFile = path.join(tmp, 'design/screens/board/a.html');
@@ -513,7 +561,7 @@ try {
   await frameReady('board::a::desktop');
   const board = page.frameLocator('iframe[name="board::a::desktop"]');
   const waitBoard = async (re, msg) => {
-    for (let i = 0; i < 50 && !re.test(fs.readFileSync(boardFile, 'utf8')); i++) await page.waitForTimeout(100);
+    await fileUntil(boardFile, (t) => re.test(t));
     assert.match(fs.readFileSync(boardFile, 'utf8'), re, msg);
   };
   const center = (b) => [b.x + b.width / 2, b.y + b.height / 2];
@@ -521,7 +569,7 @@ try {
   await board.locator('[data-dfw-handle="x"]').waitFor({ state: 'visible' });
   const b3 = await board.locator('[data-dfw-id="board.three"]').boundingBox();
   const b1 = await board.locator('[data-dfw-id="board.one"]').boundingBox();
-  let since = await mark();
+  since = await mark();
   await page.mouse.move(...center(b3));
   await page.mouse.down();
   await page.mouse.move(b1.x + b1.width * 0.2, b1.y + b1.height / 2, { steps: 10 });
@@ -546,23 +594,13 @@ try {
     'resize wrote a grid-column span rule',
   );
   // The rule wins over the more specific class rule "main .cards > div { grid-column: span 1 }".
-  const span = (loc) => loc.evaluate((el) => getComputedStyle(el).gridColumnStart);
-  const waitSpan = async (loc, want, msg) => {
-    let got;
-    for (let i = 0; i < 60; i++) {
-      got = await span(loc).catch(() => null);
-      if (got === want) break;
-      await page.waitForTimeout(100);
-    }
-    assert.equal(got, want, msg);
-  };
-  await waitSpan(board.locator('[data-dfw-id="board.two"]'), 'span 2', 'layout rule beats the more specific screen rule');
+  await waitSpan('board::a::desktop', 'board.two', 'span 2', 'layout rule beats the more specific screen rule');
   // Keyboard alternative: Alt+Shift+Right steps the span.
   await settled('board::a::desktop', since);
   await board.locator('[data-dfw-id="board.two"]').click();
   await page.keyboard.press('Alt+Shift+ArrowRight');
   await waitBoard(/\[data-dfw-id='board.two'\]:not\(#dfw\) \{ grid-column: span 3; \}/, 'Alt+Shift+Right widened the span');
-  await waitSpan(board.locator('[data-dfw-id="board.two"]'), 'span 3', 'computed span follows the keyboard step');
+  await waitSpan('board::a::desktop', 'board.two', 'span 3', 'computed span follows the keyboard step');
 
   // Narrower breakpoint: a resize in the Mobile frame lands in @media (max-width: 390px) and only affects that width.
   await page.click('#bp-menu summary');
@@ -596,17 +634,17 @@ try {
     /\[data-dfw-id='board.two'\]:not\(#dfw\) \{ grid-column: span 3; \}\n {4}@media \(max-width: 390px\) \{\n {6}\[data-dfw-id='board.two'\]:not\(#dfw\) \{ grid-column: span 1; \}\n {4}\}/,
     'mobile resize went into the 390px media block; base rule kept',
   );
-  await waitSpan(boardM.locator('[data-dfw-id="board.two"]'), 'span 1', 'mobile frame (390px) uses the media rule');
-  await waitSpan(board.locator('[data-dfw-id="board.two"]'), 'span 3', 'desktop frame (1440px) is unaffected');
+  await waitSpan('board::a::mobile', 'board.two', 'span 1', 'mobile frame (390px) uses the media rule');
+  await waitSpan('board::a::desktop', 'board.two', 'span 3', 'desktop frame (1440px) is unaffected');
 
   // Reset to auto: Alt+Shift+0 in the Mobile frame drops only the 390px rule (and the empty @media block).
   await settled('board::a::mobile', since);
   await boardM.locator('[data-dfw-id="board.two"]').click();
   since = await mark();
   await page.keyboard.press('Alt+Shift+Digit0');
-  for (let i = 0; i < 50 && /@media/.test(fs.readFileSync(boardFile, 'utf8')); i++) await page.waitForTimeout(100);
+  await fileUntil(boardFile, (t) => !/@media/.test(t));
   assert.doesNotMatch(fs.readFileSync(boardFile, 'utf8'), /@media/, 'Alt+Shift+0 removed the media rule and its empty block');
-  await waitSpan(boardM.locator('[data-dfw-id="board.two"]'), 'span 3', 'mobile falls back to the base rule');
+  await waitSpan('board::a::mobile', 'board.two', 'span 3', 'mobile falls back to the base rule');
   // Double-click the width handle in the Desktop frame: the base rule goes, and with it the whole block.
   await pickFrame('board::a::desktop');
   await page.keyboard.press('Shift+2');
@@ -615,13 +653,13 @@ try {
   await board.locator('[data-dfw-handle="x"]').waitFor({ state: 'visible' });
   since = await mark();
   await board.locator('[data-dfw-handle="x"]').dblclick();
-  for (let i = 0; i < 50 && /data-dfw-layout/.test(fs.readFileSync(boardFile, 'utf8')); i++) await page.waitForTimeout(100);
+  await fileUntil(boardFile, (t) => !/data-dfw-layout/.test(t));
   assert.doesNotMatch(
     fs.readFileSync(boardFile, 'utf8'),
     /data-dfw-layout/,
     'double-click on the handle reset the span; empty block removed',
   );
-  await waitSpan(board.locator('[data-dfw-id="board.two"]'), 'span 1', 'back to the screen rule');
+  await waitSpan('board::a::desktop', 'board.two', 'span 1', 'back to the screen rule');
 
   // Drop into an empty grid container with a data-dfw-id (dashed highlight while dragging).
   await settled('board::a::desktop', since);
@@ -658,7 +696,7 @@ try {
   await settled('board::a::desktop', since);
   await board.locator('[data-dfw-id="board.pinned"]').click();
   await page.click('#inspector [data-act="layout-reset"]');
-  for (let i = 0; i < 50 && /data-dfw-layout/.test(fs.readFileSync(boardFile, 'utf8')); i++) await page.waitForTimeout(100);
+  await fileUntil(boardFile, (t) => !/data-dfw-layout/.test(t));
   assert.doesNotMatch(fs.readFileSync(boardFile, 'utf8'), /data-dfw-layout/, 'inspector "Reset size to auto" removed the rule');
   const lint = JSON.parse(spawnSync(DFW, ['lint', 'design/screens/board/a.html', '--json'], { cwd: tmp, env, encoding: 'utf8' }).stdout);
   assert.equal(lint.tally.error, 0, `lint clean after layout edits: ${JSON.stringify(lint.results).slice(0, 400)}`);

@@ -3,6 +3,7 @@
 // layout, wheel and keys go to the Studio so the canvas pans and zooms over frames, and in the
 // interact and present tools links navigate the prototype.
 import { post, st } from './state.js';
+import { isTypingTarget } from './fields.js';
 import { isUi, labelOf, pick, rectOf } from './target.js';
 import { buildLayers } from './layers.js';
 import { endEdit, norm, startEdit } from './edit.js';
@@ -112,7 +113,7 @@ function onKeyDown(/** @type {KeyboardEvent} */ e) {
     return;
   }
   const target = /** @type {any} */ (e.target);
-  const typing = target.closest && target.closest('input, textarea, select, [contenteditable]');
+  const typing = isTypingTarget(target);
   if (st.mode === 'present' || st.mode === 'interact') {
     // The page is live: keep its keyboard behaviour; only forward what the Studio needs.
     if (typing) return e.key === 'Escape' && fwd(e, 'down');

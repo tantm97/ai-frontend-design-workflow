@@ -7,17 +7,22 @@ import { split, topLevelKeys } from './frontmatter.mjs';
 
 /** Skills and agents a plugin directory provides. */
 export function provided(pluginDir) {
-  const pj = fs.existsSync(path.join(pluginDir, '.claude-plugin', 'plugin.json')) ? readJson(path.join(pluginDir, '.claude-plugin', 'plugin.json')) : {};
+  const pj = fs.existsSync(path.join(pluginDir, '.claude-plugin', 'plugin.json'))
+    ? readJson(path.join(pluginDir, '.claude-plugin', 'plugin.json'))
+    : {};
   const skillsRoot = path.join(pluginDir, pj.skills || 'skills');
   const skills = fs.existsSync(skillsRoot)
     ? fs.readdirSync(skillsRoot).filter((d) => fs.existsSync(path.join(skillsRoot, d, 'SKILL.md')))
     : [];
   const agentsDir = path.join(pluginDir, 'agents');
   const agents = fs.existsSync(agentsDir)
-    ? fs.readdirSync(agentsDir).filter((f) => f.endsWith('.md')).map((f) => {
-        const m = fs.readFileSync(path.join(agentsDir, f), 'utf8').match(/^name:\s*(\S+)/m);
-        return m ? m[1] : f.replace(/\.md$/, '');
-      })
+    ? fs
+        .readdirSync(agentsDir)
+        .filter((f) => f.endsWith('.md'))
+        .map((f) => {
+          const m = fs.readFileSync(path.join(agentsDir, f), 'utf8').match(/^name:\s*(\S+)/m);
+          return m ? m[1] : f.replace(/\.md$/, '');
+        })
     : [];
   return { skills, agents };
 }
@@ -47,7 +52,9 @@ export function xrefCheck({ pluginsRoot = path.join(REPO_ROOT, 'plugins'), root 
       if (!names.has(plugin)) continue;
       const p = prov(plugin);
       if (!p.skills.includes(item) && !p.agents.includes(item)) {
-        errors.push(`${rel}: references ${plugin}:${item}, which ${plugin} does not provide (skills: ${p.skills.join(', ') || 'none'}; agents: ${p.agents.join(', ') || 'none'}).`);
+        errors.push(
+          `${rel}: references ${plugin}:${item}, which ${plugin} does not provide (skills: ${p.skills.join(', ') || 'none'}; agents: ${p.agents.join(', ') || 'none'}).`,
+        );
       }
     }
   }
@@ -138,7 +145,8 @@ export function leftoverCheck({ pluginsRoot = path.join(REPO_ROOT, 'plugins'), o
     const dir = path.join(pluginsRoot, plugin);
     if (!fs.statSync(dir).isDirectory()) continue;
     for (const rel of listFiles(dir)) {
-      if (/(^|\/)install-hooks?\.[cm]?js$/.test(rel)) errors.push(`${plugin}/${rel}: upstream hook installer shipped (delete it in overlays/).`);
+      if (/(^|\/)install-hooks?\.[cm]?js$/.test(rel))
+        errors.push(`${plugin}/${rel}: upstream hook installer shipped (delete it in overlays/).`);
       if (!/\.(md|txt|json)$/.test(rel) || rel === 'UPSTREAM.json') continue; // UPSTREAM.json quotes the overlay's own "why" text
       const lines = fs.readFileSync(path.join(dir, rel), 'utf8').split('\n');
       const i = lines.findIndex((l) => l.includes('<skill-dir>'));
@@ -146,7 +154,10 @@ export function leftoverCheck({ pluginsRoot = path.join(REPO_ROOT, 'plugins'), o
       if (plugin !== 'impeccable') continue;
       // A line written by a dfw overlay names dfw and forbids the command; any other mention is upstream's how-to.
       const h = lines.findIndex((l) => IMPECCABLE_HOOKS_ON.test(l) && !/\bdfw\b/.test(l));
-      if (h >= 0) errors.push(`${plugin}/${rel}:${h + 1}: instructions to enable Impeccable hooks shipped (replace them in overlays/impeccable.json).`);
+      if (h >= 0)
+        errors.push(
+          `${plugin}/${rel}:${h + 1}: instructions to enable Impeccable hooks shipped (replace them in overlays/impeccable.json).`,
+        );
     }
   }
   return errors;
@@ -170,5 +181,9 @@ export function versionMismatch(root = REPO_ROOT) {
     'native/Cargo.lock (dfw)': cargoLock?.[1],
   };
   const distinct = new Set(Object.values(versions));
-  return distinct.size === 1 ? null : `versions differ: ${Object.entries(versions).map(([f, v]) => `${f} ${v ?? '(none)'}`).join(', ')}. Bump them together.`;
+  return distinct.size === 1
+    ? null
+    : `versions differ: ${Object.entries(versions)
+        .map(([f, v]) => `${f} ${v ?? '(none)'}`)
+        .join(', ')}. Bump them together.`;
 }

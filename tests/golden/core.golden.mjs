@@ -41,7 +41,11 @@ function loadBoth(files, { withRoot = true } = {}) {
     write(path.join(root, '.dfw', 'config.local.json'), files.local);
     const env = { DFW_HOME: home };
     const rootArg = withRoot ? [root] : [];
-    const mask = (r) => ({ code: r.code, stdout: r.stdout.split(tmp).join('<tmp>'), stderr: r.stderr.split(tmp).join('<tmp>').split(REPO).join('<repo>') });
+    const mask = (r) => ({
+      code: r.code,
+      stdout: r.stdout.split(tmp).join('<tmp>'),
+      stderr: r.stderr.split(tmp).join('<tmp>').split(REPO).join('<repo>'),
+    });
     const native = mask(run(nativeBinary(), ['__debug', 'config', ...rootArg], { env }));
     return { want: expected(native), native };
   } finally {
@@ -65,15 +69,31 @@ describe('core: config', { skip: skipReason() }, () => {
   });
 
   test('project config only', () => {
-    const c = assertSameConfig({ project: { schema: 1, checks: { onEdit: false, timeoutMs: 2500.5 }, studio: { port: 4700 }, custom: { z: 1, a: [1, 2, { b: null }] } } });
+    const c = assertSameConfig({
+      project: {
+        schema: 1,
+        checks: { onEdit: false, timeoutMs: 2500.5 },
+        studio: { port: 4700 },
+        custom: { z: 1, a: [1, 2, { b: null }] },
+      },
+    });
     assert.equal(c.checks.onEdit, false);
     assert.equal(c.studio.breakpoints.length, 3);
   });
 
   test('project and project-local config: local wins, new keys keep their order', () => {
     const c = assertSameConfig({
-      project: { studio: { port: 4700, breakpoints: [{ id: 'wide', label: 'Wide', width: 1920, height: 1080 }] }, review: { shortcut: 'ctrl+shift+k' }, env: { MY_TOOL: 'x', DO_NOT_TRACK: '0' } },
-      local: { studio: { port: 4800 }, language: { default: 'vi' }, extra: { nested: { deep: true } }, env: { LOCAL_ONLY: 'tiếng Việt "quoted"  ' } },
+      project: {
+        studio: { port: 4700, breakpoints: [{ id: 'wide', label: 'Wide', width: 1920, height: 1080 }] },
+        review: { shortcut: 'ctrl+shift+k' },
+        env: { MY_TOOL: 'x', DO_NOT_TRACK: '0' },
+      },
+      local: {
+        studio: { port: 4800 },
+        language: { default: 'vi' },
+        extra: { nested: { deep: true } },
+        env: { LOCAL_ONLY: 'tiếng Việt "quoted"  ' },
+      },
     });
     assert.equal(c.studio.port, 4800);
     assert.equal(c.studio.breakpoints[0].id, 'wide');
@@ -82,7 +102,10 @@ describe('core: config', { skip: skipReason() }, () => {
   test('gate.allow, gate.immutable and skills.disabled are unions across layers', () => {
     const c = assertSameConfig({
       global: { gate: { allow: ['global/**'] }, skills: { disabled: ['hallmark'] } },
-      project: { gate: { allow: ['docs/**', '.dfw/**'], immutable: ['vendor/**'], designPaths: ['ui/**'] }, skills: { disabled: ['taste-reference', 'hallmark'] } },
+      project: {
+        gate: { allow: ['docs/**', '.dfw/**'], immutable: ['vendor/**'], designPaths: ['ui/**'] },
+        skills: { disabled: ['taste-reference', 'hallmark'] },
+      },
       local: { gate: { allow: ['notes/**', 'docs/**', 'global/**'], immutable: ['design/approved/**', 'dist/**'] } },
     });
     assert.deepEqual(c.gate.allow, ['.dfw/**', 'design/handoff/**', 'global/**', 'docs/**', 'notes/**']);
@@ -94,13 +117,17 @@ describe('core: config', { skip: skipReason() }, () => {
 
   test('odd values merge by the JavaScript rules', () => {
     assertSameConfig({
-      project: '{"gate":{"allow":"docs/**","immutable":[1,{"a":1},null,"x","x"]},"skills":"ab","__proto__":{"x":1},"checks":{"__proto__":{"y":1},"maxFindings":1e21}}',
+      project:
+        '{"gate":{"allow":"docs/**","immutable":[1,{"a":1},null,"x","x"]},"skills":"ab","__proto__":{"x":1},"checks":{"__proto__":{"y":1},"maxFindings":1e21}}',
       local: '{"gate":{"allow":0,"immutable":[1.0,{"a":1},null,false]},"studio":null,"skills":{"disabled":"one"},"env":[1,2]}',
     });
     assertSameConfig({ project: '{"gate":null,"skills":[["x"],"y"]}' });
     assertSameConfig({ project: '{"gate":"text","skills":7}', local: '{"skills":{"disabled":[["a"],["a"]]}}' });
     // 0.5.2: a layer that is not an object is an error to fix, no longer replaced by the next one.
-    for (const layers of [{ project: '[1,2]', local: '{"a":{"b":1}}' }, { global: '"text"', project: '{}' }]) {
+    for (const layers of [
+      { project: '[1,2]', local: '{"a":{"b":1}}' },
+      { global: '"text"', project: '{}' },
+    ]) {
       const { want, native } = loadBoth(layers);
       assert.deepEqual([want.code, native.code], [1, 1]);
       assert.match(native.stderr, /^Config file .*config\.json must hold a JSON object\. Fix it or delete it\.\n$/);
@@ -150,7 +177,8 @@ describe('core: host', { skip: skipReason() }, () => {
 
   test('skill text renders the same for every host', () => {
     const placeholders = PLACEHOLDERS.map((k) => `${k}: {{${k}}}`).join('\n');
-    const blocks = '<!-- host:claude -->\nclaude only $1 $&\n<!-- /host -->\n<!--host:copilot,mcp-->\ncopilot and mcp\n<!--/host-->\n<!-- host:codex -->planned<!-- /host -->';
+    const blocks =
+      '<!-- host:claude -->\nclaude only $1 $&\n<!-- /host -->\n<!--host:copilot,mcp-->\ncopilot and mcp\n<!--/host-->\n<!-- host:codex -->planned<!-- /host -->';
     const names = 'Use `impeccable:impeccable`, `dfw:screen-builder`, `other:skill` and `ux-research:user-research`. {{UNKNOWN}} {{lower}}';
     for (const host of [...HOSTS, 'no-such-host']) {
       for (const text of [`${placeholders}\n${blocks}\n${names}\n`, `${blocks}\n${names}`, '']) {

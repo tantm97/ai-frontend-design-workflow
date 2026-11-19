@@ -137,6 +137,14 @@ export function handleKey(/** @type {KeyInput} */ d) {
   }
 }
 
+/**
+ * Space and Enter belong to a control the keyboard focused (Tab, a roving row): they press it.
+ * After a mouse click the control is focused but not :focus-visible, and Space still pans.
+ */
+const pressesControl = (/** @type {KeyboardEvent} */ e) =>
+  (e.key === ' ' || e.key === 'Enter') &&
+  !!(/** @type {HTMLElement} */ (e.target).closest?.('button, a[href], summary, [role="treeitem"]')?.matches(':focus-visible'));
+
 /** Keys on the Studio page itself (fields keep theirs). */
 export function initKeys() {
   document.addEventListener('keydown', (e) => {
@@ -149,6 +157,7 @@ export function initKeys() {
       }
       return;
     }
+    if (pressesControl(e)) return;
     /** @type {KeyInput} */
     const d = { phase: 'down', key: e.key, code: e.code, meta: e.metaKey, ctrl: e.ctrlKey, shift: e.shiftKey, alt: e.altKey };
     if (e.key === ' ' || e.key.startsWith('Arrow') || ((e.metaKey || e.ctrlKey) && ['z', '=', '-', '0', '+'].includes(e.key)))
@@ -157,8 +166,8 @@ export function initKeys() {
   });
   document.addEventListener('keyup', (e) => {
     if (e.key !== ' ') return;
-    // Space is the hand tool: never let it activate a focused toolbar button.
-    if (!(/** @type {HTMLElement} */ (e.target).closest('textarea, input, select'))) e.preventDefault();
+    // Space is the hand tool: it does not press a button the mouse left focused (one the keyboard focused, it does).
+    if (!(/** @type {HTMLElement} */ (e.target).closest('textarea, input, select')) && !pressesControl(e)) e.preventDefault();
     setSpace(false);
   });
   // Toolbar buttons should not keep keyboard focus after a click (Space/Enter belong to the canvas).

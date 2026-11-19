@@ -22,7 +22,8 @@ const maskSessions = (text) => text.replace(STAMP, 'rv_<now>');
 function run(args, opts = {}) {
   opts.normalize ??= maskSessions; // set on the object itself: `stdin` may be a getter (see hookOpts)
   const r = runBinary(args, opts);
-  for (const side of [r.expected, r.native]) side.files = Object.fromEntries(Object.entries(side.files).map(([k, v]) => [maskSessions(k), v]));
+  for (const side of [r.expected, r.native])
+    side.files = Object.fromEntries(Object.entries(side.files).map(([k, v]) => [maskSessions(k), v]));
   return r;
 }
 
@@ -55,16 +56,26 @@ const write = (root, rel, data) => {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, typeof data === 'string' ? data : JSON.stringify(data, null, 2) + '\n');
 };
-const all = (...setups) => (root) => setups.forEach((s) => s(root));
+const all =
+  (...setups) =>
+  (root) =>
+    setups.forEach((s) => s(root));
 /** Prepare a project with one of the binary's hidden `__debug` helpers, at the recorded clock. */
 const helper = (args) => {
-  const r = spawnSync(nativeBinary(), ['__debug', ...args], { env: { ...process.env, DFW_NOW: NOW, DFW_HOME: path.join(os.tmpdir(), 'dfw-golden-no-home') }, encoding: 'utf8' });
+  const r = spawnSync(nativeBinary(), ['__debug', ...args], {
+    env: { ...process.env, DFW_NOW: NOW, DFW_HOME: path.join(os.tmpdir(), 'dfw-golden-no-home') },
+    encoding: 'utf8',
+  });
   assert.equal(r.status, 0, `dfw __debug ${args[0]} failed: ${r.stderr}`);
 };
 
 const GATE = { approvedAt: NOW, note: 'ok' };
 const APPROVED_DESIGN = { version: 1, status: 'approved', locked: true, approved: [{ version: 'v1', hash: 'abc', at: NOW }] };
-const FROZEN = st({ phase: 'stack', design: APPROVED_DESIGN, gates: { G1: GATE, DS: GATE, G2: { ...GATE, version: 'v1', hash: 'abc' }, G3: null, G4: null } });
+const FROZEN = st({
+  phase: 'stack',
+  design: APPROVED_DESIGN,
+  gates: { G1: GATE, DS: GATE, G2: { ...GATE, version: 'v1', hash: 'abc' }, G3: null, G4: null },
+});
 const STACK = { framework: { name: 'Vue' }, status: 'proposed', proposedAt: NOW };
 
 const comment = (id, status = 'open', extra = {}) => ({
@@ -88,13 +99,25 @@ const comment = (id, status = 'open', extra = {}) => ({
 });
 const line = (by, message, status) => ({ at: '2026-01-01T01:00:00.000Z', by, message, ...(status ? { status } : {}) });
 /** An open review session `rv_1` (sorts before every real session id) with the given comments. */
-const withSession = (comments, extra = {}) => (root) => write(root, '.dfw/reviews/rv_1.json', { schema: 1, id: 'rv_1', startedAt: NOW, designVersion: 'v1', comments, ...extra });
+const withSession =
+  (comments, extra = {}) =>
+  (root) =>
+    write(root, '.dfw/reviews/rv_1.json', { schema: 1, id: 'rv_1', startedAt: NOW, designVersion: 'v1', comments, ...extra });
 const MIXED = [
   comment('fb_001'),
   comment('fb_002', 'acknowledged', { thread: [line('claude', 'On it', 'acknowledged')], updatedAt: '2026-01-01T01:00:00.000Z' }),
-  comment('fb_003', 'fixed', { screen: null, variant: null, target: { selector: 'main > p' }, thread: [line('claude', 'Wider now', 'fixed')], resolution: { at: NOW, by: 'claude', note: 'Wider now', evidence: null } }),
+  comment('fb_003', 'fixed', {
+    screen: null,
+    variant: null,
+    target: { selector: 'main > p' },
+    thread: [line('claude', 'Wider now', 'fixed')],
+    resolution: { at: NOW, by: 'claude', note: 'Wider now', evidence: null },
+  }),
   comment('fb_004', 'resolved', { breakpoint: 'mobile', theme: 'dark', state: 'empty' }),
-  comment('fb_005', 'reopened', { thread: [line('claude', 'Done', 'fixed'), line('user', 'Still too small', 'reopened')], updatedAt: '2026-01-01T02:00:00.000Z' }),
+  comment('fb_005', 'reopened', {
+    thread: [line('claude', 'Done', 'fixed'), line('user', 'Still too small', 'reopened')],
+    updatedAt: '2026-01-01T02:00:00.000Z',
+  }),
   comment('fb_006', 'dismissed', { target: {}, provider: 'dfw-live', url: 'http://localhost:3000/items' }),
 ];
 
@@ -106,9 +129,24 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
     assert.deepEqual(JSON.parse(first.files['.dfw/state.json']), MINIMAL_STATE);
     assert.deepEqual(Object.keys(first.files), ['.dfw/.gitignore', '.dfw/config.json', '.dfw/decisions.jsonl', '.dfw/state.json']);
     assert.match(first.stdout, /^Initialized dfw \(new-product\) in <root>\nCreated: PRODUCT\.md, DESIGN\.md\n/);
-    for (const args of [[], ['--mode', 'quick'], ['--mode', 'design-only', '--product', 'Tên "sản phẩm"'], ['--mode', 'review'], ['--product'], ['--mode=existing', '--product=']]) same(['init', ...args], fresh);
+    for (const args of [
+      [],
+      ['--mode', 'quick'],
+      ['--mode', 'design-only', '--product', 'Tên "sản phẩm"'],
+      ['--mode', 'review'],
+      ['--product'],
+      ['--mode=existing', '--product='],
+    ])
+      same(['init', ...args], fresh);
     // Existing documents and config are kept.
-    const kept = same(['init'], { state: null, setup: (root) => (write(root, 'PRODUCT.md', '# Mine\n'), write(root, '.dfw/config.json', { schema: 1, studio: { port: 4700 } }), write(root, '.dfw/decisions.jsonl', '{"at":"x"}\n')) });
+    const kept = same(['init'], {
+      state: null,
+      setup: (root) => (
+        write(root, 'PRODUCT.md', '# Mine\n'),
+        write(root, '.dfw/config.json', { schema: 1, studio: { port: 4700 } }),
+        write(root, '.dfw/decisions.jsonl', '{"at":"x"}\n')
+      ),
+    });
     assert.match(kept.stdout, /\nCreated: DESIGN\.md\n/);
     assert.ok(!('.dfw/config.json' in kept.files) && !('.dfw/decisions.jsonl' in kept.files));
     for (const args of [['--mode', 'implement'], ['--mode', 'nope'], ['--mode']]) assert.equal(same(['init', ...args], fresh).code, 1);
@@ -119,7 +157,10 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
   });
 
   test('init without design/: the design template and the token build', () => {
-    const r = same(['init', '--product', 'New'], { state: null, setup: (root) => fs.rmSync(path.join(root, 'design'), { recursive: true }) });
+    const r = same(['init', '--product', 'New'], {
+      state: null,
+      setup: (root) => fs.rmSync(path.join(root, 'design'), { recursive: true }),
+    });
     assert.equal(r.code, 0);
     assert.ok('design/tokens/tokens.css' in r.files);
   });
@@ -131,7 +172,11 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
       direction: st({ phase: 'direction' }),
       directionApproved: st({ phase: 'direction', gates: { ...MINIMAL_STATE.gates, G1: GATE } }),
       systemApproved: st({ phase: 'system', gates: { ...MINIMAL_STATE.gates, G1: GATE, DS: GATE } }),
-      concepts: st({ phase: 'concepts', mode: 'quick-change', waived: { G1: 'waived by mode quick-change', DS: 'waived by mode quick-change' } }),
+      concepts: st({
+        phase: 'concepts',
+        mode: 'quick-change',
+        waived: { G1: 'waived by mode quick-change', DS: 'waived by mode quick-change' },
+      }),
       conceptsApproved: { ...FROZEN, phase: 'concepts' },
       stack: FROZEN,
       stackApproved: { ...FROZEN, gates: { ...FROZEN.gates, G3: GATE } },
@@ -154,19 +199,30 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
 
   test('status: comments, stack and studio', () => {
     const concepts = st({ phase: 'concepts' });
-    assert.match(same(['status'], { state: concepts, setup: withSession(MIXED) }).stdout, /comments: 3 active, 1 awaiting user verification, 1 resolved\n[^]*next: apply 3 open review comment\(s\)\n$/);
-    assert.match(same(['status'], { state: concepts, setup: withSession([MIXED[2], MIXED[3]]) }).stdout, /next: ask the user to verify fixed comments in the studio\n$/);
+    assert.match(
+      same(['status'], { state: concepts, setup: withSession(MIXED) }).stdout,
+      /comments: 3 active, 1 awaiting user verification, 1 resolved\n[^]*next: apply 3 open review comment\(s\)\n$/,
+    );
+    assert.match(
+      same(['status'], { state: concepts, setup: withSession([MIXED[2], MIXED[3]]) }).stdout,
+      /next: ask the user to verify fixed comments in the studio\n$/,
+    );
     same(['status', '--json'], { state: concepts, setup: withSession(MIXED) });
     for (const stack of [STACK, { status: 'proposed' }, { framework: {} }, '"text"', 0]) {
       for (const state of [FROZEN, { ...FROZEN, gates: { ...FROZEN.gates, G3: GATE } }]) {
-        for (const args of [['status'], ['status', '--json']]) same(args, { state, setup: (root) => write(root, '.dfw/stack.json', stack) });
+        for (const args of [['status'], ['status', '--json']])
+          same(args, { state, setup: (root) => write(root, '.dfw/stack.json', stack) });
       }
     }
     // A recorded Studio counts only while its process lives (this test process does; pid 0 never).
     const live = { pid: process.pid, port: 4600, url: 'http://127.0.0.1:4600/' };
-    assert.match(same(['status'], { setup: (root) => write(root, '.dfw/studio.json', live) }).stdout, /\nstudio: http:\/\/127\.0\.0\.1:4600\/\n/);
+    assert.match(
+      same(['status'], { setup: (root) => write(root, '.dfw/studio.json', live) }).stdout,
+      /\nstudio: http:\/\/127\.0\.0\.1:4600\/\n/,
+    );
     for (const studio of [{ ...live, pid: 0 }, { url: 'x' }, { ...live, pid: 'abc' }, null]) {
-      for (const args of [['status'], ['status', '--json']]) assert.match(same(args, { setup: (root) => write(root, '.dfw/studio.json', studio) }).stdout, /studio: not running|"studio": null/);
+      for (const args of [['status'], ['status', '--json']])
+        assert.match(same(args, { setup: (root) => write(root, '.dfw/studio.json', studio) }).stdout, /studio: not running|"studio": null/);
     }
   });
 
@@ -174,7 +230,8 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
     const system = st({ phase: 'system', gates: { ...MINIMAL_STATE.gates, G1: GATE } });
     assert.match(same(['status'], { state: system }).stdout, /\nnext: review the Design System page in the studio/);
     same(['status', '--json'], { state: system });
-    for (const text of ['{ nope', '']) assert.equal(sameButStderr(['status'], { setup: (root) => write(root, '.dfw/state.json', text) }).code, 1);
+    for (const text of ['{ nope', ''])
+      assert.equal(sameButStderr(['status'], { setup: (root) => write(root, '.dfw/state.json', text) }).code, 1);
     for (const state of [{}, [], { gates: {} }]) {
       for (const args of [['status'], ['status', '--json']]) sameButStderr(args, { state });
     }
@@ -187,7 +244,11 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
       assert.match(r.files['.dfw/state.json'], /"event": "mode"/);
     }
     assert.equal(JSON.parse(same(['mode', 'quick']).files['.dfw/state.json']).waived.DS, 'waived by mode quick-change');
-    assert.deepEqual(JSON.parse(same(['mode', 'new'], { state: st({ mode: 'quick-change', waived: { G1: 'x', DS: 'x' } }) }).files['.dfw/state.json']).waived, {});
+    assert.deepEqual(
+      JSON.parse(same(['mode', 'new'], { state: st({ mode: 'quick-change', waived: { G1: 'x', DS: 'x' } }) }).files['.dfw/state.json'])
+        .waived,
+      {},
+    );
     assert.equal(same(['mode', 'implement'], { state: FROZEN }).code, 0);
     for (const args of [['mode', 'implement'], ['mode', 'nope'], ['mode'], ['mode', '']]) {
       const r = same(args);
@@ -311,7 +372,12 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
     }
     same(['reopen', '--reason'], { state: FROZEN });
     same(['reopen', '--reason', 'x'], { state: { ...FROZEN, design: { ...APPROVED_DESIGN, version: 2.5 } } });
-    for (const [args, opts] of [[['reopen'], { state: FROZEN }], [['reopen', '--reason='], { state: FROZEN }], [['reopen', '--reason', 'x'], {}], [['reopen', '--reason', 'x'], { state: null }]]) {
+    for (const [args, opts] of [
+      [['reopen'], { state: FROZEN }],
+      [['reopen', '--reason='], { state: FROZEN }],
+      [['reopen', '--reason', 'x'], {}],
+      [['reopen', '--reason', 'x'], { state: null }],
+    ]) {
       const r = same(args, opts);
       assert.equal(r.code, 1);
       assert.deepEqual(r.files, {});
@@ -345,24 +411,57 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
     }
     assert.equal(same(['decide', '--level', '2', 'x'], { state: null }).code, 0, 'decide needs no workflow');
     // 0.5.2: --level and --text alone are refused, no longer read as level 1 and an empty text.
-    for (const args of [['x'], ['--level', '0', 'x'], ['--level', '6', 'x'], ['--level', 'two', 'x'], ['--level', '', 'x'], ['--level', '2'], ['--level', '2', '--text', ''], ['--level', '--topic', 't', 'x'], ['--level', ' 4 ', '--text']]) {
+    for (const args of [
+      ['x'],
+      ['--level', '0', 'x'],
+      ['--level', '6', 'x'],
+      ['--level', 'two', 'x'],
+      ['--level', '', 'x'],
+      ['--level', '2'],
+      ['--level', '2', '--text', ''],
+      ['--level', '--topic', 't', 'x'],
+      ['--level', ' 4 ', '--text'],
+    ]) {
       const r = same(['decide', ...args]);
       assert.equal(r.code, 1, args.join(' '));
       assert.deepEqual(r.files, {});
     }
-    const log = (root) => write(root, '.dfw/decisions.jsonl', `${JSON.stringify({ at: NOW, level: 1, topic: 'gate:G1', decision: 'Design direction approved - A', by: 'user' })}\n\n${JSON.stringify({ at: '2026-02-03T04:05:06.007Z', level: 2.5, topic: 'type', decision: 'Inter', by: 'orchestrator', overrides: 'd1' })}\n`);
+    const log = (root) =>
+      write(
+        root,
+        '.dfw/decisions.jsonl',
+        `${JSON.stringify({ at: NOW, level: 1, topic: 'gate:G1', decision: 'Design direction approved - A', by: 'user' })}\n\n${JSON.stringify({ at: '2026-02-03T04:05:06.007Z', level: 2.5, topic: 'type', decision: 'Inter', by: 'orchestrator', overrides: 'd1' })}\n`,
+      );
     assert.equal(same(['decisions']).stdout, 'No decisions recorded.\n');
     assert.equal(same(['decisions', '--json']).stdout, '[]\n');
-    assert.equal(same(['decisions'], { setup: log }).stdout, '2026-01-02T03:04 L1 [gate:G1] Design direction approved - A\n2026-02-03T04:05 L2.5 [type] Inter\n');
+    assert.equal(
+      same(['decisions'], { setup: log }).stdout,
+      '2026-01-02T03:04 L1 [gate:G1] Design direction approved - A\n2026-02-03T04:05 L2.5 [type] Inter\n',
+    );
     same(['decisions', '--json'], { setup: log });
-    for (const text of ['{ nope\n', '{"level":1}\n']) assert.equal(sameButStderr(['decisions'], { setup: (root) => write(root, '.dfw/decisions.jsonl', text) }).code, 1);
+    for (const text of ['{ nope\n', '{"level":1}\n'])
+      assert.equal(sameButStderr(['decisions'], { setup: (root) => write(root, '.dfw/decisions.jsonl', text) }).code, 1);
   });
 
   test('config get and set in every layer', () => {
     // A relative DFW_HOME puts the global config under .dfw/, where the harness compares files.
     const env = { DFW_HOME: '.dfw/home' };
-    const layers = (root) => (write(root, '.dfw/config.json', { schema: 1, gate: { allow: ['docs/**'] }, checks: { onEdit: false } }), write(root, '.dfw/config.local.json', { studio: { port: 4800 } }), write(root, '.dfw/home/config.json', { language: { lastUsed: 'vi' }, gate: { allow: ['global/**'] } }));
-    for (const args of [[], ['gate.allow'], ['studio.port'], ['studio.breakpoints'], ['checks'], ['language.lastUsed'], ['no.such.key'], ['studio.breakpoints.1.id'], ['']]) {
+    const layers = (root) => (
+      write(root, '.dfw/config.json', { schema: 1, gate: { allow: ['docs/**'] }, checks: { onEdit: false } }),
+      write(root, '.dfw/config.local.json', { studio: { port: 4800 } }),
+      write(root, '.dfw/home/config.json', { language: { lastUsed: 'vi' }, gate: { allow: ['global/**'] } })
+    );
+    for (const args of [
+      [],
+      ['gate.allow'],
+      ['studio.port'],
+      ['studio.breakpoints'],
+      ['checks'],
+      ['language.lastUsed'],
+      ['no.such.key'],
+      ['studio.breakpoints.1.id'],
+      [''],
+    ]) {
       same(['config', 'get', ...args], { env });
       same(['config', 'get', ...args], { env, setup: layers });
     }
@@ -394,13 +493,17 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
         assert.deepEqual([r.code, r.files], [1, {}], key);
       }
     }
-    for (const args of [['config'], ['config', 'unset', 'a']]) assert.equal(same(args).stderr, 'Usage: dfw config get [key] | set <key> <value> [--global|--project|--local]\n');
+    for (const args of [['config'], ['config', 'unset', 'a']])
+      assert.equal(same(args).stderr, 'Usage: dfw config get [key] | set <key> <value> [--global|--project|--local]\n');
     assert.equal(sameButStderr(['config', 'get'], { setup: (root) => write(root, '.dfw/config.json', '{ nope') }).code, 1);
   });
 
   test('lang status and set', () => {
     const env = { DFW_HOME: '.dfw/home', DFW_SESSION_ID: '', CLAUDE_SESSION_ID: '' };
-    const chosen = (root) => (write(root, '.dfw/home/sessions/abc.json', { language: 'vi', setAt: NOW }), write(root, '.dfw/home/config.json', { marketplaceRepo: '/r', language: { askPolicy: 'session', lastUsed: 'vi' } }));
+    const chosen = (root) => (
+      write(root, '.dfw/home/sessions/abc.json', { language: 'vi', setAt: NOW }),
+      write(root, '.dfw/home/config.json', { marketplaceRepo: '/r', language: { askPolicy: 'session', lastUsed: 'vi' } })
+    );
     assert.deepEqual(JSON.parse(same(['lang'], { env }).stdout), { session: null, chosen: false, language: null, lastUsed: 'en' });
     for (const args of [['status'], ['status', '--session', 'abc'], ['status', '--session', 'def'], ['status', '--session=']]) {
       same(['lang', ...args], { env });
@@ -417,17 +520,23 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
     assert.equal(JSON.parse(same(['lang', 'set', 'ja'], { env: { ...env, DFW_SESSION_ID: 'from-env' } }).stdout).session, 'from-env');
     assert.equal(JSON.parse(same(['lang', 'status'], { env: { ...env, CLAUDE_SESSION_ID: 'abc' }, setup: chosen }).stdout).language, 'vi');
     assert.equal(same(['lang', 'nope'], { env }).stderr, 'Usage: dfw lang status|set <code> [--session <id>]\n');
-    for (const args of [['status', '--session'], ['set', 'vi', '--session']]) assert.equal(sameButStderr(['lang', ...args], { env }).code, 1);
+    for (const args of [
+      ['status', '--session'],
+      ['set', 'vi', '--session'],
+    ])
+      assert.equal(sameButStderr(['lang', ...args], { env }).code, 1);
   });
 
   test('verify-snapshot: intact, modified, missing, added, no snapshot', () => {
     /** A project frozen as v1 by the binary (`__debug hot freeze`, the freeze of "dfw approve G2"). */
-    const frozen = (after = () => {}) => (root) => {
-      write(root, 'DESIGN.md', '# Design\n');
-      write(root, '.dfw/state.json', st({ phase: 'concepts' }));
-      helper(['hot', 'freeze', root, 'v1']);
-      after(root);
-    };
+    const frozen =
+      (after = () => {}) =>
+      (root) => {
+        write(root, 'DESIGN.md', '# Design\n');
+        write(root, '.dfw/state.json', st({ phase: 'concepts' }));
+        helper(['hot', 'freeze', root, 'v1']);
+        after(root);
+      };
     const v1 = (root, rel) => path.join(root, 'design', 'approved', 'v1', rel);
     const intact = same(['verify-snapshot'], { setup: frozen() });
     assert.deepEqual([intact.code, intact.stdout], [0, 'Snapshot v1 intact.\n']);
@@ -443,12 +552,28 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
       }),
     });
     assert.equal(tampered.code, 2);
-    assert.equal(tampered.stdout, 'Snapshot v1 was modified:\nmodified: screens/items/a.html\nmissing: tokens/tokens.json\nmissing: docs/DESIGN.md\nadded: new/a.css\nadded: zz-extra.txt\n');
+    assert.equal(
+      tampered.stdout,
+      'Snapshot v1 was modified:\nmodified: screens/items/a.html\nmissing: tokens/tokens.json\nmissing: docs/DESIGN.md\nadded: new/a.css\nadded: zz-extra.txt\n',
+    );
     // After a reopen the last approved version is still the one checked.
-    same(['verify-snapshot'], { setup: frozen((root) => write(root, '.dfw/state.json', { ...FROZEN, design: { ...APPROVED_DESIGN, version: 2, status: 'draft', locked: false } })) });
-    for (const [args, opts] of [[['verify-snapshot'], {}], [['verify-snapshot', 'v9'], { setup: frozen() }], [['verify-snapshot'], { state: FROZEN }], [['verify-snapshot'], { state: null }]]) assert.equal(same(args, opts).code, 1);
+    same(['verify-snapshot'], {
+      setup: frozen((root) =>
+        write(root, '.dfw/state.json', { ...FROZEN, design: { ...APPROVED_DESIGN, version: 2, status: 'draft', locked: false } }),
+      ),
+    });
+    for (const [args, opts] of [
+      [['verify-snapshot'], {}],
+      [['verify-snapshot', 'v9'], { setup: frozen() }],
+      [['verify-snapshot'], { state: FROZEN }],
+      [['verify-snapshot'], { state: null }],
+    ])
+      assert.equal(same(args, opts).code, 1);
     assert.equal(same(['verify-snapshot']).stderr, 'No approved snapshot.\n');
-    assert.equal(sameButStderr(['verify-snapshot'], { setup: frozen((root) => fs.writeFileSync(v1(root, 'approval.lock.json'), '{ nope')) }).code, 1);
+    assert.equal(
+      sameButStderr(['verify-snapshot'], { setup: frozen((root) => fs.writeFileSync(v1(root, 'approval.lock.json'), '{ nope')) }).code,
+      1,
+    );
   });
 });
 
@@ -457,15 +582,40 @@ describe('hot: comments', { skip: skipReason() }, () => {
     assert.equal(same(['comments']).stdout, 'No comments.\n');
     assert.equal(same(['comments', 'list', '--json']).stdout, '[]\n');
     const opts = () => ({ setup: withSession(MIXED) });
-    for (const args of [[], ['list'], ['list', '--json'], ['list', '--status', 'active'], ['list', '--status', 'fixed,resolved'], ['list', '--status', 'nope'], ['list', '--status'], ['list', '--status', 'active', '--json'], ['list', '--status=']]) same(['comments', ...args], opts());
-    assert.equal(same(['comments', 'list', '--status', 'fixed'], opts()).stdout, 'fb_003 [fixed]  -> main > p\n    "Comment fb_003 "quoted" tiếng Việt"\n    last: claude: Wider now\n');
+    for (const args of [
+      [],
+      ['list'],
+      ['list', '--json'],
+      ['list', '--status', 'active'],
+      ['list', '--status', 'fixed,resolved'],
+      ['list', '--status', 'nope'],
+      ['list', '--status'],
+      ['list', '--status', 'active', '--json'],
+      ['list', '--status='],
+    ])
+      same(['comments', ...args], opts());
+    assert.equal(
+      same(['comments', 'list', '--status', 'fixed'], opts()).stdout,
+      'fb_003 [fixed]  -> main > p\n    "Comment fb_003 "quoted" tiếng Việt"\n    last: claude: Wider now\n',
+    );
     assert.equal(JSON.parse(same(['comments', 'show', 'fb_005'], opts()).stdout).session, 'rv_1');
     for (const args of [['show', 'fb_999'], ['show']]) assert.equal(same(['comments', ...args], opts()).code, 1);
     assert.equal(same(['comments', 'show'], opts()).stderr, 'Comment undefined not found.\n');
     assert.equal(same(['comments', 'nope'], opts()).stderr, 'Unknown comments subcommand "nope".\n');
     // Comments of every session are listed, oldest session first.
-    same(['comments', 'list'], { setup: all(withSession(MIXED.slice(0, 2), { closedAt: NOW }), (root) => write(root, '.dfw/reviews/rv_2.json', { schema: 1, id: 'rv_2', startedAt: NOW, designVersion: 'v2', comments: [comment('fb_007')] })) });
-    for (const text of ['{ nope', '{}', '{"comments":5}']) assert.equal(sameButStderr(['comments', 'list'], { setup: (root) => write(root, '.dfw/reviews/rv_1.json', text) }).code, 1);
+    same(['comments', 'list'], {
+      setup: all(withSession(MIXED.slice(0, 2), { closedAt: NOW }), (root) =>
+        write(root, '.dfw/reviews/rv_2.json', {
+          schema: 1,
+          id: 'rv_2',
+          startedAt: NOW,
+          designVersion: 'v2',
+          comments: [comment('fb_007')],
+        }),
+      ),
+    });
+    for (const text of ['{ nope', '{}', '{"comments":5}'])
+      assert.equal(sameButStderr(['comments', 'list'], { setup: (root) => write(root, '.dfw/reviews/rv_1.json', text) }).code, 1);
   });
 
   test('every status change from every status, with and without a message', () => {
@@ -521,14 +671,30 @@ describe('hot: comments', { skip: skipReason() }, () => {
       ['reopen', 'fb_004', '--by='],
       ['ack', 'fb_002', '--message', 'same status adds a thread line'],
       ['ack', 'fb_002'],
-    ]) at(args);
+    ])
+      at(args);
   });
 
   test('add: into the open session, a new session, source lines, bad input', () => {
-    const full = { screen: 'items', variant: 'a', breakpoint: 'mobile', state: 'empty', theme: 'dark', file: 'screens/items/a.html', target: { dfwId: 'items.title', selector: 'h1', component: 'button' }, comment: '  Make the title bigger \n', screenshot: '.dfw/shots/a.png', provider: 'penpot', url: 'http://localhost:3000/a' };
+    const full = {
+      screen: 'items',
+      variant: 'a',
+      breakpoint: 'mobile',
+      state: 'empty',
+      theme: 'dark',
+      file: 'screens/items/a.html',
+      target: { dfwId: 'items.title', selector: 'h1', component: 'button' },
+      comment: '  Make the title bigger \n',
+      screenshot: '.dfw/shots/a.png',
+      provider: 'penpot',
+      url: 'http://localhost:3000/a',
+    };
     const added = same(['comments', 'add', '--json', JSON.stringify(full)], { setup: withSession(MIXED) });
     const c = JSON.parse(added.stdout);
-    assert.deepEqual([c.id, c.comment, c.target.source, c.file], ['fb_007', 'Make the title bigger', 'design/screens/items/a.html:18', 'design/screens/items/a.html']);
+    assert.deepEqual(
+      [c.id, c.comment, c.target.source, c.file],
+      ['fb_007', 'Make the title bigger', 'design/screens/items/a.html:18', 'design/screens/items/a.html'],
+    );
     const inputs = [
       { comment: 'x' },
       { comment: 'x', file: 'screens/items/a.html', target: { dfwId: 'no.such.id' } },
@@ -551,16 +717,31 @@ describe('hot: comments', { skip: skipReason() }, () => {
       assert.deepEqual(Object.keys(afterClosed.files), ['.dfw/reviews/rv_<now>.json']);
       assert.equal(JSON.parse(afterClosed.stdout).id, 'fb_007');
     }
-    assert.equal(JSON.parse(same(['comments', 'add', '--json', '{"comment":"x"}'], { state: { ...FROZEN, design: { ...APPROVED_DESIGN, version: 3 } } }).files['.dfw/reviews/rv_<now>.json']).designVersion, 'v3');
+    assert.equal(
+      JSON.parse(
+        same(['comments', 'add', '--json', '{"comment":"x"}'], { state: { ...FROZEN, design: { ...APPROVED_DESIGN, version: 3 } } }).files[
+          '.dfw/reviews/rv_<now>.json'
+        ],
+      ).designVersion,
+      'v3',
+    );
     same(['comments', 'add', '--json', '{"comment":"x"}'], { state: null });
     // Ids continue after the highest one, whatever its form.
-    assert.equal(JSON.parse(same(['comments', 'add', '--json', '{"comment":"x"}'], { setup: withSession([comment('fb_041'), comment('fb_7'), comment('note'), comment('fb_1e2')]) }).stdout).id, 'fb_101');
+    assert.equal(
+      JSON.parse(
+        same(['comments', 'add', '--json', '{"comment":"x"}'], {
+          setup: withSession([comment('fb_041'), comment('fb_7'), comment('note'), comment('fb_1e2')]),
+        }).stdout,
+      ).id,
+      'fb_101',
+    );
     for (const input of ['{}', '{"comment":"   "}', '{"comment":null}', 'null', '"text"', '[]']) {
       const r = same(['comments', 'add', '--json', input], { setup: withSession(MIXED) });
       assert.deepEqual([r.code, r.stderr, r.files], [1, 'A comment needs text.\n', {}], input);
     }
     assert.equal(same(['comments', 'add', '--json']).stderr, 'A comment needs text.\n');
-    for (const args of [['--json', '{ nope'], [], ['--json', '{"comment":5}']]) assert.equal(sameButStderr(['comments', 'add', ...args], { setup: withSession(MIXED) }).code, 1);
+    for (const args of [['--json', '{ nope'], [], ['--json', '{"comment":5}']])
+      assert.equal(sameButStderr(['comments', 'add', ...args], { setup: withSession(MIXED) }).code, 1);
   });
 
   test('new-round closes the open session and starts one', () => {
@@ -570,23 +751,47 @@ describe('hot: comments', { skip: skipReason() }, () => {
     assert.deepEqual(JSON.parse(r.stdout), { schema: 1, id: 'rv_<now>', startedAt: NOW, designVersion: 'v1', comments: [] });
     same(['comments', 'new-round']);
     same(['comments', 'new-round'], { state: null });
-    same(['comments', 'new-round'], { state: { ...FROZEN, design: { ...APPROVED_DESIGN, version: 4 } }, setup: withSession(MIXED, { closedAt: '2026-01-01T00:00:00.000Z' }) });
+    same(['comments', 'new-round'], {
+      state: { ...FROZEN, design: { ...APPROVED_DESIGN, version: 4 } },
+      setup: withSession(MIXED, { closedAt: '2026-01-01T00:00:00.000Z' }),
+    });
   });
 
   test('inbox: delivers each comment state once; --peek leaves it', () => {
     assert.equal(same(['comments', 'inbox']).stdout, 'No new comments.\n');
     const first = same(['comments', 'inbox'], { setup: withSession(MIXED) });
-    assert.match(first.stdout, /^2 new Studio comment\(s\) from the user:\n- fb_001 \[open\] items \/ a -> items\.title \(design\/screens\/items\/a\.html:18\)\n/);
+    assert.match(
+      first.stdout,
+      /^2 new Studio comment\(s\) from the user:\n- fb_001 \[open\] items \/ a -> items\.title \(design\/screens\/items\/a\.html:18\)\n/,
+    );
     assert.match(first.stdout, /\n- fb_005 \[reopened\] .*\n {4}".*"\n {4}reopened by user: "Still too small"\n/);
-    assert.deepEqual(JSON.parse(first.files['.dfw/reviews/.delivered.json']), ['fb_001:open:2026-01-01T00:00:00.000Z', 'fb_005:reopened:2026-01-01T02:00:00.000Z']);
+    assert.deepEqual(JSON.parse(first.files['.dfw/reviews/.delivered.json']), [
+      'fb_001:open:2026-01-01T00:00:00.000Z',
+      'fb_005:reopened:2026-01-01T02:00:00.000Z',
+    ]);
     assert.deepEqual(same(['comments', 'inbox', '--peek'], { setup: withSession(MIXED) }).files, {});
     const delivered = (keys) => (root) => write(root, '.dfw/reviews/.delivered.json', keys);
-    assert.equal(same(['comments', 'inbox'], { setup: all(withSession(MIXED), delivered(['fb_001:open:2026-01-01T00:00:00.000Z', 'fb_005:reopened:2026-01-01T02:00:00.000Z'])) }).stdout, 'No new comments.\n');
+    assert.equal(
+      same(['comments', 'inbox'], {
+        setup: all(withSession(MIXED), delivered(['fb_001:open:2026-01-01T00:00:00.000Z', 'fb_005:reopened:2026-01-01T02:00:00.000Z'])),
+      }).stdout,
+      'No new comments.\n',
+    );
     same(['comments', 'inbox'], { setup: all(withSession(MIXED), delivered(['fb_001:open:2026-01-01T00:00:00.000Z', 'fb_005:fixed:x'])) });
     // A user's reply on an acknowledged comment, a live comment and one on the design system.
     const more = [
-      comment('fb_001', 'acknowledged', { thread: [line('claude', 'On it', 'acknowledged'), line('user', 'Also the header')], updatedAt: '2026-01-01T03:00:00.000Z' }),
-      comment('fb_002', 'open', { provider: 'dfw-live', screen: null, variant: null, file: null, target: { selector: 'main > button', source: 'src/App.tsx:12:7' }, url: 'http://localhost:3000/' }),
+      comment('fb_001', 'acknowledged', {
+        thread: [line('claude', 'On it', 'acknowledged'), line('user', 'Also the header')],
+        updatedAt: '2026-01-01T03:00:00.000Z',
+      }),
+      comment('fb_002', 'open', {
+        provider: 'dfw-live',
+        screen: null,
+        variant: null,
+        file: null,
+        target: { selector: 'main > button', source: 'src/App.tsx:12:7' },
+        url: 'http://localhost:3000/',
+      }),
       comment('fb_003', 'open', { screen: null, variant: null, target: { component: 'button' } }),
       comment('fb_004', 'reopened'),
     ];
@@ -594,13 +799,21 @@ describe('hot: comments', { skip: skipReason() }, () => {
     assert.match(r.stdout, /follow-up by user: "Also the header"/);
     assert.match(r.stdout, /\nComments marked "live" are on the running app/);
     assert.match(r.stdout, /- fb_003 \[open\] design system -> \? component button\n/);
-    assert.equal(sameButStderr(['comments', 'inbox'], { setup: all(withSession(MIXED), (root) => write(root, '.dfw/reviews/.delivered.json', '{ nope')) }).code, 1);
+    assert.equal(
+      sameButStderr(['comments', 'inbox'], {
+        setup: all(withSession(MIXED), (root) => write(root, '.dfw/reviews/.delivered.json', '{ nope')),
+      }).code,
+      1,
+    );
   });
 
   test('wait: returns after the settle time when comments are there, or at the timeout', () => {
     const start = Date.now();
     const got = same(['comments', 'wait', '--timeout', '30'], { setup: withSession(MIXED) });
-    assert.match(got.stdout, /^2 new Studio comment\(s\) from the user:\n[^]*\nAfter fixing, start "dfw comments wait" in the background again to keep listening\.\n$/);
+    assert.match(
+      got.stdout,
+      /^2 new Studio comment\(s\) from the user:\n[^]*\nAfter fixing, start "dfw comments wait" in the background again to keep listening\.\n$/,
+    );
     assert.ok('.dfw/reviews/.delivered.json' in got.files);
     assert.ok(Date.now() - start >= 1500, 'the binary waits the settle time');
     const none = same(['comments', 'wait', '--timeout', '1']);
@@ -632,8 +845,20 @@ const HOSTS = [[], ['--host', 'copilot'], ['--host', 'claude']];
 describe('hot: hooks', { skip: skipReason() }, () => {
   /** [label, payload(root)]: the same edit as each host sends it. */
   const edit = (rel, { tool = 'Edit', extra = {} } = {}) => [
-    json((root) => ({ session_id: 's1', hook_event_name: 'PreToolUse', cwd: root, tool_name: tool, tool_input: { [tool === 'NotebookEdit' ? 'notebook_path' : 'file_path']: path.join(root, rel), ...extra } })),
-    json((root) => ({ sessionId: 's1', hookEventName: 'preToolUse', cwd: root, toolName: tool === 'Write' ? 'create' : tool === 'Edit' ? 'str_replace_editor' : tool, toolArgs: JSON.stringify({ path: rel, ...extra }) })),
+    json((root) => ({
+      session_id: 's1',
+      hook_event_name: 'PreToolUse',
+      cwd: root,
+      tool_name: tool,
+      tool_input: { [tool === 'NotebookEdit' ? 'notebook_path' : 'file_path']: path.join(root, rel), ...extra },
+    })),
+    json((root) => ({
+      sessionId: 's1',
+      hookEventName: 'preToolUse',
+      cwd: root,
+      toolName: tool === 'Write' ? 'create' : tool === 'Edit' ? 'str_replace_editor' : tool,
+      toolArgs: JSON.stringify({ path: rel, ...extra }),
+    })),
     json((root) => ({ cwd: root, toolName: tool === 'Write' ? 'write' : 'edit', toolArgs: { filePath: path.join(root, rel), ...extra } })),
   ];
   const patch = (body, cwd = (root) => root) => [
@@ -642,7 +867,20 @@ describe('hot: hooks', { skip: skipReason() }, () => {
     json((root) => ({ cwd: cwd(root), tool_name: 'apply_patch', tool_input: JSON.stringify({ input: body }) })),
     json((root) => ({ cwd: cwd(root), toolName: 'apply_patch', toolArgs: { content: body } })),
   ];
-  const PATHS = ['design/screens/items/a.html', 'design/system/components/button.html', 'design/tokens/tokens.json', 'PRODUCT.md', 'DESIGN.md', '.dfw/notes.md', 'design/handoff/v1.md', 'design/approved/v1/screens/items/a.html', 'src/App.tsx', 'package.json', '..outside-looking-name.ts', 'design'];
+  const PATHS = [
+    'design/screens/items/a.html',
+    'design/system/components/button.html',
+    'design/tokens/tokens.json',
+    'PRODUCT.md',
+    'DESIGN.md',
+    '.dfw/notes.md',
+    'design/handoff/v1.md',
+    'design/approved/v1/screens/items/a.html',
+    'src/App.tsx',
+    'package.json',
+    '..outside-looking-name.ts',
+    'design',
+  ];
   const STATES = {
     discovery: st(),
     frozen: FROZEN,
@@ -675,7 +913,10 @@ describe('hot: hooks', { skip: skipReason() }, () => {
     }
     assert.ok(seen.allow > 100 && seen.deny > 100, JSON.stringify(seen));
     assert.equal(pre([], edit('src/App.tsx')[0], { state: STATES.implement }).stdout, '');
-    assert.match(pre([], edit('src/App.tsx')[0]).stdout, /Missing: G2 \(approved, frozen design\), G3 \(approved technology stack\), phase \\"implement\\" \(current: \\"discovery\\"\)/);
+    assert.match(
+      pre([], edit('src/App.tsx')[0]).stdout,
+      /Missing: G2 \(approved, frozen design\), G3 \(approved technology stack\), phase \\"implement\\" \(current: \\"discovery\\"\)/,
+    );
     assert.match(pre([], edit('design/screens/items/a.html')[0], { state: FROZEN }).stdout, /design v1 is approved and locked/);
     assert.match(pre([], edit('design/approved/v1/a.html')[0]).stdout, /is immutable/);
     assert.match(pre([], edit('design/x.html')[0], { state: STATES.reviewOnly }).stdout, /review-only mode/);
@@ -705,8 +946,20 @@ describe('hot: hooks', { skip: skipReason() }, () => {
         assert.deepEqual([r.code, r.stderr], [0, '']);
       }
     }
-    assert.equal(pre([], json((root) => ({ cwd: root, tool_name: 'Write', tool_input: { file_path: '/elsewhere/outside.ts' } }))).stdout, '');
-    assert.notEqual(pre([], json((root) => ({ cwd: path.join(root, 'design'), tool_name: 'Write', tool_input: { file_path: '../src/a.ts' } }))).stdout, '');
+    assert.equal(
+      pre(
+        [],
+        json((root) => ({ cwd: root, tool_name: 'Write', tool_input: { file_path: '/elsewhere/outside.ts' } })),
+      ).stdout,
+      '',
+    );
+    assert.notEqual(
+      pre(
+        [],
+        json((root) => ({ cwd: path.join(root, 'design'), tool_name: 'Write', tool_input: { file_path: '../src/a.ts' } })),
+      ).stdout,
+      '',
+    );
   });
 
   test('pre-tool-use: apply_patch bodies, paths relative to the session cwd', () => {
@@ -744,7 +997,12 @@ describe('hot: hooks', { skip: skipReason() }, () => {
       { old_string: '<dfw-use c="button" variant="ghost" id="items.export">', new_string: '' },
       { old_string: 'not in the file', new_string: 'x' },
       { old_string: '<!doctype html>', new_string: '' },
-      { edits: [{ old_string: '12 items', new_string: '13 items' }, { old_string: 'Export', new_string: 'x' }] },
+      {
+        edits: [
+          { old_string: '12 items', new_string: '13 items' },
+          { old_string: 'Export', new_string: 'x' },
+        ],
+      },
       { edits: [] },
       { content: '<html></html>' },
       { old_string: 5 },
@@ -778,7 +1036,10 @@ describe('hot: hooks', { skip: skipReason() }, () => {
       for (const payload of src) {
         assert.equal(pre(host, payload, { state: null }).stdout, '', 'no workflow: nothing is gated');
         for (const text of ['{ nope', '', 'null', '[]', '{}', '"text"', '0', '{"design":{"status":"approved"}}', '{"active":false}']) {
-          const r = sameButStderr(['hook', 'pre-tool-use', ...host], hookOpts(payload, { setup: (root) => write(root, '.dfw/state.json', text) }));
+          const r = sameButStderr(
+            ['hook', 'pre-tool-use', ...host],
+            hookOpts(payload, { setup: (root) => write(root, '.dfw/state.json', text) }),
+          );
           assert.deepEqual([r.code, r.files], [0, {}], text);
         }
       }
@@ -787,7 +1048,21 @@ describe('hot: hooks', { skip: skipReason() }, () => {
     const broken = sameButStderr(['hook', 'pre-tool-use'], hookOpts(src[0], { setup: (root) => write(root, '.dfw/state.json', '{ nope') }));
     assert.deepEqual([broken.code, broken.stdout], [0, '']);
     assert.match(broken.stderr, /^dfw hook pre-tool-use error: Invalid JSON in .*state\.json/);
-    for (const stdin of ['not json', '', '   ', 'null', '[]', '5', '"text"', '{"tool_name":"Write","tool_input":null}', '{"tool_name":"Write","tool_input":"null"}', '{"tool_name":"Write","tool_input":{"file_path":5}}', '{"tool_name":"Write","tool_input":{"file_path":"src/a.ts"},"cwd":5}', '{"tool_name":"Write","tool_input":[],"cwd":""}', '{"toolName":"apply_patch","toolArgs":5}']) {
+    for (const stdin of [
+      'not json',
+      '',
+      '   ',
+      'null',
+      '[]',
+      '5',
+      '"text"',
+      '{"tool_name":"Write","tool_input":null}',
+      '{"tool_name":"Write","tool_input":"null"}',
+      '{"tool_name":"Write","tool_input":{"file_path":5}}',
+      '{"tool_name":"Write","tool_input":{"file_path":"src/a.ts"},"cwd":5}',
+      '{"tool_name":"Write","tool_input":[],"cwd":""}',
+      '{"toolName":"apply_patch","toolArgs":5}',
+    ]) {
       for (const host of HOSTS) {
         const r = sameButStderr(['hook', 'pre-tool-use', ...host], { stdin });
         assert.deepEqual([r.code, r.files], [0, {}], stdin);
@@ -795,17 +1070,29 @@ describe('hot: hooks', { skip: skipReason() }, () => {
     }
     // Without a cwd in the payload the process's working directory (the project) is used.
     assert.notEqual(same(['hook', 'pre-tool-use'], { stdin: '{"tool_name":"Write","tool_input":{"file_path":"src/a.ts"}}' }).stdout, '');
-    assert.notEqual(same(['hook', 'pre-tool-use'], { stdin: '{"tool_name":"Write","tool_input":{"file_path":"src/a.ts"}}', env: { DFW_PROJECT_DIR: '', CLAUDE_PROJECT_DIR: '' } }).stdout, '');
+    assert.notEqual(
+      same(['hook', 'pre-tool-use'], {
+        stdin: '{"tool_name":"Write","tool_input":{"file_path":"src/a.ts"}}',
+        env: { DFW_PROJECT_DIR: '', CLAUDE_PROJECT_DIR: '' },
+      }).stdout,
+      '',
+    );
     for (const host of [['--host', 'nope'], ['--host'], ['--host', 'mcp'], ['--host', 'codex']]) {
       const r = sameButStderr(['hook', 'pre-tool-use', ...host], hookOpts(src[0]));
       assert.equal(r.code, 0);
     }
     assert.equal(sameButStderr(['hook', 'pre-tool-use', '--host', 'nope'], hookOpts(src[0])).stdout, '');
     // DFW_HOST names the host when no flag does.
-    assert.equal(JSON.parse(same(['hook', 'pre-tool-use'], hookOpts(src[0], { env: { DFW_HOST: 'copilot' } })).stdout).permissionDecision, 'deny');
+    assert.equal(
+      JSON.parse(same(['hook', 'pre-tool-use'], hookOpts(src[0], { env: { DFW_HOST: 'copilot' } })).stdout).permissionDecision,
+      'deny',
+    );
     // gate.allow of the project config opens a path.
     assert.equal(pre([], src[0], { setup: (root) => write(root, '.dfw/config.json', { gate: { allow: ['src/**'] } }) }).stdout, '');
-    assert.equal(sameButStderr(['hook', 'pre-tool-use'], hookOpts(src[0], { setup: (root) => write(root, '.dfw/config.json', '{ nope') })).stdout, '');
+    assert.equal(
+      sameButStderr(['hook', 'pre-tool-use'], hookOpts(src[0], { setup: (root) => write(root, '.dfw/config.json', '{ nope') })).stdout,
+      '',
+    );
   });
 
   test('hook: unknown and missing handler names fail the same way', () => {
@@ -825,9 +1112,28 @@ describe('hot: hooks', { skip: skipReason() }, () => {
         assert.equal(JSON.parse(r.stdout).hookSpecificOutput.hookEventName, 'UserPromptSubmit');
         assert.deepEqual(Object.keys(r.files), ['.dfw/reviews/.delivered.json']);
       }
-      assert.equal(same(args, hookOpts(payload, { setup: all(withSession(MIXED), (root) => write(root, '.dfw/reviews/.delivered.json', ['fb_001:open:2026-01-01T00:00:00.000Z', 'fb_005:reopened:2026-01-01T02:00:00.000Z'])) })).stdout, '');
-      for (const state of [null, STATES.paused]) assert.deepEqual(same(args, hookOpts(payload, { state, setup: withSession(MIXED) })).files, {});
-      for (const [rel, text] of [['.dfw/state.json', '{ nope'], ['.dfw/reviews/rv_1.json', '{ nope'], ['.dfw/reviews/rv_1.json', '{}'], ['.dfw/reviews/.delivered.json', '{ nope']]) {
+      assert.equal(
+        same(
+          args,
+          hookOpts(payload, {
+            setup: all(withSession(MIXED), (root) =>
+              write(root, '.dfw/reviews/.delivered.json', [
+                'fb_001:open:2026-01-01T00:00:00.000Z',
+                'fb_005:reopened:2026-01-01T02:00:00.000Z',
+              ]),
+            ),
+          }),
+        ).stdout,
+        '',
+      );
+      for (const state of [null, STATES.paused])
+        assert.deepEqual(same(args, hookOpts(payload, { state, setup: withSession(MIXED) })).files, {});
+      for (const [rel, text] of [
+        ['.dfw/state.json', '{ nope'],
+        ['.dfw/reviews/rv_1.json', '{ nope'],
+        ['.dfw/reviews/rv_1.json', '{}'],
+        ['.dfw/reviews/.delivered.json', '{ nope'],
+      ]) {
         const broken = sameButStderr(args, hookOpts(payload, { setup: all(withSession(MIXED), (root) => write(root, rel, text)) }));
         assert.deepEqual([broken.code, broken.stdout, broken.files], [0, '', {}], rel);
       }
@@ -842,8 +1148,12 @@ describe('hot: hooks', { skip: skipReason() }, () => {
     for (const host of HOSTS) {
       const args = ['hook', 'session-start', ...host];
       const r = same(args, ss(payload(), { setup: withSession(MIXED) }));
-      const context = host[1] === 'copilot' ? JSON.parse(r.stdout).additionalContext : JSON.parse(r.stdout).hookSpecificOutput.additionalContext;
-      assert.equal(context, 'dfw: product="Fixture" mode=new-product phase=discovery\ndesign: v1 draft\ngates: G1=open DS=open G2=open G3=open G4=open\nreview comments: 3 open, 1 awaiting user verification\nSession id for "dfw lang": s-1.\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).');
+      const context =
+        host[1] === 'copilot' ? JSON.parse(r.stdout).additionalContext : JSON.parse(r.stdout).hookSpecificOutput.additionalContext;
+      assert.equal(
+        context,
+        'dfw: product="Fixture" mode=new-product phase=discovery\ndesign: v1 draft\ngates: G1=open DS=open G2=open G3=open G4=open\nreview comments: 3 open, 1 awaiting user verification\nSession id for "dfw lang": s-1.\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).',
+      );
       for (const state of [FROZEN, STATES.reviewOnly, st({ product: '' })]) same(args, ss(payload(), { state }));
       for (const state of [null, STATES.paused]) assert.equal(same(args, ss(payload(), { state })).stdout, '');
       same(args, ss(json((root) => ({ sessionId: 'camel', cwd: root }))));
@@ -852,7 +1162,11 @@ describe('hot: hooks', { skip: skipReason() }, () => {
       for (const stdin of ['', 'not json']) same(args, ss(stdin));
       // 0.5.2: a payload that is not an object is an empty payload (the project comes from the environment).
       same(args, ss('null'));
-      for (const [rel, text] of [['.dfw/state.json', '{ nope'], ['.dfw/state.json', '{}'], ['.dfw/reviews/rv_1.json', '{ nope']]) {
+      for (const [rel, text] of [
+        ['.dfw/state.json', '{ nope'],
+        ['.dfw/state.json', '{}'],
+        ['.dfw/reviews/rv_1.json', '{ nope'],
+      ]) {
         const broken = sameButStderr(args, ss(payload(), { setup: (root) => write(root, rel, text) }));
         assert.deepEqual([broken.code, broken.stdout], [0, ''], rel);
       }
@@ -860,8 +1174,21 @@ describe('hot: hooks', { skip: skipReason() }, () => {
     // Claude Code only: the session id is appended to CLAUDE_ENV_FILE (here under .dfw/, where files are compared).
     const env = { CLAUDE_ENV_FILE: '.dfw/env.sh' };
     assert.equal(same(['hook', 'session-start'], ss(payload("it's-me"), { env })).files['.dfw/env.sh'], "export DFW_SESSION_ID='its-me'\n");
-    assert.equal(same(['hook', 'session-start'], ss(payload(), { env, state: null, setup: (root) => write(root, '.dfw/env.sh', 'export A=1\n') })).files['.dfw/env.sh'], "export A=1\nexport DFW_SESSION_ID='s-1'\n");
-    assert.deepEqual(same(['hook', 'session-start'], ss(json((root) => ({ cwd: root })), { env })).files, {});
+    assert.equal(
+      same(['hook', 'session-start'], ss(payload(), { env, state: null, setup: (root) => write(root, '.dfw/env.sh', 'export A=1\n') }))
+        .files['.dfw/env.sh'],
+      "export A=1\nexport DFW_SESSION_ID='s-1'\n",
+    );
+    assert.deepEqual(
+      same(
+        ['hook', 'session-start'],
+        ss(
+          json((root) => ({ cwd: root })),
+          { env },
+        ),
+      ).files,
+      {},
+    );
     same(['hook', 'session-start'], ss(payload(), { env: { CLAUDE_ENV_FILE: 'no/such/folder/env.sh' } }));
     // Language sessions untouched for 30 days are pruned.
     const old = (root) => {
@@ -870,12 +1197,31 @@ describe('hot: hooks', { skip: skipReason() }, () => {
       const longAgo = new Date(Date.now() - 31 * 86400e3);
       fs.utimesSync(path.join(root, '.dfw/home/sessions/old.json'), longAgo, longAgo);
     };
-    assert.deepEqual(same(['hook', 'session-start'], ss(payload(), { env: { DFW_HOME: '.dfw/home' }, setup: old })).files, { '.dfw/home/sessions/old.json': null });
+    assert.deepEqual(same(['hook', 'session-start'], ss(payload(), { env: { DFW_HOME: '.dfw/home' }, setup: old })).files, {
+      '.dfw/home/sessions/old.json': null,
+    });
   });
 
   test('post-tool-use: nothing to check (comments for Copilot); a UI edit runs the checks', () => {
-    const post = (rel, tool = 'Edit') => json((root) => ({ session_id: 's1', hook_event_name: 'PostToolUse', cwd: root, tool_name: tool, tool_input: { file_path: path.join(root, rel) }, tool_response: { success: true } }));
-    const quiet = [post('src/a.ts'), post('README.md'), post('design/approved/v1/screens/a.html'), post('src/a.html', 'Read'), post('.dfw/notes.md'), post('design/notes.txt'), json((root) => ({ cwd: root, tool_name: 'Write', tool_input: { file_path: '/elsewhere/a.html' } })), json((root) => ({ cwd: root }))];
+    const post = (rel, tool = 'Edit') =>
+      json((root) => ({
+        session_id: 's1',
+        hook_event_name: 'PostToolUse',
+        cwd: root,
+        tool_name: tool,
+        tool_input: { file_path: path.join(root, rel) },
+        tool_response: { success: true },
+      }));
+    const quiet = [
+      post('src/a.ts'),
+      post('README.md'),
+      post('design/approved/v1/screens/a.html'),
+      post('src/a.html', 'Read'),
+      post('.dfw/notes.md'),
+      post('design/notes.txt'),
+      json((root) => ({ cwd: root, tool_name: 'Write', tool_input: { file_path: '/elsewhere/a.html' } })),
+      json((root) => ({ cwd: root })),
+    ];
     for (const host of HOSTS) {
       const args = ['hook', 'post-tool-use', ...host];
       for (const payload of quiet) {
@@ -889,9 +1235,17 @@ describe('hot: hooks', { skip: skipReason() }, () => {
       // Checks switched off, a paused workflow and no workflow: a UI edit needs nothing either.
       const off = (root) => write(root, '.dfw/config.json', { checks: { onEdit: false } });
       same(args, hookOpts(post('design/screens/items/a.html'), { setup: all(off, withSession(MIXED)) }));
-      for (const state of [null, STATES.paused]) assert.deepEqual(same(args, hookOpts(post('design/screens/items/a.html'), { state, setup: withSession(MIXED) })).files, {});
+      for (const state of [null, STATES.paused])
+        assert.deepEqual(same(args, hookOpts(post('design/screens/items/a.html'), { state, setup: withSession(MIXED) })).files, {});
       // Lint runs on the edited screen, tokens are rebuilt after a token edit.
-      for (const rel of ['design/screens/items/a.html', 'design/tokens/tokens.json', 'design/system/components/button.html', 'src/App.tsx', 'src/styles.css', 'design/design.json']) {
+      for (const rel of [
+        'design/screens/items/a.html',
+        'design/tokens/tokens.json',
+        'design/system/components/button.html',
+        'src/App.tsx',
+        'src/styles.css',
+        'design/design.json',
+      ]) {
         same(args, hookOpts(post(rel, 'Write'), { setup: withSession(MIXED) }));
       }
       const bad = (root) => write(root, 'design/screens/items/a.html', '<html><body><img src="x.png"><p>Lorem ipsum</p></body></html>');
@@ -899,16 +1253,21 @@ describe('hot: hooks', { skip: skipReason() }, () => {
       assert.match(findings.stdout, /dfw checks on design\/screens\/items\/a\.html:/);
       const both = same(args, hookOpts(post('design/screens/items/a.html'), { setup: all(bad, withSession(MIXED)) }));
       assert.equal(/new Studio comment/.test(both.stdout), host[1] === 'copilot', 'the call with checks delivers the comments too');
-      for (const [rel, text] of [['.dfw/state.json', '{ nope'], ['.dfw/config.json', '{ nope']]) {
+      for (const [rel, text] of [
+        ['.dfw/state.json', '{ nope'],
+        ['.dfw/config.json', '{ nope'],
+      ]) {
         const broken = sameButStderr(args, hookOpts(post('design/screens/items/a.html'), { setup: (root) => write(root, rel, text) }));
         assert.deepEqual([broken.code, broken.stdout], [0, ''], rel);
       }
-      for (const stdin of ['', 'not json', 'null', '{"tool_name":"Write","tool_input":{"file_path":5}}']) sameButStderr(args, { stdin, setup: withSession(MIXED) });
+      for (const stdin of ['', 'not json', 'null', '{"tool_name":"Write","tool_input":{"file_path":5}}'])
+        sameButStderr(args, { stdin, setup: withSession(MIXED) });
     }
   });
 
   test('stop: comments block once; never loops; the layout check runs when it applies', () => {
-    const payload = (active = false) => json((root) => ({ session_id: 's1', hook_event_name: 'Stop', cwd: root, stop_hook_active: active }));
+    const payload = (active = false) =>
+      json((root) => ({ session_id: 's1', hook_event_name: 'Stop', cwd: root, stop_hook_active: active }));
     const concepts = st({ phase: 'concepts' });
     for (const host of HOSTS) {
       const args = ['hook', 'stop', ...host];
@@ -919,14 +1278,25 @@ describe('hot: hooks', { skip: skipReason() }, () => {
       assert.match(JSON.parse(r.stdout).reason, /^2 new Studio comment\(s\) from the user:/);
       assert.deepEqual(Object.keys(r.files), ['.dfw/reviews/.delivered.json']);
       assert.deepEqual(same(args, hookOpts(payload(true), { setup: withSession(MIXED) })).files, {}, 'never loops');
-      same(args, hookOpts(json((root) => ({ cwd: root, stopHookActive: true })), { setup: withSession(MIXED) }));
-      for (const state of [null, STATES.paused, FROZEN, st({ phase: 'direction' })]) assert.equal(same(args, hookOpts(payload(), { state })).stdout, '');
+      same(
+        args,
+        hookOpts(
+          json((root) => ({ cwd: root, stopHookActive: true })),
+          { setup: withSession(MIXED) },
+        ),
+      );
+      for (const state of [null, STATES.paused, FROZEN, st({ phase: 'direction' })])
+        assert.equal(same(args, hookOpts(payload(), { state })).stdout, '');
       // In a design phase the layout check runs unless it is switched off...
       const off = (root) => write(root, '.dfw/config.json', { checks: { layoutOnStop: false } });
       assert.deepEqual(same(args, hookOpts(payload(), { state: concepts, setup: off })).files, {});
       // ...here every screen was checked already, so there is nothing to render.
-      for (const state of [concepts, st({ phase: 'system' })]) assert.deepEqual(same(args, hookOpts(payload(), { state, setup: (root) => helper(['mark-checked', root]) })).files, {});
-      for (const [rel, text] of [['.dfw/state.json', '{ nope'], ['.dfw/reviews/rv_1.json', '{ nope']]) {
+      for (const state of [concepts, st({ phase: 'system' })])
+        assert.deepEqual(same(args, hookOpts(payload(), { state, setup: (root) => helper(['mark-checked', root]) })).files, {});
+      for (const [rel, text] of [
+        ['.dfw/state.json', '{ nope'],
+        ['.dfw/reviews/rv_1.json', '{ nope'],
+      ]) {
         const broken = sameButStderr(args, hookOpts(payload(), { setup: (root) => write(root, rel, text) }));
         assert.deepEqual([broken.code, broken.stdout], [0, ''], rel);
       }
@@ -968,19 +1338,29 @@ describe('hot: freeze and stack detection (the modules, called directly)', { ski
   const native = (what, args) => (root) => spawnSync(nativeBinary(), ['__debug', 'hot', what, root, ...args], { env, encoding: 'utf8' });
 
   test('freezeDesign: same snapshot, lock file, state and decision log', () => {
-    const project = (state, extra = () => {}) => (root) => {
-      fs.cpSync(path.join(REPO, 'tests', 'fixtures', 'penpot', 'project'), root, { recursive: true });
-      write(root, '.dfw/state.json', state);
-      write(root, 'PRODUCT.md', '# Product\n');
-      write(root, 'DESIGN.md', '# Design tiếng Việt\n');
-      write(root, 'design/handoff/v0.md', 'not part of a snapshot');
-      write(root, 'design/approved/v0/old.html', 'an older snapshot');
-      extra(root);
-    };
+    const project =
+      (state, extra = () => {}) =>
+      (root) => {
+        fs.cpSync(path.join(REPO, 'tests', 'fixtures', 'penpot', 'project'), root, { recursive: true });
+        write(root, '.dfw/state.json', state);
+        write(root, 'PRODUCT.md', '# Product\n');
+        write(root, 'DESIGN.md', '# Design tiếng Việt\n');
+        write(root, 'design/handoff/v0.md', 'not part of a snapshot');
+        write(root, 'design/approved/v0/old.html', 'an older snapshot');
+        extra(root);
+      };
     for (const [setup, args] of [
       [project(st({ phase: 'concepts' })), ['First version']],
       [project(st({ phase: 'concepts' })), []],
-      [project(st({ phase: 'concepts', design: { version: 3, status: 'draft', locked: false, approved: [{ version: 'v2', hash: 'x', at: NOW }] } })), ['Third']],
+      [
+        project(
+          st({
+            phase: 'concepts',
+            design: { version: 3, status: 'draft', locked: false, approved: [{ version: 'v2', hash: 'x', at: NOW }] },
+          }),
+        ),
+        ['Third'],
+      ],
       [project(FROZEN), ['again']],
       [project(st(), (root) => fs.rmSync(path.join(root, 'design', 'design.json'))), ['x']],
       [project(st(), (root) => write(root, 'design/approved/v1/left.html', 'x')), ['x']],
@@ -1002,7 +1382,9 @@ describe('hot: freeze and stack detection (the modules, called directly)', { ski
       const root = path.join(tmp, 'project');
       write(root, '.dfw/state.json', st());
       const done = (child) => new Promise((resolve) => child.on('exit', resolve));
-      const writers = ['a', 'b', 'c', 'd'].map((tag) => spawn(nativeBinary(), ['__debug', 'hot', 'add-comments', root, `writer-${tag}`, '30'], { env, stdio: 'ignore' }));
+      const writers = ['a', 'b', 'c', 'd'].map((tag) =>
+        spawn(nativeBinary(), ['__debug', 'hot', 'add-comments', root, `writer-${tag}`, '30'], { env, stdio: 'ignore' }),
+      );
       assert.deepEqual(await Promise.all(writers.map(done)), [0, 0, 0, 0]);
       const sessions = fs.readdirSync(path.join(root, '.dfw', 'reviews')).filter((f) => f.startsWith('rv_'));
       const stored = sessions.flatMap((f) => JSON.parse(fs.readFileSync(path.join(root, '.dfw', 'reviews', f), 'utf8')).comments);
@@ -1020,8 +1402,21 @@ describe('hot: freeze and stack detection (the modules, called directly)', { ski
     const pkg = (p) => JSON.stringify(p);
     const projects = [
       {},
-      { 'package.json': pkg({ dependencies: { next: '15.1.0', react: '^19.0.0', '@mui/material': '6.0.0', '@radix-ui/react-slot': '1' }, devDependencies: { tailwindcss: '4.0.0', sass: '1.80.0', typescript: '5.7.2' } }), 'components.json': '{}', 'pnpm-lock.yaml': '', 'yarn.lock': '' },
-      { 'package.json': pkg({ dependencies: { vue: '3.5.0', vuetify: '3.7.0', react: '' }, devDependencies: { vue: '3.6.0-beta' } }), 'tsconfig.json': '{}', 'bun.lock': '', 'package-lock.json': '{}' },
+      {
+        'package.json': pkg({
+          dependencies: { next: '15.1.0', react: '^19.0.0', '@mui/material': '6.0.0', '@radix-ui/react-slot': '1' },
+          devDependencies: { tailwindcss: '4.0.0', sass: '1.80.0', typescript: '5.7.2' },
+        }),
+        'components.json': '{}',
+        'pnpm-lock.yaml': '',
+        'yarn.lock': '',
+      },
+      {
+        'package.json': pkg({ dependencies: { vue: '3.5.0', vuetify: '3.7.0', react: '' }, devDependencies: { vue: '3.6.0-beta' } }),
+        'tsconfig.json': '{}',
+        'bun.lock': '',
+        'package-lock.json': '{}',
+      },
       { 'package.json': pkg({ name: 'empty' }), 'Cargo.toml': '', 'index.html': '' },
       { 'package.json': pkg({ dependencies: ['odd'], devDependencies: 'text' }) },
       { 'composer.json': '{}', Gemfile: '', 'go.mod': '' },
@@ -1031,9 +1426,14 @@ describe('hot: freeze and stack detection (the modules, called directly)', { ski
       { 'package.json': '{ nope' },
     ];
     for (const map of projects) {
-      const clock = (r) => ({ ...r, stdout: r.stdout.replace(/"detectedAt":"[^"]+"/, '"detectedAt":"<now>"'), stderr: r.code ? '' : r.stderr });
+      const clock = (r) => ({
+        ...r,
+        stdout: r.stdout.replace(/"detectedAt":"[^"]+"/, '"detectedAt":"<now>"'),
+        stderr: r.code ? '' : r.stderr,
+      });
       // Directory order is the file system's: the evidence of a static site is compared as a set.
-      const sorted = (r) => (r.code ? r : { ...r, stdout: JSON.stringify({ ...JSON.parse(r.stdout), evidence: JSON.parse(r.stdout).evidence.sort() }) });
+      const sorted = (r) =>
+        r.code ? r : { ...r, stdout: JSON.stringify({ ...JSON.parse(r.stdout), evidence: JSON.parse(r.stdout).evidence.sort() }) };
       const b = sorted(clock(onCopy(files(map), native('stack-detect', []))));
       assert.deepEqual(b, expected(b), JSON.stringify(Object.keys(map)));
     }

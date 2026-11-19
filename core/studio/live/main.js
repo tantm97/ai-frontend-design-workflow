@@ -9,6 +9,7 @@
 // a constructed stylesheet, so the app's Content-Security-Policy style-src does not block it.
 // Bundled into core/studio/live.js (one classic script) by scripts/build-overlay.mjs.
 import { isShortcut, parseShortcut, shortcutLabel } from './shortcut.js';
+import { isTypingTarget } from '../overlay/fields.js';
 
 // main is about 190 lines (general.md GE4): the shadow-root UI, its state and its handlers share one
 // closure, as the injected script always had; the pure part (the shortcut) lives in shortcut.js.
@@ -43,7 +44,7 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
 .toast{position:fixed;left:50%;bottom:72px;transform:translateX(-50%);background:#111;color:#fff;padding:8px 14px;border-radius:6px;pointer-events:none}
 [hidden]{display:none!important}`;
   sh.innerHTML = `<div class="box" hidden><span class="tag"></span></div>
-<div class="bar" role="toolbar" aria-label="dfw review"><b>dfw</b><button type="button" class="toggle" aria-pressed="false" title="Comment on an element${label ? ` (${label})` : ''}">Comment</button></div>
+<div class="bar" role="toolbar" aria-label="dfw review"><b>dfw</b><button type="button" class="toggle" aria-pressed="false">Comment</button></div>
 <form class="pop" hidden><span class="src"></span><textarea aria-label="Comment for Claude" placeholder="What should change?"></textarea>
 <div class="row"><button type="button" class="ghost cancel">Cancel</button><button type="submit" class="primary">Send to Claude</button></div></form>
 <div class="toast" role="status" hidden></div>`;
@@ -59,6 +60,8 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
   const $ = (s) => sh.querySelector(s);
   const box = $('.box');
   const toggle = $('.toggle');
+  // The label comes from data-shortcut (config): an attribute, never markup (javascript.md J4).
+  toggle.title = `Comment on an element${label ? ` (${label})` : ''}`;
   const pop = $('.pop');
   const text = $('textarea');
   const toastEl = $('.toast');
@@ -196,8 +199,7 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
     (e) => {
       if (ours(e)) return;
       const t = /** @type {any} */ (e.composedPath()[0] || e.target); // the real target inside the app's own shadow roots
-      const typing =
-        t && (t.isContentEditable || (t.closest && t.closest('input, textarea, select, [contenteditable]:not([contenteditable=false])')));
+      const typing = isTypingTarget(t);
       if (e.key === 'Escape' && (on || !pop.hidden)) {
         closeComposer();
         setOn(false);

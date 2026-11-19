@@ -150,6 +150,10 @@
   };
   var post = (type, data = {}) => parent.postMessage({ type, ...data }, "/");
 
+  // core/studio/overlay/fields.js
+  var EDITABLE_FIELD = 'input, textarea, select, [contenteditable]:not([contenteditable="false"])';
+  var isTypingTarget = (t) => !!t && (t.isContentEditable === true || typeof t.closest === "function" && !!t.closest(EDITABLE_FIELD));
+
   // core/studio/overlay/layers.js
   function buildLayers() {
     st.layerEls = [];
@@ -844,7 +848,7 @@
       /** @type {any} */
       e.target
     );
-    const typing = target.closest && target.closest("input, textarea, select, [contenteditable]");
+    const typing = isTypingTarget(target);
     if (st.mode === "present" || st.mode === "interact") {
       if (typing) return e.key === "Escape" && fwd(e, "down");
       if (st.mode === "present" && (e.key === "ArrowLeft" || e.key === "ArrowRight") && !e.metaKey && !e.ctrlKey) e.preventDefault();
@@ -1013,18 +1017,20 @@
       return href;
     }
   };
+  var NO_NAMES = /* @__PURE__ */ new Set();
+  var ROOT_OWNED = /* @__PURE__ */ new Set(["data-theme", "data-state", "style"]);
   var hasScript = (n) => n.nodeType === 1 && (n.nodeName === "SCRIPT" || /** @type {Element} */
   n.querySelector("script"));
-  function syncAttrs(from, to, changed) {
+  function syncAttrs(from, to, changed, keepNames = NO_NAMES) {
     if (from.nodeName === "LINK" && sheetPath(from.getAttribute("href") || "") === sheetPath(to.getAttribute("href") || "")) return;
     let diff = false;
     for (const a of [...from.attributes]) {
-      if (a.name === "contenteditable" || to.hasAttribute(a.name)) continue;
+      if (a.name === "contenteditable" || keepNames.has(a.name) || to.hasAttribute(a.name)) continue;
       from.removeAttribute(a.name);
       diff = true;
     }
     for (const a of [...to.attributes]) {
-      if (from.getAttribute(a.name) === a.value) continue;
+      if (keepNames.has(a.name) || from.getAttribute(a.name) === a.value) continue;
       from.setAttribute(a.name, a.value);
       diff = true;
     }
@@ -1138,6 +1144,7 @@
       if ([...doc.scripts].some((s) => !s.hasAttribute("data-dfw-overlay"))) throw new Error("page script");
       const changed = /* @__PURE__ */ new Set();
       const keep = st.editing ? st.editing.el : null;
+      syncAttrs(document.documentElement, doc.documentElement, changed, ROOT_OWNED);
       morph(document.head, doc.head, changed, keep);
       morph(document.body, doc.body, changed, keep);
       swapSheets(d.files || []);
@@ -1150,7 +1157,7 @@
       const els = (
         /** @type {HTMLElement[]} */
         [...changed].filter(
-          (el) => el.nodeType === 1 && el.isConnected && el !== document.body && !document.head.contains(el) && !isUi(el) && el.getClientRects().length
+          (el) => el.nodeType === 1 && el.isConnected && el !== document.documentElement && el !== document.body && !document.head.contains(el) && !isUi(el) && el.getClientRects().length
         )
       );
       const tops = els.filter((el) => !els.some((o) => o !== el && o.contains(el)));

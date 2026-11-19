@@ -36,19 +36,29 @@ test('overlay ops apply and fail loudly', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dfw-ov-'));
   fs.mkdirSync(path.join(dir, 'skills/demo'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'skills/demo/SKILL.md'), SKILL);
-  const log = applyOverlay(dir, {
-    ops: [
-      { op: 'description', file: 'skills/demo/SKILL.md', value: 'Narrow', why: 't' },
-      { op: 'dropKeys', file: 'skills/demo/SKILL.md', keys: ['disable-model-invocation'], why: 't' },
-      { op: 'replace', file: 'skills/demo/SKILL.md', pattern: '<skill-dir>', flags: 'g', with: '${CLAUDE_SKILL_DIR}', min: 1, why: 't' },
-    ],
-  }, dir);
+  const log = applyOverlay(
+    dir,
+    {
+      ops: [
+        { op: 'description', file: 'skills/demo/SKILL.md', value: 'Narrow', why: 't' },
+        { op: 'dropKeys', file: 'skills/demo/SKILL.md', keys: ['disable-model-invocation'], why: 't' },
+        { op: 'replace', file: 'skills/demo/SKILL.md', pattern: '<skill-dir>', flags: 'g', with: '${CLAUDE_SKILL_DIR}', min: 1, why: 't' },
+      ],
+    },
+    dir,
+  );
   assert.equal(log.length, 3);
   const text = fs.readFileSync(path.join(dir, 'skills/demo/SKILL.md'), 'utf8');
   assert.match(text, /description: "Narrow"/);
   assert.match(text, /\$\{CLAUDE_SKILL_DIR\}\/scripts/);
-  assert.throws(() => applyOverlay(dir, { ops: [{ op: 'replace', file: 'skills/demo/SKILL.md', pattern: 'not-there', with: 'x', why: 't' }] }, dir), OverlayError);
-  assert.throws(() => applyOverlay(dir, { ops: [{ op: 'dropKeys', file: 'skills/demo/SKILL.md', keys: ['gone'], why: 't' }] }, dir), OverlayError);
+  assert.throws(
+    () => applyOverlay(dir, { ops: [{ op: 'replace', file: 'skills/demo/SKILL.md', pattern: 'not-there', with: 'x', why: 't' }] }, dir),
+    OverlayError,
+  );
+  assert.throws(
+    () => applyOverlay(dir, { ops: [{ op: 'dropKeys', file: 'skills/demo/SKILL.md', keys: ['gone'], why: 't' }] }, dir),
+    OverlayError,
+  );
   assert.throws(() => applyOverlay(dir, { ops: [{ op: 'description', file: 'skills/demo/SKILL.md', value: 'x' }] }, dir), /needs a "why"/);
 });
 

@@ -30,7 +30,8 @@ export const HOSTS = {
       HOST_SETTINGS: 'your Copilot configuration (`~/.copilot/`)',
       DFW_CLI:
         '`dfw` is a CLI. If `dfw` is not on your PATH, run it as `~/.copilot/installed-plugins/dfw-marketplace/dfw/bin/dfw` (`dfw install --host copilot` also links it into `~/.local/bin`).',
-      INVOKE_SKILL: 'Load a skill by its name (for example `impeccable`, `frontend-design`); custom agents by their name (for example `screen-builder`).',
+      INVOKE_SKILL:
+        'Load a skill by its name (for example `impeccable`, `frontend-design`); custom agents by their name (for example `screen-builder`).',
     },
     qualifiedSkillNames: false,
   },
@@ -46,7 +47,8 @@ export const HOSTS = {
       HOST_SETTINGS: "your tool's own settings",
       DFW_CLI:
         '`dfw` is a CLI, also available as the `dfw` MCP tool (arguments as a list, cwd = project root). This tool has no write hook: before creating or editing any file in a dfw project, call the `dfw_can_write` MCP tool and never write a DENIED file.',
-      INVOKE_SKILL: 'Design skills named here (impeccable, frontend-design, ...) may not be installed in your tool; when one is missing, follow this guide and its references directly. Agents named here (screen-builder, ...) are roles: do their work yourself.',
+      INVOKE_SKILL:
+        'Design skills named here (impeccable, frontend-design, ...) may not be installed in your tool; when one is missing, follow this guide and its references directly. Agents named here (screen-builder, ...) are roles: do their work yourself.',
     },
     qualifiedSkillNames: false,
   },
@@ -62,10 +64,15 @@ export function getHost(id) {
 /** Render host placeholders ({{SKILL_DIR}}, host blocks) in skill/reference/agent text. */
 export function renderText(text, hostId) {
   const host = getHost(hostId);
-  let out = text.replace(/<!--\s*host:([\w,]+)\s*-->\n?([\s\S]*?)<!--\s*\/host\s*-->\n?/g, (_, ids, body) => (ids.split(',').includes(host.id) ? body : ''));
+  let out = text.replace(/<!--\s*host:([\w,]+)\s*-->\n?([\s\S]*?)<!--\s*\/host\s*-->\n?/g, (_, ids, body) =>
+    ids.split(',').includes(host.id) ? body : '',
+  );
   out = out.replace(/\{\{([A-Z_]+)\}\}/g, (m, k) => (Object.hasOwn(host.text, k) ? host.text[k] : m));
   if (!host.qualifiedSkillNames) {
-    out = out.replace(/`(?:frontend-design|ux-research|ui-ux-pro-max|impeccable|emil-design-eng|hallmark|taste-reference|dfw):([a-z0-9-]+)`/g, '`$1`');
+    out = out.replace(
+      /`(?:frontend-design|ux-research|ui-ux-pro-max|impeccable|emil-design-eng|hallmark|taste-reference|dfw):([a-z0-9-]+)`/g,
+      '`$1`',
+    );
   }
   return out;
 }

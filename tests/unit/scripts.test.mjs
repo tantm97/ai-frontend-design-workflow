@@ -21,7 +21,11 @@ const write = (file, text, mode) => {
 test('knowledge: vendored file keeps the upstream text byte for byte between markers', async () => {
   const { wrap, unwrap } = await import('../../scripts/knowledge.mjs');
   const body = '# Rules\n- MUST: x ≥ 24px …\n';
-  const text = wrap({ repo: 'o/r', commit: 'a'.repeat(40), path: 'AGENTS.md', license: 'MIT', title: 'T', usage: 'U' }, body, 'MIT License\n...');
+  const text = wrap(
+    { repo: 'o/r', commit: 'a'.repeat(40), path: 'AGENTS.md', license: 'MIT', title: 'T', usage: 'U' },
+    body,
+    'MIT License\n...',
+  );
   assert.equal(unwrap(text), body);
   assert.match(text, /## License \(MIT/);
   const reg = JSON.parse(fs.readFileSync(path.join(REPO, 'registry', 'skills.json'), 'utf8'));
@@ -35,7 +39,8 @@ test('build: Copilot plugin and marketplace are generated', () => {
   assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'dfw.json'), 'utf8')).host, 'copilot');
   const hooks = JSON.parse(fs.readFileSync(path.join(dir, 'hooks.json'), 'utf8'));
   assert.equal(hooks.version, 1);
-  for (const ev of ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop']) assert.match(hooks.hooks[ev][0].bash, /--host copilot/);
+  for (const ev of ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop'])
+    assert.match(hooks.hooks[ev][0].bash, /--host copilot/);
   assert.ok(fs.existsSync(path.join(dir, 'agents', 'screen-builder.agent.md')));
   const skill = fs.readFileSync(path.join(dir, 'skills', 'dfw', 'SKILL.md'), 'utf8');
   assert.doesNotMatch(skill, /CLAUDE_SKILL_DIR|AskUserQuestion|\{\{[A-Z_]+\}\}/);
@@ -56,14 +61,23 @@ test('overlay: the hooks reference is a short "not available" note and context i
   assert.match(skillMd, /^\*\*Hooks:\*\* not available in dfw-marketplace and must not be enabled\./m);
   assert.match(skillMd, /^\*\*Pin \/ Unpin:\*\* not available in dfw-marketplace and must not be run/m);
   const setup = skillMd.split('\n').find((l) => l.startsWith('1. Run `"${CLAUDE_SKILL_DIR}/scripts/impeccable" context`'));
-  assert.match(setup, /run `context` only through this launcher with its defaults.*never run it with that variable unset or changed, or with hooks enabled/);
-  assert.match(fs.readFileSync(path.join(skillDir, 'reference/doctor.md'), 'utf8'), /any finding about the design hook: report it and do not repair it/);
+  assert.match(
+    setup,
+    /run `context` only through this launcher with its defaults.*never run it with that variable unset or changed, or with hooks enabled/,
+  );
+  assert.match(
+    fs.readFileSync(path.join(skillDir, 'reference/doctor.md'), 'utf8'),
+    /any finding about the design hook: report it and do not repair it/,
+  );
 });
 
 test('checks: Impeccable text that tells how to enable hooks fails validation; the repo has none', () => {
   const root = tmp('dfw-left-');
   const ref = path.join(root, 'impeccable', 'skills', 'impeccable', 'reference');
-  write(path.join(ref, 'ok.md'), '**Hooks:** not available in dfw-marketplace. Never run `hooks on`.\nWhen the design hook is active it already enforces the checks.\n');
+  write(
+    path.join(ref, 'ok.md'),
+    '**Hooks:** not available in dfw-marketplace. Never run `hooks on`.\nWhen the design hook is active it already enforces the checks.\n',
+  );
   assert.deepEqual(leftoverCheck({ pluginsRoot: root }), []);
   // Lines quoted from the upstream hooks reference.
   write(path.join(ref, 'hooks.md'), '# /impeccable hooks\n\nstatus says so and gives `impeccable hooks on` as the repair command.\n');
@@ -88,7 +102,10 @@ test('texts: R9 names generate-image, shape is planning only, the reviewer says 
   const r3 = conflicts.slice(conflicts.indexOf('## R3.'), conflicts.indexOf('## R4.'));
   assert.match(r3, /`shape` is allowed for UX planning only/);
   assert.doesNotMatch(r3, /`\/impeccable shape` \/ concept seed/);
-  assert.match(read('core/workflow/references/phase-discovery.md'), /`shape` command for UX planning of a single feature \(planning only: stop before its design-direction phase/);
+  assert.match(
+    read('core/workflow/references/phase-discovery.md'),
+    /`shape` command for UX planning of a single feature \(planning only: stop before its design-direction phase/,
+  );
 
   const reviewer = read('core/workflow/agents/visual-reviewer.md');
   assert.doesNotMatch(reviewer, /read-only/i);
@@ -98,7 +115,16 @@ test('texts: R9 names generate-image, shape is planning only, the reviewer says 
 
   const readme = read('README.md');
   assert.doesNotMatch(readme, /Two calls remain/);
-  for (const host of ['api/roll', 'api/commands', 'api/version', 'api/chosen', 'api.openai.com', 'fonts.googleapis.com', 'api.impeccable.style']) assert.ok(readme.includes(host), `README lists ${host}`);
+  for (const host of [
+    'api/roll',
+    'api/commands',
+    'api/version',
+    'api/chosen',
+    'api.openai.com',
+    'fonts.googleapis.com',
+    'api.impeccable.style',
+  ])
+    assert.ok(readme.includes(host), `README lists ${host}`);
   assert.match(readme, /"Observed" means seen at runtime.*"read" means/);
   assert.match(readme, /impeccable\.allowUnverifiedEngine true --global/);
   assert.doesNotMatch(readme, /\]\(\.?\/?docs\//, 'README has no links into docs/');

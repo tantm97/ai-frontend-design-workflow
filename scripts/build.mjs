@@ -16,7 +16,9 @@ const only = args.includes('--only') ? args[args.indexOf('--only') + 1].split(',
 
 /** core/studio/overlay.js and live.js from their modules (the binary embeds them, so first). */
 function overlay(check) {
-  const r = spawnSync(process.execPath, [path.join(REPO_ROOT, 'scripts', 'build-overlay.mjs'), ...(check ? ['--check'] : [])], { stdio: 'inherit' });
+  const r = spawnSync(process.execPath, [path.join(REPO_ROOT, 'scripts', 'build-overlay.mjs'), ...(check ? ['--check'] : [])], {
+    stdio: 'inherit',
+  });
   if (r.status !== 0) throw new Error(check ? 'the Studio bundles are stale (npm run build:overlay)' : 'build-overlay failed');
 }
 
@@ -26,7 +28,10 @@ try {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dfw-build-check-'));
     buildAll({ only, outRoot: tmp });
     const diffs = [];
-    const targets = [...(only ? [] : (loadRegistry().local || []).map((l) => ({ plugin: l.plugin }))), ...loadRegistry().skills.filter((s) => !only || only.includes(s.id))];
+    const targets = [
+      ...(only ? [] : (loadRegistry().local || []).map((l) => ({ plugin: l.plugin }))),
+      ...loadRegistry().skills.filter((s) => !only || only.includes(s.id)),
+    ];
     for (const s of targets) {
       const a = path.join(REPO_ROOT, 'plugins', s.plugin);
       const b = path.join(tmp, s.plugin);
@@ -34,7 +39,9 @@ try {
       const fb = new Set(listFiles(b));
       for (const f of fb) if (!fa.has(f)) diffs.push(`${s.plugin}/${f}: missing in committed copy`);
       for (const f of fa) if (!fb.has(f)) diffs.push(`${s.plugin}/${f}: not produced by the build (hand edit?)`);
-      for (const f of fa) if (fb.has(f) && !fs.readFileSync(path.join(a, f)).equals(fs.readFileSync(path.join(b, f)))) diffs.push(`${s.plugin}/${f}: content differs from a clean build`);
+      for (const f of fa)
+        if (fb.has(f) && !fs.readFileSync(path.join(a, f)).equals(fs.readFileSync(path.join(b, f))))
+          diffs.push(`${s.plugin}/${f}: content differs from a clean build`);
     }
     fs.rmSync(tmp, { recursive: true, force: true });
     if (diffs.length) {
