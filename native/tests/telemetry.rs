@@ -698,7 +698,16 @@ fn output_and_exit_code_are_the_same_with_telemetry_on() {
         (vec!["hook", "pre-tool-use"], hook_input.as_str()),
     ];
     let all = |m: &Machine| -> Vec<(i32, String, String)> {
-        let mask = |text: String| text.replace(&*m.project.to_string_lossy(), "<project>");
+        // The project as dfw prints it: without the Windows `\\?\` prefix of the test's real
+        // path, and JSON-escaped inside `--json` output.
+        let shown = m.project.to_string_lossy();
+        let shown = shown.strip_prefix(r"\\?\").unwrap_or(&shown).to_string();
+        let escaped = serde_json::to_string(&shown).unwrap();
+        let escaped = escaped.trim_matches('"').to_string();
+        let mask = |text: String| {
+            text.replace(&escaped, "<project>")
+                .replace(&shown, "<project>")
+        };
         commands
             .iter()
             .map(|(args, stdin)| m.run_with(args, stdin, &[]))
