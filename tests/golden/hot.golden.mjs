@@ -362,6 +362,60 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
     assert.ok(!('.dfw/state.json' in r.files));
   });
 
+  // RV-3 (0.6.1): a configured check that did not run (axe is never downloaded in the temporary
+  // home) blocks the freeze unless the user accepts it; the freeze then says so
+  // and records the acceptance. Asserted, not recorded: which tools run differs per machine.
+  test('approve G2: a check that did not run blocks the freeze unless the user accepts it', () => {
+    const concepts = st({ phase: 'concepts', gates: { ...MINIMAL_STATE.gates, G1: GATE, DS: GATE } });
+    const g2 = (...flags) =>
+      runWith(nativeBinary(), [], ['approve', 'G2', '--note', 'ok', '--accept-findings', ...flags], { state: concepts });
+    const blocked = g2();
+    assert.equal(blocked.code, 1);
+    assert.match(blocked.stderr, /^G2 blocked: \d+ configured check\(s\) did not run \([^)]*axe[^)]*\), so the design is not verified\.\n/);
+    assert.match(blocked.stderr, /^NOT VERIFIED: .*axe/m);
+    assert.match(blocked.stderr, /re-run with --accept-unverified/);
+    const frozenFiles = (r) => Object.keys(r.files).filter((f) => f === '.dfw/state.json' || f.startsWith('design/approved/'));
+    assert.deepEqual(frozenFiles(blocked), []);
+    // RV-4: the accepted findings are recorded only once the design is frozen.
+    assert.ok(!('.dfw/decisions.jsonl' in blocked.files), 'a refused freeze records no accepted findings');
+    const frozen = g2('--accept-unverified');
+    assert.equal(frozen.code, 0, frozen.stderr);
+    assert.match(frozen.stdout, /^Design frozen as v1 \(sha256 [0-9a-f]{12}\)\.\nNOT VERIFIED: [^\n]*axe/);
+    const decisions = frozen.files['.dfw/decisions.jsonl']
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l));
+    const unverified = decisions.find((d) => d.topic === 'gate:G2:accepted-unverified');
+    assert.equal(unverified.by, 'user');
+    assert.ok(unverified.unverified.includes('axe'));
+    assert.equal(JSON.parse(frozen.files['.dfw/state.json']).design.status, 'approved');
+    assert.deepEqual(
+      decisions.map((d) => d.topic),
+      ['gate:G2', 'gate:G2:accepted-findings', 'gate:G2:accepted-unverified'],
+    );
+  });
+
+  // RV-4 (0.6.1): nothing is recorded as accepted or approved before the step that can fail.
+  test('approve G2 and G3: a refusal after the checks records nothing', () => {
+    const concepts = st({ phase: 'concepts', gates: { ...MINIMAL_STATE.gates, G1: GATE, DS: GATE } });
+    const openComment = withSession([comment('fb_001')]);
+    const g2 = runWith(nativeBinary(), [], ['approve', 'G2', '--note', 'ok', '--accept-findings', '--accept-unverified'], {
+      state: concepts,
+      setup: openComment,
+    });
+    assert.equal(g2.code, 1);
+    assert.match(g2.stderr, /^G2 blocked: 1 review comment\(s\) are not resolved/);
+    assert.ok(!('.dfw/decisions.jsonl' in g2.files) && !('.dfw/state.json' in g2.files));
+    // A state without gates fails while the gate is recorded: the stack stays proposed.
+    const { gates: _gates, ...noGates } = FROZEN;
+    const g3 = runWith(nativeBinary(), [], ['approve', 'G3', '--note', 'Vue'], {
+      state: noGates,
+      setup: (root) => write(root, '.dfw/stack.json', STACK),
+    });
+    assert.equal(g3.code, 1);
+    assert.deepEqual(g3.files, {});
+  });
+
   test('reopen, pause and resume', () => {
     for (const phase of ['stack', 'implement', 'verify', 'done', 'concepts', 'audit']) {
       const r = same(['reopen', '--reason', 'Client feedback'], { state: { ...FROZEN, phase, gates: { ...FROZEN.gates, G4: GATE } } });
@@ -398,7 +452,7 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
     const ok = [
       ['--level', '1', 'Blue', 'accent'],
       ['--level', '3', '--topic', 'type', '--overrides', 'd1', 'Inter for UI text'],
-      ['--level', '2.5', '--text', 'From a flag'],
+      ['--level', '2', '--text', 'From a flag'],
       ['--level=5', 'x'],
       ['--level', '0x2', 'hex'],
       ['--level', ' 4 ', 'padded'],
@@ -411,7 +465,10 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
     }
     assert.equal(same(['decide', '--level', '2', 'x'], { state: null }).code, 0, 'decide needs no workflow');
     // 0.5.2: --level and --text alone are refused, no longer read as level 1 and an empty text.
+    // 0.6.1 (CO-13): a level is a whole number, 1.5 and 2.5 are refused.
     for (const args of [
+      ['--level', '1.5', 'x'],
+      ['--level', '2.5', '--text', 'From a flag'],
       ['x'],
       ['--level', '0', 'x'],
       ['--level', '6', 'x'],
@@ -465,7 +522,11 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
       same(['config', 'get', ...args], { env });
       same(['config', 'get', ...args], { env, setup: layers });
     }
-    assert.equal(same(['config', 'get', 'no.such.key']).stdout, 'undefined\n');
+    // 0.6.1 (CO-9): a key that is not set is an error that says so, no longer "undefined".
+    assert.equal(
+      same(['config', 'get', 'no.such.key']).stderr,
+      '"no.such.key" is not set in the config; "dfw config get" prints every setting.\n',
+    );
     assert.equal(same(['config', 'get', 'studio.port'], { env, setup: layers }).stdout, '4800\n');
     const sets = [
       [['studio.port', '4700'], '.dfw/config.json'],
@@ -600,7 +661,11 @@ describe('hot: comments', { skip: skipReason() }, () => {
     );
     assert.equal(JSON.parse(same(['comments', 'show', 'fb_005'], opts()).stdout).session, 'rv_1');
     for (const args of [['show', 'fb_999'], ['show']]) assert.equal(same(['comments', ...args], opts()).code, 1);
-    assert.equal(same(['comments', 'show'], opts()).stderr, 'Comment undefined not found.\n');
+    // 0.6.1 (CO-9): a missing id is named as such, no longer "Comment undefined not found."
+    assert.equal(
+      same(['comments', 'show'], opts()).stderr,
+      '"dfw comments show" needs a comment id: dfw comments show <id> ("dfw comments list" shows the ids).\n',
+    );
     assert.equal(same(['comments', 'nope'], opts()).stderr, 'Unknown comments subcommand "nope".\n');
     // Comments of every session are listed, oldest session first.
     same(['comments', 'list'], {
@@ -648,7 +713,7 @@ describe('hot: comments', { skip: skipReason() }, () => {
     assert.equal(at(['reply', 'fb_001']).stderr, '--message is required.\n');
     assert.match(at(['dismiss', 'fb_001']).stderr, /^Dismissing needs --message/);
     assert.equal(at(['ack', 'fb_999']).stderr, 'Comment fb_999 not found.\n');
-    assert.equal(at(['ack']).stderr, 'Comment undefined not found.\n');
+    assert.equal(at(['ack']).stderr, '"dfw comments ack" needs a comment id: dfw comments ack <id> ("dfw comments list" shows the ids).\n');
   });
 
   test('message, author and evidence flags', () => {

@@ -22,14 +22,15 @@ use crate::core::error::DfwError;
 use crate::core::host::render_text;
 use crate::core::js;
 use crate::core::paths::{find_project_root, resolve};
-use crate::core::util::{plugin_manifest, to_json_compact};
+use crate::core::util::{parse_args, plugin_manifest, to_json_compact};
 use crate::workflow::gates::decide_write;
 use crate::workflow::state::load_state;
 
 /// The value of `{{SKILL_DIR}}` for the host "mcp" (`core::host`).
 const SKILL_DIR_MARK: &str = "__DFW_SKILL_DIR__";
 /// Commands a model may not run through the `dfw` tool, besides every internal `__*` command
-/// (the Studio and review servers, `__debug`): see [`blocked`].
+/// (the Studio and review servers, `__debug`) and the forms that write outside the project:
+/// see [`blocked`].
 const BLOCKED: [&str; 5] = ["hook", "mcp", "install", "uninstall", "setup"];
 const TOOL_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 
@@ -140,10 +141,32 @@ fn collect(
     })
 }
 
-/// True for a command the `dfw` tool refuses: one of [`BLOCKED`] or an internal `__*` command
-/// (a server started by the CLI itself, never by a model).
-fn blocked(command: &str) -> bool {
-    BLOCKED.contains(&command) || command.starts_with("__")
+/// The form the `dfw` tool refuses, named for the message; `None` when it may run. Refused: one
+/// of [`BLOCKED`], an internal `__*` command (a server started by the CLI itself, never by a
+/// model), and every form that writes the user's global config or reaches outside the project:
+/// `telemetry` except `status` and `show`, `config ... --global` and `lang set`. The command is
+/// found as the CLI finds it (the first word that is not a flag or a flag's value).
+fn blocked(list: &[&str]) -> Option<String> {
+    if let Some(first) = list.first().filter(|f| f.starts_with("__")) {
+        return Some(first.to_string());
+    }
+    let args = parse_args(list);
+    let cmd = args.pos(0).unwrap_or_default();
+    let sub = args.pos(1);
+    if BLOCKED.contains(&cmd) || cmd.starts_with("__") {
+        return Some(cmd.to_string());
+    }
+    let refused = match cmd {
+        "telemetry" => !matches!(sub, None | Some("status" | "show")),
+        "config" => args.get("global").is_some(),
+        "lang" => sub == Some("set"),
+        _ => false,
+    };
+    refused.then(|| match (cmd, sub) {
+        ("config", _) => "config --global".to_string(),
+        (_, Some(sub)) => format!("{cmd} {sub}"),
+        _ => cmd.to_string(),
+    })
 }
 
 /// `runDfw(args, cwd)`: run this binary with the given arguments and return what it printed
@@ -156,10 +179,9 @@ fn run_dfw(args: Option<&Value>, cwd: Option<&Value>) -> Result<ToolResult, Tool
     let Some(list) = list else {
         return Err("\"args\" must be a non-empty list of strings, e.g. [\"status\"].".into());
     };
-    if blocked(list[0]) {
+    if let Some(form) = blocked(&list) {
         return Err(format!(
-            "\"dfw {}\" is not available through MCP; ask the user to run it in a terminal.",
-            list[0]
+            "\"dfw {form}\" is not available through MCP; ask the user to run it in a terminal."
         ));
     }
     let dir = base_dir(cwd, "options.cwd")?;
@@ -505,6 +527,72 @@ mod tests {
         ] {
             assert!(guide(Some(&json!(refused))).is_err(), "{refused}");
         }
+    }
+
+    /// TR-2: every form that writes the user's global config or reaches outside the project is
+    /// refused, wherever the command word stands; the project's own commands still run.
+    #[test]
+    fn forms_that_write_outside_the_project_are_refused() {
+        let form = |list: &[&str]| blocked(list);
+        let refused = [
+            (&["install"][..], "install"),
+            (&["--root", ".", "install", "--host", "claude"], "install"),
+            (&["uninstall"], "uninstall"),
+            (&["setup", "--a11y"], "setup"),
+            (&["setup", "--marketplace-repo", "/x"], "setup"),
+            (&["mcp", "install", "codex"], "mcp"),
+            (&["hook", "stop"], "hook"),
+            (&["telemetry", "on"], "telemetry on"),
+            (&["telemetry", "off"], "telemetry off"),
+            (
+                &["telemetry", "endpoint", "https://evil.example/v1"],
+                "telemetry endpoint",
+            ),
+            (&["telemetry", "flush"], "telemetry flush"),
+            (&["telemetry", ""], "telemetry "),
+            (
+                &[
+                    "config",
+                    "set",
+                    "impeccable.allowUnverifiedEngine",
+                    "true",
+                    "--global",
+                ],
+                "config --global",
+            ),
+            (
+                &["config", "set", "env.PATH", "/x", "--global", "yes"],
+                "config --global",
+            ),
+            (&["config", "set", "a", "1", "--global="], "config --global"),
+            (
+                &["config", "get", "telemetry", "--global"],
+                "config --global",
+            ),
+            (&["lang", "set", "vi"], "lang set"),
+            (&["lang", "set", "vi", "--session", "s1"], "lang set"),
+            (&["__debug", "hot"], "__debug"),
+        ];
+        for (list, name) in refused {
+            assert_eq!(form(list).as_deref(), Some(name), "{list:?}");
+        }
+        for allowed in [
+            &["status"][..],
+            &["telemetry"],
+            &["telemetry", "status"],
+            &["telemetry", "show", "--raw"],
+            &["config", "get", "gate"],
+            &["config", "set", "checks.onEdit", "full"],
+            &["config", "set", "a", "1", "--local"],
+            &["lang", "status"],
+            &["lang"],
+        ] {
+            assert_eq!(form(allowed), None, "{allowed:?}");
+        }
+        assert_eq!(
+            run_dfw(Some(&json!(["telemetry", "endpoint", "https://evil.example/v1"])), None).err(),
+            Some("\"dfw telemetry endpoint\" is not available through MCP; ask the user to run it in a terminal.".to_string())
+        );
     }
 
     /// mcp: the guide is served from the binary, rendered for MCP, with no folder on disk

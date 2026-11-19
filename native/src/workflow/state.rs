@@ -1,8 +1,8 @@
 //! Ports `core/lib/state.mjs`: workflow state machine, phases, modes and approval gates (`.dfw/state.json`).
 //!
-//! The state is a `serde_json::Value` (the user owns the file; key order is kept). Where the Node
-//! code would throw a `TypeError` on a state that lacks a field, the functions here return an
-//! internal error, so a hook fails open and a command exits with 1, as in Node.
+//! The state is a `serde_json::Value` (the user owns the file; key order is kept). A state that
+//! lacks a field or holds one of the wrong type is an error that names the field
+//! ([`state_field_error`]): a command exits with 1, a hook fails open.
 
 use std::path::Path;
 
@@ -134,22 +134,24 @@ pub fn type_error(property: &str) -> DfwError {
     ))
 }
 
-/// `value.key` of something that must be there: an error where JavaScript would throw.
-fn required<'a>(value: &'a Value, key: &str, child: &str) -> Result<&'a Value, DfwError> {
-    match value.get(key) {
+/// A field of `.dfw/state.json` that is missing or not of the `kind` the workflow needs ("an
+/// object", "a list"): the user's file to fix.
+pub fn state_field_error(field: &str, kind: &str) -> DfwError {
+    DfwError::new(format!(".dfw/state.json: \"{field}\" is missing or is not {kind}. Restore the file from version control, or fix that field by hand."))
+}
+
+/// `state.key` of something that must be there.
+fn required<'a>(state: &'a Value, key: &str) -> Result<&'a Value, DfwError> {
+    match state.get(key) {
         Some(v) if !v.is_null() => Ok(v),
-        _ => Err(type_error(child)),
+        _ => Err(state_field_error(key, "an object")),
     }
 }
 
-fn object_mut<'a>(
-    state: &'a mut Value,
-    key: &str,
-    child: &str,
-) -> Result<&'a mut Map<String, Value>, DfwError> {
+fn object_mut<'a>(state: &'a mut Value, key: &str) -> Result<&'a mut Map<String, Value>, DfwError> {
     match state.get_mut(key) {
         Some(Value::Object(map)) => Ok(map),
-        _ => Err(type_error(child)),
+        _ => Err(state_field_error(key, "an object")),
     }
 }
 
@@ -160,15 +162,15 @@ pub fn push_history(state: &mut Value, entry: Value) -> Result<(), DfwError> {
             history.push(entry);
             Ok(())
         }
-        _ => Err(type_error("push")),
+        _ => Err(state_field_error("history", "a list")),
     }
 }
 
 /// `state[key] = value`, or the key removed for `undefined`.
 pub fn set_field(state: &mut Value, key: &str, value: Option<Value>) -> Result<(), DfwError> {
     let Value::Object(map) = state else {
-        return Err(DfwError::internal(
-            ".dfw/state.json does not hold an object.",
+        return Err(DfwError::new(
+            ".dfw/state.json does not hold an object. Restore the file from version control.",
         ));
     };
     match value {
@@ -259,14 +261,14 @@ pub fn gate_passed(state: &Value, gate: &str) -> bool {
 /// `currentApproval(state)`: the current approved design (`None` while the latest version is
 /// still a draft).
 pub fn current_approval(state: &Value) -> Result<Option<Value>, DfwError> {
-    let design = required(state, "design", "status")?;
+    let design = required(state, "design")?;
     if design.get("status").and_then(Value::as_str) != Some("approved") {
         return Ok(None);
     }
     let approved = design
         .get("approved")
         .and_then(Value::as_array)
-        .ok_or_else(|| type_error("at"))?;
+        .ok_or_else(|| state_field_error("design.approved", "a list"))?;
     Ok(js::truthy_value(approved.last()).cloned())
 }
 
@@ -275,7 +277,7 @@ fn state_mode(state: &Value) -> Result<&'static Mode, DfwError> {
         .get("mode")
         .and_then(Value::as_str)
         .and_then(mode_info)
-        .ok_or_else(|| type_error("writesCode"))
+        .ok_or_else(|| state_field_error("mode", "a known mode (\"dfw mode <mode>\" sets one)"))
 }
 
 /// `transitionBlockers(state, to)`: reasons the transition is not allowed (empty = allowed).
@@ -430,7 +432,7 @@ pub fn approve_gate(
         }
         target.extend(extra.clone());
     }
-    object_mut(state, "gates", gate)?.insert(gate.to_string(), Value::Object(record));
+    object_mut(state, "gates")?.insert(gate.to_string(), Value::Object(record));
     push_history(state, Value::Object(event))?;
     append_jsonl(&p.decisions, &gate_entry(&at, gate, title, note.as_ref()))?;
     save_state(root, state)
@@ -465,7 +467,7 @@ pub fn summarize(state: Option<&Value>) -> Result<String, DfwError> {
     let Some(state) = state else {
         return Ok("dfw: no workflow in this project (run /dfw to start).".into());
     };
-    let gates = required(state, "gates", "G1")?;
+    let gates = required(state, "gates")?;
     let g = |k: &str| {
         if js::truthy_value(gates.get(k)).is_some() {
             "approved"
@@ -475,7 +477,7 @@ pub fn summarize(state: Option<&Value>) -> Result<String, DfwError> {
             "open"
         }
     };
-    let design = required(state, "design", "version")?;
+    let design = required(state, "design")?;
     let appr = current_approval(state)?;
     let product = js::truthy_value(state.get("product"))
         .map_or("(unnamed)".to_string(), |p| js::to_string(Some(p)));
@@ -522,6 +524,36 @@ mod tests {
 
     /// state machine: system needs G1, concepts needs G1+DS, implement needs G2+G3
     /// (tests/unit/dfw.test.mjs)
+    /// E2: a broken state names the field and the fix, never a JavaScript TypeError.
+    #[test]
+    fn a_broken_state_names_the_field() {
+        let mut s = fresh("new-product");
+        s.as_object_mut().unwrap().shift_remove("gates");
+        assert_eq!(
+            summarize(Some(&s)).unwrap_err().report(),
+            ".dfw/state.json: \"gates\" is missing or is not an object. Restore the file from version control, or fix that field by hand."
+        );
+        let mut s = fresh("new-product");
+        s["design"]["approved"] = json!("v1");
+        s["design"]["status"] = "approved".into();
+        assert!(current_approval(&s)
+            .unwrap_err()
+            .message()
+            .contains("\"design.approved\" is missing or is not a list"));
+        let mut s = fresh("new-product");
+        s["mode"] = "nope".into();
+        assert!(transition_blockers(&s, Some("stack"))
+            .unwrap_err()
+            .message()
+            .contains("\"mode\" is missing or is not a known mode"));
+        let mut s = fresh("new-product");
+        s["history"] = json!({});
+        assert!(push_history(&mut s, json!({}))
+            .unwrap_err()
+            .message()
+            .contains("\"history\""));
+    }
+
     #[test]
     fn state_machine_system_needs_g1_concepts_needs_g1_ds_implement_needs_g2_g3() {
         let mut s = fresh("new-product");

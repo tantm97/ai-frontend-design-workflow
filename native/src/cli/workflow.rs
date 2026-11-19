@@ -1,5 +1,5 @@
-//! Workflow commands of `core/lib/cli.mjs`: init, status, mode, phase, approve, reopen, pause, resume,
-//! decide, decisions, config, lang, verify-snapshot (`cmdInit`, `cmdStatus`, `nextStep`, `cmdApprove`).
+//! Workflow commands: init, status, mode, phase, approve, reopen, pause, resume, decide,
+//! decisions, config, lang, verify-snapshot.
 //! Every branch runs here; `approve DS` and `approve G2` run their gate's checks first (G2 with
 //! the rendered accessibility check).
 
@@ -17,7 +17,7 @@ use crate::core::paths::project_paths;
 use crate::core::process::is_alive;
 use crate::core::util::{
     append_jsonl, now_iso, out, parse_value, read_json, to_json_compact, to_json_pretty,
-    write_atomic, write_json, ArgValue, Args,
+    write_atomic, write_json, Args,
 };
 use crate::design::compose::{build_system, load_components};
 use crate::design::dsaudit::audit_design_system;
@@ -31,8 +31,8 @@ use crate::workflow::lang::{language_status, set_language};
 use crate::workflow::stack::detect_stack;
 use crate::workflow::state::{
     approve_gate, arg_raw, arg_truthy, current_approval, gate_title, load_state, mode_info,
-    new_state, push_history, require_state, save_state, set_field, set_mode, set_phase, summarize,
-    type_error,
+    new_state, push_history, require_state, save_state, set_field, set_mode, set_phase,
+    state_field_error, summarize, type_error,
 };
 
 /// The commands of this group.
@@ -180,7 +180,9 @@ fn status(ctx: &Ctx) -> Result<i32, DfwError> {
     }
     let mut lines = vec![summarize(state.as_ref())?];
     if let Some(state) = &state {
-        let gates = state.get("gates").ok_or_else(|| type_error("G3"))?;
+        let gates = state
+            .get("gates")
+            .ok_or_else(|| state_field_error("gates", "an object"))?;
         let gate = |g: &str| js::truthy_value(gates.get(g)).is_some();
         lines.push(format!(
             "comments: {active} active, {fixed} awaiting user verification, {resolved} resolved"
@@ -360,25 +362,14 @@ fn approve_g2(root: &Path, a: &Args, state: &mut Value, note: Value) -> Result<i
     if report.errors > 0 && !a.truthy("accept-findings") {
         return Err(DfwError::new(format!("G2 blocked: {} MUST finding(s) in the design.\n{}\nFix them, or if the user explicitly accepts them, re-run with --accept-findings (it is recorded).", report.errors, report.text)));
     }
-    if report.errors > 0 {
-        let musts: Vec<Value> = report
-            .findings
-            .iter()
-            .filter(|f| f.get("level").and_then(Value::as_str) == Some("error"))
-            .take(50)
-            .cloned()
-            .collect();
-        append_jsonl(
-            &project_paths(root).decisions,
-            &json!({
-                "at": now_iso(),
-                "level": 1,
-                "topic": "gate:G2:accepted-findings",
-                "decision": format!("User accepted {} MUST finding(s) at freeze.", report.errors),
-                "findings": musts,
-                "by": "user",
-            }),
-        )?;
+    // A configured check that did not run is not a pass: freezing without it is the user's call.
+    let not_verified: Vec<&str> = report
+        .text
+        .lines()
+        .filter(|l| l.starts_with("NOT VERIFIED"))
+        .collect();
+    if !report.unverified.is_empty() && !a.truthy("accept-unverified") {
+        return Err(DfwError::new(format!("G2 blocked: {} configured check(s) did not run ({}), so the design is not verified.\n{}\nInstall what is missing (\"dfw doctor\" lists it; \"dfw setup --a11y\" downloads axe) or turn the check off in the config. If the user explicitly accepts freezing without these checks, re-run with --accept-unverified (it is recorded).", report.unverified.len(), report.unverified.join(", "), not_verified.join("\n"))));
     }
     let open: Vec<String> = all_comments(root)?
         .iter()
@@ -400,12 +391,48 @@ fn approve_g2(root: &Path, a: &Args, state: &mut Value, note: Value) -> Result<i
         .and_then(|list| list.last())
         .ok_or_else(|| type_error("version"))?;
     let hash = js::to_string(last.get("hash"));
-    out(&format!(
-        "Design frozen as {} (sha256 {}).\n{}",
-        js::to_string(last.get("version")),
-        js::slice16(&hash, 0, 12),
-        summarize(Some(state))?
-    ));
+    let version = js::to_string(last.get("version"));
+    // Recorded only once the design is frozen: a refusal after the checks records nothing.
+    if report.errors > 0 {
+        let musts: Vec<Value> = report
+            .findings
+            .iter()
+            .filter(|f| f.get("level").and_then(Value::as_str) == Some("error"))
+            .take(50)
+            .cloned()
+            .collect();
+        append_jsonl(
+            &project_paths(root).decisions,
+            &json!({
+                "at": now_iso(),
+                "level": 1,
+                "topic": "gate:G2:accepted-findings",
+                "decision": format!("User accepted {} MUST finding(s) at freeze.", report.errors),
+                "findings": musts,
+                "by": "user",
+            }),
+        )?;
+    }
+    if !report.unverified.is_empty() {
+        append_jsonl(
+            &project_paths(root).decisions,
+            &json!({
+                "at": now_iso(),
+                "level": 1,
+                "topic": "gate:G2:accepted-unverified",
+                "decision": format!("User accepted freezing {version} with {} check(s) not run: {}.", report.unverified.len(), report.unverified.join(", ")),
+                "unverified": report.unverified,
+                "by": "user",
+            }),
+        )?;
+    }
+    let mut lines = vec![format!(
+        "Design frozen as {version} (sha256 {}).",
+        js::slice16(&hash, 0, 12)
+    )];
+    lines.extend(not_verified.iter().map(|l| l.to_string()));
+    lines.push(summarize(Some(state))?);
+    out(&lines.join("\n"));
     Ok(0)
 }
 
@@ -423,21 +450,21 @@ fn approve(ctx: &Ctx) -> Result<i32, DfwError> {
     if gate == "G2" {
         return approve_g2(&root, a, &mut state, note);
     }
+    let file = project_paths(&root).stack;
+    let mut stack = Value::Null;
     if gate == "G3" {
-        let file = project_paths(&root).stack;
-        let mut stack = read_json(&file, Some(Value::Null))?;
+        stack = read_json(&file, Some(Value::Null))?;
         if file.exists() && !stack.is_object() {
             return Err(DfwError::new("G3 needs a stack proposal: .dfw/stack.json must hold a JSON object (run: dfw stack set ... or dfw stack detect --write)."));
         }
-        if js::truthy(&stack) {
-            if let Value::Object(map) = &mut stack {
-                map.insert("status".into(), "approved".into());
-                map.insert("approvedAt".into(), now_iso().into());
-            }
-            write_json(&file, &stack)?;
-        }
     }
     approve_gate(&root, &mut state, &gate, Some(note), Map::new())?;
+    // The stack is marked approved only once the gate is recorded.
+    if let Value::Object(map) = &mut stack {
+        map.insert("status".into(), "approved".into());
+        map.insert("approvedAt".into(), now_iso().into());
+        write_json(&file, &stack)?;
+    }
     out(&format!(
         "{gate} approved: {}.\n{}",
         gate_title(&gate).unwrap_or_default(),
@@ -483,12 +510,8 @@ fn pause_resume(ctx: &Ctx) -> Result<i32, DfwError> {
 
 fn decide_cmd(ctx: &Ctx) -> Result<i32, DfwError> {
     let a = &ctx.args;
-    // `Number(a.level)`: the flag alone is `true`, which is 1.
-    let level = match a.get("level") {
-        Some(ArgValue::Flag) => 1.0,
-        Some(ArgValue::Text(text)) => js::str_to_number(text),
-        None => f64::NAN,
-    };
+    // `Number(a.level)`; `--level` alone never gets here (`require_flag_values`).
+    let level = a.text("level").map_or(f64::NAN, js::str_to_number);
     let words = a.positionals.get(1..).unwrap_or_default().join(" ");
     let text = if words.is_empty() {
         arg_truthy(a, "text")
@@ -520,11 +543,12 @@ fn config(ctx: &Ctx) -> Result<i32, DfwError> {
     match a.pos(1) {
         Some("get") => {
             let value = match a.pos(2).filter(|k| !k.is_empty()) {
-                Some(key) => get_config_value(Some(&root), key)?,
-                None => Some(load_config(Some(&root))?),
+                Some(key) => get_config_value(Some(&root), key)?.ok_or_else(|| {
+                    DfwError::new(format!("\"{key}\" is not set in the config; \"dfw config get\" prints every setting."))
+                })?,
+                None => load_config(Some(&root))?,
             };
-            // A key that is not set prints as JavaScript's undefined.
-            out(&value.map_or("undefined".to_string(), |v| to_json_pretty(&v)));
+            out(&to_json_pretty(&value));
             Ok(0)
         }
         Some("set") => {
@@ -552,14 +576,8 @@ fn config(ctx: &Ctx) -> Result<i32, DfwError> {
 
 fn lang(ctx: &Ctx) -> Result<i32, DfwError> {
     let a = &ctx.args;
-    let session = match a.get("session") {
-        // `--session` alone is `true` in Node, which has no text to make a file name from.
-        Some(ArgValue::Flag) => {
-            return Err(DfwError::internal("id.replace is not a function"));
-        }
-        Some(ArgValue::Text(text)) => Some(text.as_str()),
-        None => None,
-    };
+    // `--session` alone never gets here (`require_flag_values`).
+    let session = a.text("session");
     match a.pos(1).filter(|s| !s.is_empty()).unwrap_or("status") {
         "status" => print_json(&language_status(session)?),
         "set" => print_json(&set_language(a.pos(2), session)?),
@@ -587,7 +605,7 @@ fn verify_snapshot_cmd(ctx: &Ctx) -> Result<i32, DfwError> {
                 .get("design")
                 .and_then(|d| d.get("approved"))
                 .and_then(Value::as_array)
-                .ok_or_else(|| type_error("at"))?;
+                .ok_or_else(|| state_field_error("design.approved", "a list"))?;
             version_of(approved.last())
         }
     };

@@ -1,0 +1,4 @@
+{
+  "test": "hot: workflow commands > approve G2: a check that did not run blocks the freeze unless the user accepts it",
+  "results": []
+}

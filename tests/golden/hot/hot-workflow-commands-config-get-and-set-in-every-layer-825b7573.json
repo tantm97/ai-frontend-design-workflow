@@ -3,13 +3,13 @@
   "results": [
     {
       "code": 0,
-      "stdout": "{\n  \"schema\": 1,\n  \"language\": {\n    \"askPolicy\": \"session\",\n    \"default\": \"en\"\n  },\n  \"gate\": {\n    \"allow\": [\n      \".dfw/**\",\n      \"design/handoff/**\"\n    ],\n    \"designPaths\": [\n      \"design/**\",\n      \"PRODUCT.md\",\n      \"DESIGN.md\"\n    ],\n    \"immutable\": [\n      \"design/approved/**\"\n    ]\n  },\n  \"checks\": {\n    \"onEdit\": \"fast\",\n    \"timeoutMs\": 8000,\n    \"impeccable\": true,\n    \"sloplint\": true,\n    \"tasteCopyLint\": false,\n    \"maxFindings\": 12\n  },\n  \"studio\": {\n    \"port\": 4600,\n    \"breakpoints\": [\n      {\n        \"id\": \"desktop\",\n        \"label\": \"Desktop\",\n        \"width\": 1440,\n        \"height\": 900\n      },\n      {\n        \"id\": \"tablet\",\n        \"label\": \"Tablet\",\n        \"width\": 834,\n        \"height\": 1112\n      },\n      {\n        \"id\": \"mobile\",\n        \"label\": \"Mobile\",\n        \"width\": 390,\n        \"height\": 844\n      }\n    ]\n  },\n  \"review\": {\n    \"shortcut\": \"alt+c\"\n  },\n  \"accessibility\": {\n    \"standard\": \"WCAG 2.2\",\n    \"level\": \"AA\"\n  },\n  \"skills\": {\n    \"optional\": {\n      \"hallmark\": true,\n      \"taste-reference\": true\n    },\n    \"disabled\": []\n  },\n  \"env\": {\n    \"DO_NOT_TRACK\": \"1\",\n    \"IMPECCABLE_NO_UPDATE_CHECK\": \"1\",\n    \"IMPECCABLE_HOOK_DISABLED\": \"1\"\n  }\n}\n",
+      "stdout": "{\n  \"schema\": 1,\n  \"language\": {\n    \"askPolicy\": \"session\",\n    \"default\": \"en\"\n  },\n  \"gate\": {\n    \"allow\": [\n      \".dfw/**\",\n      \"design/handoff/**\"\n    ],\n    \"designPaths\": [\n      \"design/**\",\n      \"PRODUCT.md\",\n      \"DESIGN.md\"\n    ],\n    \"immutable\": [\n      \"design/approved/**\",\n      \".dfw/state.json\",\n      \".dfw/config.json\",\n      \".dfw/config.local.json\",\n      \".dfw/decisions.jsonl\",\n      \".dfw/stack.json\",\n      \".dfw/reviews/**\"\n    ]\n  },\n  \"checks\": {\n    \"onEdit\": \"fast\",\n    \"timeoutMs\": 8000,\n    \"impeccable\": true,\n    \"sloplint\": true,\n    \"tasteCopyLint\": false,\n    \"maxFindings\": 12\n  },\n  \"studio\": {\n    \"port\": 4600,\n    \"breakpoints\": [\n      {\n        \"id\": \"desktop\",\n        \"label\": \"Desktop\",\n        \"width\": 1440,\n        \"height\": 900\n      },\n      {\n        \"id\": \"tablet\",\n        \"label\": \"Tablet\",\n        \"width\": 834,\n        \"height\": 1112\n      },\n      {\n        \"id\": \"mobile\",\n        \"label\": \"Mobile\",\n        \"width\": 390,\n        \"height\": 844\n      }\n    ]\n  },\n  \"review\": {\n    \"shortcut\": \"alt+c\"\n  },\n  \"accessibility\": {\n    \"standard\": \"WCAG 2.2\",\n    \"level\": \"AA\"\n  },\n  \"skills\": {\n    \"optional\": {\n      \"hallmark\": true,\n      \"taste-reference\": true\n    },\n    \"disabled\": []\n  },\n  \"env\": {\n    \"DO_NOT_TRACK\": \"1\",\n    \"IMPECCABLE_NO_UPDATE_CHECK\": \"1\",\n    \"IMPECCABLE_HOOK_DISABLED\": \"1\"\n  }\n}\n",
       "stderr": "",
       "files": {}
     },
     {
       "code": 0,
-      "stdout": "{\n  \"schema\": 1,\n  \"language\": {\n    \"askPolicy\": \"session\",\n    \"default\": \"en\",\n    \"lastUsed\": \"vi\"\n  },\n  \"gate\": {\n    \"allow\": [\n      \".dfw/**\",\n      \"design/handoff/**\",\n      \"global/**\",\n      \"docs/**\"\n    ],\n    \"designPaths\": [\n      \"design/**\",\n      \"PRODUCT.md\",\n      \"DESIGN.md\"\n    ],\n    \"immutable\": [\n      \"design/approved/**\"\n    ]\n  },\n  \"checks\": {\n    \"onEdit\": false,\n    \"timeoutMs\": 8000,\n    \"impeccable\": true,\n    \"sloplint\": true,\n    \"tasteCopyLint\": false,\n    \"maxFindings\": 12\n  },\n  \"studio\": {\n    \"port\": 4800,\n    \"breakpoints\": [\n      {\n        \"id\": \"desktop\",\n        \"label\": \"Desktop\",\n        \"width\": 1440,\n        \"height\": 900\n      },\n      {\n        \"id\": \"tablet\",\n        \"label\": \"Tablet\",\n        \"width\": 834,\n        \"height\": 1112\n      },\n      {\n        \"id\": \"mobile\",\n        \"label\": \"Mobile\",\n        \"width\": 390,\n        \"height\": 844\n      }\n    ]\n  },\n  \"review\": {\n    \"shortcut\": \"alt+c\"\n  },\n  \"accessibility\": {\n    \"standard\": \"WCAG 2.2\",\n    \"level\": \"AA\"\n  },\n  \"skills\": {\n    \"optional\": {\n      \"hallmark\": true,\n      \"taste-reference\": true\n    },\n    \"disabled\": []\n  },\n  \"env\": {\n    \"DO_NOT_TRACK\": \"1\",\n    \"IMPECCABLE_NO_UPDATE_CHECK\": \"1\",\n    \"IMPECCABLE_HOOK_DISABLED\": \"1\"\n  }\n}\n",
+      "stdout": "{\n  \"schema\": 1,\n  \"language\": {\n    \"askPolicy\": \"session\",\n    \"default\": \"en\",\n    \"lastUsed\": \"vi\"\n  },\n  \"gate\": {\n    \"allow\": [\n      \".dfw/**\",\n      \"design/handoff/**\",\n      \"global/**\",\n      \"docs/**\"\n    ],\n    \"designPaths\": [\n      \"design/**\",\n      \"PRODUCT.md\",\n      \"DESIGN.md\"\n    ],\n    \"immutable\": [\n      \"design/approved/**\",\n      \".dfw/state.json\",\n      \".dfw/config.json\",\n      \".dfw/config.local.json\",\n      \".dfw/decisions.jsonl\",\n      \".dfw/stack.json\",\n      \".dfw/reviews/**\"\n    ]\n  },\n  \"checks\": {\n    \"onEdit\": false,\n    \"timeoutMs\": 8000,\n    \"impeccable\": true,\n    \"sloplint\": true,\n    \"tasteCopyLint\": false,\n    \"maxFindings\": 12\n  },\n  \"studio\": {\n    \"port\": 4800,\n    \"breakpoints\": [\n      {\n        \"id\": \"desktop\",\n        \"label\": \"Desktop\",\n        \"width\": 1440,\n        \"height\": 900\n      },\n      {\n        \"id\": \"tablet\",\n        \"label\": \"Tablet\",\n        \"width\": 834,\n        \"height\": 1112\n      },\n      {\n        \"id\": \"mobile\",\n        \"label\": \"Mobile\",\n        \"width\": 390,\n        \"height\": 844\n      }\n    ]\n  },\n  \"review\": {\n    \"shortcut\": \"alt+c\"\n  },\n  \"accessibility\": {\n    \"standard\": \"WCAG 2.2\",\n    \"level\": \"AA\"\n  },\n  \"skills\": {\n    \"optional\": {\n      \"hallmark\": true,\n      \"taste-reference\": true\n    },\n    \"disabled\": []\n  },\n  \"env\": {\n    \"DO_NOT_TRACK\": \"1\",\n    \"IMPECCABLE_NO_UPDATE_CHECK\": \"1\",\n    \"IMPECCABLE_HOOK_DISABLED\": \"1\"\n  }\n}\n",
       "stderr": "",
       "files": {}
     },
@@ -62,9 +62,9 @@
       "files": {}
     },
     {
-      "code": 0,
-      "stdout": "undefined\n",
-      "stderr": "",
+      "code": 1,
+      "stdout": "",
+      "stderr": "\"language.lastUsed\" is not set in the config; \"dfw config get\" prints every setting.\n",
       "files": {}
     },
     {
@@ -74,14 +74,20 @@
       "files": {}
     },
     {
-      "code": 0,
-      "stdout": "undefined\n",
-      "stderr": "",
+      "code": 1,
+      "stdout": "",
+      "stderr": "\"no.such.key\" is not set in the config; \"dfw config get\" prints every setting.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "\"no.such.key\" is not set in the config; \"dfw config get\" prints every setting.\n",
       "files": {}
     },
     {
       "code": 0,
-      "stdout": "undefined\n",
+      "stdout": "\"tablet\"\n",
       "stderr": "",
       "files": {}
     },
@@ -93,26 +99,20 @@
     },
     {
       "code": 0,
-      "stdout": "\"tablet\"\n",
+      "stdout": "{\n  \"schema\": 1,\n  \"language\": {\n    \"askPolicy\": \"session\",\n    \"default\": \"en\"\n  },\n  \"gate\": {\n    \"allow\": [\n      \".dfw/**\",\n      \"design/handoff/**\"\n    ],\n    \"designPaths\": [\n      \"design/**\",\n      \"PRODUCT.md\",\n      \"DESIGN.md\"\n    ],\n    \"immutable\": [\n      \"design/approved/**\",\n      \".dfw/state.json\",\n      \".dfw/config.json\",\n      \".dfw/config.local.json\",\n      \".dfw/decisions.jsonl\",\n      \".dfw/stack.json\",\n      \".dfw/reviews/**\"\n    ]\n  },\n  \"checks\": {\n    \"onEdit\": \"fast\",\n    \"timeoutMs\": 8000,\n    \"impeccable\": true,\n    \"sloplint\": true,\n    \"tasteCopyLint\": false,\n    \"maxFindings\": 12\n  },\n  \"studio\": {\n    \"port\": 4600,\n    \"breakpoints\": [\n      {\n        \"id\": \"desktop\",\n        \"label\": \"Desktop\",\n        \"width\": 1440,\n        \"height\": 900\n      },\n      {\n        \"id\": \"tablet\",\n        \"label\": \"Tablet\",\n        \"width\": 834,\n        \"height\": 1112\n      },\n      {\n        \"id\": \"mobile\",\n        \"label\": \"Mobile\",\n        \"width\": 390,\n        \"height\": 844\n      }\n    ]\n  },\n  \"review\": {\n    \"shortcut\": \"alt+c\"\n  },\n  \"accessibility\": {\n    \"standard\": \"WCAG 2.2\",\n    \"level\": \"AA\"\n  },\n  \"skills\": {\n    \"optional\": {\n      \"hallmark\": true,\n      \"taste-reference\": true\n    },\n    \"disabled\": []\n  },\n  \"env\": {\n    \"DO_NOT_TRACK\": \"1\",\n    \"IMPECCABLE_NO_UPDATE_CHECK\": \"1\",\n    \"IMPECCABLE_HOOK_DISABLED\": \"1\"\n  }\n}\n",
       "stderr": "",
       "files": {}
     },
     {
       "code": 0,
-      "stdout": "{\n  \"schema\": 1,\n  \"language\": {\n    \"askPolicy\": \"session\",\n    \"default\": \"en\"\n  },\n  \"gate\": {\n    \"allow\": [\n      \".dfw/**\",\n      \"design/handoff/**\"\n    ],\n    \"designPaths\": [\n      \"design/**\",\n      \"PRODUCT.md\",\n      \"DESIGN.md\"\n    ],\n    \"immutable\": [\n      \"design/approved/**\"\n    ]\n  },\n  \"checks\": {\n    \"onEdit\": \"fast\",\n    \"timeoutMs\": 8000,\n    \"impeccable\": true,\n    \"sloplint\": true,\n    \"tasteCopyLint\": false,\n    \"maxFindings\": 12\n  },\n  \"studio\": {\n    \"port\": 4600,\n    \"breakpoints\": [\n      {\n        \"id\": \"desktop\",\n        \"label\": \"Desktop\",\n        \"width\": 1440,\n        \"height\": 900\n      },\n      {\n        \"id\": \"tablet\",\n        \"label\": \"Tablet\",\n        \"width\": 834,\n        \"height\": 1112\n      },\n      {\n        \"id\": \"mobile\",\n        \"label\": \"Mobile\",\n        \"width\": 390,\n        \"height\": 844\n      }\n    ]\n  },\n  \"review\": {\n    \"shortcut\": \"alt+c\"\n  },\n  \"accessibility\": {\n    \"standard\": \"WCAG 2.2\",\n    \"level\": \"AA\"\n  },\n  \"skills\": {\n    \"optional\": {\n      \"hallmark\": true,\n      \"taste-reference\": true\n    },\n    \"disabled\": []\n  },\n  \"env\": {\n    \"DO_NOT_TRACK\": \"1\",\n    \"IMPECCABLE_NO_UPDATE_CHECK\": \"1\",\n    \"IMPECCABLE_HOOK_DISABLED\": \"1\"\n  }\n}\n",
+      "stdout": "{\n  \"schema\": 1,\n  \"language\": {\n    \"askPolicy\": \"session\",\n    \"default\": \"en\",\n    \"lastUsed\": \"vi\"\n  },\n  \"gate\": {\n    \"allow\": [\n      \".dfw/**\",\n      \"design/handoff/**\",\n      \"global/**\",\n      \"docs/**\"\n    ],\n    \"designPaths\": [\n      \"design/**\",\n      \"PRODUCT.md\",\n      \"DESIGN.md\"\n    ],\n    \"immutable\": [\n      \"design/approved/**\",\n      \".dfw/state.json\",\n      \".dfw/config.json\",\n      \".dfw/config.local.json\",\n      \".dfw/decisions.jsonl\",\n      \".dfw/stack.json\",\n      \".dfw/reviews/**\"\n    ]\n  },\n  \"checks\": {\n    \"onEdit\": false,\n    \"timeoutMs\": 8000,\n    \"impeccable\": true,\n    \"sloplint\": true,\n    \"tasteCopyLint\": false,\n    \"maxFindings\": 12\n  },\n  \"studio\": {\n    \"port\": 4800,\n    \"breakpoints\": [\n      {\n        \"id\": \"desktop\",\n        \"label\": \"Desktop\",\n        \"width\": 1440,\n        \"height\": 900\n      },\n      {\n        \"id\": \"tablet\",\n        \"label\": \"Tablet\",\n        \"width\": 834,\n        \"height\": 1112\n      },\n      {\n        \"id\": \"mobile\",\n        \"label\": \"Mobile\",\n        \"width\": 390,\n        \"height\": 844\n      }\n    ]\n  },\n  \"review\": {\n    \"shortcut\": \"alt+c\"\n  },\n  \"accessibility\": {\n    \"standard\": \"WCAG 2.2\",\n    \"level\": \"AA\"\n  },\n  \"skills\": {\n    \"optional\": {\n      \"hallmark\": true,\n      \"taste-reference\": true\n    },\n    \"disabled\": []\n  },\n  \"env\": {\n    \"DO_NOT_TRACK\": \"1\",\n    \"IMPECCABLE_NO_UPDATE_CHECK\": \"1\",\n    \"IMPECCABLE_HOOK_DISABLED\": \"1\"\n  }\n}\n",
       "stderr": "",
       "files": {}
     },
     {
-      "code": 0,
-      "stdout": "{\n  \"schema\": 1,\n  \"language\": {\n    \"askPolicy\": \"session\",\n    \"default\": \"en\",\n    \"lastUsed\": \"vi\"\n  },\n  \"gate\": {\n    \"allow\": [\n      \".dfw/**\",\n      \"design/handoff/**\",\n      \"global/**\",\n      \"docs/**\"\n    ],\n    \"designPaths\": [\n      \"design/**\",\n      \"PRODUCT.md\",\n      \"DESIGN.md\"\n    ],\n    \"immutable\": [\n      \"design/approved/**\"\n    ]\n  },\n  \"checks\": {\n    \"onEdit\": false,\n    \"timeoutMs\": 8000,\n    \"impeccable\": true,\n    \"sloplint\": true,\n    \"tasteCopyLint\": false,\n    \"maxFindings\": 12\n  },\n  \"studio\": {\n    \"port\": 4800,\n    \"breakpoints\": [\n      {\n        \"id\": \"desktop\",\n        \"label\": \"Desktop\",\n        \"width\": 1440,\n        \"height\": 900\n      },\n      {\n        \"id\": \"tablet\",\n        \"label\": \"Tablet\",\n        \"width\": 834,\n        \"height\": 1112\n      },\n      {\n        \"id\": \"mobile\",\n        \"label\": \"Mobile\",\n        \"width\": 390,\n        \"height\": 844\n      }\n    ]\n  },\n  \"review\": {\n    \"shortcut\": \"alt+c\"\n  },\n  \"accessibility\": {\n    \"standard\": \"WCAG 2.2\",\n    \"level\": \"AA\"\n  },\n  \"skills\": {\n    \"optional\": {\n      \"hallmark\": true,\n      \"taste-reference\": true\n    },\n    \"disabled\": []\n  },\n  \"env\": {\n    \"DO_NOT_TRACK\": \"1\",\n    \"IMPECCABLE_NO_UPDATE_CHECK\": \"1\",\n    \"IMPECCABLE_HOOK_DISABLED\": \"1\"\n  }\n}\n",
-      "stderr": "",
-      "files": {}
-    },
-    {
-      "code": 0,
-      "stdout": "undefined\n",
-      "stderr": "",
+      "code": 1,
+      "stdout": "",
+      "stderr": "\"no.such.key\" is not set in the config; \"dfw config get\" prints every setting.\n",
       "files": {}
     },
     {

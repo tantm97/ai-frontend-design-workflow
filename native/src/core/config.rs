@@ -32,8 +32,18 @@ pub fn defaults() -> Value {
             "allow": [".dfw/**", "design/handoff/**"],
             // Paths that belong to the design workspace (writable before G2, locked after).
             "designPaths": ["design/**", "PRODUCT.md", "DESIGN.md"],
-            // Frozen snapshots are never writable.
-            "immutable": ["design/approved/**"],
+            // Frozen snapshots are never writable, nor (by the agent's own tools) the files that
+            // hold the gates, approvals, decisions, settings and review comments: dfw commands
+            // write those directly. A union across layers: a project cannot drop one.
+            "immutable": [
+                "design/approved/**",
+                ".dfw/state.json",
+                ".dfw/config.json",
+                ".dfw/config.local.json",
+                ".dfw/decisions.jsonl",
+                ".dfw/stack.json",
+                ".dfw/reviews/**",
+            ],
         },
         "checks": {
             // PostToolUse checks: "fast" (dfw lint), "full" (all tools) or false.
@@ -452,6 +462,39 @@ mod tests {
         fs::remove_dir_all(&root).unwrap();
     }
 
+    /// RV-2: the files that hold gates and approvals stay immutable whatever a project config
+    /// says, so the agent's Write tool cannot open the gate by editing them.
+    #[test]
+    fn a_project_config_cannot_unfreeze_the_files_of_the_gates() {
+        use crate::workflow::gates::decide_write;
+        use crate::workflow::state::new_state;
+        let root = project(
+            "config-owned",
+            Some(r#"{"gate":{"allow":["**"],"immutable":[]}}"#),
+            Some(r#"{"gate":{"immutable":null}}"#),
+        );
+        let c = load(&root).unwrap();
+        let state = new_state("new-product", "".into()).unwrap();
+        for file in [
+            ".dfw/state.json",
+            ".dfw/config.json",
+            ".dfw/config.local.json",
+            ".dfw/decisions.jsonl",
+            ".dfw/stack.json",
+            ".dfw/reviews/rv_1.json",
+        ] {
+            let d = decide_write(&root, Some(&state), &c, &root.join(file)).unwrap();
+            assert!(!d.allow, "{file}");
+            assert!(
+                d.reason.unwrap().contains("only dfw commands change it"),
+                "{file}"
+            );
+        }
+        let notes = decide_write(&root, Some(&state), &c, &root.join(".dfw/notes.md")).unwrap();
+        assert!(notes.allow, "the rest of .dfw/ stays writable");
+        fs::remove_dir_all(&root).unwrap();
+    }
+
     #[test]
     fn without_files_the_config_is_the_defaults_in_node_key_order() {
         let tmp = test_dir("config-none");
@@ -498,7 +541,12 @@ mod tests {
                 "notes/**"
             ]
         );
-        assert_eq!(gate_immutable(&c), ["design/approved/**", "vendor/**"]);
+        let immutable = gate_immutable(&c);
+        assert_eq!(
+            immutable.first().map(String::as_str),
+            Some("design/approved/**")
+        );
+        assert_eq!(immutable.last().map(String::as_str), Some("vendor/**"));
         assert_eq!(gate_design_paths(&c), ["ui/**"], "other lists replace");
         assert_eq!(studio_port(&c), 4800, "local wins");
         assert_eq!(
@@ -544,7 +592,7 @@ mod tests {
         );
         assert_eq!(
             to_json_compact(&c["gate"]["immutable"]),
-            r#"["design/approved/**",1,{"a":1},null,{"a":1}]"#
+            r#"["design/approved/**",".dfw/state.json",".dfw/config.json",".dfw/config.local.json",".dfw/decisions.jsonl",".dfw/stack.json",".dfw/reviews/**",1,{"a":1},null,{"a":1}]"#
         );
         assert_eq!(
             to_json_compact(&c["skills"]),

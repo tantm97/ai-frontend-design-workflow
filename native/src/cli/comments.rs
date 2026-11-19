@@ -1,4 +1,4 @@
-//! The `comments` command of `core/lib/cli.mjs` (`cmdComments`, `cmdCommentsWait`).
+//! The `comments` command and its subcommands, `comments wait` included.
 
 use serde_json::Value;
 
@@ -31,6 +31,14 @@ fn comments(ctx: &Ctx) -> Result<i32, DfwError> {
     let by = |fallback: &str| arg_truthy(a, "by").or_else(|| Some(fallback.into()));
     let change = |update: Update| print_json(&update_comment(&root, id, &update)?);
     let to = |status: &str| Some(status.to_string());
+    let takes_id = [
+        "show", "ack", "fixed", "reply", "dismiss", "resolve", "reopen",
+    ];
+    if takes_id.contains(&sub) && id.is_none_or(str::is_empty) {
+        return Err(DfwError::new(format!(
+            "\"dfw comments {sub}\" needs a comment id: dfw comments {sub} <id> (\"dfw comments list\" shows the ids)."
+        )));
+    }
     match sub {
         "wait" => wait(ctx),
         "list" => list(ctx),
@@ -42,7 +50,7 @@ fn comments(ctx: &Ctx) -> Result<i32, DfwError> {
                 Some(c) => print_json(&c),
                 None => Err(DfwError::new(format!(
                     "Comment {} not found.",
-                    id.unwrap_or("undefined")
+                    id.unwrap_or_default()
                 ))),
             }
         }
@@ -176,12 +184,9 @@ fn list(ctx: &Ctx) -> Result<i32, DfwError> {
 
 /// `dfw comments wait [--timeout <seconds>]`: block until the user posts comments.
 fn wait(ctx: &Ctx) -> Result<i32, DfwError> {
-    // `(Number(a.timeout) || 3600) * 1000`: the flag alone is `true`, which is 1.
-    let seconds = match ctx.args.get("timeout") {
-        Some(ArgValue::Flag) => 1.0,
-        Some(ArgValue::Text(text)) => js::str_to_number(text),
-        None => f64::NAN,
-    };
+    // `(Number(a.timeout) || 3600) * 1000`; `--timeout` alone never gets here
+    // (`require_flag_values`).
+    let seconds = ctx.args.text("timeout").map_or(f64::NAN, js::str_to_number);
     let seconds = Some(seconds)
         .filter(|s| *s != 0.0 && !s.is_nan())
         .unwrap_or(3600.0);

@@ -74,13 +74,14 @@ fn element_ids(src: &str) -> Vec<IdAt> {
 }
 
 /// The session's working directory from the payload, else the process's. A `cwd` that is not
-/// text is an error, as Node cannot resolve a path against it.
+/// text is an error (the hook fails open with it on stderr).
 fn session_cwd(input: &HookInput) -> Result<PathBuf, DfwError> {
     match js::truthy_value(input.raw.get("cwd")) {
         Some(Value::String(cwd)) => Ok(PathBuf::from(cwd)),
-        Some(_) => Err(DfwError::internal(
-            "The \"paths[0]\" argument must be of type string.",
-        )),
+        Some(other) => Err(DfwError::new(format!(
+            "the host sent a \"cwd\" that is not a path ({}); the write gate could not check this call. Update the host CLI or report it to the dfw maintainers.",
+            js::to_string(Some(other))
+        ))),
         None => Ok(env::current_dir()?),
     }
 }

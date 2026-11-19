@@ -7,6 +7,7 @@ Workflow
   dfw phase <phase> [--force --reason <r>]      Move to a phase (discovery, direction, system, concepts, stack, implement, verify, audit, done)
   dfw approve <G1|DS|G2|G3|G4> --note <text>    Record the user's approval (DS = design system, G2 freezes the design)
         [--accept-findings]                     G2 only: approve despite MUST findings (recorded)
+        [--accept-unverified]                   G2 only: freeze although a configured check did not run (recorded)
   dfw reopen --reason <text>                    Re-open an approved design as a new version
   dfw decide --level <1-5> --topic <t> <text>   Record a decision (1=user ... 5=external skill)
   dfw decisions [--json]                        List recorded decisions

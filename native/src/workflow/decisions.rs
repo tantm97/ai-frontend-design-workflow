@@ -10,8 +10,6 @@ use crate::core::js;
 use crate::core::paths::project_paths;
 use crate::core::util::{append_jsonl, now_iso, read_jsonl};
 
-use super::state::type_error;
-
 /// The entry `approveGate` appends: a level 1 (user) decision named after the gate.
 pub fn gate_entry(at: &str, gate: &str, title: &str, note: Option<&Value>) -> Value {
     let note = note.map_or(String::new(), |n| format!(" - {}", js::to_string(Some(n))));
@@ -25,7 +23,8 @@ pub fn gate_entry(at: &str, gate: &str, title: &str, note: Option<&Value>) -> Va
 }
 
 /// `dfw decide`: validate and append one decision; returns the entry written.
-/// `level` is `Number(--level)`; 1 is the user, 5 an external skill's recommendation.
+/// `level` is `Number(--level)`, a whole number; 1 is the user, 5 an external skill's
+/// recommendation.
 pub fn decide(
     root: &Path,
     level: f64,
@@ -33,7 +32,8 @@ pub fn decide(
     text: Option<Value>,
     overrides: Option<Value>,
 ) -> Result<Value, DfwError> {
-    if !(1.0..=5.0).contains(&level) {
+    // A whole level only: 1.5 is no level of the table.
+    if !(1.0..=5.0).contains(&level) || level.fract() != 0.0 {
         return Err(DfwError::new(
             "--level must be 1 (user) .. 5 (external skill recommendation).",
         ));
@@ -69,10 +69,11 @@ pub fn format_decisions(list: &[Value]) -> Result<String, DfwError> {
     let lines: Result<Vec<String>, DfwError> = list
         .iter()
         .map(|d| {
-            let at = d
-                .get("at")
-                .and_then(Value::as_str)
-                .ok_or_else(|| type_error("slice"))?;
+            let at = d.get("at").and_then(Value::as_str).ok_or_else(|| {
+                DfwError::new(
+                    ".dfw/decisions.jsonl: a decision has no \"at\" time. Fix or remove that line.",
+                )
+            })?;
             // slice(0, 16) counts UTF-16 units; a timestamp is ASCII.
             let units: Vec<u16> = at.encode_utf16().take(16).collect();
             Ok(format!(
@@ -97,6 +98,13 @@ mod tests {
         let root = test_dir("decisions");
         assert!(decide(&root, f64::NAN, None, Some("x".into()), None).is_err());
         assert!(decide(&root, 6.0, None, Some("x".into()), None).is_err());
+        // CO-13: only whole levels.
+        for odd in [1.5, 0.5, 4.999, f64::INFINITY] {
+            assert!(
+                decide(&root, odd, None, Some("x".into()), None).is_err(),
+                "{odd}"
+            );
+        }
         assert_eq!(
             decide(&root, 2.0, None, None, None).unwrap_err().message(),
             "Decision text is required."
