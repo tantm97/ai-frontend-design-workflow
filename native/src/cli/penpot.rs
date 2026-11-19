@@ -11,9 +11,7 @@ use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{project_paths, resolve};
 use crate::core::process::is_alive;
-use crate::core::util::{
-    get_path, out, read_json, read_stdin, to_json_compact, to_json_pretty, ArgValue,
-};
+use crate::core::util::{get_path, out, read_json, read_stdin, to_json_compact, to_json_pretty};
 use crate::design::compose::build_system;
 use crate::design::tokens::build_tokens;
 use crate::penpot::export::{
@@ -31,24 +29,13 @@ pub fn commands() -> Vec<(&'static str, Handler)> {
     vec![("penpot", run as Handler)]
 }
 
-/// A flag as the Node CLI read it in `a.flag || null`: its text, `true` when it stood alone,
-/// nothing when it is missing or empty.
+/// A value flag as the Node CLI read it in `a.flag || null`: its text, nothing when it is
+/// missing or empty. Given alone it never gets here (`require_flag_values`).
 fn flag_text(ctx: &Ctx, key: &str) -> Option<String> {
-    match ctx.args.get(key) {
-        Some(ArgValue::Flag) => Some("true".to_string()),
-        Some(ArgValue::Text(t)) if !t.is_empty() => Some(t.clone()),
-        _ => None,
-    }
-}
-
-/// A flag that names a file: given without a value it is refused (Node threw a TypeError).
-fn path_flag(ctx: &Ctx, key: &str) -> Result<Option<String>, DfwError> {
-    match ctx.args.get(key) {
-        Some(ArgValue::Flag) => Err(DfwError::new(format!(
-            "--{key} needs a file name, e.g. --{key} out.json."
-        ))),
-        _ => Ok(flag_text(ctx, key)),
-    }
+    ctx.args
+        .text(key)
+        .filter(|t| !t.is_empty())
+        .map(str::to_string)
 }
 
 fn run(ctx: &Ctx) -> Result<i32, DfwError> {
@@ -69,7 +56,7 @@ fn export(ctx: &Ctx, root: &Path) -> Result<i32, DfwError> {
     let opts = ExportOptions {
         page: flag_text(ctx, "page"),
         bp: flag_text(ctx, "bp"),
-        out: path_flag(ctx, "out")?,
+        out: flag_text(ctx, "out"),
     };
     let (file, doc) = export_penpot(root, &opts)?;
     let errors = doc.get("errors").cloned().unwrap_or(Value::Null);
@@ -166,7 +153,7 @@ pub(super) fn tokens_export(ctx: &Ctx) -> Result<i32, DfwError> {
             "Unknown --format \"{format}\" (supported: penpot)."
         )));
     }
-    let out_file = path_flag(ctx, "out")?;
+    let out_file = flag_text(ctx, "out");
     let r = export_penpot_tokens(&root, out_file.as_deref(), ctx.args.truthy("opt-themes"))?;
     if ctx.args.truthy("json") {
         out(&to_json_pretty(&json!({

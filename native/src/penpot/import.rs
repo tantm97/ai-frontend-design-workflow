@@ -540,7 +540,7 @@ fn ledger_has(ledger: &[Value], fingerprint: &str) -> bool {
 /// `importChanges`: import a change file. Writes feedback comments (provider `penpot`), the
 /// ledger, thread links and the token diff file; never edits `design/`.
 // Long: the steps share the ledger, the thread links and the result, and their order is the
-// order files are written in (comments, ledger, threads, archive), as in the Node function.
+// order files are written in (comments, ledger, threads, archive).
 #[allow(clippy::too_many_lines)]
 pub fn import_changes(
     root: &Path,

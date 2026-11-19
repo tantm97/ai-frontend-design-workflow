@@ -377,7 +377,11 @@ impl Found {
             .and_then(|c| c.get_mut(self.index))
         {
             Some(Value::Object(comment)) => Ok(comment),
-            _ => Err(DfwError::internal("The comment is not an object.")),
+            _ => Err(DfwError::new(format!(
+                "{}: comment {} of \"comments\" is not an object. Fix that review session file (or move it out of .dfw/reviews/) and run the command again.",
+                shown(&self.file),
+                self.index + 1
+            ))),
         }
     }
 
@@ -402,10 +406,13 @@ fn find_comment(root: &Path, id: Option<&str>) -> Result<Found, DfwError> {
             });
         }
     }
-    Err(DfwError::new(format!(
-        "Comment {} not found.",
-        id.unwrap_or("undefined")
-    )))
+    Err(DfwError::new(match id {
+        Some(id) => format!("Comment {id} not found."),
+        None => {
+            "No comment id given: name the comment by its id (\"dfw comments list\" shows the ids)."
+                .to_string()
+        }
+    }))
 }
 
 /// `setCommentScreenshot(root, id, file)`: attach a screenshot taken after the comment was
@@ -433,8 +440,8 @@ pub struct Update {
 }
 
 /// `updateComment(root, id, { status, message, by, evidence })`: change a comment's status
-/// and/or add a line to its thread; returns the comment. `id` is `None` when the command line
-/// named none (the error then says `undefined`, as in Node).
+/// and/or add a line to its thread; returns the comment. `id` is `None` when the caller has
+/// none (a Penpot thread whose comment lost its id): the error says so.
 pub fn update_comment(root: &Path, id: Option<&str>, update: &Update) -> Result<Value, DfwError> {
     locked(root, || update_comment_unlocked(root, id, update))
 }
@@ -445,7 +452,8 @@ fn update_comment_unlocked(
     update: &Update,
 ) -> Result<Value, DfwError> {
     let mut found = find_comment(root, id)?;
-    let id = id.unwrap_or("undefined");
+    // Found, so the id was given.
+    let id = id.unwrap_or_default();
     let file = found.file.clone();
     let comment = found.comment()?;
     let at = now_iso();
@@ -701,7 +709,7 @@ mod tests {
             update_comment(&root, None, &Update::default())
                 .unwrap_err()
                 .message(),
-            "Comment undefined not found."
+            "No comment id given: name the comment by its id (\"dfw comments list\" shows the ids)."
         );
         let shot = set_comment_screenshot(&root, "fb_001", ".dfw/shots/fb_001.png").unwrap();
         assert_eq!(shot["screenshot"], ".dfw/shots/fb_001.png");

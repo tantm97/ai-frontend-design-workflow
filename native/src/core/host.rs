@@ -238,9 +238,9 @@ pub fn get_host(id: Option<&str>) -> Result<&'static Host, DfwError> {
     let id = id.filter(|i| !i.is_empty()).unwrap_or("claude");
     HOSTS.iter().find(|h| h.id == id).ok_or_else(|| {
         let known: Vec<&str> = HOSTS.iter().map(|h| h.id).collect();
-        // A plain Error in Node (not a DfwError), so it is reported the same way here.
-        DfwError::internal(format!(
-            "Unknown host \"{id}\". Known: {}",
+        // The user's to fix (a --host flag or DFW_HOST), so a user error.
+        DfwError::new(format!(
+            "Unknown host \"{id}\" (from --host or DFW_HOST). Use one of: {}.",
             known.join(", ")
         ))
     })
@@ -594,7 +594,7 @@ mod tests {
         assert_eq!(get_host(Some("")).unwrap().id, "claude");
         assert_eq!(
             get_host(Some("nope")).unwrap_err().report(),
-            "Error: Unknown host \"nope\". Known: claude, copilot, mcp, opencode, codex, cursor"
+            "Unknown host \"nope\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor."
         );
         let text = |t: &str| ArgValue::Text(t.to_string());
         assert_eq!(

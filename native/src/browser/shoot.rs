@@ -14,7 +14,7 @@ use crate::core::js;
 use crate::core::paths::{project_paths, resolve, ProjectPaths};
 use crate::core::process::is_alive;
 use crate::core::util::read_json;
-use crate::workflow::state::{load_state, type_error};
+use crate::workflow::state::{load_state, state_field_error};
 
 /// What to shoot, as the flags of `dfw shoot` give it. A text flag given alone reads `"true"`,
 /// as in cli.mjs.
@@ -213,7 +213,7 @@ fn shots_version(root: &Path) -> Result<String, DfwError> {
             js::to_string(
                 state
                     .get("design")
-                    .ok_or_else(|| type_error("version"))?
+                    .ok_or_else(|| state_field_error("design", "an object"))?
                     .get("version")
             )
         ),

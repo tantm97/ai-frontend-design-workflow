@@ -16,9 +16,7 @@ use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{project_paths, resolve};
 use crate::core::process::{is_alive, kill};
-use crate::core::util::{
-    ensure_inside, now_iso, out, read_json, write_json_inside, ArgValue, Args,
-};
+use crate::core::util::{ensure_inside, now_iso, out, read_json, write_json_inside, Args};
 use crate::studio::live_proxy::{
     assert_local_target, configured_shortcut, start_live_server, LiveOptions,
 };
@@ -187,13 +185,9 @@ fn studio(ctx: &Ctx) -> Result<i32, DfwError> {
     Ok(0)
 }
 
-/// The `--shortcut` flag as Node reads it (`String(a.shortcut)`: alone it is "true").
+/// The `--shortcut` flag (alone it never gets here: `require_flag_values`).
 fn shortcut_flag(a: &Args) -> Option<String> {
-    match a.get("shortcut") {
-        Some(ArgValue::Flag) => Some("true".into()),
-        Some(ArgValue::Text(t)) => Some(t.clone()),
-        None => None,
-    }
+    a.text("shortcut").map(str::to_string)
 }
 
 /// `dfw review start --url <dev server> [--port <n>] [--shortcut <combo>] [--no-shots] | stop | status`.

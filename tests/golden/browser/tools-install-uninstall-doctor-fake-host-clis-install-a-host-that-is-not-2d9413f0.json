@@ -43,7 +43,7 @@
       "extra": {
         "calls": ""
       },
-      "stderr": "Error: Unknown host \"nope\". Known: claude, copilot, mcp, opencode, codex, cursor"
+      "stderr": "Unknown host \"nope\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor."
     },
     {
       "code": 1,

@@ -151,9 +151,9 @@ pub struct ToolRun<'a> {
 fn sloplint_scope(root: &Path) -> Result<&'static str, DfwError> {
     let manifest = read_json(&project_paths(root).manifest, Some(json!({})))?;
     if manifest.is_null() {
-        // As in Node, where a design.json that holds `null` ends the run with this TypeError.
-        return Err(DfwError::internal(
-            "Cannot read properties of null (reading 'surface')",
+        // A design.json that holds `null` ends the run (as in Node), with what to fix.
+        return Err(DfwError::new(
+            "design/design.json holds null, not the design manifest (a JSON object). Restore it from version control, or fix it by hand, and run the command again.",
         ));
     }
     Ok(

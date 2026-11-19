@@ -62,23 +62,15 @@ pub fn commands() -> Vec<(&'static str, Handler)> {
 
 // ---------------------------------------------------------------- arguments as cli.mjs read them
 
-/// A flag as the string JavaScript made of it (`--x` alone is `true`); `None` when it is
-/// missing or empty (`a.x || fallback`).
+/// A value flag's text; `None` when it is missing or empty (`a.x || fallback`). Given alone it
+/// never gets here (`require_flag_values`).
 fn flag(args: &Args, key: &str) -> Option<String> {
-    match args.get(key) {
-        Some(ArgValue::Flag) => Some("true".to_string()),
-        Some(ArgValue::Text(t)) if !t.is_empty() => Some(t.clone()),
-        _ => None,
-    }
+    args.text(key).filter(|t| !t.is_empty()).map(str::to_string)
 }
 
-/// `v == null ? undefined : Number(v)`.
+/// `v == null ? undefined : Number(v)` of a value flag.
 fn num(args: &Args, key: &str) -> Option<f64> {
-    match args.get(key) {
-        Some(ArgValue::Flag) => Some(1.0),
-        Some(ArgValue::Text(t)) => Some(js::str_to_number(t)),
-        None => None,
-    }
+    args.text(key).map(js::str_to_number)
 }
 
 /// `Number(a.x) || fallback`.
@@ -134,9 +126,9 @@ fn has_error(findings: &[Value]) -> bool {
 /// `dfw tokens extract --url <u> [--out <file>]`: a token seed from a rendered page.
 fn tokens_extract(ctx: &Ctx) -> Result<i32, DfwError> {
     let a = &ctx.args;
-    let url = match a.get("url") {
-        Some(ArgValue::Text(url)) if !url.is_empty() => url.as_str(),
-        Some(ArgValue::Flag) => "true",
+    // `--url` alone never gets here (`require_flag_values`).
+    let url = match a.text("url") {
+        Some(url) if !url.is_empty() => url,
         _ => return usage("Usage: dfw tokens extract --url <reference site or running app> [--out design/system/extracted.tokens.json]"),
     };
     if !crate::browser::launch::browser_status().installed() {
@@ -224,11 +216,8 @@ fn check(ctx: &Ctx) -> Result<i32, DfwError> {
     let a = &ctx.args;
     let is_check = a.pos(0) == Some("check");
     let root = ctx.root();
-    let url = match a.get("url") {
-        Some(ArgValue::Text(u)) if !u.is_empty() => Some(u.clone()),
-        Some(ArgValue::Flag) => return usage("--url needs a value: dfw check --url <running app>"),
-        _ => None,
-    };
+    // `--url` alone never gets here (`require_flag_values`).
+    let url = a.text("url").filter(|u| !u.is_empty()).map(str::to_string);
     let mut files: Vec<String> = a.positionals.iter().skip(1).cloned().collect();
     // "--strict <file>": the file is a target, not the flag's value.
     if let Some(ArgValue::Text(file)) = a.get("strict") {

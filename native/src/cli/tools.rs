@@ -40,13 +40,12 @@ pub fn commands() -> Vec<(&'static str, Handler)> {
     ]
 }
 
-/// `a.<key> || fallback` for a flag used as text ("true" when it stood alone).
+/// `a.<key> || fallback` for a value flag (alone it never gets here: `require_flag_values`).
 fn flag_or(a: &Args, key: &str, fallback: &str) -> String {
-    match a.get(key) {
-        Some(ArgValue::Flag) => "true".to_string(),
-        Some(ArgValue::Text(t)) if !t.is_empty() => t.clone(),
-        _ => fallback.to_string(),
-    }
+    a.text(key)
+        .filter(|t| !t.is_empty())
+        .unwrap_or(fallback)
+        .to_string()
 }
 
 /// `dfw inspector setup [--write] [--json]` (`cmdInspector`).
@@ -159,7 +158,7 @@ fn version_of(bin: &str) -> (bool, String, String) {
 }
 
 /// `dfw doctor`: environment and installation checks (`cmdDoctor`).
-// One row after the other, in the order cmdDoctor prints them.
+// Long: one row after the other, in the order the report prints them.
 #[allow(clippy::too_many_lines)]
 fn doctor(ctx: &Ctx) -> Result<i32, DfwError> {
     let root = ctx.root();
@@ -384,7 +383,7 @@ use crate::tools::handoff::write_handoff;
 use crate::tools::mcp::serve_mcp;
 use crate::tools::mcp_install::{mcp_install, which_tool};
 use crate::workflow::stack::detect_stack;
-use crate::workflow::state::{load_state, push_history, save_state, type_error};
+use crate::workflow::state::{load_state, push_history, save_state, state_field_error};
 
 /// `dfw mcp`: the server on stdio; `dfw mcp install|uninstall <tool|all> [--print]`.
 fn mcp(ctx: &Ctx) -> Result<i32, DfwError> {
@@ -422,17 +421,12 @@ fn stack(ctx: &Ctx) -> Result<i32, DfwError> {
             out(&to_json_pretty(&detected));
         }
         Some("set") => {
-            let given = match (a.truthy("file"), a.get("file"), a.get("json")) {
-                (true, Some(ArgValue::Text(f)), _) => read_json(&resolve(f), None)?,
-                // `--file` alone is `true`, which path.resolve refuses.
-                (true, ..) => {
-                    return Err(DfwError::internal(
-                        "The \"paths[0]\" argument must be of type string. Received type boolean (true)",
-                    ))
-                }
+            // `--file` alone never gets here (`require_flag_values`).
+            let given = match (a.text("file").filter(|f| !f.is_empty()), a.get("json")) {
+                (Some(f), _) => read_json(&resolve(f), None)?,
                 // `--json` alone is `true`, and JSON.parse(true) is true.
-                (_, _, Some(ArgValue::Flag)) => json!(true),
-                (_, _, Some(ArgValue::Text(t))) if !t.is_empty() => serde_json::from_str(t)?,
+                (None, Some(ArgValue::Flag)) => json!(true),
+                (None, Some(ArgValue::Text(t))) if !t.is_empty() => serde_json::from_str(t)?,
                 _ => json!({}),
             };
             let mut data = js::spread(Some(&given));
@@ -443,7 +437,7 @@ fn stack(ctx: &Ctx) -> Result<i32, DfwError> {
                 let gates = state
                     .get_mut("gates")
                     .filter(|g| !g.is_null())
-                    .ok_or_else(|| type_error("G3"))?;
+                    .ok_or_else(|| state_field_error("gates", "an object"))?;
                 if js::truthy_value(gates.get("G3")).is_some() {
                     gates["G3"] = Value::Null;
                     push_history(

@@ -967,31 +967,31 @@
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 0,
@@ -999,31 +999,31 @@
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 0,
@@ -1031,31 +1031,31 @@
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 0,
@@ -1063,31 +1063,31 @@
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 0,
@@ -1095,31 +1095,31 @@
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     },
     {
       "code": 1,
-      "stderr": "Error: Unknown host \"no-such-host\". Known: claude, copilot, mcp, opencode, codex, cursor\n"
+      "stderr": "Unknown host \"no-such-host\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor.\n"
     }
   ]
 }

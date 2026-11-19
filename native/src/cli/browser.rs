@@ -13,7 +13,7 @@ use crate::browser::screenshot::{screenshot, CONCURRENCY};
 use crate::browser::shoot::{shoot_breakpoints, studio_jobs, url_jobs, ShootOptions};
 use crate::core::error::DfwError;
 use crate::core::paths::resolve;
-use crate::core::util::{out, sha256, to_json_pretty, ArgValue, Args};
+use crate::core::util::{out, sha256, to_json_pretty, Args};
 use crate::design::layout_cache::{changed_screens, mark_checked};
 
 /// The commands of this group.
@@ -25,14 +25,10 @@ pub fn commands() -> Vec<(&'static str, Handler)> {
     ]
 }
 
-/// A flag as cli.mjs uses it in a string: its text, "true" when it stood alone, nothing when it
-/// is missing or empty.
+/// A value flag's text, nothing when it is missing or empty. Given alone it never gets here
+/// (`require_flag_values`).
 fn flag(a: &Args, key: &str) -> Option<String> {
-    match a.get(key) {
-        Some(ArgValue::Flag) => Some("true".to_string()),
-        Some(ArgValue::Text(t)) if !t.is_empty() => Some(t.clone()),
-        _ => None,
-    }
+    a.text(key).filter(|t| !t.is_empty()).map(str::to_string)
 }
 
 /// `path.relative(from, to)` for two absolute, normalised paths.
@@ -174,9 +170,8 @@ fn diff(ctx: &Ctx) -> Result<i32, DfwError> {
     let out_arg = flag(a, "out").map(resolve);
     let pairs = diff_pairs(&resolve(first), &resolve(second), out_arg.as_deref())?;
     // Number(a.threshold) || 0.1
-    let threshold = match a.get("threshold") {
-        Some(ArgValue::Flag) => 1.0,
-        Some(ArgValue::Text(t)) => t
+    let threshold = match a.text("threshold") {
+        Some(t) => t
             .trim()
             .parse::<f64>()
             .ok()
@@ -264,7 +259,8 @@ mod tests {
                 viewport: true,
                 selector: Some("#a".into()),
                 screen: Some("cart".into()),
-                page: Some("true".into()),
+                // `--page` alone is refused before (`require_flag_values`); here it reads as none.
+                page: None,
                 states: true,
                 theme: Some("dark".into()),
                 ..ShootOptions::default()

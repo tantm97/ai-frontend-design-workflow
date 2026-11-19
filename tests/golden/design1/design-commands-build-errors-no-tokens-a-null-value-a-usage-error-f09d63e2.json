@@ -10,7 +10,7 @@
     {
       "code": 1,
       "stdout": "",
-      "stderr": "Token \"space.a\" has no value ($value is null).\n",
+      "stderr": "design/tokens/tokens.json: Token \"space.a\" has no value ($value is null). Fix that token and run the command again.\n",
       "files": {}
     },
     {

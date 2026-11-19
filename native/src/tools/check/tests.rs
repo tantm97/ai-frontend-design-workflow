@@ -810,3 +810,18 @@ fn tools_that_do_not_run_are_reported() {
     assert_eq!(run(&lookup, 5000)[0]["status"], "error");
     assert_eq!(run(&lookup, 5000)[0]["detail"], "");
 }
+
+/// A design.json that holds `null` names the file and the fix, as a user error (review E2:
+/// it was the JavaScript TypeError text).
+#[test]
+fn a_null_design_manifest_is_a_user_error_that_names_the_file() {
+    let root = test_dir("check-null-manifest");
+    write(&root, "design/design.json", "null");
+    let err = sloplint_scope(&root).unwrap_err();
+    assert!(
+        err.message().starts_with("design/design.json holds null"),
+        "{err}"
+    );
+    assert!(!err.report().starts_with("Error:"));
+    fs::remove_dir_all(&root).unwrap();
+}

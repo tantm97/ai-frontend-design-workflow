@@ -15,7 +15,7 @@ use crate::core::util::{get_path, list_files, read_json, write_atomic_inside};
 use crate::review::comments::all_comments;
 use crate::workflow::freeze::check_snapshot_name;
 use crate::workflow::gates::relative;
-use crate::workflow::state::{current_approval, require_state, type_error};
+use crate::workflow::state::{current_approval, require_state};
 
 /// `text.replaceAll(needle, replacement)` with a string pattern: `$$`, `$&`, `` $` `` and `$'`
 /// in the replacement mean what JavaScript says, so a product name or a comment with a dollar
@@ -97,7 +97,12 @@ fn screen_rows(m: &Value, version: &str) -> Result<Vec<String>, DfwError> {
         let variants = s
             .get("variants")
             .and_then(Value::as_array)
-            .ok_or_else(|| type_error("find"))?;
+            .ok_or_else(|| {
+                DfwError::new(format!(
+                    "design/approved/{version}/design.json: screen \"{}\" has no \"variants\" list. The snapshot is frozen: run \"dfw verify-snapshot {version}\", and if it was edited restore it from version control.",
+                    js::to_string(s.get("id"))
+                ))
+            })?;
         // `v.id === s.approvedVariant` also holds when both are missing.
         let chosen = variants
             .iter()

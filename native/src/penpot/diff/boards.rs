@@ -38,8 +38,8 @@ pub(super) fn change(ty: &str, parts: Vec<Pairs>) -> Value {
 /// `diffChanges`: compare what the plugin sent back with the export it was built from.
 /// A layer whose path the export does not know is moved to the board's `added` list in
 /// `changes` (the Node code did the same to the object it was given).
-// Long: boards, deleted boards, masters and comment threads, in the order the Node function
-// reports them (the order decides how changes group into comments).
+// Long: boards, deleted boards, masters and comment threads, in the order the change list
+// reports them (the order decides how changes group into comments; the golden tests hold it).
 #[allow(clippy::too_many_lines)]
 pub fn diff_changes(baseline: &Value, changes: &mut Value, dims: &[Dim]) -> Result<Diff, DfwError> {
     if changes.get("schema").and_then(Value::as_str) != Some(CHANGES_SCHEMA) {
@@ -197,7 +197,7 @@ pub fn diff_changes(baseline: &Value, changes: &mut Value, dims: &[Dim]) -> Resu
 
 /// The changes of one screen board. Returns the layers whose path the export does not know.
 // Long: one block per kind of change on a layer (text, box, fill, name), then removed and
-// added layers, as in the Node function.
+// added layers, in the order the change list reports them.
 #[allow(clippy::too_many_lines)]
 fn diff_board(
     b: &Value,

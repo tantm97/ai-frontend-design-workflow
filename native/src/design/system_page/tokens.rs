@@ -13,7 +13,7 @@ use crate::core::js;
 use crate::core::js::regex::with_js_classes;
 use crate::core::paths::project_paths;
 use crate::design::edit::{collect_tokens, TokenEntry};
-use crate::design::tokens::{dir_names, tokens_to_declarations};
+use crate::design::tokens::{dir_names, file_declarations};
 
 /// `loadTokens`: the tokens of every `design/tokens/*.json`.
 pub(super) fn load_tokens(root: &Path) -> Result<Vec<TokenEntry>, DfwError> {
@@ -46,7 +46,7 @@ impl Vars {
             json!({})
         };
         Ok(Vars {
-            map: tokens_to_declarations(&tree)?.into_iter().collect(),
+            map: file_declarations(root, &file, &tree)?.into_iter().collect(),
             var: with_js_classes(r"var\((--[\w-]+)\)")?,
         })
     }

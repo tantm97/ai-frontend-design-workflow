@@ -180,7 +180,7 @@ pub(super) fn diff_components(
 }
 
 /// The changes of one main component.
-// Long: one block per property the designer can change, as in the Node function.
+// Long: one block per property the designer can change, in the order the changes are listed.
 #[allow(clippy::too_many_lines)]
 fn diff_component(
     c: &Value,
