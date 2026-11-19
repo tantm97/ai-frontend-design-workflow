@@ -26,7 +26,10 @@ pub(super) fn splice_with(a: TcpStream, b: TcpStream, idle: Duration) {
         return;
     };
     let poll = (idle / 4).clamp(Duration::from_millis(10), Duration::from_secs(1));
-    for s in [&a, &b] {
+    // On every handle: a Windows clone is a socket handle of its own with its own timeouts, so
+    // a clone without them would block in `read` after the other direction gave up (until the
+    // system drops the half-closed connection, 120 s later).
+    for s in [&a, &b, &a2, &b2] {
         let _ = s.set_read_timeout(Some(poll));
         let _ = s.set_write_timeout(Some(idle));
     }
