@@ -22,7 +22,7 @@
     {
       "code": 1,
       "stdout": "",
-      "stderr": "TypeError: Cannot read properties of undefined (reading 'find')\n    at file://<repo>/core/lib/cli.mjs:543:33\n    at Array.map (<anonymous>)\n    at cmdHandoff (file://<repo>/core/lib/cli.mjs:542:6)\n    at main (file://<repo>/core/lib/cli.mjs:954:14)\n    at file://<repo>/core/bin/dfw.mjs:17:1\n",
+      "stderr": "design/approved/v1/design.json: screen \"x\" has no \"variants\" list. The snapshot is frozen: run \"dfw verify-snapshot v1\", and if it was edited restore it from version control.\n",
       "files": {}
     }
   ]
