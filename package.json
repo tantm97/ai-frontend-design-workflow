@@ -21,9 +21,9 @@
     "knowledge": "node scripts/knowledge.mjs",
     "bench": "node tests/bench/run.mjs",
     "lint": "npm run lint:eslint && npm run lint:format && npm run lint:types",
-    "format": "prettier --write core/studio tests/e2e tests/unit/studio-app-*.test.mjs tests/unit/studio-overlay-*.test.mjs tests/unit/studio-live-*.test.mjs scripts/build-overlay.mjs eslint.config.js types",
-    "lint:eslint": "eslint core/studio tests/e2e tests/unit/studio-app-*.test.mjs tests/unit/studio-overlay-*.test.mjs tests/unit/studio-live-*.test.mjs scripts/build-overlay.mjs eslint.config.js",
-    "lint:format": "prettier --check core/studio tests/e2e tests/unit/studio-app-*.test.mjs tests/unit/studio-overlay-*.test.mjs tests/unit/studio-live-*.test.mjs scripts/build-overlay.mjs eslint.config.js types",
+    "format": "prettier --write core/studio scripts tests/e2e tests/unit tests/golden/*.mjs tests/bench/*.mjs eslint.config.js types",
+    "lint:eslint": "eslint core/studio scripts tests/e2e tests/unit tests/golden/*.mjs tests/bench/*.mjs eslint.config.js",
+    "lint:format": "prettier --check core/studio scripts tests/e2e tests/unit tests/golden/*.mjs tests/bench/*.mjs eslint.config.js types",
     "lint:types": "tsc -p tsconfig.json",
     "build:overlay": "node scripts/build-overlay.mjs"
   },

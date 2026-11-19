@@ -1,3 +1,5 @@
 # Formatting-only commits: git blame skips them (git config blame.ignoreRevsFile .git-blame-ignore-revs).
 # style(studio): format the Studio browser code and its e2e with Prettier
 1ed7c9b5e49e9e3bc6063015c54bf620e80399e4
+# style: format scripts/, the unit tests, the golden tests and the bench with Prettier
+f5ec422a436ef6d2b0d8e9b9682e817fe1264aeb
