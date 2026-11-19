@@ -109,7 +109,10 @@ const HOOK_LOCK_WAIT: Duration = Duration::from_millis(50);
 pub fn take_undelivered(root: &Path, hook: bool) -> Result<Vec<Value>, DfwError> {
     let take = || {
         let list = undelivered(root)?;
-        mark_delivered_unlocked(root, &list)?;
+        // Nothing new writes nothing (no empty `.delivered.json` in a project without comments).
+        if !list.is_empty() {
+            mark_delivered_unlocked(root, &list)?;
+        }
         Ok(list)
     };
     if hook {
@@ -395,6 +398,9 @@ mod tests {
     #[test]
     fn a_hook_leaves_the_comments_when_the_lock_is_busy() {
         let root = project("inbox-busy");
+        // Nothing to deliver writes no delivery list.
+        assert!(take_undelivered(&root, true).unwrap().is_empty());
+        assert!(!delivered_file(&root).exists());
         add_comment(&root, &json!({ "comment": "later" })).unwrap();
         let lock = root.join(".dfw/reviews/.lock");
         let held = crate::core::lock::acquire(&lock, &crate::core::lock::STANDARD).unwrap();
