@@ -68,7 +68,7 @@ plugin folder), `core/js` (the JavaScript value and regular expression rules eve
 | `cli/design.rs` | build, tokens, lint, check, system, style, type, palette, icons, fonts, blueprint (hidden: `__debug compose`, `__debug color`, `__debug lint`) | native |
 | `cli/edit.rs` | none (hidden: `__debug edit`, `undo`, `system-page`, `changed-screens`, `mark-checked`) | native |
 | `cli/studio.rs` | studio, review, __studio-server, __review-server | native |
-| `cli/browser.rs` | shoot, diff, layout (hidden: `__debug a11y`) | native |
+| `cli/browser.rs` | shoot (job list in `browser/shoot`), diff, layout (hidden: `__debug a11y`) | native |
 | `cli/penpot.rs` | penpot (export, plugin, import); `tokens export\|import`, called from `cli/design.rs` (hidden: `__debug penpot-build-export`, `__debug penpot-sync`) | native |
 | `cli/tools.rs` | inspector, install, uninstall, setup, doctor, mcp, stack, handoff (`cmdHandoff` of cli.mjs is `tools/handoff`) | native |
 | `cli/telemetry.rs` | telemetry (new: status, on, off, endpoint, show, flush; hidden: `__debug telemetry-build`) | native; the Node CLI has no such command |
