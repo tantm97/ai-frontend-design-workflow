@@ -162,6 +162,10 @@ impl Studio {
         let p = req.path.as_str();
         let method = req.head.method();
         let root = self.root.as_path();
+        // Readiness for `dfw studio start`: answers whatever state design/ is in.
+        if p == "/__dfw/api/ping" {
+            return Ok(Response::json(200, &json!({ "dfw": "studio" })));
+        }
         if p == "/" || p == "/index.html" {
             return Ok(asset("app.html", HTML).unwrap_or_else(Response::not_found));
         }
