@@ -140,7 +140,7 @@ fn plugin_token_sets_become_a_penpot_token_file() {
 }
 
 /// penpot tokens: "__proto__" in a token or set name never reaches Object.prototype
-/// (the plugin half; the token file half is in tokens_tests.rs)
+/// (the plugin half; the token file half is in tokens/tests.rs)
 #[test]
 fn reserved_set_and_token_names_from_the_plugin_are_left_out() {
     let doc = tokens_from_plugin(Some(&json!({ "sets": [

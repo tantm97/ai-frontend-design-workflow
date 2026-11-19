@@ -17,7 +17,7 @@ use super::tokens::{build_tokens, dir_names};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::project_paths;
-use crate::core::util::write_json;
+use crate::core::util::{write_atomic, write_json};
 
 /// `KIT_DIR`: the starter kit.
 pub fn kit_dir() -> Result<PathBuf, DfwError> {
@@ -125,12 +125,12 @@ pub fn system_init(root: &Path, opts: &InitOptions) -> Result<SystemInit, DfwErr
     let (tokens, head) = preset_files(&opts.preset)?;
     if opts.force || is_placeholder_tokens(&tok_file)? {
         fs::create_dir_all(&p.tokens)?;
-        fs::copy(&tokens, &tok_file)?;
+        write_atomic(&tok_file, fs::read(&tokens)?)?;
         tokens_written = true;
     }
     let head_file = sys.join("head.html");
     if opts.force || !head_file.exists() {
-        fs::write(&head_file, head)?;
+        write_atomic(&head_file, head)?;
     }
     build_tokens(root)?;
     build_system(root)?;
@@ -208,7 +208,7 @@ pub fn system_options(root: &Path, names: &[String], fonts: &str) -> Result<Vec<
             head_for(&g, fonts)
         } else {
             let (tokens, head) = preset_files(n)?;
-            fs::copy(&tokens, &theme)?;
+            write_atomic(&theme, fs::read(&tokens)?)?;
             head
         };
         heads.push(js::trim(&js::strip_comments(&head)).to_string());
@@ -243,7 +243,7 @@ pub fn system_options(root: &Path, names: &[String], fonts: &str) -> Result<Vec<
         },
         None => format!("{}\n{block}\n", js::trim(&current)),
     };
-    fs::write(&head_file, text)?;
+    write_atomic(&head_file, text)?;
     let options: Vec<String> = names.iter().map(|n| format!("opt-{n}")).collect();
     set_manifest_themes(&p.manifest, &options)?;
     let built = build_tokens(root)?;
@@ -271,12 +271,15 @@ pub fn system_choose(root: &Path, name: &str, fonts: &str) -> Result<String, Dfw
         };
         apply_style(root, name, fonts)?;
         if let Some(edited) = edited {
-            fs::write(&tok_file, edited)?;
+            write_atomic(&tok_file, edited)?;
         }
     } else {
         let (tokens, head) = preset_files(name)?;
-        fs::copy(if opt.exists() { &opt } else { &tokens }, &tok_file)?;
-        fs::write(p.design.join("system").join("head.html"), head)?;
+        write_atomic(
+            &tok_file,
+            fs::read(if opt.exists() { &opt } else { &tokens })?,
+        )?;
+        write_atomic(&p.design.join("system").join("head.html"), head)?;
     }
     remove_options(&themes_dir)?;
     set_manifest_themes(&p.manifest, &[])?;

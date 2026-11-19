@@ -464,10 +464,7 @@ pub fn apply_edit(root: &Path, op: &Value) -> Result<EditResult, DfwError> {
         json!({ "at": now_iso(), "file": rel, "op": kept, "before": before, "after": after });
     let dir = edits_dir(root);
     let stamp = next_stamp(&journal(root)?);
-    write_atomic(
-        &dir.join(format!("{stamp}.json")),
-        &to_json_compact(&record),
-    )?;
+    write_atomic(&dir.join(format!("{stamp}.json")), to_json_compact(&record))?;
     let records = journal(root)?;
     for old in &records[..records.len().saturating_sub(MAX_JOURNAL)] {
         match fs::remove_file(dir.join(old)) {

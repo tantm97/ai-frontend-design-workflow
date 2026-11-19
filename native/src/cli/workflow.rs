@@ -17,7 +17,7 @@ use crate::core::paths::project_paths;
 use crate::core::process::is_alive;
 use crate::core::util::{
     append_jsonl, now_iso, out, parse_value, read_json, to_json_compact, to_json_pretty,
-    write_json, ArgValue, Args,
+    write_atomic, write_json, ArgValue, Args,
 };
 use crate::design::compose::{build_system, load_components};
 use crate::design::dsaudit::audit_design_system;
@@ -82,16 +82,16 @@ fn init(ctx: &Ctx) -> Result<i32, DfwError> {
         write_json(&p.config, &json!({ "schema": 1 }))?;
     }
     if !p.decisions.exists() {
-        fs::write(&p.decisions, "")?;
+        write_atomic(&p.decisions, "")?;
     }
-    fs::write(
-        p.dfw.join(".gitignore"),
+    write_atomic(
+        &p.dfw.join(".gitignore"),
         "config.local.json\nstudio.json\nstudio.log\nreview.json\nreview.log\npresence.json\nshots/\nchecks/\n",
     )?;
     let mut created = Vec::new();
     for doc in ["PRODUCT.md", "DESIGN.md"] {
         if !root.join(doc).exists() {
-            fs::write(root.join(doc), crate::assets::template_text(doc)?)?;
+            write_atomic(&root.join(doc), crate::assets::template_text(doc)?)?;
             created.push(doc);
         }
     }

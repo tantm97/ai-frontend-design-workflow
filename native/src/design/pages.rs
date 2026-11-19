@@ -6,15 +6,22 @@
 
 use crate::core::js;
 use std::collections::HashMap;
+use std::sync::LazyLock;
 
 use regex::Regex;
 use serde_json::{json, Map, Value};
 
-/// A pattern of this file. One that did not compile would be a typo the tests catch; callers
-/// then take their "no match" path.
-fn re(pattern: &str) -> Option<Regex> {
-    Regex::new(pattern).ok()
-}
+// The patterns of this file, compiled once: the Studio reads the flows on every manifest
+// request. One that did not compile would be a typo the tests catch; callers then take their
+// "no match" path.
+static TAG: LazyLock<Option<Regex>> = LazyLock::new(|| Regex::new("<[^>]*>").ok());
+static LINK_OPEN: LazyLock<Option<Regex>> =
+    LazyLock::new(|| Regex::new(r"(?i)<(a|button)(?-u:\b)([^>]*)>").ok());
+static GOTO: LazyLock<Option<Regex>> =
+    LazyLock::new(|| Regex::new(r#"data-dfw-goto="([^"]+)""#).ok());
+static HREF: LazyLock<Option<Regex>> =
+    LazyLock::new(|| Regex::new(r##"(?-u:\b)href="([^"#?]+\.html)[^"]*""##).ok());
+static EXTERNAL: LazyLock<Option<Regex>> = LazyLock::new(|| Regex::new(r"(?i)^[a-z]+:|^/").ok());
 
 fn screens_of(manifest: &Value) -> Vec<&Value> {
     manifest
@@ -42,7 +49,7 @@ fn id_of(screen: &Value) -> Value {
 
 /// The text of a link with tags turned into spaces, spaces collapsed, at most 40 UTF-16 units.
 fn link_label(inner: &str) -> String {
-    let text = match re("<[^>]*>") {
+    let text = match TAG.as_ref() {
         Some(tag) => tag.replace_all(inner, " ").into_owned(),
         None => inner.to_string(),
     };
@@ -72,7 +79,7 @@ fn link_label(inner: &str) -> String {
 /// regular expression `<(a|button)\b([^>]*)>([\s\S]*?)<\/\1>`/gi of pages.mjs finds them (the
 /// back reference is replaced by a search for the matching end tag).
 fn links(html: &str) -> Vec<(&str, &str)> {
-    let Some(open) = re(r"(?i)<(a|button)(?-u:\b)([^>]*)>") else {
+    let Some(open) = LINK_OPEN.as_ref() else {
         return Vec::new();
     };
     let lower = html.to_ascii_lowercase();
@@ -104,11 +111,9 @@ fn links(html: &str) -> Vec<(&str, &str)> {
 /// (`data-dfw-goto="screen[/variant]"` and `href` to another design file). `files` maps a
 /// design-relative file to its HTML. Returns `[{ from, to, label }]` (screen ids).
 pub fn screen_flows(manifest: &Value, files: &HashMap<String, String>) -> Vec<Value> {
-    let (Some(goto_re), Some(href_re), Some(external)) = (
-        re(r#"data-dfw-goto="([^"]+)""#),
-        re(r##"(?-u:\b)href="([^"#?]+\.html)[^"]*""##),
-        re(r"(?i)^[a-z]+:|^/"),
-    ) else {
+    let (Some(goto_re), Some(href_re), Some(external)) =
+        (GOTO.as_ref(), HREF.as_ref(), EXTERNAL.as_ref())
+    else {
         return Vec::new();
     };
     let screens = screens_of(manifest);

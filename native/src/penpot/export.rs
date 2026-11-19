@@ -28,8 +28,8 @@ use crate::core::js;
 use crate::core::paths::{project_paths, resolve, to_posix};
 use crate::core::util::{get_path, now_iso, read_json, sha256, to_json_compact, write_json};
 use crate::design::compose::{build_composed, build_system};
+use crate::design::pages::studio_pages;
 use crate::design::tokens::{dir_names, relative_path};
-use crate::studio::pages::studio_pages;
 
 pub(super) const EXPORT_SCHEMA: &str = "dfw-penpot-export/1";
 pub(super) const CHANGES_SCHEMA: &str = "dfw-penpot-changes/1";
@@ -1047,8 +1047,7 @@ pub fn prune_exports(dir: &Path, keep: usize) -> Result<Vec<String>, DfwError> {
 
 /// `exportStructure`: a geometry-free outline of an export (stable across platforms and
 /// fonts), for tests.
-// Only the tests read it today; the Studio group's export route may print it.
-#[allow(dead_code)]
+#[cfg(test)]
 pub fn export_structure(doc: &Value) -> Vec<String> {
     fn list(v: Option<&Value>) -> impl Iterator<Item = &Value> {
         v.and_then(Value::as_array).into_iter().flatten()

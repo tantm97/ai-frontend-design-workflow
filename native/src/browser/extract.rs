@@ -12,7 +12,7 @@ use super::launch::{fonts_ready, open_renderer_with, LaunchOptions};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::resolve;
-use crate::core::util::{now_iso, to_json_pretty};
+use crate::core::util::{now_iso, to_json_pretty, write_atomic};
 use crate::design::color::{hex_to_oklch, hex_to_rgb, Oklch};
 use crate::design::tokens::relative_path;
 
@@ -217,7 +217,7 @@ pub fn extract_tokens_to_file(
     if let Some(dir) = file.parent() {
         fs::create_dir_all(dir)?;
     }
-    fs::write(&file, to_json_pretty(&tokens) + "\n")?;
+    write_atomic(&file, to_json_pretty(&tokens) + "\n")?;
     let n = |path: &[&str]| {
         let group = path.iter().try_fold(&tokens, |v, key| v.get(key));
         group

@@ -63,7 +63,16 @@ pub fn write_json(file: &Path, data: &Value) -> Result<(), DfwError> {
 
 /// Write a file through a temporary file and a rename, so a reader never sees half of it.
 /// The temporary name carries the pid and the time: two writers never share one.
-pub fn write_atomic(file: &Path, data: &str) -> Result<(), DfwError> {
+/// Like a plain write, it writes through a symbolic link (the link stays) and keeps the
+/// permissions of the file it replaces (a config readable by its owner only stays so).
+pub fn write_atomic(file: &Path, data: impl AsRef<[u8]>) -> Result<(), DfwError> {
+    let linked = fs::symlink_metadata(file).is_ok_and(|m| m.file_type().is_symlink());
+    let resolved = if linked {
+        fs::canonicalize(file).ok()
+    } else {
+        None
+    };
+    let file = resolved.as_deref().unwrap_or(file);
     if let Some(dir) = file.parent() {
         fs::create_dir_all(dir)?;
     }
@@ -73,6 +82,10 @@ pub fn write_atomic(file: &Path, data: &str) -> Result<(), DfwError> {
     let mut tmp = file.as_os_str().to_owned();
     tmp.push(format!(".{}.{ms}.tmp", std::process::id()));
     fs::write(&tmp, data)?;
+    if let Ok(meta) = fs::metadata(file) {
+        // Best effort: the new content matters more than its mode.
+        let _ = fs::set_permissions(&tmp, meta.permissions());
+    }
     if let Err(err) = fs::rename(&tmp, file) {
         let _ = fs::remove_file(&tmp);
         return Err(err.into());
@@ -814,6 +827,29 @@ mod tests {
             to_json_compact(&json!(9007199254740993u64)),
             "9007199254740992"
         );
+    }
+
+    /// A user's file replaced through a rename keeps its mode, and a link stays a link.
+    #[cfg(unix)]
+    #[test]
+    fn write_atomic_keeps_the_mode_and_writes_through_a_link() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = test_dir("atomic-mode");
+        let file = dir.join("config.json");
+        fs::write(&file, "{}").unwrap();
+        fs::set_permissions(&file, fs::Permissions::from_mode(0o600)).unwrap();
+        write_atomic(&file, "{\"a\":1}").unwrap();
+        assert_eq!(fs::read_to_string(&file).unwrap(), "{\"a\":1}");
+        let mode = fs::metadata(&file).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+        let link = dir.join("link.json");
+        std::os::unix::fs::symlink(&file, &link).unwrap();
+        write_atomic(&link, b"[]").unwrap();
+        assert!(fs::symlink_metadata(&link)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        assert_eq!(fs::read_to_string(&file).unwrap(), "[]");
     }
 
     #[test]

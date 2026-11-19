@@ -30,12 +30,12 @@ use crate::core::util::read_json;
 use crate::design::compose::{build_composed, build_system};
 use crate::design::dsaudit::audit_design_system;
 
+use crate::core::platform::node_platform;
 use crate::design::lint::lint_design;
 use crate::design::tokens::relative_path;
 use crate::review::locate::{
     impeccable_engine, launcher_command, sloplint_script, taste_copy_lint_script, Engine,
 };
-use crate::tools::binary::node_platform;
 
 /// `UI_EXT`: the files the checks look at.
 pub const UI_EXT: [&str; 11] = [

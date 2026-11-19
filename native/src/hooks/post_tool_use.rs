@@ -24,13 +24,6 @@ use crate::workflow::state::load_state;
 use super::pre_tool_use::{root_from, tool_files};
 use super::user_prompt_submit::{delivers_on_prompt, inbox_for};
 
-/// What a hook handler decided.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Outcome<T = HookResult> {
-    /// Handled here: the result to print (or nothing).
-    Done(Option<T>),
-}
-
 /// `/^design\/<dir>.*\.json$/.test(rel)`.
 fn design_json(rel: &str, dir: &str) -> bool {
     let prefix = format!("design/{dir}");
@@ -130,8 +123,9 @@ fn post_tool_use_checks(input: &HookInput) -> Result<Option<String>, DfwError> {
     )))
 }
 
-/// `postToolUse(input, host)`. Always handled here; the `Outcome` is what `cli/hook.rs` takes.
-pub fn post_tool_use(input: &HookInput, host: &Host) -> Result<Outcome, DfwError> {
+/// `postToolUse(input, host)`: the checks of the files just written and, on hosts that cannot
+/// add context to the prompt, the new Studio comments; `None` when there is nothing to say.
+pub fn post_tool_use(input: &HookInput, host: &Host) -> Result<Option<HookResult>, DfwError> {
     // Hosts that cannot add context to the user's prompt get new Studio comments here instead.
     // Checks first: reading the inbox marks the comments delivered, so nothing may fail after it.
     let checks = post_tool_use_checks(input)?;
@@ -141,9 +135,7 @@ pub fn post_tool_use(input: &HookInput, host: &Host) -> Result<Outcome, DfwError
         inbox_for(input)?
     };
     let text: Vec<String> = [checks, inbox].into_iter().flatten().collect();
-    Ok(Outcome::Done(
-        (!text.is_empty()).then(|| HookResult::Context(text.join("\n\n"))),
-    ))
+    Ok((!text.is_empty()).then(|| HookResult::Context(text.join("\n\n"))))
 }
 
 #[cfg(test)]
