@@ -314,6 +314,8 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
     assert.match(blocked.stderr, /re-run with --accept-unverified/);
     const frozenFiles = (r) => Object.keys(r.files).filter((f) => f === '.dfw/state.json' || f.startsWith('design/approved/'));
     assert.deepEqual(frozenFiles(blocked), []);
+    // RV-4: the accepted findings are recorded only once the design is frozen.
+    assert.ok(!('.dfw/decisions.jsonl' in blocked.files), 'a refused freeze records no accepted findings');
     const frozen = g2('--accept-unverified');
     assert.equal(frozen.code, 0, frozen.stderr);
     assert.match(frozen.stdout, /^Design frozen as v1 \(sha256 [0-9a-f]{12}\)\.\nNOT VERIFIED: [^\n]*axe/);
@@ -322,6 +324,22 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
     assert.equal(unverified.by, 'user');
     assert.ok(unverified.unverified.includes('axe'));
     assert.equal(JSON.parse(frozen.files['.dfw/state.json']).design.status, 'approved');
+    assert.deepEqual(decisions.map((d) => d.topic), ['gate:G2', 'gate:G2:accepted-findings', 'gate:G2:accepted-unverified']);
+  });
+
+  // RV-4 (0.6.1): nothing is recorded as accepted or approved before the step that can fail.
+  test('approve G2 and G3: a refusal after the checks records nothing', () => {
+    const concepts = st({ phase: 'concepts', gates: { ...MINIMAL_STATE.gates, G1: GATE, DS: GATE } });
+    const openComment = withSession([comment('fb_001')]);
+    const g2 = runWith(nativeBinary(), [], ['approve', 'G2', '--note', 'ok', '--accept-findings', '--accept-unverified'], { state: concepts, setup: openComment });
+    assert.equal(g2.code, 1);
+    assert.match(g2.stderr, /^G2 blocked: 1 review comment\(s\) are not resolved/);
+    assert.ok(!('.dfw/decisions.jsonl' in g2.files) && !('.dfw/state.json' in g2.files));
+    // A state without gates fails while the gate is recorded: the stack stays proposed.
+    const { gates: _gates, ...noGates } = FROZEN;
+    const g3 = runWith(nativeBinary(), [], ['approve', 'G3', '--note', 'Vue'], { state: noGates, setup: (root) => write(root, '.dfw/stack.json', STACK) });
+    assert.equal(g3.code, 1);
+    assert.deepEqual(g3.files, {});
   });
 
   test('reopen, pause and resume', () => {

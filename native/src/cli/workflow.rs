@@ -360,26 +360,6 @@ fn approve_g2(root: &Path, a: &Args, state: &mut Value, note: Value) -> Result<i
     if report.errors > 0 && !a.truthy("accept-findings") {
         return Err(DfwError::new(format!("G2 blocked: {} MUST finding(s) in the design.\n{}\nFix them, or if the user explicitly accepts them, re-run with --accept-findings (it is recorded).", report.errors, report.text)));
     }
-    if report.errors > 0 {
-        let musts: Vec<Value> = report
-            .findings
-            .iter()
-            .filter(|f| f.get("level").and_then(Value::as_str) == Some("error"))
-            .take(50)
-            .cloned()
-            .collect();
-        append_jsonl(
-            &project_paths(root).decisions,
-            &json!({
-                "at": now_iso(),
-                "level": 1,
-                "topic": "gate:G2:accepted-findings",
-                "decision": format!("User accepted {} MUST finding(s) at freeze.", report.errors),
-                "findings": musts,
-                "by": "user",
-            }),
-        )?;
-    }
     // A configured check that did not run is not a pass: freezing without it is the user's call.
     let not_verified: Vec<&str> = report
         .text
@@ -410,6 +390,27 @@ fn approve_g2(root: &Path, a: &Args, state: &mut Value, note: Value) -> Result<i
         .ok_or_else(|| type_error("version"))?;
     let hash = js::to_string(last.get("hash"));
     let version = js::to_string(last.get("version"));
+    // Recorded only once the design is frozen: a refusal after the checks records nothing.
+    if report.errors > 0 {
+        let musts: Vec<Value> = report
+            .findings
+            .iter()
+            .filter(|f| f.get("level").and_then(Value::as_str) == Some("error"))
+            .take(50)
+            .cloned()
+            .collect();
+        append_jsonl(
+            &project_paths(root).decisions,
+            &json!({
+                "at": now_iso(),
+                "level": 1,
+                "topic": "gate:G2:accepted-findings",
+                "decision": format!("User accepted {} MUST finding(s) at freeze.", report.errors),
+                "findings": musts,
+                "by": "user",
+            }),
+        )?;
+    }
     if !report.unverified.is_empty() {
         append_jsonl(
             &project_paths(root).decisions,
@@ -447,21 +448,21 @@ fn approve(ctx: &Ctx) -> Result<i32, DfwError> {
     if gate == "G2" {
         return approve_g2(&root, a, &mut state, note);
     }
+    let file = project_paths(&root).stack;
+    let mut stack = Value::Null;
     if gate == "G3" {
-        let file = project_paths(&root).stack;
-        let mut stack = read_json(&file, Some(Value::Null))?;
+        stack = read_json(&file, Some(Value::Null))?;
         if file.exists() && !stack.is_object() {
             return Err(DfwError::new("G3 needs a stack proposal: .dfw/stack.json must hold a JSON object (run: dfw stack set ... or dfw stack detect --write)."));
         }
-        if js::truthy(&stack) {
-            if let Value::Object(map) = &mut stack {
-                map.insert("status".into(), "approved".into());
-                map.insert("approvedAt".into(), now_iso().into());
-            }
-            write_json(&file, &stack)?;
-        }
     }
     approve_gate(&root, &mut state, &gate, Some(note), Map::new())?;
+    // The stack is marked approved only once the gate is recorded.
+    if let Value::Object(map) = &mut stack {
+        map.insert("status".into(), "approved".into());
+        map.insert("approvedAt".into(), now_iso().into());
+        write_json(&file, &stack)?;
+    }
     out(&format!(
         "{gate} approved: {}.\n{}",
         gate_title(&gate).unwrap_or_default(),
