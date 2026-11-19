@@ -141,6 +141,57 @@ pub fn ensure_inside(root: &Path, file: &Path) -> Result<(), DfwError> {
     )))
 }
 
+/// `fs.mkdtempSync(path.join(base, prefix))`: a new directory only its owner can enter, with a
+/// random six-letter suffix.
+// Its callers are `browser/launch.rs` (which still has its own copy) and `tools/install.rs`;
+// the allow goes in the commit that switches them to this one (review MA-9).
+#[allow(dead_code)]
+pub fn make_temp_dir(base: &Path, prefix: &str) -> io::Result<std::path::PathBuf> {
+    use std::hash::{BuildHasher, Hasher};
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    const DIGITS: &[u8; 36] = b"0123456789abcdefghijklmnopqrstuvwxyz";
+    for _ in 0..100 {
+        // RandomState is keyed per process by the standard library; time and a counter make
+        // every call different.
+        let mut hasher = std::collections::hash_map::RandomState::new().build_hasher();
+        hasher.write_u64(NEXT.fetch_add(1, Ordering::Relaxed));
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos());
+        hasher.write_u128(nanos);
+        let mut n = hasher.finish();
+        let mut name = String::from(prefix);
+        for _ in 0..6 {
+            name.push(char::from(DIGITS[(n % 36) as usize]));
+            n /= 36;
+        }
+        let dir = base.join(name);
+        match private_dir_builder().create(&dir) {
+            Ok(()) => return Ok(dir),
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {}
+            Err(e) => return Err(e),
+        }
+    }
+    Err(io::Error::new(
+        io::ErrorKind::AlreadyExists,
+        "no free temporary directory name",
+    ))
+}
+
+/// A directory only its owner can enter, as mkdtemp makes it.
+#[cfg(unix)]
+fn private_dir_builder() -> fs::DirBuilder {
+    let mut builder = fs::DirBuilder::new();
+    std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
+    builder
+}
+
+#[cfg(not(unix))]
+fn private_dir_builder() -> fs::DirBuilder {
+    fs::DirBuilder::new()
+}
+
 /// `appendJsonl(file, entry)`: one compact JSON value per line.
 pub fn append_jsonl(file: &Path, entry: &Value) -> Result<(), DfwError> {
     if let Some(dir) = file.parent() {
@@ -987,6 +1038,30 @@ mod tests {
         let names: std::collections::HashSet<String> = (0..1000).map(|_| unique_suffix()).collect();
         assert_eq!(names.len(), 1000);
         fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn make_temp_dir_makes_a_new_private_directory_each_call() {
+        let base = test_dir("tempdir");
+        let a = make_temp_dir(&base, "dfw-x-").unwrap();
+        let b = make_temp_dir(&base, "dfw-x-").unwrap();
+        assert_ne!(a, b);
+        assert!(
+            a.is_dir()
+                && a.file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .starts_with("dfw-x-")
+        );
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                fs::metadata(&a).unwrap().permissions().mode() & 0o777,
+                0o700
+            );
+        }
+        fs::remove_dir_all(&base).unwrap();
     }
 
     #[test]
