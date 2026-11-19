@@ -22,7 +22,7 @@ export function renderComments() {
     const target = c.target?.dfwId || c.target?.selector || '(area)';
     const last = c.thread?.slice(-2) || [];
     li.innerHTML = `
-      <div class="comment-top"><span class="num">#${esc(c.id.replace('fb_', ''))}</span><span>${esc(where)}</span><span class="status" data-s="${esc(c.status)}">${statusLabel(c.status)}</span></div>
+      <div class="comment-top"><span class="num">#${esc(c.id.replace('fb_', ''))}</span><span>${esc(where)}</span><span class="status" data-s="${esc(c.status)}">${esc(statusLabel(c.status))}</span></div>
       <div class="comment-target">${esc(target)}${c.target?.source ? ` · ${esc(c.target.source)}` : ''}</div>
       <p class="comment-text">${esc(c.comment)}</p>
       ${last.length ? `<ul class="thread">${last.map((/** @type {any} */ t) => `<li><span class="by">${esc(t.by)} · ${esc(new Date(t.at).toLocaleString())}</span>${esc(t.message)}</li>`).join('')}</ul>` : ''}

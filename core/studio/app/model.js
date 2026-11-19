@@ -240,18 +240,28 @@ export function layoutScope(breakpoints, f) {
 /** Comment statuses that wait for the agent. */
 export const ACTIVE = ['open', 'acknowledged', 'reopened'];
 
-/** Words for a comment status. */
-export function statusLabel(/** @type {string} */ s) {
-  return (
-    {
-      open: 'Open · waiting for Claude',
-      acknowledged: 'Claude is working',
-      reopened: 'Reopened · waiting for Claude',
-      fixed: 'Fixed · please verify',
-      resolved: 'Resolved',
-      dismissed: 'Dismissed',
-    }[s] || s
-  );
+/**
+ * The value of an own key of a table, else undefined: a key from data never reaches an inherited
+ * property such as "constructor" (security-privacy.md S4).
+ * @template T
+ * @param {Record<string, T>} table
+ * @param {unknown} key
+ * @returns {T | undefined}
+ */
+export const own = (table, key) => (typeof key === 'string' && Object.hasOwn(table, key) ? table[key] : undefined);
+
+const STATUS_LABEL = {
+  open: 'Open · waiting for Claude',
+  acknowledged: 'Claude is working',
+  reopened: 'Reopened · waiting for Claude',
+  fixed: 'Fixed · please verify',
+  resolved: 'Resolved',
+  dismissed: 'Dismissed',
+};
+
+/** Words for a comment status (plain text: esc() it for innerHTML); an unknown status is shown as it is. */
+export function statusLabel(/** @type {unknown} */ s) {
+  return own(STATUS_LABEL, s) ?? String(s ?? '');
 }
 
 /** Does a comment show under a filter tab ("active", "fixed", "closed", "all")? */

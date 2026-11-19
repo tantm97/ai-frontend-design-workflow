@@ -9,6 +9,7 @@ import {
   inFilter,
   layerParents,
   layoutScope,
+  own,
   pageModel,
   pinsOf,
   shotName,
@@ -139,4 +140,32 @@ test('studio-app-model: layer parents, shot names, escaping', () => {
   assert.equal(shotName({ system: true }, ''), 'design-system');
   assert.equal(shotName({ file: 'screens/x.html' }, ''), 'screens__x');
   assert.equal(esc(`<img src=x onerror="a('b')">&`), '&lt;img src=x onerror=&quot;a(&#39;b&#39;)&quot;&gt;&amp;');
+});
+
+test('studio-app-model: statusLabel reads own keys only, so an unknown status comes back as its own text', () => {
+  assert.equal(statusLabel('open'), 'Open · waiting for Claude');
+  // Inherited keys of a plain object are not labels: 'constructor' gave the Object function before.
+  for (const k of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) assert.equal(statusLabel(k), k);
+  assert.equal(statusLabel(undefined), '');
+  assert.equal(typeof statusLabel('valueOf'), 'string');
+  // The label is text; markup from a status is escaped where it reaches innerHTML.
+  assert.equal(esc(statusLabel('<img src=x onerror=alert(1)>')), '&lt;img src=x onerror=alert(1)&gt;');
+});
+
+test('studio-app-model: own returns a table value only for an own string key', () => {
+  const table = { active: 1, off: 0 };
+  assert.equal(own(table, 'active'), 1);
+  assert.equal(own(table, 'off'), 0);
+  assert.equal(own(table, 'constructor'), undefined);
+  assert.equal(own(table, '__proto__'), undefined);
+  assert.equal(own(table, null), undefined);
+  assert.equal(own(table, ['active']), undefined, 'not coerced to a string');
+});
+
+test('studio-app-model: esc escapes markup and quotes in any value, numbers and null included', () => {
+  assert.equal(esc(`<a href="x" title='y'>&</a>`), '&lt;a href=&quot;x&quot; title=&#39;y&#39;&gt;&amp;&lt;/a&gt;');
+  assert.equal(esc(1440), '1440');
+  assert.equal(esc('1440"><img src=x onerror=alert(1)>'), '1440&quot;&gt;&lt;img src=x onerror=alert(1)&gt;');
+  assert.equal(esc(null), '');
+  assert.equal(esc(undefined), '');
 });

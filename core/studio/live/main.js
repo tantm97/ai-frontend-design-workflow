@@ -43,7 +43,7 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
 .toast{position:fixed;left:50%;bottom:72px;transform:translateX(-50%);background:#111;color:#fff;padding:8px 14px;border-radius:6px;pointer-events:none}
 [hidden]{display:none!important}`;
   sh.innerHTML = `<div class="box" hidden><span class="tag"></span></div>
-<div class="bar" role="toolbar" aria-label="dfw review"><b>dfw</b><button type="button" class="toggle" aria-pressed="false" title="Comment on an element${label ? ` (${label})` : ''}">Comment</button></div>
+<div class="bar" role="toolbar" aria-label="dfw review"><b>dfw</b><button type="button" class="toggle" aria-pressed="false">Comment</button></div>
 <form class="pop" hidden><span class="src"></span><textarea aria-label="Comment for Claude" placeholder="What should change?"></textarea>
 <div class="row"><button type="button" class="ghost cancel">Cancel</button><button type="submit" class="primary">Send to Claude</button></div></form>
 <div class="toast" role="status" hidden></div>`;
@@ -59,6 +59,8 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
   const $ = (s) => sh.querySelector(s);
   const box = $('.box');
   const toggle = $('.toggle');
+  // The label comes from data-shortcut (config): an attribute, never markup (javascript.md J4).
+  toggle.title = `Comment on an element${label ? ` (${label})` : ''}`;
   const pop = $('.pop');
   const text = $('textarea');
   const toastEl = $('.toast');

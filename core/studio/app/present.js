@@ -142,7 +142,7 @@ export function renderPresentBar() {
   bpSel.innerHTML = S.manifest.breakpoints
     .map(
       (/** @type {any} */ b) =>
-        `<option value="${esc(b.id)}" ${b.id === P.bp?.id ? 'selected' : ''}>${esc(b.label || b.id)} ${b.width}</option>`,
+        `<option value="${esc(b.id)}" ${b.id === P.bp?.id ? 'selected' : ''}>${esc(b.label || b.id)} ${esc(b.width)}</option>`,
     )
     .join('');
   bpSel.disabled = P.system;

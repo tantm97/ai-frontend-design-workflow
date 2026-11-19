@@ -36,7 +36,7 @@ export function renderLayers() {
       const sub = n.comp ? `${n.comp}${n.variant ? ` · ${n.variant}` : ''}` : n.id ? n.tag : '';
       const icon = n.comp ? '◆' : LANDMARKS.includes(n.tag) ? '▭' : '#';
       rows.push(
-        `<div class="row${n.comp ? ' comp' : ''}${n.hidden ? ' hidden-layer' : ''}" role="treeitem" data-i="${n.i}" aria-selected="${n.i === selI}" ${n.children.length ? `aria-expanded="${open}"` : ''} style="padding-left:${4 + depth * 12}px">` +
+        `<div class="row${n.comp ? ' comp' : ''}${n.hidden ? ' hidden-layer' : ''}" role="treeitem" data-i="${esc(n.i)}" aria-selected="${n.i === selI}" ${n.children.length ? `aria-expanded="${open}"` : ''} style="padding-left:${4 + depth * 12}px">` +
           `<button type="button" class="tw" tabindex="-1" ${n.children.length ? '' : 'style="visibility:hidden"'}><svg viewBox="0 0 8 8" width="8" height="8" aria-hidden="true" style="transform:rotate(${open ? 90 : 0}deg)"><path d="M2 1l4 3-4 3z" fill="currentColor"/></svg></button>` +
           `<span class="ic">${icon}</span><span class="nm">${esc(name)}</span>${sub ? `<span class="sub">${esc(sub)}</span>` : ''}</div>`,
       );
