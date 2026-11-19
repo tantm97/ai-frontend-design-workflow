@@ -1,5 +1,5 @@
-//! Ports the path helpers of `core/lib/util.mjs`: plugin root, global and project directories,
-//! project root search, and the check every path built from an id or a request must pass.
+//! Path helpers: plugin root, global and project directories, project root search, real paths,
+//! and the check every path built from an id or a request must pass.
 
 use std::env;
 use std::path::{Component, Path, PathBuf, MAIN_SEPARATOR};

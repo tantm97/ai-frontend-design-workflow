@@ -1,5 +1,5 @@
-//! Ports `core/lib/util.mjs`: JSON io, time, hashing, file listing, globs, config merging and
-//! argument parsing. Path helpers are in `core::paths`, `DfwError` in `core::error`.
+//! Shared helpers: JSON io, atomic and project-bound writes, temporary names and folders, time,
+//! hashing, file listing, globs, config merging and argument parsing. Path helpers are in `core::paths`, `DfwError` in `core::error`.
 //!
 //! JSON written here is byte-identical to `JSON.stringify(value, null, 2) + '\n'` for every value
 //! `serde_json` can hold, with one known exception: JavaScript moves integer-like keys ("1", "42")
