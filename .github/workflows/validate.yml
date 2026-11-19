@@ -37,8 +37,11 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      - name: Rust toolchain (stable, from the runner's rustup)
-        run: rustup toolchain install stable --profile minimal --component clippy,rustfmt
+      - name: Rust toolchain (the exact version of native/rust-toolchain.toml, with clippy and rustfmt)
+        working-directory: native
+        run: |
+          rustup toolchain install
+          rustc --version
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
@@ -91,7 +94,7 @@ jobs:
       - name: The dfw binary the e2e drives (native/target/debug/dfw)
         working-directory: native
         run: |
-          rustup show active-toolchain || rustup toolchain install
+          rustup toolchain install
           cargo build --locked
       - name: End-to-end (Studio)
         env:

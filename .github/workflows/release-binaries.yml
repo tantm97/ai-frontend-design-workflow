@@ -37,7 +37,9 @@ jobs:
         run: node scripts/validate.mjs
       - name: Rust toolchain (pinned by native/rust-toolchain.toml)
         working-directory: native
-        run: rustup show active-toolchain || rustup toolchain install
+        run: |
+          rustup toolchain install
+          rustc --version
       - name: Rust build and tests
         working-directory: native
         run: |
@@ -75,7 +77,7 @@ jobs:
       - name: Rust toolchain (pinned by native/rust-toolchain.toml)
         working-directory: native
         run: |
-          rustup show active-toolchain || rustup toolchain install
+          rustup toolchain install
           rustc -vV | grep -q "host: ${{ matrix.target }}" || { echo "this runner does not build ${{ matrix.target }} natively"; rustc -vV; exit 1; }
       # The collector address is compiled in from the repository secrets, on this step only (see
       # native/README-telemetry.md). No cache is shared with this build, and cargo runs without
