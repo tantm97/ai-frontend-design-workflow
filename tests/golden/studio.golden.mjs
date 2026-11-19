@@ -105,9 +105,16 @@ function mask(text, s) {
   return s.app ? t.replace(new RegExp(`\\b${s.app}\\b`, 'g'), '<app>') : t;
 }
 
+// Browser files the servers send as they are: the recorded body names the file, so a change to
+// the browser code does not need a new recording (the bytes are the file's, checked here).
+const BROWSER_FILES = ['app.html', 'app.js', 'app.css', 'overlay.js', 'live.js', 'penpot/plugin.js', 'penpot/ui.html', 'penpot/icon.svg'];
+const browserFile = (raw) => BROWSER_FILES.find((rel) => raw.equals(fs.readFileSync(path.join(REPO, 'core', 'studio', rel))));
+
 /** What a client can observe of a response, masked. */
 function seen(r, s, extra = []) {
-  const out = { status: r.status, type: r.headers['content-type'] ?? null, cache: r.headers['cache-control'] ?? null, body: mask(r.raw.toString('utf8'), s) };
+  const file = browserFile(r.raw);
+  const body = file ? `<core/studio/${file}>` : mask(r.raw.toString('utf8'), s);
+  const out = { status: r.status, type: r.headers['content-type'] ?? null, cache: r.headers['cache-control'] ?? null, body };
   for (const h of extra) out[h] = r.headers[h] === undefined ? null : mask([].concat(r.headers[h]).join('\n'), s);
   return out;
 }
