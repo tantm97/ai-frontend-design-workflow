@@ -145,6 +145,9 @@ fn decide_rel(
         return Ok(Decision::allow());
     }
     if matches(rel, &gate_immutable(config), fold) {
+        if rel.to_lowercase().starts_with(".dfw/") {
+            return Ok(Decision::deny(format!("dfw gate: \"{rel}\" holds dfw's gates, approvals, decisions, settings or review comments; only dfw commands change it. Run the dfw command for the change (dfw approve, dfw reopen, dfw decide, dfw config set, dfw stack set, dfw comments ...); approvals, re-opening and gate settings need the user's word first.")));
+        }
         return Ok(Decision::deny(format!("dfw gate: \"{rel}\" is part of a frozen, approved design snapshot and is immutable. To change the approved design, ask the user, then run \"dfw reopen --reason <why>\" and edit the working copy in design/.")));
     }
     if matches_any(rel, &gate_allow(config)) {

@@ -86,7 +86,9 @@ describe('core: config', { skip: skipReason() }, () => {
       local: { gate: { allow: ['notes/**', 'docs/**', 'global/**'], immutable: ['design/approved/**', 'dist/**'] } },
     });
     assert.deepEqual(c.gate.allow, ['.dfw/**', 'design/handoff/**', 'global/**', 'docs/**', 'notes/**']);
-    assert.deepEqual(c.gate.immutable, ['design/approved/**', 'vendor/**', 'dist/**']);
+    // 0.6.1: the files of the gates and approvals are immutable by default (RV-2).
+    const owned = ['.dfw/state.json', '.dfw/config.json', '.dfw/config.local.json', '.dfw/decisions.jsonl', '.dfw/stack.json', '.dfw/reviews/**'];
+    assert.deepEqual(c.gate.immutable, ['design/approved/**', ...owned, 'vendor/**', 'dist/**']);
     assert.deepEqual(c.gate.designPaths, ['ui/**']);
     assert.deepEqual(c.skills.disabled, ['hallmark', 'taste-reference']);
     assertSameConfig({ global: { gate: { allow: ['global/**'] }, studio: { port: 4650 } } }, { withRoot: false });
