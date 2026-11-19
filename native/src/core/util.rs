@@ -281,7 +281,7 @@ pub fn parse_value(v: &str) -> Value {
 // ---------------------------------------------------------------------------------------------
 
 /// `nowIso()`: the current time as `Date.prototype.toISOString` prints it. `DFW_NOW` replaces it
-/// (conformance tests fix the clock so both implementations write the same timestamps).
+/// (the golden tests fix the clock so written timestamps are the recorded ones).
 pub fn now_iso() -> String {
     if let Some(fixed) = env_nonempty("DFW_NOW") {
         return fixed;
@@ -608,6 +608,32 @@ pub fn out(text: &str) {
         .write_all(text.as_bytes())
         .and_then(|()| stdout.write_all(b"\n"))
         .and_then(|()| stdout.flush());
+}
+
+/// Tests only: a local HTTP server where `routes` maps a path to (status, body). Returns the base
+/// URL and a counter of the requests served. Nothing ever leaves the machine (the binary
+/// download and the browser download are tested against it).
+#[cfg(test)]
+pub fn serve_routes(
+    routes: std::collections::HashMap<String, (u16, Vec<u8>)>,
+) -> (String, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+    let server = tiny_http::Server::http("127.0.0.1:0").unwrap();
+    let base = format!("http://{}", server.server_addr());
+    let hits = Arc::new(AtomicUsize::new(0));
+    let counter = Arc::clone(&hits);
+    std::thread::spawn(move || {
+        for request in server.incoming_requests() {
+            counter.fetch_add(1, Ordering::SeqCst);
+            let (status, body) = routes
+                .get(request.url())
+                .cloned()
+                .unwrap_or((404, b"not found".to_vec()));
+            let _ = request.respond(tiny_http::Response::from_data(body).with_status_code(status));
+        }
+    });
+    (base, hits)
 }
 
 /// A fresh directory for one test, under the system temporary directory.

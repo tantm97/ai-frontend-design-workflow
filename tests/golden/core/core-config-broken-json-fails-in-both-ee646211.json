@@ -1,0 +1,10 @@
+{
+  "test": "core: config > broken JSON fails in both",
+  "results": [
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "file://<repo>/core/lib/util.mjs:39\n      throw new Error(`Invalid JSON in ${file}: ${err.message}`);\n            ^\n\nError: Invalid JSON in <tmp>/project/.dfw/config.json: Expected property name or '}' in JSON at position 2 (line 1 column 3)\n    at readJson (file://<repo>/core/lib/util.mjs:39:13)\n    at readLayer (file://<repo>/core/lib/config.mjs:84:16)\n    at loadConfig (file://<repo>/core/lib/config.mjs:96:46)\n    at file://<repo>/[eval1]:1:148\n    at ModuleJob.run (node:internal/modules/esm/module_job:370:25)\n    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:270:26)\n    at async ModuleLoader.executeModuleJob (node:internal/modules/esm/loader:267:20)\n    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:99:5)\n\nNode.js v24.4.1\n"
+    }
+  ]
+}

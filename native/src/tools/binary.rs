@@ -1,6 +1,6 @@
-//! Ports `core/lib/binary.mjs`: the single-file dfw binary, built per platform by CI and
-//! attached to the GitHub release v<version>. "dfw setup --binary" downloads the one matching
-//! this plugin version and verifies it against the release's SHA256SUMS; bin/dfw then prefers it.
+//! The dfw binary of a release: built per platform by CI (cargo) and attached to the GitHub
+//! release v<version>. "dfw setup --binary" downloads the one matching this plugin version and
+//! verifies it against the release's SHA256SUMS; the plugin launcher (bin/dfw) runs it.
 
 use std::fs;
 use std::path::PathBuf;
@@ -9,32 +9,13 @@ use std::time::Duration;
 use regex::Regex;
 use serde_json::{json, Value};
 
-use crate::cli::dfw_version;
 use crate::core::error::DfwError;
 use crate::core::paths::global_dir;
+use crate::core::platform::{dfw_version, node_arch, node_platform};
 use crate::core::util::sha256;
 
 /// The GitHub repository whose releases carry the binaries (also the default marketplace source).
 pub const RELEASE_REPO: &str = "tantm97/ai-frontend-design-workflow";
-
-/// `process.platform` as Node names it: release assets and messages use these names.
-pub fn node_platform() -> &'static str {
-    match std::env::consts::OS {
-        "macos" => "darwin",
-        "windows" => "win32",
-        other => other,
-    }
-}
-
-/// `process.arch` as Node names it.
-pub fn node_arch() -> &'static str {
-    match std::env::consts::ARCH {
-        "aarch64" => "arm64",
-        "x86_64" => "x64",
-        "x86" => "ia32",
-        other => other,
-    }
-}
 
 /// `assetName(version, platform, arch)`: release asset name, e.g. dfw-0.4.0-darwin-arm64 /
 /// dfw-0.4.0-win32-x64.exe.
@@ -122,12 +103,12 @@ fn install_binary_from(base: &str, version: &str, log: &dyn Fn(&str)) -> Result<
     ));
     let sums = get(&format!("{base}/SHA256SUMS")).map_err(|e| {
         DfwError::new(format!(
-            "No dfw binary release for v{version} yet ({e}). dfw keeps running on Node."
+            "No dfw binary release for v{version} yet ({e}). The installed dfw keeps running."
         ))
     })?;
     let want = wanted_sum(&String::from_utf8_lossy(&sums), &name).ok_or_else(|| {
         DfwError::new(format!(
-            "Release v{version} has no binary for {}-{}. dfw keeps running on Node.",
+            "Release v{version} has no binary for {}-{}. The installed dfw keeps running.",
             node_platform(),
             node_arch()
         ))
@@ -158,32 +139,10 @@ fn install_binary_from(base: &str, version: &str, log: &dyn Fn(&str)) -> Result<
 }
 
 #[cfg(test)]
-pub(crate) mod tests {
+mod tests {
     use super::*;
+    use crate::core::util::serve_routes as serve;
     use std::collections::HashMap;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::sync::Arc;
-
-    /// A local HTTP server for one test: `routes` maps a path to (status, body). Returns the
-    /// base URL and a counter of the requests served. Nothing ever leaves the machine.
-    pub(crate) fn serve(routes: HashMap<String, (u16, Vec<u8>)>) -> (String, Arc<AtomicUsize>) {
-        let server = tiny_http::Server::http("127.0.0.1:0").unwrap();
-        let base = format!("http://{}", server.server_addr());
-        let hits = Arc::new(AtomicUsize::new(0));
-        let counter = Arc::clone(&hits);
-        std::thread::spawn(move || {
-            for request in server.incoming_requests() {
-                counter.fetch_add(1, Ordering::SeqCst);
-                let (status, body) = routes
-                    .get(request.url())
-                    .cloned()
-                    .unwrap_or((404, b"not found".to_vec()));
-                let _ =
-                    request.respond(tiny_http::Response::from_data(body).with_status_code(status));
-            }
-        });
-        (base, hits)
-    }
 
     #[test]
     fn asset_names_and_paths() {
@@ -226,7 +185,7 @@ pub(crate) mod tests {
     }
 
     /// The download against a local server: wrong checksum, missing asset, missing release.
-    /// The good path writes under the global dir, so it is covered by the conformance test
+    /// The good path writes under the global dir, so it is covered by the golden test
     /// (its own DFW_HOME), not here.
     #[test]
     fn download_is_verified_before_anything_is_installed() {
@@ -257,7 +216,7 @@ pub(crate) mod tests {
         assert_eq!(
             err.message(),
             format!(
-                "Release v7.7.7 has no binary for {}-{}. dfw keeps running on Node.",
+                "Release v7.7.7 has no binary for {}-{}. The installed dfw keeps running.",
                 node_platform(),
                 node_arch()
             )
@@ -265,7 +224,7 @@ pub(crate) mod tests {
         let err = install_binary_from(&format!("{base}/none"), "7.7.7", &quiet).unwrap_err();
         assert_eq!(
             err.message(),
-            format!("No dfw binary release for v7.7.7 yet (HTTP 404 for {base}/none/SHA256SUMS). dfw keeps running on Node.")
+            format!("No dfw binary release for v7.7.7 yet (HTTP 404 for {base}/none/SHA256SUMS). The installed dfw keeps running.")
         );
     }
 }

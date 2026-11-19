@@ -732,15 +732,13 @@ mod tests {
         findings_of(results).iter().map(|f| format!("{} {} {} {}", f.level, f.rule, f.file, f.message)).collect()
     }
 
-    /// The JavaScript that runs in the page is the Node source, byte for byte.
+    /// The JavaScript that runs in the page is one self-contained function, and the two helpers
+    /// are arrow functions passed to `evaluate`.
     #[test]
-    fn page_script_is_the_function_of_layout_mjs() {
-        let node = concat!(env!("CARGO_MANIFEST_DIR"), "/../core/lib/layout.mjs");
-        let source = fs::read_to_string(node).unwrap();
+    fn page_script_is_one_function() {
         assert!(MEASURE.starts_with("function measure(opts) {\n"));
-        assert!(source.contains(&format!("\n{MEASURE}\n/** Whitespace analysis")));
         for arrow in [SET_STATE, ENLARGE_TEXT] {
-            assert!(source.contains(&format!("page.evaluate({arrow}")), "{arrow}");
+            assert!(arrow.contains("=>"), "{arrow}");
         }
     }
 

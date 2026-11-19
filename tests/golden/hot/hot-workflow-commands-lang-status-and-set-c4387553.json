@@ -1,0 +1,189 @@
+{
+  "test": "hot: workflow commands > lang status and set",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "{\n  \"session\": null,\n  \"chosen\": false,\n  \"language\": null,\n  \"lastUsed\": \"en\"\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"session\": null,\n  \"chosen\": false,\n  \"language\": null,\n  \"lastUsed\": \"en\"\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"session\": null,\n  \"chosen\": false,\n  \"language\": null,\n  \"lastUsed\": \"vi\"\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"session\": \"abc\",\n  \"chosen\": false,\n  \"language\": null,\n  \"lastUsed\": \"en\"\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"session\": \"abc\",\n  \"chosen\": true,\n  \"language\": \"vi\",\n  \"lastUsed\": \"vi\"\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"session\": \"def\",\n  \"chosen\": false,\n  \"language\": null,\n  \"lastUsed\": \"en\"\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"session\": \"def\",\n  \"chosen\": false,\n  \"language\": null,\n  \"lastUsed\": \"vi\"\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"session\": null,\n  \"chosen\": false,\n  \"language\": null,\n  \"lastUsed\": \"en\"\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"session\": null,\n  \"chosen\": false,\n  \"language\": null,\n  \"lastUsed\": \"vi\"\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"session\": \"abc\",\n  \"chosen\": true,\n  \"language\": \"vi\",\n  \"lastUsed\": \"vi\"\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"session\": \"abc\",\n  \"language\": \"vi\"\n}\n",
+      "stderr": "",
+      "files": {
+        ".dfw/home/config.json": "{\n  \"language\": {\n    \"lastUsed\": \"vi\"\n  }\n}\n",
+        ".dfw/home/sessions/abc.json": "{\n  \"language\": \"vi\",\n  \"setAt\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"session\": null,\n  \"language\": \"en-us\"\n}\n",
+      "stderr": "",
+      "files": {
+        ".dfw/home/config.json": "{\n  \"language\": {\n    \"lastUsed\": \"en-us\"\n  }\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"session\": null,\n  \"language\": \"en-us\"\n}\n",
+      "stderr": "",
+      "files": {
+        ".dfw/home/config.json": "{\n  \"marketplaceRepo\": \"/r\",\n  \"language\": {\n    \"askPolicy\": \"session\",\n    \"lastUsed\": \"en-us\"\n  }\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"session\": null,\n  \"language\": \"en\"\n}\n",
+      "stderr": "",
+      "files": {
+        ".dfw/home/config.json": "{\n  \"language\": {\n    \"lastUsed\": \"en\"\n  }\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"session\": null,\n  \"language\": \"en\"\n}\n",
+      "stderr": "",
+      "files": {
+        ".dfw/home/config.json": "{\n  \"marketplaceRepo\": \"/r\",\n  \"language\": {\n    \"askPolicy\": \"session\",\n    \"lastUsed\": \"en\"\n  }\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"session\": null,\n  \"language\": \"en\"\n}\n",
+      "stderr": "",
+      "files": {
+        ".dfw/home/config.json": "{\n  \"language\": {\n    \"lastUsed\": \"en\"\n  }\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"session\": null,\n  \"language\": \"en\"\n}\n",
+      "stderr": "",
+      "files": {
+        ".dfw/home/config.json": "{\n  \"marketplaceRepo\": \"/r\",\n  \"language\": {\n    \"askPolicy\": \"session\",\n    \"lastUsed\": \"en\"\n  }\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"session\": \"../../x y/é😀\",\n  \"language\": \"fr\"\n}\n",
+      "stderr": "",
+      "files": {
+        ".dfw/home/config.json": "{\n  \"language\": {\n    \"lastUsed\": \"fr\"\n  }\n}\n",
+        ".dfw/home/sessions/.._.._x_y____.json": "{\n  \"language\": \"fr\",\n  \"setAt\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"session\": \"../../x y/é😀\",\n  \"language\": \"fr\"\n}\n",
+      "stderr": "",
+      "files": {
+        ".dfw/home/config.json": "{\n  \"marketplaceRepo\": \"/r\",\n  \"language\": {\n    \"askPolicy\": \"session\",\n    \"lastUsed\": \"fr\"\n  }\n}\n",
+        ".dfw/home/sessions/.._.._x_y____.json": "{\n  \"language\": \"fr\",\n  \"setAt\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"session\": null,\n  \"language\": \"de\"\n}\n",
+      "stderr": "",
+      "files": {
+        ".dfw/home/config.json": "{\n  \"language\": {\n    \"lastUsed\": \"de\"\n  }\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"session\": null,\n  \"language\": \"de\"\n}\n",
+      "stderr": "",
+      "files": {
+        ".dfw/home/config.json": "{\n  \"marketplaceRepo\": \"/r\",\n  \"language\": {\n    \"askPolicy\": \"session\",\n    \"lastUsed\": \"de\"\n  }\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"session\": \"from-env\",\n  \"language\": \"ja\"\n}\n",
+      "stderr": "",
+      "files": {
+        ".dfw/home/config.json": "{\n  \"language\": {\n    \"lastUsed\": \"ja\"\n  }\n}\n",
+        ".dfw/home/sessions/from-env.json": "{\n  \"language\": \"ja\",\n  \"setAt\": \"2026-01-02T03:04:05.678Z\"\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"session\": \"abc\",\n  \"chosen\": true,\n  \"language\": \"vi\",\n  \"lastUsed\": \"vi\"\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Usage: dfw lang status|set <code> [--session <id>]\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    }
+  ]
+}

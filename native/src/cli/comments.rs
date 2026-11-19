@@ -14,7 +14,7 @@ use crate::workflow::state::arg_truthy;
 
 /// The commands of this group: every subcommand runs here.
 pub fn commands() -> Vec<(&'static str, Handler)> {
-    vec![("comments", Handler::Native(comments))]
+    vec![("comments", comments as Handler)]
 }
 
 fn print_json(value: &Value) -> Result<i32, DfwError> {

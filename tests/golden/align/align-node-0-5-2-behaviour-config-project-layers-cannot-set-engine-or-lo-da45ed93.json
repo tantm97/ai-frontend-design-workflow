@@ -1,0 +1,35 @@
+{
+  "test": "align: node 0.5.2 behaviour > config: project layers cannot set engine or loader variables; one warning per dropped key",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "{\n  \"DO_NOT_TRACK\": \"1\",\n  \"IMPECCABLE_NO_UPDATE_CHECK\": \"1\",\n  \"IMPECCABLE_HOOK_DISABLED\": \"1\",\n  \"NO_COLOR\": \"1\",\n  \"TZ\": \"UTC\",\n  \"IMPECCABLE_NO_TELEMETRY\": \"1\",\n  \"LANG\": \"vi_VN\"\n}\n",
+      "stderr": "dfw: ignored env.IMPECCABLE_BIN in <root>/.dfw/config.json (a project config cannot set it; use the global config: dfw config set env.IMPECCABLE_BIN <value> --global)\ndfw: ignored env.DO_NOT_TRACK in <root>/.dfw/config.json (a project config cannot set it; use the global config: dfw config set env.DO_NOT_TRACK <value> --global)\ndfw: ignored env.IMPECCABLE_NO_UPDATE_CHECK in <root>/.dfw/config.json (a project config cannot set it; use the global config: dfw config set env.IMPECCABLE_NO_UPDATE_CHECK <value> --global)\ndfw: ignored env.PATH in <root>/.dfw/config.json (a project config cannot set it; use the global config: dfw config set env.PATH <value> --global)\ndfw: ignored env.IMPECCABLE_HOOK_DISABLED in <root>/.dfw/config.local.json (a project config cannot set it; use the global config: dfw config set env.IMPECCABLE_HOOK_DISABLED <value> --global)\n",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"DO_NOT_TRACK\": \"1\",\n  \"IMPECCABLE_NO_UPDATE_CHECK\": \"1\",\n  \"IMPECCABLE_HOOK_DISABLED\": \"1\"\n}\n",
+      "stderr": "dfw: ignored env in <root>/.dfw/config.json (it must be an object of strings)\n",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"DO_NOT_TRACK\": \"1\",\n  \"IMPECCABLE_NO_UPDATE_CHECK\": \"1\",\n  \"IMPECCABLE_HOOK_DISABLED\": \"1\"\n}\n",
+      "stderr": "dfw: ignored env in <root>/.dfw/config.json (it must be an object of strings)\n",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"DO_NOT_TRACK\": \"1\",\n  \"IMPECCABLE_NO_UPDATE_CHECK\": \"1\",\n  \"IMPECCABLE_HOOK_DISABLED\": \"1\"\n}\n",
+      "stderr": "dfw: ignored env in <root>/.dfw/config.json (it must be an object of strings)\n",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"DO_NOT_TRACK\": \"0\",\n  \"IMPECCABLE_NO_UPDATE_CHECK\": \"1\",\n  \"IMPECCABLE_HOOK_DISABLED\": \"1\",\n  \"PATH\": \"/x\"\n}\n",
+      "stderr": "",
+      "files": {}
+    }
+  ]
+}

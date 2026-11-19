@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "$comment": "dfw hooks for GitHub Copilot. PascalCase events use the Claude/VS Code compatible payload (snake_case fields, Claude tool names: create->Write, edit->Edit), which core/lib/host.mjs normalizes. Copilot ignores additionalContext on UserPromptSubmit, so new Studio comments are delivered on PostToolUse and Stop.",
+  "$comment": "dfw hooks for GitHub Copilot. PascalCase events use the Claude/VS Code compatible payload (snake_case fields, Claude tool names: create->Write, edit->Edit), which the binary normalizes (native/src/core/host.rs). Copilot ignores additionalContext on UserPromptSubmit, so new Studio comments are delivered on PostToolUse and Stop.",
   "hooks": {
     "SessionStart": [
       {
         "type": "command",
         "bash": "R=\"${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-${COPILOT_HOME:-$HOME/.copilot}/installed-plugins/dfw-marketplace/dfw}}\"; for B in \"$R/bin/dfw\" \"$HOME/.local/bin/dfw\"; do [ -x \"$B\" ] && exec \"$B\" hook session-start --host copilot; done; exec dfw hook session-start --host copilot",
-        "powershell": "$h = if ($env:COPILOT_HOME) { $env:COPILOT_HOME } else { \"$HOME\\.copilot\" }; $r = if ($env:PLUGIN_ROOT) { $env:PLUGIN_ROOT } else { \"$h\\installed-plugins\\dfw-marketplace\\dfw\" }; if (Get-Command dfw -ErrorAction SilentlyContinue) { dfw hook session-start --host copilot } else { node \"$r\\bin\\dfw.mjs\" hook session-start --host copilot }",
+        "powershell": "$h = if ($env:COPILOT_HOME) { $env:COPILOT_HOME } else { \"$HOME\\.copilot\" }; $r = if ($env:PLUGIN_ROOT) { $env:PLUGIN_ROOT } else { \"$h\\installed-plugins\\dfw-marketplace\\dfw\" }; if (Get-Command dfw -ErrorAction SilentlyContinue) { dfw hook session-start --host copilot } else { & \"$r\\bin\\dfw.cmd\" hook session-start --host copilot }",
         "timeoutSec": 10
       }
     ],
@@ -14,7 +14,7 @@
       {
         "type": "command",
         "bash": "R=\"${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-${COPILOT_HOME:-$HOME/.copilot}/installed-plugins/dfw-marketplace/dfw}}\"; for B in \"$R/bin/dfw\" \"$HOME/.local/bin/dfw\"; do [ -x \"$B\" ] && exec \"$B\" hook user-prompt-submit --host copilot; done; exec dfw hook user-prompt-submit --host copilot",
-        "powershell": "$h = if ($env:COPILOT_HOME) { $env:COPILOT_HOME } else { \"$HOME\\.copilot\" }; $r = if ($env:PLUGIN_ROOT) { $env:PLUGIN_ROOT } else { \"$h\\installed-plugins\\dfw-marketplace\\dfw\" }; if (Get-Command dfw -ErrorAction SilentlyContinue) { dfw hook user-prompt-submit --host copilot } else { node \"$r\\bin\\dfw.mjs\" hook user-prompt-submit --host copilot }",
+        "powershell": "$h = if ($env:COPILOT_HOME) { $env:COPILOT_HOME } else { \"$HOME\\.copilot\" }; $r = if ($env:PLUGIN_ROOT) { $env:PLUGIN_ROOT } else { \"$h\\installed-plugins\\dfw-marketplace\\dfw\" }; if (Get-Command dfw -ErrorAction SilentlyContinue) { dfw hook user-prompt-submit --host copilot } else { & \"$r\\bin\\dfw.cmd\" hook user-prompt-submit --host copilot }",
         "timeoutSec": 10
       }
     ],
@@ -22,7 +22,7 @@
       {
         "type": "command",
         "bash": "R=\"${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-${COPILOT_HOME:-$HOME/.copilot}/installed-plugins/dfw-marketplace/dfw}}\"; for B in \"$R/bin/dfw\" \"$HOME/.local/bin/dfw\"; do [ -x \"$B\" ] && exec \"$B\" hook pre-tool-use --host copilot; done; exec dfw hook pre-tool-use --host copilot",
-        "powershell": "$h = if ($env:COPILOT_HOME) { $env:COPILOT_HOME } else { \"$HOME\\.copilot\" }; $r = if ($env:PLUGIN_ROOT) { $env:PLUGIN_ROOT } else { \"$h\\installed-plugins\\dfw-marketplace\\dfw\" }; if (Get-Command dfw -ErrorAction SilentlyContinue) { dfw hook pre-tool-use --host copilot } else { node \"$r\\bin\\dfw.mjs\" hook pre-tool-use --host copilot }",
+        "powershell": "$h = if ($env:COPILOT_HOME) { $env:COPILOT_HOME } else { \"$HOME\\.copilot\" }; $r = if ($env:PLUGIN_ROOT) { $env:PLUGIN_ROOT } else { \"$h\\installed-plugins\\dfw-marketplace\\dfw\" }; if (Get-Command dfw -ErrorAction SilentlyContinue) { dfw hook pre-tool-use --host copilot } else { & \"$r\\bin\\dfw.cmd\" hook pre-tool-use --host copilot }",
         "timeoutSec": 10,
         "matcher": "Edit|Write|MultiEdit|NotebookEdit|edit|create|str_replace_editor|apply_patch"
       }
@@ -31,7 +31,7 @@
       {
         "type": "command",
         "bash": "R=\"${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-${COPILOT_HOME:-$HOME/.copilot}/installed-plugins/dfw-marketplace/dfw}}\"; for B in \"$R/bin/dfw\" \"$HOME/.local/bin/dfw\"; do [ -x \"$B\" ] && exec \"$B\" hook post-tool-use --host copilot; done; exec dfw hook post-tool-use --host copilot",
-        "powershell": "$h = if ($env:COPILOT_HOME) { $env:COPILOT_HOME } else { \"$HOME\\.copilot\" }; $r = if ($env:PLUGIN_ROOT) { $env:PLUGIN_ROOT } else { \"$h\\installed-plugins\\dfw-marketplace\\dfw\" }; if (Get-Command dfw -ErrorAction SilentlyContinue) { dfw hook post-tool-use --host copilot } else { node \"$r\\bin\\dfw.mjs\" hook post-tool-use --host copilot }",
+        "powershell": "$h = if ($env:COPILOT_HOME) { $env:COPILOT_HOME } else { \"$HOME\\.copilot\" }; $r = if ($env:PLUGIN_ROOT) { $env:PLUGIN_ROOT } else { \"$h\\installed-plugins\\dfw-marketplace\\dfw\" }; if (Get-Command dfw -ErrorAction SilentlyContinue) { dfw hook post-tool-use --host copilot } else { & \"$r\\bin\\dfw.cmd\" hook post-tool-use --host copilot }",
         "timeoutSec": 20,
         "matcher": "Edit|Write|MultiEdit|edit|create|str_replace_editor|apply_patch"
       }
@@ -40,7 +40,7 @@
       {
         "type": "command",
         "bash": "R=\"${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-${COPILOT_HOME:-$HOME/.copilot}/installed-plugins/dfw-marketplace/dfw}}\"; for B in \"$R/bin/dfw\" \"$HOME/.local/bin/dfw\"; do [ -x \"$B\" ] && exec \"$B\" hook stop --host copilot; done; exec dfw hook stop --host copilot",
-        "powershell": "$h = if ($env:COPILOT_HOME) { $env:COPILOT_HOME } else { \"$HOME\\.copilot\" }; $r = if ($env:PLUGIN_ROOT) { $env:PLUGIN_ROOT } else { \"$h\\installed-plugins\\dfw-marketplace\\dfw\" }; if (Get-Command dfw -ErrorAction SilentlyContinue) { dfw hook stop --host copilot } else { node \"$r\\bin\\dfw.mjs\" hook stop --host copilot }",
+        "powershell": "$h = if ($env:COPILOT_HOME) { $env:COPILOT_HOME } else { \"$HOME\\.copilot\" }; $r = if ($env:PLUGIN_ROOT) { $env:PLUGIN_ROOT } else { \"$h\\installed-plugins\\dfw-marketplace\\dfw\" }; if (Get-Command dfw -ErrorAction SilentlyContinue) { dfw hook stop --host copilot } else { & \"$r\\bin\\dfw.cmd\" hook stop --host copilot }",
         "timeoutSec": 120
       }
     ]

@@ -1,0 +1,25 @@
+{
+  "test": "tools: install, uninstall, doctor (fake host CLIs) > setup: the marketplace repo is recorded; no flag is a usage error",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "Recorded marketplace repo in <tmp>/home/dfw-home/config.json\n",
+      "files": {
+        "home/dfw-home/config.json": "{\n  \"marketplaceRepo\": \"<root>/clone\"\n}\n"
+      },
+      "extra": {
+        "calls": ""
+      },
+      "stderr": ""
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "files": {},
+      "extra": {
+        "calls": ""
+      },
+      "stderr": "Usage: dfw setup --browser | --a11y | --binary | --marketplace-repo <path>\n"
+    }
+  ]
+}

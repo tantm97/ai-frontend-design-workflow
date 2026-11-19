@@ -472,3 +472,177 @@ fn strict_csp_is_extended_and_cookies_pass() {
     assert_eq!(live["url"], url);
     let _ = std::fs::remove_dir_all(&root);
 }
+
+/// A headless browser page of `width` x `height`, for the tests that need Chrome.
+fn browser_page(
+    dir: &std::path::Path,
+    width: u32,
+    height: u32,
+) -> (
+    crate::browser::launch::Browser,
+    crate::browser::cdp::Context,
+    crate::browser::cdp::Page,
+) {
+    let tmp = dir.join("browser-tmp");
+    std::fs::create_dir_all(&tmp).unwrap();
+    let browser = crate::browser::launch::launch_with(&crate::browser::launch::LaunchOptions {
+        temp_dir: Some(tmp),
+        ..Default::default()
+    })
+    .unwrap();
+    let context = browser.new_context(Default::default()).unwrap();
+    let mut page = context.new_page().unwrap();
+    page.set_viewport_size(width, height).unwrap();
+    (browser, context, page)
+}
+
+/// inspector: dfw review in a browser: click-to-comment carries the nearest data-insp-path (needs Chrome)
+#[test]
+#[ignore = "needs Chrome"]
+fn review_in_a_browser_click_to_comment_carries_the_nearest_insp_path() {
+    let root = test_dir("live-browser");
+    std::fs::create_dir_all(root.join(".dfw")).unwrap();
+    std::fs::write(
+        root.join(".dfw/state.json"),
+        "{\"schema\":1,\"mode\":\"existing-project\",\"phase\":\"verify\",\"active\":true}\n",
+    )
+    .unwrap();
+    let abs_root = root.to_string_lossy().replace('\\', "/");
+    let app = fake_app(&abs_root);
+    let (port, _server) = proxy_for(&root, &format!("http://127.0.0.1:{app}"));
+    let (browser, _context, page) = browser_page(&root, 1440, 900);
+    page.goto(&format!("http://127.0.0.1:{port}/cart"), 30_000)
+        .unwrap();
+    let out = page
+        .evaluate(
+            r#"async () => {
+      for (let i = 0; i < 50 && !window.__dfwLive; i++) await new Promise((res) => setTimeout(res, 50));
+      const ui = document.querySelector('dfw-live').shadowRoot;
+      // Option+C on macOS types "ç": matched by event.code.
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ç', code: 'KeyC', altKey: true, bubbles: true }));
+      if (ui.querySelector('.toggle').getAttribute('aria-pressed') !== 'true') return 'comment mode not on';
+      document.querySelector('#total .amount').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      if (ui.querySelector('.pop').hidden) return 'composer not open';
+      const src = ui.querySelector('.src').textContent;
+      ui.querySelector('textarea').value = 'Total should be bold';
+      ui.querySelector('.pop').requestSubmit();
+      for (let i = 0; i < 50 && !/Sent to Claude/.test(ui.querySelector('.toast').textContent); i++) await new Promise((res) => setTimeout(res, 50));
+      return `${src}|${ui.querySelector('.toast').textContent}`;
+    }"#,
+            None,
+        )
+        .unwrap();
+    browser.close();
+    let out = out.as_str().unwrap_or_default().to_string();
+    assert!(
+        regex::Regex::new(r"Summary\.tsx:42:7\|Sent to Claude · comment #001")
+            .unwrap()
+            .is_match(&out),
+        "{out}"
+    );
+    let comments = all_comments(&root).unwrap();
+    let c = &comments[0];
+    assert_eq!(
+        c["target"]["source"], "src/components/Summary.tsx:42:7",
+        "nearest ancestor with the attribute"
+    );
+    assert_eq!(c["target"]["tag"], "span");
+    assert_eq!(c["target"]["text"], "$12.00");
+    assert!(c["target"]["selector"]
+        .as_str()
+        .unwrap()
+        .contains("#total > span"));
+    assert_eq!(c["screen"], "/cart");
+    assert_eq!(c["breakpoint"], "desktop");
+}
+
+/// A strict-CSP app on `localhost`: a login route that sets a cookie, and a page whose own nonce
+/// script records the keys it receives. Returns the port and the cookies the app saw.
+fn strict_app() -> (u16, Arc<std::sync::Mutex<Vec<String>>>) {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let log = Arc::clone(&seen);
+    thread::spawn(move || {
+        for mut s in listener.incoming().flatten() {
+            let Ok(Some(head)) = crate::studio::http::read_head(&mut s) else {
+                continue;
+            };
+            let cookie = head.header("cookie").unwrap_or_default().to_string();
+            log.lock().unwrap().push(cookie);
+            let (headers, body) = if head.target() == "/login" {
+                ("Content-Type: text/plain\r\nSet-Cookie: sid=s3cret; Path=/; HttpOnly; SameSite=Lax".to_string(), "ok".to_string())
+            } else {
+                (
+                    "Content-Type: text/html; charset=utf-8\r\nContent-Security-Policy: default-src 'none'; script-src 'nonce-app' 'strict-dynamic'; style-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'".to_string(),
+                    "<!doctype html><html><head><title>App</title></head><body><h1 id=\"t\">Title</h1><input id=\"q\"><script nonce=\"app\">window.appKeys = []; document.addEventListener('keydown', (e) => window.appKeys.push(e.key));</script></body></html>".to_string(),
+                )
+            };
+            let _ = s.write_all(format!("HTTP/1.1 200 OK\r\n{headers}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).as_bytes());
+        }
+    });
+    (port, seen)
+}
+
+/// inspector: dfw review in a browser: strict CSP app, localhost cookies, Alt/Option+C not C (needs Chrome)
+#[test]
+#[ignore = "needs Chrome"]
+fn review_in_a_browser_strict_csp_localhost_cookies_and_the_shortcut() {
+    let root = test_dir("live-browser-csp");
+    std::fs::create_dir_all(root.join(".dfw")).unwrap();
+    std::fs::write(
+        root.join(".dfw/state.json"),
+        "{\"schema\":1,\"mode\":\"existing-project\",\"phase\":\"verify\",\"active\":true}\n",
+    )
+    .unwrap();
+    let (app, seen) = strict_app();
+    let app_url = format!("http://localhost:{app}");
+    let (port, _server) = proxy_for(&root, &app_url);
+    let (browser, _context, page) = browser_page(&root, 1280, 800);
+    // The user signs in on the app itself, then opens the review proxy on localhost.
+    page.goto(&format!("{app_url}/login"), 30_000).unwrap();
+    page.goto(&format!("http://localhost:{port}/"), 30_000)
+        .unwrap();
+    assert_eq!(
+        seen.lock().unwrap().last().map(String::as_str),
+        Some("sid=s3cret"),
+        "the app's localhost cookie reaches it through the proxy"
+    );
+    let out = page
+        .evaluate(
+            r#"async () => {
+      for (let i = 0; i < 50 && !window.__dfwLive; i++) await new Promise((res) => setTimeout(res, 50));
+      if (!window.__dfwLive) return 'live.js blocked by CSP';
+      if (typeof window.__dfwTargetInfo !== 'function') return 'overlay.js blocked by CSP';
+      if (!Array.isArray(window.appKeys)) return "the app's own nonce script did not run";
+      const ui = document.querySelector('dfw-live').shadowRoot;
+      const pressed = () => ui.querySelector('.toggle').getAttribute('aria-pressed');
+      const key = (init, el = document.body) => el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, composed: true, ...init }));
+      if (getComputedStyle(ui.querySelector('.bar')).position !== 'fixed') return 'review UI styles blocked by style-src';
+      key({ key: 'c', code: 'KeyC' });
+      if (pressed() !== 'false') return 'plain C was stolen from the app';
+      if (!window.appKeys.includes('c')) return 'the app did not get C';
+      const q = document.querySelector('#q');
+      q.focus();
+      key({ key: 'ç', code: 'KeyC', altKey: true }, q);
+      if (pressed() !== 'false') return 'shortcut fired while typing in an input';
+      q.blur();
+      key({ key: 'ç', code: 'KeyC', altKey: true });
+      if (pressed() !== 'true') return 'Option+C did not toggle comment mode';
+      document.querySelector('#t').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      ui.querySelector('textarea').value = 'Bigger title';
+      ui.querySelector('.pop').requestSubmit();
+      for (let i = 0; i < 50 && !/Sent to Claude|Not sent/.test(ui.querySelector('.toast').textContent); i++) await new Promise((res) => setTimeout(res, 50));
+      return ui.querySelector('.toast').textContent;
+    }"#,
+            None,
+        )
+        .unwrap();
+    browser.close();
+    let out = out.as_str().unwrap_or_default().to_string();
+    assert!(
+        out.contains("Sent to Claude · comment #001"),
+        "comment POST allowed by connect-src: {out}"
+    );
+    assert_eq!(all_comments(&root).unwrap()[0]["comment"], "Bigger title");
+}

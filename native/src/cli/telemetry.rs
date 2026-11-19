@@ -18,7 +18,7 @@ const USAGE: &str =
 
 /// The command of this file.
 pub fn commands() -> Vec<(&'static str, Handler)> {
-    vec![("telemetry", Handler::Native(telemetry))]
+    vec![("telemetry", telemetry as Handler)]
 }
 
 /// Write one key of the global config (`<dfw home>/config.json`).

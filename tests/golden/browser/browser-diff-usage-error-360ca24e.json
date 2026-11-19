@@ -1,0 +1,17 @@
+{
+  "test": "browser: diff > usage error",
+  "results": [
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Usage: dfw diff <a.png|dirA> <b.png|dirB> [--out <file|dir>] [--threshold 0.1] [--json]\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Usage: dfw diff <a.png|dirA> <b.png|dirB> [--out <file|dir>] [--threshold 0.1] [--json]\n",
+      "files": {}
+    }
+  ]
+}

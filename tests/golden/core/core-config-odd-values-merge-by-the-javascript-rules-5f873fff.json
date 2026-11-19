@@ -1,0 +1,30 @@
+{
+  "test": "core: config > odd values merge by the JavaScript rules",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "{\"schema\":1,\"language\":{\"askPolicy\":\"session\",\"default\":\"en\"},\"gate\":{\"allow\":[\".dfw/**\",\"design/handoff/**\",\"docs/**\"],\"designPaths\":[\"design/**\",\"PRODUCT.md\",\"DESIGN.md\"],\"immutable\":[\"design/approved/**\",1,{\"a\":1},null,\"x\",{\"a\":1},false]},\"checks\":{\"onEdit\":\"fast\",\"timeoutMs\":8000,\"impeccable\":true,\"sloplint\":true,\"tasteCopyLint\":false,\"maxFindings\":1e+21},\"studio\":null,\"review\":{\"shortcut\":\"alt+c\"},\"accessibility\":{\"standard\":\"WCAG 2.2\",\"level\":\"AA\"},\"skills\":{\"disabled\":[\"one\"]},\"env\":{\"DO_NOT_TRACK\":\"1\",\"IMPECCABLE_NO_UPDATE_CHECK\":\"1\",\"IMPECCABLE_HOOK_DISABLED\":\"1\"}}\n",
+      "stderr": "dfw: ignored env in <tmp>/project/.dfw/config.local.json (it must be an object of strings)\n"
+    },
+    {
+      "code": 0,
+      "stdout": "{\"schema\":1,\"language\":{\"askPolicy\":\"session\",\"default\":\"en\"},\"gate\":{\"allow\":[\".dfw/**\",\"design/handoff/**\"],\"immutable\":[\"design/approved/**\"]},\"checks\":{\"onEdit\":\"fast\",\"timeoutMs\":8000,\"impeccable\":true,\"sloplint\":true,\"tasteCopyLint\":false,\"maxFindings\":12},\"studio\":{\"port\":4600,\"breakpoints\":[{\"id\":\"desktop\",\"label\":\"Desktop\",\"width\":1440,\"height\":900},{\"id\":\"tablet\",\"label\":\"Tablet\",\"width\":834,\"height\":1112},{\"id\":\"mobile\",\"label\":\"Mobile\",\"width\":390,\"height\":844}]},\"review\":{\"shortcut\":\"alt+c\"},\"accessibility\":{\"standard\":\"WCAG 2.2\",\"level\":\"AA\"},\"skills\":{\"0\":[\"x\"],\"1\":\"y\",\"disabled\":[]},\"env\":{\"DO_NOT_TRACK\":\"1\",\"IMPECCABLE_NO_UPDATE_CHECK\":\"1\",\"IMPECCABLE_HOOK_DISABLED\":\"1\"}}\n",
+      "stderr": ""
+    },
+    {
+      "code": 0,
+      "stdout": "{\"schema\":1,\"language\":{\"askPolicy\":\"session\",\"default\":\"en\"},\"gate\":{\"0\":\"t\",\"1\":\"e\",\"2\":\"x\",\"3\":\"t\",\"allow\":[\".dfw/**\",\"design/handoff/**\"],\"immutable\":[\"design/approved/**\"]},\"checks\":{\"onEdit\":\"fast\",\"timeoutMs\":8000,\"impeccable\":true,\"sloplint\":true,\"tasteCopyLint\":false,\"maxFindings\":12},\"studio\":{\"port\":4600,\"breakpoints\":[{\"id\":\"desktop\",\"label\":\"Desktop\",\"width\":1440,\"height\":900},{\"id\":\"tablet\",\"label\":\"Tablet\",\"width\":834,\"height\":1112},{\"id\":\"mobile\",\"label\":\"Mobile\",\"width\":390,\"height\":844}]},\"review\":{\"shortcut\":\"alt+c\"},\"accessibility\":{\"standard\":\"WCAG 2.2\",\"level\":\"AA\"},\"skills\":{\"disabled\":[[\"a\"],[\"a\"]]},\"env\":{\"DO_NOT_TRACK\":\"1\",\"IMPECCABLE_NO_UPDATE_CHECK\":\"1\",\"IMPECCABLE_HOOK_DISABLED\":\"1\"}}\n",
+      "stderr": ""
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "file://<repo>/core/lib/config.mjs:85\n  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new DfwError(`Config file ${file} must hold a JSON object. Fix it or delete it.`);\n                                                                      ^\n\nDfwError: Config file <tmp>/project/.dfw/config.json must hold a JSON object. Fix it or delete it.\n    at readLayer (file://<repo>/core/lib/config.mjs:85:71)\n    at loadConfig (file://<repo>/core/lib/config.mjs:96:46)\n    at file://<repo>/[eval1]:1:148\n    at ModuleJob.run (node:internal/modules/esm/module_job:370:25)\n    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:270:26)\n    at async ModuleLoader.executeModuleJob (node:internal/modules/esm/loader:267:20)\n    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:99:5) {\n  exitCode: 1\n}\n\nNode.js v24.4.1\n"
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "file://<repo>/core/lib/config.mjs:85\n  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new DfwError(`Config file ${file} must hold a JSON object. Fix it or delete it.`);\n                                                                      ^\n\nDfwError: Config file <tmp>/home/config.json must hold a JSON object. Fix it or delete it.\n    at readLayer (file://<repo>/core/lib/config.mjs:85:71)\n    at loadConfig (file://<repo>/core/lib/config.mjs:93:16)\n    at file://<repo>/[eval1]:1:148\n    at ModuleJob.run (node:internal/modules/esm/module_job:370:25)\n    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:270:26)\n    at async ModuleLoader.executeModuleJob (node:internal/modules/esm/loader:267:20)\n    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:99:5) {\n  exitCode: 1\n}\n\nNode.js v24.4.1\n"
+    }
+  ]
+}

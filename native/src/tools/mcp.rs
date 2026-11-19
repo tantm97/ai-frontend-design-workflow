@@ -7,7 +7,6 @@
 //! `dfw mcp install|uninstall` is in `tools/mcp_install`.
 
 use std::env;
-use std::fs;
 use std::io::{self, BufRead, Read, Write};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -17,15 +16,17 @@ use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
 
+use crate::assets::{self, Folder};
 use crate::core::config::load_config;
 use crate::core::error::DfwError;
+use crate::core::host::render_text;
 use crate::core::js;
-use crate::core::paths::{find_project_root, plugin_root, resolve};
+use crate::core::paths::{find_project_root, resolve};
 use crate::core::util::{plugin_manifest, to_json_compact};
 use crate::workflow::gates::decide_write;
 use crate::workflow::state::load_state;
 
-/// Rendered into `mcp/` at build time (host.mjs "mcp").
+/// The value of `{{SKILL_DIR}}` for the host "mcp" (`core::host`).
 const SKILL_DIR_MARK: &str = "__DFW_SKILL_DIR__";
 /// Commands a model may not run through the `dfw` tool, besides every internal `__*` command
 /// (the Studio and review servers, `__debug`): see [`blocked`].
@@ -49,29 +50,14 @@ struct ToolResult {
 /// A failed tool call (`throw new Error(message)` inside a tool): reported to the model as text.
 type ToolError = String;
 
-/// The `mcp/` text tree built for this plugin (dev checkout: the built Claude Code plugin's copy).
-fn guide_dir() -> Option<PathBuf> {
-    let root = plugin_root()?;
-    let own = root.join("mcp");
-    Some(if own.exists() {
-        own
-    } else {
-        resolve(root.join("..").join("plugins").join("dfw").join("mcp"))
-    })
-}
+/// The parts of `core/workflow` the guide serves (the agents are for plugin hosts only).
+const GUIDE_FOLDERS: [&str; 3] = ["references", "policies", "stacks"];
 
 fn topics() -> Vec<String> {
     let mut out = Vec::new();
-    let Some(dir) = guide_dir() else {
-        return out;
-    };
-    for sub in ["references", "policies", "stacks"] {
-        let Ok(entries) = fs::read_dir(dir.join(sub)) else {
-            continue;
-        };
-        let mut names: Vec<String> = entries
-            .flatten()
-            .map(|e| e.file_name().to_string_lossy().into_owned())
+    for sub in GUIDE_FOLDERS {
+        let mut names: Vec<String> = assets::file_names(Folder::Workflow, sub)
+            .into_iter()
             .filter(|name| name.ends_with(".md"))
             .collect();
         // JavaScript's default sort compares UTF-16 code units.
@@ -81,24 +67,47 @@ fn topics() -> Vec<String> {
     out
 }
 
-/// `guide(topic)`: the main guide, or one topic file. The path must stay inside the guide folder.
+/// A topic as a path inside the guide: `..` is resolved as `path.resolve` does; `None` when the
+/// topic leaves the guide or names the guide itself.
+fn topic_path(rel: &str) -> Option<String> {
+    let mut parts: Vec<&str> = Vec::new();
+    for part in rel.split(['/', '\\']) {
+        match part {
+            "" | "." => {}
+            ".." => {
+                parts.pop()?;
+            }
+            _ => parts.push(part),
+        }
+    }
+    (!parts.is_empty()).then(|| parts.join("/"))
+}
+
+/// `guide(topic)`: the main guide, or one topic file, rendered for MCP from the embedded
+/// `core/workflow`. The path must stay inside the guide. The guide has no folder on disk, so the
+/// skill folder placeholder becomes nothing: `{{SKILL_DIR}}/references/x.md` reads
+/// `references/x.md`, which is the topic to ask for.
 fn guide(topic: Option<&Value>) -> Result<String, ToolError> {
     // The parameter default applies to `undefined` only: a null topic prints as "null".
     let shown = topic.map_or(String::new(), |t| js::to_string(Some(t)));
     let unknown = || format!("Unknown topic \"{shown}\". Topics: {}", topics().join(", "));
-    let dir = guide_dir().ok_or_else(unknown)?;
     let rel = if js::truthy_value(topic).is_some() {
-        shown.trim_start_matches('/')
+        topic_path(&shown).ok_or_else(unknown)?
     } else {
-        "SKILL.md"
+        "SKILL.md".to_string()
     };
-    let file = resolve(dir.join(rel));
-    let inside = file != dir && file.starts_with(&dir);
-    if !inside || !file.to_string_lossy().ends_with(".md") || !file.exists() {
+    let served = rel == "SKILL.md"
+        || GUIDE_FOLDERS
+            .iter()
+            .any(|sub| rel.starts_with(&format!("{sub}/")));
+    if !served || !rel.ends_with(".md") {
         return Err(unknown());
     }
-    let text = fs::read_to_string(&file).map_err(|err| err.to_string())?;
-    Ok(text.replace(SKILL_DIR_MARK, &dir.to_string_lossy()))
+    let text = assets::text(Folder::Workflow, &rel).ok_or_else(unknown)?;
+    let text = render_text(&text, "mcp").map_err(|err| err.message().to_string())?;
+    Ok(text
+        .replace(&format!("{SKILL_DIR_MARK}/"), "")
+        .replace(SKILL_DIR_MARK, "."))
 }
 
 /// A `cwd` argument: the path given, else this process's working directory. Node passes a
@@ -488,5 +497,32 @@ mod tests {
         assert!(can_write(Some(&json!([])), None).is_err());
         assert!(guide(Some(&json!("../../package.json")))
             .is_err_and(|e| e.starts_with("Unknown topic \"../../package.json\". Topics: ")));
+        for refused in [
+            "agents/screen-builder.md",
+            "references",
+            "/",
+            "references/../../x.md",
+        ] {
+            assert!(guide(Some(&json!(refused))).is_err(), "{refused}");
+        }
+    }
+
+    /// mcp: the guide is served from the binary, rendered for MCP, with no folder on disk
+    #[test]
+    fn the_guide_is_embedded_and_rendered_for_mcp() {
+        let main = guide(None).unwrap();
+        assert!(main.contains("dfw_can_write"));
+        assert!(!main.contains(SKILL_DIR_MARK) && !main.contains("{{"));
+        assert!(
+            main.contains("`references/`"),
+            "topics are named as dfw_guide takes them"
+        );
+        let concepts = guide(Some(&json!("references/phase-concepts.md"))).unwrap();
+        assert!(concepts.contains("Phase: concepts"));
+        assert_eq!(
+            guide(Some(&json!("/references/../references/phase-concepts.md"))).unwrap(),
+            concepts
+        );
+        assert!(topics().contains(&"policies/precedence.md".to_string()));
     }
 }

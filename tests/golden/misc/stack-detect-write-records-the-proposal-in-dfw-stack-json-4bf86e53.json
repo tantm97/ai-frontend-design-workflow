@@ -1,0 +1,13 @@
+{
+  "test": "stack > detect --write records the proposal in .dfw/stack.json",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "{\n  \"detectedAt\": \"<time>\",\n  \"kind\": \"javascript\",\n  \"framework\": {\n    \"name\": \"Vue\",\n    \"package\": \"vue\",\n    \"version\": \"3.5.0\"\n  },\n  \"styling\": [],\n  \"uiLibraries\": [],\n  \"language\": \"JavaScript\",\n  \"packageManager\": null,\n  \"evidence\": [\n    \"package.json\"\n  ],\n  \"isNewProject\": false\n}\n",
+      "stderr": "",
+      "files": {
+        ".dfw/stack.json": "{\n  \"detectedAt\": \"<time>\",\n  \"kind\": \"javascript\",\n  \"framework\": {\n    \"name\": \"Vue\",\n    \"package\": \"vue\",\n    \"version\": \"3.5.0\"\n  },\n  \"styling\": [],\n  \"uiLibraries\": [],\n  \"language\": \"JavaScript\",\n  \"packageManager\": null,\n  \"evidence\": [\n    \"package.json\"\n  ],\n  \"isNewProject\": false,\n  \"status\": \"proposed\",\n  \"source\": \"detected\"\n}\n"
+      }
+    }
+  ]
+}

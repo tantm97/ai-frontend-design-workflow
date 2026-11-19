@@ -1,0 +1,15 @@
+{
+  "test": "edit: sources where the tokenizer and the Node tag scanner differ > an attribute with no white space before it: Node does not see it and adds a second one",
+  "results": [
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "changed": true,
+          "line": 1
+        }
+      },
+      "file": "<html><head></head><body><p data-dfw-id=\"p\" class=\"c\" style=\"gap: var(--space-2)\">x</p></body></html>"
+    }
+  ]
+}

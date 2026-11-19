@@ -1,0 +1,25 @@
+{
+  "test": "render: hook stop > no browser installed: the stop passes and nothing is marked",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "Layout check unavailable: no Chrome, Edge or Chromium found (dfw setup --browser downloads a headless one)\n",
+      "files": {}
+    }
+  ]
+}

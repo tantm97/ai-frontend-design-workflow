@@ -1,0 +1,11 @@
+{
+  "test": "stack > detect: a JavaScript project (framework, styling, UI libraries, language, package manager)",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "{\n  \"detectedAt\": \"<time>\",\n  \"kind\": \"javascript\",\n  \"framework\": {\n    \"name\": \"Next.js (React)\",\n    \"package\": \"next\",\n    \"version\": \"15.1.0\"\n  },\n  \"styling\": [\n    {\n      \"name\": \"Tailwind CSS\",\n      \"package\": \"tailwindcss\",\n      \"version\": \"4.0.0\"\n    },\n    {\n      \"name\": \"Sass\",\n      \"package\": \"sass\",\n      \"version\": \"1\"\n    }\n  ],\n  \"uiLibraries\": [\n    {\n      \"name\": \"MUI\",\n      \"package\": \"@mui/material\",\n      \"version\": \"6\"\n    },\n    {\n      \"name\": \"shadcn/ui\",\n      \"package\": \"components.json\"\n    }\n  ],\n  \"language\": \"TypeScript\",\n  \"packageManager\": \"yarn\",\n  \"evidence\": [\n    \"package.json\",\n    \"components.json\",\n    \"yarn.lock\",\n    \"Cargo.toml\"\n  ],\n  \"isNewProject\": false\n}\n",
+      "stderr": "",
+      "files": {}
+    }
+  ]
+}

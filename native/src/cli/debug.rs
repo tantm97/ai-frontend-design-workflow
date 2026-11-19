@@ -1,6 +1,7 @@
-//! `dfw __debug <subcommand>`: hidden commands that print what a ported module computes, so
-//! `tests/conformance/*.conformance.mjs` can compare it with the Node module. Not in the help
-//! text, not for users; it goes when the Node core is deleted.
+//! `dfw __debug <subcommand>`: hidden commands that print what a module computes, so the golden
+//! tests (`tests/golden/*.golden.mjs`) can compare it with the recorded result, and the release
+//! workflow can ask the binary what it was built with (`telemetry-build`). Not in the help text,
+//! not for users.
 //!
 //! To add a subcommand: write `pub(super) fn debug_<name>(ctx: &Ctx) -> Result<i32, DfwError>` in
 //! your own `cli/<group>.rs` (arguments start at `ctx.args.pos(2)`, print with `out`), and add
@@ -42,7 +43,7 @@ const SUBCOMMANDS: &[(&str, Subcommand)] = &[
 
 /// The command of this file.
 pub fn commands() -> Vec<(&'static str, Handler)> {
-    vec![("__debug", Handler::Native(run))]
+    vec![("__debug", run as Handler)]
 }
 
 fn run(ctx: &Ctx) -> Result<i32, DfwError> {

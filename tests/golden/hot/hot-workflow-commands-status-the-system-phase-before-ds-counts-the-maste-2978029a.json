@@ -1,0 +1,65 @@
+{
+  "test": "hot: workflow commands > status: the system phase before DS counts the masters; a broken state fails in both",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "dfw: product=\"Fixture\" mode=new-product phase=system\ndesign: v1 draft\ngates: G1=approved DS=open G2=open G3=open G4=open\ncomments: 0 active, 0 awaiting user verification, 0 resolved\nstudio: not running\nstack: not set\nnext: review the Design System page in the studio; when the user approves: \"dfw approve DS --note ...\"\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"root\": \"<root>\",\n  \"state\": {\n    \"schema\": 1,\n    \"product\": \"Fixture\",\n    \"mode\": \"new-product\",\n    \"phase\": \"system\",\n    \"active\": true,\n    \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n    \"updatedAt\": \"2026-01-02T03:04:05.678Z\",\n    \"design\": {\n      \"version\": 1,\n      \"status\": \"draft\",\n      \"locked\": false,\n      \"approved\": []\n    },\n    \"gates\": {\n      \"G1\": {\n        \"approvedAt\": \"2026-01-02T03:04:05.678Z\",\n        \"note\": \"ok\"\n      },\n      \"DS\": null,\n      \"G2\": null,\n      \"G3\": null,\n      \"G4\": null\n    },\n    \"waived\": {},\n    \"history\": [\n      {\n        \"at\": \"2026-01-02T03:04:05.678Z\",\n        \"event\": \"init\",\n        \"mode\": \"new-product\"\n      }\n    ]\n  },\n  \"approved\": null,\n  \"comments\": {\n    \"active\": 0,\n    \"fixed\": 0,\n    \"resolved\": 0\n  },\n  \"studio\": null,\n  \"stack\": null\n}\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    }
+  ]
+}

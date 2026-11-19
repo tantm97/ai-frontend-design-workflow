@@ -456,22 +456,17 @@ fn check_page(renderer: &Renderer, job: &Job, url: Option<&str>, axe_src: &str) 
 mod tests {
     use super::*;
 
-    /// The JavaScript that runs in the page is the Node source, byte for byte.
+    /// The JavaScript that runs in the page is one self-contained function per file; axe is
+    /// pinned by version and integrity (the golden render tests check what they do in Chrome).
     #[test]
-    fn page_scripts_are_the_functions_of_a11y_mjs() {
-        let node = concat!(env!("CARGO_MANIFEST_DIR"), "/../core/lib/a11y.mjs");
-        let source = fs::read_to_string(node).unwrap();
+    fn page_scripts_are_self_contained_functions_and_axe_is_pinned() {
         assert!(RUN_AXE.starts_with("async function runAxe() {\n"));
         assert!(DEAD_CONTROLS.starts_with("async function deadControls() {\n"));
-        for script in [RUN_AXE, DEAD_CONTROLS] {
-            assert!(source.contains(&format!("\n{script}\n")));
-        }
-        assert!(source.contains(&format!(
-            "page.evaluate({SET_STATE_AND_THEME}, {{ state: j.state, theme: j.theme }})"
-        )));
-        for pinned in [AXE_VERSION, AXE_TARBALL, AXE_INTEGRITY, NOT_DOWNLOADED] {
-            assert!(source.contains(&format!("'{pinned}'")), "{pinned}");
-        }
+        assert!(AXE_VERSION.split('.').all(|n| n.parse::<u32>().is_ok()));
+        assert!(AXE_TARBALL.starts_with("https://registry.npmjs.org/axe-core/-/axe-core-"));
+        assert!(AXE_TARBALL.contains(AXE_VERSION));
+        assert!(AXE_INTEGRITY.starts_with("sha512-"));
+        assert!(!NOT_DOWNLOADED.is_empty() && !SET_STATE_AND_THEME.is_empty());
     }
 
     /// One HTTP response per connection, for as many connections as there are bodies.

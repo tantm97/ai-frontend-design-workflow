@@ -151,3 +151,24 @@ export function leftoverCheck({ pluginsRoot = path.join(REPO_ROOT, 'plugins'), o
   }
   return errors;
 }
+
+/**
+ * One release version everywhere (contracts.md C14): the plugin manifests come from
+ * core/manifest.json, the binary's from native/Cargo.toml, the npx installer's from package.json.
+ * Returns the error text, or null when they agree.
+ */
+export function versionMismatch(root = REPO_ROOT) {
+  const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
+  const lock = JSON.parse(read('package-lock.json'));
+  const cargoLock = /\[\[package\]\]\nname = "dfw"\nversion = "([^"]+)"/.exec(read('native/Cargo.lock'));
+  const versions = {
+    'core/manifest.json': JSON.parse(read('core/manifest.json')).version,
+    'package.json': JSON.parse(read('package.json')).version,
+    'package-lock.json': lock.version,
+    'package-lock.json packages[""]': lock.packages?.['']?.version,
+    'native/Cargo.toml': /^version = "([^"]+)"$/m.exec(read('native/Cargo.toml'))?.[1],
+    'native/Cargo.lock (dfw)': cargoLock?.[1],
+  };
+  const distinct = new Set(Object.values(versions));
+  return distinct.size === 1 ? null : `versions differ: ${Object.entries(versions).map(([f, v]) => `${f} ${v ?? '(none)'}`).join(', ')}. Bump them together.`;
+}

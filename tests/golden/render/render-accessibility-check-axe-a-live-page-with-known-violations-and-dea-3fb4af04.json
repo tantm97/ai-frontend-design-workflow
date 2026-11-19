@@ -1,0 +1,43 @@
+{
+  "test": "render: accessibility check (axe) > a live page with known violations, and dead controls",
+  "results": [
+    {
+      "tool": "axe",
+      "status": "ran",
+      "findings": [
+        {
+          "level": "error",
+          "rule": "axe-color-contrast",
+          "file": "file://<tmp>/project/site/bad.html",
+          "line": 1,
+          "source": "axe",
+          "message": "file://<tmp>/project/site/bad.html: Elements must meet minimum color contrast ratio thresholds (1 element(s), e.g. p): Element has insufficient color contrast of 1.91 (foreground color: #bbbbbb, background color: #ffffff, font size: 12.0pt (16px), font weight: normal). Expected "
+        },
+        {
+          "level": "error",
+          "rule": "axe-image-alt",
+          "file": "file://<tmp>/project/site/bad.html",
+          "line": 1,
+          "source": "axe",
+          "message": "file://<tmp>/project/site/bad.html: Images must have alternative text (1 element(s), e.g. img): Element does not have an alt attribute"
+        },
+        {
+          "level": "error",
+          "rule": "axe-label",
+          "file": "file://<tmp>/project/site/bad.html",
+          "line": 1,
+          "source": "axe",
+          "message": "file://<tmp>/project/site/bad.html: Form elements must have labels (1 element(s), e.g. input): Element does not have an implicit (wrapped) <label>"
+        },
+        {
+          "level": "warn",
+          "rule": "dead-control",
+          "file": "file://<tmp>/project/site/bad.html",
+          "line": 1,
+          "source": "axe",
+          "message": "file://<tmp>/project/site/bad.html: control \"Dead toggle\" announces a state (aria-pressed/expanded/selected/sort) but clicking it changes nothing."
+        }
+      ]
+    }
+  ]
+}

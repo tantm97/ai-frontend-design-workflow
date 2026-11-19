@@ -1,0 +1,343 @@
+{
+  "test": "edit: hostile sources > comments and single quotes: every op, then undo back to the original bytes",
+  "results": [
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "changed": true,
+          "line": 12
+        }
+      },
+      "files": {
+        ".dfw/edits/#0": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"file\":\"design/screens/items/a.html\",\"op\":{\"op\":\"text\",\"id\":\"t\",\"value\":\"New <text> & more\"},\"before\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <!-- <head> <style> p { } -->\\n</head>\\n<body>\\n<main data-dfw-id=\\\"m\\\" class=\\\"a\\\">\\n  <!-- <p data-dfw-id=\\\"t\\\">commented out</p> </div> </main> -->\\n  <div data-dfw-id=\\\"box\\\">\\n    <!-- </div> old wrapper -->\\n    <p data-dfw-id=\\\"t\\\">Text</p>\\n  </div>\\n  <section data-dfw-id='quoted' class='a > b' style='--Gap: 1px; background: url(\\\"a;b\\\")' title=\\\"it's\\\">\\n    <span data-dfw-id=\\\"s1\\\">one</span>\\n    <span data-dfw-id=\\\"s2\\\">two</span>\\n  </section>\\n  <div data-dfw-id=\\\"empty\\\"></div>\\n</main>\\n</body>\\n</html>\\n\",\"after\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <!-- <head> <style> p { } -->\\n</head>\\n<body>\\n<main data-dfw-id=\\\"m\\\" class=\\\"a\\\">\\n  <!-- <p data-dfw-id=\\\"t\\\">commented out</p> </div> </main> -->\\n  <div data-dfw-id=\\\"box\\\">\\n    <!-- </div> old wrapper -->\\n    <p data-dfw-id=\\\"t\\\">New &lt;text&gt; &amp; more</p>\\n  </div>\\n  <section data-dfw-id='quoted' class='a > b' style='--Gap: 1px; background: url(\\\"a;b\\\")' title=\\\"it's\\\">\\n    <span data-dfw-id=\\\"s1\\\">one</span>\\n    <span data-dfw-id=\\\"s2\\\">two</span>\\n  </section>\\n  <div data-dfw-id=\\\"empty\\\"></div>\\n</main>\\n</body>\\n</html>\\n\"}",
+        "design/screens/items/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <!-- <head> <style> p { } -->\n</head>\n<body>\n<main data-dfw-id=\"m\" class=\"a\">\n  <!-- <p data-dfw-id=\"t\">commented out</p> </div> </main> -->\n  <div data-dfw-id=\"box\">\n    <!-- </div> old wrapper -->\n    <p data-dfw-id=\"t\">New &lt;text&gt; &amp; more</p>\n  </div>\n  <section data-dfw-id='quoted' class='a > b' style='--Gap: 1px; background: url(\"a;b\")' title=\"it's\">\n    <span data-dfw-id=\"s1\">one</span>\n    <span data-dfw-id=\"s2\">two</span>\n  </section>\n  <div data-dfw-id=\"empty\"></div>\n</main>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "changed": true,
+          "line": 14
+        }
+      },
+      "files": {
+        ".dfw/edits/#1": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"file\":\"design/screens/items/a.html\",\"op\":{\"op\":\"spacing\",\"id\":\"quoted\",\"prop\":\"gap\",\"value\":\"space.4\"},\"before\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <!-- <head> <style> p { } -->\\n</head>\\n<body>\\n<main data-dfw-id=\\\"m\\\" class=\\\"a\\\">\\n  <!-- <p data-dfw-id=\\\"t\\\">commented out</p> </div> </main> -->\\n  <div data-dfw-id=\\\"box\\\">\\n    <!-- </div> old wrapper -->\\n    <p data-dfw-id=\\\"t\\\">New &lt;text&gt; &amp; more</p>\\n  </div>\\n  <section data-dfw-id='quoted' class='a > b' style='--Gap: 1px; background: url(\\\"a;b\\\")' title=\\\"it's\\\">\\n    <span data-dfw-id=\\\"s1\\\">one</span>\\n    <span data-dfw-id=\\\"s2\\\">two</span>\\n  </section>\\n  <div data-dfw-id=\\\"empty\\\"></div>\\n</main>\\n</body>\\n</html>\\n\",\"after\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <!-- <head> <style> p { } -->\\n</head>\\n<body>\\n<main data-dfw-id=\\\"m\\\" class=\\\"a\\\">\\n  <!-- <p data-dfw-id=\\\"t\\\">commented out</p> </div> </main> -->\\n  <div data-dfw-id=\\\"box\\\">\\n    <!-- </div> old wrapper -->\\n    <p data-dfw-id=\\\"t\\\">New &lt;text&gt; &amp; more</p>\\n  </div>\\n  <section data-dfw-id='quoted' class='a > b' style=\\\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\\\" title=\\\"it's\\\">\\n    <span data-dfw-id=\\\"s1\\\">one</span>\\n    <span data-dfw-id=\\\"s2\\\">two</span>\\n  </section>\\n  <div data-dfw-id=\\\"empty\\\"></div>\\n</main>\\n</body>\\n</html>\\n\"}",
+        "design/screens/items/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <!-- <head> <style> p { } -->\n</head>\n<body>\n<main data-dfw-id=\"m\" class=\"a\">\n  <!-- <p data-dfw-id=\"t\">commented out</p> </div> </main> -->\n  <div data-dfw-id=\"box\">\n    <!-- </div> old wrapper -->\n    <p data-dfw-id=\"t\">New &lt;text&gt; &amp; more</p>\n  </div>\n  <section data-dfw-id='quoted' class='a > b' style=\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\" title=\"it's\">\n    <span data-dfw-id=\"s1\">one</span>\n    <span data-dfw-id=\"s2\">two</span>\n  </section>\n  <div data-dfw-id=\"empty\"></div>\n</main>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "changed": true,
+          "line": 8
+        }
+      },
+      "files": {
+        ".dfw/edits/#2": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"file\":\"design/screens/items/a.html\",\"op\":{\"op\":\"spacing\",\"id\":\"m\",\"prop\":\"padding\",\"value\":\"space.2\"},\"before\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <!-- <head> <style> p { } -->\\n</head>\\n<body>\\n<main data-dfw-id=\\\"m\\\" class=\\\"a\\\">\\n  <!-- <p data-dfw-id=\\\"t\\\">commented out</p> </div> </main> -->\\n  <div data-dfw-id=\\\"box\\\">\\n    <!-- </div> old wrapper -->\\n    <p data-dfw-id=\\\"t\\\">New &lt;text&gt; &amp; more</p>\\n  </div>\\n  <section data-dfw-id='quoted' class='a > b' style=\\\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\\\" title=\\\"it's\\\">\\n    <span data-dfw-id=\\\"s1\\\">one</span>\\n    <span data-dfw-id=\\\"s2\\\">two</span>\\n  </section>\\n  <div data-dfw-id=\\\"empty\\\"></div>\\n</main>\\n</body>\\n</html>\\n\",\"after\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <!-- <head> <style> p { } -->\\n</head>\\n<body>\\n<main data-dfw-id=\\\"m\\\" class=\\\"a\\\" style=\\\"padding: var(--space-2)\\\">\\n  <!-- <p data-dfw-id=\\\"t\\\">commented out</p> </div> </main> -->\\n  <div data-dfw-id=\\\"box\\\">\\n    <!-- </div> old wrapper -->\\n    <p data-dfw-id=\\\"t\\\">New &lt;text&gt; &amp; more</p>\\n  </div>\\n  <section data-dfw-id='quoted' class='a > b' style=\\\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\\\" title=\\\"it's\\\">\\n    <span data-dfw-id=\\\"s1\\\">one</span>\\n    <span data-dfw-id=\\\"s2\\\">two</span>\\n  </section>\\n  <div data-dfw-id=\\\"empty\\\"></div>\\n</main>\\n</body>\\n</html>\\n\"}",
+        "design/screens/items/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <!-- <head> <style> p { } -->\n</head>\n<body>\n<main data-dfw-id=\"m\" class=\"a\" style=\"padding: var(--space-2)\">\n  <!-- <p data-dfw-id=\"t\">commented out</p> </div> </main> -->\n  <div data-dfw-id=\"box\">\n    <!-- </div> old wrapper -->\n    <p data-dfw-id=\"t\">New &lt;text&gt; &amp; more</p>\n  </div>\n  <section data-dfw-id='quoted' class='a > b' style=\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\" title=\"it's\">\n    <span data-dfw-id=\"s1\">one</span>\n    <span data-dfw-id=\"s2\">two</span>\n  </section>\n  <div data-dfw-id=\"empty\"></div>\n</main>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "changed": true,
+          "line": 15
+        }
+      },
+      "files": {
+        ".dfw/edits/#3": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"file\":\"design/screens/items/a.html\",\"op\":{\"op\":\"move\",\"id\":\"s2\",\"ref\":\"s1\",\"position\":\"before\"},\"before\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <!-- <head> <style> p { } -->\\n</head>\\n<body>\\n<main data-dfw-id=\\\"m\\\" class=\\\"a\\\" style=\\\"padding: var(--space-2)\\\">\\n  <!-- <p data-dfw-id=\\\"t\\\">commented out</p> </div> </main> -->\\n  <div data-dfw-id=\\\"box\\\">\\n    <!-- </div> old wrapper -->\\n    <p data-dfw-id=\\\"t\\\">New &lt;text&gt; &amp; more</p>\\n  </div>\\n  <section data-dfw-id='quoted' class='a > b' style=\\\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\\\" title=\\\"it's\\\">\\n    <span data-dfw-id=\\\"s1\\\">one</span>\\n    <span data-dfw-id=\\\"s2\\\">two</span>\\n  </section>\\n  <div data-dfw-id=\\\"empty\\\"></div>\\n</main>\\n</body>\\n</html>\\n\",\"after\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <!-- <head> <style> p { } -->\\n</head>\\n<body>\\n<main data-dfw-id=\\\"m\\\" class=\\\"a\\\" style=\\\"padding: var(--space-2)\\\">\\n  <!-- <p data-dfw-id=\\\"t\\\">commented out</p> </div> </main> -->\\n  <div data-dfw-id=\\\"box\\\">\\n    <!-- </div> old wrapper -->\\n    <p data-dfw-id=\\\"t\\\">New &lt;text&gt; &amp; more</p>\\n  </div>\\n  <section data-dfw-id='quoted' class='a > b' style=\\\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\\\" title=\\\"it's\\\">\\n    <span data-dfw-id=\\\"s2\\\">two</span>\\n    <span data-dfw-id=\\\"s1\\\">one</span>\\n  </section>\\n  <div data-dfw-id=\\\"empty\\\"></div>\\n</main>\\n</body>\\n</html>\\n\"}",
+        "design/screens/items/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <!-- <head> <style> p { } -->\n</head>\n<body>\n<main data-dfw-id=\"m\" class=\"a\" style=\"padding: var(--space-2)\">\n  <!-- <p data-dfw-id=\"t\">commented out</p> </div> </main> -->\n  <div data-dfw-id=\"box\">\n    <!-- </div> old wrapper -->\n    <p data-dfw-id=\"t\">New &lt;text&gt; &amp; more</p>\n  </div>\n  <section data-dfw-id='quoted' class='a > b' style=\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\" title=\"it's\">\n    <span data-dfw-id=\"s2\">two</span>\n    <span data-dfw-id=\"s1\">one</span>\n  </section>\n  <div data-dfw-id=\"empty\"></div>\n</main>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "changed": true,
+          "line": 14
+        }
+      },
+      "files": {
+        ".dfw/edits/#4": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"file\":\"design/screens/items/a.html\",\"op\":{\"op\":\"move\",\"id\":\"box\",\"ref\":\"quoted\",\"position\":\"after\"},\"before\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <!-- <head> <style> p { } -->\\n</head>\\n<body>\\n<main data-dfw-id=\\\"m\\\" class=\\\"a\\\" style=\\\"padding: var(--space-2)\\\">\\n  <!-- <p data-dfw-id=\\\"t\\\">commented out</p> </div> </main> -->\\n  <div data-dfw-id=\\\"box\\\">\\n    <!-- </div> old wrapper -->\\n    <p data-dfw-id=\\\"t\\\">New &lt;text&gt; &amp; more</p>\\n  </div>\\n  <section data-dfw-id='quoted' class='a > b' style=\\\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\\\" title=\\\"it's\\\">\\n    <span data-dfw-id=\\\"s2\\\">two</span>\\n    <span data-dfw-id=\\\"s1\\\">one</span>\\n  </section>\\n  <div data-dfw-id=\\\"empty\\\"></div>\\n</main>\\n</body>\\n</html>\\n\",\"after\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <!-- <head> <style> p { } -->\\n</head>\\n<body>\\n<main data-dfw-id=\\\"m\\\" class=\\\"a\\\" style=\\\"padding: var(--space-2)\\\">\\n  <!-- <p data-dfw-id=\\\"t\\\">commented out</p> </div> </main> -->\\n  <section data-dfw-id='quoted' class='a > b' style=\\\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\\\" title=\\\"it's\\\">\\n    <span data-dfw-id=\\\"s2\\\">two</span>\\n    <span data-dfw-id=\\\"s1\\\">one</span>\\n  </section>\\n  <div data-dfw-id=\\\"box\\\">\\n    <!-- </div> old wrapper -->\\n    <p data-dfw-id=\\\"t\\\">New &lt;text&gt; &amp; more</p>\\n  </div>\\n  <div data-dfw-id=\\\"empty\\\"></div>\\n</main>\\n</body>\\n</html>\\n\"}",
+        "design/screens/items/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <!-- <head> <style> p { } -->\n</head>\n<body>\n<main data-dfw-id=\"m\" class=\"a\" style=\"padding: var(--space-2)\">\n  <!-- <p data-dfw-id=\"t\">commented out</p> </div> </main> -->\n  <section data-dfw-id='quoted' class='a > b' style=\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\" title=\"it's\">\n    <span data-dfw-id=\"s2\">two</span>\n    <span data-dfw-id=\"s1\">one</span>\n  </section>\n  <div data-dfw-id=\"box\">\n    <!-- </div> old wrapper -->\n    <p data-dfw-id=\"t\">New &lt;text&gt; &amp; more</p>\n  </div>\n  <div data-dfw-id=\"empty\"></div>\n</main>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "changed": true,
+          "line": 18
+        }
+      },
+      "files": {
+        ".dfw/edits/#5": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"file\":\"design/screens/items/a.html\",\"op\":{\"op\":\"move\",\"id\":\"s1\",\"ref\":\"empty\",\"position\":\"inside\"},\"before\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <!-- <head> <style> p { } -->\\n</head>\\n<body>\\n<main data-dfw-id=\\\"m\\\" class=\\\"a\\\" style=\\\"padding: var(--space-2)\\\">\\n  <!-- <p data-dfw-id=\\\"t\\\">commented out</p> </div> </main> -->\\n  <section data-dfw-id='quoted' class='a > b' style=\\\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\\\" title=\\\"it's\\\">\\n    <span data-dfw-id=\\\"s2\\\">two</span>\\n    <span data-dfw-id=\\\"s1\\\">one</span>\\n  </section>\\n  <div data-dfw-id=\\\"box\\\">\\n    <!-- </div> old wrapper -->\\n    <p data-dfw-id=\\\"t\\\">New &lt;text&gt; &amp; more</p>\\n  </div>\\n  <div data-dfw-id=\\\"empty\\\"></div>\\n</main>\\n</body>\\n</html>\\n\",\"after\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <!-- <head> <style> p { } -->\\n</head>\\n<body>\\n<main data-dfw-id=\\\"m\\\" class=\\\"a\\\" style=\\\"padding: var(--space-2)\\\">\\n  <!-- <p data-dfw-id=\\\"t\\\">commented out</p> </div> </main> -->\\n  <section data-dfw-id='quoted' class='a > b' style=\\\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\\\" title=\\\"it's\\\">\\n    <span data-dfw-id=\\\"s2\\\">two</span>\\n  </section>\\n  <div data-dfw-id=\\\"box\\\">\\n    <!-- </div> old wrapper -->\\n    <p data-dfw-id=\\\"t\\\">New &lt;text&gt; &amp; more</p>\\n  </div>\\n  <div data-dfw-id=\\\"empty\\\">\\n    <span data-dfw-id=\\\"s1\\\">one</span>\\n  </div>\\n</main>\\n</body>\\n</html>\\n\"}",
+        "design/screens/items/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <!-- <head> <style> p { } -->\n</head>\n<body>\n<main data-dfw-id=\"m\" class=\"a\" style=\"padding: var(--space-2)\">\n  <!-- <p data-dfw-id=\"t\">commented out</p> </div> </main> -->\n  <section data-dfw-id='quoted' class='a > b' style=\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\" title=\"it's\">\n    <span data-dfw-id=\"s2\">two</span>\n  </section>\n  <div data-dfw-id=\"box\">\n    <!-- </div> old wrapper -->\n    <p data-dfw-id=\"t\">New &lt;text&gt; &amp; more</p>\n  </div>\n  <div data-dfw-id=\"empty\">\n    <span data-dfw-id=\"s1\">one</span>\n  </div>\n</main>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "changed": true,
+          "line": 13
+        }
+      },
+      "files": {
+        ".dfw/edits/#6": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"file\":\"design/screens/items/a.html\",\"op\":{\"op\":\"move\",\"id\":\"quoted\",\"ref\":\"box\",\"position\":\"inside\"},\"before\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <!-- <head> <style> p { } -->\\n</head>\\n<body>\\n<main data-dfw-id=\\\"m\\\" class=\\\"a\\\" style=\\\"padding: var(--space-2)\\\">\\n  <!-- <p data-dfw-id=\\\"t\\\">commented out</p> </div> </main> -->\\n  <section data-dfw-id='quoted' class='a > b' style=\\\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\\\" title=\\\"it's\\\">\\n    <span data-dfw-id=\\\"s2\\\">two</span>\\n  </section>\\n  <div data-dfw-id=\\\"box\\\">\\n    <!-- </div> old wrapper -->\\n    <p data-dfw-id=\\\"t\\\">New &lt;text&gt; &amp; more</p>\\n  </div>\\n  <div data-dfw-id=\\\"empty\\\">\\n    <span data-dfw-id=\\\"s1\\\">one</span>\\n  </div>\\n</main>\\n</body>\\n</html>\\n\",\"after\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <!-- <head> <style> p { } -->\\n</head>\\n<body>\\n<main data-dfw-id=\\\"m\\\" class=\\\"a\\\" style=\\\"padding: var(--space-2)\\\">\\n  <!-- <p data-dfw-id=\\\"t\\\">commented out</p> </div> </main> -->\\n  <div data-dfw-id=\\\"box\\\">\\n    <!-- </div> old wrapper -->\\n    <p data-dfw-id=\\\"t\\\">New &lt;text&gt; &amp; more</p>\\n    <section data-dfw-id='quoted' class='a > b' style=\\\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\\\" title=\\\"it's\\\">\\n      <span data-dfw-id=\\\"s2\\\">two</span>\\n    </section>\\n  </div>\\n  <div data-dfw-id=\\\"empty\\\">\\n    <span data-dfw-id=\\\"s1\\\">one</span>\\n  </div>\\n</main>\\n</body>\\n</html>\\n\"}",
+        "design/screens/items/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <!-- <head> <style> p { } -->\n</head>\n<body>\n<main data-dfw-id=\"m\" class=\"a\" style=\"padding: var(--space-2)\">\n  <!-- <p data-dfw-id=\"t\">commented out</p> </div> </main> -->\n  <div data-dfw-id=\"box\">\n    <!-- </div> old wrapper -->\n    <p data-dfw-id=\"t\">New &lt;text&gt; &amp; more</p>\n    <section data-dfw-id='quoted' class='a > b' style=\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\" title=\"it's\">\n      <span data-dfw-id=\"s2\">two</span>\n    </section>\n  </div>\n  <div data-dfw-id=\"empty\">\n    <span data-dfw-id=\"s1\">one</span>\n  </div>\n</main>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "changed": true,
+          "line": 14
+        }
+      },
+      "files": {
+        ".dfw/edits/#7": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"file\":\"design/screens/items/a.html\",\"op\":{\"op\":\"layout\",\"id\":\"box\",\"prop\":\"grid-column\",\"value\":\"span 2\"},\"before\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <!-- <head> <style> p { } -->\\n</head>\\n<body>\\n<main data-dfw-id=\\\"m\\\" class=\\\"a\\\" style=\\\"padding: var(--space-2)\\\">\\n  <!-- <p data-dfw-id=\\\"t\\\">commented out</p> </div> </main> -->\\n  <div data-dfw-id=\\\"box\\\">\\n    <!-- </div> old wrapper -->\\n    <p data-dfw-id=\\\"t\\\">New &lt;text&gt; &amp; more</p>\\n    <section data-dfw-id='quoted' class='a > b' style=\\\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\\\" title=\\\"it's\\\">\\n      <span data-dfw-id=\\\"s2\\\">two</span>\\n    </section>\\n  </div>\\n  <div data-dfw-id=\\\"empty\\\">\\n    <span data-dfw-id=\\\"s1\\\">one</span>\\n  </div>\\n</main>\\n</body>\\n</html>\\n\",\"after\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <!-- <head> <style> p { } -->\\n  <style data-dfw-layout>\\n    /* dfw Studio layout edits (drag/resize): layout properties only, one rule per element; :not(#dfw) lifts specificity over screen rules. */\\n    [data-dfw-id='box']:not(#dfw) { grid-column: span 2; }\\n  </style>\\n</head>\\n<body>\\n<main data-dfw-id=\\\"m\\\" class=\\\"a\\\" style=\\\"padding: var(--space-2)\\\">\\n  <!-- <p data-dfw-id=\\\"t\\\">commented out</p> </div> </main> -->\\n  <div data-dfw-id=\\\"box\\\">\\n    <!-- </div> old wrapper -->\\n    <p data-dfw-id=\\\"t\\\">New &lt;text&gt; &amp; more</p>\\n    <section data-dfw-id='quoted' class='a > b' style=\\\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\\\" title=\\\"it's\\\">\\n      <span data-dfw-id=\\\"s2\\\">two</span>\\n    </section>\\n  </div>\\n  <div data-dfw-id=\\\"empty\\\">\\n    <span data-dfw-id=\\\"s1\\\">one</span>\\n  </div>\\n</main>\\n</body>\\n</html>\\n\"}",
+        "design/screens/items/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <!-- <head> <style> p { } -->\n  <style data-dfw-layout>\n    /* dfw Studio layout edits (drag/resize): layout properties only, one rule per element; :not(#dfw) lifts specificity over screen rules. */\n    [data-dfw-id='box']:not(#dfw) { grid-column: span 2; }\n  </style>\n</head>\n<body>\n<main data-dfw-id=\"m\" class=\"a\" style=\"padding: var(--space-2)\">\n  <!-- <p data-dfw-id=\"t\">commented out</p> </div> </main> -->\n  <div data-dfw-id=\"box\">\n    <!-- </div> old wrapper -->\n    <p data-dfw-id=\"t\">New &lt;text&gt; &amp; more</p>\n    <section data-dfw-id='quoted' class='a > b' style=\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\" title=\"it's\">\n      <span data-dfw-id=\"s2\">two</span>\n    </section>\n  </div>\n  <div data-dfw-id=\"empty\">\n    <span data-dfw-id=\"s1\">one</span>\n  </div>\n</main>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "changed": true,
+          "line": 20
+        }
+      },
+      "files": {
+        ".dfw/edits/#8": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"file\":\"design/screens/items/a.html\",\"op\":{\"op\":\"layout\",\"id\":\"quoted\",\"prop\":\"width\",\"value\":\"50%\",\"maxWidth\":390},\"before\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <!-- <head> <style> p { } -->\\n  <style data-dfw-layout>\\n    /* dfw Studio layout edits (drag/resize): layout properties only, one rule per element; :not(#dfw) lifts specificity over screen rules. */\\n    [data-dfw-id='box']:not(#dfw) { grid-column: span 2; }\\n  </style>\\n</head>\\n<body>\\n<main data-dfw-id=\\\"m\\\" class=\\\"a\\\" style=\\\"padding: var(--space-2)\\\">\\n  <!-- <p data-dfw-id=\\\"t\\\">commented out</p> </div> </main> -->\\n  <div data-dfw-id=\\\"box\\\">\\n    <!-- </div> old wrapper -->\\n    <p data-dfw-id=\\\"t\\\">New &lt;text&gt; &amp; more</p>\\n    <section data-dfw-id='quoted' class='a > b' style=\\\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\\\" title=\\\"it's\\\">\\n      <span data-dfw-id=\\\"s2\\\">two</span>\\n    </section>\\n  </div>\\n  <div data-dfw-id=\\\"empty\\\">\\n    <span data-dfw-id=\\\"s1\\\">one</span>\\n  </div>\\n</main>\\n</body>\\n</html>\\n\",\"after\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <!-- <head> <style> p { } -->\\n  <style data-dfw-layout>\\n    /* dfw Studio layout edits (drag/resize): layout properties only, one rule per element; :not(#dfw) lifts specificity over screen rules. */\\n    [data-dfw-id='box']:not(#dfw) { grid-column: span 2; }\\n    @media (max-width: 390px) {\\n      [data-dfw-id='quoted']:not(#dfw) { width: 50%; }\\n    }\\n  </style>\\n</head>\\n<body>\\n<main data-dfw-id=\\\"m\\\" class=\\\"a\\\" style=\\\"padding: var(--space-2)\\\">\\n  <!-- <p data-dfw-id=\\\"t\\\">commented out</p> </div> </main> -->\\n  <div data-dfw-id=\\\"box\\\">\\n    <!-- </div> old wrapper -->\\n    <p data-dfw-id=\\\"t\\\">New &lt;text&gt; &amp; more</p>\\n    <section data-dfw-id='quoted' class='a > b' style=\\\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\\\" title=\\\"it's\\\">\\n      <span data-dfw-id=\\\"s2\\\">two</span>\\n    </section>\\n  </div>\\n  <div data-dfw-id=\\\"empty\\\">\\n    <span data-dfw-id=\\\"s1\\\">one</span>\\n  </div>\\n</main>\\n</body>\\n</html>\\n\"}",
+        "design/screens/items/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <!-- <head> <style> p { } -->\n  <style data-dfw-layout>\n    /* dfw Studio layout edits (drag/resize): layout properties only, one rule per element; :not(#dfw) lifts specificity over screen rules. */\n    [data-dfw-id='box']:not(#dfw) { grid-column: span 2; }\n    @media (max-width: 390px) {\n      [data-dfw-id='quoted']:not(#dfw) { width: 50%; }\n    }\n  </style>\n</head>\n<body>\n<main data-dfw-id=\"m\" class=\"a\" style=\"padding: var(--space-2)\">\n  <!-- <p data-dfw-id=\"t\">commented out</p> </div> </main> -->\n  <div data-dfw-id=\"box\">\n    <!-- </div> old wrapper -->\n    <p data-dfw-id=\"t\">New &lt;text&gt; &amp; more</p>\n    <section data-dfw-id='quoted' class='a > b' style=\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\" title=\"it's\">\n      <span data-dfw-id=\"s2\">two</span>\n    </section>\n  </div>\n  <div data-dfw-id=\"empty\">\n    <span data-dfw-id=\"s1\">one</span>\n  </div>\n</main>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "changed": true,
+          "line": 21
+        }
+      },
+      "files": {
+        ".dfw/edits/#9": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"file\":\"design/screens/items/a.html\",\"op\":{\"op\":\"text\",\"id\":\"s2\",\"value\":\"zwei\"},\"before\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <!-- <head> <style> p { } -->\\n  <style data-dfw-layout>\\n    /* dfw Studio layout edits (drag/resize): layout properties only, one rule per element; :not(#dfw) lifts specificity over screen rules. */\\n    [data-dfw-id='box']:not(#dfw) { grid-column: span 2; }\\n    @media (max-width: 390px) {\\n      [data-dfw-id='quoted']:not(#dfw) { width: 50%; }\\n    }\\n  </style>\\n</head>\\n<body>\\n<main data-dfw-id=\\\"m\\\" class=\\\"a\\\" style=\\\"padding: var(--space-2)\\\">\\n  <!-- <p data-dfw-id=\\\"t\\\">commented out</p> </div> </main> -->\\n  <div data-dfw-id=\\\"box\\\">\\n    <!-- </div> old wrapper -->\\n    <p data-dfw-id=\\\"t\\\">New &lt;text&gt; &amp; more</p>\\n    <section data-dfw-id='quoted' class='a > b' style=\\\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\\\" title=\\\"it's\\\">\\n      <span data-dfw-id=\\\"s2\\\">two</span>\\n    </section>\\n  </div>\\n  <div data-dfw-id=\\\"empty\\\">\\n    <span data-dfw-id=\\\"s1\\\">one</span>\\n  </div>\\n</main>\\n</body>\\n</html>\\n\",\"after\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <!-- <head> <style> p { } -->\\n  <style data-dfw-layout>\\n    /* dfw Studio layout edits (drag/resize): layout properties only, one rule per element; :not(#dfw) lifts specificity over screen rules. */\\n    [data-dfw-id='box']:not(#dfw) { grid-column: span 2; }\\n    @media (max-width: 390px) {\\n      [data-dfw-id='quoted']:not(#dfw) { width: 50%; }\\n    }\\n  </style>\\n</head>\\n<body>\\n<main data-dfw-id=\\\"m\\\" class=\\\"a\\\" style=\\\"padding: var(--space-2)\\\">\\n  <!-- <p data-dfw-id=\\\"t\\\">commented out</p> </div> </main> -->\\n  <div data-dfw-id=\\\"box\\\">\\n    <!-- </div> old wrapper -->\\n    <p data-dfw-id=\\\"t\\\">New &lt;text&gt; &amp; more</p>\\n    <section data-dfw-id='quoted' class='a > b' style=\\\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\\\" title=\\\"it's\\\">\\n      <span data-dfw-id=\\\"s2\\\">zwei</span>\\n    </section>\\n  </div>\\n  <div data-dfw-id=\\\"empty\\\">\\n    <span data-dfw-id=\\\"s1\\\">one</span>\\n  </div>\\n</main>\\n</body>\\n</html>\\n\"}",
+        "design/screens/items/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <!-- <head> <style> p { } -->\n  <style data-dfw-layout>\n    /* dfw Studio layout edits (drag/resize): layout properties only, one rule per element; :not(#dfw) lifts specificity over screen rules. */\n    [data-dfw-id='box']:not(#dfw) { grid-column: span 2; }\n    @media (max-width: 390px) {\n      [data-dfw-id='quoted']:not(#dfw) { width: 50%; }\n    }\n  </style>\n</head>\n<body>\n<main data-dfw-id=\"m\" class=\"a\" style=\"padding: var(--space-2)\">\n  <!-- <p data-dfw-id=\"t\">commented out</p> </div> </main> -->\n  <div data-dfw-id=\"box\">\n    <!-- </div> old wrapper -->\n    <p data-dfw-id=\"t\">New &lt;text&gt; &amp; more</p>\n    <section data-dfw-id='quoted' class='a > b' style=\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\" title=\"it's\">\n      <span data-dfw-id=\"s2\">zwei</span>\n    </section>\n  </div>\n  <div data-dfw-id=\"empty\">\n    <span data-dfw-id=\"s1\">one</span>\n  </div>\n</main>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "changed": true,
+          "line": 16
+        }
+      },
+      "files": {
+        ".dfw/edits/#10": "{\"at\":\"2026-01-02T03:04:05.678Z\",\"file\":\"design/screens/items/a.html\",\"op\":{\"op\":\"layout\",\"id\":\"box\"},\"before\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <!-- <head> <style> p { } -->\\n  <style data-dfw-layout>\\n    /* dfw Studio layout edits (drag/resize): layout properties only, one rule per element; :not(#dfw) lifts specificity over screen rules. */\\n    [data-dfw-id='box']:not(#dfw) { grid-column: span 2; }\\n    @media (max-width: 390px) {\\n      [data-dfw-id='quoted']:not(#dfw) { width: 50%; }\\n    }\\n  </style>\\n</head>\\n<body>\\n<main data-dfw-id=\\\"m\\\" class=\\\"a\\\" style=\\\"padding: var(--space-2)\\\">\\n  <!-- <p data-dfw-id=\\\"t\\\">commented out</p> </div> </main> -->\\n  <div data-dfw-id=\\\"box\\\">\\n    <!-- </div> old wrapper -->\\n    <p data-dfw-id=\\\"t\\\">New &lt;text&gt; &amp; more</p>\\n    <section data-dfw-id='quoted' class='a > b' style=\\\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\\\" title=\\\"it's\\\">\\n      <span data-dfw-id=\\\"s2\\\">zwei</span>\\n    </section>\\n  </div>\\n  <div data-dfw-id=\\\"empty\\\">\\n    <span data-dfw-id=\\\"s1\\\">one</span>\\n  </div>\\n</main>\\n</body>\\n</html>\\n\",\"after\":\"<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <!-- <head> <style> p { } -->\\n  <style data-dfw-layout>\\n    /* dfw Studio layout edits (drag/resize): layout properties only, one rule per element; :not(#dfw) lifts specificity over screen rules. */\\n    @media (max-width: 390px) {\\n      [data-dfw-id='quoted']:not(#dfw) { width: 50%; }\\n    }\\n  </style>\\n</head>\\n<body>\\n<main data-dfw-id=\\\"m\\\" class=\\\"a\\\" style=\\\"padding: var(--space-2)\\\">\\n  <!-- <p data-dfw-id=\\\"t\\\">commented out</p> </div> </main> -->\\n  <div data-dfw-id=\\\"box\\\">\\n    <!-- </div> old wrapper -->\\n    <p data-dfw-id=\\\"t\\\">New &lt;text&gt; &amp; more</p>\\n    <section data-dfw-id='quoted' class='a > b' style=\\\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\\\" title=\\\"it's\\\">\\n      <span data-dfw-id=\\\"s2\\\">zwei</span>\\n    </section>\\n  </div>\\n  <div data-dfw-id=\\\"empty\\\">\\n    <span data-dfw-id=\\\"s1\\\">one</span>\\n  </div>\\n</main>\\n</body>\\n</html>\\n\"}",
+        "design/screens/items/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <!-- <head> <style> p { } -->\n  <style data-dfw-layout>\n    /* dfw Studio layout edits (drag/resize): layout properties only, one rule per element; :not(#dfw) lifts specificity over screen rules. */\n    @media (max-width: 390px) {\n      [data-dfw-id='quoted']:not(#dfw) { width: 50%; }\n    }\n  </style>\n</head>\n<body>\n<main data-dfw-id=\"m\" class=\"a\" style=\"padding: var(--space-2)\">\n  <!-- <p data-dfw-id=\"t\">commented out</p> </div> </main> -->\n  <div data-dfw-id=\"box\">\n    <!-- </div> old wrapper -->\n    <p data-dfw-id=\"t\">New &lt;text&gt; &amp; more</p>\n    <section data-dfw-id='quoted' class='a > b' style=\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\" title=\"it's\">\n      <span data-dfw-id=\"s2\">zwei</span>\n    </section>\n  </div>\n  <div data-dfw-id=\"empty\">\n    <span data-dfw-id=\"s1\">one</span>\n  </div>\n</main>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "op": {
+            "op": "layout",
+            "id": "box"
+          },
+          "remaining": 10
+        }
+      },
+      "files": {
+        ".dfw/edits/#10": null,
+        "design/screens/items/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <!-- <head> <style> p { } -->\n  <style data-dfw-layout>\n    /* dfw Studio layout edits (drag/resize): layout properties only, one rule per element; :not(#dfw) lifts specificity over screen rules. */\n    [data-dfw-id='box']:not(#dfw) { grid-column: span 2; }\n    @media (max-width: 390px) {\n      [data-dfw-id='quoted']:not(#dfw) { width: 50%; }\n    }\n  </style>\n</head>\n<body>\n<main data-dfw-id=\"m\" class=\"a\" style=\"padding: var(--space-2)\">\n  <!-- <p data-dfw-id=\"t\">commented out</p> </div> </main> -->\n  <div data-dfw-id=\"box\">\n    <!-- </div> old wrapper -->\n    <p data-dfw-id=\"t\">New &lt;text&gt; &amp; more</p>\n    <section data-dfw-id='quoted' class='a > b' style=\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\" title=\"it's\">\n      <span data-dfw-id=\"s2\">zwei</span>\n    </section>\n  </div>\n  <div data-dfw-id=\"empty\">\n    <span data-dfw-id=\"s1\">one</span>\n  </div>\n</main>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "op": {
+            "op": "text",
+            "id": "s2",
+            "value": "zwei"
+          },
+          "remaining": 9
+        }
+      },
+      "files": {
+        ".dfw/edits/#9": null,
+        "design/screens/items/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <!-- <head> <style> p { } -->\n  <style data-dfw-layout>\n    /* dfw Studio layout edits (drag/resize): layout properties only, one rule per element; :not(#dfw) lifts specificity over screen rules. */\n    [data-dfw-id='box']:not(#dfw) { grid-column: span 2; }\n    @media (max-width: 390px) {\n      [data-dfw-id='quoted']:not(#dfw) { width: 50%; }\n    }\n  </style>\n</head>\n<body>\n<main data-dfw-id=\"m\" class=\"a\" style=\"padding: var(--space-2)\">\n  <!-- <p data-dfw-id=\"t\">commented out</p> </div> </main> -->\n  <div data-dfw-id=\"box\">\n    <!-- </div> old wrapper -->\n    <p data-dfw-id=\"t\">New &lt;text&gt; &amp; more</p>\n    <section data-dfw-id='quoted' class='a > b' style=\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\" title=\"it's\">\n      <span data-dfw-id=\"s2\">two</span>\n    </section>\n  </div>\n  <div data-dfw-id=\"empty\">\n    <span data-dfw-id=\"s1\">one</span>\n  </div>\n</main>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "op": {
+            "op": "layout",
+            "id": "quoted",
+            "prop": "width",
+            "value": "50%",
+            "maxWidth": 390
+          },
+          "remaining": 8
+        }
+      },
+      "files": {
+        ".dfw/edits/#8": null,
+        "design/screens/items/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <!-- <head> <style> p { } -->\n  <style data-dfw-layout>\n    /* dfw Studio layout edits (drag/resize): layout properties only, one rule per element; :not(#dfw) lifts specificity over screen rules. */\n    [data-dfw-id='box']:not(#dfw) { grid-column: span 2; }\n  </style>\n</head>\n<body>\n<main data-dfw-id=\"m\" class=\"a\" style=\"padding: var(--space-2)\">\n  <!-- <p data-dfw-id=\"t\">commented out</p> </div> </main> -->\n  <div data-dfw-id=\"box\">\n    <!-- </div> old wrapper -->\n    <p data-dfw-id=\"t\">New &lt;text&gt; &amp; more</p>\n    <section data-dfw-id='quoted' class='a > b' style=\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\" title=\"it's\">\n      <span data-dfw-id=\"s2\">two</span>\n    </section>\n  </div>\n  <div data-dfw-id=\"empty\">\n    <span data-dfw-id=\"s1\">one</span>\n  </div>\n</main>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "op": {
+            "op": "layout",
+            "id": "box",
+            "prop": "grid-column",
+            "value": "span 2"
+          },
+          "remaining": 7
+        }
+      },
+      "files": {
+        ".dfw/edits/#7": null,
+        "design/screens/items/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <!-- <head> <style> p { } -->\n</head>\n<body>\n<main data-dfw-id=\"m\" class=\"a\" style=\"padding: var(--space-2)\">\n  <!-- <p data-dfw-id=\"t\">commented out</p> </div> </main> -->\n  <div data-dfw-id=\"box\">\n    <!-- </div> old wrapper -->\n    <p data-dfw-id=\"t\">New &lt;text&gt; &amp; more</p>\n    <section data-dfw-id='quoted' class='a > b' style=\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\" title=\"it's\">\n      <span data-dfw-id=\"s2\">two</span>\n    </section>\n  </div>\n  <div data-dfw-id=\"empty\">\n    <span data-dfw-id=\"s1\">one</span>\n  </div>\n</main>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "op": {
+            "op": "move",
+            "id": "quoted",
+            "ref": "box",
+            "position": "inside"
+          },
+          "remaining": 6
+        }
+      },
+      "files": {
+        ".dfw/edits/#6": null,
+        "design/screens/items/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <!-- <head> <style> p { } -->\n</head>\n<body>\n<main data-dfw-id=\"m\" class=\"a\" style=\"padding: var(--space-2)\">\n  <!-- <p data-dfw-id=\"t\">commented out</p> </div> </main> -->\n  <section data-dfw-id='quoted' class='a > b' style=\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\" title=\"it's\">\n    <span data-dfw-id=\"s2\">two</span>\n  </section>\n  <div data-dfw-id=\"box\">\n    <!-- </div> old wrapper -->\n    <p data-dfw-id=\"t\">New &lt;text&gt; &amp; more</p>\n  </div>\n  <div data-dfw-id=\"empty\">\n    <span data-dfw-id=\"s1\">one</span>\n  </div>\n</main>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "op": {
+            "op": "move",
+            "id": "s1",
+            "ref": "empty",
+            "position": "inside"
+          },
+          "remaining": 5
+        }
+      },
+      "files": {
+        ".dfw/edits/#5": null,
+        "design/screens/items/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <!-- <head> <style> p { } -->\n</head>\n<body>\n<main data-dfw-id=\"m\" class=\"a\" style=\"padding: var(--space-2)\">\n  <!-- <p data-dfw-id=\"t\">commented out</p> </div> </main> -->\n  <section data-dfw-id='quoted' class='a > b' style=\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\" title=\"it's\">\n    <span data-dfw-id=\"s2\">two</span>\n    <span data-dfw-id=\"s1\">one</span>\n  </section>\n  <div data-dfw-id=\"box\">\n    <!-- </div> old wrapper -->\n    <p data-dfw-id=\"t\">New &lt;text&gt; &amp; more</p>\n  </div>\n  <div data-dfw-id=\"empty\"></div>\n</main>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "op": {
+            "op": "move",
+            "id": "box",
+            "ref": "quoted",
+            "position": "after"
+          },
+          "remaining": 4
+        }
+      },
+      "files": {
+        ".dfw/edits/#4": null,
+        "design/screens/items/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <!-- <head> <style> p { } -->\n</head>\n<body>\n<main data-dfw-id=\"m\" class=\"a\" style=\"padding: var(--space-2)\">\n  <!-- <p data-dfw-id=\"t\">commented out</p> </div> </main> -->\n  <div data-dfw-id=\"box\">\n    <!-- </div> old wrapper -->\n    <p data-dfw-id=\"t\">New &lt;text&gt; &amp; more</p>\n  </div>\n  <section data-dfw-id='quoted' class='a > b' style=\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\" title=\"it's\">\n    <span data-dfw-id=\"s2\">two</span>\n    <span data-dfw-id=\"s1\">one</span>\n  </section>\n  <div data-dfw-id=\"empty\"></div>\n</main>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "op": {
+            "op": "move",
+            "id": "s2",
+            "ref": "s1",
+            "position": "before"
+          },
+          "remaining": 3
+        }
+      },
+      "files": {
+        ".dfw/edits/#3": null,
+        "design/screens/items/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <!-- <head> <style> p { } -->\n</head>\n<body>\n<main data-dfw-id=\"m\" class=\"a\" style=\"padding: var(--space-2)\">\n  <!-- <p data-dfw-id=\"t\">commented out</p> </div> </main> -->\n  <div data-dfw-id=\"box\">\n    <!-- </div> old wrapper -->\n    <p data-dfw-id=\"t\">New &lt;text&gt; &amp; more</p>\n  </div>\n  <section data-dfw-id='quoted' class='a > b' style=\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\" title=\"it's\">\n    <span data-dfw-id=\"s1\">one</span>\n    <span data-dfw-id=\"s2\">two</span>\n  </section>\n  <div data-dfw-id=\"empty\"></div>\n</main>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "op": {
+            "op": "spacing",
+            "id": "m",
+            "prop": "padding",
+            "value": "space.2"
+          },
+          "remaining": 2
+        }
+      },
+      "files": {
+        ".dfw/edits/#2": null,
+        "design/screens/items/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <!-- <head> <style> p { } -->\n</head>\n<body>\n<main data-dfw-id=\"m\" class=\"a\">\n  <!-- <p data-dfw-id=\"t\">commented out</p> </div> </main> -->\n  <div data-dfw-id=\"box\">\n    <!-- </div> old wrapper -->\n    <p data-dfw-id=\"t\">New &lt;text&gt; &amp; more</p>\n  </div>\n  <section data-dfw-id='quoted' class='a > b' style=\"--Gap: 1px; background: url(&quot;a;b&quot;); gap: var(--space-4)\" title=\"it's\">\n    <span data-dfw-id=\"s1\">one</span>\n    <span data-dfw-id=\"s2\">two</span>\n  </section>\n  <div data-dfw-id=\"empty\"></div>\n</main>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "op": {
+            "op": "spacing",
+            "id": "quoted",
+            "prop": "gap",
+            "value": "space.4"
+          },
+          "remaining": 1
+        }
+      },
+      "files": {
+        ".dfw/edits/#1": null,
+        "design/screens/items/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <!-- <head> <style> p { } -->\n</head>\n<body>\n<main data-dfw-id=\"m\" class=\"a\">\n  <!-- <p data-dfw-id=\"t\">commented out</p> </div> </main> -->\n  <div data-dfw-id=\"box\">\n    <!-- </div> old wrapper -->\n    <p data-dfw-id=\"t\">New &lt;text&gt; &amp; more</p>\n  </div>\n  <section data-dfw-id='quoted' class='a > b' style='--Gap: 1px; background: url(\"a;b\")' title=\"it's\">\n    <span data-dfw-id=\"s1\">one</span>\n    <span data-dfw-id=\"s2\">two</span>\n  </section>\n  <div data-dfw-id=\"empty\"></div>\n</main>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "result": {
+        "ok": {
+          "file": "design/screens/items/a.html",
+          "op": {
+            "op": "text",
+            "id": "t",
+            "value": "New <text> & more"
+          },
+          "remaining": 0
+        }
+      },
+      "files": {
+        ".dfw/edits/#0": null,
+        "design/screens/items/a.html": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <!-- <head> <style> p { } -->\n</head>\n<body>\n<main data-dfw-id=\"m\" class=\"a\">\n  <!-- <p data-dfw-id=\"t\">commented out</p> </div> </main> -->\n  <div data-dfw-id=\"box\">\n    <!-- </div> old wrapper -->\n    <p data-dfw-id=\"t\">Text</p>\n  </div>\n  <section data-dfw-id='quoted' class='a > b' style='--Gap: 1px; background: url(\"a;b\")' title=\"it's\">\n    <span data-dfw-id=\"s1\">one</span>\n    <span data-dfw-id=\"s2\">two</span>\n  </section>\n  <div data-dfw-id=\"empty\"></div>\n</main>\n</body>\n</html>\n"
+      }
+    }
+  ]
+}

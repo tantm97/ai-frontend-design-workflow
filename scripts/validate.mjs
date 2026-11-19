@@ -5,9 +5,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { REPO_ROOT, readJson, loadRegistry, loadLock } from './lib/build.mjs';
-import { xrefCheck, hooksCheck, leftoverCheck, conflictLint } from './lib/checks.mjs';
+import { xrefCheck, hooksCheck, leftoverCheck, conflictLint, versionMismatch } from './lib/checks.mjs';
 import { createHash } from 'node:crypto';
 import { unwrap } from './knowledge.mjs';
+import { lockPackages } from './crate-licenses.mjs';
 
 const errors = [];
 const warnings = [];
@@ -68,6 +69,16 @@ for (const k of registry.knowledge || []) {
   const body = unwrap(text);
   if (body == null || createHash('sha256').update(body).digest('hex') !== k.sha256) errors.push(`knowledge ${k.id}: ${k.dest} differs from the pinned upstream text (do not edit it; npm run knowledge -- sync)`);
   if (!/## License/.test(text)) errors.push(`knowledge ${k.id}: license section missing`);
+}
+
+// 3b. One release version everywhere (contracts.md C14).
+const versions = versionMismatch();
+if (versions) errors.push(versions);
+// The crate list of THIRD_PARTY_NOTICES.md covers exactly native/Cargo.lock.
+{
+  const lock = lockPackages(fs.readFileSync(path.join(REPO_ROOT, 'native', 'Cargo.lock'), 'utf8')).map((p) => `${p.name} ${p.version}`).sort();
+  const listed = readJson(path.join(REPO_ROOT, 'native', 'crate-licenses.json')).crates.map((c) => `${c.name} ${c.version}`).sort();
+  if (JSON.stringify(lock) !== JSON.stringify(listed)) errors.push('native/crate-licenses.json does not list exactly the crates of native/Cargo.lock: run node scripts/crate-licenses.mjs, then npm run build');
 }
 
 errors.push(...xrefCheck());

@@ -1,0 +1,31 @@
+{
+  "test": "align: node 0.5.2 behaviour > c: phase --force never writes a missing or unknown phase",
+  "results": [
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Cannot move to \"undefined\":\n- Unknown phase \"undefined\". Phases: discovery, direction, system, concepts, stack, implement, verify, audit, done\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Cannot move to \"bogus\":\n- Unknown phase \"bogus\". Phases: discovery, direction, system, concepts, stack, implement, verify, audit, done\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Cannot move to \"nowhere\":\n- Unknown phase \"nowhere\". Phases: discovery, direction, system, concepts, stack, implement, verify, audit, done\n",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "dfw: product=\"Fixture\" mode=new-product phase=concepts\ndesign: v1 draft\ngates: G1=open DS=open G2=open G3=open G4=open\n",
+      "stderr": "",
+      "files": {
+        ".dfw/state.json": "{\n  \"schema\": 1,\n  \"product\": \"Fixture\",\n  \"mode\": \"new-product\",\n  \"phase\": \"concepts\",\n  \"active\": true,\n  \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n  \"updatedAt\": \"2026-01-02T03:04:05.678Z\",\n  \"design\": {\n    \"version\": 1,\n    \"status\": \"draft\",\n    \"locked\": false,\n    \"approved\": []\n  },\n  \"gates\": {\n    \"G1\": null,\n    \"DS\": null,\n    \"G2\": null,\n    \"G3\": null,\n    \"G4\": null\n  },\n  \"waived\": {},\n  \"history\": [\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"init\",\n      \"mode\": \"new-product\"\n    },\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"phase\",\n      \"from\": \"discovery\",\n      \"to\": \"concepts\",\n      \"forced\": [\n        \"G1 (design direction) is not approved yet.\",\n        \"DS (design system) is not approved yet: build foundations and components first (phase \\\"system\\\").\"\n      ],\n      \"reason\": \"test\"\n    }\n  ]\n}\n"
+      }
+    }
+  ]
+}

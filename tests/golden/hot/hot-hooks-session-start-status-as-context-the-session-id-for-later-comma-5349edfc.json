@@ -1,0 +1,311 @@
+{
+  "test": "hot: hooks > session-start: status as context, the session id for later commands, no workflow",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 3 open, 1 awaiting user verification\\nSession id for \\\"dfw lang\\\": s-1.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=stack\\ndesign: v1 approved (locked), approved v1\\ngates: G1=approved DS=approved G2=approved G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": s-1.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=review-only phase=audit\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": s-1.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"dfw: product=\\\"(unnamed)\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": s-1.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": camel.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": unknown.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": 42.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": unknown.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": unknown.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": unknown.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 3 open, 1 awaiting user verification\\nSession id for \\\"dfw lang\\\": s-1.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=stack\\ndesign: v1 approved (locked), approved v1\\ngates: G1=approved DS=approved G2=approved G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": s-1.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=review-only phase=audit\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": s-1.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"dfw: product=\\\"(unnamed)\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": s-1.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": camel.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": unknown.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": 42.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": unknown.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": unknown.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": unknown.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 3 open, 1 awaiting user verification\\nSession id for \\\"dfw lang\\\": s-1.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=stack\\ndesign: v1 approved (locked), approved v1\\ngates: G1=approved DS=approved G2=approved G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": s-1.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=review-only phase=audit\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": s-1.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"dfw: product=\\\"(unnamed)\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": s-1.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": camel.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": unknown.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": 42.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": unknown.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": unknown.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": unknown.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": it's-me.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}}",
+      "stderr": "",
+      "files": {
+        ".dfw/env.sh": "export DFW_SESSION_ID='its-me'\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {
+        ".dfw/env.sh": "export A=1\nexport DFW_SESSION_ID='s-1'\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": unknown.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": s-1.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"dfw: product=\\\"Fixture\\\" mode=new-product phase=discovery\\ndesign: v1 draft\\ngates: G1=open DS=open G2=open G3=open G4=open\\nreview comments: 0 open, 0 awaiting user verification\\nSession id for \\\"dfw lang\\\": s-1.\\nThis project uses the dfw design-first workflow. Before working on its UI, invoke the dfw skill (it asks the communication language once per session and enforces approval gates).\"}}",
+      "stderr": "",
+      "files": {
+        ".dfw/home/sessions/old.json": null
+      }
+    }
+  ]
+}

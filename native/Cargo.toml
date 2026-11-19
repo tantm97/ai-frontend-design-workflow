@@ -1,6 +1,6 @@
 [package]
 name = "dfw"
-version = "0.5.2"
+version = "0.6.0"
 edition = "2021"
 description = "dfw: design-first frontend workflow CLI (native core)"
 license = "MIT"
@@ -10,8 +10,7 @@ publish = false
 name = "dfw"
 path = "src/main.rs"
 
-# Every crate of design decision 3 is declared now so module groups can be ported in parallel
-# without editing this file. Keep the table in openspec design.md and this list the same.
+# The crates of rust-core design decision 3 (keep that table and this list the same).
 [dependencies]
 brotli-decompressor = "6.3.2"
 flate2 = "1.1.11"
@@ -21,15 +20,14 @@ regex = "1.13.2"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.154", features = ["preserve_order"] }
 sha2 = "0.11.1"
-tiny_http = "0.12.0"
 tungstenite = "0.30.0"
 ureq = { version = "3.5.2", default-features = false, features = ["rustls"] }
 zip = { version = "9.7.0", default-features = false, features = ["deflate"] }
 
-# Declared ahead of their first use (see above). Remove this table when the port is complete,
-# so a dependency nothing uses is reported again.
-[lints.cargo]
-unused_dependencies = "allow"
+# Local HTTP servers in tests (the download and the DevTools fakes); the Studio has its own
+# HTTP layer (src/studio/http.rs).
+[dev-dependencies]
+tiny_http = "0.12.0"
 
 # docs/conventions/rust.md: no unsafe, no unwrap/expect/panic outside tests (clippy.toml allows
 # them in tests), long functions reported (threshold in clippy.toml).

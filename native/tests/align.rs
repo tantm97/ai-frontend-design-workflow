@@ -45,7 +45,6 @@ fn dfw(root: &Path, args: &[&str], stdin: &str) -> Ran {
     let mut cmd = Command::new(DFW);
     cmd.args(args).current_dir(root);
     for name in [
-        "DFW_NATIVE",
         "DFW_HOST",
         "DFW_PROJECT_DIR",
         "DFW_SESSION_ID",

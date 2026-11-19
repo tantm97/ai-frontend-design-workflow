@@ -1,0 +1,17 @@
+{
+  "test": "skeleton > an unknown command fails the same way",
+  "results": [
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown command \"no-such-command\". Run \"dfw help\".\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown command \"__studio-server\". Run \"dfw help\".\n",
+      "files": {}
+    }
+  ]
+}

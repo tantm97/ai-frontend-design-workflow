@@ -1,0 +1,35 @@
+{
+  "test": "stack > errors: usage, broken JSON, a missing file",
+  "results": [
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Usage: dfw stack detect [--write] | dfw stack set --json <json>|--file <f>\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Usage: dfw stack detect [--write] | dfw stack set --json <json>|--file <f>\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)\n    at JSON.parse (<anonymous>)\n    at main (file://<repo>/core/lib/cli.mjs:965:69)\n    at file://<repo>/core/bin/dfw.mjs:17:1\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Error: ENOENT: no such file or directory, open '<root>/missing.json'\n    at Object.readFileSync (node:fs:435:20)\n    at readJson (file://<repo>/core/lib/util.mjs:35:26)\n    at main (file://<repo>/core/lib/cli.mjs:965:31)\n    at file://<repo>/core/bin/dfw.mjs:17:1\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--file needs a value.\n",
+      "files": {}
+    }
+  ]
+}

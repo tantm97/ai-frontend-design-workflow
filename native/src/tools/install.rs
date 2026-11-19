@@ -11,13 +11,14 @@ use std::process::Stdio;
 
 use serde_json::Value;
 
-use super::binary::{node_platform, RELEASE_REPO};
+use super::binary::RELEASE_REPO;
 use crate::browser::a11y::{axe_status, install_axe, AxeStatus};
 use crate::browser::download::install_browser;
 use crate::browser::launch::{browser_status, make_temp_dir, BrowserStatus};
 use crate::core::error::DfwError;
 use crate::core::host::{get_host, supported_hosts, Host, Status, HOSTS};
 use crate::core::paths::{plugin_root, resolve};
+use crate::core::platform::node_platform;
 use crate::core::process::{command, quote_for_cmd, Spawn};
 use crate::core::util::{out, plugin_manifest, read_json};
 
@@ -40,13 +41,13 @@ fn bold(s: &str) -> String {
 /// `pluginList()`: plugins to install: dfw first, then the design skills it depends on.
 pub fn plugin_list() -> Result<Vec<String>, DfwError> {
     let listed = |v: &Value| v.get("dependencies").filter(|d| !d.is_null()).cloned();
-    let from_file = match plugin_root() {
-        Some(root) => listed(&read_json(&root.join("dfw.json"), Some(Value::Null))?),
-        None => None,
-    };
-    let deps = match from_file {
-        Some(deps) => Some(deps),
-        None => listed(&plugin_manifest(None)?),
+    let deps = match plugin_root() {
+        Some(root) => match listed(&read_json(&root.join("dfw.json"), Some(Value::Null))?) {
+            Some(deps) => Some(deps),
+            None => listed(&plugin_manifest(None)?),
+        },
+        // No plugin folder (the binary installed alone by install.sh): the list it was built with.
+        None => listed(&crate::assets::manifest()),
     };
     let mut plugins = vec!["dfw".to_string()];
     plugins.extend(
@@ -478,7 +479,7 @@ pub fn uninstall(host: &str, scope: &str, quiet: bool) -> Result<(), DfwError> {
 mod tests {
     //! tests/unit/install-paths.test.mjs, the install.mjs cases (the launcher, checks and
     //! upstream bot cases test JavaScript that stays). `install` and `uninstall` themselves run
-    //! against fake host CLIs in tests/conformance/browser.conformance.mjs.
+    //! against fake host CLIs in tests/golden/browser.golden.mjs.
     use super::*;
 
     fn args(list: &[&str]) -> Vec<String> {

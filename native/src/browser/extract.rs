@@ -239,19 +239,17 @@ pub fn extract_tokens_to_file(
 mod tests {
     use super::*;
 
-    /// The JavaScript that runs in the page is the Node source, byte for byte.
+    /// The JavaScript that runs in the page is one self-contained function.
     #[test]
-    fn page_script_is_the_function_of_extract_mjs() {
-        let node = concat!(env!("CARGO_MANIFEST_DIR"), "/../core/lib/extract.mjs");
-        let source = fs::read_to_string(node).unwrap();
+    fn page_script_is_one_function() {
         assert!(COLLECT.starts_with("function collect() {\n"));
-        assert!(source.contains(&format!("\n{COLLECT}\nconst px = ")));
+        assert!(COLLECT.trim_end().ends_with('}'));
     }
 
     #[test]
     fn tokens_are_built_from_the_counts_like_node() {
         // Counts as `collect` returns them; the expected values are worked out by hand from
-        // extract.mjs (render.conformance.mjs compares both implementations on a real page).
+        // extract.mjs (render.golden.mjs checks it on a real page).
         let data = json!({
             "colors": {
                 "#ffffff": { "n": 52.5, "roles": { "background": 1 } },

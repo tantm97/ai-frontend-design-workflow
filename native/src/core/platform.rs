@@ -1,5 +1,26 @@
-//! The platform and architecture as Node names them (`process.platform`, `process.arch`):
-//! release asset names, browser downloads and messages use these names.
+//! What this build is and runs on: the dfw version, and the platform and architecture as Node
+//! names them (`process.platform`, `process.arch`), which release asset names, browser downloads
+//! and messages use.
+
+use super::paths::env_nonempty;
+use super::util::plugin_manifest;
+
+/// The dfw version: the plugin manifest's version, else `DFW_VERSION`, else the version this
+/// binary was built as.
+pub fn dfw_version() -> String {
+    let manifest = plugin_manifest(None).ok();
+    let from_manifest = manifest
+        .as_ref()
+        .and_then(|m| m.get("version"))
+        .and_then(|v| v.as_str())
+        .filter(|v| !v.is_empty());
+    match from_manifest {
+        Some(v) => v.to_string(),
+        None => {
+            env_nonempty("DFW_VERSION").unwrap_or_else(|| env!("CARGO_PKG_VERSION").to_string())
+        }
+    }
+}
 
 /// `process.platform` as Node names it.
 pub fn node_platform() -> &'static str {

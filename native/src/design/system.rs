@@ -5,34 +5,32 @@
 //! from the inventory; the starter kit is a reference (see `inventory`).
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use serde_json::{json, Map, Value};
 
 use super::compose::{build_system, load_components};
-use super::icons::plugin_dir;
 use super::inventory::ensure_inventory;
 use super::style::{apply_style, get_style, head_for, is_style, style_tokens};
 use super::tokens::{build_tokens, dir_names};
+use crate::assets::{self, Folder};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::project_paths;
 use crate::core::util::{write_atomic, write_json};
 
-/// `KIT_DIR`: the starter kit.
-pub fn kit_dir() -> Result<PathBuf, DfwError> {
-    Ok(plugin_dir()?.join("kits").join("base"))
-}
+/// The presets of the starter kit (`KIT_DIR/presets`), a folder of the embedded kits.
+const PRESETS_DIR: &str = "base/presets";
 
 /// `listPresets`: name and description of every preset of the kit.
 pub fn list_presets() -> Result<Vec<(String, String)>, DfwError> {
-    let dir = kit_dir()?.join("presets");
     let mut presets = Vec::new();
-    for f in dir_names(&dir)?
+    for f in assets::file_names(Folder::Kits, PRESETS_DIR)
         .iter()
         .filter(|f| f.ends_with(".tokens.json"))
     {
-        let tokens = js::read_json(&dir.join(f), Some(json!({})))?;
+        let tokens =
+            assets::json(Folder::Kits, &format!("{PRESETS_DIR}/{f}"))?.unwrap_or_else(|| json!({}));
         let description = tokens.get("$description").filter(|d| js::truthy(Some(d)));
         presets.push((
             f.replacen(".tokens.json", "", 1),
@@ -42,24 +40,18 @@ pub fn list_presets() -> Result<Vec<(String, String)>, DfwError> {
     Ok(presets)
 }
 
-/// The tokens file of a preset and the text of its head file (empty when it has none).
-fn preset_files(name: &str) -> Result<(PathBuf, String), DfwError> {
-    let dir = kit_dir()?.join("presets");
-    let tokens = dir.join(format!("{name}.tokens.json"));
-    if !tokens.exists() {
+/// The tokens file text of a preset and the text of its head file (empty when it has none).
+fn preset_files(name: &str) -> Result<(String, String), DfwError> {
+    let Some(tokens) = assets::text(Folder::Kits, &format!("{PRESETS_DIR}/{name}.tokens.json"))
+    else {
         let names: Vec<String> = list_presets()?.into_iter().map(|p| p.0).collect();
         return Err(DfwError::new(format!(
             "Unknown preset \"{name}\". Presets: {}",
             names.join(", ")
         )));
-    }
-    let head = dir.join(format!("{name}.head.html"));
-    let head = if head.exists() {
-        js::read_text(&head)?
-    } else {
-        String::new()
     };
-    Ok((tokens, head))
+    let head = assets::text(Folder::Kits, &format!("{PRESETS_DIR}/{name}.head.html"));
+    Ok((tokens, head.unwrap_or_default()))
 }
 
 fn is_placeholder_tokens(file: &Path) -> Result<bool, DfwError> {
@@ -124,8 +116,7 @@ pub fn system_init(root: &Path, opts: &InitOptions) -> Result<SystemInit, DfwErr
     let mut tokens_written = false;
     let (tokens, head) = preset_files(&opts.preset)?;
     if opts.force || is_placeholder_tokens(&tok_file)? {
-        fs::create_dir_all(&p.tokens)?;
-        write_atomic(&tok_file, fs::read(&tokens)?)?;
+        write_atomic(&tok_file, &tokens)?;
         tokens_written = true;
     }
     let head_file = sys.join("head.html");
@@ -208,7 +199,7 @@ pub fn system_options(root: &Path, names: &[String], fonts: &str) -> Result<Vec<
             head_for(&g, fonts)
         } else {
             let (tokens, head) = preset_files(n)?;
-            write_atomic(&theme, fs::read(&tokens)?)?;
+            write_atomic(&theme, &tokens)?;
             head
         };
         heads.push(js::trim(&js::strip_comments(&head)).to_string());
@@ -275,10 +266,12 @@ pub fn system_choose(root: &Path, name: &str, fonts: &str) -> Result<String, Dfw
         }
     } else {
         let (tokens, head) = preset_files(name)?;
-        write_atomic(
-            &tok_file,
-            fs::read(if opt.exists() { &opt } else { &tokens })?,
-        )?;
+        let tokens = if opt.exists() {
+            fs::read(&opt)?
+        } else {
+            tokens.into_bytes()
+        };
+        write_atomic(&tok_file, tokens)?;
         write_atomic(&p.design.join("system").join("head.html"), head)?;
     }
     remove_options(&themes_dir)?;
@@ -316,6 +309,7 @@ mod tests {
     use crate::design::compose::{compose_file, compose_html, ComposeOptions};
     use crate::design::icons::add_icons;
     use crate::design::inventory::{inventory_findings, kit_components, kit_ref, kit_refs};
+    use std::path::PathBuf;
 
     const KIT_ICONS: [&str; 20] = [
         "chevron-down",
@@ -682,14 +676,9 @@ mod tests {
     #[test]
     fn presets_ship_both_target_sizes() {
         for name in ["crisp", "soft", "industrial"] {
-            let t = js::read_json(
-                &kit_dir()
-                    .unwrap()
-                    .join("presets")
-                    .join(format!("{name}.tokens.json")),
-                None,
-            )
-            .unwrap();
+            let t = assets::json(Folder::Kits, &format!("{PRESETS_DIR}/{name}.tokens.json"))
+                .unwrap()
+                .unwrap();
             assert_eq!(t["size"]["target-wcag"]["$value"]["value"], 24);
             assert_eq!(t["size"]["target-touch"]["$value"]["value"], 44);
             assert!(t["size"].get("target-min").is_none());

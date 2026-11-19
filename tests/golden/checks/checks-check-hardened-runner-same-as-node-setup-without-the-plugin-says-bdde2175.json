@@ -1,0 +1,12 @@
+{
+  "test": "checks: check > hardened runner, same as Node: --setup without the plugin says so",
+  "results": [
+    {
+      "code": 1,
+      "stdout": "",
+      "files": {
+        ".dfw/checks/setup.html": "<!doctype html><html lang=\"en\"><title>x</title><p>x</p></html>"
+      }
+    }
+  ]
+}

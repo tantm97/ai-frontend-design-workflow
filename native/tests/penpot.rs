@@ -55,7 +55,6 @@ fn cli(root: &Path, args: &[&str]) -> (i32, String, String) {
     let mut cmd = Command::new(DFW);
     cmd.args(args).current_dir(root);
     for name in [
-        "DFW_NATIVE",
         "DFW_HOST",
         "DFW_PROJECT_DIR",
         "CLAUDE_PROJECT_DIR",

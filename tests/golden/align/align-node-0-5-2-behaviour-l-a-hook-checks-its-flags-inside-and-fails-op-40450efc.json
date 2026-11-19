@@ -1,0 +1,23 @@
+{
+  "test": "align: node 0.5.2 behaviour > l: a hook checks its flags inside, and fails open",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "dfw hook session-start error: --host needs a value.\n",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "dfw hook pre-tool-use error: --root needs a value.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown hook \"nope\"\n",
+      "files": {}
+    }
+  ]
+}

@@ -7,11 +7,26 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'core', 'kits', 'styles');
 
-import { buildPalette, typeScale, auditColors, auditTypeScale, contrast, hexToOklch } from '../core/lib/color.mjs';
+// The colour and type maths are the binary's (native/src/design/color.rs), reached through its
+// hidden `dfw __debug color <function> <JSON arguments...>`: one implementation, no JavaScript copy.
+// Build it first (cd native && cargo build) or point DFW_BIN at one.
+const DFW = process.env.DFW_BIN || path.join(ROOT, 'native', 'target', 'debug', process.platform === 'win32' ? 'dfw.exe' : 'dfw');
+function color(fn, ...args) {
+  const r = spawnSync(DFW, ['__debug', 'color', fn, ...args.map((a) => JSON.stringify(a))], { encoding: 'utf8' });
+  if (r.error) throw new Error(`${DFW}: ${r.error.message}. Build the binary (cd native && cargo build) or set DFW_BIN.`);
+  if (r.status !== 0) throw new Error(`dfw __debug color ${fn} failed: ${r.stderr}`);
+  return JSON.parse(r.stdout);
+}
+const buildPalette = (seeds, names) => color('buildPalette', seeds, names);
+const typeScale = (type) => color('typeScale', type);
+const auditColors = (input) => color('auditColors', input);
+const auditTypeScale = (scale, opts) => color('auditTypeScale', scale, opts);
+const contrast = (a, b) => color('contrast', a, b);
 
 // p = palette { name: [hex, usage] }, r = roles { contractRole: paletteName | hex }
 const GUIDES = [

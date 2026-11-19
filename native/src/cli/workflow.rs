@@ -38,19 +38,19 @@ use crate::workflow::state::{
 /// The commands of this group.
 pub fn commands() -> Vec<(&'static str, Handler)> {
     vec![
-        ("init", Handler::Native(init)),
-        ("status", Handler::Native(status)),
-        ("mode", Handler::Native(mode)),
-        ("phase", Handler::Native(phase)),
-        ("approve", Handler::Native(approve)),
-        ("reopen", Handler::Native(reopen)),
-        ("pause", Handler::Native(pause_resume)),
-        ("resume", Handler::Native(pause_resume)),
-        ("decide", Handler::Native(decide_cmd)),
-        ("decisions", Handler::Native(decisions)),
-        ("config", Handler::Native(config)),
-        ("lang", Handler::Native(lang)),
-        ("verify-snapshot", Handler::Native(verify_snapshot_cmd)),
+        ("init", init as Handler),
+        ("status", status as Handler),
+        ("mode", mode as Handler),
+        ("phase", phase as Handler),
+        ("approve", approve as Handler),
+        ("reopen", reopen as Handler),
+        ("pause", pause_resume as Handler),
+        ("resume", pause_resume as Handler),
+        ("decide", decide_cmd as Handler),
+        ("decisions", decisions as Handler),
+        ("config", config as Handler),
+        ("lang", lang as Handler),
+        ("verify-snapshot", verify_snapshot_cmd as Handler),
     ]
 }
 
@@ -607,7 +607,7 @@ fn verify_snapshot_cmd(ctx: &Ctx) -> Result<i32, DfwError> {
 }
 
 /// `__debug hot <what> ...`: what the modules without a native command of their own compute,
-/// for the conformance tests and the tests that need several processes.
+/// for the golden tests and the tests that need several processes.
 /// - `add-comments <root> <tag> <count>`: `addComment(root, { comment: tag + i })` in a loop;
 /// - `stack-detect <root>`: `JSON.stringify(detectStack(root))`;
 /// - `freeze <root> [note]`: `freezeDesign(root, loadState(root), { note })`, prints the state.

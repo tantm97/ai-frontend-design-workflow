@@ -1,0 +1,35 @@
+{
+  "test": "design commands > fonts: usage error without a network call; the other subcommands answer the same",
+  "results": [
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Usage: dfw fonts check <family...>  (quote names with spaces)\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Usage: dfw fonts check <family...>  (quote names with spaces)\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Usage: dfw tokens extract --url <reference site or running app> [--out design/system/extracted.tokens.json]\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Usage: dfw tokens import <penpot-tokens.json|folder> [--from penpot] [--dry-run] [--prune]\n",
+      "files": {}
+    },
+    {
+      "code": 2,
+      "stdout": "- [MUST] (contrast) Control boundary (WCAG 1.4.11): border on surface is 1.27:1, needs 3:1.\n- [SHOULD] (usage-rules) 7 of 7 colour tokens have no $description (usage rule), e.g. color.blue.600, color.canvas, color.surface, color.ink. A senior palette says what each colour is for and what it must never be used for.\n- [SHOULD] (type-contrast) Largest size 16px is only 1.0× body; product UIs need ≥ 1.8× for clear hierarchy.\n- [SHOULD] (type-display) No display sizes (font.size.display-*): titles and key numbers will sit at body scale, the most common \"AI look\".\n- [SHOULD] (rationale) DESIGN.md \"## Rationale\" has 0 decision(s); write at least 5 \"decision - because <context fact or principle>\" lines (accent choice, neutrals, type scale, density, motif).\n- [SHOULD] (inventory-missing) No component inventory. List every component this product needs in design/system/inventory.json (name, purpose, usedBy, states) before designing masters, so the system holds only what the screens use.\n",
+      "stderr": "",
+      "files": {}
+    }
+  ]
+}

@@ -1,9 +1,9 @@
 #!/bin/sh
 # dfw launcher (Claude Code puts plugin bin/ on PATH; hooks of every host call it too).
-# Runs the single-file dfw binary for this plugin version when it is installed
-# ("dfw setup --binary", or install.sh), otherwise Node.js with bin/dfw.mjs.
-# DFW_NO_BINARY=1 forces Node. DFW_BIN=<executable> runs that binary instead (native port: tests
-# and development).
+# Runs the native dfw binary installed for this plugin version: <dfw home>/bin/<version>/dfw,
+# where <dfw home> is DFW_HOME, else $XDG_CONFIG_HOME/dfw, else ~/.config/dfw ("dfw install",
+# install.sh or "npx github:tantm97/ai-frontend-design-workflow" put it there).
+# DFW_BIN=<executable> runs that binary instead (tests and development).
 # Resolve symlinks (e.g. ~/.local/bin/dfw -> <plugin>/bin/dfw) to find the plugin directory.
 SELF=$0
 while [ -L "$SELF" ]; do
@@ -18,35 +18,31 @@ ROOT=$(dirname -- "$DIR")
 if [ -n "$DFW_BIN" ] && [ -f "$DFW_BIN" ] && [ -x "$DFW_BIN" ]; then
   DFW_PLUGIN_ROOT="$ROOT" exec "$DFW_BIN" "$@"
 fi
-if [ -z "$DFW_NO_BINARY" ]; then
-  # Manifest: Claude Code format, or a root plugin.json (GitHub Copilot and other hosts).
-  MANIFEST="$ROOT/.claude-plugin/plugin.json"
-  [ -f "$MANIFEST" ] || MANIFEST="$ROOT/plugin.json"
-  VER=$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$MANIFEST" 2>/dev/null | head -n 1)
-  HOME_DIR=${DFW_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/dfw}
-  if [ -n "$VER" ]; then
-    for B in "$HOME_DIR/bin/$VER/dfw" "$HOME_DIR/bin/$VER/dfw.exe"; do
-      if [ -x "$B" ]; then
-        DFW_PLUGIN_ROOT="$ROOT" exec "$B" "$@"
-      fi
-    done
-  fi
+# Manifest: Claude Code format, or a root plugin.json (GitHub Copilot and other hosts).
+MANIFEST="$ROOT/.claude-plugin/plugin.json"
+[ -f "$MANIFEST" ] || MANIFEST="$ROOT/plugin.json"
+VER=$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$MANIFEST" 2>/dev/null | head -n 1)
+HOME_DIR=${DFW_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/dfw}
+if [ -n "$VER" ]; then
+  for B in "$HOME_DIR/bin/$VER/dfw" "$HOME_DIR/bin/$VER/dfw.exe"; do
+    if [ -f "$B" ] && [ -x "$B" ]; then
+      DFW_PLUGIN_ROOT="$ROOT" exec "$B" "$@"
+    fi
+  done
 fi
-if command -v node >/dev/null 2>&1; then
-  exec node "$DIR/dfw.mjs" "$@"
-fi
-# No Node and no binary for this plugin version (the plugin was updated before the matching
-# release was installed): run the newest installed binary rather than losing every hook.
-if [ -z "$DFW_NO_BINARY" ] && [ -d "$HOME_DIR/bin" ]; then
+# No binary for this plugin version (the plugin was updated before the matching release was
+# installed): run the newest installed binary rather than losing every hook.
+if [ -d "$HOME_DIR/bin" ]; then
   for V in $(ls -1 "$HOME_DIR/bin" 2>/dev/null | sort -t. -k1,1nr -k2,2nr -k3,3nr); do
     for B in "$HOME_DIR/bin/$V/dfw" "$HOME_DIR/bin/$V/dfw.exe"; do
-      if [ -x "$B" ]; then
-        echo "dfw: no binary for plugin version ${VER:-unknown} and no Node.js; running binary $V. Update: dfw setup --binary (or install.sh)." >&2
+      if [ -f "$B" ] && [ -x "$B" ]; then
+        echo "dfw: no binary for plugin version ${VER:-unknown}; running $V. Update: curl -fsSL https://raw.githubusercontent.com/tantm97/ai-frontend-design-workflow/main/install.sh | sh" >&2
         DFW_PLUGIN_ROOT="$ROOT" exec "$B" "$@"
       fi
     done
   done
 fi
-echo "dfw: needs the dfw binary or Node.js 22+." >&2
-echo "  Install the binary: curl -fsSL https://raw.githubusercontent.com/tantm97/ai-frontend-design-workflow/main/install.sh | sh" >&2
+echo "dfw: the dfw binary is not installed (looked in $HOME_DIR/bin/${VER:-<version>}/)." >&2
+echo "  Install it: curl -fsSL https://raw.githubusercontent.com/tantm97/ai-frontend-design-workflow/main/install.sh | sh" >&2
+echo "  (with DFW_VERSION=${VER:-<version>} for this plugin's version; on Windows see the README)" >&2
 exit 127

@@ -28,7 +28,7 @@ use crate::workflow::state::load_state;
 
 /// The commands of this group.
 pub fn commands() -> Vec<(&'static str, Handler)> {
-    vec![("penpot", Handler::Native(run))]
+    vec![("penpot", run as Handler)]
 }
 
 /// A flag as the Node CLI read it in `a.flag || null`: its text, `true` when it stood alone,

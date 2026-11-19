@@ -1,8 +1,8 @@
 //! dfw: design-first frontend workflow CLI (native core).
 //!
-//! Ports the dispatch of `core/bin/dfw.mjs` and `main()` in `core/lib/cli.mjs`. Every command is
-//! native; `DFW_NATIVE=off` still hands the whole command line to the Node CLI (the escape hatch
-//! of design decision 5), which goes when the Node core is deleted (rust-core, stage 4).
+//! The command line: the arguments select one command of the table (`cli`), its handler runs
+//! and its exit code is the process's. The dispatch order is the one of the Node CLI of 0.5.2,
+//! which the golden tests (tests/golden) recorded.
 //! The end of every command is a record point of `telemetry` (off unless a collector address exists).
 
 mod assets;
@@ -18,9 +18,8 @@ mod telemetry;
 mod tools;
 mod workflow;
 
-use crate::cli::{Ctx, Handler};
+use crate::cli::Ctx;
 use crate::core::error::DfwError;
-use crate::core::paths::env_nonempty;
 use crate::core::util::{parse_args, require_flag_values, Args};
 
 fn main() {
@@ -43,12 +42,8 @@ fn main() {
 
 fn run(ctx: &Ctx, name: &str) -> Result<i32, DfwError> {
     let argv = &ctx.argv;
-    // Escape hatch while porting: the Node CLI handles everything.
-    if env_nonempty("DFW_NATIVE").as_deref() == Some("off") {
-        return cli::forward(argv);
-    }
-    // The internal server commands exist only as the first argument; anywhere else cli.mjs
-    // reaches its switch, which does not know them.
+    // The internal server commands exist only as the first argument; anywhere else the command
+    // table does not know them.
     let misplaced = cli::INTERNAL.contains(&name) && argv.first().map(String::as_str) != Some(name);
     let internal = cli::INTERNAL.contains(&name) && !misplaced;
     // A hook checks its flags inside the handler: it fails open.
@@ -61,16 +56,17 @@ fn run(ctx: &Ctx, name: &str) -> Result<i32, DfwError> {
         .find(|(n, _)| *n == name && !misplaced)
         .map(|(_, h)| h);
     match handler {
-        Some(Handler::Native(run)) => run(ctx),
+        Some(handler) => handler(ctx),
         None => Err(DfwError::new(format!(
             "Unknown command \"{name}\". Run \"dfw help\"."
         ))),
     }
 }
 
-/// Which command the arguments select, in the order `main()` of cli.mjs decides it: an internal
-/// server command as first argument, `version`, the commands checked before `--help`, `help`,
-/// then the first positional.
+/// Which command the arguments select: an internal server command as first argument,
+/// `version`, `help` (also `--help` on any command), then the first positional. The Node CLI ran
+/// `mcp`, `install` and `uninstall` before it looked at `--help`, so `dfw install --help`
+/// installed; here it prints the help.
 fn command_name(argv: &[String], args: &Args) -> String {
     let first = argv.first().map(String::as_str).unwrap_or_default();
     if cli::INTERNAL.contains(&first) {
@@ -79,8 +75,6 @@ fn command_name(argv: &[String], args: &Args) -> String {
     let cmd = args.pos(0).unwrap_or_default();
     if cmd == "version" || args.truthy("version") {
         "version".into()
-    } else if cli::BEFORE_HELP.contains(&cmd) {
-        cmd.into()
     } else if cmd.is_empty() || cmd == "help" || args.truthy("help") {
         "help".into()
     } else {
@@ -112,12 +106,11 @@ mod tests {
         assert_eq!(name(&["status", "--version"]), "version");
         assert_eq!(name(&["--version"]), "version");
         assert_eq!(name(&["--version="]), "help", "an empty value is falsy");
-        assert_eq!(
-            name(&["mcp", "--help"]),
-            "mcp",
-            "mcp, install and uninstall are decided before --help"
-        );
-        assert_eq!(name(&["install", "--help"]), "install");
+        // `dfw install --help` must never install (the Node CLI did).
+        for cmd in ["mcp", "install", "uninstall"] {
+            assert_eq!(name(&[cmd, "--help"]), "help", "{cmd}");
+        }
+        assert_eq!(name(&["install", "--host", "claude"]), "install");
         assert_eq!(name(&["hook", "stop", "--help"]), "help");
         assert_eq!(name(&["__studio-server", "--help"]), "__studio-server");
         assert_eq!(name(&["nope"]), "nope");

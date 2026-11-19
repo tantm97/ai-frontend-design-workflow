@@ -28,14 +28,14 @@ use crate::workflow::freeze::verify_snapshot;
 /// The commands of this group. `mcp`, `stack` and `handoff` are at the end of the file.
 pub fn commands() -> Vec<(&'static str, Handler)> {
     vec![
-        ("inspector", Handler::Native(inspector)),
-        ("mcp", Handler::Native(mcp)),
-        ("install", Handler::Native(cmd_install)),
-        ("uninstall", Handler::Native(cmd_uninstall)),
-        ("setup", Handler::Native(setup)),
-        ("doctor", Handler::Native(doctor)),
-        ("stack", Handler::Native(stack)),
-        ("handoff", Handler::Native(handoff)),
+        ("inspector", inspector as Handler),
+        ("mcp", mcp as Handler),
+        ("install", cmd_install as Handler),
+        ("uninstall", cmd_uninstall as Handler),
+        ("setup", setup as Handler),
+        ("doctor", doctor as Handler),
+        ("stack", stack as Handler),
+        ("handoff", handoff as Handler),
     ]
 }
 
@@ -81,8 +81,8 @@ fn inspector(ctx: &Ctx) -> Result<i32, DfwError> {
     Ok(0)
 }
 
-/// `dfw install [--host ...] [--scope ...] [--source ...] [--no-runtime] [--no-binary] [--quiet]`.
-/// `--no-binary` is accepted and changes nothing: only the Node CLI downloads the binary.
+/// `dfw install [--host ...] [--scope ...] [--source ...] [--no-runtime] [--quiet]`.
+/// `--no-binary` (an option of the 0.5 installers) is still accepted and changes nothing.
 fn cmd_install(ctx: &Ctx) -> Result<i32, DfwError> {
     let a = &ctx.args;
     install(&InstallOptions {

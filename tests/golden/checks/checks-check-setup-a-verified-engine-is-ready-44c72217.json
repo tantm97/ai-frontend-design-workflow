@@ -1,0 +1,19 @@
+{
+  "test": "checks: check > --setup: a verified engine is ready",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "Impeccable engine ready.\n",
+      "files": {
+        ".dfw/checks/setup.html": "<!doctype html><html lang=\"en\"><title>x</title><p>x</p></html>"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "Impeccable engine ready.\n",
+      "files": {
+        ".dfw/checks/setup.html": "<!doctype html><html lang=\"en\"><title>x</title><p>x</p></html>"
+      }
+    }
+  ]
+}

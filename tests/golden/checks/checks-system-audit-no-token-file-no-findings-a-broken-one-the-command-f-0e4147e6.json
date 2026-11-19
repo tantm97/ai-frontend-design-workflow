@@ -1,0 +1,19 @@
+{
+  "test": "checks: system audit > no token file: no findings; a broken one: the command fails the same way",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "Design system audit: no findings.\n",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "[]",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": ""
+    }
+  ]
+}

@@ -76,8 +76,8 @@ Stack and settings
   dfw telemetry status|on|off|endpoint <url>|show|flush   Anonymous usage counts (off unless a collector is set; nothing about your project)
   dfw setup --browser                           Download a headless Chrome (only if no Chrome/Edge/Chromium is installed)
   dfw setup --a11y                              Download axe-core (pinned, integrity-checked) for the rendered accessibility check
-  dfw setup --binary                            Download the single-file dfw binary for this version (faster; Node optional)
-  dfw install [--host auto|claude|copilot|all] [--scope user|project|local] [--no-runtime] [--no-binary]
+  dfw setup --binary                            Download the dfw binary of this plugin version (GitHub release, checked against SHA256SUMS)
+  dfw install [--host auto|claude|copilot|all] [--scope user|project|local] [--no-runtime]
                                                 Register dfw + its skills with Claude Code and/or GitHub Copilot (auto = every one installed)
   dfw uninstall [--host ...] [--scope ...]      Remove them (project files stay)
   dfw hook <name> [--host claude|copilot]       Hook entry point (stdin JSON from the host)

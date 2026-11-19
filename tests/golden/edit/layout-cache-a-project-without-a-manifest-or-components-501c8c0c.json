@@ -1,0 +1,22 @@
+{
+  "test": "layout cache > a project without a manifest or components",
+  "results": [
+    {
+      "ok": {
+        "screens": [],
+        "changedComps": [],
+        "tokensChanged": true
+      }
+    },
+    {
+      ".dfw/layout-cache.json": "{\n  \"t:tokens\": \"1d32ebc8c39f0894\",\n  \"f:styles/base.css\": null,\n  \"f:system/head.html\": null\n}\n"
+    },
+    {
+      "ok": {
+        "screens": [],
+        "changedComps": [],
+        "tokensChanged": false
+      }
+    }
+  ]
+}

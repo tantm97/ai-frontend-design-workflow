@@ -1,0 +1,131 @@
+{
+  "test": "hot: workflow commands > mode: aliases, errors, the waived gates follow the mode",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "dfw: product=\"Fixture\" mode=new-product phase=discovery\ndesign: v1 draft\ngates: G1=open DS=open G2=open G3=open G4=open\n",
+      "stderr": "",
+      "files": {
+        ".dfw/state.json": "{\n  \"schema\": 1,\n  \"product\": \"Fixture\",\n  \"mode\": \"new-product\",\n  \"phase\": \"discovery\",\n  \"active\": true,\n  \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n  \"updatedAt\": \"2026-01-02T03:04:05.678Z\",\n  \"design\": {\n    \"version\": 1,\n    \"status\": \"draft\",\n    \"locked\": false,\n    \"approved\": []\n  },\n  \"gates\": {\n    \"G1\": null,\n    \"DS\": null,\n    \"G2\": null,\n    \"G3\": null,\n    \"G4\": null\n  },\n  \"waived\": {},\n  \"history\": [\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"init\",\n      \"mode\": \"new-product\"\n    },\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"mode\",\n      \"from\": \"new-product\",\n      \"to\": \"new-product\"\n    }\n  ]\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "dfw: product=\"Fixture\" mode=existing-project phase=discovery\ndesign: v1 draft\ngates: G1=open DS=open G2=open G3=open G4=open\n",
+      "stderr": "",
+      "files": {
+        ".dfw/state.json": "{\n  \"schema\": 1,\n  \"product\": \"Fixture\",\n  \"mode\": \"existing-project\",\n  \"phase\": \"discovery\",\n  \"active\": true,\n  \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n  \"updatedAt\": \"2026-01-02T03:04:05.678Z\",\n  \"design\": {\n    \"version\": 1,\n    \"status\": \"draft\",\n    \"locked\": false,\n    \"approved\": []\n  },\n  \"gates\": {\n    \"G1\": null,\n    \"DS\": null,\n    \"G2\": null,\n    \"G3\": null,\n    \"G4\": null\n  },\n  \"waived\": {},\n  \"history\": [\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"init\",\n      \"mode\": \"new-product\"\n    },\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"mode\",\n      \"from\": \"new-product\",\n      \"to\": \"existing-project\"\n    }\n  ]\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "dfw: product=\"Fixture\" mode=design-only phase=discovery\ndesign: v1 draft\ngates: G1=open DS=open G2=open G3=open G4=open\n",
+      "stderr": "",
+      "files": {
+        ".dfw/state.json": "{\n  \"schema\": 1,\n  \"product\": \"Fixture\",\n  \"mode\": \"design-only\",\n  \"phase\": \"discovery\",\n  \"active\": true,\n  \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n  \"updatedAt\": \"2026-01-02T03:04:05.678Z\",\n  \"design\": {\n    \"version\": 1,\n    \"status\": \"draft\",\n    \"locked\": false,\n    \"approved\": []\n  },\n  \"gates\": {\n    \"G1\": null,\n    \"DS\": null,\n    \"G2\": null,\n    \"G3\": null,\n    \"G4\": null\n  },\n  \"waived\": {},\n  \"history\": [\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"init\",\n      \"mode\": \"new-product\"\n    },\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"mode\",\n      \"from\": \"new-product\",\n      \"to\": \"design-only\"\n    }\n  ]\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "dfw: product=\"Fixture\" mode=ui-refinement phase=discovery\ndesign: v1 draft\ngates: G1=waived DS=waived G2=open G3=open G4=open\n",
+      "stderr": "",
+      "files": {
+        ".dfw/state.json": "{\n  \"schema\": 1,\n  \"product\": \"Fixture\",\n  \"mode\": \"ui-refinement\",\n  \"phase\": \"discovery\",\n  \"active\": true,\n  \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n  \"updatedAt\": \"2026-01-02T03:04:05.678Z\",\n  \"design\": {\n    \"version\": 1,\n    \"status\": \"draft\",\n    \"locked\": false,\n    \"approved\": []\n  },\n  \"gates\": {\n    \"G1\": null,\n    \"DS\": null,\n    \"G2\": null,\n    \"G3\": null,\n    \"G4\": null\n  },\n  \"waived\": {\n    \"G1\": \"waived by mode ui-refinement\",\n    \"DS\": \"waived by mode ui-refinement\"\n  },\n  \"history\": [\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"init\",\n      \"mode\": \"new-product\"\n    },\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"mode\",\n      \"from\": \"new-product\",\n      \"to\": \"ui-refinement\"\n    }\n  ]\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "dfw: product=\"Fixture\" mode=ui-refinement phase=discovery\ndesign: v1 draft\ngates: G1=waived DS=waived G2=open G3=open G4=open\n",
+      "stderr": "",
+      "files": {
+        ".dfw/state.json": "{\n  \"schema\": 1,\n  \"product\": \"Fixture\",\n  \"mode\": \"ui-refinement\",\n  \"phase\": \"discovery\",\n  \"active\": true,\n  \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n  \"updatedAt\": \"2026-01-02T03:04:05.678Z\",\n  \"design\": {\n    \"version\": 1,\n    \"status\": \"draft\",\n    \"locked\": false,\n    \"approved\": []\n  },\n  \"gates\": {\n    \"G1\": null,\n    \"DS\": null,\n    \"G2\": null,\n    \"G3\": null,\n    \"G4\": null\n  },\n  \"waived\": {\n    \"G1\": \"waived by mode ui-refinement\",\n    \"DS\": \"waived by mode ui-refinement\"\n  },\n  \"history\": [\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"init\",\n      \"mode\": \"new-product\"\n    },\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"mode\",\n      \"from\": \"new-product\",\n      \"to\": \"ui-refinement\"\n    }\n  ]\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "dfw: product=\"Fixture\" mode=quick-change phase=discovery\ndesign: v1 draft\ngates: G1=waived DS=waived G2=open G3=open G4=open\n",
+      "stderr": "",
+      "files": {
+        ".dfw/state.json": "{\n  \"schema\": 1,\n  \"product\": \"Fixture\",\n  \"mode\": \"quick-change\",\n  \"phase\": \"discovery\",\n  \"active\": true,\n  \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n  \"updatedAt\": \"2026-01-02T03:04:05.678Z\",\n  \"design\": {\n    \"version\": 1,\n    \"status\": \"draft\",\n    \"locked\": false,\n    \"approved\": []\n  },\n  \"gates\": {\n    \"G1\": null,\n    \"DS\": null,\n    \"G2\": null,\n    \"G3\": null,\n    \"G4\": null\n  },\n  \"waived\": {\n    \"G1\": \"waived by mode quick-change\",\n    \"DS\": \"waived by mode quick-change\"\n  },\n  \"history\": [\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"init\",\n      \"mode\": \"new-product\"\n    },\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"mode\",\n      \"from\": \"new-product\",\n      \"to\": \"quick-change\"\n    }\n  ]\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "dfw: product=\"Fixture\" mode=review-only phase=discovery\ndesign: v1 draft\ngates: G1=open DS=open G2=open G3=open G4=open\n",
+      "stderr": "",
+      "files": {
+        ".dfw/state.json": "{\n  \"schema\": 1,\n  \"product\": \"Fixture\",\n  \"mode\": \"review-only\",\n  \"phase\": \"discovery\",\n  \"active\": true,\n  \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n  \"updatedAt\": \"2026-01-02T03:04:05.678Z\",\n  \"design\": {\n    \"version\": 1,\n    \"status\": \"draft\",\n    \"locked\": false,\n    \"approved\": []\n  },\n  \"gates\": {\n    \"G1\": null,\n    \"DS\": null,\n    \"G2\": null,\n    \"G3\": null,\n    \"G4\": null\n  },\n  \"waived\": {},\n  \"history\": [\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"init\",\n      \"mode\": \"new-product\"\n    },\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"mode\",\n      \"from\": \"new-product\",\n      \"to\": \"review-only\"\n    }\n  ]\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "dfw: product=\"Fixture\" mode=quick-change phase=discovery\ndesign: v1 draft\ngates: G1=waived DS=waived G2=open G3=open G4=open\n",
+      "stderr": "",
+      "files": {
+        ".dfw/state.json": "{\n  \"schema\": 1,\n  \"product\": \"Fixture\",\n  \"mode\": \"quick-change\",\n  \"phase\": \"discovery\",\n  \"active\": true,\n  \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n  \"updatedAt\": \"2026-01-02T03:04:05.678Z\",\n  \"design\": {\n    \"version\": 1,\n    \"status\": \"draft\",\n    \"locked\": false,\n    \"approved\": []\n  },\n  \"gates\": {\n    \"G1\": null,\n    \"DS\": null,\n    \"G2\": null,\n    \"G3\": null,\n    \"G4\": null\n  },\n  \"waived\": {\n    \"G1\": \"waived by mode quick-change\",\n    \"DS\": \"waived by mode quick-change\"\n  },\n  \"history\": [\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"init\",\n      \"mode\": \"new-product\"\n    },\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"mode\",\n      \"from\": \"new-product\",\n      \"to\": \"quick-change\"\n    }\n  ]\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "dfw: product=\"Fixture\" mode=new-product phase=discovery\ndesign: v1 draft\ngates: G1=open DS=open G2=open G3=open G4=open\n",
+      "stderr": "",
+      "files": {
+        ".dfw/state.json": "{\n  \"schema\": 1,\n  \"product\": \"Fixture\",\n  \"mode\": \"new-product\",\n  \"phase\": \"discovery\",\n  \"active\": true,\n  \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n  \"updatedAt\": \"2026-01-02T03:04:05.678Z\",\n  \"design\": {\n    \"version\": 1,\n    \"status\": \"draft\",\n    \"locked\": false,\n    \"approved\": []\n  },\n  \"gates\": {\n    \"G1\": null,\n    \"DS\": null,\n    \"G2\": null,\n    \"G3\": null,\n    \"G4\": null\n  },\n  \"waived\": {},\n  \"history\": [\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"init\",\n      \"mode\": \"new-product\"\n    },\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"mode\",\n      \"from\": \"new-product\",\n      \"to\": \"new-product\"\n    }\n  ]\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "dfw: product=\"Fixture\" mode=quick-change phase=discovery\ndesign: v1 draft\ngates: G1=waived DS=waived G2=open G3=open G4=open\n",
+      "stderr": "",
+      "files": {
+        ".dfw/state.json": "{\n  \"schema\": 1,\n  \"product\": \"Fixture\",\n  \"mode\": \"quick-change\",\n  \"phase\": \"discovery\",\n  \"active\": true,\n  \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n  \"updatedAt\": \"2026-01-02T03:04:05.678Z\",\n  \"design\": {\n    \"version\": 1,\n    \"status\": \"draft\",\n    \"locked\": false,\n    \"approved\": []\n  },\n  \"gates\": {\n    \"G1\": null,\n    \"DS\": null,\n    \"G2\": null,\n    \"G3\": null,\n    \"G4\": null\n  },\n  \"waived\": {\n    \"G1\": \"waived by mode quick-change\",\n    \"DS\": \"waived by mode quick-change\"\n  },\n  \"history\": [\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"init\",\n      \"mode\": \"new-product\"\n    },\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"mode\",\n      \"from\": \"new-product\",\n      \"to\": \"quick-change\"\n    }\n  ]\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "dfw: product=\"Fixture\" mode=new-product phase=discovery\ndesign: v1 draft\ngates: G1=open DS=open G2=open G3=open G4=open\n",
+      "stderr": "",
+      "files": {
+        ".dfw/state.json": "{\n  \"schema\": 1,\n  \"product\": \"Fixture\",\n  \"mode\": \"new-product\",\n  \"phase\": \"discovery\",\n  \"active\": true,\n  \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n  \"updatedAt\": \"2026-01-02T03:04:05.678Z\",\n  \"design\": {\n    \"version\": 1,\n    \"status\": \"draft\",\n    \"locked\": false,\n    \"approved\": []\n  },\n  \"gates\": {\n    \"G1\": null,\n    \"DS\": null,\n    \"G2\": null,\n    \"G3\": null,\n    \"G4\": null\n  },\n  \"waived\": {},\n  \"history\": [\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"init\",\n      \"mode\": \"new-product\"\n    },\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"mode\",\n      \"from\": \"quick-change\",\n      \"to\": \"new-product\"\n    }\n  ]\n}\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "dfw: product=\"Fixture\" mode=implement-approved phase=stack\ndesign: v1 approved (locked), approved v1\ngates: G1=approved DS=approved G2=approved G3=open G4=open\n",
+      "stderr": "",
+      "files": {
+        ".dfw/state.json": "{\n  \"schema\": 1,\n  \"product\": \"Fixture\",\n  \"mode\": \"implement-approved\",\n  \"phase\": \"stack\",\n  \"active\": true,\n  \"createdAt\": \"2026-01-02T03:04:05.678Z\",\n  \"updatedAt\": \"2026-01-02T03:04:05.678Z\",\n  \"design\": {\n    \"version\": 1,\n    \"status\": \"approved\",\n    \"locked\": true,\n    \"approved\": [\n      {\n        \"version\": \"v1\",\n        \"hash\": \"abc\",\n        \"at\": \"2026-01-02T03:04:05.678Z\"\n      }\n    ]\n  },\n  \"gates\": {\n    \"G1\": {\n      \"approvedAt\": \"2026-01-02T03:04:05.678Z\",\n      \"note\": \"ok\"\n    },\n    \"DS\": {\n      \"approvedAt\": \"2026-01-02T03:04:05.678Z\",\n      \"note\": \"ok\"\n    },\n    \"G2\": {\n      \"approvedAt\": \"2026-01-02T03:04:05.678Z\",\n      \"note\": \"ok\",\n      \"version\": \"v1\",\n      \"hash\": \"abc\"\n    },\n    \"G3\": null,\n    \"G4\": null\n  },\n  \"waived\": {},\n  \"history\": [\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"init\",\n      \"mode\": \"new-product\"\n    },\n    {\n      \"at\": \"2026-01-02T03:04:05.678Z\",\n      \"event\": \"mode\",\n      \"from\": \"new-product\",\n      \"to\": \"implement-approved\"\n    }\n  ]\n}\n"
+      }
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Mode \"implement-approved\" needs an approved design (G2). None exists for the current version.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown mode \"nope\". Modes: new-product, existing-project, design-only, implement-approved, ui-refinement, quick-change, review-only\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown mode \"undefined\". Modes: new-product, existing-project, design-only, implement-approved, ui-refinement, quick-change, review-only\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Unknown mode \"\". Modes: new-product, existing-project, design-only, implement-approved, ui-refinement, quick-change, review-only\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "No dfw workflow in <root>. Run \"dfw init\" first.\n",
+      "files": {}
+    }
+  ]
+}
