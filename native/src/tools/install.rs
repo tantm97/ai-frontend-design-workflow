@@ -246,6 +246,90 @@ fn step(s: &str) {
     out(&format!("{} {s}", bold("›")));
 }
 
+/// Root entries of the dfw plugin folder Copilot installed before one folder served every host
+/// (`plugins/dfw-copilot`): a root `hooks.json` and `agents/`. The one folder has neither (its
+/// Copilot text is under `hosts/copilot/`).
+const OLD_LAYOUT_ENTRIES: [&str; 2] = ["hooks.json", "agents"];
+
+/// The names at the top of a folder; none when it cannot be read (not installed).
+pub fn root_entries(dir: &Path) -> Vec<String> {
+    fs::read_dir(dir)
+        .map(|rd| {
+            rd.filter_map(Result::ok)
+                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// A Copilot dfw folder with the two-folder layout, from its root entries.
+pub fn has_old_layout(entries: &[String]) -> bool {
+    entries
+        .iter()
+        .any(|e| OLD_LAYOUT_ENTRIES.contains(&e.as_str()))
+}
+
+/// The installed copies of dfw that `dfw install --host copilot` replaces: the installed dfw
+/// folder when it has the old layout (`entries` are its root names), and every `dfw` row of
+/// `copilot plugin list --json` installed directly (`installed-plugins/_direct/...`) or from a
+/// `dfw-copilot` folder. The listing's shape is read loosely (an array of rows, or `plugins`
+/// holding one; any text field of a row may hold the path); text that is not JSON names nothing.
+pub fn old_copilot_installs(dfw_dir: &Path, entries: &[String], plugin_list: &str) -> Vec<String> {
+    let mut found = Vec::new();
+    if has_old_layout(entries) {
+        found.push(dfw_dir.display().to_string());
+    }
+    let list: Value = serde_json::from_str(plugin_list).unwrap_or(Value::Null);
+    let rows = list
+        .as_array()
+        .or_else(|| list.get("plugins").and_then(Value::as_array))
+        .into_iter()
+        .flatten();
+    for row in rows {
+        let name = row.get("name").and_then(Value::as_str).unwrap_or_default();
+        if name != "dfw" && !name.starts_with("dfw@") {
+            continue;
+        }
+        let mut texts = Vec::new();
+        collect_texts(row, &mut texts);
+        let old = texts.into_iter().find(|t| {
+            let parts: Vec<&str> = t.split(['/', '\\']).filter(|p| !p.is_empty()).collect();
+            parts.contains(&"_direct") || parts.last() == Some(&"dfw-copilot")
+        });
+        if let Some(path) = old {
+            if !found.contains(&path) {
+                found.push(path);
+            }
+        }
+    }
+    found
+}
+
+fn collect_texts(v: &Value, out: &mut Vec<String>) {
+    match v {
+        Value::String(t) => out.push(t.clone()),
+        Value::Array(list) => list.iter().for_each(|x| collect_texts(x, out)),
+        Value::Object(map) => map.values().for_each(|x| collect_texts(x, out)),
+        _ => {}
+    }
+}
+
+/// What `dfw doctor` says about the Copilot dfw folder: installed (and with which layout) or
+/// missing, and whether that row is ok.
+pub fn copilot_plugin_state(dir: &Path) -> (bool, String) {
+    if !dir.join("bin").join("dfw").exists() {
+        return (false, "missing (dfw install --host copilot)".to_string());
+    }
+    if has_old_layout(&root_entries(dir)) {
+        return (
+            false,
+            "installed with the old two-folder layout (run dfw install --host copilot to replace it)"
+                .to_string(),
+        );
+    }
+    (true, "installed".to_string())
+}
+
 /// `installInHost`: register the marketplace and install dfw + its skills in one host.
 /// Returns what the user does next.
 fn install_in_host(
@@ -298,6 +382,19 @@ fn install_in_host(
         step(&format!(
             "GitHub Copilot: marketplace {MARKET} from {source}"
         ));
+        // A dfw of the two-folder layout (or installed by path) is uninstalled first: an update
+        // is not trusted to remove the old root hooks.json and agents/, which Copilot would load.
+        let dfw_dir = h.dfw_plugin_dir().unwrap_or_default();
+        let listed = run.run("copilot", &["plugin", "list", "--json"], true)?;
+        let listed = if listed.status == Some(0) {
+            listed.stdout
+        } else {
+            String::new()
+        };
+        let replaced = old_copilot_installs(&dfw_dir, &root_entries(&dfw_dir), &listed);
+        if !replaced.is_empty() {
+            run.run("copilot", &["plugin", "uninstall", "dfw"], false)?;
+        }
         // An explicit --source replaces a marketplace registered from somewhere else ("add"
         // alone would fail and keep it).
         if source != RELEASE_REPO {
@@ -321,6 +418,11 @@ fn install_in_host(
             if r.status != Some(0) {
                 run.run("copilot", &["plugin", "update", p], p != "dfw")?;
             }
+        }
+        for path in &replaced {
+            out(&format!(
+                "Replaced the old dfw for GitHub Copilot ({path}): two-folder layout."
+            ));
         }
         link_copilot_cli();
         return Ok("Restart GitHub Copilot (CLI session or VS Code window), open a project and ask for UI work (the dfw skill loads itself).");
@@ -533,6 +635,85 @@ mod tests {
         assert_eq!(action("Configured marketplaces:\n", "x"), "add");
         assert_eq!(action("", "x"), "add");
         assert_eq!(action("42", "x"), "add");
+    }
+
+    /// plugin-packaging: what `dfw install --host copilot` replaces
+    #[test]
+    fn old_copilot_installs_are_found_by_folder_and_by_listing() {
+        let dir = Path::new("/home/me/.copilot/installed-plugins/dfw-marketplace/dfw");
+        let names = |list: &[&str]| list.iter().map(|n| n.to_string()).collect::<Vec<_>>();
+        let new_layout = names(&[".claude-plugin", "plugin.json", "hosts", "bin", "dfw.json"]);
+        // Already on the one folder, nothing listed: nothing to replace.
+        assert!(old_copilot_installs(dir, &new_layout, "").is_empty());
+        assert!(
+            old_copilot_installs(dir, &[], "[]").is_empty(),
+            "not installed"
+        );
+        // A root hooks.json or agents/ is the two-folder layout.
+        for old in [
+            &["hooks.json", "plugin.json", "skills"][..],
+            &["agents", "plugin.json"],
+        ] {
+            assert_eq!(
+                old_copilot_installs(dir, &names(old), ""),
+                [dir.display().to_string()]
+            );
+        }
+        // Installed directly, or from a dfw-copilot folder; the same copy is named once.
+        let direct = r#"[{"name":"dfw","path":"/home/me/.copilot/installed-plugins/_direct/ab12"},{"name":"impeccable","path":"/x/_direct/y"}]"#;
+        assert_eq!(
+            old_copilot_installs(dir, &new_layout, direct),
+            ["/home/me/.copilot/installed-plugins/_direct/ab12"]
+        );
+        let local = r#"{"plugins":[{"name":"dfw@dfw-marketplace","source":{"path":"C:\\clone\\plugins\\dfw-copilot\\"}}]}"#;
+        assert_eq!(
+            old_copilot_installs(dir, &new_layout, local),
+            [r"C:\clone\plugins\dfw-copilot\"]
+        );
+        let same =
+            serde_json::json!([{ "name": "dfw", "path": dir.display().to_string() }]).to_string();
+        assert_eq!(
+            old_copilot_installs(dir, &names(&["agents"]), &same),
+            [dir.display().to_string()]
+        );
+        // A marketplace install of the one folder, a listing that is not JSON, another plugin.
+        let fine = serde_json::json!([{ "name": "dfw", "path": dir.display().to_string(), "marketplace": "dfw-marketplace" }]).to_string();
+        assert!(old_copilot_installs(dir, &new_layout, &fine).is_empty());
+        assert!(old_copilot_installs(dir, &new_layout, "dfw  /x/dfw-copilot").is_empty());
+        assert!(old_copilot_installs(
+            dir,
+            &new_layout,
+            r#"[{"name":"dfw-tools","path":"/x/dfw-copilot"}]"#
+        )
+        .is_empty());
+        assert!(old_copilot_installs(
+            dir,
+            &new_layout,
+            r#"[{"name":"dfw","path":"/x/dfw-copilot-notes/a"}]"#
+        )
+        .is_empty());
+    }
+
+    /// doctor: the Copilot dfw folder is missing, installed, or installed with the old layout
+    #[test]
+    fn doctor_names_the_old_copilot_layout() {
+        let dir = crate::core::util::test_dir("copilot-layout");
+        assert_eq!(
+            copilot_plugin_state(&dir),
+            (false, "missing (dfw install --host copilot)".to_string())
+        );
+        fs::create_dir_all(dir.join("bin")).unwrap();
+        fs::write(dir.join("bin").join("dfw"), "").unwrap();
+        fs::create_dir_all(dir.join("hosts").join("copilot")).unwrap();
+        assert_eq!(copilot_plugin_state(&dir), (true, "installed".to_string()));
+        fs::write(dir.join("hooks.json"), "{}").unwrap();
+        let (ok, state) = copilot_plugin_state(&dir);
+        assert!(!ok);
+        assert_eq!(
+            state,
+            "installed with the old two-folder layout (run dfw install --host copilot to replace it)"
+        );
+        fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

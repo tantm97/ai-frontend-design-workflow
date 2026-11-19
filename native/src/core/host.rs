@@ -186,8 +186,8 @@ pub struct CopilotPluginDirs {
 }
 
 /// `copilotPluginDirs()`: where Copilot keeps dfw-marketplace plugins. A marketplace added from a
-/// local directory is used in place (`<dir>/plugins/<dir name>`); a GitHub one is copied to
-/// `installed-plugins/`.
+/// local directory is used in place (`<dir>/plugins/dfw`, the one folder every host installs); a
+/// GitHub one is copied to `installed-plugins/`.
 pub fn copilot_plugin_dirs() -> CopilotPluginDirs {
     let home = env_nonempty("COPILOT_HOME")
         .map(PathBuf::from)
@@ -213,7 +213,7 @@ fn copilot_plugin_dirs_in(home: &Path) -> CopilotPluginDirs {
     if let Some(dir) = local {
         let root = Path::new(dir).join("plugins");
         return CopilotPluginDirs {
-            dfw: root.join("dfw-copilot"),
+            dfw: root.join("dfw"),
             root,
         };
     }
@@ -845,7 +845,7 @@ mod tests {
         assert_eq!(
             copilot_plugin_dirs_in(&home),
             CopilotPluginDirs {
-                dfw: local.join("dfw-copilot"),
+                dfw: local.join("dfw"),
                 root: local
             }
         );
