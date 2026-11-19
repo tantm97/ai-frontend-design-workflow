@@ -23,6 +23,7 @@ use super::launch::{
 use super::layout_check::{file_url, head, manifest_breakpoints, states_of, Finding};
 use crate::core::config::load_config;
 use crate::core::error::DfwError;
+use crate::core::http;
 use crate::core::js;
 use crate::core::paths::{global_dir, project_paths};
 use crate::core::util::read_json;
@@ -104,25 +105,15 @@ fn install_axe_from(
     log(&format!(
         "Downloading axe-core {AXE_VERSION} from registry.npmjs.org ..."
     ));
-    let agent: ureq::Agent = ureq::Agent::config_builder()
-        .timeout_global(Some(Duration::from_secs(60)))
-        .http_status_as_error(false)
-        .build()
-        .into();
-    let failed = |e: ureq::Error| DfwError::internal(format!("fetch failed: {url}: {e}"));
-    let mut res = agent.get(url).call().map_err(failed)?;
-    if !res.status().is_success() {
+    let res = http::get(url, &[], Duration::from_secs(60), 64 << 20)
+        .map_err(|e| DfwError::internal(format!("fetch failed: {url}: {e}")))?;
+    if !res.ok() {
         return Err(DfwError::new(format!(
             "axe-core download failed: HTTP {}",
-            res.status().as_u16()
+            res.status
         )));
     }
-    let body = res
-        .body_mut()
-        .with_config()
-        .limit(64 << 20)
-        .read_to_vec()
-        .map_err(failed)?;
+    let body = res.body;
     let got = format!("sha512-{}", base64_encode(&Sha512::digest(&body)));
     if got != integrity {
         return Err(DfwError::new(

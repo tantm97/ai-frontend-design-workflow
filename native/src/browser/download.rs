@@ -8,10 +8,10 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use serde_json::{json, Value};
-use ureq::ResponseExt;
 
 use super::launch::browser_dir;
 use crate::core::error::DfwError;
+use crate::core::http;
 use crate::core::platform::{node_arch, node_platform};
 use crate::core::util::{sha256, to_json_compact, to_json_pretty};
 
@@ -19,6 +19,9 @@ const CFT_URL: &str = "https://googlechromelabs.github.io/chrome-for-testing/las
 const DOWNLOAD_HOST: &str = "storage.googleapis.com";
 /// The archive is about 100 MB: 20 minutes is a slow line, not a hung one.
 const ZIP_TIMEOUT_S: u64 = 20 * 60;
+/// Size caps: the index is a few hundred kB, an archive about 100 MB.
+const INDEX_LIMIT: u64 = 16 << 20;
+const ZIP_LIMIT: u64 = 1 << 30;
 
 /// Chrome for Testing's name of this platform, or `None` when it has no build for it.
 fn cft_platform() -> Option<&'static str> {
@@ -110,7 +113,7 @@ fn install_from(
     check: fn(&Value) -> Result<String, DfwError>,
     log: &dyn Fn(&str),
 ) -> Result<Value, DfwError> {
-    let index: Value = serde_json::from_slice(&fetch(index_url, Some(30))?.1)?;
+    let index: Value = serde_json::from_slice(&fetch(index_url, 30, INDEX_LIMIT)?.1)?;
     let stable = index.get("channels").and_then(|c| c.get("Stable"));
     let dl = stable
         .and_then(|s| s.get("downloads")?.get("chrome-headless-shell")?.as_array())
@@ -159,7 +162,7 @@ fn install_from(
         log(&format!(
             "Downloading headless Chrome {version} ({plat}) from {host} ..."
         ));
-        let (landed, zip) = fetch(&from, Some(ZIP_TIMEOUT_S))?;
+        let (landed, zip) = fetch(&from, ZIP_TIMEOUT_S, ZIP_LIMIT)?;
         check(&Value::String(landed.clone()))?; // a redirect must stay on the same host
                                                 // Chrome for Testing publishes no checksum for its archives: what was unpacked is
                                                 // recorded instead, so a later question "which file was this" has an answer.
@@ -188,28 +191,16 @@ fn install_from(
 }
 
 /// GET a URL: the URL it ended at (after redirects) and the body. `HTTP <status>` is an error.
-fn fetch(url: &str, timeout_s: Option<u64>) -> Result<(String, Vec<u8>), DfwError> {
-    let agent: ureq::Agent = ureq::Agent::config_builder()
-        .timeout_global(timeout_s.map(Duration::from_secs))
-        .http_status_as_error(false)
-        .build()
-        .into();
-    let failed = |e: ureq::Error| DfwError::internal(format!("fetch failed: {url}: {e}"));
-    let mut res = agent.get(url).call().map_err(failed)?;
-    if !res.status().is_success() {
+fn fetch(url: &str, timeout_s: u64, limit: u64) -> Result<(String, Vec<u8>), DfwError> {
+    let res = http::get(url, &[], Duration::from_secs(timeout_s), limit)
+        .map_err(|e| DfwError::internal(format!("fetch failed: {url}: {e}")))?;
+    if !res.ok() {
         return Err(DfwError::new(format!(
             "download failed: HTTP {}",
-            res.status().as_u16()
+            res.status
         )));
     }
-    let landed = res.get_uri().to_string();
-    let body = res
-        .body_mut()
-        .with_config()
-        .limit(1 << 30)
-        .read_to_vec()
-        .map_err(failed)?;
-    Ok((landed, body))
+    Ok((res.landed, res.body))
 }
 
 /// Unpack a zip archive into `dir`, keeping executable bits. An entry that would land outside

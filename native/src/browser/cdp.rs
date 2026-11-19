@@ -28,6 +28,7 @@ use tungstenite::Message;
 
 use self::encoding::{base64_decode, base64_encode, sha1_hex};
 use crate::core::error::DfwError;
+use crate::core::http;
 use crate::core::paths::global_dir;
 use crate::core::util::to_json_compact;
 
@@ -412,6 +413,9 @@ impl Drop for Connection {
 
 // Google Fonts CSS and font files are immutable per URL: serve them from disk so a render
 // never waits on the network after the first one (each page paid ~2 s for fonts before).
+/// The largest font file a page may fetch through the cache (a font is well under 1 MB).
+const FONT_LIMIT: u64 = 20 << 20;
+
 const FONT_PATTERNS: [&str; 2] = [
     "https://fonts.googleapis.com/*",
     "https://fonts.gstatic.com/*",
@@ -475,34 +479,24 @@ fn cached_or_fetched(
         return fulfill(&fs::read(&body)?, content_type);
     }
     // Same headers as the browser (Google Fonts picks the font format from the User-Agent).
-    let agent: ureq::Agent = ureq::Agent::config_builder()
-        .timeout_global(Some(Duration::from_secs(15)))
-        .http_status_as_error(false)
-        .build()
-        .into();
-    let mut get = agent.get(url);
     let headers = request
         .and_then(|r| r.get("headers"))
         .and_then(Value::as_object);
-    for (name, value) in headers.into_iter().flatten() {
-        let skip = ["host", "connection", "content-length", "accept-encoding"]
-            .contains(&name.to_ascii_lowercase().as_str());
-        if let (false, Some(value)) = (skip, value.as_str()) {
-            get = get.header(name.as_str(), value);
-        }
-    }
-    let mut res = get.call().map_err(|e| DfwError::internal(e.to_string()))?;
-    let content_type = res
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream")
-        .to_string();
-    let ok = res.status().is_success();
-    let buf = res
-        .body_mut()
-        .read_to_vec()
+    let skip = ["host", "connection", "content-length", "accept-encoding"];
+    let forwarded: Vec<(&str, &str)> = headers
+        .into_iter()
+        .flatten()
+        .filter(|(name, _)| !skip.contains(&name.to_ascii_lowercase().as_str()))
+        .filter_map(|(name, value)| Some((name.as_str(), value.as_str()?)))
+        .collect();
+    let res = http::get(url, &forwarded, Duration::from_secs(15), FONT_LIMIT)
         .map_err(|e| DfwError::internal(e.to_string()))?;
+    let content_type = res
+        .content_type
+        .clone()
+        .unwrap_or_else(|| "application/octet-stream".to_string());
+    let ok = res.ok();
+    let buf = res.body;
     if ok {
         fs::create_dir_all(dir)?;
         fs::write(&body, &buf)?;
