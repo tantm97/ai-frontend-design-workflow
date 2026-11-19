@@ -37,7 +37,6 @@
     "eslint": "10.15.0",
     "globals": "17.14.0",
     "linkedom": "0.18.15",
-    "postject": "1.0.0-alpha.6",
     "prettier": "3.9.10",
     "typescript": "6.0.3"
   }
