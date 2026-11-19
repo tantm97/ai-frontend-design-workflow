@@ -113,6 +113,9 @@ Not exported back: layer order, effects other than fill/stroke colour (shadows, 
 
 ### Network and privacy
 
+- **Which Penpot may drive the bridge** is the user's choice, in the global config only (a project cannot set it): `penpot.origins`, default `["https://design.penpot.app"]`. For a self-hosted Penpot: `dfw config set penpot.origins '["https://penpot.example.com"]' --global`, then restart the Studio. The panel may be framed only by those origins and talks only to them.
+- **Bridge token.** Every write of the panel carries a token it reads from the Studio (same origin only); the Studio makes a new one each time it starts. After `dfw studio start` again, close the dfw bridge plugin in Penpot and open it again, or its writes are refused.
+
 - dfw itself makes no network call to Penpot and needs no Penpot account or access token. Penpot (cloud or self-hosted) loads the plugin in your browser from `http://127.0.0.1:<port>`; the plugin UI talks to the Studio on the same origin.
 - What goes from the Studio to the plugin (inside your browser): `export.json` (screen names, layer names, texts, boxes, colours, token names and values) and the images under `design/` that the screens use. The plugin then writes them into the Penpot file you have open, which is stored by that Penpot instance like any other edit.
 - What comes back: the change set described above. The Studio accepts it only from its own origin (the plugin UI); manifest and plugin code are readable cross-origin (with `Access-Control-Allow-Private-Network`) so Penpot can load them.
