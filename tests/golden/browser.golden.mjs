@@ -432,12 +432,14 @@ describe('tools: install, uninstall, doctor (fake host CLIs)', { skip: skipReaso
     const r = same(run2(INSTALL, withFakes()));
     assert.equal(r.code, 0, r.stderr);
     const calls = r.extra.calls.trim().split('\n');
-    assert.deepEqual(calls.slice(0, 5), [
+    assert.deepEqual(calls.slice(0, 6), [
       'claude --version',
       'copilot --version',
       'claude plugin marketplace list --json',
       'claude plugin marketplace add tantm97/ai-frontend-design-workflow --scope user',
       'claude plugin install dfw@dfw-marketplace --scope user',
+      // An installed dfw stays at its version on `plugin install`: the update moves it.
+      'claude plugin update dfw@dfw-marketplace --scope user',
     ]);
     assert.ok(calls.includes('copilot plugin install dfw@dfw-marketplace'));
     assert.ok(!calls.some((c) => c.startsWith('copilot plugin marketplace remove')), 'the default source is not removed first');
@@ -454,6 +456,10 @@ describe('tools: install, uninstall, doctor (fake host CLIs)', { skip: skipReaso
     const repo = '[{"name":"dfw-marketplace","source":"github","repo":"tantm97/ai-frontend-design-workflow"}]';
     const update = same(run2([...INSTALL, '--host', 'claude'], withFakes({ env: { FAKE_LIST: repo } })));
     assert.match(update.extra.calls, /claude plugin marketplace update dfw-marketplace\n/);
+    assert.match(
+      update.extra.calls,
+      /claude plugin install dfw@dfw-marketplace --scope user\nclaude plugin update dfw@dfw-marketplace --scope user\n/,
+    );
     assert.doesNotMatch(update.extra.calls, /marketplace add|copilot plugin/);
 
     const readd = same(
