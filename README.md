@@ -9,7 +9,7 @@ discovery -> direction (G1) -> design system (DS) -> pages of screens + review (
 
 ## Install (one command)
 
-No Node.js needed (downloads the native `dfw` binary for your OS from the GitHub release, checks its SHA-256 against the release's `SHA256SUMS`, then registers everything with Claude Code):
+No Node.js needed (downloads the native `dfw` binary for your OS from the GitHub release, checks its SHA-256 against the release's `SHA256SUMS`, then registers everything with Claude Code and GitHub Copilot, whichever is installed):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/tantm97/ai-frontend-design-workflow/main/install.sh | sh
@@ -23,7 +23,7 @@ npx github:tantm97/ai-frontend-design-workflow
 
 On Windows without a POSIX shell: download `dfw-<version>-win32-x64.exe` from the [releases](https://github.com/tantm97/ai-frontend-design-workflow/releases), check it against `SHA256SUMS`, save it as `%USERPROFILE%\.config\dfw\bin\<version>\dfw.exe` and run `dfw.exe install`.
 
-Both add the `dfw-marketplace` to Claude Code, install `dfw` (its plugin dependencies pull in the seven design skills), set up the Impeccable engine (telemetry off) and run `dfw doctor`. Screenshots and the layout check use the Chrome, Edge or Chromium already on your machine; only when none is found does the installer download Google's headless Chrome once. Options: `--scope project` (share via `.claude/settings.json`), `--source <path|owner/repo>` (another marketplace source, for example a local clone; a marketplace registered from a different source is replaced), `--no-runtime`, `uninstall`. Then restart Claude Code (or `/reload-plugins`) and type `/dfw`.
+Both add the `dfw-marketplace` to each tool, install `dfw` (its plugin dependencies pull in the seven design skills), set up the Impeccable engine (telemetry off) and run `dfw doctor`. Screenshots and the layout check use the Chrome, Edge or Chromium already on your machine; only when none is found does the installer download Google's headless Chrome once. Options: `--scope project` (share via `.claude/settings.json`), `--source <path|owner/repo>` (another marketplace source, for example a local clone; a marketplace registered from a different source is replaced), `--no-runtime`, `uninstall`. Running the installer again upgrades an installed dfw to the newest release. Then restart Claude Code (or `/reload-plugins`) and type `/dfw`.
 
 How dfw runs: dfw is one native program (written in Rust, about 7 MB, no runtime to install). It carries the Studio, the templates, the starter kit, the style guides, the icons and the workflow guide inside, so it runs from any folder. The plugin's `bin/dfw` launcher (`bin/dfw.cmd` on Windows), which Claude Code puts on `PATH` and every hook calls, starts the binary installed for the plugin's version, `~/.config/dfw/bin/<version>/dfw` (`DFW_HOME` or `XDG_CONFIG_HOME` move that folder). When the plugin was updated before the matching binary was installed, it runs the newest installed binary and says so on stderr; when none is installed it prints how to install one and exits with 127. `dfw setup --binary` downloads the binary of the plugin's version; `DFW_BIN=<path>` runs another build (development).
 
@@ -56,7 +56,7 @@ The workflow is called **dfw** (design-first workflow): `/dfw` in Claude Code, `
 
 | Plugin | Origin | Role in dfw |
 |---|---|---|
-| `dfw` | original (MIT), assembled from `core/` + `adapters/claude-code/` | Orchestrator skill `/dfw`, CLI, hooks, Design Studio, starter kit + style guides + icons, agents (design-director, screen-builder, visual-reviewer, skill-steward), policies |
+| `dfw` | original (MIT), assembled from `core/` + `adapters/claude-code/` + `adapters/copilot/` (one folder for both hosts) | Orchestrator skill `/dfw`, CLI, hooks, Design Studio, starter kit + style guides + icons, agents (design-director, screen-builder, visual-reviewer, skill-steward), policies |
 | `frontend-design` | [anthropics/skills](https://github.com/anthropics/skills) (Apache-2.0) | Aesthetic base in design phases |
 | `ux-research` | [anthropics/knowledge-work-plugins](https://github.com/anthropics/knowledge-work-plugins) (Apache-2.0) | Discovery research and UX copy |
 | `ui-ux-pro-max` | [nextlevelbuilder/ui-ux-pro-max-skill](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) (MIT) | Data: palettes, font pairings, UX guidelines (core skill only) |
@@ -79,7 +79,7 @@ Vendored plugins are built from pinned commits (`registry/skills.lock.json`) wit
 
 ## Requirements
 
-- Claude Code with a Claude subscription (no API key needed).
+- Claude Code with a Claude subscription (no API key needed), or GitHub Copilot CLI.
 - The `dfw` binary (installed by `install.sh` or the installer). Node.js is not needed to run dfw. It is optional, for two things only: the vendored skills' own scripts (Hallmark sloplint, Taste copy-lint), which `dfw check` reports as NOT VERIFIED without it, and Lighthouse (`dfw check --lighthouse`, through `npx`). Python 3 (UI UX Pro Max search), git.
 - Release binaries: macOS (Apple silicon, Intel), Linux (x64, arm64; glibc 2.39 or newer, as on Ubuntu 24.04) and Windows (x64).
 - A Chromium-based browser for screenshots and the layout check: your installed Chrome / Edge / Chromium / Brave (driven headless over the DevTools protocol, no npm packages), `DFW_BROWSER=/path/to/chrome`, or `dfw setup --browser` (Google's chrome-headless-shell, once, into `~/.config/dfw/browser`). Web fonts used by designs are cached in `~/.config/dfw/cache/fonts`.
@@ -216,7 +216,7 @@ npm test && npm run build:check && npm run validate
 
 Proposal reports cover: trigger/description changes, added/changed executable code and hooks, files dfw depends on (cross-reference check), new conflict-lint hits, and instruction size. A weekly GitHub Action (`.github/workflows/upstream-check.yml`) opens one PR per update (merging is the approval) and starts `validate.yml` on it, or opens an issue when an update is blocked (one issue per upstream commit). After merging: `claude plugin marketplace update dfw-marketplace` and `/reload-plugins`.
 
-When you change `core/` or an adapter, run `npm run build`; a change to files the binary embeds (`core/studio`, `templates`, `kits`, `assets`, `workflow`) also needs a new `cargo build` (`DFW_PLUGIN_ROOT=core` makes a debug binary read them from the source instead). Bump `version` in `core/manifest.json`, `package.json` and `native/Cargo.toml` together (`node scripts/validate.mjs` fails when they differ) so installed copies update. A release tag builds binaries only after the `verify` job passes: the tagged commit is on `main`, `npm test`, `cargo test` and the golden tests pass and `build --check` is clean; then each runner builds its own target with cargo and the release gets `SHA256SUMS`. Workflow actions are pinned by commit SHA.
+When you change `core/` or an adapter, run `npm run build`; a change to files the binary embeds (`core/studio`, `templates`, `kits`, `assets`, `workflow`) also needs a new `cargo build` (`DFW_PLUGIN_ROOT=core` makes a debug binary read them from the source instead). Bump `version` in `core/manifest.json`, `package.json`, `package-lock.json`, `native/Cargo.toml` and `native/Cargo.lock` together (`node scripts/validate.mjs` fails when they differ) so installed copies update. A release tag builds binaries only after the `verify` job passes: the tagged commit is on `main`, `npm test`, `cargo test` and the golden tests pass and `build --check` is clean; then each runner builds its own target with cargo and the release gets `SHA256SUMS`. Workflow actions are pinned by commit SHA.
 
 ## Known limitations
 

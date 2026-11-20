@@ -4,7 +4,7 @@
 # then let it register dfw and its skills with Claude Code and GitHub Copilot ("dfw install").
 #   curl -fsSL https://raw.githubusercontent.com/tantm97/ai-frontend-design-workflow/main/install.sh | sh
 #   ... | sh -s -- --scope project          (arguments go to "dfw install")
-#   DFW_VERSION=0.6.0 sh install.sh          (a specific release; 0.5.x is the last Node-based one)
+#   DFW_VERSION=0.6.3 sh install.sh          (a specific release; 0.5.x is the last Node-based one)
 set -eu
 REPO="tantm97/ai-frontend-design-workflow"
 
