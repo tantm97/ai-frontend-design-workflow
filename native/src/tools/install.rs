@@ -367,12 +367,18 @@ fn install_in_host(
             plugins.join(", ")
         ));
         // dfw declares the skills as dependencies; installing each explicitly keeps older
-        // Claude Code versions working.
+        // Claude Code versions working. `plugin install` leaves an installed plugin at its
+        // version, so `plugin update` follows it (both exit 0 when nothing changes).
         for p in plugins {
             let plugin = format!("{p}@{MARKET}");
             run.run(
                 "claude",
                 &["plugin", "install", &plugin, "--scope", scope],
+                p != "dfw",
+            )?;
+            run.run(
+                "claude",
+                &["plugin", "update", &plugin, "--scope", scope],
                 p != "dfw",
             )?;
         }
