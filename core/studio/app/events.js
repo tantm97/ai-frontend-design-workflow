@@ -4,8 +4,8 @@
 // initial load of the manifest, state, tokens and components.
 import { $, P, S, api, post, store, toast } from './state.js';
 import { loadPresent, handleGoto, renderPresentBar } from './present.js';
-import { positionFrames, rebuildKeepCam, selectFrame, setPage, softReload } from './frames.js';
-import { onWheel, startPan, movePan, endPan, zoomToSelection } from './canvas.js';
+import { isShown, liveFrames, positionFrames, rebuildKeepCam, selectFrame, setPage, softReload } from './frames.js';
+import { onWheel, startPan, movePan, endPan, revealSelection, zoomToSelection } from './canvas.js';
 import { clearAgent, showAgent, updateHud } from './hud.js';
 import { setLayers, renderLayers } from './layers.js';
 import { renderInspector } from './inspector.js';
@@ -68,6 +68,8 @@ function onSize(f, d) {
     return;
   }
   f.h = h;
+  // A frame of a kept, hidden page is placed when that page shows again.
+  if (!isShown(f)) return;
   positionFrames();
   updateHud();
 }
@@ -98,7 +100,11 @@ function onSelect(/** @type {any} */ f, /** @type {any} */ d) {
   updateHud();
   if (S.zoomOnSelect) {
     S.zoomOnSelect = false;
+    S.revealOnSelect = false;
     zoomToSelection();
+  } else if (S.revealOnSelect) {
+    S.revealOnSelect = false;
+    revealSelection();
   }
 }
 
@@ -195,7 +201,8 @@ async function onDesign(/** @type {MessageEvent} */ e) {
   const screenOnly = files.every(
     (/** @type {string} */ f) => f.endsWith('.html') && !f.startsWith('system/') && !f.startsWith('components/'),
   );
-  for (const f of S.frames.values()) {
+  // Kept pages are patched too, so going back to one never shows an old version.
+  for (const f of liveFrames()) {
     if (!f.iframe) continue;
     if (!screenOnly || (f.file && files.includes(f.file))) softReload(f, files);
   }

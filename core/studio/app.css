@@ -211,6 +211,7 @@ body[data-mode="hand"] .viewport, body.space .viewport { cursor: grab; }
 body.panning .viewport { cursor: grabbing; }
 body[data-mode="hand"] .world iframe, body.space .world iframe, body.panning .world iframe { pointer-events: none; }
 .world { position: absolute; left: 0; top: 0; transform-origin: 0 0; --iz: 1; }
+.page-canvas[hidden] { display: none; }
 .world.moving { will-change: transform; }
 .frame { position: absolute; background: #fff; box-shadow: 0 0 0 calc(1px * var(--iz)) rgb(0 0 0 / 0.07), 0 calc(4px * var(--iz)) calc(18px * var(--iz)) rgb(0 0 0 / 0.07); }
 .frame iframe { border: 0; display: block; width: 100%; height: 100%; background: #fff; }
@@ -301,6 +302,12 @@ body[data-mode="hand"] .world iframe, body.space .world iframe, body.panning .wo
 
 /* Comments */
 .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.send-bar { display: grid; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.send-bar button { width: 100%; }
+.listen { margin: 0; font-size: 12px; line-height: 1.4; color: var(--ink-2); }
+.listen::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; border: 1.5px solid var(--ink-3); vertical-align: 0; }
+.listen[data-on="true"]::before { background: var(--resolved); border-color: var(--resolved); }
+.listen b { color: var(--ink); }
 .tabs { display: flex; gap: 1px; }
 .tabs button { height: 22px; padding: 0 6px; border: 0; border-radius: 4px; background: none; color: var(--ink-3); }
 .tabs button[aria-selected="true"] { background: var(--panel-2); color: var(--ink); font-weight: 600; }
@@ -310,6 +317,7 @@ body[data-mode="hand"] .world iframe, body.space .world iframe, body.panning .wo
 .comment::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--dismissed); }
 .comment:has(.status[data-s="open"])::before, .comment:has(.status[data-s="reopened"])::before { background: var(--open); }
 .comment:has(.status[data-s="acknowledged"])::before { background: var(--accent); }
+.comment:has(.status[data-s="draft"])::before { background: var(--ink-3); }
 .comment:has(.status[data-s="fixed"])::before { background: var(--fixed); }
 .comment:has(.status[data-s="resolved"])::before { background: var(--resolved); }
 .comment:hover { border-color: var(--line-strong); }

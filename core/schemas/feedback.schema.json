@@ -55,6 +55,8 @@
         "comment": { "type": "string", "minLength": 1 },
         "screenshot": { "type": ["string", "null"] },
         "status": { "enum": ["open", "acknowledged", "fixed", "resolved", "reopened", "dismissed"] },
+        "draft": { "type": "boolean", "description": "A Studio comment the user has not sent to Claude yet; not delivered until the Studio's Send to Claude (sets sentAt)" },
+        "sentAt": { "type": "string", "description": "When the user sent this draft to Claude" },
         "thread": {
           "type": "array",
           "items": {

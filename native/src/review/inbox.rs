@@ -65,9 +65,11 @@ pub fn undelivered(root: &Path) -> Result<Vec<Value>, DfwError> {
             && last_of_thread(c).and_then(|l| l.get("by")) == Some(&json!("user"))
     };
     let active = |c: &Value| matches!(status(c).as_deref(), Some("open" | "reopened"));
+    // A Studio draft waits for the user's "Send to Claude".
+    let draft = |c: &Value| c.get("draft") == Some(&Value::Bool(true));
     Ok(all_comments(root)?
         .into_iter()
-        .filter(|c| (active(c) || follow_up(c)) && !seen.contains(key(c).as_str()))
+        .filter(|c| (active(c) || follow_up(c)) && !draft(c) && !seen.contains(key(c).as_str()))
         .collect())
 }
 
@@ -207,9 +209,44 @@ impl Default for WaitOptions {
     }
 }
 
+fn listening_file(root: &Path) -> PathBuf {
+    project_paths(root)
+        .dfw
+        .join("reviews")
+        .join(".listening.json")
+}
+
+/// The marker of a running `dfw comments wait`, removed when the wait ends (also on an error).
+struct Listening(PathBuf);
+
+impl Listening {
+    fn start(root: &Path) -> Result<Self, DfwError> {
+        let file = listening_file(root);
+        let marker = json!({ "pid": std::process::id(), "since": crate::core::util::now_iso() });
+        write_json_inside(root, &file, &marker)?;
+        Ok(Listening(file))
+    }
+}
+
+impl Drop for Listening {
+    fn drop(&mut self) {
+        // A marker left behind (killed process) is ignored by `is_listening`: its pid is gone.
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
+/// `isListening(root)`: whether a `dfw comments wait` is running for this project, so the Studio
+/// can tell the user whether a sent comment wakes Claude now or with their next message.
+pub fn is_listening(root: &Path) -> bool {
+    read_json(&listening_file(root), Some(Value::Null))
+        .ok()
+        .is_some_and(|m| crate::core::process::is_alive(m.get("pid")))
+}
+
 /// `waitForComments(root, { timeoutMs, pollMs, settleMs })`: block until undelivered comments
 /// exist (or the timeout passes). Returns the comments, marked delivered.
 pub fn wait_for_comments(root: &Path, options: WaitOptions) -> Result<Vec<Value>, DfwError> {
+    let _listening = Listening::start(root)?;
     let start = Instant::now();
     let before_end = || start.elapsed().as_secs_f64() * 1000.0 < options.timeout_ms;
     while before_end() {
@@ -284,6 +321,60 @@ mod tests {
             "a reopen is delivered again"
         );
         assert_eq!(wait_for_comments(&root, quick(1.0, 1)).unwrap().len(), 1);
+    }
+
+    /// Studio drafts reach the agent only once the user sends them, all in one wake-up.
+    #[test]
+    fn drafts_are_delivered_only_after_send() {
+        use crate::review::comments::send_drafts;
+        let root = project("inbox-drafts");
+        add_comment(&root, &json!({ "comment": "Box the tiles", "draft": true })).unwrap();
+        add_comment(&root, &json!({ "comment": "Bigger price", "draft": true })).unwrap();
+        // Comments of other providers (dfw review, Penpot) are never drafts.
+        add_comment(
+            &root,
+            &json!({ "comment": "Live one", "provider": "dfw-live" }),
+        )
+        .unwrap();
+        let first = take_undelivered(&root, false).unwrap();
+        assert_eq!(first.len(), 1, "drafts are held back");
+        assert_eq!(first[0]["comment"], "Live one");
+        assert!(wait_for_comments(&root, quick(60.0, 10))
+            .unwrap()
+            .is_empty());
+        let sent = send_drafts(&root).unwrap();
+        assert_eq!(sent.len(), 2);
+        assert!(sent
+            .iter()
+            .all(|c| c.get("draft").is_none() && c["sentAt"].is_string()));
+        let got = wait_for_comments(&root, quick(1000.0, 10)).unwrap();
+        assert_eq!(got.len(), 2, "both drafts arrive in one wake-up");
+        assert!(
+            send_drafts(&root).unwrap().is_empty(),
+            "nothing left to send"
+        );
+    }
+
+    /// The Studio sees a running wait, and not one that ended.
+    #[test]
+    fn a_running_wait_is_listening() {
+        let root = project("inbox-listening");
+        assert!(!is_listening(&root));
+        let waiter = {
+            let root = root.clone();
+            thread::spawn(move || wait_for_comments(&root, quick(400.0, 20)).unwrap())
+        };
+        thread::sleep(Duration::from_millis(150));
+        assert!(is_listening(&root));
+        waiter.join().unwrap();
+        assert!(!is_listening(&root), "the marker goes when the wait ends");
+        // A marker of a process that is gone (killed wait) does not count.
+        std::fs::write(
+            listening_file(&root),
+            r#"{"pid": 2147483646, "since": "2026-01-01T00:00:00Z"}"#,
+        )
+        .unwrap();
+        assert!(!is_listening(&root));
     }
 
     #[test]

@@ -92,8 +92,12 @@
           </div>
           <button type="button" id="new-session" class="link" title="Close this review round and start a new one">New round</button>
         </div>
+        <div class="send-bar">
+          <p id="listen" class="listen" data-on="false" role="status"></p>
+          <button type="button" id="send-drafts" class="primary" disabled>Send to Claude</button>
+        </div>
         <ol id="comment-list" class="comment-list"></ol>
-        <p class="hint muted">Press <kbd>C</kbd>, click an element in any frame, write what should change. Hold <kbd>Alt</kbd> to pick the exact element instead of its component.</p>
+        <p class="hint muted">Press <kbd>C</kbd>, click an element in any frame, write what should change. Hold <kbd>Alt</kbd> to pick the exact element instead of its component. Comments are drafts until you press <b>Send to Claude</b>.</p>
       </div>
     </aside>
   </div>
@@ -104,7 +108,7 @@
     <div class="composer-actions">
       <span class="muted small"><kbd>⌘</kbd><kbd>Enter</kbd> to save</span>
       <button type="button" id="composer-cancel" class="ghost">Cancel</button>
-      <button type="button" id="composer-save" class="primary">Add comment</button>
+      <button type="button" id="composer-save" class="primary">Add draft</button>
     </div>
   </div>
 
