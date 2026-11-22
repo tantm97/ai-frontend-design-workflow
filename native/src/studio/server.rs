@@ -30,8 +30,9 @@ use crate::design::compose::build_system;
 use crate::design::edit::{apply_edit, undo_edit};
 
 use crate::review::comments::{
-    add_comment, all_comments, current_session, new_session, update_comment, Update,
+    add_comment, all_comments, current_session, new_session, send_drafts, update_comment, Update,
 };
+use crate::review::inbox::is_listening;
 use crate::workflow::state::{load_state, summarize};
 
 /// Largest request body the Studio reads (edits, comments and Penpot changes are far smaller).
@@ -243,6 +244,19 @@ impl Studio {
         }
         if p == "/__dfw/api/comments" && method == "GET" {
             return Ok(Response::json(200, &Value::Array(all_comments(root)?)));
+        }
+        if p == "/__dfw/api/listening" && method == "GET" {
+            return Ok(Response::json(
+                200,
+                &json!({ "listening": is_listening(root) }),
+            ));
+        }
+        if p == "/__dfw/api/comments/send" && method == "POST" {
+            let sent = send_drafts(root)?;
+            self.clients
+                .broadcast("comments", &json!({ "sent": sent.len() }));
+            let body = json!({ "sent": sent.len(), "listening": is_listening(root) });
+            return Ok(Response::json(200, &body));
         }
         if p == "/__dfw/api/comments" && method == "POST" {
             let c = add_comment(root, &req.json()?)?;

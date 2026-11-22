@@ -96,8 +96,10 @@ function layerKey(/** @type {KeyboardEvent} */ e) {
   } else if (e.key === 'ArrowLeft') {
     if (expanded === 'true') toggleRow(f, row);
     else focusRow(byI(S.layers?.parents.get(Number(row.dataset.i))));
-  } else if (e.key === 'Enter' || e.key === ' ') post(f, { type: 'dfw:layer-select', i: Number(row.dataset.i) });
-  else return;
+  } else if (e.key === 'Enter' || e.key === ' ') {
+    S.revealOnSelect = true;
+    post(f, { type: 'dfw:layer-select', i: Number(row.dataset.i) });
+  } else return;
   // Handled here: the canvas shortcuts (arrows, Space to pan, Enter to edit) must not see it.
   e.preventDefault();
   e.stopPropagation();
@@ -113,6 +115,8 @@ export function initLayers() {
     const i = Number(row.dataset.i);
     focusI = i;
     if (t.closest('.tw')) return toggleRow(f, row);
+    // The element may be outside the viewport: the camera follows the selection (canvas.js revealSelection).
+    S.revealOnSelect = true;
     post(f, { type: 'dfw:layer-select', i });
   });
   $('#layers').addEventListener('keydown', layerKey);

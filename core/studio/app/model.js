@@ -269,6 +269,12 @@ const STATUS_LABEL = {
   dismissed: 'Dismissed',
 };
 
+/** A Studio comment not sent to Claude yet (the user sends the drafts with one button). */
+export const isDraft = (/** @type {any} */ c) => c?.draft === true;
+
+/** Words for a comment's status, a draft first (plain text: esc() it for innerHTML). */
+export const commentLabel = (/** @type {any} */ c) => (isDraft(c) ? 'Draft · not sent yet' : statusLabel(c?.status));
+
 /** Words for a comment status (plain text: esc() it for innerHTML); an unknown status is shown as it is. */
 export function statusLabel(/** @type {unknown} */ s) {
   return own(STATUS_LABEL, s) ?? String(s ?? '');

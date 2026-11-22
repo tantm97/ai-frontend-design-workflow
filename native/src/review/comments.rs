@@ -349,6 +349,11 @@ fn add_comment_unlocked(root: &Path, input: &Value) -> Result<Value, DfwError> {
             ),
         ),
     ]);
+    // A Studio comment is a draft until the user sends the drafts to Claude (send_drafts): the
+    // inbox does not deliver it before that.
+    if input.get("draft") == Some(&Value::Bool(true)) {
+        c["draft"] = Value::Bool(true);
+    }
     // Comments on the running app (dfw review) carry the page they were made on.
     if let Some(url) = js::truthy_value(input.get("url")) {
         c["url"] = js::to_string(Some(url)).into();
@@ -359,6 +364,39 @@ fn add_comment_unlocked(root: &Path, input: &Value) -> Result<Value, DfwError> {
     }
     write_json_inside(root, &file, &session)?;
     Ok(c)
+}
+
+/// `sendDrafts(root)`: the user hands the Studio drafts to Claude. Every draft loses its `draft`
+/// flag and gets `sentAt`, under the reviews lock; returns the comments sent (the inbox delivers
+/// them from now on).
+pub fn send_drafts(root: &Path) -> Result<Vec<Value>, DfwError> {
+    locked(root, || {
+        let mut sent = Vec::new();
+        let at = now_iso();
+        for file in session_files(root)? {
+            let mut session = read_session(&file)?;
+            let mut changed = false;
+            match session.get_mut("comments") {
+                Some(Value::Array(comments)) => {
+                    for c in comments.iter_mut() {
+                        if let Value::Object(map) = c {
+                            if map.get("draft") == Some(&Value::Bool(true)) {
+                                map.shift_remove("draft");
+                                map.insert("sentAt".into(), at.clone().into());
+                                sent.push(Value::Object(map.clone()));
+                                changed = true;
+                            }
+                        }
+                    }
+                }
+                _ => return Err(not_a_list(&file, "\"comments\"")),
+            }
+            if changed {
+                write_json_inside(root, &file, &session)?;
+            }
+        }
+        Ok(sent)
+    })
 }
 
 /// Where a comment is: its session file, the session and the comment's index in it.

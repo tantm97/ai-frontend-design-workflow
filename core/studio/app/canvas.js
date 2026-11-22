@@ -3,7 +3,7 @@
 // frame (real-size iframes). Wheel, pinch, middle-drag and the hand tool move the camera.
 import { L, fitRect, nextZoom, wheelCamera, zoomAtPoint } from './geometry.js';
 import { $, S, viewport, world } from './state.js';
-import { clearSelection, markSection, pageBounds } from './frames.js';
+import { clearSelection, markSection, noteCameraMove, pageBounds, scheduleLoads } from './frames.js';
 import { updateHud } from './hud.js';
 import { closeComposer } from './comments.js';
 import { closePop } from './pins.js';
@@ -25,6 +25,7 @@ export function applyCam() {
     $('#zoom-label').textContent = `${Math.round(z * 100)}%`;
     S.cams[S.page] = { ...S.cam };
     updateHud();
+    scheduleLoads();
   });
 }
 
@@ -83,6 +84,30 @@ export function zoomToSelection() {
   zoomToRect([f.x, f.y, f.w, f.h], { max: 2 });
 }
 
+/**
+ * Bring the selected element into view without changing the zoom (a layer picked in the Layers
+ * pane may be outside the viewport, e.g. low in a tall frame). Nothing moves when it is visible.
+ */
+export function revealSelection() {
+  const f = S.frames.get(S.sel?.key);
+  const r = S.sel?.rect;
+  if (!f || !r) return;
+  const [vw, vh] = vpSize();
+  const { z } = S.cam;
+  const m = 48;
+  const sx = (f.x + r[0]) * z + S.cam.x;
+  const sy = (f.y + r[1]) * z + S.cam.y;
+  const sw = r[2] * z;
+  const sh = r[3] * z;
+  const inside = sx >= m && sy >= m && sx + sw <= vw - m && sy + sh <= vh - m;
+  if (inside) return;
+  // Centre it on each axis that is out of view; one larger than the viewport starts at the margin.
+  const fit = (/** @type {number} */ s, /** @type {number} */ size, /** @type {number} */ room) =>
+    s >= m && s + size <= room - m ? 0 : size > room - 2 * m ? m - s : (room - size) / 2 - s;
+  S.cam = { ...S.cam, x: S.cam.x + fit(sx, sw, vw), y: S.cam.y + fit(sy, sh, vh) };
+  applyCam();
+}
+
 /** "All pages": bring a page's section to the top-left. */
 export function zoomToSection(/** @type {string} */ id) {
   const b = S.secBounds?.[id];
@@ -97,6 +122,7 @@ export function zoomToSection(/** @type {string} */ id) {
 /** Wheel from the canvas or forwarded by a frame (x, y in viewport pixels). */
 export function onWheel(/** @type {Parameters<typeof wheelCamera>[1]} */ w) {
   S.cam = wheelCamera(S.cam, w);
+  noteCameraMove();
   applyCam();
 }
 
@@ -108,6 +134,7 @@ export function movePan(/** @type {number} */ sx, /** @type {number} */ sy) {
   if (!S.panning) return;
   S.cam.x = S.panning.x + (sx - S.panning.sx);
   S.cam.y = S.panning.y + (sy - S.panning.sy);
+  noteCameraMove();
   applyCam();
 }
 export function endPan() {
@@ -143,6 +170,7 @@ export function initCanvas() {
   viewport.addEventListener('gesturechange', (/** @type {any} */ e) => {
     e.preventDefault();
     const r = viewport.getBoundingClientRect();
+    noteCameraMove();
     zoomAt(e.clientX - r.left, e.clientY - r.top, gestureZ * e.scale);
   });
   viewport.addEventListener('mousedown', (/** @type {MouseEvent} */ e) => {
@@ -151,7 +179,12 @@ export function initCanvas() {
       startPan(e.screenX, e.screenY);
       return;
     }
-    if (e.button === 0 && (e.target === viewport || e.target === world)) {
+    if (
+      e.button === 0 &&
+      (e.target === viewport ||
+        e.target === world ||
+        /** @type {HTMLElement} */ (e.target).matches?.('.page-canvas, .page-deco, .page-frames'))
+    ) {
       closeComposer();
       closePop();
       clearSelection();
