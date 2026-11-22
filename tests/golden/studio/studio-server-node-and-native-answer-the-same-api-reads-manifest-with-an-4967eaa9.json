@@ -5,7 +5,7 @@
       "status": 200,
       "type": "application/json; charset=utf-8",
       "cache": "no-store",
-      "body": "{\"breakpoints\":[{\"id\":\"desktop\",\"width\":1024,\"height\":640},{\"id\":\"mobile\",\"width\":390,\"height\":700}],\"themes\":[],\"states\":[],\"schema\":1,\"product\":\"Fixture\",\"pages\":[{\"id\":\"stock\",\"title\":\"Stock\",\"screens\":[\"items\"]}],\"screens\":[{\"id\":\"items\",\"title\":\"Items\",\"variants\":[{\"id\":\"a\",\"file\":\"screens/items/a.html\"}]}],\"flows\":[],\"studioPages\":[{\"id\":\"system\",\"title\":\"Design System\",\"system\":true,\"screens\":[]},{\"id\":\"stock\",\"title\":\"Stock\",\"screens\":[\"items\"]}]}"
+      "body": "{\"breakpoints\":[{\"id\":\"desktop\",\"width\":1024,\"height\":640},{\"id\":\"mobile\",\"width\":390,\"height\":700}],\"themes\":[],\"states\":[],\"schema\":1,\"product\":\"Fixture\",\"pages\":[{\"id\":\"stock\",\"title\":\"Stock\",\"screens\":[\"items\"]}],\"screens\":[{\"id\":\"items\",\"title\":\"Items\",\"variants\":[{\"id\":\"a\",\"file\":\"screens/items/a.html\",\"designedStates\":[]}]}],\"flows\":[],\"studioPages\":[{\"id\":\"system\",\"title\":\"Design System\",\"system\":true,\"screens\":[]},{\"id\":\"stock\",\"title\":\"Stock\",\"screens\":[\"items\"]}]}"
     },
     {
       "status": 200,

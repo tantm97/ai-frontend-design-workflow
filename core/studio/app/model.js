@@ -40,6 +40,13 @@ export const statesOf = (/** @type {Manifest} */ manifest, /** @type {Screen} */
   s.states && s.states.length ? s.states : manifest.states || [];
 export const shownStates = (/** @type {ViewContext} */ ctx, /** @type {string[]} */ list) =>
   ctx.activeStates ? list.filter((x) => ctx.activeStates.includes(x)) : list;
+/**
+ * The states, out of `list`, that a variant designs (the server reports `designedStates`: a
+ * .when-/.unless- block or a data-state rule in the screen or its masters). An undesigned state
+ * would draw the default screen again, so it gets no frame. Without the report: all of them.
+ */
+export const designedOf = (/** @type {Variant & { designedStates?: string[] }} */ v, /** @type {string[]} */ list) =>
+  Array.isArray(v?.designedStates) ? list.filter((x) => v.designedStates?.includes(x)) : list;
 /** Every state named by the manifest or a screen, once. */
 export const allStates = (/** @type {Manifest} */ manifest) => [
   ...new Set([...(manifest.states || []), ...(manifest.screens || []).flatMap((s) => s.states || [])]),
@@ -164,7 +171,8 @@ export function pageModel(ctx, page) {
           const vs = v ? [v] : (s.variants || []).filter((x) => x !== primaryVariant(s));
           for (const x of vs) frames.push(makeSpec(ctx, s, x, bp, null));
         } else if (kind === 'states') {
-          for (const st of shownStates(ctx, sec.states || statesOf(m, s))) frames.push(makeSpec(ctx, s, v || primaryVariant(s), bp, st));
+          const sv = v || primaryVariant(s);
+          for (const st of designedOf(sv, shownStates(ctx, sec.states || statesOf(m, s)))) frames.push(makeSpec(ctx, s, sv, bp, st));
         } else frames.push(makeSpec(ctx, s, v || primaryVariant(s), bp, null));
       }
       const defTitle = { breakpoint: `${bp.label || bp.id} ${bp.width}`, variants: 'Variants', states: 'States' }[kind] || '';
@@ -188,7 +196,9 @@ export function pageModel(ctx, page) {
     );
     if (alt.length) rows.push({ title: 'Variants', sub: `Alternatives at ${primary.label || primary.id} ${primary.width}`, frames: alt });
     if (allStates(m).length) {
-      const st = screens.flatMap((s) => shownStates(ctx, statesOf(m, s)).map((x) => makeSpec(ctx, s, primaryVariant(s), primary, x)));
+      const st = screens.flatMap((s) =>
+        designedOf(primaryVariant(s), shownStates(ctx, statesOf(m, s))).map((x) => makeSpec(ctx, s, primaryVariant(s), primary, x)),
+      );
       const names = [...new Set(st.map((f) => f.state))];
       if (st.length)
         rows.push({ title: `States (${names.join(' · ')})`, sub: `at ${primary.label || primary.id} ${primary.width}`, frames: st });

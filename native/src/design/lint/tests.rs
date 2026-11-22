@@ -207,13 +207,53 @@ fn state_coverage_for_data_surfaces_and_forms() {
         .unwrap()
         .contains("no loading/empty/error state"));
     manifest(json!(["loading", "empty", "error"]));
-    assert!(state_coverage(&root, rel, "<body><table></table></body>")
-        .unwrap()
-        .is_empty());
+    let designed = r#"<body><table class="unless-empty"></table><p class="when-loading">Loading</p><p class="when-empty">No orders</p><p class="when-error">Could not load</p></body>"#;
+    assert!(state_coverage(&root, rel, designed).unwrap().is_empty());
+    assert!(state_coverage(
+        &root,
+        rel,
+        r#"<body><p class="when-empty">x</p><p class="when-loading">x</p><p class="when-error">x</p></body>"#
+    )
+    .unwrap()
+    .is_empty());
+}
+
+/// lint: a declared state that nothing in the screen (or its masters) changes is reported, and
+/// the Studio is told which states a screen designs (its frames would repeat the default).
+#[test]
+fn declared_but_undesigned_states() {
+    let root = test_dir("lint-states-undesigned");
+    let text = json!({ "states": ["loading", "empty", "error"], "screens": [{ "id": "home", "variants": [{ "id": "a", "file": "screens/home/a.html" }] }] });
+    write(&root, "design/design.json", &text.to_string());
+    let rel = "design/screens/home/a.html";
+    // Inherited from the top of design.json and designed nowhere: one finding naming all three.
+    let found = state_coverage(&root, rel, "<body><h1>Home</h1></body>").unwrap();
+    assert_eq!(rules(&found), ["state-undesigned"]);
+    let message = found[0]["message"].as_str().unwrap();
+    assert!(message.contains("loading/empty/error"), "{message}");
+    // A screen block, a data-state rule and a master the screen uses each count as designed.
+    write(
+        &root,
+        "design/system/components/order-list.html",
+        r#"<dfw-component name="order-list"><style>html[data-state="loading"] .ol { opacity: .5 }</style><template><ul class="ol"></ul></template></dfw-component>"#,
+    );
+    let html = r#"<body><p class="when-empty">No orders yet</p><style>[data-state='error'] main{display:none}</style><dfw-use c="order-list"></dfw-use></body>"#;
+    let names: Vec<String> = ["loading", "empty", "error"].map(String::from).to_vec();
+    assert_eq!(designed_states(&root, html, &names).unwrap(), names);
+    assert!(state_coverage(&root, rel, html).unwrap().is_empty());
+    // Only one of them: the other two are reported.
+    let one = state_coverage(
+        &root,
+        rel,
+        r#"<body><p class="when-empty-hint">x</p><p class="when-error">x</p></body>"#,
+    )
+    .unwrap();
     assert!(
-        state_coverage(&root, rel, "<body><p>no data surface</p></body>")
+        one[0]["message"]
+            .as_str()
             .unwrap()
-            .is_empty()
+            .contains("loading/empty"),
+        "{one:?}"
     );
 }
 
