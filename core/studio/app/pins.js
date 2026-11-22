@@ -1,6 +1,6 @@
 // @ts-check
 // Comment pins on the frames and the pin popover (read, verify or reopen a comment where it was made).
-import { PIN_STATUSES, esc, own, pinsOf, statusLabel } from './model.js';
+import { PIN_STATUSES, esc, own, pinsOf, commentLabel, isDraft } from './model.js';
 import { $, $$, P, S, post, store, toast } from './state.js';
 import { updateHud } from './hud.js';
 import { commentActions, renderComments, setTab } from './comments.js';
@@ -29,7 +29,7 @@ export function renderPins() {
       const b = document.createElement('button');
       b.type = 'button';
       b.textContent = String(Number(c.id.replace('fb_', '')));
-      b.title = `Comment #${b.textContent} · ${statusLabel(c.status)}`;
+      b.title = `Comment #${b.textContent} · ${commentLabel(c)}`;
       b.setAttribute('aria-label', `Comment ${b.textContent}: ${c.comment.slice(0, 80)}`);
       b.dataset.s = c.status;
       if (S.pop === c.id) b.classList.add('on');
@@ -102,7 +102,7 @@ export function renderPop() {
   const where = c.screen === 'system' ? 'Design System' : [c.screen, c.variant, c.breakpoint, c.state].filter(Boolean).join(' / ');
   const thread = (c.thread || []).slice(-3);
   pop.innerHTML = `
-    <div class="pop-head"><span class="num">#${esc(c.id.replace('fb_', ''))}</span><span class="status" data-s="${esc(c.status)}">${esc(statusLabel(c.status))}</span><button type="button" class="pop-x" aria-label="Close">✕</button></div>
+    <div class="pop-head"><span class="num">#${esc(c.id.replace('fb_', ''))}</span><span class="status" data-s="${esc(isDraft(c) ? 'draft' : c.status)}">${esc(commentLabel(c))}</span><button type="button" class="pop-x" aria-label="Close">✕</button></div>
     <p class="pop-text">${esc(c.comment)}</p>
     <p class="pop-where">${esc(where)} · <code>${esc(c.target?.dfwId || c.target?.selector || 'area')}</code></p>
     ${thread.length ? `<ul class="thread">${thread.map((/** @type {any} */ t) => `<li><span class="by">${esc(t.by)} · ${esc(new Date(t.at).toLocaleString())}</span>${esc(t.message)}</li>`).join('')}</ul>` : ''}

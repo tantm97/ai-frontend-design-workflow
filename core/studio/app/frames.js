@@ -14,17 +14,78 @@ import { loadPresent, openPresent } from './present.js';
 /** @type {IntersectionObserver | null} */
 let io = null;
 
-/** Rebuild the canvas of the current page (or of every page on "All pages"). */
+/**
+ * The canvas of each recently shown page, kept (hidden) so that going back to it shows its loaded
+ * frames at once. Each has a decorations layer (sections, gutters, Flow arrows), rebuilt on every
+ * show, and a frames layer whose iframes are never moved (a moved iframe reloads).
+ * @type {Map<string, { el: HTMLElement, deco: HTMLElement, box: HTMLElement, frames: Map<string, any> }>}
+ */
+const canvases = new Map();
+/** How many page canvases stay alive (each holds live documents). */
+const KEEP_PAGES = 3;
+
+/** The canvas of a page, created on first use and moved to the most recent end. */
+function canvasOf(/** @type {string} */ id) {
+  let c = canvases.get(id);
+  if (c) canvases.delete(id);
+  else {
+    const el = document.createElement('div');
+    el.className = 'page-canvas';
+    el.dataset.page = id;
+    const deco = document.createElement('div');
+    deco.className = 'page-deco';
+    const box = document.createElement('div');
+    box.className = 'page-frames';
+    el.append(deco, box);
+    world.append(el);
+    c = { el, deco, box, frames: new Map() };
+  }
+  canvases.set(id, c);
+  // Forget the oldest pages beyond the limit (their frames go with them).
+  for (const [k, old] of canvases) {
+    if (canvases.size <= KEEP_PAGES) break;
+    for (const f of old.frames.values()) dropFrame(f);
+    old.el.remove();
+    canvases.delete(k);
+  }
+  return c;
+}
+
+/** Remove a frame and forget its window. */
+function dropFrame(/** @type {any} */ f) {
+  clearTimeout(f.softTimer);
+  if (f.iframe) S.byWin.delete(f.iframe.contentWindow);
+  if (f.loading) loadDone(f);
+  f.el.remove();
+}
+
+/** Every frame alive in a kept canvas (shown or hidden), e.g. to patch a changed file everywhere. */
+export const liveFrames = () => [...canvases.values()].flatMap((c) => [...c.frames.values()]);
+
+/** Is this frame on the page shown now? */
+export const isShown = (/** @type {any} */ f) => S.frames.get(f?.key) === f;
+
+/**
+ * Rebuild the canvas of the current page (or of every page on "All pages"). Frames whose key and
+ * source did not change keep their loaded iframe; only new frames load.
+ */
 export function buildPage() {
-  world.innerHTML = '';
-  S.frames.clear();
-  for (const [w, f] of S.byWin) if (!f.present) S.byWin.delete(w);
+  const canvas = canvasOf(S.page);
+  for (const c of canvases.values()) c.el.hidden = c !== canvas;
+  canvas.deco.innerHTML = '';
+  const before = canvas.frames;
+  canvas.frames = new Map();
+  S.frames = canvas.frames;
   S.hover = null;
   S.layers = null;
   io?.disconnect();
   io = new IntersectionObserver(
     (entries) => {
-      for (const e of entries) if (e.isIntersecting) loadFrame(S.frames.get(/** @type {HTMLElement} */ (e.target).dataset.key));
+      for (const e of entries) {
+        const f = S.frames.get(/** @type {HTMLElement} */ (e.target).dataset.key);
+        if (f) f.near = e.isIntersecting;
+      }
+      scheduleLoads();
     },
     { root: viewport, rootMargin: '400px' },
   );
@@ -41,7 +102,7 @@ export function buildPage() {
     sec.head = document.createElement('header');
     sec.head.className = 'psec-head';
     sec.head.innerHTML = `<h1>${esc(model.title)}</h1>${model.description ? `<p>${esc(model.description)}</p>` : ''}`;
-    world.append(sec.el, sec.head);
+    canvas.deco.append(sec.el, sec.head);
     const hasNotes = model.rows.some((r) => r.notes?.length);
     sec.gutter = model.rows.some((r) => r.title || r.notes?.length) ? (hasNotes ? L.GUTTER_NOTES : L.GUTTER) : 0;
     for (const r of model.rows) {
@@ -54,20 +115,25 @@ export function buildPage() {
         row.gut.innerHTML = r.notes?.length
           ? notesHtml(r.title, r.sub, r.notes)
           : `<h2>${esc(r.title)}</h2>${r.sub ? `<p>${esc(r.sub)}</p>` : ''}`;
-        world.append(row.gut);
+        canvas.deco.append(row.gut);
       }
-      for (const spec of r.frames) row.frames.push(addFrame(spec, page.id));
+      for (const spec of r.frames) row.frames.push(addFrame(spec, page.id, canvas, before));
       sec.rows.push(row);
     }
     S.sections.push(sec);
   }
+  // Frames no longer on the page go (the kept ones were taken out of `before`).
+  for (const f of before.values()) dropFrame(f);
   // Measure text blocks once (offset sizes ignore the world transform).
   for (const sec of S.sections) {
     sec.headH = sec.head.offsetHeight;
     for (const r of sec.rows) r.gutH = r.gut ? r.gut.offsetHeight : 0;
   }
   positionFrames();
-  for (const f of S.frames.values()) io.observe(f.el);
+  for (const f of S.frames.values()) {
+    f.el.classList.remove('selected');
+    io.observe(f.el);
+  }
   $('#empty').hidden = S.frames.size > 0;
   renderPages();
   renderLayers();
@@ -76,14 +142,37 @@ export function buildPage() {
 }
 
 /**
- * The element of one frame (title bar + placeholder until it scrolls into view); a key used twice
- * on "All pages" gets a ~2 suffix.
+ * The frame of one spec: the same frame as before when its key is still on the page (its iframe
+ * kept, or pointed at the new source in place), else a new element with a placeholder until it
+ * loads. A key used twice on "All pages" gets a ~2 suffix.
  * @param {import('./model.js').FrameSpec} spec
  * @param {string} pageId
+ * @param {{ box: HTMLElement, frames: Map<string, any> }} canvas
+ * @param {Map<string, any>} before the frames of the previous build
  */
-function addFrame(spec, pageId) {
+function addFrame(spec, pageId, canvas, before) {
   let key = spec.key;
-  for (let n = 2; S.frames.has(key); n++) key = `${spec.key}~${n}`;
+  for (let n = 2; canvas.frames.has(key); n++) key = `${spec.key}~${n}`;
+  const old = before.get(key);
+  if (old) {
+    before.delete(key);
+    // Keep what was measured (the grown height) unless the frame no longer grows to its content.
+    const h = old.auto && spec.auto && old.loaded ? old.h : spec.h;
+    Object.assign(old, spec, { key, page: pageId, h });
+    if (!spec.auto) old.sizeStop = false;
+    const title = $('.frame-title', old.el);
+    title.firstChild.textContent = spec.title;
+    $('a', title).href = spec.src;
+    if (old.iframe && old.iframe.dataset.src !== spec.src) {
+      // A new source (theme, state) navigates the same iframe: the old page stays until the new one paints.
+      old.loaded = false;
+      old.pinRects = [];
+      old.iframe.dataset.src = spec.src;
+      old.iframe.src = spec.src;
+    }
+    canvas.frames.set(key, old);
+    return old;
+  }
   /** @type {Record<string, any>} */
   const f = { ...spec, key, page: pageId, x: 0, y: 0, loaded: false, sizeCount: 0 };
   const el = document.createElement('div');
@@ -101,8 +190,8 @@ function addFrame(spec, pageId) {
     openPresent(f);
   });
   f.el = el;
-  S.frames.set(f.key, f);
-  world.append(el);
+  canvas.frames.set(f.key, f);
+  canvas.box.append(el);
   return f;
 }
 
@@ -137,7 +226,8 @@ export function positionFrames() {
 
 /** Arrows between the frames of the Flow page (world coordinates, so they pan and zoom with the canvas). */
 export function drawFlow() {
-  world.querySelector('svg.flow')?.remove();
+  const deco = canvases.get(S.page)?.deco;
+  deco?.querySelector('svg.flow')?.remove();
   if (!S.sections.some((/** @type {any} */ s) => s.model.flow)) return;
   const byScreen = new Map();
   for (const f of S.frames.values()) if (f.screen && !byScreen.has(f.screen.id)) byScreen.set(f.screen.id, f);
@@ -163,17 +253,66 @@ export function drawFlow() {
       svg.append(t);
     }
   }
-  world.prepend(svg);
+  deco?.prepend(svg);
 }
 
-/** Put the iframe in a frame (once it is near the viewport). */
+/** Frames loading now (same-origin frames run on the Studio's thread: a few at a time). */
+const MAX_LOADING = 2;
+/** The camera must be still this long before frames load (a fast wheel loads nothing on the way). */
+const SETTLE_MS = 180;
+let loadingCount = 0;
+let lastMove = 0;
+/** @type {ReturnType<typeof setTimeout> | undefined} */
+let pumpT;
+
+/** The camera moved: loading waits until it settles. */
+export function noteCameraMove() {
+  lastMove = performance.now();
+  scheduleLoads();
+}
+
+/** Load the frames near the viewport once the camera is still. */
+export function scheduleLoads() {
+  clearTimeout(pumpT);
+  const wait = SETTLE_MS - (performance.now() - lastMove);
+  pumpT = setTimeout(pumpLoads, Math.max(0, wait));
+}
+
+function pumpLoads() {
+  if (performance.now() - lastMove < SETTLE_MS) return scheduleLoads();
+  if (loadingCount >= MAX_LOADING) return;
+  const r = viewport.getBoundingClientRect();
+  const cx = r.width / 2;
+  const cy = r.height / 2;
+  const { x, y, z } = S.cam;
+  const dist = (/** @type {any} */ f) => Math.hypot((f.x + f.w / 2) * z + x - cx, (f.y + Math.min(f.h, 900) / 2) * z + y - cy);
+  const todo = [...S.frames.values()].filter((f) => f.near && !f.iframe).sort((a, b) => dist(a) - dist(b));
+  for (const f of todo.slice(0, MAX_LOADING - loadingCount)) loadFrame(f);
+}
+
+/** A frame finished loading (or gave up): let the next one start. */
+function loadDone(/** @type {any} */ f) {
+  if (!f.loading) return;
+  f.loading = false;
+  clearTimeout(f.loadTimer);
+  loadingCount = Math.max(0, loadingCount - 1);
+  scheduleLoads();
+}
+
+/** Put the iframe in a frame (once it is near the viewport and the camera is still). */
 export function loadFrame(/** @type {any} */ f) {
   if (!f || f.iframe) return;
   const iframe = document.createElement('iframe');
   iframe.name = f.key;
   iframe.title = f.title;
+  iframe.dataset.src = f.src;
   iframe.src = f.src;
   f.iframe = iframe;
+  f.loading = true;
+  loadingCount++;
+  // The load event also comes for a page that failed (404); a page that never ends frees its slot.
+  iframe.addEventListener('load', () => loadDone(f));
+  f.loadTimer = setTimeout(() => loadDone(f), 6000);
   $('.placeholder', f.el)?.remove();
   f.el.append(iframe);
   S.byWin.set(iframe.contentWindow, f);

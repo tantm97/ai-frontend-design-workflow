@@ -1,7 +1,7 @@
 // @ts-check
 // Comments: the list in the right panel, the composer (click an element, write, save), status
 // actions (resolve, reopen, dismiss) and live status updates from the agent.
-import { ACTIVE, esc, inFilter, statusLabel } from './model.js';
+import { ACTIVE, commentLabel, esc, inFilter, isDraft } from './model.js';
 import { $, $$, ALL, P, PKEY, S, api, post, postAll, toast } from './state.js';
 import { renderPages, selectFrame, setPage } from './frames.js';
 import { zoomToRect } from './canvas.js';
@@ -26,7 +26,7 @@ export function renderComments() {
     const target = c.target?.dfwId || c.target?.selector || '(area)';
     const last = c.thread?.slice(-2) || [];
     li.innerHTML = `
-      <div class="comment-top"><button type="button" class="num open" aria-label="Show comment #${esc(c.id.replace('fb_', ''))} on the canvas">#${esc(c.id.replace('fb_', ''))}</button><span>${esc(where)}</span><span class="status" data-s="${esc(c.status)}">${esc(statusLabel(c.status))}</span></div>
+      <div class="comment-top"><button type="button" class="num open" aria-label="Show comment #${esc(c.id.replace('fb_', ''))} on the canvas">#${esc(c.id.replace('fb_', ''))}</button><span>${esc(where)}</span><span class="status" data-s="${esc(isDraft(c) ? 'draft' : c.status)}">${esc(commentLabel(c))}</span></div>
       <div class="comment-target">${esc(target)}${c.target?.source ? ` · ${esc(c.target.source)}` : ''}</div>
       <p class="comment-text">${esc(c.comment)}</p>
       ${last.length ? `<ul class="thread">${last.map((/** @type {any} */ t) => `<li><span class="by">${esc(t.by)} · ${esc(new Date(t.at).toLocaleString())}</span>${esc(t.message)}</li>`).join('')}</ul>` : ''}
@@ -174,14 +174,15 @@ export async function saveComment() {
   const text = $('#composer-text').value.trim();
   if (!text || !S.pending) return;
   try {
-    const c = await api('/__dfw/api/comments', { method: 'POST', body: JSON.stringify({ ...S.pending, comment: text }) });
+    // Saved as a draft: Claude gets the drafts together when the user presses "Send to Claude".
+    const c = await api('/__dfw/api/comments', { method: 'POST', body: JSON.stringify({ ...S.pending, comment: text, draft: true }) });
     closeComposer();
     S.selectedComment = c.id;
     S.filter = 'active';
     setFilterTabs();
     setTab('comments');
     await loadComments();
-    toast(`Sent to Claude · comment #${c.id.replace('fb_', '')}`);
+    toast(`Draft #${c.id.replace('fb_', '')} saved · press Send to Claude when you are done.`);
   } catch (e) {
     toast(e.message);
   }
@@ -208,10 +209,46 @@ export function setTab(tab, { quiet = false } = {}) {
   $('#tab-comments').hidden = tab !== 'comments';
 }
 
+/** The drafts count on the Send button and whether a Claude session listens (dfw comments wait). */
+export function renderSendBar() {
+  const drafts = S.comments.filter(isDraft).length;
+  const send = $('#send-drafts');
+  send.disabled = drafts === 0;
+  send.textContent = drafts ? `Send to Claude (${drafts})` : 'Send to Claude';
+  const listen = $('#listen');
+  listen.dataset.on = String(!!S.listening);
+  listen.innerHTML = S.listening
+    ? '<b>Claude is listening.</b> Sent comments wake it at once.'
+    : '<b>Claude is not listening.</b> Sent comments reach Claude with your next message in the terminal.';
+}
+
+/** Send every draft to Claude at once. */
+async function sendDrafts() {
+  try {
+    const r = await api('/__dfw/api/comments/send', { method: 'POST' });
+    S.listening = r.listening;
+    toast(
+      r.sent
+        ? r.listening
+          ? `Sent ${r.sent} comment(s) to Claude.`
+          : `Sent ${r.sent} comment(s). Claude gets them with your next message in the terminal.`
+        : 'No drafts to send.',
+    );
+    await loadComments();
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
 /** Fetch the comments; announce what the agent changed since the last fetch. */
 export async function loadComments() {
   const prev = new Map(S.comments.map((c) => [c.id, c.status]));
-  S.comments = await api('/__dfw/api/comments');
+  const [comments, listening] = await Promise.all([
+    api('/__dfw/api/comments'),
+    api('/__dfw/api/listening').catch(() => ({ listening: false })),
+  ]);
+  S.comments = comments;
+  S.listening = listening.listening;
   // Live updates from Claude (via .dfw/reviews/ + SSE): announce status changes.
   if (prev.size) {
     for (const c of S.comments) {
@@ -223,6 +260,7 @@ export async function loadComments() {
     }
   }
   renderComments();
+  renderSendBar();
   renderPages();
   syncPins();
   if (S.pop) {
@@ -244,6 +282,7 @@ export function initComments() {
       renderComments();
     };
   }
+  $('#send-drafts').onclick = sendDrafts;
   $('#new-session').onclick = async () => {
     await api('/__dfw/api/sessions', { method: 'POST' });
     toast('New review round started.');

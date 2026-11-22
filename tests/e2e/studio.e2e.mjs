@@ -168,7 +168,7 @@ try {
       .catch(() => {});
     assert.equal(await fr.evaluate(get, [id]), want, msg);
   };
-  const count = () => page.$$eval('.frame[data-key]', (f) => f.length); // frames, not iframes (off-screen iframes load lazily)
+  const count = () => page.$$eval('.page-canvas:not([hidden]) .frame[data-key]', (f) => f.length); // frames of the page shown (kept pages are hidden), not iframes (off-screen iframes load lazily)
   const summary = (id) => page.textContent(`#${id} summary`);
   // Default: every breakpoint and every state. 2 screens x 3 breakpoints + 1 variant + 2 screens x 3 states.
   assert.equal(await count(), 13);
@@ -181,9 +181,9 @@ try {
   assert.match(pages[3], /Screens\s*13/, 'Screens page with frame count');
   // Flow page: one frame per linked screen, one labelled arrow per link.
   await page.click('#page-list button[data-page="flow"]');
-  await page.waitForSelector('svg.flow path[marker-end]', { state: 'attached' });
-  assert.equal(await page.$$eval('svg.flow path[marker-end]', (p) => p.length), 2);
-  assert.deepEqual((await page.$$eval('svg.flow text', (t) => t.map((x) => x.textContent))).sort(), ['Back home', 'Order details']);
+  await page.waitForSelector('.page-canvas:not([hidden]) svg.flow path[marker-end]', { state: 'attached' });
+  assert.equal(await page.$$eval('.page-canvas:not([hidden]) svg.flow path[marker-end]', (p) => p.length), 2);
+  assert.deepEqual((await page.$$eval('.page-canvas:not([hidden]) svg.flow text', (t) => t.map((x) => x.textContent))).sort(), ['Back home', 'Order details']);
   if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-0-flow.png') });
   await page.click('#page-list button[data-page="screens"]');
   // State menu: "All" off -> no state frames; pick some -> only those; "All" back on.
@@ -212,8 +212,8 @@ try {
   await page.click('#bp-menu summary');
   // Auto sections: one row per breakpoint (primary variants) + a Variants row.
   assert.equal(await count(), 5, '2 screens x 2 breakpoints + 1 variant');
-  assert.deepEqual(await page.$$eval('.prow-gutter h2', (h) => h.map((x) => x.textContent)), ['Desktop 1440', 'Tablet 834', 'Variants']);
-  assert.equal(await page.textContent('.frame[data-key="home::a::desktop"] .frame-title'), 'D · Home · A↗');
+  assert.deepEqual(await page.$$eval('.page-canvas:not([hidden]) .prow-gutter h2', (h) => h.map((x) => x.textContent)), ['Desktop 1440', 'Tablet 834', 'Variants']);
+  assert.equal(await page.textContent('.page-canvas:not([hidden]) .frame[data-key="home::a::desktop"] .frame-title'), 'D · Home · A↗');
   // Screenshot all: every screen of every page (5 frames + Design System) -> PNG files under .dfw/shots/studio/<time>/.
   // The camera opens a picker (all screens checked by default); "Screenshot N" shoots the checked ones.
   await page.click('#shoot-btn');
@@ -255,7 +255,7 @@ try {
 
   // Enter comment mode and click the CTA inside the first (desktop, variant A) frame.
   await page.keyboard.press('c');
-  const frame = page.frameLocator('iframe[name="home::a::desktop"]');
+  const frame = page.frameLocator('.page-canvas:not([hidden]) iframe[name="home::a::desktop"]');
   await frame.locator('[data-dfw-id="home.cta"]').hover();
   await frame.locator('[data-dfw-id="home.cta"]').click();
   await page.waitForSelector('#composer:not([hidden])');
@@ -266,6 +266,16 @@ try {
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter');
   await page.waitForSelector('.comment[data-id="fb_001"]');
   assert.equal(await page.isVisible('#composer'), false, 'composer closes after saving');
+
+  // A Studio comment is a draft: Claude gets nothing until the user presses "Send to Claude".
+  assert.match(await page.textContent('.comment[data-id="fb_001"] .status'), /Draft/);
+  assert.match(dfw('comments', 'inbox', '--peek'), /No new comments/, 'a draft is not delivered');
+  assert.match(await page.textContent('#listen'), /not listening/, 'no dfw comments wait runs');
+  assert.equal(await page.textContent('#send-drafts'), 'Send to Claude (1)');
+  await page.click('#send-drafts');
+  await page.waitForSelector('.comment[data-id="fb_001"] .status[data-s="open"]');
+  assert.match(dfw('comments', 'inbox', '--peek'), /fb_001/, 'sent: the inbox delivers it');
+  assert.equal(await page.isDisabled('#send-drafts'), true, 'nothing left to send');
 
   // The comment is stored in the feedback contract with source mapping.
   const stored = JSON.parse(dfw('comments', 'list', '--json'));
@@ -311,8 +321,8 @@ try {
   assert.equal(after.thread.at(-1).by, 'user');
 
   // Frame select by title.
-  await page.click('.frame[data-key="home::b::desktop"] .frame-title');
-  assert.equal(await page.getAttribute('.frame[data-key="home::b::desktop"]', 'class'), 'frame selected');
+  await page.click('.page-canvas:not([hidden]) .frame[data-key="home::b::desktop"] .frame-title');
+  assert.equal(await page.getAttribute('.page-canvas:not([hidden]) .frame[data-key="home::b::desktop"]', 'class'), 'frame selected');
   await page.waitForSelector('#layers .row');
 
   // Element select -> inspector shows the design tokens in use.
@@ -338,6 +348,37 @@ try {
   await page.waitForFunction(() => document.activeElement?.matches('#layers .row[aria-selected="true"][tabindex="0"]'));
   assert.equal(await page.evaluate(() => document.body.classList.contains('space')), false);
   if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-5a-layers-keyboard.png') });
+  // Picking a layer brings its element into view (same zoom) when the camera is elsewhere.
+  const vp = await page.locator('#viewport').boundingBox();
+  await page.mouse.move(vp.x + 8, vp.y + vp.height - 8);
+  for (let i = 0; i < 6; i++) await page.mouse.wheel(0, 2000);
+  await page.waitForTimeout(250);
+  const zBefore = await page.evaluate(() => window.__dfwStudio.cam.z);
+  const elInView = () =>
+    page.evaluate(() => {
+      const S = window.__dfwStudio;
+      const f = S.frames.get(S.sel.key);
+      const [x, y, w, h] = S.sel.rect;
+      const r = document.querySelector('#viewport').getBoundingClientRect();
+      const sx = (f.x + x) * S.cam.z + S.cam.x;
+      const sy = (f.y + y) * S.cam.z + S.cam.y;
+      return sx + w * S.cam.z > 0 && sx < r.width && sy + h * S.cam.z > 0 && sy < r.height;
+    });
+  assert.equal(await elInView(), false, 'the selection is out of view after panning away');
+  await page.click('#layers .row[aria-selected="true"] .nm');
+  await page.waitForFunction(
+    () => {
+      const S = window.__dfwStudio;
+      const f = S.frames.get(S.sel?.key);
+      if (!f || !S.sel.rect) return false;
+      const sy = (f.y + S.sel.rect[1]) * S.cam.z + S.cam.y;
+      return sy > 0 && sy < document.querySelector('#viewport').clientHeight;
+    },
+    null,
+    { timeout: 5000 },
+  );
+  assert.equal(await elInView(), true, 'the layer pick revealed the element');
+  assert.equal(await page.evaluate(() => window.__dfwStudio.cam.z), zBefore, 'the zoom did not change');
 
   // Direct text edit writes back to the source; Cmd/Ctrl+Z undoes it.
   const src = path.join(tmp, 'design/screens/home/a.html');
@@ -365,28 +406,28 @@ try {
   await page.selectOption('#inspector select[data-edit="variant"]', 'secondary');
   await waitFile(/<dfw-use c="button" variant="secondary" id="home.buy">Buy now<\/dfw-use>/, 'variant written to source');
   await page.click('#inspector [data-act="master"]');
-  await page.waitForSelector('iframe[name="system"]');
+  await page.waitForSelector('.page-canvas:not([hidden]) iframe[name="system"]');
   assert.match(await page.textContent('#page-list [aria-current="page"]'), /Design System/);
   await page.waitForFunction(() => window.__dfwStudio.sel?.target?.dfwId === 'system.component.button', null, { timeout: 8000 });
   if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-6-master.png') });
 
   // Page switch back.
   await page.click('#page-list button[data-page="screens"]');
-  await page.waitForSelector('iframe[name="home::a::desktop"]');
+  await page.waitForSelector('.page-canvas:not([hidden]) iframe[name="home::a::desktop"]');
   const beforeUndoAll = await mark();
   undoAll();
   await settled('home::a::desktop', beforeUndoAll);
 
   // All pages: every page section stacked on one canvas, Design System first.
   await page.click('#page-list button[data-page="__all"]');
-  await page.waitForFunction(() => document.querySelectorAll('.psec').length === 2);
-  assert.deepEqual(await page.$$eval('.psec', (s) => s.map((x) => x.dataset.page)), ['system', 'screens']);
+  await page.waitForFunction(() => document.querySelectorAll('.page-canvas:not([hidden]) .psec').length === 2);
+  assert.deepEqual(await page.$$eval('.page-canvas:not([hidden]) .psec', (s) => s.map((x) => x.dataset.page)), ['system', 'screens']);
   await page.click('#page-list button[data-page="screens"]');
   assert.equal(await page.getAttribute('#page-list button[data-page="__all"]', 'aria-current'), 'page', 'single click stays in All pages');
   if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-7-all-pages.png') });
   await page.dblclick('#page-list button[data-page="screens"]');
-  await page.waitForFunction(() => document.querySelectorAll('.psec').length === 1);
-  await page.waitForSelector('iframe[name="home::a::desktop"]');
+  await page.waitForFunction(() => document.querySelectorAll('.page-canvas:not([hidden]) .psec').length === 1);
+  await page.waitForSelector('.page-canvas:not([hidden]) iframe[name="home::a::desktop"]');
   await page.keyboard.press('Shift+1');
   await frameReady('home::a::desktop');
 
@@ -401,7 +442,7 @@ try {
   await painted();
 
   // Present: full-window, interactive prototype with link + data-dfw-goto navigation and comments.
-  await page.click('.frame[data-key="home::a::desktop"] .frame-title');
+  await page.click('.page-canvas:not([hidden]) .frame[data-key="home::a::desktop"] .frame-title');
   await page.keyboard.press('p');
   await page.waitForSelector('#present:not([hidden])');
   const pf = page.frameLocator('#p-frame');
@@ -430,7 +471,7 @@ try {
   await page.waitForSelector('#composer:not([hidden])');
   await page.fill('#composer-text', 'Shorter lede, please.');
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter');
-  await page.waitForFunction(() => /Sent to Claude/.test(document.querySelector('#toast').textContent));
+  await page.waitForFunction(() => /Draft #002 saved/.test(document.querySelector('#toast').textContent));
   const c2 = JSON.parse(dfw('comments', 'show', 'fb_002'));
   assert.equal(c2.target.dfwId, 'home.lede');
   assert.equal(c2.screen, 'home');
@@ -442,6 +483,7 @@ try {
   // Live comment status: Claude acknowledges via the CLI -> chip updates over SSE.
   await page.click('.ptabs button[data-tab="comments"]');
   await page.click('.tabs button[data-filter="active"]');
+  await page.click('#send-drafts');
   await page.waitForSelector('.comment[data-id="fb_002"] .status[data-s="open"]');
   dfw('comments', 'ack', 'fb_002', '--message', 'On it.');
   await page.waitForSelector('.comment[data-id="fb_002"] .status[data-s="acknowledged"]');
@@ -464,7 +506,18 @@ try {
   if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-9a-comment-keyboard.png') });
   // Opening the comment went to the first page with that screen (Flow): back to Screens.
   await page.click('#page-list button[data-page="screens"]');
-  await page.waitForSelector('iframe[name="home::a::desktop"]');
+  await page.waitForSelector('.page-canvas:not([hidden]) iframe[name="home::a::desktop"]');
+  // Going to another page and back keeps the loaded frames (no blank canvas, no reload).
+  await frameReady('home::a::desktop');
+  await page.evaluate(() => (document.querySelector('.page-canvas:not([hidden]) iframe[name="home::a::desktop"]').dataset.kept = 'yes'));
+  await page.click('#page-list button[data-page="flow"]');
+  await page.click('#page-list button[data-page="screens"]');
+  assert.equal(
+    await page.evaluate(() => document.querySelector('.page-canvas:not([hidden]) iframe[name="home::a::desktop"]')?.dataset.kept),
+    'yes',
+    'the frame kept its document across the page switch',
+  );
+  assert.equal(await page.evaluate(() => window.__dfwStudio.frames.get('home::a::desktop').loaded), true);
   await page.keyboard.press('Shift+1');
   await frameReady('home::a::desktop');
 
@@ -502,7 +555,7 @@ try {
   if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-4-reloaded.png') });
 
   // What cannot be patched in place reloads the frame: a screen whose own script builds DOM, and a changed image.
-  const detail = page.frameLocator('iframe[name="detail::a::desktop"]');
+  const detail = page.frameLocator('.page-canvas:not([hidden]) iframe[name="detail::a::desktop"]');
   const detailFile = path.join(tmp, 'design/screens/detail/a.html');
   const kept = () => detail.locator('html').evaluate(() => window.__dfwKept === true);
   /** The frame took the change (it posts dfw:ready after the design event) and lost the marker: it reloaded. */
@@ -555,11 +608,11 @@ try {
   const m2 = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
   m2.screens.push({ id: 'board', title: 'Board', variants: [{ id: 'a', label: 'A', file: 'screens/board/a.html' }] });
   fs.writeFileSync(manifestFile, JSON.stringify(m2, null, 2));
-  await page.waitForSelector('.frame[data-key="board::a::desktop"] iframe');
-  await page.click('.frame[data-key="board::a::desktop"] .frame-title');
+  await page.waitForSelector('.page-canvas:not([hidden]) .frame[data-key="board::a::desktop"] iframe');
+  await page.click('.page-canvas:not([hidden]) .frame[data-key="board::a::desktop"] .frame-title');
   await page.keyboard.press('Shift+2');
   await frameReady('board::a::desktop');
-  const board = page.frameLocator('iframe[name="board::a::desktop"]');
+  const board = page.frameLocator('.page-canvas:not([hidden]) iframe[name="board::a::desktop"]');
   const waitBoard = async (re, msg) => {
     await fileUntil(boardFile, (t) => re.test(t));
     assert.match(fs.readFileSync(boardFile, 'utf8'), re, msg);
@@ -606,21 +659,21 @@ try {
   await page.click('#bp-menu summary');
   await page.check('#breakpoints label:has-text("Mobile") input');
   await page.click('#bp-menu summary');
-  await page.waitForSelector('.frame[data-key="board::a::mobile"]', { state: 'attached' });
+  await page.waitForSelector('.page-canvas:not([hidden]) .frame[data-key="board::a::mobile"]', { state: 'attached' });
   // Select a frame by its title even when it is off-screen (titles select on mousedown).
   const pickFrame = (key) =>
     page.evaluate(
       (k) =>
         document
-          .querySelector(`.frame[data-key="${k}"] .frame-title`)
+          .querySelector(`.page-canvas:not([hidden]) .frame[data-key="${k}"] .frame-title`)
           .dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })),
       key,
     );
   await pickFrame('board::a::mobile');
   await page.keyboard.press('Shift+2');
-  await page.waitForSelector('.frame[data-key="board::a::mobile"] iframe', { state: 'attached' });
+  await page.waitForSelector('.page-canvas:not([hidden]) .frame[data-key="board::a::mobile"] iframe', { state: 'attached' });
   await frameReady('board::a::mobile');
-  const boardM = page.frameLocator('iframe[name="board::a::mobile"]');
+  const boardM = page.frameLocator('.page-canvas:not([hidden]) iframe[name="board::a::mobile"]');
   await boardM.locator('[data-dfw-id="board.two"]').click();
   await boardM.locator('[data-dfw-handle="x"]').waitFor({ state: 'visible' });
   const m2b = await boardM.locator('[data-dfw-id="board.two"]').boundingBox();

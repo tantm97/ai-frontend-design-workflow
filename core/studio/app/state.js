@@ -54,6 +54,7 @@ export const S = {
   pages: [],
   state: null,
   comments: [],
+  listening: false, // a dfw comments wait runs for this project (GET /__dfw/api/listening)
   tokens: [],
   components: new Map(),
   page: null,
@@ -78,6 +79,7 @@ export const S = {
   space: false,
   panning: null,
   zoomOnSelect: false,
+  revealOnSelect: false, // a layer was picked in the Layers pane: pan to it when it is out of view
   // Comment pins on the canvas: 'active' (open + to verify), 'all' (also closed) or 'off'.
   pins: store.get('pins', 'active'),
   pop: null, // comment id shown in the pin popover
