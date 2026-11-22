@@ -50,6 +50,18 @@ test('studio-app-model: auto rows: one per breakpoint, then variants, then state
   assert.equal(frameCount(ctx(), page), 8);
 });
 
+test('studio-app-model: a state the variant does not design gets no frame (it would repeat the default)', () => {
+  const designed = structuredClone(manifest);
+  designed.screens[0].variants[0].designedStates = ['error']; // home A designs error, not empty
+  designed.screens[1].variants[0].designedStates = []; // detail designs none of its states
+  const m = pageModel({ ...ctx(), manifest: designed }, page);
+  assert.deepEqual(titles(m), ['Desktop 1440', 'Mobile 390', 'Variants', 'States (error)']);
+  assert.deepEqual(keys(m.rows[3]), ['home::a::desktop::error']);
+  // Declared sections follow the same rule.
+  const sec = pageModel({ ...ctx(), manifest: designed }, { ...page, sections: [{ kind: 'states', screens: ['home', 'detail'] }] });
+  assert.deepEqual(keys(sec.rows[0]), ['home::a::desktop::error']);
+});
+
 test('studio-app-model: the toolbar choices filter breakpoints and states', () => {
   const m = pageModel(ctx({ activeBps: ['mobile'], activeStates: ['error'] }), page);
   assert.deepEqual(titles(m), ['Mobile 390', 'Variants', 'States (error)']);

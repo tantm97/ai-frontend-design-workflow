@@ -449,8 +449,54 @@ fn declared_states<'a>(screen: &'a Value, manifest: &'a Value) -> Result<&'a [Va
     list(manifest.get("states"), "\"states\"")
 }
 
+js_re!(STATE_NAME, r"^[a-z][a-z0-9-]*$");
+
+/// The states, out of `states`, that this screen actually designs: a `.when-<state>` or
+/// `.unless-<state>` class, or a `data-state` rule naming it, in the screen's source or in a
+/// master it uses. A declared state without any is the default screen again (same frame).
+pub fn designed_states(
+    root: &Path,
+    text: &str,
+    states: &[String],
+) -> Result<Vec<String>, DfwError> {
+    let mut sources: Vec<String> = vec![text.to_string()];
+    let components = project_paths(root).design.join("system").join("components");
+    let mut seen: Vec<String> = Vec::new();
+    for cap in USE_WITH_C.captures_iter(text) {
+        let name = cap[1].to_string();
+        if seen.contains(&name) {
+            continue;
+        }
+        // A master is read only inside the project (rule 5); a missing one is the compose check's job.
+        if let Ok(file) = crate::core::paths::resolve_inside(&components, &format!("{name}.html")) {
+            if file.is_file() {
+                sources.push(js::read_text(&file)?);
+            }
+        }
+        seen.push(name);
+    }
+    let mut out = Vec::new();
+    for state in states {
+        let s = state.to_lowercase();
+        if !STATE_NAME.is_match(&s) {
+            continue;
+        }
+        let re = js_regex(
+            &format!(
+                r#"\b(?:when|unless)-{s}(?:$|[^\w-])|data-state\s*[~|^$*]?=\s*["']?{s}(?:$|[^\w-])"#
+            ),
+            "i",
+        )?;
+        if sources.iter().any(|t| re.is_match(t)) {
+            out.push(state.clone());
+        }
+    }
+    Ok(out)
+}
+
 /// `stateCoverage(root, rel, text)`: warn when a screen with a table/list or a form declares no
-/// loading/empty/error states (design.json states).
+/// loading/empty/error states (design.json states), and when a declared state is not designed
+/// (its frame would be the default screen again).
 pub fn state_coverage(root: &Path, rel: &str, text: &str) -> Result<Vec<Value>, DfwError> {
     // A design.json that is not JSON is reported by lint_manifest (manifest-json).
     let Ok(manifest) = read_json(&project_paths(root).manifest, Some(Value::Null)) else {
@@ -465,6 +511,23 @@ pub fn state_coverage(root: &Path, rel: &str, text: &str) -> Result<Vec<Value>, 
         .iter()
         .map(|s| js::to_string(Some(s)).to_lowercase())
         .collect();
+    let undesigned_finding = {
+        // Only state names that can be designed (`.when-<name>`): other values are the manifest
+        // check's business.
+        let names: Vec<String> = declared
+            .iter()
+            .filter_map(Value::as_str)
+            .filter(|s| STATE_NAME.is_match(&s.to_lowercase()))
+            .map(str::to_string)
+            .collect();
+        let designed = designed_states(root, text, &names)?;
+        let undesigned: Vec<&String> = names.iter().filter(|s| !designed.contains(s)).collect();
+        (!undesigned.is_empty()).then(|| {
+            let list: Vec<&str> = undesigned.iter().map(|s| s.as_str()).collect();
+            let message = format!("Screen \"{}\" shows state {} but nothing in it changes for {}: the Studio does not draw those frames (they would repeat the default screen). Design each one (a .when-<state> block, e.g. a skeleton for loading, a message with an action for empty, what went wrong and how to recover for error), or remove it from the screen's \"states\" (a screen without its own \"states\" inherits the ones at the top of design.json).", js::to_string(screen.get("id")), list.join("/"), if list.len() > 1 { "them" } else { "it" });
+            json!({ "level": "warn", "rule": "state-undesigned", "file": rel, "line": 1, "source": "dfw", "message": message })
+        })
+    };
     let (data, form) = (DATA_SURFACE.is_match(text), FORM.is_match(text));
     let mut need: Vec<&str> = Vec::new();
     if data {
@@ -477,13 +540,15 @@ pub fn state_coverage(root: &Path, rel: &str, text: &str) -> Result<Vec<Value>, 
         .filter(|s| !states.iter().any(|have| have == s))
         .collect();
     if missing.is_empty() {
-        return Ok(Vec::new());
+        return Ok(undesigned_finding.into_iter().collect());
     }
     let what = if data { "a data surface" } else { "a form" };
     let message = format!("Screen \"{}\" has {what} but no {} state. Add them to its \"states\" in design.json and design each (.when-<state> blocks): empty needs a headline, explanation and primary action; error says what happened and how to recover, keeping user input. Also check edge content (very long text, missing optional fields, large counts).", js::to_string(screen.get("id")), missing.join("/"));
-    Ok(vec![
+    let mut out = vec![
         json!({ "level": "warn", "rule": "state-coverage", "file": rel, "line": 1, "source": "dfw", "message": message }),
-    ])
+    ];
+    out.extend(undesigned_finding);
+    Ok(out)
 }
 
 /// `lintComponentFile(rel, text)`: lint a component master file.

@@ -58,13 +58,15 @@ fs.writeFileSync(
 <button class="cta" data-dfw-id="home.cta">New order</button>
 <p data-dfw-id="home.raw" style="color:#ff00aa">Hard-coded colour</p>
 <dfw-use c="button" variant="primary" id="home.buy">Buy now</dfw-use>
-<a data-dfw-id="home.link" href="../detail/a.html">Order details</a></main></body></html>`,
+<a data-dfw-id="home.link" href="../detail/a.html">Order details</a>
+<p class="when-empty" data-dfw-id="home.empty">No orders yet.</p><p class="when-loading" data-dfw-id="home.loading">Loading orders</p><p class="when-error" data-dfw-id="home.error">Orders could not load.</p></main></body></html>`,
 );
 fs.mkdirSync(path.join(tmp, 'design/screens/detail'), { recursive: true });
 fs.writeFileSync(
   path.join(tmp, 'design/screens/detail/a.html'),
   `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Detail</title><link rel="stylesheet" href="../../tokens/tokens.css"></head>
 <body><main data-dfw-id="detail.main"><h1 data-dfw-id="detail.title">Order 1042</h1><button type="button" data-dfw-goto="home/b">Back home</button><ul id="made"></ul><img id="logo" alt="" src="../../assets/logo.svg" width="8" height="8"></main>
+<p class="when-empty">No lines.</p><p class="when-loading">Loading lines</p><p class="when-error">Lines could not load.</p>
 <script>for (const n of ['Bolts', 'Nuts']) document.getElementById('made').append(Object.assign(document.createElement('li'), { textContent: n }));</script></body></html>`,
 );
 const logoFile = path.join(tmp, 'design/assets/logo.svg');
