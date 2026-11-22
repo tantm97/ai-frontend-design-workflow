@@ -11,9 +11,6 @@ import { renderLayers } from './layers.js';
 import { renderInspector } from './inspector.js';
 import { loadPresent, openPresent } from './present.js';
 
-/** @type {IntersectionObserver | null} */
-let io = null;
-
 /**
  * The canvas of each recently shown page, kept (hidden) so that going back to it shows its loaded
  * frames at once. Each has a decorations layer (sections, gutters, Flow arrows), rebuilt on every
@@ -78,17 +75,6 @@ export function buildPage() {
   S.frames = canvas.frames;
   S.hover = null;
   S.layers = null;
-  io?.disconnect();
-  io = new IntersectionObserver(
-    (entries) => {
-      for (const e of entries) {
-        const f = S.frames.get(/** @type {HTMLElement} */ (e.target).dataset.key);
-        if (f) f.near = e.isIntersecting;
-      }
-      scheduleLoads();
-    },
-    { root: viewport, rootMargin: '400px' },
-  );
   const pages = S.page === ALL ? S.pages.filter((p) => !p.flow) : [currentPage()].filter(Boolean);
   S.sections = [];
   for (const page of pages) {
@@ -130,10 +116,8 @@ export function buildPage() {
     for (const r of sec.rows) r.gutH = r.gut ? r.gut.offsetHeight : 0;
   }
   positionFrames();
-  for (const f of S.frames.values()) {
-    f.el.classList.remove('selected');
-    io.observe(f.el);
-  }
+  for (const f of S.frames.values()) f.el.classList.remove('selected');
+  scheduleLoads();
   $('#empty').hidden = S.frames.size > 0;
   renderPages();
   renderLayers();
@@ -286,9 +270,23 @@ function pumpLoads() {
   const cy = r.height / 2;
   const { x, y, z } = S.cam;
   const dist = (/** @type {any} */ f) => Math.hypot((f.x + f.w / 2) * z + x - cx, (f.y + Math.min(f.h, 900) / 2) * z + y - cy);
-  const todo = [...S.frames.values()].filter((f) => f.near && !f.iframe).sort((a, b) => dist(a) - dist(b));
+  // Near = within 400 screen px of the viewport, from the camera and the frame's world box (no
+  // IntersectionObserver: a rebuilt observer that never reported left frames blank for good).
+  const m = 400;
+  const near = (/** @type {any} */ f) => {
+    const l = f.x * z + x;
+    const t = f.y * z + y;
+    return l < r.width + m && l + f.w * z > -m && t < r.height + m && t + f.h * z > -m;
+  };
+  const todo = [...S.frames.values()].filter((f) => !f.iframe && near(f)).sort((a, b) => dist(a) - dist(b));
   for (const f of todo.slice(0, MAX_LOADING - loadingCount)) loadFrame(f);
 }
+
+// Safety net: a tab that comes back to the front, a resized window, and a slow check every second
+// load whatever is near the viewport and not loaded yet.
+document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && scheduleLoads());
+addEventListener('resize', () => scheduleLoads());
+setInterval(() => document.visibilityState === 'visible' && scheduleLoads(), 1000);
 
 /** A frame finished loading (or gave up): let the next one start. */
 function loadDone(/** @type {any} */ f) {

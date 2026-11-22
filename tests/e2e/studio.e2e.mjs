@@ -183,7 +183,10 @@ try {
   await page.click('#page-list button[data-page="flow"]');
   await page.waitForSelector('.page-canvas:not([hidden]) svg.flow path[marker-end]', { state: 'attached' });
   assert.equal(await page.$$eval('.page-canvas:not([hidden]) svg.flow path[marker-end]', (p) => p.length), 2);
-  assert.deepEqual((await page.$$eval('.page-canvas:not([hidden]) svg.flow text', (t) => t.map((x) => x.textContent))).sort(), ['Back home', 'Order details']);
+  assert.deepEqual((await page.$$eval('.page-canvas:not([hidden]) svg.flow text', (t) => t.map((x) => x.textContent))).sort(), [
+    'Back home',
+    'Order details',
+  ]);
   if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-0-flow.png') });
   await page.click('#page-list button[data-page="screens"]');
   // State menu: "All" off -> no state frames; pick some -> only those; "All" back on.
@@ -212,7 +215,11 @@ try {
   await page.click('#bp-menu summary');
   // Auto sections: one row per breakpoint (primary variants) + a Variants row.
   assert.equal(await count(), 5, '2 screens x 2 breakpoints + 1 variant');
-  assert.deepEqual(await page.$$eval('.page-canvas:not([hidden]) .prow-gutter h2', (h) => h.map((x) => x.textContent)), ['Desktop 1440', 'Tablet 834', 'Variants']);
+  assert.deepEqual(await page.$$eval('.page-canvas:not([hidden]) .prow-gutter h2', (h) => h.map((x) => x.textContent)), [
+    'Desktop 1440',
+    'Tablet 834',
+    'Variants',
+  ]);
   assert.equal(await page.textContent('.page-canvas:not([hidden]) .frame[data-key="home::a::desktop"] .frame-title'), 'D · Home · A↗');
   // Screenshot all: every screen of every page (5 frames + Design System) -> PNG files under .dfw/shots/studio/<time>/.
   // The camera opens a picker (all screens checked by default); "Screenshot N" shoots the checked ones.
