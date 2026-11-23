@@ -634,7 +634,8 @@ mod tests {
     #[test]
     fn a_config_file_that_is_not_a_json_object_is_a_clear_error() {
         let root = project("config-not-object", None, None);
-        let file = root.join(rel::CONFIG);
+        // The path the loader names (`\\` on Windows), not `rel::CONFIG` joined (`/`).
+        let file = project_paths(&root).config;
         for content in ["[1,2]", "\"text\"", "5", "null", "true"] {
             fs::write(&file, content).unwrap();
             let err = load(&root).unwrap_err();

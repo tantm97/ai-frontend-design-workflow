@@ -550,13 +550,13 @@ fn local_stamp() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::paths::file;
 
     /// a design file or a screenshot reached through a symlink (file or folder) that leads
     /// out of its root is not served
     #[cfg(unix)]
     #[test]
     fn symlinks_out_of_the_base_are_refused() {
+        use crate::core::paths::file;
         let dir = crate::core::util::test_dir("studio-symlink");
         let outside = dir.join("outside");
         fs::create_dir_all(outside.join("folder")).unwrap();
