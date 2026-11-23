@@ -200,139 +200,166 @@ fn list<'a>(value: Option<&'a Value>, what: &str) -> Result<&'a [Value], DfwErro
     }
 }
 
-// Over 120 lines: one match arm per DTCG type, so every type's CSS form reads in one place.
-#[allow(clippy::too_many_lines, reason = "A10 debt")]
+/// The CSS value of a token: one helper per DTCG type; a text value is an alias (or CSS) as is.
 fn value_to_css(value: Option<&Value>, ty: &str) -> Result<String, DfwError> {
     if let Some(Value::String(text)) = value {
         return Ok(aliases_to_css(text));
     }
-    let zero = |unit: &str| serde_json::json!({ "value": 0, "unit": unit });
     Ok(match ty {
         "color" => color_to_css(value)?,
-        "dimension" | "duration" => match value {
-            Some(Value::Object(map)) if map.contains_key("value") => {
-                format!(
-                    "{}{}",
-                    fmt_number(map.get("value")),
-                    js::to_string(map.get("unit"))
-                )
-            }
-            Some(Value::Null) => return Err(malformed("a dimension is null")),
-            other => js::to_string(other),
-        },
+        "dimension" | "duration" => dimension_to_css(value)?,
         "number" | "fontWeight" => js::to_string(value),
-        "fontFamily" => {
-            let single = [value.cloned().unwrap_or(Value::Null)];
-            let families = match value {
-                Some(Value::Array(items)) => items.as_slice(),
-                _ => &single,
-            };
-            let parts: Vec<String> = families
-                .iter()
-                .map(|f| {
-                    let name = js::to_string(Some(f));
-                    if name.contains(|c: char| crate::core::js::is_space(c) || c == ',') {
-                        format!("\"{name}\"")
-                    } else if f.is_null() {
-                        String::new()
-                    } else {
-                        name
-                    }
-                })
-                .collect();
-            parts.join(", ")
-        }
-        "cubicBezier" => {
-            let parts: Vec<String> = list(value, "a cubicBezier must be a list")?
-                .iter()
-                .map(|n| fmt_number(Some(n)))
-                .collect();
-            format!("cubic-bezier({})", parts.join(", "))
-        }
-        "shadow" => {
-            // Blur and spread are optional in CSS; a missing one must not print "undefined".
-            let len = |v: Option<&Value>| {
-                value_to_css(Some(js::present(v).unwrap_or(&zero("px"))), "dimension")
-            };
-            let one = |shadow: &Value| -> Result<String, DfwError> {
-                let get = |key: &str| field(Some(shadow), key, "a shadow layer is null");
-                let parts = [
-                    if js::truthy(get("inset")?) {
-                        "inset".to_string()
-                    } else {
-                        String::new()
-                    },
-                    len(get("offsetX")?)?,
-                    len(get("offsetY")?)?,
-                    len(get("blur")?)?,
-                    match js::present(get("spread")?) {
-                        Some(spread) => len(Some(spread))?,
-                        None => String::new(),
-                    },
-                    value_to_css(get("color")?, "color")?,
-                ];
-                Ok(parts
-                    .into_iter()
-                    .filter(|p| !p.is_empty())
-                    .collect::<Vec<_>>()
-                    .join(" "))
-            };
-            match value {
-                Some(Value::Array(layers)) => layers
-                    .iter()
-                    .map(one)
-                    .collect::<Result<Vec<_>, _>>()?
-                    .join(", "),
-                Some(single) => one(single)?,
-                None => return Err(malformed("a shadow has no value")),
-            }
-        }
-        "border" => {
-            let get = |key: &str| field(value, key, "a border is null");
-            format!(
-                "{} {} {}",
-                value_to_css(get("width")?, "dimension")?,
-                js::to_string(get("style")?),
-                value_to_css(get("color")?, "color")?
-            )
-        }
-        "transition" => {
-            let get = |key: &str| field(value, key, "a transition is null");
-            let delay = zero("ms");
-            format!(
-                "{} {} {}",
-                value_to_css(get("duration")?, "duration")?,
-                value_to_css(get("timingFunction")?, "cubicBezier")?,
-                value_to_css(
-                    Some(js::present(get("delay")?).unwrap_or(&delay)),
-                    "duration"
-                )?
-            )
-        }
+        "fontFamily" => font_family_to_css(value),
+        "cubicBezier" => cubic_bezier_to_css(value)?,
+        "shadow" => shadow_to_css(value)?,
+        "border" => border_to_css(value)?,
+        "transition" => transition_to_css(value)?,
         // A string was returned above; every other shape is "dashed".
         "strokeStyle" => "dashed".to_string(),
-        "gradient" => {
-            let stops = list(value, "a gradient must be a list of stops")?;
-            let parts = stops
-                .iter()
-                .map(|stop| {
-                    let get = |key: &str| field(Some(stop), key, "a gradient stop is null");
-                    let position = js::to_number(get("position")?) * 100.0;
-                    Ok(format!(
-                        "{} {}%",
-                        value_to_css(get("color")?, "color")?,
-                        fmt_f64(position)
-                    ))
-                })
-                .collect::<Result<Vec<_>, DfwError>>()?;
-            parts.join(", ")
-        }
+        "gradient" => gradient_to_css(value)?,
         _ => match value {
             Some(Value::Number(n)) => js::number(n.as_f64().unwrap_or(f64::NAN)),
             Some(other) => to_json_compact(other),
             None => "undefined".to_string(),
         },
     })
+}
+
+/// A zero dimension in `unit`, for an optional length or delay that is missing.
+fn zero(unit: &str) -> Value {
+    serde_json::json!({ "value": 0, "unit": unit })
+}
+
+/// `{ value, unit }` as `<value><unit>`.
+fn dimension_to_css(value: Option<&Value>) -> Result<String, DfwError> {
+    Ok(match value {
+        Some(Value::Object(map)) if map.contains_key("value") => {
+            format!(
+                "{}{}",
+                fmt_number(map.get("value")),
+                js::to_string(map.get("unit"))
+            )
+        }
+        Some(Value::Null) => return Err(malformed("a dimension is null")),
+        other => js::to_string(other),
+    })
+}
+
+/// A family or a list of families; a name with a space or a comma is quoted.
+fn font_family_to_css(value: Option<&Value>) -> String {
+    let single = [value.cloned().unwrap_or(Value::Null)];
+    let families = match value {
+        Some(Value::Array(items)) => items.as_slice(),
+        _ => &single,
+    };
+    let parts: Vec<String> = families
+        .iter()
+        .map(|f| {
+            let name = js::to_string(Some(f));
+            if name.contains(|c: char| crate::core::js::is_space(c) || c == ',') {
+                format!("\"{name}\"")
+            } else if f.is_null() {
+                String::new()
+            } else {
+                name
+            }
+        })
+        .collect();
+    parts.join(", ")
+}
+
+/// Four numbers as `cubic-bezier(...)`.
+fn cubic_bezier_to_css(value: Option<&Value>) -> Result<String, DfwError> {
+    let parts: Vec<String> = list(value, "a cubicBezier must be a list")?
+        .iter()
+        .map(|n| fmt_number(Some(n)))
+        .collect();
+    Ok(format!("cubic-bezier({})", parts.join(", ")))
+}
+
+/// One shadow layer or a list of them.
+fn shadow_to_css(value: Option<&Value>) -> Result<String, DfwError> {
+    Ok(match value {
+        Some(Value::Array(layers)) => layers
+            .iter()
+            .map(shadow_layer_to_css)
+            .collect::<Result<Vec<_>, _>>()?
+            .join(", "),
+        Some(single) => shadow_layer_to_css(single)?,
+        None => return Err(malformed("a shadow has no value")),
+    })
+}
+
+/// One shadow layer: `[inset] x y blur [spread] color`.
+fn shadow_layer_to_css(shadow: &Value) -> Result<String, DfwError> {
+    // Blur and spread are optional in CSS; a missing one must not print "undefined".
+    let len =
+        |v: Option<&Value>| value_to_css(Some(js::present(v).unwrap_or(&zero("px"))), "dimension");
+    let get = |key: &str| field(Some(shadow), key, "a shadow layer is null");
+    let parts = [
+        if js::truthy(get("inset")?) {
+            "inset".to_string()
+        } else {
+            String::new()
+        },
+        len(get("offsetX")?)?,
+        len(get("offsetY")?)?,
+        len(get("blur")?)?,
+        match js::present(get("spread")?) {
+            Some(spread) => len(Some(spread))?,
+            None => String::new(),
+        },
+        value_to_css(get("color")?, "color")?,
+    ];
+    Ok(parts
+        .into_iter()
+        .filter(|p| !p.is_empty())
+        .collect::<Vec<_>>()
+        .join(" "))
+}
+
+/// `width style color`.
+fn border_to_css(value: Option<&Value>) -> Result<String, DfwError> {
+    let get = |key: &str| field(value, key, "a border is null");
+    Ok(format!(
+        "{} {} {}",
+        value_to_css(get("width")?, "dimension")?,
+        js::to_string(get("style")?),
+        value_to_css(get("color")?, "color")?
+    ))
+}
+
+/// `duration timing-function delay`; a missing delay is `0ms`.
+fn transition_to_css(value: Option<&Value>) -> Result<String, DfwError> {
+    let get = |key: &str| field(value, key, "a transition is null");
+    let delay = zero("ms");
+    Ok(format!(
+        "{} {} {}",
+        value_to_css(get("duration")?, "duration")?,
+        value_to_css(get("timingFunction")?, "cubicBezier")?,
+        value_to_css(
+            Some(js::present(get("delay")?).unwrap_or(&delay)),
+            "duration"
+        )?
+    ))
+}
+
+/// A list of stops as `color position%, ...`.
+fn gradient_to_css(value: Option<&Value>) -> Result<String, DfwError> {
+    let stops = list(value, "a gradient must be a list of stops")?;
+    let parts = stops
+        .iter()
+        .map(|stop| {
+            let get = |key: &str| field(Some(stop), key, "a gradient stop is null");
+            let position = js::to_number(get("position")?) * 100.0;
+            Ok(format!(
+                "{} {}%",
+                value_to_css(get("color")?, "color")?,
+                fmt_f64(position)
+            ))
+        })
+        .collect::<Result<Vec<_>, DfwError>>()?;
+    Ok(parts.join(", "))
 }
 
 /// `tokensToDeclarations`: `(css variable, css value)` pairs in the order JavaScript walks the
