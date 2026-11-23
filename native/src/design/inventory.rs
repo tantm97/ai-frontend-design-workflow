@@ -14,7 +14,8 @@ use super::tokens::{dir_names, relative_path};
 use crate::assets::{self, Folder};
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::project_paths;
+use crate::core::level::Level;
+use crate::core::paths::{project_paths, rel};
 use crate::core::util::write_json_inside;
 
 /// Rules that block the DS gate (escalated from SHOULD).
@@ -65,10 +66,7 @@ pub fn kit_components() -> Result<PathBuf, DfwError> {
 
 /// `inventoryPath`: `design/system/inventory.json`.
 pub fn inventory_path(root: &Path) -> PathBuf {
-    project_paths(root)
-        .design
-        .join("system")
-        .join("inventory.json")
+    project_paths(root).inventory
 }
 
 /// `loadInventory`: the inventory, `None` when the file does not exist.
@@ -300,10 +298,10 @@ fn usages(root: &Path) -> Result<BTreeSet<String>, DfwError> {
         }
         Ok(())
     }
-    let d = project_paths(root).design;
+    let p = project_paths(root);
     let mut used = BTreeSet::new();
-    scan(&d.join("screens"), &mut used)?;
-    scan(&d.join("system").join("components"), &mut used)?;
+    scan(&p.design.join("screens"), &mut used)?;
+    scan(&p.components, &mut used)?;
     Ok(used)
 }
 
@@ -312,19 +310,19 @@ fn usages(root: &Path) -> Result<BTreeSet<String>, DfwError> {
 /// - inventory-missing / inventory-orphan / inventory-unbuilt (SHOULD; MUST at the DS gate).
 /// - unused-master (SHOULD): once real screens exist, a master no screen or other master uses.
 pub fn inventory_findings(root: &Path) -> Result<Vec<Value>, DfwError> {
-    const INVENTORY: &str = "design/system/inventory.json";
+    const INVENTORY: &str = rel::INVENTORY;
     let p = project_paths(root);
-    let dir = p.design.join("system").join("components");
+    let dir = &p.components;
     let mut findings = Vec::new();
-    let mut add = |level: &str, rule: &str, file: &str, message: String| {
-        findings.push(json!({ "level": level, "rule": rule, "file": file, "line": 1, "message": message, "source": "dfw-ds" }));
+    let mut add = |level: Level, rule: &str, file: &str, message: String| {
+        findings.push(json!({ "level": level.as_str(), "rule": rule, "file": file, "line": 1, "message": message, "source": "dfw-ds" }));
     };
-    let mut masters = html_files(&dir)?;
+    let mut masters = html_files(dir)?;
     masters.sort_by(|a, b| js::cmp_utf16(a, b));
     let kit = kit_fingerprints()?;
     let mut names: Vec<(String, String)> = Vec::new();
     for f in &masters {
-        let rel = format!("design/system/components/{f}");
+        let rel = rel::component(f);
         let text = js::read_text(&dir.join(f))?;
         for token in Tokenizer::new(&text) {
             let Token::Open(tag) = token else { continue };
@@ -341,10 +339,10 @@ pub fn inventory_findings(root: &Path) -> Result<Vec<Value>, DfwError> {
         let ex = block(&text, "dfw-examples");
         match (kit.templates.get(&tp), kit.examples.get(&ex)) {
             (Some(from), _) if !st.is_empty() && !tp.is_empty() && kit.styles.contains_key(&st) => {
-                add("error", "kit-copy", &rel, format!("Master is the starter kit's \"{from}\" copied verbatim. Design it for this product (its job, content, states and the direction's look); the kit is a reference only (\"dfw system ref {from}\")."));
+                add(Level::Error, "kit-copy", &rel, format!("Master is the starter kit's \"{from}\" copied verbatim. Design it for this product (its job, content, states and the direction's look); the kit is a reference only (\"dfw system ref {from}\")."));
             }
             (_, Some(from)) if !ex.is_empty() => {
-                add("error", "kit-copy", &rel, format!("Examples are the starter kit's \"{from}\" examples (another product's content). Show this product's real content in every variant and state."));
+                add(Level::Error, "kit-copy", &rel, format!("Examples are the starter kit's \"{from}\" examples (another product's content). Show this product's real content in every variant and state."));
             }
             _ => {}
         }
@@ -353,7 +351,7 @@ pub fn inventory_findings(root: &Path) -> Result<Vec<Value>, DfwError> {
         Ok(inv) => inv,
         Err(err) => {
             add(
-                "error",
+                Level::Error,
                 "inventory-invalid",
                 INVENTORY,
                 err.message().to_string(),
@@ -369,7 +367,7 @@ pub fn inventory_findings(root: &Path) -> Result<Vec<Value>, DfwError> {
         .unwrap_or_default();
     if entries.is_empty() {
         if !masters.is_empty() {
-            add("warn", "inventory-missing", INVENTORY, "No component inventory. List every component this product needs in design/system/inventory.json (name, purpose, usedBy, states) before designing masters, so the system holds only what the screens use.".to_string());
+            add(Level::Warn, "inventory-missing", INVENTORY, format!("No component inventory. List every component this product needs in {INVENTORY} (name, purpose, usedBy, states) before designing masters, so the system holds only what the screens use."));
         }
         return Ok(findings);
     }
@@ -378,7 +376,7 @@ pub fn inventory_findings(root: &Path) -> Result<Vec<Value>, DfwError> {
         let name = c.get("name").filter(|n| js::truthy(Some(n)));
         match name {
             None => add(
-                "warn",
+                Level::Warn,
                 "inventory-invalid",
                 INVENTORY,
                 "An inventory entry has no name.".to_string(),
@@ -389,10 +387,19 @@ pub fn inventory_findings(root: &Path) -> Result<Vec<Value>, DfwError> {
                     .and_then(Value::as_array)
                     .is_some_and(|u| !u.is_empty());
                 if !js::truthy(c.get("purpose")) || !used_by {
-                    add("warn", "inventory-invalid", INVENTORY, format!("Inventory entry \"{}\" needs a purpose and at least one usedBy page/screen: a component nobody needs does not belong in the system.", js::to_string(Some(name))));
+                    add(Level::Warn, "inventory-invalid", INVENTORY, format!("Inventory entry \"{}\" needs a purpose and at least one usedBy page/screen: a component nobody needs does not belong in the system.", js::to_string(Some(name))));
                 }
                 if !built(name) {
-                    add("warn", "inventory-unbuilt", INVENTORY, format!("Inventory lists \"{}\" but there is no master for it in design/system/components/.", js::to_string(Some(name))));
+                    add(
+                        Level::Warn,
+                        "inventory-unbuilt",
+                        INVENTORY,
+                        format!(
+                            "Inventory lists \"{}\" but there is no master for it in {}/.",
+                            js::to_string(Some(name)),
+                            rel::COMPONENTS
+                        ),
+                    );
                 }
             }
         }
@@ -402,7 +409,7 @@ pub fn inventory_findings(root: &Path) -> Result<Vec<Value>, DfwError> {
             .iter()
             .any(|c| c.get("name").and_then(Value::as_str) == Some(name));
         if !listed {
-            add("warn", "inventory-orphan", rel, format!("Master \"{name}\" is not in design/system/inventory.json. Add it with the screens that need it, or delete it."));
+            add(Level::Warn, "inventory-orphan", rel, format!("Master \"{name}\" is not in {INVENTORY}. Add it with the screens that need it, or delete it."));
         }
     }
     // A malformed design.json is reported by lint (manifest-json).
@@ -419,7 +426,7 @@ pub fn inventory_findings(root: &Path) -> Result<Vec<Value>, DfwError> {
         let used = usages(root)?;
         for (name, rel) in &names {
             if !used.contains(name) {
-                add("warn", "unused-master", rel, format!("No screen or master uses \"{name}\". Remove it (and its inventory entry) or use it."));
+                add(Level::Warn, "unused-master", rel, format!("No screen or master uses \"{name}\". Remove it (and its inventory entry) or use it."));
             }
         }
     }

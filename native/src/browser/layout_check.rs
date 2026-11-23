@@ -25,7 +25,7 @@ use crate::core::config::{load_config, studio_breakpoints, Breakpoint};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::level::Level;
-use crate::core::paths::{file_url, project_paths, resolve, to_posix};
+use crate::core::paths::{file_url, project_paths, rel, resolve, to_posix};
 use crate::core::util::read_json;
 use crate::design::compose::{
     build_composed, build_system, compose_html, load_components, ComposeOptions,
@@ -339,7 +339,7 @@ fn screen_jobs(manifest: &Value, bps: &[Breakpoint], opts: &LayoutOptions) -> Ve
 fn build_system_page(root: &Path) -> Result<PathBuf, DfwError> {
     let regex = |source| Regex::new(source).map_err(|err| DfwError::internal(err.to_string()));
     let p = project_paths(root);
-    let out_dir = p.dfw.join("build/design/system");
+    let out_dir = p.dfw.join("build").join(rel::SYSTEM);
     let sys_out = out_dir.join("index.html");
     fs::create_dir_all(&out_dir)?;
     let page = render_system_page(root, "../")?;
@@ -348,7 +348,7 @@ fn build_system_page(root: &Path) -> Result<PathBuf, DfwError> {
         design_base: Some("../"),
     };
     let html = compose_html(root, &page, opts)?.html;
-    let src_dir = p.design.join("system");
+    let src_dir = &p.system;
     let href = regex(r#"href=["']([^"']+)["']"#)?;
     let mut failed = None;
     let inlined = regex(r#"(?i)<link\b[^>]*rel=["']stylesheet["'][^>]*>"#)?.replace_all(
@@ -378,7 +378,7 @@ fn build_system_page(root: &Path) -> Result<PathBuf, DfwError> {
     if let Some(err) = failed {
         return Err(err);
     }
-    let base = to_posix(&relative_path(&out_dir, &src_dir));
+    let base = to_posix(&relative_path(&out_dir, src_dir));
     let with_base = regex(r"(?i)<head([^>]*)>")?.replacen(&inlined, 1, |head: &Captures| {
         format!("<head{}><base href=\"{base}/\">", &head[1])
     });
@@ -459,7 +459,7 @@ pub fn layout_check_with(
         .map(|built| (built.rel, built.out))
         .collect();
     if opts.system && !load_components(root)?.is_empty() {
-        let rel = "design/system/index.html".to_string();
+        let rel = rel::SYSTEM_PAGE.to_string();
         files.push((rel.clone(), build_system_page(root)?));
         let bp = bps.iter().find(|b| b.width >= 1280).or(bps.first());
         // Node renders nothing without a breakpoint and then fails on `r.bp.id`.
@@ -684,7 +684,7 @@ fn findings_of(results: &[(RenderJob, Result<Measure, String>)]) -> Vec<Finding>
                     continue;
                 }
                 seen_pairs.push(pair);
-                findings.push(layout(Level::Warn.as_str(), "variant-cosmetic", b.rel, format!("{screen}: variants \"{}\" and \"{}\" have the same component structure ({} components in the same order). A variant should be a different layout or flow; a restyle belongs in a theme (design/tokens/themes/).", a.variant, b.variant, a.n)));
+                findings.push(layout(Level::Warn.as_str(), "variant-cosmetic", b.rel, format!("{screen}: variants \"{}\" and \"{}\" have the same component structure ({} components in the same order). A variant should be a different layout or flow; a restyle belongs in a theme ({}/).", a.variant, b.variant, a.n, rel::THEMES)));
             }
         }
     }

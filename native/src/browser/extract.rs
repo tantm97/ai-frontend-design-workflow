@@ -11,7 +11,7 @@ use serde_json::{json, Map, Value};
 use super::launch::{fonts_ready, open_renderer_with, LaunchOptions};
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::resolve;
+use crate::core::paths::{rel, resolve};
 use crate::core::util::{ensure_inside, now_iso, to_json_pretty, write_atomic};
 use crate::design::color::{hex_to_oklch, hex_to_rgb, Oklch};
 use crate::design::tokens::relative_path;
@@ -213,7 +213,7 @@ pub fn extract_tokens_to_file(
 ) -> Result<String, DfwError> {
     // As in Node, `--out` may name any file the user can write, also outside the project. The
     // default is a project file: a link must not send it out (checked before the browser runs).
-    let file = resolve(root.join(out.unwrap_or("design/system/extracted.tokens.json")));
+    let file = resolve(root.join(out.unwrap_or(rel::EXTRACTED_TOKENS)));
     if out.is_none() {
         ensure_inside(root, &file)?;
     }

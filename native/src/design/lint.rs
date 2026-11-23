@@ -32,7 +32,7 @@ use super::tokens::relative_path;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::js::regex::{blank_css_comments, js_re, js_regex};
-use crate::core::paths::{project_paths, resolve, to_posix};
+use crate::core::paths::{self, project_paths, resolve, to_posix};
 use crate::core::util::{list_files, read_json};
 use crate::design::manifest::Manifest;
 
@@ -404,7 +404,7 @@ pub fn designed_states(
     states: &[String],
 ) -> Result<Vec<String>, DfwError> {
     let mut sources: Vec<String> = vec![text.to_string()];
-    let components = project_paths(root).design.join("system").join("components");
+    let components = project_paths(root).components;
     let mut seen: Vec<String> = Vec::new();
     for cap in USE_WITH_C.captures_iter(text) {
         let name = cap[1].to_string();
@@ -700,17 +700,17 @@ pub fn lint_design(root: &Path, files: Option<&[String]>) -> Result<Vec<Value>, 
         }
         let text = js::read_text(&abs)?;
         // head.html is a font links snippet, not a page; components.css is generated.
-        if rel == "design/system/head.html" {
+        if rel == paths::rel::HEAD {
             continue;
         }
-        if rel.starts_with("design/system/components/") && rel.ends_with(".html") {
+        if paths::rel::under(paths::rel::COMPONENTS, rel) && rel.ends_with(".html") {
             out.extend(lint_component_file(rel, &text));
         } else if rel.ends_with(".html") {
             out.extend(lint_html(rel, &text));
             if rel.starts_with("design/screens/") {
                 out.extend(lint_screen(root, rel, &text, &lib)?);
             }
-        } else if rel == "design/system/components.css" {
+        } else if rel == paths::rel::COMPONENTS_CSS {
             continue;
         } else if rel.ends_with(".css") {
             out.extend(lint_css(rel, &text));
@@ -719,8 +719,8 @@ pub fn lint_design(root: &Path, files: Option<&[String]>) -> Result<Vec<Value>, 
                 Ok(json) => {
                     // A theme overrides part of tokens.json, so its aliases may point at base
                     // tokens. A broken tokens.json gets its own token-json finding.
-                    let base = if rel.starts_with("design/tokens/themes/") {
-                        read_json(&p.tokens.join("tokens.json"), Some(Value::Null)).ok()
+                    let base = if paths::rel::under(paths::rel::THEMES, rel) {
+                        read_json(&p.tokens_json, Some(Value::Null)).ok()
                     } else {
                         None
                     };

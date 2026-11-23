@@ -105,7 +105,7 @@ pub struct AddedIcons {
 
 /// `addIcons`: copy icons from the library into `design/system/icons/`.
 pub fn add_icons(root: &Path, names: &[String]) -> Result<AddedIcons, DfwError> {
-    let dir = project_paths(root).design.join("system").join("icons");
+    let dir = project_paths(root).icons;
     fs::create_dir_all(&dir)?;
     let bundle = icon_bundle()?;
     let mut added = Vec::new();

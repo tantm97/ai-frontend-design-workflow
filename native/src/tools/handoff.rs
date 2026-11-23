@@ -10,7 +10,7 @@ use serde_json::{json, Value};
 use crate::core::config::load_config;
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::project_paths;
+use crate::core::paths::{file, in_design, project_paths};
 use crate::core::util::{get_path, list_files, read_json, write_atomic_inside};
 use crate::design::manifest::key;
 use crate::review::comments::all_comments;
@@ -177,7 +177,7 @@ pub fn write_handoff(root: &Path) -> Result<String, DfwError> {
     let dir = p.approved.join(&version);
     let m = read_json(&dir.join("design.json"), Some(json!({})))?;
     let stack = read_json(&p.stack, Some(Value::Null))?;
-    let tokens_css = dir.join("tokens").join("tokens.css");
+    let tokens_css = dir.join(file::TOKENS).join(file::TOKENS_CSS);
     let tokens = if tokens_css.exists() {
         // `--[\w-]+(?=:)`: the colon cannot start another match, so counting it in is the same.
         let property =
@@ -188,7 +188,7 @@ pub fn write_handoff(root: &Path) -> Result<String, DfwError> {
     } else {
         0
     };
-    let comps: Vec<String> = list_files(&dir.join("components"), &[])?
+    let comps: Vec<String> = list_files(&dir.join(file::COMPONENTS), &[])?
         .into_iter()
         .filter(|f| f.ends_with(".html"))
         .collect();
@@ -227,10 +227,10 @@ pub fn write_handoff(root: &Path) -> Result<String, DfwError> {
         .collect();
     let components = comps
         .iter()
-        .map(|c| format!("- `design/approved/{version}/components/{c}`"))
+        .map(|c| format!("- `design/approved/{version}/{}/{c}`", file::COMPONENTS))
         .collect();
     let tokens_text = if tokens > 0 {
-        format!("{tokens} CSS custom properties in `design/approved/{version}/tokens/tokens.css` (source: `tokens/tokens.json`, W3C DTCG).")
+        format!("{tokens} CSS custom properties in `design/approved/{version}/{}` (source: `{}`, W3C DTCG).", in_design::TOKENS_CSS, in_design::TOKENS_JSON)
     } else {
         "No tokens found.".to_string()
     };

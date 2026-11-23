@@ -23,10 +23,10 @@ use serde_json::{json, Map, Value};
 
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::{project_paths, resolve};
+use crate::core::paths::{project_paths, rel, resolve};
 use crate::core::util::{to_json_compact, write_json, write_json_inside};
 use crate::design::color::{oklch_to_hex, Oklch};
-use crate::design::tokens::{dir_names, relative_path};
+use crate::design::tokens::{dir_names, option, relative_path};
 
 const BASE_SET: &str = "base";
 const THEME_PREFIX: &str = "themes/";

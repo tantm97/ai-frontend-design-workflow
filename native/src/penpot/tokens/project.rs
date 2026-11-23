@@ -14,24 +14,24 @@ pub struct DfwTokens {
 /// `readDfwTokens`: `design/tokens/tokens.json` and the themes. `opt-*` themes (temporary
 /// preset comparisons) are left out unless asked.
 pub fn read_dfw_tokens(root: &Path, opt_themes: bool) -> Result<DfwTokens, DfwError> {
-    let dir = project_paths(root).tokens;
-    let base_file = dir.join("tokens.json");
+    let p = project_paths(root);
+    let base_file = &p.tokens_json;
     if !base_file.exists() {
-        return Err(DfwError::new("design/tokens/tokens.json not found."));
+        return Err(DfwError::new(format!("{} not found.", rel::TOKENS_JSON)));
     }
     let mut tokens = DfwTokens {
-        base: js::read_json(&base_file, None)?,
+        base: js::read_json(base_file, None)?,
         ..DfwTokens::default()
     };
-    let themes_dir = dir.join("themes");
-    let mut files: Vec<String> = dir_names(&themes_dir)?
+    let themes_dir = &p.themes;
+    let mut files: Vec<String> = dir_names(themes_dir)?
         .into_iter()
         .filter(|f| f.ends_with(".json"))
         .collect();
     files.sort_by(|a, b| js::cmp_utf16(a, b));
     for file in files {
         let name = file.strip_suffix(".json").unwrap_or(&file).to_string();
-        if name.starts_with("opt-") && !opt_themes {
+        if option::is_option(&name) && !opt_themes {
             tokens.skipped.push(name);
         } else {
             let tree = js::read_json(&themes_dir.join(&file), None)?;
@@ -134,8 +134,8 @@ pub fn import_penpot_tokens(
             "No base token set found in the Penpot file (expected a set named \"base\").",
         ));
     }
-    let dir = project_paths(root).tokens;
-    let cur = if dir.join("tokens.json").exists() {
+    let p = project_paths(root);
+    let cur = if p.tokens_json.exists() {
         read_dfw_tokens(root, true)?
     } else {
         DfwTokens {
@@ -151,11 +151,8 @@ pub fn import_penpot_tokens(
     let null = Value::Null;
     for (set, kind) in &map {
         let (current, target) = match kind {
-            SetKind::Base => (Some(&cur.base), dir.join("tokens.json")),
-            SetKind::Theme(name) => (
-                cur.themes.get(name),
-                dir.join("themes").join(format!("{name}.json")),
-            ),
+            SetKind::Base => (Some(&cur.base), p.tokens_json.clone()),
+            SetKind::Theme(name) => (cur.themes.get(name), p.themes.join(format!("{name}.json"))),
         };
         if let (SetKind::Theme(name), None) = (kind, current) {
             // Node bug kept: a new theme with an inherited name read the built-in function as

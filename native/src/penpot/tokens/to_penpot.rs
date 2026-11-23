@@ -542,7 +542,7 @@ pub fn dfw_to_penpot(base: Option<&Value>, themes: &Map<String, Value>) -> (Valu
     let mut penpot_themes = vec![json!({
         "name": "default",
         "group": THEME_GROUP,
-        "description": "dfw base tokens (design/tokens/tokens.json)",
+        "description": format!("dfw base tokens ({})", rel::TOKENS_JSON),
         "isSource": false,
         "selectedTokenSets": { BASE_SET: "enabled" },
     })];
@@ -550,7 +550,7 @@ pub fn dfw_to_penpot(base: Option<&Value>, themes: &Map<String, Value>) -> (Valu
         penpot_themes.push(json!({
             "name": name,
             "group": THEME_GROUP,
-            "description": format!("dfw theme design/tokens/themes/{name}.json over the base"),
+            "description": format!("dfw theme {}/{name}.json over the base", rel::THEMES),
             "isSource": false,
             "selectedTokenSets": { BASE_SET: "enabled", format!("{THEME_PREFIX}{name}"): "enabled" },
         }));

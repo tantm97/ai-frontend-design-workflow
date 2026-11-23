@@ -14,7 +14,7 @@ use crate::core::config::load_config;
 use crate::core::config::{checks_max_findings, checks_on_edit, checks_timeout_ms, OnEdit};
 use crate::core::error::DfwError;
 use crate::core::host::{HookInput, HookResult, Host};
-use crate::core::paths::resolve;
+use crate::core::paths::{rel, resolve};
 use crate::design::compose::build_system;
 use crate::design::tokens::build_tokens;
 use crate::tools::check::{extname, format_report, run_checks, CheckOptions, UI_EXT};
@@ -96,10 +96,7 @@ fn post_tool_use_checks(input: &HookInput) -> Result<Option<String>, DfwError> {
         if targets.iter().any(|t| design_json(t, "tokens/")) {
             build_tokens(&root)?;
         }
-        if targets
-            .iter()
-            .any(|t| t.starts_with("design/system/components/"))
-        {
+        if targets.iter().any(|t| rel::under(rel::COMPONENTS, t)) {
             build_system(&root)?;
         }
         Ok(())

@@ -322,6 +322,42 @@ describe('design commands', { skip: skipReason() }, () => {
     assertSame(run(['style', 'apply', 'nope']), { stderr: true });
   });
 
+  test('a project guide file: apply, options and choose', () => {
+    // The project's own guide file (core/workflow/references/phase-direction.md), its id and
+    // the option theme it makes.
+    const SOURCE = 'design/system/style-source.json';
+    const TWIN = 'design/system/twin.json';
+    const ID = 'my-brand';
+    const OPTION = `opt-${ID}`;
+    const OPTION_FILE = `design/tokens/themes/${OPTION}.json`;
+    // The guide format of `dfw style show <id> --json`, under the project's own id.
+    const guide = (root, file = SOURCE, id = ID) => {
+      const g = JSON.parse(fs.readFileSync(path.join(CORE, 'kits', 'styles', 'civic-public.json'), 'utf8'));
+      write(root, file, JSON.stringify({ ...g, id }, null, 2));
+    };
+    const applied = same(['style', 'apply', SOURCE], { setup: guide });
+    assert.equal(applied.code, 0, applied.stderr);
+    assert.match(applied.stdout, new RegExp(`^Applied style "${ID}"`));
+    const o = same(['system', 'options', SOURCE, 'crisp'], { setup: guide });
+    assert.equal(o.code, 0, o.stderr);
+    assert.ok(o.files[OPTION_FILE], Object.keys(o.files).join(', '));
+    assert.ok(!Object.keys(o.files).some((f) => f.includes('opt-design')));
+    const withOption = (root) => {
+      guide(root);
+      write(root, OPTION_FILE, '{"color":{"$type":"color","accent":{"$value":"#0d6b78"}}}');
+      write(root, 'design/design.json', JSON.stringify({ schema: 1, themes: [OPTION], screens: [] }));
+    };
+    const c = same(['system', 'choose', SOURCE], { setup: withOption });
+    assert.equal(c.code, 0, c.stderr);
+    assert.match(c.files['design/tokens/tokens.css'], /--color-accent: #0d6b78/);
+    assertSame(run(['system', 'choose', ID], { setup: withOption }), { stderr: true });
+    const twins = (root) => {
+      guide(root);
+      guide(root, TWIN);
+    };
+    assertSame(run(['system', 'options', SOURCE, TWIN], { setup: twins }), { stderr: true });
+  });
+
   test("style apply seeds DESIGN.md once and keeps the user's rationale", () => {
     // The harness watches .dfw/ and design/ only, so compare DESIGN.md by hand.
     const seeded = (text, second) => {

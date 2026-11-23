@@ -99,15 +99,17 @@ pub fn expand_head(root: &Path, html: &str, design_base: &str) -> Result<String,
     let Some(tag) = head else {
         return Ok(html.to_string());
     };
-    let d = project_paths(root).design;
-    let head_file = d.join("system").join("head.html");
+    let p = project_paths(root);
+    let d = &p.design;
+    let head_file = &p.head;
     let mut parts = Vec::new();
     if head_file.exists() {
-        let text = js::strip_comments(&js::read_text(&head_file)?).replace("{{base}}", design_base);
+        let text = js::strip_comments(&js::read_text(head_file)?).replace("{{base}}", design_base);
         parts.push(js::trim(&text).to_string());
     }
     parts.push(format!(
-        "<link rel=\"stylesheet\" href=\"{design_base}tokens/tokens.css\">"
+        "<link rel=\"stylesheet\" href=\"{design_base}{}\">",
+        in_design::TOKENS_CSS
     ));
     if d.join("styles").join("base.css").exists() {
         parts.push(format!(
@@ -115,7 +117,8 @@ pub fn expand_head(root: &Path, html: &str, design_base: &str) -> Result<String,
         ));
     }
     parts.push(format!(
-        "<link rel=\"stylesheet\" href=\"{design_base}system/components.css\">"
+        "<link rel=\"stylesheet\" href=\"{design_base}{}\">",
+        in_design::COMPONENTS_CSS
     ));
     let mut end = tag.range.end;
     let after = &html[end..];
@@ -320,7 +323,7 @@ fn expand_use(
         level.issues.push(RawIssue {
             rule: "component-unknown",
             index: start,
-            message: format!("Unknown component \"{shown}\". Define it in design/system/components/ first (design system before screens)."),
+            message: format!("Unknown component \"{shown}\". Define it in {}/ first (design system before screens).", rel::COMPONENTS),
         });
         level.html.push_str(&format!(
             "<div data-dfw-missing-component=\"{}\">{inner}</div>",

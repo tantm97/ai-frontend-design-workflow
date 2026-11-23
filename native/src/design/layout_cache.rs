@@ -10,12 +10,12 @@ use serde_json::{Map, Value};
 use super::tokens::dir_names;
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::{project_paths, resolve, ProjectPaths};
+use crate::core::paths::{in_design, project_paths, resolve, ProjectPaths};
 use crate::core::util::{read_json, sha256, write_json_inside};
 use crate::design::manifest::Manifest;
 
 /// Files every screen loads besides the tokens.
-const SHARED: [&str; 2] = ["styles/base.css", "system/head.html"];
+const SHARED: [&str; 2] = ["styles/base.css", in_design::HEAD];
 
 /// A content hash, not a modification time: a checkout or touch that does not change a file
 /// does not invalidate its check, and an edit always does. `None` when the file cannot be read.
@@ -83,9 +83,9 @@ pub fn changed_screens(root: &Path) -> Result<Changed, DfwError> {
     let empty = || Some(Value::Object(Map::new()));
     let cache = read_json(&cache_file(&p), empty())?;
     let manifest = read_json(&p.manifest, empty())?;
-    let comp_dir = p.design.join("system").join("components");
+    let comp_dir = &p.components;
     let mut changed_comps: Vec<String> = Vec::new();
-    for f in dir_names(&comp_dir)? {
+    for f in dir_names(comp_dir)? {
         if differs(&hash_of(&comp_dir.join(&f)), cache.get(format!("c:{f}"))) {
             let name = f.replacen(".html", "", 1);
             if !changed_comps.contains(&name) {
@@ -94,13 +94,11 @@ pub fn changed_screens(root: &Path) -> Result<Changed, DfwError> {
         }
     }
     // tokens_changed also covers the other files every screen loads (base styles, shared head).
-    let tokens_changed = differs(
-        &hash_of(&p.tokens.join("tokens.json")),
-        cache.get("t:tokens"),
-    ) || SHARED.iter().any(|f| {
-        let cached = js::present(cache.get(format!("f:{f}"))).unwrap_or(&Value::Null);
-        differs(&hash_of(&p.design.join(f)), Some(cached))
-    });
+    let tokens_changed = differs(&hash_of(&p.tokens_json), cache.get("t:tokens"))
+        || SHARED.iter().any(|f| {
+            let cached = js::present(cache.get(format!("f:{f}"))).unwrap_or(&Value::Null);
+            differs(&hash_of(&p.design.join(f)), Some(cached))
+        });
     let mut screens: Vec<String> = Vec::new();
     for (id, file) in variants(&manifest) {
         let abs = design_file(&p, file);
@@ -129,14 +127,11 @@ pub fn mark_checked(root: &Path) -> Result<(), DfwError> {
     let p = project_paths(root);
     let value = |hash: Option<String>| hash.map_or(Value::Null, Value::String);
     let mut cache = Map::new();
-    let comp_dir = p.design.join("system").join("components");
-    for f in dir_names(&comp_dir)? {
+    let comp_dir = &p.components;
+    for f in dir_names(comp_dir)? {
         cache.insert(format!("c:{f}"), value(hash_of(&comp_dir.join(&f))));
     }
-    cache.insert(
-        "t:tokens".into(),
-        value(hash_of(&p.tokens.join("tokens.json"))),
-    );
+    cache.insert("t:tokens".into(), value(hash_of(&p.tokens_json)));
     for f in SHARED {
         cache.insert(format!("f:{f}"), value(hash_of(&p.design.join(f))));
     }

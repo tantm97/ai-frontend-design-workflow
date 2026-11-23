@@ -26,7 +26,7 @@ use crate::core::config::load_config;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::js::regex::fixed_regex;
-use crate::core::paths::{file_url, file_url_to_path, project_paths, resolve, to_posix};
+use crate::core::paths::{file_url, file_url_to_path, project_paths, rel, resolve, to_posix};
 use crate::core::util::{
     get_path, now_iso, read_json, sha256, to_json_compact, write_json, write_json_inside,
 };
@@ -1146,7 +1146,7 @@ pub fn export_summary(doc: &Value, file: &Path, root: &Path) -> String {
         if js::truthy(doc.get("tokens")) {
             "Tokens for Penpot: .dfw/penpot/tokens.penpot.json (Tokens panel > Tools > Import, before building the boards, so colours link to tokens).".to_string()
         } else {
-            "No design/tokens/tokens.json: colours are not linked to tokens.".to_string()
+            format!("No {}: colours are not linked to tokens.", rel::TOKENS_JSON)
         },
     ];
     for e in list(doc.get("errors")) {

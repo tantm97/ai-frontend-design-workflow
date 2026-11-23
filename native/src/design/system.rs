@@ -11,16 +11,51 @@ use serde_json::{json, Map, Value};
 
 use super::compose::{build_system, load_components};
 use super::inventory::ensure_inventory;
-use super::style::{apply_style, get_style, head_for, is_style, style_tokens};
-use super::tokens::{build_tokens, dir_names};
+use super::style::{apply_style, get_style, head_for, is_style, style_name, style_tokens};
+use super::tokens::{build_tokens, dir_names, option};
 use crate::assets::{self, Folder};
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::project_paths;
+use crate::core::paths::{project_paths, rel};
 use crate::core::util::{write_atomic_inside, write_json_inside};
 
 /// The presets of the starter kit (`KIT_DIR/presets`), a folder of the embedded kits.
 const PRESETS_DIR: &str = "base/presets";
+
+/// The messages of the design system commands, named once (as `studio::http::message`).
+pub mod message {
+    use super::{option, rel};
+
+    /// `dfw system options` takes 2 or 3 names.
+    pub const OPTIONS_COUNT: &str = "Give 2-3 style guides or presets to compare, e.g. dfw system options industrial-utility swiss-grid ops-dense";
+
+    /// No preset of the kit has this name.
+    pub fn unknown_preset(name: &str, presets: &[String]) -> String {
+        format!("Unknown preset \"{name}\". Presets: {}", presets.join(", "))
+    }
+
+    /// `system init --style` would replace a design system without `--force`.
+    pub fn tokens_exist() -> String {
+        format!(
+            "{} already holds a design system; a style guide replaces its tokens, fonts and motif master. Pass --force to replace them.",
+            rel::TOKENS_JSON
+        )
+    }
+
+    /// Two of the names given to `dfw system options` make the same option theme.
+    pub fn duplicate_option(theme: &str) -> String {
+        format!("Two options are both named {theme}; give each guide its own \"id\".")
+    }
+
+    /// `dfw system choose <name>` for an option made from a guide file.
+    pub fn choose_by_file(name: &str) -> String {
+        format!(
+            "Option {} came from a guide file: choose it by that file, e.g. dfw system choose {}",
+            option::theme(name),
+            rel::STYLE_SOURCE
+        )
+    }
+}
 
 /// `listPresets`: name and description of every preset of the kit.
 pub fn list_presets() -> Result<Vec<(String, String)>, DfwError> {
@@ -45,20 +80,20 @@ fn preset_files(name: &str) -> Result<(String, String), DfwError> {
     let Some(tokens) = assets::text(Folder::Kits, &format!("{PRESETS_DIR}/{name}.tokens.json"))
     else {
         let names: Vec<String> = list_presets()?.into_iter().map(|p| p.0).collect();
-        return Err(DfwError::new(format!(
-            "Unknown preset \"{name}\". Presets: {}",
-            names.join(", ")
-        )));
+        return Err(DfwError::new(message::unknown_preset(name, &names)));
     };
     let head = assets::text(Folder::Kits, &format!("{PRESETS_DIR}/{name}.head.html"));
     Ok((tokens, head.unwrap_or_default()))
 }
 
+/// The mark in the description of the placeholder tokens `dfw init` writes.
+const PLACEHOLDER: &str = "Placeholder tokens created by dfw init";
+
 fn is_placeholder_tokens(file: &Path) -> Result<bool, DfwError> {
     if !file.exists() {
         return Ok(true);
     }
-    Ok(js::read_text(file)?.contains("Placeholder tokens created by dfw init"))
+    Ok(js::read_text(file)?.contains(PLACEHOLDER))
 }
 
 /// Options of [`system_init`].
@@ -96,13 +131,12 @@ pub struct SystemInit {
 /// unless `force` is set.
 pub fn system_init(root: &Path, opts: &InitOptions) -> Result<SystemInit, DfwError> {
     let p = project_paths(root);
-    let sys = p.design.join("system");
-    fs::create_dir_all(sys.join("components"))?;
+    fs::create_dir_all(&p.components)?;
     let inventory_created = ensure_inventory(root)?;
-    let tok_file = p.tokens.join("tokens.json");
+    let tok_file = &p.tokens_json;
     if let Some(style) = &opts.style {
-        if !opts.force && !is_placeholder_tokens(&tok_file)? {
-            return Err(DfwError::new("design/tokens/tokens.json already holds a design system; a style guide replaces its tokens, fonts and motif master. Pass --force to replace them."));
+        if !opts.force && !is_placeholder_tokens(tok_file)? {
+            return Err(DfwError::new(message::tokens_exist()));
         }
         apply_style(root, style, &opts.fonts)?;
         build_tokens(root)?;
@@ -115,13 +149,13 @@ pub fn system_init(root: &Path, opts: &InitOptions) -> Result<SystemInit, DfwErr
     }
     let mut tokens_written = false;
     let (tokens, head) = preset_files(&opts.preset)?;
-    if opts.force || is_placeholder_tokens(&tok_file)? {
-        write_atomic_inside(root, &tok_file, &tokens)?;
+    if opts.force || is_placeholder_tokens(tok_file)? {
+        write_atomic_inside(root, tok_file, &tokens)?;
         tokens_written = true;
     }
-    let head_file = sys.join("head.html");
+    let head_file = &p.head;
     if opts.force || !head_file.exists() {
-        write_atomic_inside(root, &head_file, head)?;
+        write_atomic_inside(root, head_file, head)?;
     }
     build_tokens(root)?;
     build_system(root)?;
@@ -136,7 +170,7 @@ pub fn system_init(root: &Path, opts: &InitOptions) -> Result<SystemInit, DfwErr
 fn remove_options(themes_dir: &Path) -> Result<(), DfwError> {
     for f in dir_names(themes_dir)?
         .iter()
-        .filter(|f| f.starts_with("opt-"))
+        .filter(|f| option::is_option(f))
     {
         fs::remove_file(themes_dir.join(f))?;
     }
@@ -159,7 +193,7 @@ fn set_manifest_themes(root: &Path, manifest: &Path, add: &[String]) -> Result<(
     let options = add.iter().map(|n| json!(n));
     for t in kept
         .into_iter()
-        .filter(|t| !js::to_string(Some(t)).starts_with("opt-"))
+        .filter(|t| !option::is_option(&js::to_string(Some(t))))
         .chain(options)
     {
         // A Set in the Node code: with options added, a repeated name is listed once.
@@ -175,24 +209,30 @@ fn set_manifest_themes(root: &Path, manifest: &Path, add: &[String]) -> Result<(
 /// screens can be compared in the Studio. Returns the option themes.
 pub fn system_options(root: &Path, names: &[String], fonts: &str) -> Result<Vec<String>, DfwError> {
     if names.len() < 2 || names.len() > 3 {
-        return Err(DfwError::new("Give 2-3 style guides or presets to compare, e.g. dfw system options industrial-utility swiss-grid ops-dense"));
+        return Err(DfwError::new(message::OPTIONS_COUNT));
     }
     // Validate every name before touching the current options: a typo must not leave half the
     // themes replaced.
+    let mut options: Vec<String> = Vec::new();
     for n in names {
         if is_style(n) {
             get_style(n)?;
         } else {
             preset_files(n)?;
         }
+        let option = option::theme(&style_name(n)?);
+        if options.contains(&option) {
+            return Err(DfwError::new(message::duplicate_option(&option)));
+        }
+        options.push(option);
     }
     let p = project_paths(root);
-    let themes_dir = p.tokens.join("themes");
-    fs::create_dir_all(&themes_dir)?;
-    remove_options(&themes_dir)?;
+    let themes_dir = &p.themes;
+    fs::create_dir_all(themes_dir)?;
+    remove_options(themes_dir)?;
     let mut heads = Vec::new();
-    for n in names {
-        let theme = themes_dir.join(format!("opt-{n}.json"));
+    for (n, option) in names.iter().zip(&options) {
+        let theme = themes_dir.join(format!("{option}.json"));
         let head = if is_style(n) {
             let g = get_style(n)?;
             write_json_inside(root, &theme, &style_tokens(&g, fonts)?)?;
@@ -204,9 +244,9 @@ pub fn system_options(root: &Path, names: &[String], fonts: &str) -> Result<Vec<
         };
         heads.push(js::trim(&js::strip_comments(&head)).to_string());
     }
-    let head_file = p.design.join("system").join("head.html");
+    let head_file = &p.head;
     let current = if head_file.exists() {
-        js::read_text(&head_file)?
+        js::read_text(head_file)?
     } else {
         String::new()
     };
@@ -234,14 +274,13 @@ pub fn system_options(root: &Path, names: &[String], fonts: &str) -> Result<Vec<
         },
         None => format!("{}\n{block}\n", js::trim(&current)),
     };
-    write_atomic_inside(root, &head_file, text)?;
-    let options: Vec<String> = names.iter().map(|n| format!("opt-{n}")).collect();
+    write_atomic_inside(root, head_file, text)?;
     set_manifest_themes(root, &p.manifest, &options)?;
     let built = build_tokens(root)?;
     Ok(built
         .themes
         .into_iter()
-        .filter(|t| t.starts_with("opt-"))
+        .filter(|t| option::is_option(t))
         .collect())
 }
 
@@ -249,9 +288,8 @@ pub fn system_options(root: &Path, names: &[String], fonts: &str) -> Result<Vec<
 /// themes. The option's tokens win, edits included. Returns the chosen name.
 pub fn system_choose(root: &Path, name: &str, fonts: &str) -> Result<String, DfwError> {
     let p = project_paths(root);
-    let themes_dir = p.tokens.join("themes");
-    let opt = themes_dir.join(format!("opt-{name}.json"));
-    let tok_file = p.tokens.join("tokens.json");
+    let opt = p.themes.join(option::file(&style_name(name)?));
+    let tok_file = &p.tokens_json;
     if is_style(name) {
         // Fonts, motif, style.json and rationale come from the guide; the tokens come from the
         // option theme the user compared and approved, so edits made during the comparison stay.
@@ -262,19 +300,26 @@ pub fn system_choose(root: &Path, name: &str, fonts: &str) -> Result<String, Dfw
         };
         apply_style(root, name, fonts)?;
         if let Some(edited) = edited {
-            write_atomic_inside(root, &tok_file, edited)?;
+            write_atomic_inside(root, tok_file, edited)?;
         }
     } else {
-        let (tokens, head) = preset_files(name)?;
+        let (tokens, head) = preset_files(name).map_err(|e| {
+            if opt.exists() {
+                // An option made from a guide file: its fonts and motif are in the file.
+                DfwError::new(message::choose_by_file(name))
+            } else {
+                e
+            }
+        })?;
         let tokens = if opt.exists() {
             fs::read(&opt)?
         } else {
             tokens.into_bytes()
         };
-        write_atomic_inside(root, &tok_file, tokens)?;
-        write_atomic_inside(root, &p.design.join("system").join("head.html"), head)?;
+        write_atomic_inside(root, tok_file, tokens)?;
+        write_atomic_inside(root, &p.head, head)?;
     }
-    remove_options(&themes_dir)?;
+    remove_options(&p.themes)?;
     set_manifest_themes(root, &p.manifest, &[])?;
     build_tokens(root)?;
     build_system(root)?;
@@ -305,10 +350,12 @@ pub fn system_summary(root: &Path) -> Result<Value, DfwError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::paths::in_design;
     use crate::core::util::test_dir;
     use crate::design::compose::{compose_file, compose_html, ComposeOptions};
     use crate::design::icons::add_icons;
     use crate::design::inventory::{inventory_findings, kit_components, kit_ref, kit_refs};
+    use crate::design::style::MOTIF_FILE;
     use std::path::PathBuf;
 
     const KIT_ICONS: [&str; 20] = [
@@ -336,7 +383,7 @@ mod tests {
 
     /// Test fixture only: put starter-kit masters into a project (the CLI never copies them).
     fn use_kit(root: &Path, names: Option<&[&str]>) {
-        let dir = root.join("design/system/components");
+        let dir = project_paths(root).components;
         fs::create_dir_all(&dir).unwrap();
         let kit = kit_components().unwrap();
         for f in dir_names(&kit)
@@ -354,28 +401,40 @@ mod tests {
 
     fn project() -> PathBuf {
         let root = test_dir("system");
-        write(&root, ".dfw/state.json", "{}");
-        fs::create_dir_all(root.join("design/tokens")).unwrap();
+        let p = project_paths(&root);
+        write(&root, &p.state, "{}");
+        fs::create_dir_all(&p.tokens).unwrap();
         write(
             &root,
-            "design/design.json",
+            &p.manifest,
             r#"{"schema":1,"product":"T","screens":[]}"#,
         );
         root
     }
 
-    fn write(root: &Path, rel: &str, text: &str) {
-        let file = root.join(rel);
+    /// Write a file of the project: a path relative to `root`, or one of `project_paths`.
+    fn write(root: &Path, file: impl AsRef<Path>, text: &str) {
+        let file = root.join(file);
         fs::create_dir_all(file.parent().unwrap()).unwrap();
         fs::write(file, text).unwrap();
     }
 
-    fn read(root: &Path, rel: &str) -> String {
-        fs::read_to_string(root.join(rel)).unwrap()
+    fn read(root: &Path, file: impl AsRef<Path>) -> String {
+        fs::read_to_string(root.join(file)).unwrap()
     }
 
-    fn json_of(root: &Path, rel: &str) -> Value {
-        serde_json::from_str(&read(root, rel)).unwrap()
+    fn json_of(root: &Path, file: impl AsRef<Path>) -> Value {
+        serde_json::from_str(&read(root, file)).unwrap()
+    }
+
+    /// The option themes of these names, as `system_options` returns them.
+    fn themes_of(names: &[&str]) -> Vec<String> {
+        names.iter().map(|n| option::theme(n)).collect()
+    }
+
+    /// The option theme files of these names, as the themes folder lists them.
+    fn files_of(names: &[&str]) -> Vec<String> {
+        names.iter().map(|n| option::file(n)).collect()
     }
 
     fn init(root: &Path, preset: &str) -> SystemInit {
@@ -425,8 +484,11 @@ mod tests {
         let html = "<html><head><dfw-head></dfw-head></head><body>\n<dfw-use c=\"card\" title=\"A &quot;x&quot;\" id=\"c1\"><p>Body</p><dfw-fill slot=\"actions\"><dfw-use c=\"button\" variant=\"ghost\" size=\"sm\" id=\"c1.more\" aria-label=\"More\">More</dfw-use></dfw-fill></dfw-use>\n<dfw-use c=\"badge\" variant=\"err\" icon=\"triangle-alert\">Overdue</dfw-use>\n<dfw-use c=\"button\" variant=\"nope\">X</dfw-use>\n</body></html>";
         let r = compose(&root, html, Some("../../"));
         let has = |needle: &str| assert!(r.html.contains(needle), "missing {needle} in {}", r.html);
-        has("<link rel=\"stylesheet\" href=\"../../tokens/tokens.css\">");
-        has("system/components.css");
+        has(&format!(
+            "<link rel=\"stylesheet\" href=\"../../{}\">",
+            in_design::TOKENS_CSS
+        ));
+        has(in_design::COMPONENTS_CSS);
         has("fonts.googleapis.com");
         let card = &r.html[r
             .html
@@ -465,15 +527,13 @@ mod tests {
     #[test]
     fn init_options_and_choose() {
         let root = project();
-        write(
-            &root,
-            "design/tokens/tokens.json",
-            r#"{"$description":"Placeholder tokens created by dfw init."}"#,
-        );
+        let p = project_paths(&root);
+        let placeholder = json!({ "$description": format!("{PLACEHOLDER}.") });
+        write(&root, &p.tokens_json, &placeholder.to_string());
         let r = init(&root, "soft");
         assert!(r.tokens_written);
         assert!(r.inventory_created);
-        let css = read(&root, "design/tokens/tokens.css");
+        let css = read(&root, &p.tokens_css);
         assert!(css.contains("--color-accent: #0f6e66"));
         assert!(css.contains("--size-control: 40px"));
         assert_eq!(
@@ -481,10 +541,7 @@ mod tests {
             0,
             "no kit masters are copied"
         );
-        assert_eq!(
-            json_of(&root, "design/system/inventory.json")["components"],
-            json!([])
-        );
+        assert_eq!(json_of(&root, &p.inventory)["components"], json!([]));
         assert!(
             !init(&root, "soft").inventory_created,
             "an existing inventory is kept"
@@ -494,16 +551,17 @@ mod tests {
         assert_eq!(presets, ["crisp", "industrial", "soft"]);
 
         let o = system_options(&root, &names(&["crisp", "industrial"]), "vi").unwrap();
-        assert_eq!(o, ["opt-crisp", "opt-industrial"]);
-        assert!(read(&root, "design/tokens/tokens.css").contains("[data-theme=\"opt-industrial\"]"));
-        assert!(read(&root, "design/system/head.html").contains("IBM+Plex+Sans"));
+        assert_eq!(o, themes_of(&["crisp", "industrial"]));
+        let industrial = format!("[data-theme=\"{}\"]", option::theme("industrial"));
+        assert!(read(&root, &p.tokens_css).contains(&industrial));
+        assert!(read(&root, &p.head).contains("IBM+Plex+Sans"));
         assert_eq!(
-            json_of(&root, "design/design.json")["themes"],
-            json!(["opt-crisp", "opt-industrial"])
+            json_of(&root, &p.manifest)["themes"],
+            json!(themes_of(&["crisp", "industrial"]))
         );
         system_choose(&root, "industrial", "vi").unwrap();
-        assert!(read(&root, "design/tokens/tokens.css").contains("--color-accent: #0b5cad"));
-        assert!(!read(&root, "design/tokens/tokens.css").contains("opt-"));
+        assert!(read(&root, &p.tokens_css).contains("--color-accent: #0b5cad"));
+        assert!(!read(&root, &p.tokens_css).contains(option::PREFIX));
     }
 
     /// kit: every reference master composes its examples without issues and lints clean (the
@@ -538,10 +596,8 @@ mod tests {
         use_kit(&root, Some(&["button"]));
         write(&root, "design/screens/s/a.html", "<html><head><dfw-head></dfw-head></head><body><dfw-use c=\"button\" id=\"go\">Go</dfw-use></body></html>");
         let r = compose_file(&root, "design/screens/s/a.html").unwrap();
-        assert!(r
-            .composed
-            .html
-            .contains("href=\"../../system/components.css\""));
+        let link = format!("href=\"../../{}\"", in_design::COMPONENTS_CSS);
+        assert!(r.composed.html.contains(&link));
         assert_eq!(build_system(&root).unwrap().components, 1);
     }
 
@@ -551,25 +607,26 @@ mod tests {
     #[test]
     fn style_guides_apply_as_aliased_tokens_with_motifs_and_options() {
         let root = project();
+        let p = project_paths(&root);
         init_style(&root, "heritage-signboard", false).unwrap();
         let lib = load_components(&root).unwrap();
         let masters: Vec<&str> = lib.iter().map(|d| d.display_name()).collect();
         assert_eq!(masters, ["motif"], "a style brings only its motif master");
         use_kit(&root, Some(&["button", "text"]));
-        let css = read(&root, "design/tokens/tokens.css");
+        let css = read(&root, &p.tokens_css);
         assert!(
             css.contains("--color-accent: var(--color-palette-giay-900)"),
             "heritage uses an ink accent: lacquer red is the error hue"
         );
         assert!(css.contains("--font-family-display: \"Noto Serif Display\""));
         assert!(css.contains("--font-size-display-xl: 85px"));
-        let tok = json_of(&root, "design/tokens/tokens.json");
+        let tok = json_of(&root, &p.tokens_json);
         let description = tok["color"]["palette"]["kim-500"]["$description"]
             .as_str()
             .unwrap();
         assert!(description.contains("ornament"));
         assert!(description.contains("Used for: signature motif"));
-        assert!(root.join("design/system/components/motif.html").exists());
+        assert!(p.components.join(MOTIF_FILE).exists());
         let lib = load_components(&root).unwrap();
         assert!(lib
             .get(Some("motif"))
@@ -577,17 +634,15 @@ mod tests {
             .variants
             .iter()
             .any(|v| v == "signboard-frame"));
-        assert!(read(&root, "design/system/head.html").contains("Noto+Serif+Display"));
+        assert!(read(&root, &p.head).contains("Noto+Serif+Display"));
         // options with styles
         let o = system_options(&root, &names(&["industrial-utility", "swiss-grid"]), "vi").unwrap();
-        assert_eq!(o, ["opt-industrial-utility", "opt-swiss-grid"]);
+        assert_eq!(o, themes_of(&["industrial-utility", "swiss-grid"]));
         system_choose(&root, "swiss-grid", "vi").unwrap();
-        assert!(read(&root, "design/tokens/tokens.css")
-            .contains("--color-accent: var(--color-palette-coban-600)"));
-        assert_eq!(
-            json_of(&root, "design/system/style.json")["id"],
-            "swiss-grid"
+        assert!(
+            read(&root, &p.tokens_css).contains("--color-accent: var(--color-palette-coban-600)")
         );
+        assert_eq!(json_of(&root, &p.style)["id"], "swiss-grid");
         // text component with prop defaults
         let t = compose(&root, "<dfw-use c=\"text\" variant=\"display-lg\" as=\"h1\">Hi</dfw-use><dfw-use c=\"text\">p</dfw-use>", None);
         assert!(
@@ -608,6 +663,8 @@ mod tests {
     #[test]
     fn inventory_findings_for_kit_copies_orphans_unbuilt_and_unused() {
         let root = project();
+        let p = project_paths(&root);
+        let master = |name: &str| p.components.join(format!("{name}.html"));
         init(&root, "crisp");
         let rules = || {
             let mut r: Vec<String> = inventory_findings(&root)
@@ -627,14 +684,14 @@ mod tests {
         assert!(rules().is_empty(), "empty system: nothing to report");
         use_kit(&root, Some(&["button"]));
         assert_eq!(rules(), ["inventory-missing:warn", "kit-copy:error"]);
-        write(&root, "design/system/components/button.html", "<dfw-component name=\"button\" variants=\"primary\"><style>.b { color: var(--color-ink); }</style><template><button class=\"b\" type=\"button\"><dfw-slot>Go</dfw-slot></button></template><dfw-examples><dfw-use c=\"button\">Thêm vào giỏ</dfw-use></dfw-examples></dfw-component>");
+        write(&root, master("button"), "<dfw-component name=\"button\" variants=\"primary\"><style>.b { color: var(--color-ink); }</style><template><button class=\"b\" type=\"button\"><dfw-slot>Go</dfw-slot></button></template><dfw-examples><dfw-use c=\"button\">Thêm vào giỏ</dfw-use></dfw-examples></dfw-component>");
         let badge = kit_ref("badge").unwrap();
         let kit_examples = &badge[badge.find("<dfw-examples>").unwrap()
             ..badge.find("</dfw-examples>").unwrap() + "</dfw-examples>".len()];
-        write(&root, "design/system/components/tag.html", &format!("<dfw-component name=\"tag\"><style>.t {{ color: var(--color-muted); }}</style><template><span class=\"t\"><dfw-slot></dfw-slot></span></template>{kit_examples}</dfw-component>"));
+        write(&root, master("tag"), &format!("<dfw-component name=\"tag\"><style>.t {{ color: var(--color-muted); }}</style><template><span class=\"t\"><dfw-slot></dfw-slot></span></template>{kit_examples}</dfw-component>"));
         write(
             &root,
-            "design/system/inventory.json",
+            &p.inventory,
             r#"{"components":[{"name":"button","purpose":"Add to bag","usedBy":["product"]},{"name":"price","purpose":"Price with old price","usedBy":["product"]}]}"#,
         );
         assert_eq!(
@@ -645,12 +702,12 @@ mod tests {
                 "kit-copy:error"
             ]
         );
-        fs::remove_file(root.join("design/system/components/tag.html")).unwrap();
-        write(&root, "design/system/components/price.html", "<dfw-component name=\"price\"><template><span><dfw-slot></dfw-slot></span></template></dfw-component>");
+        fs::remove_file(master("tag")).unwrap();
+        write(&root, master("price"), "<dfw-component name=\"price\"><template><span><dfw-slot></dfw-slot></span></template></dfw-component>");
         assert!(rules().is_empty());
         write(
             &root,
-            "design/design.json",
+            &p.manifest,
             r#"{"schema":1,"product":"T","screens":[{"id":"product","variants":[{"id":"a","file":"screens/product/a.html"}]}]}"#,
         );
         write(
@@ -689,27 +746,25 @@ mod tests {
     #[test]
     fn choose_keeps_edits_made_to_the_option_theme() {
         let root = project();
+        let p = project_paths(&root);
         init_style(&root, "playful-bold", false).unwrap();
         system_options(&root, &names(&["playful-bold", "warm-craft"]), "vi").unwrap();
-        let opt = "design/tokens/themes/opt-playful-bold.json";
+        let opt = &p.themes.join(option::file("playful-bold"));
         let mut t = json_of(&root, opt);
         t["color"]["accent"] = json!({ "$value": { "colorSpace": "srgb", "components": [0.051, 0.4196, 0.4706], "hex": "#0d6b78" }, "$description": "Edited during the comparison" });
         write(&root, opt, &t.to_string());
         system_choose(&root, "playful-bold", "vi").unwrap();
         assert_eq!(
-            json_of(&root, "design/tokens/tokens.json")["color"]["accent"]["$value"]["hex"],
+            json_of(&root, &p.tokens_json)["color"]["accent"]["$value"]["hex"],
             "#0d6b78"
         );
-        assert!(read(&root, "design/tokens/tokens.css").contains("--color-accent: #0d6b78"));
+        assert!(read(&root, &p.tokens_css).contains("--color-accent: #0d6b78"));
         assert!(
-            root.join("design/system/components/motif.html").exists(),
+            p.components.join(MOTIF_FILE).exists(),
             "motif still comes from the guide"
         );
-        assert_eq!(
-            json_of(&root, "design/system/style.json")["id"],
-            "playful-bold"
-        );
-        assert!(!root.join(opt).exists(), "option themes are removed");
+        assert_eq!(json_of(&root, &p.style)["id"], "playful-bold");
+        assert!(!opt.exists(), "option themes are removed");
     }
 
     /// 3: system init --style keeps existing tokens unless --force (tests/unit/audit-fixes.test.mjs)
@@ -721,14 +776,15 @@ mod tests {
             .to_string();
         let mine = r##"{"$description":"hand-tuned","color":{"$type":"color","ink":{"$value":"#123456"}}}"##;
         let root = test_dir("system-force");
-        write(&root, "design/tokens/tokens.json", mine);
-        write(&root, "design/system/head.html", "<!-- my fonts -->");
+        let p = project_paths(&root);
+        write(&root, &p.tokens_json, mine);
+        write(&root, &p.head, "<!-- my fonts -->");
         let err = init_style(&root, &style, false).unwrap_err();
-        assert!(err.message().contains("--force"), "{err}");
-        assert_eq!(read(&root, "design/tokens/tokens.json"), mine);
-        assert_eq!(read(&root, "design/system/head.html"), "<!-- my fonts -->");
+        assert_eq!(err.message(), message::tokens_exist());
+        assert_eq!(read(&root, &p.tokens_json), mine);
+        assert_eq!(read(&root, &p.head), "<!-- my fonts -->");
         assert!(init_style(&root, &style, true).unwrap().tokens_written);
-        assert_ne!(read(&root, "design/tokens/tokens.json"), mine);
+        assert_ne!(read(&root, &p.tokens_json), mine);
         // No tokens yet (or the dfw init placeholder): the style applies without --force.
         assert!(
             init_style(&test_dir("system-fresh"), &style, false)
@@ -741,14 +797,16 @@ mod tests {
     #[test]
     fn a_mistyped_option_leaves_the_current_options_untouched() {
         let root = test_dir("system-typo");
-        write(&root, "design/design.json", r#"{"screens":[]}"#);
+        let p = project_paths(&root);
+        write(&root, &p.manifest, r#"{"screens":[]}"#);
         init(&root, "crisp");
         system_options(&root, &names(&["crisp", "soft"]), "vi").unwrap();
-        let themes = || dir_names(&root.join("design/tokens/themes")).unwrap();
-        assert_eq!(themes(), ["opt-crisp.json", "opt-soft.json"]);
+        let themes = || dir_names(&p.themes).unwrap();
+        assert_eq!(themes(), files_of(&["crisp", "soft"]));
         let err = system_options(&root, &names(&["industrial", "sotf"]), "vi").unwrap_err();
-        assert!(err.message().contains("Unknown preset \"sotf\""), "{err}");
-        assert_eq!(themes(), ["opt-crisp.json", "opt-soft.json"]);
+        let presets: Vec<String> = list_presets().unwrap().into_iter().map(|p| p.0).collect();
+        assert_eq!(err.message(), message::unknown_preset("sotf", &presets));
+        assert_eq!(themes(), files_of(&["crisp", "soft"]));
     }
 
     /// `system init --force` with `design/system/head.html` linked to a file outside the project
@@ -756,23 +814,69 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn init_never_writes_through_a_link_out_of_the_project() {
+        use crate::core::paths::file;
         let dir = test_dir("system-link");
         let root = dir.join("project");
-        fs::create_dir_all(root.join("design/system")).unwrap();
-        fs::write(dir.join("head.html"), "theirs").unwrap();
-        std::os::unix::fs::symlink("../../../head.html", root.join("design/system/head.html"))
-            .unwrap();
+        let p = project_paths(&root);
+        fs::create_dir_all(&p.system).unwrap();
+        fs::write(dir.join(file::HEAD), "theirs").unwrap();
+        std::os::unix::fs::symlink(Path::new("../../..").join(file::HEAD), &p.head).unwrap();
         let opts = InitOptions {
             force: true,
             ..InitOptions::default()
         };
         let err = system_init(&root, &opts).unwrap_err();
-        assert!(
-            err.message()
-                .starts_with("design/system/head.html leads outside the project"),
-            "{err}"
-        );
-        assert_eq!(fs::read_to_string(dir.join("head.html")).unwrap(), "theirs");
+        let refused = format!("{} leads outside the project", rel::HEAD);
+        assert!(err.message().starts_with(&refused), "{err}");
+        assert_eq!(fs::read_to_string(dir.join(file::HEAD)).unwrap(), "theirs");
         fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// A project guide file is an option under its own id (else its file name), never under its
+    /// path: the theme used to land in `themes/opt-design/system/<file>.json.json`, unseen.
+    #[test]
+    fn a_guide_file_is_an_option_under_its_id() {
+        /// The project's own id in the guide files, and a second file that reuses it.
+        const ID: &str = "my-brand";
+        const TWIN: &str = "twin.json";
+        /// A guide file whose own id and file name are both unfit for a theme name.
+        const UNFIT: &str = "Other Guide.json";
+        let root = test_dir("system-guide-file");
+        let p = project_paths(&root);
+        write(&root, &p.manifest, r#"{"screens":[]}"#);
+        init(&root, "crisp");
+        let guide = |id: &str| {
+            let mut g = get_style("civic-public").unwrap();
+            g["id"] = json!(id);
+            g.to_string()
+        };
+        let path = |file: &Path| file.to_string_lossy().into_owned();
+        let source = path(&root.join(rel::STYLE_SOURCE));
+        let unfit = path(&p.system.join(UNFIT));
+        let twin = path(&p.system.join(TWIN));
+        write(&root, rel::STYLE_SOURCE, &guide(ID));
+        write(&root, &unfit, &guide("Not An Id"));
+        let options = system_options(&root, &[source.clone(), "crisp".into()], "vi").unwrap();
+        assert_eq!(options, themes_of(&["crisp", ID]));
+        let themes = || dir_names(&p.themes).unwrap();
+        assert_eq!(themes(), files_of(&["crisp", ID]));
+        // No plain id and no plain file name: refused before anything is replaced.
+        let err = system_options(&root, &[unfit.clone(), "soft".into()], "vi").unwrap_err();
+        assert_eq!(
+            err.message(),
+            crate::design::style::message::guide_id_not_plain(&unfit)
+        );
+        // Two guides with one id would overwrite each other.
+        write(&root, &twin, &guide(ID));
+        let err = system_options(&root, &[source.clone(), twin], "vi").unwrap_err();
+        assert_eq!(err.message(), message::duplicate_option(&option::theme(ID)));
+        assert_eq!(themes(), files_of(&["crisp", ID]));
+        // The short name points at the file; the file is chosen.
+        let err = system_choose(&root, ID, "vi").unwrap_err();
+        assert_eq!(err.message(), message::choose_by_file(ID));
+        system_choose(&root, &source, "vi").unwrap();
+        assert!(themes().is_empty());
+        assert_eq!(json_of(&root, &p.style)["id"], ID);
+        fs::remove_dir_all(&root).unwrap();
     }
 }
