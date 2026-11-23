@@ -183,8 +183,6 @@ fn with_attr(text: &str, el: &Located, name: &str, value: Option<&str>) -> Strin
 
 /// `transform`: the new source text for an edit op `{op, id, value, prop, ref, position,
 /// maxWidth}`; a refusal is an error and nothing is written.
-// Over 120 lines: one arm per op, so every op's checks and splice read in one place.
-#[allow(clippy::too_many_lines, reason = "A10 debt")]
 pub fn transform(root: &Path, text: &str, op: &Value) -> Result<String, DfwError> {
     let field = |key: &str| op.get(key);
     let shown = |key: &str| js::to_string(field(key));
@@ -194,170 +192,208 @@ pub fn transform(root: &Path, text: &str, op: &Value) -> Result<String, DfwError
     let value = js::present(field("value")).filter(|v| v.as_str() != Some(""));
     let kind = field("op").and_then(Value::as_str).unwrap_or_default();
     match kind {
-        "text" => {
-            if el.is_empty_tag() {
-                return Err(DfwError::new(format!(
-                    "<{}> has no text content to edit.",
-                    el.tag
-                )));
-            }
-            let inner = &text[el.inner_start..el.inner_end];
-            let has_child = inner.match_indices('<').any(|(i, _)| {
-                inner[i + 1..].starts_with(|c: char| c.is_ascii_alphabetic() || c == '!')
-            });
-            if has_child {
-                return Err(DfwError::new(format!(
-                    "\"{id}\" contains child elements in the source; edit it in code or leave a comment."
-                )));
-            }
-            let value = one_line(
-                &js::present(field("value")).map_or(String::new(), |v| js::to_string(Some(v))),
-            );
-            if value.is_empty() {
-                return Err(DfwError::new("Text cannot be empty."));
-            }
-            // The white space around the old text stays (all of it leads when there is no text).
-            let lead = inner.len() - inner.trim_start_matches(js::is_space).len();
-            let trail = inner[lead..].len() - inner[lead..].trim_end_matches(js::is_space).len();
-            let splice = Splice {
-                range: el.inner_start + lead..el.inner_end - trail,
-                text: escape_text(&value),
-            };
-            Ok(splice.apply(text))
-        }
-        "variant" | "size" => {
-            if !el.is_instance {
-                return Err(not_an_instance(&id));
-            }
-            let def = component_def(root, &el)?;
-            let name = def.display_name();
-            let allowed = if kind == "variant" {
-                &def.variants
-            } else {
-                &def.sizes
-            };
-            if allowed.is_empty() {
-                return Err(DfwError::new(format!(
-                    "Component \"{name}\" has no {kind}s."
-                )));
-            }
-            match field("value").and_then(Value::as_str) {
-                Some(v) if allowed.iter().any(|a| a == v) => {
-                    Ok(with_attr(text, &el, kind, Some(v)))
-                }
-                _ => Err(DfwError::new(format!(
-                    "Component \"{name}\" has no {kind} \"{}\" ({}).",
-                    shown("value"),
-                    allowed.join(", ")
-                ))),
-            }
-        }
-        "prop" => {
-            if !el.is_instance {
-                return Err(not_an_instance(&id));
-            }
-            let def = component_def(root, &el)?;
-            let prop = field("prop").and_then(Value::as_str);
-            let Some(prop) = prop.filter(|p| def.props.iter().any(|d| d == p)) else {
-                let declared = def.props.join(", ");
-                return Err(DfwError::new(format!(
-                    "Component \"{}\" has no prop \"{}\" ({}).",
-                    def.display_name(),
-                    shown("prop"),
-                    if declared.is_empty() {
-                        "none"
-                    } else {
-                        &declared
-                    }
-                )));
-            };
-            let value = value.map(|v| js::to_string(Some(v)));
-            Ok(with_attr(text, &el, prop, value.as_deref()))
-        }
-        "spacing" => {
-            if el.is_instance {
-                return Err(DfwError::new(
-                    "Spacing of a component instance is defined by its master; change the component or leave a comment.",
-                ));
-            }
-            let prop = field("prop").and_then(Value::as_str);
-            let Some(prop) = prop.filter(|p| SPACING_PROPS.contains(p)) else {
-                return Err(DfwError::new(format!(
-                    "\"{}\" is not editable here; only gap, padding and margin.",
-                    shown("prop")
-                )));
-            };
-            let decl = match value {
-                Some(v) => Some(token_var(root, &js::to_string(Some(v)), &["space."])?),
-                None => None,
-            };
-            let style = set_style_prop(
-                el.attrs.get("style").unwrap_or_default(),
-                prop,
-                decl.as_deref(),
-            );
-            let style = Some(style.as_str()).filter(|s| !s.is_empty());
-            Ok(with_attr(text, &el, "style", style))
-        }
-        "move" => {
-            let position = field("position").and_then(Value::as_str);
-            let Some(position) = position.filter(|p| ["before", "after", "inside"].contains(p))
-            else {
-                return Err(DfwError::new(
-                    "Move position must be \"before\", \"after\" or \"inside\".",
-                ));
-            };
-            if !js::truthy(field("ref")) || field("ref") == field("id") {
-                return Err(DfwError::new(
-                    "Move needs another element to drop next to (or a container to drop into).",
-                ));
-            }
-            let target = locate_own(root, text, field("ref"))?;
-            if position == "inside" {
-                move_inside(text, &el, &target)
-            } else {
-                move_source(text, &el, &target, position == "before")
-            }
-        }
-        "layout" => {
-            // No prop: reset the element's whole rule at this breakpoint scope.
-            let prop = match js::present(field("prop")) {
-                None => None,
-                Some(Value::String(p)) if LAYOUT_PROPS.contains(&p.as_str()) => Some(p.as_str()),
-                Some(_) => {
-                    return Err(DfwError::new(format!(
-                        "\"{}\" is not resizable here; only {}.",
-                        shown("prop"),
-                        LAYOUT_PROPS.join(", ")
-                    )))
-                }
-            };
-            if id.contains(['"', '\'', '\\']) {
-                return Err(DfwError::new(format!(
-                    "\"{id}\" cannot be used in a layout rule."
-                )));
-            }
-            let max_width = match js::present(field("maxWidth")) {
-                Some(v) if v.as_str() != Some("") => js::to_number(Some(v)),
-                _ => 0.0,
-            };
-            if max_width.fract() != 0.0 || !(0.0..=10000.0).contains(&max_width) {
-                return Err(DfwError::new(format!(
-                    "Invalid breakpoint width \"{}\".",
-                    shown("maxWidth")
-                )));
-            }
-            let css = match prop {
-                Some(prop) => layout_value(root, prop, field("value"))?,
-                None => None,
-            };
-            set_layout_rule(text, &id, prop, css.as_deref(), max_width)
-        }
+        "text" => edit_text(text, &el, &id, op),
+        "variant" | "size" => edit_choice(root, text, &el, &id, kind, op),
+        "prop" => edit_prop(root, text, &el, &id, value, op),
+        "spacing" => edit_spacing(root, text, &el, value, op),
+        "move" => edit_move(root, text, &el, op),
+        "layout" => edit_layout(root, text, &id, op),
         _ => Err(DfwError::new(format!(
             "Unknown edit op \"{}\".",
             shown("op")
         ))),
     }
+}
+
+/// Op "text": the element's text, when it has no child elements; the white space around it
+/// stays.
+fn edit_text(text: &str, el: &Located, id: &str, op: &Value) -> Result<String, DfwError> {
+    if el.is_empty_tag() {
+        return Err(DfwError::new(format!(
+            "<{}> has no text content to edit.",
+            el.tag
+        )));
+    }
+    let inner = &text[el.inner_start..el.inner_end];
+    let has_child = inner
+        .match_indices('<')
+        .any(|(i, _)| inner[i + 1..].starts_with(|c: char| c.is_ascii_alphabetic() || c == '!'));
+    if has_child {
+        return Err(DfwError::new(format!(
+            "\"{id}\" contains child elements in the source; edit it in code or leave a comment."
+        )));
+    }
+    let value =
+        one_line(&js::present(op.get("value")).map_or(String::new(), |v| js::to_string(Some(v))));
+    if value.is_empty() {
+        return Err(DfwError::new("Text cannot be empty."));
+    }
+    // The white space around the old text stays (all of it leads when there is no text).
+    let lead = inner.len() - inner.trim_start_matches(js::is_space).len();
+    let trail = inner[lead..].len() - inner[lead..].trim_end_matches(js::is_space).len();
+    let splice = Splice {
+        range: el.inner_start + lead..el.inner_end - trail,
+        text: escape_text(&value),
+    };
+    Ok(splice.apply(text))
+}
+
+/// Ops "variant" and "size" (`kind`): one of the values the instance's component declares.
+fn edit_choice(
+    root: &Path,
+    text: &str,
+    el: &Located,
+    id: &str,
+    kind: &str,
+    op: &Value,
+) -> Result<String, DfwError> {
+    if !el.is_instance {
+        return Err(not_an_instance(id));
+    }
+    let def = component_def(root, el)?;
+    let name = def.display_name();
+    let allowed = if kind == "variant" {
+        &def.variants
+    } else {
+        &def.sizes
+    };
+    if allowed.is_empty() {
+        return Err(DfwError::new(format!(
+            "Component \"{name}\" has no {kind}s."
+        )));
+    }
+    match op.get("value").and_then(Value::as_str) {
+        Some(v) if allowed.iter().any(|a| a == v) => Ok(with_attr(text, el, kind, Some(v))),
+        _ => Err(DfwError::new(format!(
+            "Component \"{name}\" has no {kind} \"{}\" ({}).",
+            js::to_string(op.get("value")),
+            allowed.join(", ")
+        ))),
+    }
+}
+
+/// Op "prop": a prop the instance's component declares, set or (no value) removed.
+fn edit_prop(
+    root: &Path,
+    text: &str,
+    el: &Located,
+    id: &str,
+    value: Option<&Value>,
+    op: &Value,
+) -> Result<String, DfwError> {
+    if !el.is_instance {
+        return Err(not_an_instance(id));
+    }
+    let def = component_def(root, el)?;
+    let prop = op.get("prop").and_then(Value::as_str);
+    let Some(prop) = prop.filter(|p| def.props.iter().any(|d| d == p)) else {
+        let declared = def.props.join(", ");
+        return Err(DfwError::new(format!(
+            "Component \"{}\" has no prop \"{}\" ({}).",
+            def.display_name(),
+            js::to_string(op.get("prop")),
+            if declared.is_empty() {
+                "none"
+            } else {
+                &declared
+            }
+        )));
+    };
+    let value = value.map(|v| js::to_string(Some(v)));
+    Ok(with_attr(text, el, prop, value.as_deref()))
+}
+
+/// Op "spacing": a gap, padding or margin of the inline style, set to a space token or (no
+/// value) removed.
+fn edit_spacing(
+    root: &Path,
+    text: &str,
+    el: &Located,
+    value: Option<&Value>,
+    op: &Value,
+) -> Result<String, DfwError> {
+    if el.is_instance {
+        return Err(DfwError::new(
+            "Spacing of a component instance is defined by its master; change the component or leave a comment.",
+        ));
+    }
+    let prop = op.get("prop").and_then(Value::as_str);
+    let Some(prop) = prop.filter(|p| SPACING_PROPS.contains(p)) else {
+        return Err(DfwError::new(format!(
+            "\"{}\" is not editable here; only gap, padding and margin.",
+            js::to_string(op.get("prop"))
+        )));
+    };
+    let decl = match value {
+        Some(v) => Some(token_var(root, &js::to_string(Some(v)), &["space."])?),
+        None => None,
+    };
+    let style = set_style_prop(
+        el.attrs.get("style").unwrap_or_default(),
+        prop,
+        decl.as_deref(),
+    );
+    let style = Some(style.as_str()).filter(|s| !s.is_empty());
+    Ok(with_attr(text, el, "style", style))
+}
+
+/// Op "move": the element before or after another element, or inside an empty container.
+fn edit_move(root: &Path, text: &str, el: &Located, op: &Value) -> Result<String, DfwError> {
+    let position = op.get("position").and_then(Value::as_str);
+    let Some(position) = position.filter(|p| ["before", "after", "inside"].contains(p)) else {
+        return Err(DfwError::new(
+            "Move position must be \"before\", \"after\" or \"inside\".",
+        ));
+    };
+    if !js::truthy(op.get("ref")) || op.get("ref") == op.get("id") {
+        return Err(DfwError::new(
+            "Move needs another element to drop next to (or a container to drop into).",
+        ));
+    }
+    let target = locate_own(root, text, op.get("ref"))?;
+    if position == "inside" {
+        move_inside(text, el, &target)
+    } else {
+        move_source(text, el, &target, position == "before")
+    }
+}
+
+/// Op "layout": one resize property of the element's rule in the layout block at a
+/// breakpoint, or (no prop) the whole rule reset.
+fn edit_layout(root: &Path, text: &str, id: &str, op: &Value) -> Result<String, DfwError> {
+    let shown = |key: &str| js::to_string(op.get(key));
+    // No prop: reset the element's whole rule at this breakpoint scope.
+    let prop = match js::present(op.get("prop")) {
+        None => None,
+        Some(Value::String(p)) if LAYOUT_PROPS.contains(&p.as_str()) => Some(p.as_str()),
+        Some(_) => {
+            return Err(DfwError::new(format!(
+                "\"{}\" is not resizable here; only {}.",
+                shown("prop"),
+                LAYOUT_PROPS.join(", ")
+            )))
+        }
+    };
+    if id.contains(['"', '\'', '\\']) {
+        return Err(DfwError::new(format!(
+            "\"{id}\" cannot be used in a layout rule."
+        )));
+    }
+    let max_width = match js::present(op.get("maxWidth")) {
+        Some(v) if v.as_str() != Some("") => js::to_number(Some(v)),
+        _ => 0.0,
+    };
+    if max_width.fract() != 0.0 || !(0.0..=10000.0).contains(&max_width) {
+        return Err(DfwError::new(format!(
+            "Invalid breakpoint width \"{}\".",
+            shown("maxWidth")
+        )));
+    }
+    let css = match prop {
+        Some(prop) => layout_value(root, prop, op.get("value"))?,
+        None => None,
+    };
+    set_layout_rule(text, id, prop, css.as_deref(), max_width)
 }
 
 fn edits_dir(root: &Path) -> PathBuf {

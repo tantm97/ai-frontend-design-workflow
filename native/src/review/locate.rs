@@ -247,87 +247,22 @@ pub fn verify_engine(file: &Path, digests: &[String], stamp_file: &Path) -> bool
 /// after its SHA-256 matches the vendored `engine-checksums.txt`. The other places the upstream
 /// launcher looks (`IMPECCABLE_BIN`, a sibling build, `~/.impeccable/bin/impeccable`, PATH) are
 /// never hashed, so they are used only with the global opt-in.
-// Over 120 lines: the candidates are tried in one sequence, the upstream launcher's order.
-#[allow(clippy::too_many_lines, reason = "A10 debt")]
 pub fn resolve_engine(o: &EngineLookup) -> Engine {
     let scripts = o.skill_dir.join("scripts");
     let win = o.platform == "win32";
     let exe = if win { ".exe" } else { "" };
     let launcher = scripts.join(if win { "impeccable.cmd" } else { "impeccable" });
     let read = |name: &str| fs::read_to_string(scripts.join(name)).unwrap_or_default();
-    // `.trim().split(/\s+/)[0]`: JavaScript's white space, not Rust's.
-    let words = |line: &str| -> Vec<String> {
-        line.split(js::is_space)
-            .filter(|w| !w.is_empty())
-            .map(str::to_string)
-            .collect()
-    };
-    let version = words(&read("VERSION"))
+    let version = js_words(&read("VERSION"))
         .into_iter()
         .next()
         .unwrap_or_default();
     let assets = engine_assets(&o.platform, &o.arch);
-    let digests: Vec<String> = read("engine-checksums.txt")
-        .lines()
-        .filter_map(|line| {
-            let parts = words(line);
-            let (v, asset, sum) = (parts.first()?, parts.get(1)?, parts.get(2)?);
-            let hex =
-                sum.len() == 64 && sum.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'));
-            (!version.is_empty() && *v == version && assets.iter().any(|a| a == asset) && hex)
-                .then(|| sum.clone())
-        })
-        .collect();
-    let impeccable_home = o
-        .var("IMPECCABLE_HOME")
-        .filter(|h| !h.is_empty())
-        .map_or_else(|| o.home.join(".impeccable"), PathBuf::from);
-    let cached = impeccable_home
-        .join("bin")
-        .join(if version.is_empty() {
-            "unknown"
-        } else {
-            &version
-        })
-        .join(format!("impeccable{exe}"));
+    let digests = pinned_digests(&read("engine-checksums.txt"), &version, &assets);
+    let cached = version_cache(o, &version, exe);
     // The launcher's unverified candidates, in its order: three before the version cache, PATH after it.
-    let sibling = assets.first().map(|a| {
-        let platform = a.trim_start_matches("impeccable-").trim_end_matches(".exe");
-        scripts
-            .join("bin")
-            .join(platform)
-            .join(format!("impeccable{exe}"))
-    });
-    let before: Vec<PathBuf> = [
-        o.var("IMPECCABLE_BIN").map(PathBuf::from),
-        sibling,
-        Some(
-            o.home
-                .join(".impeccable")
-                .join("bin")
-                .join(format!("impeccable{exe}")),
-        ),
-    ]
-    .into_iter()
-    .flatten()
-    .filter(|f| is_file(f))
-    .collect();
-    let search = o.var("PATH").or_else(|| o.var("Path")).unwrap_or_default();
-    let exts: &[&str] = if win {
-        &[".exe", ".com", ".cmd", ".bat"]
-    } else {
-        &[""]
-    };
-    let on_path: Vec<PathBuf> = search
-        .split(if win { ';' } else { ':' })
-        .filter(|d| !d.is_empty())
-        .flat_map(|d| {
-            exts.iter()
-                .map(move |x| Path::new(d).join(format!("impeccable{x}")))
-        })
-        .filter(|f| is_file(f))
-        .take(1)
-        .collect();
+    let before = unverified_before_cache(o, &scripts, &assets, exe);
+    let on_path = first_on_path(o, win);
     let skill_dir = o.skill_dir.to_string_lossy().into_owned();
     let mut engine = Engine {
         env: vec![
@@ -361,19 +296,116 @@ pub fn resolve_engine(o: &EngineLookup) -> Engine {
         engine.verified = verified;
         return engine;
     }
+    engine.detail = Some(missing_engine_detail(o, &digests, &cached));
+    engine.unverified = before.into_iter().chain(on_path).collect();
+    engine
+}
+
+/// `.trim().split(/\s+/)`: the words of a line, split on JavaScript's white space, not Rust's.
+fn js_words(line: &str) -> Vec<String> {
+    line.split(js::is_space)
+        .filter(|w| !w.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+/// The SHA-256 digests `engine-checksums.txt` pins for `version` and one of this platform's
+/// `assets` (lines `<version> <asset> <64 lowercase hex>`).
+fn pinned_digests(checksums: &str, version: &str, assets: &[String]) -> Vec<String> {
+    checksums
+        .lines()
+        .filter_map(|line| {
+            let parts = js_words(line);
+            let (v, asset, sum) = (parts.first()?, parts.get(1)?, parts.get(2)?);
+            let hex =
+                sum.len() == 64 && sum.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'));
+            (!version.is_empty() && *v == version && assets.iter().any(|a| a == asset) && hex)
+                .then(|| sum.clone())
+        })
+        .collect()
+}
+
+/// The version cache: `<IMPECCABLE_HOME or ~/.impeccable>/bin/<version>/impeccable[.exe]`.
+fn version_cache(o: &EngineLookup, version: &str, exe: &str) -> PathBuf {
+    let impeccable_home = o
+        .var("IMPECCABLE_HOME")
+        .filter(|h| !h.is_empty())
+        .map_or_else(|| o.home.join(".impeccable"), PathBuf::from);
+    impeccable_home
+        .join("bin")
+        .join(if version.is_empty() {
+            "unknown"
+        } else {
+            version
+        })
+        .join(format!("impeccable{exe}"))
+}
+
+/// The launcher's candidates tried before the version cache, those that exist: `IMPECCABLE_BIN`,
+/// the sibling build of the first asset, `~/.impeccable/bin/impeccable[.exe]`.
+fn unverified_before_cache(
+    o: &EngineLookup,
+    scripts: &Path,
+    assets: &[String],
+    exe: &str,
+) -> Vec<PathBuf> {
+    let sibling = assets.first().map(|a| {
+        let platform = a.trim_start_matches("impeccable-").trim_end_matches(".exe");
+        scripts
+            .join("bin")
+            .join(platform)
+            .join(format!("impeccable{exe}"))
+    });
+    [
+        o.var("IMPECCABLE_BIN").map(PathBuf::from),
+        sibling,
+        Some(
+            o.home
+                .join(".impeccable")
+                .join("bin")
+                .join(format!("impeccable{exe}")),
+        ),
+    ]
+    .into_iter()
+    .flatten()
+    .filter(|f| is_file(f))
+    .collect()
+}
+
+/// The first `impeccable` on the lookup's `PATH` (with the Windows extensions), if any.
+fn first_on_path(o: &EngineLookup, win: bool) -> Vec<PathBuf> {
+    let search = o.var("PATH").or_else(|| o.var("Path")).unwrap_or_default();
+    let exts: &[&str] = if win {
+        &[".exe", ".com", ".cmd", ".bat"]
+    } else {
+        &[""]
+    };
+    search
+        .split(if win { ';' } else { ':' })
+        .filter(|d| !d.is_empty())
+        .flat_map(|d| {
+            exts.iter()
+                .map(move |x| Path::new(d).join(format!("impeccable{x}")))
+        })
+        .filter(|f| is_file(f))
+        .take(1)
+        .collect()
+}
+
+/// Why no engine is ready: no pinned digest for this platform, a cached engine that does not
+/// match, or nothing downloaded yet.
+fn missing_engine_detail(o: &EngineLookup, digests: &[String], cached: &Path) -> String {
     let setup = "run \"dfw check --setup\" once";
-    engine.detail = Some(if digests.is_empty() {
+    if digests.is_empty() {
         format!("No pinned Impeccable engine for {}-{}.", o.platform, o.arch)
-    } else if is_file(&cached) {
+    } else if is_file(cached) {
         format!(
             "Engine at {} does not match the pinned checksum; delete it, then {setup}.",
             cached.display()
         )
     } else {
         format!("Engine not downloaded yet; {setup}.")
-    });
-    engine.unverified = before.into_iter().chain(on_path).collect();
-    engine
+    }
 }
 
 /// `launcherCommand(launcher, args, { platform })`: how to start the upstream launcher (only to

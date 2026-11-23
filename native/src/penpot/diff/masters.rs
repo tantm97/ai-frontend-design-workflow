@@ -167,8 +167,6 @@ pub(super) fn diff_components(
 }
 
 /// The changes of one main component.
-// Long: one block per property the designer can change, in the order the changes are listed.
-#[allow(clippy::too_many_lines, reason = "A10 debt")]
 fn diff_component(
     c: &Value,
     cc: &Value,
@@ -179,14 +177,37 @@ fn diff_component(
 ) {
     let null = Value::Null;
     let root = c.get("root").unwrap_or(&null);
-    let root_path = root.get("path");
-    let location = || -> Pairs {
-        let mut pairs = nowhere();
-        pairs.push(("component", Some(comp_info(c))));
-        pairs
-    };
     let roots = json!([root]);
     let flat = Layers::of(Some(&roots));
+    let root_path = root.get("path");
+    let (sent, added) = sent_layers(c, cc, root_path, &flat, warnings);
+    let master = Master {
+        c,
+        root_path,
+        sent,
+        baseline,
+        dims,
+    };
+    master.rename_master(cc, root, out);
+    for l in &flat.order {
+        if let Some(n) = master.sent_layer(l.get("path")) {
+            master.layer_changes(l, n, out);
+        }
+    }
+    master.removed_layers(&flat, out);
+    master.added_layers(root, &flat, &added, out);
+}
+
+/// The layers the plugin sent for a master, by baseline path (the last one sent wins), and
+/// the layers to treat as added: those sent as added, then those whose path the export does
+/// not know.
+fn sent_layers(
+    c: &Value,
+    cc: &Value,
+    root_path: Option<&Value>,
+    flat: &Layers,
+    warnings: &mut Vec<String>,
+) -> (Vec<(String, Value)>, Vec<Value>) {
     let mut sent: Vec<(String, Value)> = Vec::new();
     let mut added: Vec<Value> = list(js::truthy_value(cc.get("added"))).to_vec();
     for n in list(cc.get("layers")) {
@@ -214,62 +235,116 @@ fn diff_component(
             added.push(n.clone());
         }
     }
-    let sent_layer = |path: Option<&Value>| {
+    (sent, added)
+}
+
+/// One main component as exported, with the layers the plugin sent for it.
+struct Master<'a> {
+    c: &'a Value,
+    root_path: Option<&'a Value>,
+    sent: Vec<(String, Value)>,
+    baseline: &'a Value,
+    dims: &'a [Dim],
+}
+
+impl Master<'_> {
+    fn sent_layer(&self, path: Option<&Value>) -> Option<&Value> {
         let key = js::stringify(path);
-        sent.iter().find(|(k, _)| *k == key).map(|(_, n)| n)
-    };
-    let is_root = |l: &Value| js::strict_eq(l.get("path"), root_path);
-    let label = |l: &Value| -> Option<Value> {
-        if is_root(l) {
-            c.get("name").cloned()
+        self.sent.iter().find(|(k, _)| *k == key).map(|(_, n)| n)
+    }
+
+    fn is_root(&self, l: &Value) -> bool {
+        js::strict_eq(l.get("path"), self.root_path)
+    }
+
+    fn location(&self) -> Pairs {
+        let mut pairs = nowhere();
+        pairs.push(("component", Some(comp_info(self.c))));
+        pairs
+    }
+
+    fn label(&self, l: &Value) -> Option<Value> {
+        if self.is_root(l) {
+            self.c.get("name").cloned()
         } else if is_text(l) {
             let shown = js::slice16(&js::norm(l.get("characters")), 0, 40);
             Some(format!("text \"{shown}\"").into())
         } else {
             l.get("name").cloned()
         }
-    };
-    let target = |l: &Value| -> Pairs {
+    }
+
+    fn target(&self, l: &Value) -> Pairs {
         vec![
             ("path", l.get("path").cloned()),
-            ("name", label(l)),
+            ("name", self.label(l)),
             ("kind", l.get("kind").cloned()),
             ("tag", Some(js::or_null(l.get("tag")))),
-            ("isRoot", Some(is_root(l).into())),
+            ("isRoot", Some(self.is_root(l).into())),
             ("bbox", Some(bbox(l))),
         ]
-    };
-    if let Some(name) = js::truthy_value(cc.get("name")) {
-        if js::norm(Some(name)) != js::norm(c.get("name")) {
-            out.push(change(
-                "rename",
-                vec![
-                    location(),
-                    target(root),
-                    vec![("from", c.get("name").cloned()), ("to", Some(name.clone()))],
-                ],
-            ));
+    }
+
+    fn push(&self, out: &mut Vec<Value>, ty: &str, l: &Value, extra: Pairs) {
+        out.push(change(ty, vec![self.location(), self.target(l), extra]));
+    }
+
+    /// The main component renamed.
+    fn rename_master(&self, cc: &Value, root: &Value, out: &mut Vec<Value>) {
+        if let Some(name) = js::truthy_value(cc.get("name")) {
+            if js::norm(Some(name)) != js::norm(self.c.get("name")) {
+                self.push(
+                    out,
+                    "rename",
+                    root,
+                    vec![
+                        ("from", self.c.get("name").cloned()),
+                        ("to", Some(name.clone())),
+                    ],
+                );
+            }
         }
     }
-    for l in &flat.order {
-        let Some(n) = sent_layer(l.get("path")) else {
-            continue;
-        };
-        let mut push =
-            |ty: &str, extra: Pairs| out.push(change(ty, vec![location(), target(l), extra]));
+
+    /// The changes of one layer `l` the plugin sent back as `n`, in the order they are listed.
+    fn layer_changes(&self, l: &Value, n: &Value, out: &mut Vec<Value>) {
+        self.text_change(l, n, out);
+        self.fill_change(l, n, out);
+        self.stroke_change(l, n, out);
+        self.radius_change(l, n, out);
+        self.size_change(l, n, out);
+        self.spacing_change(l, n, out);
+        if let Some(name) = js::truthy_value(n.get("name")) {
+            if !self.is_root(l) && !js::strict_eq(Some(name), l.get("name")) {
+                self.push(
+                    out,
+                    "rename",
+                    l,
+                    vec![("from", l.get("name").cloned()), ("to", Some(name.clone()))],
+                );
+            }
+        }
+    }
+
+    fn text_change(&self, l: &Value, n: &Value, out: &mut Vec<Value>) {
         if is_text(l)
             && n.get("characters").is_some()
             && js::norm(n.get("characters")) != js::norm(l.get("characters"))
         {
-            push(
+            self.push(
+                out,
                 "text",
+                l,
                 vec![
                     ("from", l.get("characters").cloned()),
                     ("to", n.get("characters").cloned()),
                 ],
             );
         }
-        // Fill (text colour for text layers).
+    }
+
+    /// Fill (text colour for text layers): changed, added or removed.
+    fn fill_change(&self, l: &Value, n: &Value, out: &mut Vec<Value>) {
         let fill = l.get("fills").and_then(|f| f.get(0));
         let before = js::truthy_value(if is_text(l) {
             l.get("text").and_then(|t| t.get("color"))
@@ -297,8 +372,10 @@ fn diff_component(
                     ("token", token.cloned()),
                 ])
             });
-            push(
+            self.push(
+                out,
                 "fill",
+                l,
                 vec![
                     ("from", Some(from)),
                     (
@@ -306,7 +383,7 @@ fn diff_component(
                         Some(json!({
                             "color": lower(after.get("color")),
                             "opacity": or_one(after.get("opacity")),
-                            "token": color_token(baseline, after),
+                            "token": color_token(self.baseline, after),
                         })),
                     ),
                 ],
@@ -314,8 +391,10 @@ fn diff_component(
         } else if let (None, Some(before), false, true) =
             (after, before, is_text(l), n.get("fills").is_some())
         {
-            push(
+            self.push(
+                out,
                 "fill",
+                l,
                 vec![
                     (
                         "from",
@@ -329,194 +408,218 @@ fn diff_component(
                 ],
             );
         }
-        // Stroke (border): colour, width, added or removed.
-        let sb = js::truthy_value(l.get("strokes").and_then(|s| s.get(0)));
+    }
+
+    /// Stroke (border): colour, width, added or removed.
+    fn stroke_change(&self, l: &Value, n: &Value, out: &mut Vec<Value>) {
+        let sb = stroke_before(l);
         let sa = first_of(n.get("strokes"));
         let sa = sa.as_ref();
-        if n.get("strokes").is_some() && (sb.is_some() || sa.is_some()) {
-            let width = |s: &Value| js::to_number(Some(&or_one(s.get("width"))));
-            let changed = match (sb, sa) {
-                (Some(sb), Some(sa)) => {
-                    paint_differs(sa, sb.get("color"), sb)
-                        || (width(sa) - js::to_number(sb.get("width"))).abs() > 0.25
-                }
-                _ => true,
-            };
-            if changed {
-                let number = |v: Option<&Value>| v.and_then(Value::as_f64);
-                let from = sb.map_or(Value::Null, |sb| {
-                    js::object(vec![
-                        ("color", sb.get("color").cloned()),
-                        ("opacity", Some(or_one(sb.get("opacity")))),
-                        ("width", sb.get("width").cloned()),
-                        ("token", Some(js::or_null(sb.get("token")))),
-                        (
-                            "widthToken",
-                            Some(find_dim(dims, "border", number(sb.get("width")))),
-                        ),
-                    ])
-                });
-                let to = sa.map_or(Value::Null, |sa| {
-                    let w = or_one(sa.get("width"));
-                    json!({
-                        "color": lower(sa.get("color")),
-                        "opacity": or_one(sa.get("opacity")),
-                        "width": w,
-                        "token": color_token(baseline, sa),
-                        "widthToken": find_dim(dims, "border", w.as_f64()),
-                    })
-                });
-                push("stroke", vec![("from", Some(from)), ("to", Some(to))]);
-            }
+        if !(n.get("strokes").is_some() && (sb.is_some() || sa.is_some())) {
+            return;
         }
-        // Corner radius.
-        if let (Some(radius), false) = (n.get("radius").and_then(Value::as_array), is_text(l)) {
-            let zeros = json!([0, 0, 0, 0]);
-            let rb = js::truthy_value(l.get("radius")).unwrap_or(&zeros);
-            let or_zero =
-                |v: Option<&Value>| js::truthy_value(v).map_or(0.0, |v| js::to_number(Some(v)));
-            let differs = radius
-                .iter()
-                .enumerate()
-                .any(|(i, v)| (or_zero(Some(v)) - or_zero(rb.get(i))).abs() > 0.5);
-            if differs {
-                let first = or_zero(radius.first());
-                let uniform = radius
-                    .iter()
-                    .all(|v| (or_zero(Some(v)) - first).abs() < 0.01);
-                let corners: Vec<Value> = radius
-                    .iter()
-                    .map(|v| js::truthy_value(Some(v)).cloned().unwrap_or(json!(0)))
-                    .collect();
-                // `findDim` wants a number: a truthy corner that is not one finds no token.
-                let first_number = match js::truthy_value(radius.first()) {
-                    None => Some(0.0),
-                    Some(v) => v.as_f64(),
-                };
-                let token = if uniform {
-                    find_dim(dims, "radius", first_number)
-                } else {
-                    Value::Null
-                };
-                push(
-                    "radius",
-                    vec![
-                        (
-                            "from",
-                            Some(
-                                json!({ "radius": rb, "token": js::or_null(l.get("radiusToken")) }),
-                            ),
-                        ),
-                        ("to", Some(json!({ "radius": corners, "token": token }))),
-                    ],
-                );
+        let width = |s: &Value| js::to_number(Some(&or_one(s.get("width"))));
+        let changed = match (sb, sa) {
+            (Some(sb), Some(sa)) => {
+                paint_differs(sa, sb.get("color"), sb)
+                    || (width(sa) - js::to_number(sb.get("width"))).abs() > 0.25
             }
+            _ => true,
+        };
+        if !changed {
+            return;
         }
-        // Size (not for text: Penpot's font metrics differ).
+        let number = |v: Option<&Value>| v.and_then(Value::as_f64);
+        let from = sb.map_or(Value::Null, |sb| {
+            js::object(vec![
+                ("color", sb.get("color").cloned()),
+                ("opacity", Some(or_one(sb.get("opacity")))),
+                ("width", sb.get("width").cloned()),
+                ("token", Some(js::or_null(sb.get("token")))),
+                (
+                    "widthToken",
+                    Some(find_dim(self.dims, "border", number(sb.get("width")))),
+                ),
+            ])
+        });
+        let to = sa.map_or(Value::Null, |sa| {
+            let w = or_one(sa.get("width"));
+            json!({
+                "color": lower(sa.get("color")),
+                "opacity": or_one(sa.get("opacity")),
+                "width": w,
+                "token": color_token(self.baseline, sa),
+                "widthToken": find_dim(self.dims, "border", w.as_f64()),
+            })
+        });
+        self.push(
+            out,
+            "stroke",
+            l,
+            vec![("from", Some(from)), ("to", Some(to))],
+        );
+    }
+
+    /// Corner radius (not for text).
+    fn radius_change(&self, l: &Value, n: &Value, out: &mut Vec<Value>) {
+        let (Some(radius), false) = (n.get("radius").and_then(Value::as_array), is_text(l)) else {
+            return;
+        };
+        let zeros = json!([0, 0, 0, 0]);
+        let rb = js::truthy_value(l.get("radius")).unwrap_or(&zeros);
+        let or_zero =
+            |v: Option<&Value>| js::truthy_value(v).map_or(0.0, |v| js::to_number(Some(v)));
+        let differs = radius
+            .iter()
+            .enumerate()
+            .any(|(i, v)| (or_zero(Some(v)) - or_zero(rb.get(i))).abs() > 0.5);
+        if !differs {
+            return;
+        }
+        let first = or_zero(radius.first());
+        let uniform = radius
+            .iter()
+            .all(|v| (or_zero(Some(v)) - first).abs() < 0.01);
+        let corners: Vec<Value> = radius
+            .iter()
+            .map(|v| js::truthy_value(Some(v)).cloned().unwrap_or(json!(0)))
+            .collect();
+        // `findDim` wants a number: a truthy corner that is not one finds no token.
+        let first_number = match js::truthy_value(radius.first()) {
+            None => Some(0.0),
+            Some(v) => v.as_f64(),
+        };
+        let token = if uniform {
+            find_dim(self.dims, "radius", first_number)
+        } else {
+            Value::Null
+        };
+        self.push(
+            out,
+            "radius",
+            l,
+            vec![
+                (
+                    "from",
+                    Some(json!({ "radius": rb, "token": js::or_null(l.get("radiusToken")) })),
+                ),
+                ("to", Some(json!({ "radius": corners, "token": token }))),
+            ],
+        );
+    }
+
+    /// Size (not for text: Penpot's font metrics differ).
+    fn size_change(&self, l: &Value, n: &Value, out: &mut Vec<Value>) {
         let grew = |k: &str| (js::to_number(n.get(k)) - js::to_number(l.get(k))).abs() > TOL;
-        if !is_text(l) && (grew("w") || grew("h")) {
-            let token = |k: &str| {
-                if grew(k) {
-                    find_dim(dims, "size", n.get(k).and_then(Value::as_f64))
-                } else {
-                    Value::Null
-                }
-            };
-            push(
-                "size",
-                vec![
-                    ("from", Some(pair(l.get("w"), l.get("h")))),
-                    ("to", Some(pair(n.get("w"), n.get("h")))),
-                    ("tokens", Some(json!({ "w": token("w"), "h": token("h") }))),
-                ],
-            );
+        if is_text(l) || !(grew("w") || grew("h")) {
+            return;
         }
-        // Spacing: the insets of the children inside this frame (padding), compared side by side.
+        let token = |k: &str| {
+            if grew(k) {
+                find_dim(self.dims, "size", n.get(k).and_then(Value::as_f64))
+            } else {
+                Value::Null
+            }
+        };
+        self.push(
+            out,
+            "size",
+            l,
+            vec![
+                ("from", Some(pair(l.get("w"), l.get("h")))),
+                ("to", Some(pair(n.get("w"), n.get("h")))),
+                ("tokens", Some(json!({ "w": token("w"), "h": token("h") }))),
+            ],
+        );
+    }
+
+    /// Spacing: the insets of the children inside this frame (padding), compared side by side.
+    fn spacing_change(&self, l: &Value, n: &Value, out: &mut Vec<Value>) {
         let kids: Vec<&Value> = list(l.get("children"))
             .iter()
-            .filter(|k| sent_layer(k.get("path")).is_some())
+            .filter(|k| self.sent_layer(k.get("path")).is_some())
             .collect();
-        if !kids.is_empty() {
-            let now: Vec<&Value> = kids
-                .iter()
-                .filter_map(|k| sent_layer(k.get("path")))
-                .collect();
-            let (ib, ia) = (insets(l, &kids), insets(n, &now));
-            let sw = sb.map_or(json!(0), |sb| {
-                sb.get("width").cloned().unwrap_or(Value::Null)
-            });
-            let border = js::to_number(Some(&sw));
-            let mut sides = Vec::new();
-            for (i, side) in ["top", "right", "bottom", "left"].into_iter().enumerate() {
-                let (Some(from), Some(to)) = (ib[i], ia[i]) else {
-                    continue;
+        if kids.is_empty() {
+            return;
+        }
+        let now: Vec<&Value> = kids
+            .iter()
+            .filter_map(|k| self.sent_layer(k.get("path")))
+            .collect();
+        let sb = stroke_before(l);
+        let (ib, ia) = (insets(l, &kids), insets(n, &now));
+        let sw = sb.map_or(json!(0), |sb| {
+            sb.get("width").cloned().unwrap_or(Value::Null)
+        });
+        let border = js::to_number(Some(&sw));
+        let mut sides = Vec::new();
+        for (i, side) in ["top", "right", "bottom", "left"].into_iter().enumerate() {
+            let (Some(from), Some(to)) = (ib[i], ia[i]) else {
+                continue;
+            };
+            if (to - from).abs() > TOL {
+                let token = match find_dim(self.dims, "space", Some(to - border)) {
+                    Value::Null => find_dim(self.dims, "space", Some(to)),
+                    token => token,
                 };
-                if (to - from).abs() > TOL {
-                    let token = match find_dim(dims, "space", Some(to - border)) {
-                        Value::Null => find_dim(dims, "space", Some(to)),
-                        token => token,
-                    };
-                    sides.push((
-                        side,
-                        Some(json!({ "from": js::num(from), "to": js::num(to), "token": token })),
-                    ));
-                }
-            }
-            if !sides.is_empty() {
-                // The stroke of a layer that has one always carries a width; without it the
-                // Node object held `undefined` and JSON dropped the key.
-                let border = sb.map_or(Some(json!(0)), |sb| sb.get("width").cloned());
-                push(
-                    "spacing",
-                    vec![("sides", Some(js::object(sides))), ("border", border)],
-                );
+                sides.push((
+                    side,
+                    Some(json!({ "from": js::num(from), "to": js::num(to), "token": token })),
+                ));
             }
         }
-        if let Some(name) = js::truthy_value(n.get("name")) {
-            if !is_root(l) && !js::strict_eq(Some(name), l.get("name")) {
-                push(
-                    "rename",
-                    vec![("from", l.get("name").cloned()), ("to", Some(name.clone()))],
-                );
-            }
+        if !sides.is_empty() {
+            // The stroke of a layer that has one always carries a width; without it the
+            // Node object held `undefined` and JSON dropped the key.
+            let border = sb.map_or(Some(json!(0)), |sb| sb.get("width").cloned());
+            self.push(
+                out,
+                "spacing",
+                l,
+                vec![("sides", Some(js::object(sides))), ("border", border)],
+            );
         }
     }
-    for l in &flat.order {
-        if sent_layer(l.get("path")).is_some() {
-            continue;
-        }
-        let parent = l
-            .get("path")
-            .and_then(Value::as_str)
-            .and_then(parent_path)
-            .map(Value::from);
-        if let Some(parent) = &parent {
-            if sent_layer(Some(parent)).is_none() && flat.has(Some(parent)) {
+
+    /// Removed: topmost layers of the master the plugin did not send.
+    fn removed_layers(&self, flat: &Layers, out: &mut Vec<Value>) {
+        for l in &flat.order {
+            if self.sent_layer(l.get("path")).is_some() {
                 continue;
             }
-        }
-        out.push(change(
-            "removed",
-            vec![
-                location(),
-                target(l),
-                vec![("text", l.get("characters").cloned())],
-            ],
-        ));
-    }
-    for a in &added {
-        let (cx, cy) = centre(a);
-        let mut host = root;
-        for l in &flat.order {
-            if !is_text(l) && contains(l, cx, cy) && area(l) <= area(host) {
-                host = l;
+            let parent = l
+                .get("path")
+                .and_then(Value::as_str)
+                .and_then(parent_path)
+                .map(Value::from);
+            if let Some(parent) = &parent {
+                if self.sent_layer(Some(parent)).is_none() && flat.has(Some(parent)) {
+                    continue;
+                }
             }
+            self.push(
+                out,
+                "removed",
+                l,
+                vec![("text", l.get("characters").cloned())],
+            );
         }
-        out.push(change(
-            "added",
-            vec![
-                location(),
-                target(host),
+    }
+
+    /// Added: each new layer, on the smallest non-text layer under its centre.
+    fn added_layers(&self, root: &Value, flat: &Layers, added: &[Value], out: &mut Vec<Value>) {
+        for a in added {
+            let (cx, cy) = centre(a);
+            let mut host = root;
+            for l in &flat.order {
+                if !is_text(l) && contains(l, cx, cy) && area(l) <= area(host) {
+                    host = l;
+                }
+            }
+            self.push(
+                out,
+                "added",
+                host,
                 vec![
                     (
                         "kind",
@@ -526,7 +629,12 @@ fn diff_component(
                     ("bbox", Some(bbox(a))),
                     ("characters", a.get("characters").cloned()),
                 ],
-            ],
-        ));
+            );
+        }
     }
+}
+
+/// The first stroke of a layer as exported, when it has one.
+fn stroke_before(l: &Value) -> Option<&Value> {
+    js::truthy_value(l.get("strokes").and_then(|s| s.get(0)))
 }

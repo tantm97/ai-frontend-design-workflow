@@ -1,30 +1,19 @@
 //! Tooling commands of `core/lib/cli.mjs`: inspector, mcp, install, uninstall, setup, doctor, stack, handoff
 //! (`cmdInspector`, `cmdDoctor`, `cmdHandoff`). Lighthouse has no command of its own: it runs inside `check`.
 
-use std::env;
-use std::time::Duration;
-
 use serde_json::{json, Value};
 
 use super::{Ctx, Handler};
-use crate::browser::a11y::{axe_status, AxeStatus, AXE_VERSION};
 use crate::browser::download::install_browser;
-use crate::browser::launch::{browser_status, BrowserStatus};
 use crate::core::config::{set_config_value, Scope};
 use crate::core::error::DfwError;
-use crate::core::host::{Status, HOSTS};
 use crate::core::js;
-use crate::core::paths::{claude_dir, global_dir, project_paths, resolve};
-use crate::core::process::{find_executable, plan_for, run_timed};
+use crate::core::paths::{project_paths, resolve};
 use crate::core::util::{out, read_json, to_json_compact, to_json_pretty, ArgValue, Args};
-use crate::review::locate::{
-    impeccable_engine, plugin_root_of, sloplint_script, taste_copy_lint_script,
-};
-use crate::tools::binary::{binary_status, install_binary, RELEASE_REPO};
+use crate::tools::binary::{install_binary, RELEASE_REPO};
+use crate::tools::doctor::doctor_checks;
 use crate::tools::inspector::{format_plan, inspector_setup, parse_insp_path, PACKAGE, VERSION};
-use crate::tools::install::{copilot_plugin_state, install, uninstall, InstallOptions};
-use crate::tools::mcp_install::mcp_installed;
-use crate::workflow::freeze::verify_snapshot;
+use crate::tools::install::{install, uninstall, InstallOptions};
 
 /// The commands of this group. `mcp`, `stack` and `handoff` are at the end of the file.
 pub fn commands() -> Vec<(&'static str, Handler)> {
@@ -141,240 +130,29 @@ pub(super) fn debug_insp_path(ctx: &Ctx) -> Result<i32, DfwError> {
 
 /* ---------------------------------------------------------------- doctor */
 
-/// `spawnSync(bin, ['--version'])`: whether it ran and succeeded, and what it printed. The
-/// program is looked up on PATH, never in the current folder (`claude.bat` in a cloned
-/// repository must not run on `dfw doctor`), and gets 15 seconds.
-fn version_of(bin: &str) -> (bool, String, String) {
-    let Some(exe) = find_executable(bin) else {
-        return (false, String::new(), String::new());
-    };
-    let plan = plan_for(
-        &exe.display().to_string(),
-        vec!["--version".into()],
-        cfg!(windows),
-    );
-    let ran = run_timed(&plan, None, &[], Duration::from_secs(15));
-    (ran.status == Some(0), ran.stdout, ran.stderr)
+/// `dfw doctor`: environment and installation checks (`cmdDoctor`), one line each.
+fn doctor(ctx: &Ctx) -> Result<i32, DfwError> {
+    let mut lines: Vec<String> = doctor_checks(&ctx.root())?
+        .iter()
+        .map(|c| doctor_line(&c.name, c.ok, &c.detail))
+        .collect();
+    lines.push(doctor_line(
+        "telemetry",
+        true,
+        &crate::telemetry::status_line(),
+    ));
+    out(&lines.join("\n"));
+    Ok(0)
 }
 
-/// `dfw doctor`: environment and installation checks (`cmdDoctor`).
-// Long: one row after the other, in the order the report prints them.
-#[allow(clippy::too_many_lines, reason = "A10 debt")]
-fn doctor(ctx: &Ctx) -> Result<i32, DfwError> {
-    let root = ctx.root();
-    let mut rows: Vec<String> = Vec::new();
-    let mut ok = |name: &str, good: bool, detail: &str| {
-        let detail = if detail.is_empty() {
-            String::new()
-        } else {
-            format!(" - {detail}")
-        };
-        rows.push(format!(
-            "{} {name}{detail}",
-            if good { "ok  " } else { "WARN" }
-        ));
+/// `ok  <name> - <detail>` or `WARN <name> - <detail>`; no dash without a detail.
+fn doctor_line(name: &str, good: bool, detail: &str) -> String {
+    let detail = if detail.is_empty() {
+        String::new()
+    } else {
+        format!(" - {detail}")
     };
-    let bin = binary_status();
-    let exe = env::current_exe()
-        .map(|p| p.display().to_string())
-        .unwrap_or_default();
-    ok(
-        "dfw runtime",
-        true,
-        &format!("binary {} ({exe})", bin.version),
-    );
-    let (py, py_out, py_err) = version_of("python3");
-    let py_text = [py_out, py_err]
-        .into_iter()
-        .find(|t| !t.is_empty())
-        .unwrap_or_else(|| "not found".into());
-    ok("python3 (UI UX Pro Max search)", py, py_text.trim());
-    ok("git", version_of("git").0, "");
-    for name in [
-        "frontend-design",
-        "ux-research",
-        "ui-ux-pro-max",
-        "impeccable",
-        "emil-design-eng",
-        "hallmark",
-        "taste-reference",
-    ] {
-        let r = plugin_root_of(name)?;
-        ok(
-            &format!("plugin {name}"),
-            r.is_some(),
-            &r.map_or_else(
-                || "not found (install from dfw-marketplace)".to_string(),
-                |p| p.display().to_string(),
-            ),
-        );
-    }
-    let label = "impeccable engine verified";
-    match impeccable_engine()? {
-        Some(e) if e.ready => {
-            let cmd = e.cmd.as_deref().map(|c| c.display().to_string());
-            let detail = if e.verified {
-                format!("{} (sha256 matches the pinned checksum)", e.version)
-            } else {
-                format!(
-                    "UNVERIFIED {} (impeccable.allowUnverifiedEngine)",
-                    cmd.unwrap_or_default()
-                )
-            };
-            ok(label, true, &detail);
-        }
-        Some(e) => ok(label, false, &e.detail.unwrap_or_default()),
-        None => ok(label, false, "impeccable plugin not found"),
-    }
-    ok("sloplint", sloplint_script()?.is_some(), "");
-    ok(
-        "taste copy-lint",
-        taste_copy_lint_script()?.is_some(),
-        "optional",
-    );
-    match browser_status() {
-        BrowserStatus::Installed(b) => ok(
-            "browser for screenshots and layout check",
-            true,
-            &format!("{}: {}", b.source, b.path.display()),
-        ),
-        BrowserStatus::Missing { detail } => {
-            ok("browser for screenshots and layout check", false, detail)
-        }
-    }
-    match axe_status() {
-        AxeStatus::Installed { path } => ok(
-            "axe-core for the accessibility check",
-            true,
-            &format!("{AXE_VERSION}: {}", path.display()),
-        ),
-        AxeStatus::Missing { detail } => ok("axe-core for the accessibility check", false, detail),
-    }
-    // Duplicate installs of the same upstream skills from other marketplaces load twice.
-    let installed_file = claude_dir().join("plugins").join("installed_plugins.json");
-    let installed = read_json(&installed_file, Some(Value::Null))?;
-    let plugins = installed.get("plugins").filter(|p| js::truthy(p));
-    match plugins {
-        Some(plugins) => {
-            let ours = [
-                "frontend-design",
-                "impeccable",
-                "ui-ux-pro-max",
-                "hallmark",
-                "taste-skill",
-                "taste",
-                "emil-design-eng",
-                "example-skills",
-            ];
-            let dups: Vec<&str> = plugins
-                .as_object()
-                .into_iter()
-                .flat_map(|map| map.keys())
-                .map(String::as_str)
-                .filter(|n| {
-                    ours.contains(&n.split('@').next().unwrap_or_default())
-                        && !n.ends_with("@dfw-marketplace")
-                })
-                .collect();
-            let detail = if dups.is_empty() {
-                String::new()
-            } else {
-                format!("also installed outside dfw-marketplace: {} (skills would load twice; consider disabling them)", dups.join(", "))
-            };
-            ok("no duplicate upstream installs", dups.is_empty(), &detail);
-        }
-        None => ok(
-            "duplicate install check",
-            true,
-            "skipped (no installed_plugins.json; plugins may be loaded with --plugin-dir)",
-        ),
-    }
-    let state = load_state(&root)?;
-    let detail = state
-        .as_ref()
-        .map_or("not initialized here".to_string(), |s| {
-            format!(
-                "{}/{}",
-                js::to_string(s.get("mode")),
-                js::to_string(s.get("phase"))
-            )
-        });
-    ok("project workflow", true, &detail);
-    if let Some(state) = &state {
-        let approved = state
-            .get("design")
-            .and_then(|d| d.get("approved"))
-            .and_then(Value::as_array);
-        for ap in approved.into_iter().flatten() {
-            let version = ap
-                .get("version")
-                .and_then(Value::as_str)
-                .unwrap_or_default();
-            let problems = verify_snapshot(&root, version)?;
-            let first: Vec<&str> = problems.iter().take(5).map(String::as_str).collect();
-            ok(
-                &format!("approved snapshot {version} intact"),
-                problems.is_empty(),
-                &first.join("; "),
-            );
-        }
-    }
-    for h in HOSTS.iter().filter(|h| h.status != Status::Internal) {
-        let name = format!("host {}", h.name);
-        let cli = h.cli.unwrap_or_default();
-        if h.status != Status::Supported {
-            let detail = if mcp_installed(h.id) {
-                "plugin planned; dfw MCP server configured".to_string()
-            } else {
-                format!("plugin planned; use \"dfw mcp install {}\"", h.id)
-            };
-            ok(&name, true, &detail);
-            continue;
-        }
-        let (found, printed, _) = version_of(cli);
-        if !found {
-            ok(
-                &name,
-                true,
-                &format!(
-                    "\"{cli}\" not found (skip, or install it and run \"dfw install --host {}\")",
-                    h.id
-                ),
-            );
-            continue;
-        }
-        let (plugin, state) = if h.id == "claude" {
-            let installed = read_json(&installed_file, Some(json!({})))?
-                .get("plugins")
-                .and_then(|p| p.get("dfw@dfw-marketplace"))
-                .is_some_and(js::truthy);
-            let state = if installed {
-                "installed".to_string()
-            } else {
-                format!("missing (dfw install --host {})", h.id)
-            };
-            (installed, state)
-        } else {
-            // Copilot: also says when the installed folder still has the two-folder layout.
-            copilot_plugin_state(&h.dfw_plugin_dir().unwrap_or_default())
-        };
-        ok(
-            &name,
-            plugin,
-            &format!(
-                "{}; dfw plugin {state}",
-                printed.trim().split('\n').next().unwrap_or_default()
-            ),
-        );
-    }
-    ok(
-        "global config dir",
-        true,
-        &global_dir().display().to_string(),
-    );
-    ok("telemetry", true, &crate::telemetry::status_line());
-    out(&rows.join("\n"));
-    Ok(0)
+    format!("{} {name}{detail}", if good { "ok  " } else { "WARN" })
 }
 
 /* ---------------------------------------------------------------- mcp, stack, handoff */

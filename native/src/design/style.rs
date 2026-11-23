@@ -325,20 +325,39 @@ fn group<'a>(tree: &'a mut Value, path: &[&str]) -> Result<&'a mut Map<String, V
 }
 
 /// `styleTokens`: the DTCG token tree of a guide (the kit preset it is based on, with the
-/// guide's colour, type, shape and elevation on top).
-// Over 120 lines: the token groups are written in one sequence, the key order of the
-// tokens.json users diff.
-#[allow(clippy::too_many_lines, reason = "A10 debt")]
+/// guide's colour, type, shape and elevation on top). The groups are written in the key order
+/// of the tokens.json users diff.
 pub fn style_tokens(g: &Value, fonts: &str) -> Result<Value, DfwError> {
-    let base = text(g.get("base"));
-    let mut t = assets::json(Folder::Kits, &format!("base/presets/{base}.tokens.json"))?
-        .ok_or_else(|| {
-            DfwError::new(format!(
-                "The style guide's base preset \"{base}\" does not exist. Presets: dfw system presets"
-            ))
-        })?;
-    let hex_of = |v: &Value| text(Some(v));
+    let mut t = base_preset(g)?;
+    group(&mut t, &[])?.insert("color".into(), color_tokens(g));
+    let display = text(fonts_for(g, fonts).and_then(|f| f.get("display")));
+    group(&mut t, &["font"])?.insert("family".into(), font_families(g, fonts, &display));
+    write_font_sizes(&mut t, g)?;
+    write_display_font(&mut t, &display)?;
+    group(&mut t, &["font"])?.insert("eyebrow".into(), eyebrow_tokens(g));
+    group(&mut t, &[])?.insert("radius".into(), radius_tokens(g));
+    let sizes = group(&mut t, &["size"])?;
+    for (k, v) in density(g.get("density").and_then(Value::as_str)) {
+        sizes.insert(k.into(), px(Some(&json!(v))));
+    }
+    write_guide_meta(&mut t, g, fonts)?;
+    Ok(js::key_order(t))
+}
 
+/// The kit preset a guide is based on (`base`), as a token tree.
+fn base_preset(g: &Value) -> Result<Value, DfwError> {
+    let base = text(g.get("base"));
+    assets::json(Folder::Kits, &format!("base/presets/{base}.tokens.json"))?.ok_or_else(|| {
+        DfwError::new(format!(
+            "The style guide's base preset \"{base}\" does not exist. Presets: dfw system presets"
+        ))
+    })
+}
+
+/// The `color` group: the named palette, the roles (aliases or hex), the text colours on
+/// fills and the status colours.
+fn color_tokens(g: &Value) -> Value {
+    let hex_of = |v: &Value| text(Some(v));
     let mut palette = Map::new();
     for (k, v) in entries(g.get("palette")) {
         palette.insert(
@@ -378,11 +397,13 @@ pub fn style_tokens(g: &Value, fonts: &str) -> Result<Value, DfwError> {
         col("#111518", Some("Text on the warn fill.")),
     );
     color.insert("status".into(), Value::Object(status));
-    group(&mut t, &[])?.insert("color".into(), Value::Object(color));
+    Value::Object(color)
+}
 
+/// The `font.family` group: body, display and mono stacks with their fallbacks.
+fn font_families(g: &Value, fonts: &str, display: &str) -> Value {
     let f = fonts_for(g, fonts);
     let font_name = |key: &str| f.and_then(|f| f.get(key)).cloned().unwrap_or(Value::Null);
-    let display = text(f.and_then(|f| f.get("display")));
     let stack = |name: Value, fallback: &[&str]| {
         let mut families = vec![name];
         families.extend(fallback.iter().map(|x| json!(x)));
@@ -399,18 +420,19 @@ pub fn style_tokens(g: &Value, fonts: &str) -> Result<Value, DfwError> {
         .filter(|n| js::truthy(Some(n)))
         .cloned()
         .unwrap_or(json!(""));
-    group(&mut t, &["font"])?.insert(
-        "family".into(),
-        json!({
-            "$type": "fontFamily",
-            "body": { "$value": stack(font_name("body"), &sans) },
-            "display": { "$value": stack(font_name("display"), if serif_stack { &["Georgia", "serif"] } else { &sans }), "$description": note },
-            "mono": { "$value": stack(font_name("mono"), &["Consolas", "monospace"]) },
-        }),
-    );
+    json!({
+        "$type": "fontFamily",
+        "body": { "$value": stack(font_name("body"), &sans) },
+        "display": { "$value": stack(font_name("display"), if serif_stack { &["Georgia", "serif"] } else { &sans }), "$description": note },
+        "mono": { "$value": stack(font_name("mono"), &["Consolas", "monospace"]) },
+    })
+}
+
+/// The `font.size` group: the guide's UI sizes (when it has them), then the display sizes.
+fn write_font_sizes(t: &mut Value, g: &Value) -> Result<(), DfwError> {
     let ty = g.get("type");
     let type_of = |key: &str| ty.and_then(|t| t.get(key));
-    let size = group(&mut t, &["font", "size"])?;
+    let size = group(t, &["font", "size"])?;
     if js::truthy(type_of("ui")) {
         for (k, v) in entries(type_of("ui")) {
             let mut token = px(Some(v));
@@ -432,6 +454,11 @@ pub fn style_tokens(g: &Value, fonts: &str) -> Result<Value, DfwError> {
     {
         size.insert((*key).into(), px(steps.get(i)));
     }
+    Ok(())
+}
+
+/// The display weight, leading and tracking: lighter and looser for a serif display face.
+fn write_display_font(t: &mut Value, display: &str) -> Result<(), DfwError> {
     let serif = SERIF_DISPLAY.iter().any(|s| display.contains(s));
     for (name, value) in [
         ("weight", json!(if serif { 400 } else { 600 })),
@@ -441,9 +468,14 @@ pub fn style_tokens(g: &Value, fonts: &str) -> Result<Value, DfwError> {
             json!({ "value": if serif { -0.01 } else { -0.025 }, "unit": "em" }),
         ),
     ] {
-        group(&mut t, &["font", name])?.insert("display".into(), json!({ "$value": value }));
+        group(t, &["font", name])?.insert("display".into(), json!({ "$value": value }));
     }
-    let eyebrow = type_of("eyebrow");
+    Ok(())
+}
+
+/// The `font.eyebrow` group: size, weight, tracking and case of eyebrow labels.
+fn eyebrow_tokens(g: &Value) -> Value {
+    let eyebrow = g.get("type").and_then(|t| t.get("eyebrow"));
     let eye = |key: &str| eyebrow.and_then(|e| e.get(key));
     let dimension = |value: Option<Value>, unit: &str| {
         let mut d = Map::new();
@@ -458,27 +490,28 @@ pub fn style_tokens(g: &Value, fonts: &str) -> Result<Value, DfwError> {
     if let Some(w) = eye("weight") {
         weight.insert("$value".into(), w.clone());
     }
-    group(&mut t, &["font"])?.insert(
-        "eyebrow".into(),
-        json!({
-            "size": { "$type": "dimension", "$value": dimension(eye("size").cloned(), "px") },
-            "weight": weight,
-            "tracking": { "$type": "dimension", "$value": dimension(Some(js::num(js::parse_float(&text(eye("tracking"))))), "em") },
-            "case": { "$type": "string", "$value": if js::truthy(eye("upper")) { "uppercase" } else { "none" }, "$description": "text-transform for eyebrows (dfw string token)" },
-        }),
-    );
+    json!({
+        "size": { "$type": "dimension", "$value": dimension(eye("size").cloned(), "px") },
+        "weight": weight,
+        "tracking": { "$type": "dimension", "$value": dimension(Some(js::num(js::parse_float(&text(eye("tracking"))))), "em") },
+        "case": { "$type": "string", "$value": if js::truthy(eye("upper")) { "uppercase" } else { "none" }, "$description": "text-transform for eyebrows (dfw string token)" },
+    })
+}
+
+/// The `radius` group: the guide's radii and the pill.
+fn radius_tokens(g: &Value) -> Value {
     let mut radius = Map::new();
     radius.insert("$type".into(), json!("dimension"));
     for (k, v) in entries(g.get("radius")) {
         radius.insert(k.clone(), px(Some(v)));
     }
     radius.insert("pill".into(), px(Some(&json!(999))));
-    group(&mut t, &[])?.insert("radius".into(), Value::Object(radius));
-    let sizes = group(&mut t, &["size"])?;
-    for (k, v) in density(g.get("density").and_then(Value::as_str)) {
-        sizes.insert(k.into(), px(Some(&json!(v))));
-    }
-    let root = group(&mut t, &[])?;
+    Value::Object(radius)
+}
+
+/// The tinted shadows, the tree's description and the `dfw` extension naming the guide.
+fn write_guide_meta(t: &mut Value, g: &Value, fonts: &str) -> Result<(), DfwError> {
+    let root = group(t, &[])?;
     root.insert(
         "shadow".into(),
         shadows(&text(g.get("shadowTint")), js::truthy(g.get("hardShadow"))),
@@ -498,7 +531,7 @@ pub fn style_tokens(g: &Value, fonts: &str) -> Result<Value, DfwError> {
     }
     dfw.insert("fonts".into(), json!(fonts));
     root.insert("$extensions".into(), json!({ "dfw": dfw }));
-    Ok(js::key_order(t))
+    Ok(())
 }
 
 /// `motifComponent`: the motif master of a guide (one component with a variant per motif), or

@@ -299,11 +299,25 @@ fn count_decisions(body: &str) -> usize {
     count
 }
 
+/// One finding on the token file, at line 1.
+fn add(findings: &mut Vec<Value>, level: &str, rule: &str, message: String) {
+    findings.push(json!({ "level": level, "rule": rule, "file": TOKENS_FILE, "line": 1, "message": message, "source": "dfw-ds" }));
+}
+
+/// Findings of a colour or type check, added in their order with their level and rule.
+fn add_all(findings: &mut Vec<Value>, found: Vec<Value>) {
+    for x in found {
+        add(
+            findings,
+            x["level"].as_str().unwrap_or_default(),
+            x["rule"].as_str().unwrap_or_default(),
+            js::to_string(x.get("message")),
+        );
+    }
+}
+
 /// `auditDesignSystem(root)`: findings `{ level, rule, file, line, message, source: "dfw-ds" }`.
 /// Nothing when the project has no `design/tokens/tokens.json`.
-// Over 120 lines: the checks run in the order their findings are printed and share the
-// resolved tokens.
-#[allow(clippy::too_many_lines, reason = "A10 debt")]
 pub fn audit_design_system(root: &Path) -> Result<Vec<Value>, DfwError> {
     let p = project_paths(root);
     let file = p.tokens.join("tokens.json");
@@ -311,13 +325,27 @@ pub fn audit_design_system(root: &Path) -> Result<Vec<Value>, DfwError> {
     if !file.exists() {
         return Ok(findings);
     }
-    let mut add = |level: &str, rule: &str, message: String| {
-        findings.push(json!({ "level": level, "rule": rule, "file": TOKENS_FILE, "line": 1, "message": message, "source": "dfw-ds" }));
-    };
     let tree = read_json(&file, Some(json!({})))?;
     let tokens = collect(&tree);
     let r = Resolver { tokens: &tokens };
 
+    let roles = audit_color_roles(&tree, &r, &mut findings);
+    audit_usage_rules(&tokens, &mut findings);
+    audit_type(&p.manifest, &r, &tokens, &mut findings)?;
+    audit_shape(&tokens, &roles, &mut findings)?;
+    audit_spacing(&tokens, &mut findings);
+    audit_rationale(root, &mut findings)?;
+    findings.extend(inventory_findings(root)?);
+    Ok(findings)
+}
+
+/// Contrast and semantic colour checks on the role and status colours, when accent, surface
+/// and ink are defined. Returns the role colours by role.
+fn audit_color_roles(
+    tree: &Value,
+    r: &Resolver<'_>,
+    findings: &mut Vec<Value>,
+) -> Map<String, Value> {
     let mut roles = Map::new();
     for role in ROLES {
         if let Some(hex) = r.hex(&format!("color.{role}")) {
@@ -345,16 +373,13 @@ pub fn audit_design_system(root: &Path) -> Result<Vec<Value>, DfwError> {
         .all(|k| roles.contains_key(*k))
     {
         let input = json!({ "roles": roles, "status": status, "onFill": on_fill });
-        for x in audit_colors(&input, &exceptions) {
-            add(
-                x["level"].as_str().unwrap_or_default(),
-                x["rule"].as_str().unwrap_or_default(),
-                js::to_string(x.get("message")),
-            );
-        }
+        add_all(findings, audit_colors(&input, &exceptions));
     }
+    roles
+}
 
-    // Usage rules: every palette entry and role should say what it is for.
+/// Usage rules: every palette entry and role should say what it is for.
+fn audit_usage_rules(tokens: &[Token<'_>], findings: &mut Vec<Value>) {
     let color_tokens: Vec<&Token> = tokens
         .iter()
         .filter(|t| {
@@ -367,10 +392,17 @@ pub fn audit_design_system(root: &Path) -> Result<Vec<Value>, DfwError> {
         .map(|t| t.name.as_str())
         .collect();
     if undocumented.len() * 3 > color_tokens.len() {
-        add(Level::Warn.as_str(), "usage-rules", format!("{} of {} colour tokens have no $description (usage rule), e.g. {}. A senior palette says what each colour is for and what it must never be used for.", undocumented.len(), color_tokens.len(), undocumented.iter().take(4).copied().collect::<Vec<_>>().join(", ")));
+        add(findings, Level::Warn.as_str(), "usage-rules", format!("{} of {} colour tokens have no $description (usage rule), e.g. {}. A senior palette says what each colour is for and what it must never be used for.", undocumented.len(), color_tokens.len(), undocumented.iter().take(4).copied().collect::<Vec<_>>().join(", ")));
     }
+}
 
-    // Type.
+/// Type: the scale's rhythm for the product's surface, display sizes, the number of families.
+fn audit_type(
+    manifest_file: &Path,
+    r: &Resolver<'_>,
+    tokens: &[Token<'_>],
+    findings: &mut Vec<Value>,
+) -> Result<(), DfwError> {
     let sizes = |keys: &[&str]| -> Vec<Value> {
         keys.iter()
             .filter_map(|k| r.size(k))
@@ -381,7 +413,7 @@ pub fn audit_design_system(root: &Path) -> Result<Vec<Value>, DfwError> {
     let ui = sizes(&["2xs", "xs", "sm", "md", "lg", "xl", "2xl"]);
     let display = sizes(&["display-sm", "display-md", "display-lg", "display-xl"]);
     // A malformed design.json is reported by lint (manifest-json).
-    let manifest = read_json(&p.manifest, Some(json!({}))).unwrap_or_else(|_| json!({}));
+    let manifest = read_json(manifest_file, Some(json!({}))).unwrap_or_else(|_| json!({}));
     if manifest.is_null() {
         // A design.json that holds `null` (lint reports it as manifest-missing).
         return Err(DfwError::new(
@@ -396,15 +428,12 @@ pub fn audit_design_system(root: &Path) -> Result<Vec<Value>, DfwError> {
         .get("surface")
         .filter(|s| js::truthy(Some(s)))
         .map_or("product".to_string(), |s| js::to_string(Some(s)));
-    for x in audit_type_scale(&json!({ "ui": ui, "display": display }), body, &surface) {
-        add(
-            x["level"].as_str().unwrap_or_default(),
-            x["rule"].as_str().unwrap_or_default(),
-            js::to_string(x.get("message")),
-        );
-    }
+    add_all(
+        findings,
+        audit_type_scale(&json!({ "ui": ui, "display": display }), body, &surface),
+    );
     if display.is_empty() {
-        add(Level::Warn.as_str(), "type-display", "No display sizes (font.size.display-*): titles and key numbers will sit at body scale, the most common \"AI look\".".into());
+        add(findings, Level::Warn.as_str(), "type-display", "No display sizes (font.size.display-*): titles and key numbers will sit at body scale, the most common \"AI look\".".into());
     }
     let families = distinct(
         tokens
@@ -424,6 +453,7 @@ pub fn audit_design_system(root: &Path) -> Result<Vec<Value>, DfwError> {
             })
             .collect();
         add(
+            findings,
             Level::Warn.as_str(),
             "type-families",
             format!(
@@ -433,8 +463,15 @@ pub fn audit_design_system(root: &Path) -> Result<Vec<Value>, DfwError> {
             ),
         );
     }
+    Ok(())
+}
 
-    // Shape and elevation.
+/// Shape and elevation: radius sprawl, neutral shadows on a tinted canvas.
+fn audit_shape(
+    tokens: &[Token<'_>],
+    roles: &Map<String, Value>,
+    findings: &mut Vec<Value>,
+) -> Result<(), DfwError> {
     let radii = distinct(
         tokens
             .iter()
@@ -443,6 +480,7 @@ pub fn audit_design_system(root: &Path) -> Result<Vec<Value>, DfwError> {
     );
     if radii.len() > 5 {
         add(
+            findings,
             Level::Warn.as_str(),
             "radius-sprawl",
             format!(
@@ -463,11 +501,15 @@ pub fn audit_design_system(root: &Path) -> Result<Vec<Value>, DfwError> {
         .filter(|t| t.kind.and_then(Value::as_str) == Some("shadow"))
     {
         if is_grey_shadow(&shadow.name, shadow.value)? && canvas_chroma > 0.008 {
-            add(Level::Warn.as_str(), "shadow-tint", format!("{} uses a neutral black shadow on a tinted canvas; tint shadows with the darkest neutral so elevation belongs to the palette.", shadow.name));
+            add(findings, Level::Warn.as_str(), "shadow-tint", format!("{} uses a neutral black shadow on a tinted canvas; tint shadows with the darkest neutral so elevation belongs to the palette.", shadow.name));
             break;
         }
     }
-    // Spacing grid.
+    Ok(())
+}
+
+/// Spacing grid: px spacing above 2 sits on the 4px grid (6 allowed).
+fn audit_spacing(tokens: &[Token<'_>], findings: &mut Vec<Value>) {
     let off: Vec<String> = tokens
         .iter()
         .filter(|t| {
@@ -484,13 +526,16 @@ pub fn audit_design_system(root: &Path) -> Result<Vec<Value>, DfwError> {
         .collect();
     if !off.is_empty() {
         add(
+            findings,
             Level::Warn.as_str(),
             "space-grid",
             format!("Spacing off the 4px grid: {}.", off.join(", ")),
         );
     }
+}
 
-    // Rationale in DESIGN.md.
+/// Rationale in DESIGN.md: at least five written decisions.
+fn audit_rationale(root: &Path, findings: &mut Vec<Value>) -> Result<(), DfwError> {
     let design = root.join("DESIGN.md");
     let text = if design.exists() {
         js::read_text(&design)?
@@ -501,8 +546,7 @@ pub fn audit_design_system(root: &Path) -> Result<Vec<Value>, DfwError> {
     if bullets < 5 {
         findings.push(json!({ "level": Level::Warn.as_str(), "rule": "rationale", "file": "DESIGN.md", "line": 1, "message": format!("DESIGN.md \"## Rationale\" has {bullets} decision(s); write at least 5 \"decision - because <context fact or principle>\" lines (accent choice, neutrals, type scale, density, motif)."), "source": "dfw-ds" }));
     }
-    findings.extend(inventory_findings(root)?);
-    Ok(findings)
+    Ok(())
 }
 
 #[cfg(test)]

@@ -177,19 +177,18 @@ struct Page {
     screens: Vec<Value>,
 }
 
-/// `studioPages(manifest)`: the canvas pages, Design System first.
-// Over 120 lines: the page order rules (declared pages, `screen.page`, Screens,
-// Explorations, Flow) read in one sequence, the order the pages are shown in.
-#[allow(clippy::too_many_lines, reason = "A10 debt")]
-pub fn studio_pages(manifest: &Value) -> Vec<Value> {
-    let screens = screens_of(manifest);
-    let by_id: Vec<Value> = screens.iter().map(|s| id_of(s)).collect();
-    let mut pages: Vec<Page> = Vec::new();
-    let mut assigned: Vec<Value> = Vec::new();
-    let mut system_extra = Map::new();
+/// The pages being built, in the order they are shown, and the screens already placed.
+struct Pages<'a> {
+    /// The ids of the screens of the manifest: only these are placed.
+    by_id: &'a [Value],
+    pages: Vec<Page>,
+    assigned: Vec<Value>,
+}
 
-    fn ensure(pages: &mut Vec<Page>, id: &Value, title: Option<&Value>) -> usize {
-        if let Some(i) = pages.iter().position(|p| p.map.get("id") == Some(id)) {
+impl Pages<'_> {
+    /// The index of the page `id`, made (with `title`, else the id) when there is none yet.
+    fn ensure(&mut self, id: &Value, title: Option<&Value>) -> usize {
+        if let Some(i) = self.pages.iter().position(|p| p.map.get("id") == Some(id)) {
             return i;
         }
         let title = title
@@ -200,20 +199,43 @@ pub fn studio_pages(manifest: &Value) -> Vec<Value> {
         map.insert("id".into(), id.clone());
         map.insert("title".into(), title);
         map.insert(key::SCREENS.into(), Value::Null);
-        pages.push(Page {
+        self.pages.push(Page {
             map,
             screens: Vec::new(),
         });
-        pages.len() - 1
+        self.pages.len() - 1
     }
-    let add = |pages: &mut Vec<Page>, assigned: &mut Vec<Value>, page: usize, sid: &Value| {
-        if !by_id.contains(sid) || pages[page].screens.contains(sid) {
+
+    /// Places a known screen on a page, once per page.
+    fn add(&mut self, page: usize, sid: &Value) {
+        if !self.by_id.contains(sid) || self.pages[page].screens.contains(sid) {
             return;
         }
-        pages[page].screens.push(sid.clone());
-        assigned.push(sid.clone());
-    };
+        self.pages[page].screens.push(sid.clone());
+        self.assigned.push(sid.clone());
+    }
+}
 
+/// `studioPages(manifest)`: the canvas pages, Design System first.
+pub fn studio_pages(manifest: &Value) -> Vec<Value> {
+    let screens = screens_of(manifest);
+    let by_id: Vec<Value> = screens.iter().map(|s| id_of(s)).collect();
+    let mut pages = Pages {
+        by_id: &by_id,
+        pages: Vec::new(),
+        assigned: Vec::new(),
+    };
+    let system_extra = place_declared_pages(manifest, &mut pages);
+    place_by_screen_page(&screens, &mut pages);
+    place_unassigned(&screens, &mut pages);
+    let flow_screens = flow_screens(manifest, &by_id);
+    page_list(system_extra, flow_screens, pages.pages)
+}
+
+/// The pages of `manifest.pages` with their screens (listed or referenced from sections), in
+/// their order. Returns the description and notes declared for the Design System page.
+fn place_declared_pages(manifest: &Value, pages: &mut Pages<'_>) -> Map<String, Value> {
+    let mut system_extra = Map::new();
     let declared = manifest
         .get(key::PAGES)
         .and_then(Value::as_array)
@@ -232,33 +254,43 @@ pub fn studio_pages(manifest: &Value) -> Vec<Value> {
             }
             continue;
         }
-        let page = ensure(&mut pages, &pid, p.get("title"));
+        let page = pages.ensure(&pid, p.get("title"));
         for key in [key::DESCRIPTION, key::NOTES, key::SECTIONS] {
             if let Some(v) = p.get(key).filter(|v| js::truthy(Some(v))) {
-                pages[page].map.insert(key.into(), v.clone());
+                pages.pages[page].map.insert(key.into(), v.clone());
             }
         }
         for sid in manifest::items(p.get(key::SCREENS)).iter() {
-            add(&mut pages, &mut assigned, page, sid);
+            pages.add(page, sid);
         }
         // Screens referenced only from sections ("id" or "id/variant") belong to the page too.
         for sec in manifest::items(p.get(key::SECTIONS)).iter() {
             for r in manifest::items(sec.get(key::SCREENS)).iter() {
                 let text = js::to_string(Some(r));
                 let id = json!(text.split('/').next().unwrap_or_default());
-                add(&mut pages, &mut assigned, page, &id);
+                pages.add(page, &id);
             }
         }
     }
-    for s in &screens {
+    system_extra
+}
+
+/// Screens that name their page with `screen.page` (never the Design System page).
+fn place_by_screen_page(screens: &[&Value], pages: &mut Pages<'_>) {
+    for s in screens {
         if let Some(page_id) = s
             .get("page")
             .filter(|p| js::truthy(Some(p)) && **p != json!("system"))
         {
-            let page = ensure(&mut pages, page_id, Some(page_id));
-            add(&mut pages, &mut assigned, page, &id_of(s));
+            let page = pages.ensure(page_id, Some(page_id));
+            pages.add(page, &id_of(s));
         }
     }
+}
+
+/// The screens on no page yet: to "Screens", ids starting with "_" to "Explorations". An
+/// empty "Screens" page when there would be no page at all.
+fn place_unassigned(screens: &[&Value], pages: &mut Pages<'_>) {
     let starts_with_underscore = |s: &Value| {
         s.get("id")
             .and_then(Value::as_str)
@@ -267,7 +299,7 @@ pub fn studio_pages(manifest: &Value) -> Vec<Value> {
     let rest: Vec<&Value> = screens
         .iter()
         .copied()
-        .filter(|s| !assigned.contains(&id_of(s)))
+        .filter(|s| !pages.assigned.contains(&id_of(s)))
         .collect();
     let main: Vec<&Value> = rest
         .iter()
@@ -279,23 +311,23 @@ pub fn studio_pages(manifest: &Value) -> Vec<Value> {
         .copied()
         .filter(|s| starts_with_underscore(s))
         .collect();
-    if !main.is_empty() || pages.is_empty() {
+    if !main.is_empty() || pages.pages.is_empty() {
         for s in &main {
-            let page = ensure(&mut pages, &json!("screens"), Some(&json!("Screens")));
-            add(&mut pages, &mut assigned, page, &id_of(s));
+            let page = pages.ensure(&json!("screens"), Some(&json!("Screens")));
+            pages.add(page, &id_of(s));
         }
     }
-    if pages.is_empty() && main.is_empty() && explore.is_empty() {
-        ensure(&mut pages, &json!("screens"), Some(&json!("Screens")));
+    if pages.pages.is_empty() && main.is_empty() && explore.is_empty() {
+        pages.ensure(&json!("screens"), Some(&json!("Screens")));
     }
     for s in &explore {
-        let page = ensure(
-            &mut pages,
-            &json!("explorations"),
-            Some(&json!("Explorations")),
-        );
-        add(&mut pages, &mut assigned, page, &id_of(s));
+        let page = pages.ensure(&json!("explorations"), Some(&json!("Explorations")));
+        pages.add(page, &id_of(s));
     }
+}
+
+/// The known screens named by `manifest.flows` (`from`, then `to`), each once.
+fn flow_screens(manifest: &Value, by_id: &[Value]) -> Vec<Value> {
     let mut flow_screens: Vec<Value> = Vec::new();
     for e in manifest::items(manifest.get(key::FLOWS)).iter() {
         for key in ["from", "to"] {
@@ -306,7 +338,15 @@ pub fn studio_pages(manifest: &Value) -> Vec<Value> {
         }
     }
     flow_screens.retain(|id| by_id.contains(id));
+    flow_screens
+}
 
+/// The pages in the order shown: Design System, Flow (when flows name screens), the others.
+fn page_list(
+    system_extra: Map<String, Value>,
+    flow_screens: Vec<Value>,
+    pages: Vec<Page>,
+) -> Vec<Value> {
     let mut system = Map::new();
     system.insert("id".into(), json!("system"));
     system.insert("title".into(), json!("Design System"));
