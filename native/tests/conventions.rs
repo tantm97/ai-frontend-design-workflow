@@ -351,3 +351,89 @@ fn servers_name_methods_statuses_and_errors() {
         found.join("\n")
     );
 }
+
+/// The product source of every Rust file but the skipped ones, as `(path, lines)`.
+fn product_sources(skip: &[&str]) -> Vec<(String, Vec<String>)> {
+    let mut files = Vec::new();
+    rust_files(&native().join("src"), &mut files);
+    files.sort();
+    let mut out = Vec::new();
+    for f in files {
+        let rel = f
+            .strip_prefix(native())
+            .unwrap()
+            .to_string_lossy()
+            .replace('\\', "/");
+        if skip.contains(&rel.as_str()) || rel.ends_with("tests.rs") {
+            continue;
+        }
+        let text = fs::read_to_string(&f).unwrap();
+        let product = text.split("#[cfg(test)]").next().unwrap_or_default();
+        out.push((
+            rel,
+            product
+                .lines()
+                .map(|l| l.split("//").next().unwrap_or_default().to_string())
+                .collect(),
+        ));
+    }
+    out
+}
+
+/// Finding levels are `core::level::Level`, never literals: `"level": "warn"`,
+/// `add("warn", ...)`, `f.level == "error"` (also `add(` with the level on the next line).
+#[test]
+fn finding_levels_are_core_level() {
+    let mut found = Vec::new();
+    for (rel, lines) in product_sources(&["src/core/level.rs"]) {
+        for (i, code) in lines.iter().enumerate() {
+            let prev_opens_call = i > 0
+                && ["add(", "finding(", "layout("]
+                    .iter()
+                    .any(|c| lines[i - 1].trim_end().ends_with(c));
+            let bad = ["error", "warn", "info"].iter().any(|k| {
+                code.contains(&format!("\"level\": \"{k}\""))
+                    || code.contains(&format!("level == \"{k}\""))
+                    || ["add(", "finding(", "layout("]
+                        .iter()
+                        .any(|c| code.contains(&format!("{c}\"{k}\"")))
+                    || prev_opens_call && code.trim() == format!("\"{k}\",")
+            });
+            if bad {
+                found.push(format!("{rel}:{}: {}", i + 1, code.trim()));
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "finding levels spelled as literals; use core::level::Level:\n{}",
+        found.join("\n")
+    );
+}
+
+/// Exit codes other than 0 are named (`core::error::exit`, contracts.md C3) in the commands.
+#[test]
+fn exit_codes_are_named() {
+    let mut found = Vec::new();
+    for (rel, lines) in product_sources(&[]) {
+        if !(rel.starts_with("src/cli/") || rel.starts_with("src/tools/check")) {
+            continue;
+        }
+        for (i, code) in lines.iter().enumerate() {
+            let t = code.trim();
+            let bad = ["1", "2", "3"].iter().any(|n| {
+                code.contains(&format!("Ok({n})"))
+                    || code.contains(&format!("{{ {n} }}"))
+                    || t == *n
+            });
+            if bad {
+                found.push(format!("{rel}:{}: {t}", i + 1));
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "exit codes as numbers; use core::error::exit::{{FAILED, PROBLEMS, UNVERIFIED}}:\n{}",
+        found.join("\n")
+    );
+}

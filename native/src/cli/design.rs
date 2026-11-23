@@ -11,8 +11,10 @@ use super::{Ctx, Handler};
 use crate::browser::a11y::{a11y_check, A11yOptions};
 use crate::core::config::env_map;
 use crate::core::config::load_config;
+use crate::core::error::exit;
 use crate::core::error::DfwError;
 use crate::core::js;
+use crate::core::level::{self, Level};
 use crate::core::paths::{project_paths, resolve};
 use crate::core::util::{
     out, to_json_compact, to_json_pretty, write_atomic_inside, write_json_inside, ArgValue, Args,
@@ -108,18 +110,14 @@ fn usage(text: &str) -> Result<i32, DfwError> {
     Err(DfwError::new(text))
 }
 
-const LEVEL_LABELS: [(&str, &str); 3] = [("error", "MUST"), ("warn", "SHOULD"), ("info", "NOTE")];
-
 fn level_label(finding: &Value) -> String {
-    let level = finding.get("level").and_then(Value::as_str);
-    LEVEL_LABELS
-        .iter()
-        .find(|(l, _)| Some(*l) == level)
-        .map_or("undefined".to_string(), |(_, label)| label.to_string())
+    level::of(finding)
+        .map_or("undefined", Level::label)
+        .to_string()
 }
 
 fn has_error(findings: &[Value]) -> bool {
-    findings.iter().any(|f| f["level"] == "error")
+    findings.iter().any(|f| level::of(f) == Some(Level::Error))
 }
 
 // ---------------------------------------------------------------- build, tokens
@@ -204,7 +202,11 @@ fn system_audit(root: &Path, a: &Args) -> Result<i32, DfwError> {
         })
         .collect();
     out(&lines.join("\n"));
-    Ok(if has_error(&findings) { 2 } else { 0 })
+    Ok(if has_error(&findings) {
+        exit::PROBLEMS
+    } else {
+        exit::OK
+    })
 }
 
 // ---------------------------------------------------------------- lint, check
@@ -536,7 +538,11 @@ fn system_inventory(root: &Path, a: &Args) -> Result<i32, DfwError> {
         format!("\n\n{}", lines.join("\n"))
     };
     out(&format!("{table}{notes}"));
-    Ok(if has_error(&findings) { 2 } else { 0 })
+    Ok(if has_error(&findings) {
+        exit::PROBLEMS
+    } else {
+        exit::OK
+    })
 }
 
 // ---------------------------------------------------------------- style
@@ -940,7 +946,7 @@ fn icons(ctx: &Ctx) -> Result<i32, DfwError> {
             }
             out(&lines.join("\n"));
             if !r.missing.is_empty() {
-                return Ok(2);
+                return Ok(exit::PROBLEMS);
             }
         }
         "list" => {

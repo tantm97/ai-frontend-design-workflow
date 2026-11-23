@@ -29,6 +29,7 @@ use crate::core::util::read_json;
 use crate::design::compose::{build_composed, build_system};
 use crate::design::dsaudit::audit_design_system;
 
+use crate::core::level::Level;
 use crate::core::platform::node_platform;
 use crate::design::lint::lint_design;
 use crate::design::tokens::relative_path;
@@ -217,8 +218,15 @@ pub fn run_sloplint(
     // Hallmark leads marketing pages only. On product UI its Floor is a strong recommendation
     // (precedence level 5), so FAILs do not block approval there.
     let grade = |f: &Value| match f.get("grade").and_then(Value::as_str) {
-        Some("FAIL") => Some(if scope == "page" { "error" } else { "warn" }),
-        Some("REFLEX" | "WARN") => Some("warn"),
+        Some("FAIL") => Some(
+            if scope == "page" {
+                Level::Error
+            } else {
+                Level::Warn
+            }
+            .as_str(),
+        ),
+        Some("REFLEX" | "WARN") => Some(Level::Warn.as_str()),
         _ => None,
     };
     let findings = data
@@ -285,12 +293,12 @@ pub fn run_impeccable(
         .iter()
         .map(|f| {
             let severity = match f.get("severity").and_then(Value::as_str) {
-                Some("error" | "critical") => "error",
-                Some("info" | "advisory") => "info",
-                _ => "warn",
+                Some("error" | "critical") => Level::Error.as_str(),
+                Some("info" | "advisory") => Level::Info.as_str(),
+                _ => Level::Warn.as_str(),
             };
             let level = if f.get("advisory").is_some_and(js::truthy) {
-                "info"
+                Level::Info.as_str()
             } else {
                 severity
             };
@@ -446,7 +454,7 @@ pub fn run_taste_copy_lint(
             let text = f.get("msg").filter(|m| js::truthy(m)).or(f.get("id"));
             findings.push(json!({
                 // Reference-mode skill: never a hard blocker.
-                "level": if sev == Some("FAIL") { "warn" } else { "info" },
+                "level": if sev == Some("FAIL") { Level::Warn } else { Level::Info }.as_str(),
                 "rule": format!("taste-{}", js::to_string(f.get("id"))),
                 "file": files.get(i).map(|f| f.as_str()).unwrap_or_default(),
                 "line": 1,

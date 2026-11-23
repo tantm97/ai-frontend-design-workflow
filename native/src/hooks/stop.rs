@@ -9,6 +9,7 @@ use crate::browser::layout_check::{layout_check, Finding, LayoutOptions, LayoutR
 use crate::core::config::{checks_layout_on_stop, load_config};
 use crate::core::error::DfwError;
 use crate::core::host::{HookInput, HookResult};
+use crate::core::level::Level;
 use crate::design::layout_cache::{changed_screens, mark_checked};
 use crate::workflow::state::load_state;
 
@@ -51,10 +52,10 @@ pub fn stop(input: &HookInput) -> Result<Option<HookResult>, DfwError> {
     let LayoutResult::Ran { findings, .. } = layout_check(&root, &opts)? else {
         return Ok(None);
     };
-    let must = findings.iter().filter(|f| f.level == "error");
-    let should = findings
-        .iter()
-        .filter(|f| f.level == "warn" && ["void", "consistency", "clipped"].contains(&&*f.rule));
+    let must = findings.iter().filter(|f| f.level == Level::Error.as_str());
+    let should = findings.iter().filter(|f| {
+        f.level == Level::Warn.as_str() && ["void", "consistency", "clipped"].contains(&&*f.rule)
+    });
     let report: Vec<&Finding> = must.chain(should).collect();
     mark_checked(&root)?; // report each state of the design once
     if report.is_empty() {
@@ -64,7 +65,11 @@ pub fn stop(input: &HookInput) -> Result<Option<HookResult>, DfwError> {
         .iter()
         .take(15)
         .map(|f| {
-            let label = if f.level == "error" { "MUST" } else { "SHOULD" };
+            let label = if f.level == Level::Error.as_str() {
+                "MUST"
+            } else {
+                "SHOULD"
+            };
             format!("- [{label}] ({}) {}", f.rule, f.message)
         })
         .collect();

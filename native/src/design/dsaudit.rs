@@ -15,6 +15,7 @@ use super::inventory::inventory_findings;
 
 use crate::core::error::DfwError;
 use crate::core::js;
+use crate::core::level::Level;
 use crate::core::paths::project_paths;
 use crate::core::util::read_json;
 
@@ -366,7 +367,7 @@ pub fn audit_design_system(root: &Path) -> Result<Vec<Value>, DfwError> {
         .map(|t| t.name.as_str())
         .collect();
     if undocumented.len() * 3 > color_tokens.len() {
-        add("warn", "usage-rules", format!("{} of {} colour tokens have no $description (usage rule), e.g. {}. A senior palette says what each colour is for and what it must never be used for.", undocumented.len(), color_tokens.len(), undocumented.iter().take(4).copied().collect::<Vec<_>>().join(", ")));
+        add(Level::Warn.as_str(), "usage-rules", format!("{} of {} colour tokens have no $description (usage rule), e.g. {}. A senior palette says what each colour is for and what it must never be used for.", undocumented.len(), color_tokens.len(), undocumented.iter().take(4).copied().collect::<Vec<_>>().join(", ")));
     }
 
     // Type.
@@ -403,7 +404,7 @@ pub fn audit_design_system(root: &Path) -> Result<Vec<Value>, DfwError> {
         );
     }
     if display.is_empty() {
-        add("warn", "type-display", "No display sizes (font.size.display-*): titles and key numbers will sit at body scale, the most common \"AI look\".".into());
+        add(Level::Warn.as_str(), "type-display", "No display sizes (font.size.display-*): titles and key numbers will sit at body scale, the most common \"AI look\".".into());
     }
     let families = distinct(
         tokens
@@ -423,7 +424,7 @@ pub fn audit_design_system(root: &Path) -> Result<Vec<Value>, DfwError> {
             })
             .collect();
         add(
-            "warn",
+            Level::Warn.as_str(),
             "type-families",
             format!(
                 "{} font families ({}); 2 (+ mono) is the ceiling.",
@@ -442,7 +443,7 @@ pub fn audit_design_system(root: &Path) -> Result<Vec<Value>, DfwError> {
     );
     if radii.len() > 5 {
         add(
-            "warn",
+            Level::Warn.as_str(),
             "radius-sprawl",
             format!(
                 "{} radius values; 3-4 steps keep shapes consistent.",
@@ -462,7 +463,7 @@ pub fn audit_design_system(root: &Path) -> Result<Vec<Value>, DfwError> {
         .filter(|t| t.kind.and_then(Value::as_str) == Some("shadow"))
     {
         if is_grey_shadow(&shadow.name, shadow.value)? && canvas_chroma > 0.008 {
-            add("warn", "shadow-tint", format!("{} uses a neutral black shadow on a tinted canvas; tint shadows with the darkest neutral so elevation belongs to the palette.", shadow.name));
+            add(Level::Warn.as_str(), "shadow-tint", format!("{} uses a neutral black shadow on a tinted canvas; tint shadows with the darkest neutral so elevation belongs to the palette.", shadow.name));
             break;
         }
     }
@@ -483,7 +484,7 @@ pub fn audit_design_system(root: &Path) -> Result<Vec<Value>, DfwError> {
         .collect();
     if !off.is_empty() {
         add(
-            "warn",
+            Level::Warn.as_str(),
             "space-grid",
             format!("Spacing off the 4px grid: {}.", off.join(", ")),
         );
@@ -498,7 +499,7 @@ pub fn audit_design_system(root: &Path) -> Result<Vec<Value>, DfwError> {
     };
     let bullets = count_decisions(&rationale_body(&text));
     if bullets < 5 {
-        findings.push(json!({ "level": "warn", "rule": "rationale", "file": "DESIGN.md", "line": 1, "message": format!("DESIGN.md \"## Rationale\" has {bullets} decision(s); write at least 5 \"decision - because <context fact or principle>\" lines (accent choice, neutrals, type scale, density, motif)."), "source": "dfw-ds" }));
+        findings.push(json!({ "level": Level::Warn.as_str(), "rule": "rationale", "file": "DESIGN.md", "line": 1, "message": format!("DESIGN.md \"## Rationale\" has {bullets} decision(s); write at least 5 \"decision - because <context fact or principle>\" lines (accent choice, neutrals, type scale, density, motif)."), "source": "dfw-ds" }));
     }
     findings.extend(inventory_findings(root)?);
     Ok(findings)

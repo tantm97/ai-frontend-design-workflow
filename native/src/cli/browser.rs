@@ -11,7 +11,9 @@ use crate::browser::layout_check::{layout_check, LayoutOptions, LayoutResult};
 use crate::browser::pixeldiff::{decode_rgba, diff_images, diff_pairs, format_line, THRESHOLD};
 use crate::browser::screenshot::{screenshot, CONCURRENCY};
 use crate::browser::shoot::{shoot_breakpoints, studio_jobs, url_jobs, ShootOptions};
+use crate::core::error::exit;
 use crate::core::error::DfwError;
+use crate::core::level::Level;
 use crate::core::paths::resolve;
 use crate::core::util::{out, sha256, to_json_pretty, Args};
 use crate::design::layout_cache::{changed_screens, mark_checked};
@@ -81,7 +83,11 @@ fn shoot(ctx: &Ctx) -> Result<i32, DfwError> {
         })
         .collect();
     out(&lines.join("\n"));
-    Ok(if results.iter().all(|r| r.ok) { 0 } else { 2 })
+    Ok(if results.iter().all(|r| r.ok) {
+        exit::OK
+    } else {
+        exit::PROBLEMS
+    })
 }
 
 /// `dfw layout check [--screen a,b] [--bp ids] [--states] [--no-stress] [--changed]
@@ -118,11 +124,14 @@ fn layout(ctx: &Ctx) -> Result<i32, DfwError> {
         }
         LayoutResult::Ran { findings, renders } => (findings, renders),
     };
-    let errors = findings.iter().filter(|f| f.level == "error").count();
+    let errors = findings
+        .iter()
+        .filter(|f| f.level == Level::Error.as_str())
+        .count();
     if errors == 0 {
         mark_checked(&root)?;
     }
-    let code = if errors > 0 { 2 } else { 0 };
+    let code = if errors > 0 { exit::PROBLEMS } else { exit::OK };
     if a.truthy("json") {
         let findings: Vec<Value> = findings.iter().map(|f| f.to_json()).collect();
         out(&to_json_pretty(
@@ -135,11 +144,7 @@ fn layout(ctx: &Ctx) -> Result<i32, DfwError> {
         findings.len() - errors
     )];
     for f in &findings {
-        let label = match f.level {
-            "error" => "MUST",
-            "warn" => "SHOULD",
-            _ => "NOTE",
-        };
+        let label = Level::parse(f.level).unwrap_or(Level::Info).label();
         lines.push(format!("- [{label}] ({}) {}", f.rule, f.message));
     }
     out(&lines.join("\n"));

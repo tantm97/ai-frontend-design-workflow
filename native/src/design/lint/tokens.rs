@@ -6,6 +6,7 @@ use super::finding;
 use super::slop::ai_default_color;
 use crate::core::js;
 use crate::core::js::regex::js_re;
+use crate::core::level::Level;
 use crate::design::color::{hex_to_oklch, Oklch};
 
 js_re!(ALIAS, r"\{([^{}]+)\}");
@@ -103,7 +104,7 @@ fn walk<'a>(
             }
             if kind.is_none() {
                 out.push(finding(
-                    "warn",
+                    Level::Warn.as_str(),
                     "token-type",
                     rel,
                     1,
@@ -119,7 +120,7 @@ fn walk<'a>(
         }
         if k.contains(['{', '}', '.']) {
             out.push(finding(
-                "error",
+                Level::Error.as_str(),
                 "token-name",
                 rel,
                 1,
@@ -166,7 +167,7 @@ pub fn lint_tokens(rel: &str, json: &Value, base: Option<&Value>) -> Vec<Value> 
             for m in ALIAS.captures_iter(text) {
                 if !known.iter().any(|k| k == &m[1]) {
                     out.push(finding(
-                        "error",
+                        Level::Error.as_str(),
                         "token-alias",
                         rel,
                         1,
@@ -205,7 +206,7 @@ pub fn lint_tokens(rel: &str, json: &Value, base: Option<&Value>) -> Vec<Value> 
             let dh = hue.min(360.0 - hue) * a.2.c.min(b.2.c) * 0.0175;
             if hypot3([a.2.l - b.2.l, a.2.c - b.2.c, dh]) < 0.005 {
                 reported.push(b.0);
-                out.push(finding("warn", "near-duplicate-color", rel, 1, format!("Tokens \"{}\" ({}) and \"{}\" ({}) are visually the same colour. Merge them or alias one to the other.", a.0, a.1, b.0, b.1)));
+                out.push(finding(Level::Warn.as_str(), "near-duplicate-color", rel, 1, format!("Tokens \"{}\" ({}) and \"{}\" ({}) are visually the same colour. Merge them or alias one to the other.", a.0, a.1, b.0, b.1)));
             }
         }
     }
@@ -214,13 +215,13 @@ pub fn lint_tokens(rel: &str, json: &Value, base: Option<&Value>) -> Vec<Value> 
         strings(leaf.node.get("$value"), &mut texts);
         for s in texts {
             if let Some(what) = ai_default_lookup(&js::trim(s).to_lowercase()) {
-                out.push(finding("warn", "ai-default-color", rel, 1, format!("Token \"{}\" is {s} ({what}), a colour AI-generated UIs default to. Derive the palette from the brand (dfw palette build); keep it only if the brand requires it (dfw decide).", leaf.name)));
+                out.push(finding(Level::Warn.as_str(), "ai-default-color", rel, 1, format!("Token \"{}\" is {s} ({what}), a colour AI-generated UIs default to. Derive the palette from the brand (dfw palette build); keep it only if the brand requires it (dfw decide).", leaf.name)));
             }
         }
     }
     if leaves.is_empty() {
         out.push(finding(
-            "error",
+            Level::Error.as_str(),
             "token-empty",
             rel,
             1,

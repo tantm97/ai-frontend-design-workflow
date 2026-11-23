@@ -27,6 +27,7 @@ use crate::core::config::load_config;
 use crate::core::error::DfwError;
 use crate::core::http;
 use crate::core::js;
+use crate::core::level::Level;
 use crate::core::paths::file_url;
 use crate::core::paths::{global_dir, project_paths};
 use crate::core::util::read_json;
@@ -381,9 +382,9 @@ pub fn a11y_check_with(
 
 fn impact_level(impact: Option<&str>) -> &'static str {
     match impact {
-        Some("critical" | "serious") => "error",
-        Some("minor") => "info",
-        _ => "warn",
+        Some("critical" | "serious") => Level::Error.as_str(),
+        Some("minor") => Level::Info.as_str(),
+        _ => Level::Warn.as_str(),
     }
 }
 
@@ -438,7 +439,7 @@ fn check_page(renderer: &Renderer, job: &Job, url: Option<&str>, axe_src: &str) 
             if job.live {
                 let dead = page.evaluate(DEAD_CONTROLS.trim_end(), None)?;
                 for name in dead.as_array().into_iter().flatten() {
-                    add("warn", "dead-control".into(), format!("control \"{}\" announces a state (aria-pressed/expanded/selected/sort) but clicking it changes nothing.", js::to_string(Some(name))));
+                    add(Level::Warn.as_str(), "dead-control".into(), format!("control \"{}\" announces a state (aria-pressed/expanded/selected/sort) but clicking it changes nothing.", js::to_string(Some(name))));
                 }
             }
             Ok(())
@@ -448,7 +449,7 @@ fn check_page(renderer: &Renderer, job: &Job, url: Option<&str>, axe_src: &str) 
     };
     if let Err(err) = run() {
         add(
-            "warn",
+            Level::Warn.as_str(),
             "axe-render".into(),
             format!("could not check ({})", head(err.message(), 120)),
         );

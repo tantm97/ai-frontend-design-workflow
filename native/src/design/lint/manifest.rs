@@ -7,6 +7,7 @@ use serde_json::Value;
 use super::{finding, malformed};
 use crate::core::error::DfwError;
 use crate::core::js;
+use crate::core::level::Level;
 use crate::core::paths::project_paths;
 use crate::core::util::read_json;
 use crate::design::manifest::{items_checked as list, key, not_null as item, Screen};
@@ -39,13 +40,17 @@ pub fn lint_manifest(root: &Path) -> Result<Vec<Value>, DfwError> {
     let manifest = match read_json(&p.manifest, Some(Value::Null)) {
         Ok(manifest) => manifest,
         Err(err) => {
-            add("error", "manifest-json", err.message().to_string());
+            add(
+                Level::Error.as_str(),
+                "manifest-json",
+                err.message().to_string(),
+            );
             return Ok(out);
         }
     };
     if !js::truthy(Some(&manifest)) {
         add(
-            "error",
+            Level::Error.as_str(),
             "manifest-missing",
             "design/design.json is missing.".into(),
         );
@@ -57,7 +62,7 @@ pub fn lint_manifest(root: &Path) -> Result<Vec<Value>, DfwError> {
     }
     if screens.is_empty() {
         add(
-            "warn",
+            Level::Warn.as_str(),
             "manifest-screens",
             "Manifest has no screens yet (fine during the system phase).".into(),
         );
@@ -68,14 +73,14 @@ pub fn lint_manifest(root: &Path) -> Result<Vec<Value>, DfwError> {
             continue;
         }
         let Some(blueprint) = screen.get(key::BLUEPRINT).filter(|b| js::truthy(Some(b))) else {
-            add("warn", "blueprint", format!("Screen \"{}\" has no blueprint (goal, layout, aboveFold, data, feedback). Agree it with the user before building: it is cheaper to fix a blueprint than a screen.", id(screen)));
+            add(Level::Warn.as_str(), "blueprint", format!("Screen \"{}\" has no blueprint (goal, layout, aboveFold, data, feedback). Agree it with the user before building: it is cheaper to fix a blueprint than a screen.", id(screen)));
             continue;
         };
         for key in ["goal", "layout", "aboveFold", "data", "feedback"] {
             let value = blueprint.get(key);
             if !js::truthy(value) || value.and_then(Value::as_array).is_some_and(Vec::is_empty) {
                 add(
-                    "warn",
+                    Level::Warn.as_str(),
                     "blueprint",
                     format!("Screen \"{}\" blueprint is missing \"{key}\".", id(screen)),
                 );
@@ -104,7 +109,7 @@ pub fn lint_manifest(root: &Path) -> Result<Vec<Value>, DfwError> {
                 .any(|s| s.get(key::ID).is_some_and(|have| same_value(have, sid)));
             if !known {
                 add(
-                    "error",
+                    Level::Error.as_str(),
                     "manifest-page-screen",
                     format!(
                         "Page \"{}\" lists unknown screen \"{}\".",
@@ -119,7 +124,11 @@ pub fn lint_manifest(root: &Path) -> Result<Vec<Value>, DfwError> {
     for screen in screens {
         let sid = screen.get(key::ID);
         if !js::truthy(sid) {
-            add("error", "manifest-screen-id", "A screen has no id.".into());
+            add(
+                Level::Error.as_str(),
+                "manifest-screen-id",
+                "A screen has no id.".into(),
+            );
         }
         let again = seen.iter().any(|have| match (have, sid) {
             (None, None) => true,
@@ -128,7 +137,7 @@ pub fn lint_manifest(root: &Path) -> Result<Vec<Value>, DfwError> {
         });
         if again {
             add(
-                "error",
+                Level::Error.as_str(),
                 "manifest-screen-dup",
                 format!("Duplicate screen id \"{}\".", id(screen)),
             );
@@ -140,7 +149,7 @@ pub fn lint_manifest(root: &Path) -> Result<Vec<Value>, DfwError> {
             .map_or(&[][..], Vec::as_slice);
         if variants.is_empty() {
             add(
-                "error",
+                Level::Error.as_str(),
                 "manifest-variants",
                 format!("Screen \"{}\" has no variants.", id(screen)),
             );
@@ -150,7 +159,7 @@ pub fn lint_manifest(root: &Path) -> Result<Vec<Value>, DfwError> {
             let file = item(variant, "a variant")?.get(key::FILE);
             let Some(file) = file.filter(|f| js::truthy(Some(f))) else {
                 add(
-                    "error",
+                    Level::Error.as_str(),
                     "manifest-variant-file",
                     format!("Variant \"{}/{}\" has no file.", id(screen), id(variant)),
                 );
@@ -161,7 +170,7 @@ pub fn lint_manifest(root: &Path) -> Result<Vec<Value>, DfwError> {
             };
             if !join_below(&p.design, file).exists() {
                 add(
-                    "error",
+                    Level::Error.as_str(),
                     "manifest-file-missing",
                     format!(
                         "Variant \"{}/{}\" points to missing file design/{file}.",

@@ -7,6 +7,7 @@ use serde_json::{json, Map, Value};
 
 use super::{Ctx, Handler};
 use crate::core::config::load_config;
+use crate::core::error::exit;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{project_paths, resolve};
@@ -70,7 +71,7 @@ fn export(ctx: &Ctx, root: &Path) -> Result<i32, DfwError> {
         out(&export_summary(&doc, &file, root));
     }
     let failed = errors.as_array().is_some_and(|e| !e.is_empty());
-    Ok(if failed { 2 } else { 0 })
+    Ok(if failed { exit::PROBLEMS } else { exit::OK })
 }
 
 /// `dfw penpot import <changes.json>`: the designer's changes as feedback comments.
