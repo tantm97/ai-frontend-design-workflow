@@ -934,6 +934,8 @@ mod tests {
             retry: Duration::from_millis(2),
         };
         let held = lock::acquire(&lock_path(&root), &times).unwrap();
+        // The holder is a process that died (a live, slow holder keeps its lock).
+        lock::mark_dead(&held);
         std::thread::scope(|s| {
             for i in 0..30 {
                 let root = &root;
