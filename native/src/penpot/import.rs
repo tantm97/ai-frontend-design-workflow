@@ -536,159 +536,35 @@ fn ledger_has(ledger: &[Value], fingerprint: &str) -> bool {
 }
 
 /// `importChanges`: import a change file. Writes feedback comments (provider `penpot`), the
-/// ledger, thread links and the token diff file; never edits `design/`.
-// Long: the steps share the ledger, the thread links and the result, and their order is the
-// order files are written in (comments, ledger, threads, archive).
-#[allow(clippy::too_many_lines, reason = "A10 debt")]
+/// ledger, thread links and the token diff file; never edits `design/`. The steps run in the
+/// order files are written in (comments, ledger, threads, archive).
 pub fn import_changes(
     root: &Path,
     changes: &mut Value,
     opts: ImportOptions,
 ) -> Result<ChangeImport, DfwError> {
     let dir = penpot_dir(root);
-    // The id names a file under exports/: only the shape dfw generates (never a path from the
-    // change file).
-    let export_id = changes
-        .get("exportId")
-        .and_then(Value::as_str)
-        .filter(|id| EXPORT_ID.is_match(id))
-        .map(str::to_string);
-    let baseline = load_baseline(&dir, export_id.as_deref())?;
-    let dims = read_dfw_tokens(root, false)
-        .map(|t| dimension_token_index(Some(&t.base)))
-        .unwrap_or_default();
-    let diff = diff_changes(&baseline, changes, &dims)?;
-    let mut warnings = diff.warnings;
-    let baseline_id = baseline.get("id");
-    if let Some(id) = &export_id {
-        if baseline_id.and_then(Value::as_str) != Some(id) {
-            warnings.push(format!(
-                "Change file refers to export {id}, which is not on disk; compared with the latest export {}.",
-                js::to_string(baseline_id)
-            ));
-        }
-    }
-    let design = opts.state.and_then(|s| s.get("design"));
-    let frozen = js::truthy(design.and_then(|d| d.get("locked")));
-    let mut result = ChangeImport {
-        baseline: baseline_id.cloned(),
-        changes: diff.changes,
-        warnings,
-        frozen,
-        ..ChangeImport::default()
-    };
-
-    // Token diff (dry run against design/tokens; never applied here).
-    let token_doc = if opts.live {
-        None
-    } else {
-        tokens_from_plugin(changes.get("tokens"))?.or_else(|| {
-            changes
-                .get("tokenFile")
-                .filter(|f| f.is_object() || f.is_array())
-                .cloned()
-        })
-    };
-    if let Some(doc) = token_doc {
-        match token_diff(root, &dir, &doc, opts.dry_run) {
-            Ok((diff, file)) => {
-                result.token_diff = Some(diff);
-                result.token_file = Some(file);
-            }
-            Err(err) => result
-                .warnings
-                .push(format!("Token diff skipped: {}", err.message())),
-        }
-    }
-
-    let mut groups: Vec<(String, Vec<Value>)> = Vec::new();
-    for c in &result.changes {
-        let key = group_key(c);
-        match groups.iter_mut().find(|(k, _)| *k == key) {
-            Some(slot) => slot.1.push(c.clone()),
-            None => groups.push((key, vec![c.clone()])),
-        }
-    }
+    let mut result = compare_with_export(root, &dir, changes, &opts)?;
+    add_token_diff(root, &dir, changes, &opts, &mut result)?;
+    let groups = group_changes(&result.changes);
     let ledger_file = dir.join("imported.json");
-    let mut ledger: Vec<Value> = Vec::new();
-    let stored = read_json(&ledger_file, Some(json!([])))?;
-    walkable(Some(&stored), None, false)?;
-    for entry in list(Some(&stored)) {
-        let primitive = !(entry.is_object() || entry.is_array());
-        if !(primitive && ledger.contains(entry)) {
-            ledger.push(entry.clone());
-        }
-    }
-    let gate_note = if frozen {
-        format!(
-            "\n(Design v{} is approved and frozen: discuss with the user; applying this needs \"dfw reopen\".)",
-            js::to_string(design.and_then(|d| d.get("version")))
-        )
-    } else {
-        String::new()
-    };
-    let mut pending: Vec<Pending> = Vec::new();
+    let mut ledger = read_ledger(&ledger_file)?;
+    let gate_note = gate_note(&opts, result.frozen);
     let mut threads = read_json(&threads_file(root), Some(json!({})))?;
-    let mut linked: Vec<(String, Value)> = Vec::new();
-    let lib = load_components(root).ok();
-    for (_, cs) in &groups {
-        let c0 = &cs[0];
-        let fp = group_fingerprint(cs);
-        // A thread already linked to a dfw comment continues that comment (new messages,
-        // resolve, reopen).
-        let thread = js::present(c0.get("thread"))
-            .filter(|_| is_comment(c0))
-            .map(|seq| thread_key(changes.get("fileId"), Some(seq)));
-        if let Some(tk) = &thread {
-            if js::truthy(threads.get(tk)) {
-                linked.push((tk.clone(), c0.clone()));
-                continue;
-            }
-        }
-        if ledger_has(&ledger, &fp) || (is_comment(c0) && js::truthy(c0.get("resolved"))) {
+    let (mut pending, linked) = plan_comments(
+        root,
+        changes,
+        &groups,
+        &ledger,
+        &threads,
+        &gate_note,
+        &mut result.skipped,
+    );
+    if let Some(p) = token_comment(&result, &gate_note) {
+        if ledger_has(&ledger, &p.fingerprint) {
             result.skipped += 1;
-            continue;
-        }
-        let input = if js::truthy(c0.get("component")) {
-            component_comment(root, cs, lib.as_ref(), &gate_note)
         } else {
-            screen_comment(root, cs, &gate_note)
-        };
-        pending.push(Pending {
-            fingerprint: fp,
-            input,
-            thread,
-            seen: message_count(c0),
-        });
-    }
-    if let Some(diff) = &result.token_diff {
-        let lines = token_lines(diff);
-        if !lines.is_empty() {
-            let fp = fingerprint(&json!(lines));
-            if ledger_has(&ledger, &fp) {
-                result.skipped += 1;
-            } else {
-                let more = if lines.len() > 40 {
-                    format!("\n- ... {} more", lines.len() - 40)
-                } else {
-                    String::new()
-                };
-                let shown: Vec<&str> = lines.iter().take(40).map(String::as_str).collect();
-                let file = result.token_file.as_deref().unwrap_or("null");
-                pending.push(Pending {
-                    fingerprint: fp,
-                    input: json!({
-                        "comment": format!(
-                            "[Penpot] Token values changed in Penpot:\n{}{more}\nReview with \"dfw tokens import {file} --dry-run\"; apply only with the user's agreement (the import is refused while the design is frozen).{gate_note}",
-                            shown.join("\n")
-                        ),
-                        "provider": "penpot",
-                        "target": {},
-                    }),
-                    thread: None,
-                    seen: 0,
-                });
-            }
+            pending.push(p);
         }
     }
     if opts.dry_run {
@@ -704,24 +580,7 @@ pub fn import_changes(
         return Ok(result);
     }
     let threads_written = pending.iter().any(|p| p.thread.is_some()) || !linked.is_empty();
-    for p in &pending {
-        let c = add_comment(root, &p.input)?;
-        if !ledger_has(&ledger, &p.fingerprint) {
-            ledger.push(p.fingerprint.as_str().into());
-        }
-        if let (Some(tk), Value::Object(links)) = (&p.thread, &mut threads) {
-            links.insert(
-                tk.clone(),
-                js::object(vec![
-                    ("comment", c.get("id").cloned()),
-                    ("seen", Some(p.seen.into())),
-                    ("resolved", Some(Value::Bool(false))),
-                    ("posted", Some(json!([]))),
-                ]),
-            );
-        }
-        result.comments.push(c);
-    }
+    write_comments(root, &pending, &mut ledger, &mut threads, &mut result)?;
     for (tk, c0) in &linked {
         continue_thread(
             root,
@@ -737,21 +596,246 @@ pub fn import_changes(
         write_json_inside(root, &threads_file(root), &threads)?;
     }
     if !opts.live {
-        // The archive name comes from the change file: digits, T and Z only.
-        let pushed_at = js::truthy_value(changes.get("pushedAt"))
-            .map_or_else(now_iso, |p| js::to_string(Some(p)));
-        let stamp: String = pushed_at
-            .chars()
-            .filter(|c| c.is_ascii_digit() || *c == 'T' || *c == 'Z')
-            .collect();
-        let name = if stamp.is_empty() { "changes" } else { &stamp };
-        write_json_inside(
-            root,
-            &dir.join("changes").join(format!("{name}.json")),
-            changes,
-        )?;
+        archive_changes(root, &dir, changes)?;
     }
     Ok(result)
+}
+
+/// Compare the change file with the export it names (else the latest one): the changes, the
+/// warnings and whether the design is frozen.
+fn compare_with_export(
+    root: &Path,
+    dir: &Path,
+    changes: &mut Value,
+    opts: &ImportOptions,
+) -> Result<ChangeImport, DfwError> {
+    // The id names a file under exports/: only the shape dfw generates (never a path from the
+    // change file).
+    let export_id = changes
+        .get("exportId")
+        .and_then(Value::as_str)
+        .filter(|id| EXPORT_ID.is_match(id))
+        .map(str::to_string);
+    let baseline = load_baseline(dir, export_id.as_deref())?;
+    let dims = read_dfw_tokens(root, false)
+        .map(|t| dimension_token_index(Some(&t.base)))
+        .unwrap_or_default();
+    let diff = diff_changes(&baseline, changes, &dims)?;
+    let mut warnings = diff.warnings;
+    let baseline_id = baseline.get("id");
+    if let Some(id) = &export_id {
+        if baseline_id.and_then(Value::as_str) != Some(id) {
+            warnings.push(format!(
+                "Change file refers to export {id}, which is not on disk; compared with the latest export {}.",
+                js::to_string(baseline_id)
+            ));
+        }
+    }
+    let design = opts.state.and_then(|s| s.get("design"));
+    Ok(ChangeImport {
+        baseline: baseline_id.cloned(),
+        changes: diff.changes,
+        warnings,
+        frozen: js::truthy(design.and_then(|d| d.get("locked"))),
+        ..ChangeImport::default()
+    })
+}
+
+/// Token diff (dry run against design/tokens; never applied here). A diff that fails is a
+/// warning; a malformed token list in the change file is an error.
+fn add_token_diff(
+    root: &Path,
+    dir: &Path,
+    changes: &Value,
+    opts: &ImportOptions,
+    result: &mut ChangeImport,
+) -> Result<(), DfwError> {
+    let token_doc = if opts.live {
+        None
+    } else {
+        tokens_from_plugin(changes.get("tokens"))?.or_else(|| {
+            changes
+                .get("tokenFile")
+                .filter(|f| f.is_object() || f.is_array())
+                .cloned()
+        })
+    };
+    if let Some(doc) = token_doc {
+        match token_diff(root, dir, &doc, opts.dry_run) {
+            Ok((diff, file)) => {
+                result.token_diff = Some(diff);
+                result.token_file = Some(file);
+            }
+            Err(err) => result
+                .warnings
+                .push(format!("Token diff skipped: {}", err.message())),
+        }
+    }
+    Ok(())
+}
+
+/// The changes grouped into one comment each, in the order of their first change.
+fn group_changes(changes: &[Value]) -> Vec<(String, Vec<Value>)> {
+    let mut groups: Vec<(String, Vec<Value>)> = Vec::new();
+    for c in changes {
+        let key = group_key(c);
+        match groups.iter_mut().find(|(k, _)| *k == key) {
+            Some(slot) => slot.1.push(c.clone()),
+            None => groups.push((key, vec![c.clone()])),
+        }
+    }
+    groups
+}
+
+/// The fingerprints already imported (`imported.json`), primitives once.
+fn read_ledger(ledger_file: &Path) -> Result<Vec<Value>, DfwError> {
+    let mut ledger: Vec<Value> = Vec::new();
+    let stored = read_json(ledger_file, Some(json!([])))?;
+    walkable(Some(&stored), None, false)?;
+    for entry in list(Some(&stored)) {
+        let primitive = !(entry.is_object() || entry.is_array());
+        if !(primitive && ledger.contains(entry)) {
+            ledger.push(entry.clone());
+        }
+    }
+    Ok(ledger)
+}
+
+/// The note every comment carries while the design is frozen.
+fn gate_note(opts: &ImportOptions, frozen: bool) -> String {
+    let design = opts.state.and_then(|s| s.get("design"));
+    if frozen {
+        format!(
+            "\n(Design v{} is approved and frozen: discuss with the user; applying this needs \"dfw reopen\".)",
+            js::to_string(design.and_then(|d| d.get("version")))
+        )
+    } else {
+        String::new()
+    }
+}
+
+/// The comments to write, one per group of changes, and the groups that continue a thread
+/// already linked to a dfw comment. Groups already imported, and resolved threads, are
+/// counted in `skipped`.
+fn plan_comments(
+    root: &Path,
+    changes: &Value,
+    groups: &[(String, Vec<Value>)],
+    ledger: &[Value],
+    threads: &Value,
+    gate_note: &str,
+    skipped: &mut usize,
+) -> (Vec<Pending>, Vec<(String, Value)>) {
+    let mut pending: Vec<Pending> = Vec::new();
+    let mut linked: Vec<(String, Value)> = Vec::new();
+    let lib = load_components(root).ok();
+    for (_, cs) in groups {
+        let c0 = &cs[0];
+        let fp = group_fingerprint(cs);
+        // A thread already linked to a dfw comment continues that comment (new messages,
+        // resolve, reopen).
+        let thread = js::present(c0.get("thread"))
+            .filter(|_| is_comment(c0))
+            .map(|seq| thread_key(changes.get("fileId"), Some(seq)));
+        if let Some(tk) = &thread {
+            if js::truthy(threads.get(tk)) {
+                linked.push((tk.clone(), c0.clone()));
+                continue;
+            }
+        }
+        if ledger_has(ledger, &fp) || (is_comment(c0) && js::truthy(c0.get("resolved"))) {
+            *skipped += 1;
+            continue;
+        }
+        let input = if js::truthy(c0.get("component")) {
+            component_comment(root, cs, lib.as_ref(), gate_note)
+        } else {
+            screen_comment(root, cs, gate_note)
+        };
+        pending.push(Pending {
+            fingerprint: fp,
+            input,
+            thread,
+            seen: message_count(c0),
+        });
+    }
+    (pending, linked)
+}
+
+/// The comment that reports token values changed in Penpot; `None` when there is no such
+/// change.
+fn token_comment(result: &ChangeImport, gate_note: &str) -> Option<Pending> {
+    let lines = token_lines(result.token_diff.as_ref()?);
+    if lines.is_empty() {
+        return None;
+    }
+    let fp = fingerprint(&json!(lines));
+    let more = if lines.len() > 40 {
+        format!("\n- ... {} more", lines.len() - 40)
+    } else {
+        String::new()
+    };
+    let shown: Vec<&str> = lines.iter().take(40).map(String::as_str).collect();
+    let file = result.token_file.as_deref().unwrap_or("null");
+    Some(Pending {
+        fingerprint: fp,
+        input: json!({
+            "comment": format!(
+                "[Penpot] Token values changed in Penpot:\n{}{more}\nReview with \"dfw tokens import {file} --dry-run\"; apply only with the user's agreement (the import is refused while the design is frozen).{gate_note}",
+                shown.join("\n")
+            ),
+            "provider": "penpot",
+            "target": {},
+        }),
+        thread: None,
+        seen: 0,
+    })
+}
+
+/// Write the pending comments, each with its fingerprint in the ledger and its thread link.
+fn write_comments(
+    root: &Path,
+    pending: &[Pending],
+    ledger: &mut Vec<Value>,
+    threads: &mut Value,
+    result: &mut ChangeImport,
+) -> Result<(), DfwError> {
+    for p in pending {
+        let c = add_comment(root, &p.input)?;
+        if !ledger_has(ledger, &p.fingerprint) {
+            ledger.push(p.fingerprint.as_str().into());
+        }
+        if let (Some(tk), Value::Object(links)) = (&p.thread, &mut *threads) {
+            links.insert(
+                tk.clone(),
+                js::object(vec![
+                    ("comment", c.get("id").cloned()),
+                    ("seen", Some(p.seen.into())),
+                    ("resolved", Some(Value::Bool(false))),
+                    ("posted", Some(json!([]))),
+                ]),
+            );
+        }
+        result.comments.push(c);
+    }
+    Ok(())
+}
+
+/// Keep the change file under `changes/`, named after its push time.
+fn archive_changes(root: &Path, dir: &Path, changes: &Value) -> Result<(), DfwError> {
+    // The archive name comes from the change file: digits, T and Z only.
+    let pushed_at =
+        js::truthy_value(changes.get("pushedAt")).map_or_else(now_iso, |p| js::to_string(Some(p)));
+    let stamp: String = pushed_at
+        .chars()
+        .filter(|c| c.is_ascii_digit() || *c == 'T' || *c == 'Z')
+        .collect();
+    let name = if stamp.is_empty() { "changes" } else { &stamp };
+    write_json_inside(
+        root,
+        &dir.join("changes").join(format!("{name}.json")),
+        changes,
+    )
 }
 
 /// `formatImportChanges`: what `dfw penpot import` prints.

@@ -3,6 +3,7 @@
 
 use super::*;
 use crate::core::js::regex::fixed_regex;
+use crate::design::compose::ComponentDef;
 
 /// The CSS properties a change type is made with.
 fn css_property(change: &Value) -> Option<&'static str> {
@@ -57,9 +58,6 @@ fn first_element(text: &str) -> Option<usize> {
 /// `masterSource`: `design/system/components/<file>:<line>` for a master change: the CSS rule
 /// that sets the property (variant/size rules first), else the element in the template (by
 /// tag/class), else the component tag. `None` when the change is not on a component.
-// Long: three lookups in one text (CSS rule, template element, component tag) that share
-// the offsets of the master block.
-#[allow(clippy::too_many_lines, reason = "A10 debt")]
 pub fn master_source(root: &Path, change: &Value, lib: Option<&Library>) -> Option<MasterSource> {
     let comp = js::truthy_value(change.get("component"))?;
     let comp_name = comp.get("name").and_then(Value::as_str);
@@ -72,13 +70,7 @@ pub fn master_source(root: &Path, change: &Value, lib: Option<&Library>) -> Opti
         }
     };
     let def = lib.and_then(|lib| lib.get(comp_name));
-    let rel = match def.map(|d| d.file.as_str()).filter(|f| !f.is_empty()) {
-        Some(file) => file.to_string(),
-        None => format!(
-            "design/system/components/{}.html",
-            js::to_string(comp.get("name"))
-        ),
-    };
+    let rel = master_file(def, comp);
     let abs = root.join(&rel);
     if !abs.exists() {
         return Some(MasterSource {
@@ -87,7 +79,36 @@ pub fn master_source(root: &Path, change: &Value, lib: Option<&Library>) -> Opti
         });
     }
     let text = js::read_text(&abs).ok()?;
-    let start = match def.map(|d| d.line).filter(|line| *line > 0) {
+    let start = master_start(&text, def);
+    let block = &text[..find_from(&text, "</dfw-component>", start).unwrap_or(text.len())];
+    let name =
+        js::truthy_value(change.get("name")).map_or(String::new(), |n| js::to_string(Some(n)));
+    let cls = CLASS_NAME.captures(&name).map(|m| m[1].to_string());
+    let offset = match css_rule_offset(block, start, change, comp, cls.as_deref())? {
+        Some(i) => i,
+        None => template_offset(block, start, change, cls.as_deref()).unwrap_or(start),
+    };
+    let line = text[..offset.min(text.len())].matches('\n').count() + 1;
+    Some(MasterSource {
+        source: Some(format!("{rel}:{line}")),
+        file: rel,
+    })
+}
+
+/// The master's file, relative to the project: the library's, else named after the component.
+fn master_file(def: Option<&ComponentDef>, comp: &Value) -> String {
+    match def.map(|d| d.file.as_str()).filter(|f| !f.is_empty()) {
+        Some(file) => file.to_string(),
+        None => format!(
+            "design/system/components/{}.html",
+            js::to_string(comp.get("name"))
+        ),
+    }
+}
+
+/// Where the master block starts in its file.
+fn master_start(text: &str, def: Option<&ComponentDef>) -> usize {
+    match def.map(|d| d.line).filter(|line| *line > 0) {
         // The end of the line before the master's, as the Node code counted it.
         Some(1) => 0,
         Some(line) => text
@@ -95,99 +116,100 @@ pub fn master_source(root: &Path, change: &Value, lib: Option<&Library>) -> Opti
             .nth(line - 2)
             .map_or(text.len(), |(i, _)| i),
         None => text.find("<dfw-component").unwrap_or(0),
+    }
+}
+
+/// The selector of the best scored CSS rule in the master's `<style>` that sets the change's
+/// property (variant, size, class and text selectors up, state selectors down). `Some(None)`
+/// when no rule fits; `None` when the declaration pattern cannot be built (the lookup stops).
+fn css_rule_offset(
+    block: &str,
+    start: usize,
+    change: &Value,
+    comp: &Value,
+    cls: Option<&str>,
+) -> Option<Option<usize>> {
+    let Some(prop) = css_property(change) else {
+        return Some(None);
     };
-    let block = &text[..find_from(&text, "</dfw-component>", start).unwrap_or(text.len())];
-    let at = |i: usize| {
-        let line = text[..i.min(text.len())].matches('\n').count() + 1;
-        Some(MasterSource {
-            file: rel.clone(),
-            source: Some(format!("{rel}:{line}")),
+    let style_at = find_from(block, "<style", start);
+    let style_end = style_at.and_then(|s| find_from(block, "</style>", s));
+    let (Some(style_at), Some(style_end)) = (style_at, style_end.filter(|e| *e > 0)) else {
+        return Some(None);
+    };
+    let is_text_change = kind(change) == Some("text");
+    let css = &block[style_at..style_end];
+    let decl = Regex::new(&format!(r"(^|[;{{{s}])({prop})[{s}]*:", s = js::SPACE)).ok()?;
+    let named = |value: Option<&Value>| {
+        js::truthy_value(value).and_then(|v| {
+            Regex::new(&format!(
+                r#"(--|[-_.{s}="']){}(?-u:\b)"#,
+                regex::escape(&js::to_string(Some(v))),
+                s = js::SPACE
+            ))
+            .ok()
         })
     };
-    let name =
-        js::truthy_value(change.get("name")).map_or(String::new(), |n| js::to_string(Some(n)));
-    let cls = CLASS_NAME.captures(&name).map(|m| m[1].to_string());
-    let is_text_change = kind(change) == Some("text");
-    if let Some(prop) = css_property(change) {
-        let style_at = find_from(block, "<style", start);
-        let style_end = style_at.and_then(|s| find_from(block, "</style>", s));
-        if let (Some(style_at), Some(style_end)) = (style_at, style_end.filter(|e| *e > 0)) {
-            let css = &block[style_at..style_end];
-            let decl = Regex::new(&format!(r"(^|[;{{{s}])({prop})[{s}]*:", s = js::SPACE)).ok()?;
-            let named = |value: Option<&Value>| {
-                js::truthy_value(value).and_then(|v| {
-                    Regex::new(&format!(
-                        r#"(--|[-_.{s}="']){}(?-u:\b)"#,
-                        regex::escape(&js::to_string(Some(v))),
-                        s = js::SPACE
-                    ))
-                    .ok()
-                })
-            };
-            let (variant, size) = (named(comp.get("variant")), named(comp.get("size")));
-            let mut best: Option<(i32, usize)> = None;
-            for m in CSS_RULE.captures_iter(css) {
-                let (whole, selector) = (m.get(0)?, js::trim(m.get(1)?.as_str()));
-                if !decl.is_match(&format!("{{{}", &m[2])) || selector.contains('@') {
-                    continue;
-                }
-                let mut score = 0;
-                if STATE_SELECTOR.is_match(selector) {
-                    score -= 10;
-                }
-                if variant.as_ref().is_some_and(|re| re.is_match(selector)) {
-                    score += 4;
-                }
-                if size.as_ref().is_some_and(|re| re.is_match(selector)) {
-                    score += 2;
-                }
-                if cls
-                    .as_ref()
-                    .is_some_and(|cls| selector.contains(&format!(".{cls}")))
-                {
-                    score += 1;
-                }
-                if is_text_change && TEXT_SELECTOR.is_match(selector) {
-                    score += 1;
-                }
-                if best.is_none_or(|(s, _)| score > s) {
-                    let offset = whole.as_str().find(selector).unwrap_or(0);
-                    best = Some((score, style_at + whole.start() + offset));
-                }
-            }
-            if let Some((_, i)) = best.filter(|(score, _)| *score > -10) {
-                return at(i);
-            }
+    let (variant, size) = (named(comp.get("variant")), named(comp.get("size")));
+    let mut best: Option<(i32, usize)> = None;
+    for m in CSS_RULE.captures_iter(css) {
+        let (whole, selector) = (m.get(0)?, js::trim(m.get(1)?.as_str()));
+        if !decl.is_match(&format!("{{{}", &m[2])) || selector.contains('@') {
+            continue;
+        }
+        let mut score = 0;
+        if STATE_SELECTOR.is_match(selector) {
+            score -= 10;
+        }
+        if variant.as_ref().is_some_and(|re| re.is_match(selector)) {
+            score += 4;
+        }
+        if size.as_ref().is_some_and(|re| re.is_match(selector)) {
+            score += 2;
+        }
+        if cls.is_some_and(|cls| selector.contains(&format!(".{cls}"))) {
+            score += 1;
+        }
+        if is_text_change && TEXT_SELECTOR.is_match(selector) {
+            score += 1;
+        }
+        if best.is_none_or(|(s, _)| score > s) {
+            let offset = whole.as_str().find(selector).unwrap_or(0);
+            best = Some((score, style_at + whole.start() + offset));
         }
     }
-    if let Some(tpl_at) = find_from(block, "<template", start) {
-        let tpl_end = find_from(block, "</template>", tpl_at)
-            .filter(|e| *e > 0)
-            .unwrap_or(block.len());
-        let tpl = &block[tpl_at..tpl_end];
-        if change.get("type").and_then(Value::as_str) == Some("text") {
-            if let Some(slot) = tpl.find("<dfw-slot") {
-                return at(tpl_at + slot);
-            }
-        }
-        if !js::truthy(change.get("isRoot")) {
-            let tag = js::truthy_value(change.get("tag")).map(|t| js::to_string(Some(t)));
-            let re = match (&cls, tag) {
-                (Some(cls), _) => Regex::new(&format!(
-                    r#"(?i)<[a-z][0-9A-Za-z_-]*[^>]*class="[^"]*(?-u:\b){}(?-u:\b)"#,
-                    regex::escape(cls)
-                ))
-                .ok(),
-                (None, Some(tag)) => Regex::new(&format!(r"(?i)<{tag}(?-u:\b)")).ok(),
-                (None, None) => None,
-            };
-            if let Some(m) = re.and_then(|re| re.find(tpl)) {
-                return at(tpl_at + m.start());
-            }
-        }
-        if let Some(first) = tpl.get(1..).and_then(first_element) {
-            return at(tpl_at + 1 + first);
+    Some(best.filter(|(score, _)| *score > -10).map(|(_, i)| i))
+}
+
+/// The element of the master's `<template>` a change is on: the slot for a text change, the
+/// element with the layer's class or tag, else the first element.
+fn template_offset(block: &str, start: usize, change: &Value, cls: Option<&str>) -> Option<usize> {
+    let tpl_at = find_from(block, "<template", start)?;
+    let tpl_end = find_from(block, "</template>", tpl_at)
+        .filter(|e| *e > 0)
+        .unwrap_or(block.len());
+    let tpl = &block[tpl_at..tpl_end];
+    if change.get("type").and_then(Value::as_str) == Some("text") {
+        if let Some(slot) = tpl.find("<dfw-slot") {
+            return Some(tpl_at + slot);
         }
     }
-    at(start)
+    if !js::truthy(change.get("isRoot")) {
+        let tag = js::truthy_value(change.get("tag")).map(|t| js::to_string(Some(t)));
+        let re = match (cls, tag) {
+            (Some(cls), _) => Regex::new(&format!(
+                r#"(?i)<[a-z][0-9A-Za-z_-]*[^>]*class="[^"]*(?-u:\b){}(?-u:\b)"#,
+                regex::escape(cls)
+            ))
+            .ok(),
+            (None, Some(tag)) => Regex::new(&format!(r"(?i)<{tag}(?-u:\b)")).ok(),
+            (None, None) => None,
+        };
+        if let Some(m) = re.and_then(|re| re.find(tpl)) {
+            return Some(tpl_at + m.start());
+        }
+    }
+    tpl.get(1..)
+        .and_then(first_element)
+        .map(|first| tpl_at + 1 + first)
 }

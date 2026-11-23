@@ -228,28 +228,46 @@ impl Linker<'_> {
             .collect()
     }
 
-    // Long: one step per property of a snapshot node, in the key order of the export file.
-    #[allow(clippy::too_many_lines, reason = "A10 debt")]
+    /// One export layer of a snapshot node, its keys in the order of the export file: place,
+    /// paint, content, children, then the structure signature.
     fn layer(&self, n: &Value, path: &str) -> Value {
         let kind = n.get("kind").and_then(Value::as_str);
-        let st = |key: &str| style(n, key);
         let mut l = Map::new();
-        let mut put = |key: &str, value: Option<Value>| {
-            if let Some(value) = value {
-                l.insert(key.to_string(), value);
-            }
-        };
-        put("kind", n.get("kind").cloned());
-        put("name", n.get("name").cloned());
-        put("path", Some(path.into()));
-        put("dfwId", Some(js::or_null(n.get("dfwId"))));
-        put("anchor", Some(js::or_null(n.get("anchor"))));
+        put(&mut l, "kind", n.get("kind").cloned());
+        put(&mut l, "name", n.get("name").cloned());
+        put(&mut l, "path", Some(path.into()));
+        put(&mut l, "dfwId", Some(js::or_null(n.get("dfwId"))));
+        put(&mut l, "anchor", Some(js::or_null(n.get("anchor"))));
         for key in ["x", "y", "w", "h"] {
-            put(key, n.get(key).cloned());
+            put(&mut l, key, n.get(key).cloned());
         }
-        put("tag", js::truthy_value(n.get("tag")).cloned());
+        put(&mut l, "tag", js::truthy_value(n.get("tag")).cloned());
+        self.put_paint(&mut l, n);
+        self.put_content(&mut l, n, kind);
+        if let Some(children) = n.get("children").and_then(Value::as_array) {
+            if !children.is_empty() {
+                let kids = children
+                    .iter()
+                    .enumerate()
+                    .map(|(i, c)| self.layer(c, &format!("{path}.{i}")))
+                    .collect();
+                put(&mut l, "children", Some(Value::Array(kids)));
+            }
+        }
+        let mut l = Value::Object(l);
+        if l.get("children").is_some() || kind == Some("frame") {
+            l["sig"] = signature(&l).into();
+        }
+        l
+    }
+
+    /// What a node paints: fills, strokes (or side borders), radius, shadows, opacity, clip and
+    /// a note on a background image.
+    fn put_paint(&self, l: &mut Map<String, Value>, n: &Value) {
+        let st = |key: &str| style(n, key);
         if let Some(fill) = js::truthy_value(st("fill")) {
             put(
+                l,
                 "fills",
                 Some(json!([js::object(vec![
                     ("color", fill.get("hex").cloned()),
@@ -262,48 +280,10 @@ impl Linker<'_> {
             );
         }
         if let Some(borders) = js::truthy_value(st("borders")) {
-            let sides: &[Value] = borders.as_array().map_or(&[], Vec::as_slice);
-            let top = sides.first();
-            fn hex(b: Option<&Value>) -> Option<&Value> {
-                b.and_then(|b| b.get("color")).and_then(|c| c.get("hex"))
-            }
-            let uniform = !sides.is_empty()
-                && sides.iter().all(|x| {
-                    js::truthy(Some(x))
-                        && js::strict_eq(x.get("w"), top.and_then(|t| t.get("w")))
-                        && js::strict_eq(hex(Some(x)), hex(top))
-                });
-            if uniform {
-                let color = top.and_then(|t| t.get("color"));
-                let line = top.and_then(|t| t.get("style")).and_then(Value::as_str);
-                let line = line
-                    .filter(|s| matches!(*s, "dashed" | "dotted"))
-                    .unwrap_or("solid");
-                put(
-                    "strokes",
-                    Some(json!([js::object(vec![
-                        ("color", hex(top).cloned()),
-                        ("opacity", color.and_then(|c| c.get("opacity")).cloned()),
-                        ("width", top.and_then(|t| t.get("w")).cloned()),
-                        ("style", Some(line.into())),
-                        ("token", Some(find_color_token(self.colors, color, false))),
-                    ])])),
-                );
-            } else {
-                // Penpot strokes are uniform: these are drawn as thin rectangles.
-                put(
-                    "sideBorders",
-                    Some(js::object(vec![
-                        ("top", sides.first().cloned()),
-                        ("right", sides.get(1).cloned()),
-                        ("bottom", sides.get(2).cloned()),
-                        ("left", sides.get(3).cloned()),
-                    ])),
-                );
-            }
+            self.put_borders(l, borders);
         }
         if let Some(radius) = js::truthy_value(st("radius")) {
-            put("radius", Some(radius.clone()));
+            put(l, "radius", Some(radius.clone()));
             let corners: &[Value] = radius.as_array().map_or(&[], Vec::as_slice);
             let first = corners.first();
             if corners.iter().all(|x| js::strict_eq(Some(x), first)) {
@@ -312,7 +292,11 @@ impl Linker<'_> {
                     .iter()
                     .find(|(_, px)| js::strict_eq(Some(px), first))
                     .filter(|(name, _)| !name.is_empty());
-                put("radiusToken", token.map(|(name, _)| name.as_str().into()));
+                put(
+                    l,
+                    "radiusToken",
+                    token.map(|(name, _)| name.as_str().into()),
+                );
             }
         }
         if let Some(shadows) = js::truthy_value(st("shadows")).and_then(Value::as_array) {
@@ -327,19 +311,73 @@ impl Linker<'_> {
                     Value::Object(shadow)
                 })
                 .collect();
-            put("shadows", Some(Value::Array(list)));
+            put(l, "shadows", Some(Value::Array(list)));
         }
-        put("opacity", st("opacity").cloned());
-        put("clip", js::truthy(st("clip")).then_some(Value::Bool(true)));
+        put(l, "opacity", st("opacity").cloned());
+        put(
+            l,
+            "clip",
+            js::truthy(st("clip")).then_some(Value::Bool(true)),
+        );
         if let Some(image) = js::truthy_value(st("backgroundImage")) {
             let shown = js::slice16(&js::to_string(Some(image)), 0, 60);
             put(
+                l,
                 "note",
                 Some(format!("background-image not exported ({shown})").into()),
             );
         }
+    }
+
+    /// Borders: one stroke when every side is the same, else the sides as they are.
+    fn put_borders(&self, l: &mut Map<String, Value>, borders: &Value) {
+        let sides: &[Value] = borders.as_array().map_or(&[], Vec::as_slice);
+        let top = sides.first();
+        fn hex(b: Option<&Value>) -> Option<&Value> {
+            b.and_then(|b| b.get("color")).and_then(|c| c.get("hex"))
+        }
+        let uniform = !sides.is_empty()
+            && sides.iter().all(|x| {
+                js::truthy(Some(x))
+                    && js::strict_eq(x.get("w"), top.and_then(|t| t.get("w")))
+                    && js::strict_eq(hex(Some(x)), hex(top))
+            });
+        if uniform {
+            let color = top.and_then(|t| t.get("color"));
+            let line = top.and_then(|t| t.get("style")).and_then(Value::as_str);
+            let line = line
+                .filter(|s| matches!(*s, "dashed" | "dotted"))
+                .unwrap_or("solid");
+            put(
+                l,
+                "strokes",
+                Some(json!([js::object(vec![
+                    ("color", hex(top).cloned()),
+                    ("opacity", color.and_then(|c| c.get("opacity")).cloned()),
+                    ("width", top.and_then(|t| t.get("w")).cloned()),
+                    ("style", Some(line.into())),
+                    ("token", Some(find_color_token(self.colors, color, false))),
+                ])])),
+            );
+        } else {
+            // Penpot strokes are uniform: these are drawn as thin rectangles.
+            put(
+                l,
+                "sideBorders",
+                Some(js::object(vec![
+                    ("top", sides.first().cloned()),
+                    ("right", sides.get(1).cloned()),
+                    ("bottom", sides.get(2).cloned()),
+                    ("left", sides.get(3).cloned()),
+                ])),
+            );
+        }
+    }
+
+    /// What a node holds by kind (text, svg, image) and the component it is an instance of.
+    fn put_content(&self, l: &mut Map<String, Value>, n: &Value, kind: Option<&str>) {
         if kind == Some("text") {
-            put("characters", n.get("characters").cloned());
+            put(l, "characters", n.get("characters").cloned());
             let text = n.get("text");
             let color = text.and_then(|t| t.get("color"));
             let mut t = js::spread(text);
@@ -355,40 +393,26 @@ impl Linker<'_> {
                 "colorToken".into(),
                 find_color_token(self.colors, color, true),
             );
-            put("text", Some(Value::Object(t)));
+            put(l, "text", Some(Value::Object(t)));
             put(
+                l,
                 "placeholder",
                 js::truthy(n.get("placeholder")).then_some(Value::Bool(true)),
             );
         }
         if kind == Some("svg") {
-            put("svg", n.get("svg").cloned());
-            put("icon", js::truthy_value(n.get("icon")).cloned());
+            put(l, "svg", n.get("svg").cloned());
+            put(l, "icon", js::truthy_value(n.get("icon")).cloned());
         }
         if kind == Some("image") {
-            put("alt", n.get("alt").cloned());
-            put("src", Some(self.image_src(n.get("src"))));
+            put(l, "alt", n.get("alt").cloned());
+            put(l, "src", Some(self.image_src(n.get("src"))));
         }
         if let Some(component) = js::truthy_value(n.get("component")) {
             let mut c = js::spread(Some(component));
             c.insert("key".into(), component_key(component).into());
-            put("component", Some(Value::Object(c)));
+            put(l, "component", Some(Value::Object(c)));
         }
-        if let Some(children) = n.get("children").and_then(Value::as_array) {
-            if !children.is_empty() {
-                let kids = children
-                    .iter()
-                    .enumerate()
-                    .map(|(i, c)| self.layer(c, &format!("{path}.{i}")))
-                    .collect();
-                put("children", Some(Value::Array(kids)));
-            }
-        }
-        let mut l = Value::Object(l);
-        if l.get("children").is_some() || kind == Some("frame") {
-            l["sig"] = signature(&l).into();
-        }
-        l
     }
 
     /// Where the plugin loads an image from: a file under `design/` through the Studio, or a
@@ -410,6 +434,14 @@ impl Linker<'_> {
             _ if src.starts_with("http:") || src.starts_with("https:") => src.into(),
             _ => Value::Null,
         }
+    }
+}
+
+/// Set a key of a layer when there is a value (a missing one is left out, as JSON drops
+/// `undefined`).
+fn put(l: &mut Map<String, Value>, key: &str, value: Option<Value>) {
+    if let Some(value) = value {
+        l.insert(key.to_string(), value);
     }
 }
 
@@ -485,9 +517,8 @@ pub struct ExportInput<'a> {
 }
 
 /// `buildExport`: the export document from rendered snapshots. Its id carries the render time
-/// and a hash of the pages.
-// Long: the document is built in the key order its hash (the export id) is taken over.
-#[allow(clippy::too_many_lines, reason = "A10 debt")]
+/// and a hash of the pages. The document is built in the key order its hash (the export id)
+/// is taken over.
 pub fn build_export(input: &ExportInput) -> Value {
     let base = input.tokens.map(|t| &t.base);
     let colors = color_token_index(base);
@@ -498,105 +529,12 @@ pub fn build_export(input: &ExportInput) -> Value {
         project_root: input.project_root,
     };
     let mut components: Vec<(String, Value)> = Vec::new();
-    // Pages by id, in the order of their first render.
-    let mut pages: Vec<(String, Map<String, Value>, Vec<Value>)> = Vec::new();
-    for r in input.renders {
-        let page = r.get("page");
-        let page_id = page.and_then(|p| p.get("id"));
-        let page_key = js::stringify(page_id);
-        if !pages.iter().any(|(k, _, _)| *k == page_key) {
-            let title = js::truthy_value(page.and_then(|p| p.get("title"))).or(page_id);
-            let Value::Object(head) =
-                js::object(vec![("id", page_id.cloned()), ("title", title.cloned())])
-            else {
-                continue;
-            };
-            pages.push((page_key.clone(), head, Vec::new()));
-        }
-        let snapshot = r.get("snapshot");
-        let nodes = snapshot
-            .and_then(|s| s.get("children"))
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default();
-        let layers = linker.layers(&simplify(nodes));
-        let breakpoint = r.get("breakpoint");
-        let bp = |key: &str| breakpoint.and_then(|b| b.get(key));
-        let background = snapshot.and_then(|s| s.get("background"));
-        let key = format!(
-            "{}|{}|{}",
-            js::to_string(r.get("screen")),
-            js::to_string(r.get("variant")),
-            js::to_string(bp("id"))
-        );
-        let height = js::max(
-            js::to_number(bp("height")),
-            js::to_number(snapshot.and_then(|s| s.get("height"))).ceil(),
-        );
-        for l in &layers {
-            visit_components(l, &key, &mut components);
-        }
-        let board = js::object(vec![
-            ("key", Some(key.as_str().into())),
-            (
-                "name",
-                Some(
-                    format!(
-                        "{} / {} @ {}",
-                        js::to_string(r.get("screen")),
-                        js::to_string(r.get("variant")),
-                        js::to_string(bp("id"))
-                    )
-                    .into(),
-                ),
-            ),
-            ("screen", r.get("screen").cloned()),
-            ("variant", r.get("variant").cloned()),
-            ("breakpoint", bp("id").cloned()),
-            ("file", r.get("file").cloned()),
-            ("width", bp("width").cloned()),
-            ("height", Some(js::num(height))),
-            ("viewportHeight", bp("height").cloned()),
-            (
-                "background",
-                Some(js::object(vec![
-                    ("color", background.and_then(|b| b.get("hex")).cloned()),
-                    (
-                        "opacity",
-                        background.and_then(|b| b.get("opacity")).cloned(),
-                    ),
-                    ("token", Some(find_color_token(&colors, background, false))),
-                ])),
-            ),
-            ("layers", Some(Value::Array(layers))),
-        ]);
-        if let Some(slot) = pages.iter_mut().find(|(k, _, _)| *k == page_key) {
-            slot.2.push(board);
-        }
-    }
-    // Canvas layout per page: one row per breakpoint, screens/variants left to right.
-    let pages: Vec<Value> = pages
-        .into_iter()
-        .map(|(_, mut head, mut boards)| {
-            lay_out(&mut boards);
-            head.insert("boards".into(), Value::Array(boards));
-            Value::Object(head)
-        })
-        .collect();
+    let pages = pages_of_renders(&linker, input.renders, &mut components);
     let token_file = input
         .tokens
         .map(|t| dfw_to_penpot(Some(&t.base), &t.themes));
-    let stamp: String = input
-        .generated_at
-        .chars()
-        .filter(|c| !matches!(c, '-' | ':' | '.' | 'T' | 'Z'))
-        .collect();
     let pages = Value::Array(pages);
-    let id = format!(
-        "px_{}_{}",
-        js::slice16(&stamp, 0, 14),
-        &sha256(to_json_compact(&pages))[..8]
-    );
+    let id = export_id(&input.generated_at, &pages);
     json!({
         "schema": EXPORT_SCHEMA,
         "id": id,
@@ -614,6 +552,120 @@ pub fn build_export(input: &ExportInput) -> Value {
         "components": components.into_iter().map(|(_, c)| c).collect::<Vec<_>>(),
         "pages": pages,
     })
+}
+
+/// The canvas pages of the renders, by page id in the order of their first render, each with
+/// its boards laid out: one row per breakpoint, screens/variants left to right. Collects the
+/// component mains on the way.
+fn pages_of_renders(
+    linker: &Linker,
+    renders: &[Value],
+    components: &mut Vec<(String, Value)>,
+) -> Vec<Value> {
+    let mut pages: Vec<(String, Map<String, Value>, Vec<Value>)> = Vec::new();
+    for r in renders {
+        let page = r.get("page");
+        let page_id = page.and_then(|p| p.get("id"));
+        let page_key = js::stringify(page_id);
+        if !pages.iter().any(|(k, _, _)| *k == page_key) {
+            let title = js::truthy_value(page.and_then(|p| p.get("title"))).or(page_id);
+            let Value::Object(head) =
+                js::object(vec![("id", page_id.cloned()), ("title", title.cloned())])
+            else {
+                continue;
+            };
+            pages.push((page_key.clone(), head, Vec::new()));
+        }
+        let board = board_of_render(linker, r, components);
+        if let Some(slot) = pages.iter_mut().find(|(k, _, _)| *k == page_key) {
+            slot.2.push(board);
+        }
+    }
+    pages
+        .into_iter()
+        .map(|(_, mut head, mut boards)| {
+            lay_out(&mut boards);
+            head.insert("boards".into(), Value::Array(boards));
+            Value::Object(head)
+        })
+        .collect()
+}
+
+/// The board of one render: its layers with token links, size and background.
+fn board_of_render(linker: &Linker, r: &Value, components: &mut Vec<(String, Value)>) -> Value {
+    let snapshot = r.get("snapshot");
+    let nodes = snapshot
+        .and_then(|s| s.get("children"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let layers = linker.layers(&simplify(nodes));
+    let breakpoint = r.get("breakpoint");
+    let bp = |key: &str| breakpoint.and_then(|b| b.get(key));
+    let background = snapshot.and_then(|s| s.get("background"));
+    let key = format!(
+        "{}|{}|{}",
+        js::to_string(r.get("screen")),
+        js::to_string(r.get("variant")),
+        js::to_string(bp("id"))
+    );
+    let height = js::max(
+        js::to_number(bp("height")),
+        js::to_number(snapshot.and_then(|s| s.get("height"))).ceil(),
+    );
+    for l in &layers {
+        visit_components(l, &key, components);
+    }
+    js::object(vec![
+        ("key", Some(key.as_str().into())),
+        (
+            "name",
+            Some(
+                format!(
+                    "{} / {} @ {}",
+                    js::to_string(r.get("screen")),
+                    js::to_string(r.get("variant")),
+                    js::to_string(bp("id"))
+                )
+                .into(),
+            ),
+        ),
+        ("screen", r.get("screen").cloned()),
+        ("variant", r.get("variant").cloned()),
+        ("breakpoint", bp("id").cloned()),
+        ("file", r.get("file").cloned()),
+        ("width", bp("width").cloned()),
+        ("height", Some(js::num(height))),
+        ("viewportHeight", bp("height").cloned()),
+        (
+            "background",
+            Some(js::object(vec![
+                ("color", background.and_then(|b| b.get("hex")).cloned()),
+                (
+                    "opacity",
+                    background.and_then(|b| b.get("opacity")).cloned(),
+                ),
+                (
+                    "token",
+                    Some(find_color_token(linker.colors, background, false)),
+                ),
+            ])),
+        ),
+        ("layers", Some(Value::Array(layers))),
+    ])
+}
+
+/// `px_<render time, digits only>_<hash of the pages>`.
+fn export_id(generated_at: &str, pages: &Value) -> String {
+    let stamp: String = generated_at
+        .chars()
+        .filter(|c| !matches!(c, '-' | ':' | '.' | 'T' | 'Z'))
+        .collect();
+    format!(
+        "px_{}_{}",
+        js::slice16(&stamp, 0, 14),
+        &sha256(to_json_compact(pages))[..8]
+    )
 }
 
 /// The first instance of every component becomes its main, rebased to its own origin.
