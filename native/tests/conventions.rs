@@ -201,3 +201,49 @@ fn comment_statuses_are_review_status() {
         found.join("\n")
     );
 }
+
+/// Tests wait for a condition with a deadline, never a fixed sleep before an assert
+/// (testing.md T12): a sleep that is long enough on a laptop is too short on a CI runner
+/// (review::inbox lost this way on windows-latest). A sleep inside a polling loop is fine; a
+/// sleep that proves something did *not* happen says so with `// T12: ` on the line before.
+#[test]
+fn tests_do_not_sleep_before_asserting() {
+    let mut files = Vec::new();
+    rust_files(&native().join("src"), &mut files);
+    rust_files(&native().join("tests"), &mut files);
+    files.sort();
+    let mut found = Vec::new();
+    for f in files {
+        let rel = f
+            .strip_prefix(native())
+            .unwrap()
+            .to_string_lossy()
+            .replace('\\', "/");
+        let text = fs::read_to_string(&f).unwrap();
+        let tests = if rel.ends_with("tests.rs") || rel.starts_with("tests/") {
+            text.as_str()
+        } else {
+            match text.find("#[cfg(test)]") {
+                Some(at) => &text[at..],
+                None => continue,
+            }
+        };
+        let lines: Vec<&str> = tests.lines().collect();
+        for (i, line) in lines.iter().enumerate() {
+            let t = line.trim();
+            if !(t.starts_with("thread::sleep(") || t.starts_with("std::thread::sleep(")) {
+                continue;
+            }
+            let explained = i > 0 && lines[i - 1].contains("// T12: ");
+            let next = lines.get(i + 1).map_or("", |l| l.trim());
+            if next.starts_with("assert") && !explained {
+                found.push(format!("{rel}: {t} / {next}"));
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "a fixed sleep right before an assert; poll the condition with a deadline (T12):\n{}",
+        found.join("\n")
+    );
+}

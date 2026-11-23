@@ -863,6 +863,7 @@ exec sleep 300
         fs::create_dir_all(&profile).unwrap();
         let mut other = Command::new("sleep").arg("300").spawn().unwrap();
         guard_process(other.id(), &profile).unwrap().disarm();
+        // T12: proves nothing happens, so it can only wait and look.
         thread::sleep(Duration::from_millis(200));
         assert!(matches!(other.try_wait(), Ok(None)) && profile.exists());
         other.kill().unwrap();

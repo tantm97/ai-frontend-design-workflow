@@ -361,13 +361,20 @@ mod tests {
     fn a_running_wait_is_listening() {
         let root = project("inbox-listening");
         assert!(!is_listening(&root));
+        // Long enough never to end by itself on a slow runner: a comment ends it.
         let waiter = {
             let root = root.clone();
-            thread::spawn(move || wait_for_comments(&root, quick(400.0, 20)).unwrap())
+            thread::spawn(move || wait_for_comments(&root, quick(60_000.0, 20)).unwrap())
         };
-        thread::sleep(Duration::from_millis(150));
+        // Wait for the marker with a deadline, not a fixed sleep (testing.md T12): on the
+        // windows-latest runner the thread took longer than 150 ms to write it.
+        let end = Instant::now() + Duration::from_secs(10);
+        while !is_listening(&root) && Instant::now() < end {
+            thread::sleep(Duration::from_millis(10));
+        }
         assert!(is_listening(&root));
-        waiter.join().unwrap();
+        add_comment(&root, &json!({ "comment": "wake up" })).unwrap();
+        assert_eq!(waiter.join().unwrap().len(), 1, "the comment ends the wait");
         assert!(!is_listening(&root), "the marker goes when the wait ends");
         // A marker of a process that is gone (killed wait) does not count.
         std::fs::write(
