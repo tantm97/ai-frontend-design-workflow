@@ -302,7 +302,7 @@ fn count_decisions(body: &str) -> usize {
 /// Nothing when the project has no `design/tokens/tokens.json`.
 // Over 120 lines: the checks run in the order their findings are printed and share the
 // resolved tokens.
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_lines, reason = "A10 debt")]
 pub fn audit_design_system(root: &Path) -> Result<Vec<Value>, DfwError> {
     let p = project_paths(root);
     let file = p.tokens.join("tokens.json");

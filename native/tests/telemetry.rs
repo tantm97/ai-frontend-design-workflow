@@ -3,6 +3,11 @@
 //! `TcpListener` in the test; the binary is pointed at it with `dfw telemetry endpoint`, which
 //! stands in for an address compiled in (one decision covers both, see `telemetry::address`).
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "binary tests build fixtures with std::fs and std::process directly"
+)]
+
 use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -299,7 +304,10 @@ fn wait_until(what: &str, mut done: impl FnMut() -> bool) {
 /// is in them.
 #[test]
 // One collector run: every event kind is sent and checked against the same capture.
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "long function kept as ported; split it when it next changes (A10)"
+)]
 fn events_arrive_as_otlp_json_and_carry_no_content() {
     let sink = Sink::start(Duration::ZERO);
     let m = Machine::new("otlp");

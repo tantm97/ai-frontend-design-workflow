@@ -186,7 +186,7 @@ fn with_attr(text: &str, el: &Located, name: &str, value: Option<&str>) -> Strin
 /// `transform`: the new source text for an edit op `{op, id, value, prop, ref, position,
 /// maxWidth}`; a refusal is an error and nothing is written.
 // Over 120 lines: one arm per op, so every op's checks and splice read in one place.
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_lines, reason = "A10 debt")]
 pub fn transform(root: &Path, text: &str, op: &Value) -> Result<String, DfwError> {
     let field = |key: &str| op.get(key);
     let shown = |key: &str| js::to_string(field(key));
@@ -542,7 +542,7 @@ pub fn undo_edit(root: &Path) -> Result<UndoResult, DfwError> {
     let target = resolve_design_file(root, rec.get("file"))?;
     if Some(js::read_text(&target.abs)?.as_str()) != rec.get("after").and_then(Value::as_str) {
         return Err(DfwError::new(format!(
-            "{file} changed after that edit (by Claude or an editor); undo refused to avoid losing work."
+            "{file} changed after that edit (by the AI or an editor); undo refused to avoid losing work."
         )));
     }
     let before = rec

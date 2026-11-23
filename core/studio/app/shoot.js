@@ -2,9 +2,11 @@
 // Screenshots: the camera menu (screens grouped by page, the choice kept in localStorage, null = all)
 // and the presenter's Screenshot button. PNGs are rendered by the Studio server.
 import { esc, shotName } from './model.js';
-import { $, P, S, api, pageModel, store, toast } from './state.js';
+import { $, P, S, pageModel, store, toast } from './state.js';
 import { allFrameSpecs } from './frames.js';
 import { presentSrc } from './present.js';
+import { server } from './api.js';
+import { TEXT } from '../shared/text.js';
 
 const shootKey = (/** @type {any} */ f) => (f.system ? 'system' : f.screen?.id || f.file);
 /** @type {string[] | null} */
@@ -82,8 +84,8 @@ function renderShootMenu() {
       );
   }
   const frames = shootSelection().length;
-  $('#shoot-count').textContent = `${frames} frame(s) · shown breakpoints/states`;
-  $('#shoot-go').textContent = `Screenshot ${frames}`;
+  $('#shoot-count').textContent = TEXT.shootCount(frames);
+  $('#shoot-go').textContent = TEXT.shootButton(frames);
   $('#shoot-go').disabled = !frames;
 }
 
@@ -94,14 +96,11 @@ function renderShootMenu() {
  */
 async function shootFrames(list, btn) {
   if (btn.disabled) return;
-  if (!list.length) return toast('No screen to screenshot.');
+  if (!list.length) return toast(TEXT.noScreenToShoot);
   btn.disabled = true;
-  toast(`Screenshotting ${list.length} screen(s)…`);
+  toast(TEXT.shooting(list.length));
   try {
-    const res = await api('/__dfw/api/shoot', {
-      method: 'POST',
-      body: JSON.stringify({ frames: list.map((f) => ({ src: f.src, w: f.w, h: f.h, name: shotName(f, S.theme) })) }),
-    });
+    const res = await server.shoot({ frames: list.map((f) => ({ src: f.src, w: f.w, h: f.h, name: shotName(f, S.theme) })) });
     const ok = res.filter((/** @type {any} */ r) => r.ok);
     if (ok.length === 1) {
       const a = document.createElement('a');
@@ -110,16 +109,10 @@ async function shootFrames(list, btn) {
       a.click();
     }
     const dir = ok[0]?.file.split('/').slice(0, -1).join('/');
-    toast(
-      `${ok.length}/${res.length} PNG saved${dir ? ` in ${dir}` : ''}${ok.length < res.length ? ` · failed: ${res.find((/** @type {any} */ r) => !r.ok).error}` : ''}`,
-    );
+    toast(TEXT.shot(ok.length, res.length, dir, ok.length < res.length ? res.find((/** @type {any} */ r) => !r.ok).error : null));
   } catch (e) {
     // A Studio server started before an update serves the new page but not the new API.
-    toast(
-      e.message === 'not found'
-        ? 'Screenshot needs a newer Studio server: run "dfw studio stop" then "dfw studio start", and reload.'
-        : `Screenshot failed: ${e.message}`,
-    );
+    toast(e.message === 'not found' ? TEXT.shootNeedsNewServer : TEXT.shootFailed(e.message));
   } finally {
     btn.disabled = false;
   }

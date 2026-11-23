@@ -188,6 +188,10 @@ fn run_dfw(args: Option<&Value>, cwd: Option<&Value>) -> Result<ToolResult, Tool
     let exe = env::current_exe().map_err(|err| err.to_string())?;
     // Node's spawn gives the child a stdin pipe and never closes it: kept, so a command that
     // reads stdin waits for the timeout here as it does there.
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "dfw's own executable with a stdin pipe kept open, timed by the caller below"
+    )]
     let spawned = Command::new(exe)
         .args(&list)
         .current_dir(dir)

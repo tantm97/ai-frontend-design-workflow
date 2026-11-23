@@ -2,6 +2,11 @@
 //! release before the port), run against the binary. Each test names its JavaScript original by
 //! the letter of the defect list.
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "binary tests build fixtures with std::fs and std::process directly"
+)]
+
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};

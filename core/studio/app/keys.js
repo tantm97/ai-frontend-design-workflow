@@ -12,6 +12,8 @@ import { undo } from './edits.js';
 import { closeComposer, saveComment } from './comments.js';
 import { closePop, cyclePins } from './pins.js';
 import { closePresent, openPresent, presentStep, setPresentMode, toggleFullscreen, togglePresentPins } from './present.js';
+import { MSG } from '../shared/protocol.js';
+import { MODE, PHASE, KEY } from '../shared/enums.js';
 
 /** @typedef {{ phase: 'down' | 'up', key: string, code: string, meta: boolean, ctrl: boolean, shift: boolean, alt: boolean }} KeyInput */
 
@@ -26,9 +28,9 @@ export function setMode(/** @type {string} */ mode) {
   S.mode = mode;
   document.body.dataset.mode = mode;
   for (const b of $$('.seg button')) b.setAttribute('aria-checked', String(b.dataset.mode === mode));
-  if (mode !== 'comment') closeComposer();
+  if (mode !== MODE.COMMENT) closeComposer();
   S.hover = null;
-  postAll({ type: 'dfw:mode', mode });
+  postAll({ type: MSG.MODE, mode });
   updateHud();
 }
 
@@ -36,19 +38,19 @@ export function setMode(/** @type {string} */ mode) {
 function presentKey(/** @type {KeyInput} */ d, /** @type {boolean} */ mod) {
   const key = d.key;
   if (mod || d.alt) return;
-  if (key === 'Escape') {
+  if (key === KEY.ESCAPE) {
     if (!$('#composer').hidden) return closeComposer();
     if (S.pop) return closePop();
-    if (P.mode === 'comment') return setPresentMode('present');
+    if (P.mode === MODE.COMMENT) return setPresentMode(MODE.PRESENT);
     return closePresent();
   }
-  if (key === 'ArrowLeft') return presentStep(-1);
-  if (key === 'ArrowRight') return presentStep(1);
+  if (key === KEY.LEFT) return presentStep(-1);
+  if (key === KEY.RIGHT) return presentStep(1);
   if (key === 'C' && d.shift) return togglePresentPins();
-  if (key === 'c' || key === 'C') return setPresentMode(P.mode === 'comment' ? 'present' : 'comment');
+  if (key === 'c' || key === 'C') return setPresentMode(P.mode === MODE.COMMENT ? MODE.PRESENT : MODE.COMMENT);
   if (key === 'f' || key === 'F') return toggleFullscreen();
   if (key === 'p' || key === 'P') return closePresent();
-  if (key === '?') $('#shortcuts').hidden = false;
+  if (key === KEY.HELP) $('#shortcuts').hidden = false;
 }
 
 /** Escape: close the composer, the popover, the selection, then go back to the select tool. */
@@ -56,54 +58,54 @@ function escape() {
   if (!$('#composer').hidden) return closeComposer();
   if (S.pop) return closePop();
   if (S.sel) {
-    postAll({ type: 'dfw:clear-selection' });
+    postAll({ type: MSG.CLEAR_SELECTION });
     S.sel = null;
     renderLayers();
     renderInspector();
     return updateHud();
   }
   if (S.selKey) return clearSelection();
-  if (S.mode !== 'select') setMode('select');
+  if (S.mode !== MODE.SELECT) setMode(MODE.SELECT);
 }
 
 /** A key from the Studio page or forwarded by a frame. */
 export function handleKey(/** @type {KeyInput} */ d) {
   const key = d.key;
-  if (d.phase === 'up') {
-    if (key === ' ') setSpace(false);
+  if (d.phase === PHASE.UP) {
+    if (key === KEY.SPACE) setSpace(false);
     return;
   }
   const mod = d.meta || d.ctrl;
   if (!$('#shortcuts').hidden) {
-    if (key === 'Escape' || key === '?') $('#shortcuts').hidden = true;
+    if (key === KEY.ESCAPE || key === KEY.HELP) $('#shortcuts').hidden = true;
     return;
   }
   if (P.open) return presentKey(d, mod);
-  if (key === ' ') return setSpace(true);
+  if (key === KEY.SPACE) return setSpace(true);
   if (mod && (key === 'z' || key === 'Z') && !d.shift) return undo();
   if (mod && (key === '=' || key === '+')) return zoomStep(1);
   if (mod && key === '-') return zoomStep(-1);
   if (mod && key === '0') return zoomCenter(1);
-  if (d.alt && !mod && (key.startsWith('Arrow') || (d.shift && d.code === 'Digit0')) && S.sel && S.mode === 'select') {
+  if (d.alt && !mod && (key.startsWith('Arrow') || (d.shift && d.code === 'Digit0')) && S.sel && S.mode === MODE.SELECT) {
     const f = S.frames.get(S.sel.key);
-    if (f && !f.system && f.file) post(f, { type: 'dfw:layout-key', key: key.startsWith('Arrow') ? key : 'reset', shift: d.shift });
+    if (f && !f.system && f.file) post(f, { type: MSG.LAYOUT_KEY, key: key.startsWith('Arrow') ? key : 'reset', shift: d.shift });
     return;
   }
   if (mod || d.alt) return;
   if (d.shift && (d.code === 'Digit1' || key === '!')) return zoomToFit();
   if (d.shift && (d.code === 'Digit2' || key === '@')) return zoomToSelection();
   switch (key) {
-    case 'Escape':
+    case KEY.ESCAPE:
       return escape();
     case 'v':
     case 'V':
-      return setMode('select');
+      return setMode(MODE.SELECT);
     case 'h':
     case 'H':
-      return setMode('hand');
+      return setMode(MODE.HAND);
     case 'i':
     case 'I':
-      return setMode('interact');
+      return setMode(MODE.INTERACT);
     case 'p':
     case 'P':
       return openPresent();
@@ -114,7 +116,7 @@ export function handleKey(/** @type {KeyInput} */ d) {
       if (d.shift) return cyclePins();
     // falls through
     case 'c':
-      return setMode(S.mode === 'comment' ? 'select' : 'comment');
+      return setMode(S.mode === MODE.COMMENT ? MODE.SELECT : MODE.COMMENT);
     case '+':
     case '=':
       return zoomStep(1);
@@ -123,17 +125,17 @@ export function handleKey(/** @type {KeyInput} */ d) {
       return zoomStep(-1);
     case '0':
       return zoomCenter(1);
-    case '?':
+    case KEY.HELP:
       $('#shortcuts').hidden = false;
       return;
-    case 'ArrowUp':
-    case 'ArrowDown':
-    case 'ArrowLeft':
-    case 'ArrowRight':
-      if (S.sel) post(S.frames.get(S.sel.key), { type: 'dfw:nav', dir: key.slice(5).toLowerCase() });
+    case KEY.UP:
+    case KEY.DOWN:
+    case KEY.LEFT:
+    case KEY.RIGHT:
+      if (S.sel) post(S.frames.get(S.sel.key), { type: MSG.NAV, dir: key.slice(5).toLowerCase() });
       return;
-    case 'Enter':
-      if (S.sel?.textEditable) post(S.frames.get(S.sel.key), { type: 'dfw:edit' });
+    case KEY.ENTER:
+      if (S.sel?.textEditable) post(S.frames.get(S.sel.key), { type: MSG.EDIT });
   }
 }
 
@@ -142,7 +144,7 @@ export function handleKey(/** @type {KeyInput} */ d) {
  * After a mouse click the control is focused but not :focus-visible, and Space still pans.
  */
 const pressesControl = (/** @type {KeyboardEvent} */ e) =>
-  (e.key === ' ' || e.key === 'Enter') &&
+  (e.key === KEY.SPACE || e.key === KEY.ENTER) &&
   !!(/** @type {HTMLElement} */ (e.target).closest?.('button, a[href], summary, [role="treeitem"]')?.matches(':focus-visible'));
 
 /** Keys on the Studio page itself (fields keep theirs). */
@@ -150,8 +152,8 @@ export function initKeys() {
   document.addEventListener('keydown', (e) => {
     const t = /** @type {HTMLElement} */ (e.target);
     if (t.closest('textarea, input, select')) {
-      if (t.id === 'composer-text' && e.key === 'Enter' && (e.metaKey || e.ctrlKey)) saveComment();
-      if (e.key === 'Escape') {
+      if (t.id === 'composer-text' && e.key === KEY.ENTER && (e.metaKey || e.ctrlKey)) saveComment();
+      if (e.key === KEY.ESCAPE) {
         closeComposer();
         t.blur();
       }
@@ -159,13 +161,13 @@ export function initKeys() {
     }
     if (pressesControl(e)) return;
     /** @type {KeyInput} */
-    const d = { phase: 'down', key: e.key, code: e.code, meta: e.metaKey, ctrl: e.ctrlKey, shift: e.shiftKey, alt: e.altKey };
-    if (e.key === ' ' || e.key.startsWith('Arrow') || ((e.metaKey || e.ctrlKey) && ['z', '=', '-', '0', '+'].includes(e.key)))
+    const d = { phase: PHASE.DOWN, key: e.key, code: e.code, meta: e.metaKey, ctrl: e.ctrlKey, shift: e.shiftKey, alt: e.altKey };
+    if (e.key === KEY.SPACE || e.key.startsWith('Arrow') || ((e.metaKey || e.ctrlKey) && ['z', '=', '-', '0', '+'].includes(e.key)))
       e.preventDefault();
     handleKey(d);
   });
   document.addEventListener('keyup', (e) => {
-    if (e.key !== ' ') return;
+    if (e.key !== KEY.SPACE) return;
     // Space is the hand tool: it does not press a button the mouse left focused (one the keyboard focused, it does).
     if (!(/** @type {HTMLElement} */ (e.target).closest('textarea, input, select')) && !pressesControl(e)) e.preventDefault();
     setSpace(false);

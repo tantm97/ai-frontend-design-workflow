@@ -6,6 +6,8 @@ import { esc } from './model.js';
 import { $, S, currentPage, post } from './state.js';
 import { edit, goToMaster, layoutScopeOf } from './edits.js';
 import { openComposer } from './comments.js';
+import { MSG } from '../shared/protocol.js';
+import { UI_ACTION, INSTANCE_FIELD, EDIT_OP, LAYOUT_KEY } from '../shared/enums.js';
 
 const COLORISH = new Set(['color', 'background-color', 'border-color']);
 const TYPE = new Set(['font-size', 'font-weight', 'line-height']);
@@ -77,7 +79,7 @@ function tokensHtml(/** @type {any} */ sel, /** @type {boolean} */ canSpace) {
       }
       const ask =
         COLORISH.has(r.group) || TYPE.has(r.group) || r.group === 'box-shadow' || r.group === 'border-radius'
-          ? `<button type="button" class="ask" data-ask="${i}" title="Design-system decision: ask Claude to change it">Ask Claude</button>`
+          ? `<button type="button" class="ask" data-ask="${i}" title="Design-system decision: ask the AI to change it">Ask AI</button>`
           : '';
       return `<div class="tok"><span class="p">${esc(r.prop)}</span><span class="v">${v}<span class="raw" title="${esc(r.value)}">${esc(r.value)}</span></span>${ask || '<span></span>'}</div>`;
     })
@@ -120,10 +122,10 @@ export function initInspector() {
     if (!b) return;
     const sel = S.sel;
     const f = S.frames.get(sel?.key);
-    if (b.dataset.act === 'master') return goToMaster(sel.own.comp);
-    if (b.dataset.act === 'edit-text') return post(f, { type: 'dfw:edit' });
-    if (b.dataset.act === 'layout-reset') return post(f, { type: 'dfw:layout-key', key: 'reset' });
-    if (b.dataset.act === 'comment') return openComposer(sel, f, '');
+    if (b.dataset.act === UI_ACTION.MASTER) return goToMaster(sel.own.comp);
+    if (b.dataset.act === UI_ACTION.EDIT_TEXT) return post(f, { type: MSG.EDIT });
+    if (b.dataset.act === UI_ACTION.LAYOUT_RESET) return post(f, { type: MSG.LAYOUT_KEY, key: LAYOUT_KEY.RESET });
+    if (b.dataset.act === UI_ACTION.COMMENT) return openComposer(sel, f, '');
     if (b.dataset.ask != null) {
       const r = sel.inspect[Number(b.dataset.ask)];
       const what = r.tokens.length ? `currently ${r.tokens[0]} (${r.value})` : `currently ${r.value}, raw value with no token`;
@@ -137,9 +139,10 @@ export function initInspector() {
     if (!f) return;
     if (t.dataset.space != null) {
       const r = sel.inspect[Number(t.dataset.space)];
-      return edit(f, { op: 'spacing', id: sel.own.id, prop: r.prop, value: t.value || null });
+      return edit(f, { op: EDIT_OP.SPACING, id: sel.own.id, prop: r.prop, value: t.value || null });
     }
-    if (t.dataset.edit === 'variant' || t.dataset.edit === 'size') return edit(f, { op: t.dataset.edit, id: sel.own.id, value: t.value });
-    if (t.dataset.edit === 'prop') return edit(f, { op: 'prop', id: sel.own.id, prop: t.dataset.prop, value: t.value });
+    if (t.dataset.edit === INSTANCE_FIELD.VARIANT || t.dataset.edit === INSTANCE_FIELD.SIZE)
+      return edit(f, { op: t.dataset.edit, id: sel.own.id, value: t.value });
+    if (t.dataset.edit === INSTANCE_FIELD.PROP) return edit(f, { op: EDIT_OP.PROP, id: sel.own.id, prop: t.dataset.prop, value: t.value });
   });
 }

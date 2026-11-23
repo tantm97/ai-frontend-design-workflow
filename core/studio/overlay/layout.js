@@ -6,6 +6,9 @@
 import { post, st } from './state.js';
 import { isUi } from './target.js';
 import { reportSelection } from './select.js';
+import { MSG } from '../shared/protocol.js';
+import { MODE, EDIT_OP, LAYOUT_PROP, LAYOUT_KEY, DROP, KEY } from '../shared/enums.js';
+import { TEXT } from '../shared/text.js';
 
 const FLOW = /^(inline-)?(flex|grid)$/;
 const isFlow = (/** @type {any} */ el) => !!el && el.nodeType === 1 && FLOW.test(getComputedStyle(el).display);
@@ -17,7 +20,7 @@ const idKids = (/** @type {Element} */ c) =>
   );
 /** Can this element be moved or resized now? */
 export const canLayout = (/** @type {HTMLElement | null} */ el) =>
-  st.layoutCfg.enabled && st.mode === 'select' && !st.editing && el && el.isConnected && !!el.dataset.dfwId && el !== document.body;
+  st.layoutCfg.enabled && st.mode === MODE.SELECT && !st.editing && el && el.isConnected && !!el.dataset.dfwId && el !== document.body;
 export const canMove = (/** @type {HTMLElement | null} */ el) => canLayout(el) && isFlow(el.parentElement);
 const PERCENTS = [25, 33.333, 50, 66.667, 75, 100];
 const HANDLE = 'width:10px;height:10px;background:#fff;border:2px solid #0d99ff;border-radius:2px;pointer-events:auto;';
@@ -41,9 +44,8 @@ function ui() {
   const hY = mk(`${HANDLE}cursor:ns-resize;`);
   hX.dataset.dfwHandle = 'x';
   hY.dataset.dfwHandle = 'y';
-  hX.title =
-    'Drag to resize the width (snaps to grid columns, size tokens or percentages). Alt+Shift+Left/Right. Double-click: back to auto';
-  hY.title = 'Drag to set a min-height (snaps to spacing/size tokens). Alt+Shift+Up/Down. Double-click: back to auto';
+  hX.title = TEXT.widthHandle;
+  hY.title = TEXT.minHeightHandle;
   const line = mk('background:#0d99ff;border-radius:2px;');
   const zone = mk('border:2px dashed #0d99ff;background:rgba(13,153,255,.12);border-radius:4px;'); // drop-into-container highlight
   const badge = mk(
@@ -130,7 +132,7 @@ export function snapOptions(el, axis) {
     const n = Math.max(1, tracks.length);
     const track = tracks.length ? tracks.reduce((a, b) => a + b, 0) / tracks.length : p.clientWidth;
     return {
-      prop: 'grid-column',
+      prop: LAYOUT_PROP.GRID_COLUMN,
       list: Array.from({ length: n }, (_, i) => ({
         value: `span ${i + 1}`,
         css: `span ${i + 1}`,
@@ -147,10 +149,10 @@ export function snapOptions(el, axis) {
     const sizes = toks
       .filter((t) => t.name.startsWith('size.') && t.px <= inner)
       .map((t) => ({ value: t.name, css: `var(${t.var})`, label: `${t.name} · ${Math.round(t.px)}px`, px: t.px }));
-    return { prop: 'width', list: [...pct, ...sizes].sort((a, b) => a.px - b.px) };
+    return { prop: LAYOUT_PROP.WIDTH, list: [...pct, ...sizes].sort((a, b) => a.px - b.px) };
   }
   return {
-    prop: 'min-height',
+    prop: LAYOUT_PROP.MIN_HEIGHT,
     list: toks.map((t) => ({ value: t.name, css: `var(${t.var})`, label: `${t.name} · ${Math.round(t.px)}px`, px: t.px })),
   };
 }
@@ -164,13 +166,13 @@ export function snapOptions(el, axis) {
  */
 export const nearest = (list, px) => list.reduce((best, o) => (Math.abs(o.px - px) < Math.abs(best.px - px) ? o : best), list[0]);
 /** CSS property -> style property. */
-export const styleProp = { 'grid-column': 'gridColumn', width: 'width', 'min-height': 'minHeight' };
+export const styleProp = { [LAYOUT_PROP.GRID_COLUMN]: 'gridColumn', [LAYOUT_PROP.WIDTH]: 'width', [LAYOUT_PROP.MIN_HEIGHT]: 'minHeight' };
 
 /** Mousedown on a handle: start a resize along its axis. */
 export function startResize(/** @type {string} */ axis, /** @type {MouseEvent} */ e) {
   const el = st.selected;
   const opts = snapOptions(el, axis);
-  if (!opts.list.length) return post('dfw:toast', { message: 'No size tokens to snap to.' });
+  if (!opts.list.length) return post(MSG.TOAST, { message: TEXT.noSizeTokens });
   st.resize = {
     el,
     axis,
@@ -201,7 +203,7 @@ export function moveResize(/** @type {MouseEvent} */ e) {
     r.el.style[styleProp[r.prop]] = o.css;
     reportSelection();
   }
-  showBadge(scoped(r.prop === 'grid-column' ? o.label : `${r.prop} ${o.label}`), e.clientX, e.clientY);
+  showBadge(scoped(r.prop === LAYOUT_PROP.GRID_COLUMN ? o.label : `${r.prop} ${o.label}`), e.clientX, e.clientY);
 }
 
 export function endResize(/** @type {boolean} */ commit) {
@@ -209,7 +211,7 @@ export function endResize(/** @type {boolean} */ commit) {
   st.resize = null;
   hideFeedback();
   if (commit && r.moved && r.pick)
-    post('dfw:layout-op', { op: 'layout', id: r.el.dataset.dfwId, prop: r.prop, value: r.pick.value, label: r.pick.label });
+    post(MSG.LAYOUT_OP, { op: EDIT_OP.LAYOUT, id: r.el.dataset.dfwId, prop: r.prop, value: r.pick.value, label: r.pick.label });
   else r.el.style[styleProp[r.prop]] = r.prev;
   placeHandles();
   reportSelection();
@@ -221,7 +223,7 @@ const isEmptyBox = (/** @type {any} */ n) =>
 
 /**
  * Where a dragged element would land: { ref, position, vertical } next to a data-dfw-id child of a flex/grid
- * container, or { ref: container, position: 'inside' } over an empty flex/grid container that has a data-dfw-id.
+ * container, or { ref: container, position: DROP.INSIDE } over an empty flex/grid container that has a data-dfw-id.
  * @param {number} x
  * @param {number} y
  * @returns {{ ref: HTMLElement, position: string, vertical?: boolean, r: DOMRect } | null}
@@ -233,7 +235,7 @@ function dropAt(x, y) {
   const home = d.parentElement;
   for (let e = n; e && e !== home && e !== document.documentElement; e = e.parentElement) {
     if (isUi(e) || d.contains(e)) break;
-    if (isEmptyBox(e)) return { ref: e, position: 'inside', r: e.getBoundingClientRect() };
+    if (isEmptyBox(e)) return { ref: e, position: DROP.INSIDE, r: e.getBoundingClientRect() };
     if (isFlow(e) && idKids(e).length) break;
   }
   const hr = home.getBoundingClientRect();
@@ -257,7 +259,7 @@ function dropAt(x, y) {
   if (isGrid(c)) horizontal = y >= r.top && y <= r.bottom;
   else horizontal = getComputedStyle(c).flexDirection.startsWith('row');
   const before = horizontal ? x < r.left + r.width / 2 : y < r.top + r.height / 2;
-  return { ref: k, position: before ? 'before' : 'after', vertical: horizontal, r };
+  return { ref: k, position: before ? DROP.BEFORE : DROP.AFTER, vertical: horizontal, r };
 }
 
 /** Mousedown on the selected element: a drag starts once the pointer moved 5px. */
@@ -276,7 +278,7 @@ export function moveDrag(/** @type {MouseEvent} */ e) {
     drag.el.style.opacity = '0.4';
     drag.el.style.pointerEvents = 'none';
     placeHandles();
-    post('dfw:hover', { rect: null });
+    post(MSG.HOVER, { rect: null });
   }
   const t = (drag.drop = dropAt(e.clientX, e.clientY));
   mountUi();
@@ -285,7 +287,7 @@ export function moveDrag(/** @type {MouseEvent} */ e) {
     return showBadge('Drop next to a sibling in a flex or grid container, or into an empty one', e.clientX, e.clientY);
   }
   const { r } = t;
-  if (t.position === 'inside') {
+  if (t.position === DROP.INSIDE) {
     line.style.display = 'none';
     Object.assign(zone.style, {
       left: `${r.left}px`,
@@ -297,7 +299,7 @@ export function moveDrag(/** @type {MouseEvent} */ e) {
     return showBadge(`Into ${t.ref.dataset.dfwId}`, e.clientX, e.clientY);
   }
   zone.style.display = 'none';
-  const edge = t.position === 'before' ? (t.vertical ? r.left : r.top) : t.vertical ? r.right : r.bottom;
+  const edge = t.position === DROP.BEFORE ? (t.vertical ? r.left : r.top) : t.vertical ? r.right : r.bottom;
   Object.assign(
     line.style,
     t.vertical
@@ -305,7 +307,7 @@ export function moveDrag(/** @type {MouseEvent} */ e) {
       : { left: `${r.left}px`, top: `${edge - 2}px`, width: `${r.width}px`, height: '3px' },
   );
   line.style.display = 'block';
-  showBadge(`${t.position === 'before' ? 'Before' : 'After'} ${t.ref.dataset.dfwId}`, e.clientX, e.clientY);
+  showBadge(`${t.position === DROP.BEFORE ? 'Before' : 'After'} ${t.ref.dataset.dfwId}`, e.clientX, e.clientY);
 }
 
 export function endDrag(/** @type {boolean} */ commit) {
@@ -317,25 +319,25 @@ export function endDrag(/** @type {boolean} */ commit) {
   g.el.style.pointerEvents = g.prevPointer;
   st.suppressClick = true; // the click that ends the drag must not re-select (reset on the next mousedown)
   const t = g.drop;
-  if (commit && t && t.position === 'inside') {
+  if (commit && t && t.position === DROP.INSIDE) {
     t.ref.append(g.el); // optimistic; the frame reloads from the source
-    post('dfw:layout-op', {
-      op: 'move',
+    post(MSG.LAYOUT_OP, {
+      op: EDIT_OP.MOVE,
       id: g.el.dataset.dfwId,
       ref: t.ref.dataset.dfwId,
-      position: 'inside',
+      position: DROP.INSIDE,
       label: `Moved into ${t.ref.dataset.dfwId}`,
     });
   } else if (commit && t) {
-    const next = t.position === 'before' ? t.ref : t.ref.nextSibling;
+    const next = t.position === DROP.BEFORE ? t.ref : t.ref.nextSibling;
     if (
       next !== g.el &&
-      !(t.position === 'before' && g.el.nextElementSibling === t.ref) &&
-      !(t.position === 'after' && t.ref.nextElementSibling === g.el)
+      !(t.position === DROP.BEFORE && g.el.nextElementSibling === t.ref) &&
+      !(t.position === DROP.AFTER && t.ref.nextElementSibling === g.el)
     ) {
       t.ref.parentElement.insertBefore(g.el, next); // optimistic; the frame reloads from the source
-      post('dfw:layout-op', {
-        op: 'move',
+      post(MSG.LAYOUT_OP, {
+        op: EDIT_OP.MOVE,
         id: g.el.dataset.dfwId,
         ref: t.ref.dataset.dfwId,
         position: t.position,
@@ -356,8 +358,8 @@ export function resetLayout(el, prop = null) {
   for (const p of prop ? [prop] : Object.keys(styleProp)) el.style[styleProp[p]] = '';
   reportSelection();
   placeHandles();
-  post('dfw:layout-op', {
-    op: 'layout',
+  post(MSG.LAYOUT_OP, {
+    op: EDIT_OP.LAYOUT,
     id: el.dataset.dfwId,
     prop,
     value: null,
@@ -372,31 +374,31 @@ export function resetLayout(el, prop = null) {
  */
 export function layoutKey(key, shift) {
   const el = st.selected;
-  if (!canLayout(el)) return post('dfw:toast', { message: 'Select an element with a data-dfw-id to move or resize it.' });
-  if (key === 'reset') return resetLayout(el);
-  const back = key === 'ArrowLeft' || key === 'ArrowUp';
+  if (!canLayout(el)) return post(MSG.TOAST, { message: TEXT.needsIdToMove });
+  if (key === LAYOUT_KEY.RESET) return resetLayout(el);
+  const back = key === KEY.LEFT || key === KEY.UP;
   if (!shift) {
-    if (!canMove(el)) return post('dfw:toast', { message: 'Only children of a flex or grid container can be reordered.' });
+    if (!canMove(el)) return post(MSG.TOAST, { message: TEXT.onlyFlexGridChildren });
     const sibs = idKids(el.parentElement);
     const i = sibs.indexOf(el);
     const ref = sibs[back ? i - 1 : i + 1];
-    if (!ref) return post('dfw:toast', { message: back ? 'Already the first item.' : 'Already the last item.' });
-    const position = back ? 'before' : 'after';
+    if (!ref) return post(MSG.TOAST, { message: back ? TEXT.alreadyFirst : TEXT.alreadyLast });
+    const position = back ? DROP.BEFORE : DROP.AFTER;
     ref.parentElement.insertBefore(el, back ? ref : ref.nextSibling);
     reportSelection();
-    return post('dfw:layout-op', {
-      op: 'move',
+    return post(MSG.LAYOUT_OP, {
+      op: EDIT_OP.MOVE,
       id: el.dataset.dfwId,
       ref: ref.dataset.dfwId,
       position,
       label: `Moved ${position} ${ref.dataset.dfwId}`,
     });
   }
-  const axis = key === 'ArrowLeft' || key === 'ArrowRight' ? 'x' : 'y';
+  const axis = key === KEY.LEFT || key === KEY.RIGHT ? 'x' : 'y';
   const { prop, list } = snapOptions(el, axis);
-  if (!list.length) return post('dfw:toast', { message: 'No size tokens to snap to.' });
+  if (!list.length) return post(MSG.TOAST, { message: TEXT.noSizeTokens });
   let cur;
-  if (prop === 'grid-column') {
+  if (prop === LAYOUT_PROP.GRID_COLUMN) {
     const m = /span\s+(\d+)/.exec(getComputedStyle(el).gridColumnEnd) || /span\s+(\d+)/.exec(getComputedStyle(el).gridColumnStart);
     cur = list.findIndex((o) => o.value === `span ${m ? m[1] : 1}`);
   } else {
@@ -405,8 +407,8 @@ export function layoutKey(key, shift) {
     if (axis === 'y' && !now) cur = -1;
   }
   const o = list[Math.max(0, Math.min(list.length - 1, cur + (back ? -1 : 1)))];
-  if (cur >= 0 && o === list[cur]) return post('dfw:toast', { message: `Already ${o.label}.` });
+  if (cur >= 0 && o === list[cur]) return post(MSG.TOAST, { message: TEXT.alreadyAt(o.label) });
   el.style[styleProp[prop]] = o.css;
   reportSelection();
-  post('dfw:layout-op', { op: 'layout', id: el.dataset.dfwId, prop, value: o.value, label: o.label });
+  post(MSG.LAYOUT_OP, { op: EDIT_OP.LAYOUT, id: el.dataset.dfwId, prop, value: o.value, label: o.label });
 }

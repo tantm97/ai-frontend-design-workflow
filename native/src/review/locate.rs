@@ -248,7 +248,7 @@ pub fn verify_engine(file: &Path, digests: &[String], stamp_file: &Path) -> bool
 /// launcher looks (`IMPECCABLE_BIN`, a sibling build, `~/.impeccable/bin/impeccable`, PATH) are
 /// never hashed, so they are used only with the global opt-in.
 // Over 120 lines: the candidates are tried in one sequence, the upstream launcher's order.
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_lines, reason = "A10 debt")]
 pub fn resolve_engine(o: &EngineLookup) -> Engine {
     let scripts = o.skill_dir.join("scripts");
     let win = o.platform == "win32";

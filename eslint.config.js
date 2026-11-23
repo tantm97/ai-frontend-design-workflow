@@ -29,6 +29,82 @@ export default [
     languageOptions: { globals: globals.browser },
   },
   {
+    // docs/conventions/javascript.md J14 (G15: corrections become checks). The Studio page (app/)
+    // and the code inside the frames (overlay/, live/) are two programs that talk by postMessage:
+    // they share only shared/ (the message names, the server paths), never each other's modules.
+    // A message name or a server path is written once, in shared/.
+    files: ['core/studio/app/**/*.js', 'core/studio/overlay/**/*.js', 'core/studio/live/**/*.js'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'Literal[value=/^dfw:/]',
+          message: 'Message names live in core/studio/shared/protocol.js: use MSG.<NAME> (J14).',
+        },
+        {
+          selector: 'Literal[value=/^\\/__dfw\\//]',
+          message: 'Server paths live in core/studio/shared/paths.js: use PATH.<NAME> or app/api.js (J14).',
+        },
+        {
+          selector: 'TemplateElement[value.raw=/^\\/__dfw\\//]',
+          message: 'Server paths live in core/studio/shared/paths.js: use PATH.<NAME> or app/api.js (J14).',
+        },
+        {
+          selector:
+            'BinaryExpression[operator=/^[!=]==$/] > Literal[value=/^(select|hand|comment|interact|present|open|acknowledged|reopened|fixed|resolved|dismissed|inspect|comments|breakpoint|variants|states|edit-text|layout-reset|master|before|after|inside|editing|changed|reset|Escape|Enter|ArrowUp|ArrowDown|ArrowLeft|ArrowRight|Home|End)$/]',
+          message: 'A fixed value is compared through core/studio/shared/enums.js: use MODE / STATUS / TAB / KEY / ... (J14).',
+        },
+        {
+          selector:
+            'SwitchCase > Literal[value=/^(select|hand|comment|interact|present|open|acknowledged|reopened|fixed|resolved|dismissed|inspect|comments|breakpoint|variants|states|edit-text|layout-reset|master|before|after|inside|editing|changed|reset|Escape|Enter|ArrowUp|ArrowDown|ArrowLeft|ArrowRight|Home|End)$/]',
+          message: 'A fixed value is compared through core/studio/shared/enums.js: use MODE / STATUS / TAB / KEY / ... (J14).',
+        },
+        {
+          selector:
+            "AssignmentExpression[left.property.name=/^(textContent|placeholder|title)$/] > :matches(Literal[value=/ /], TemplateLiteral[quasis.length>1]), CallExpression[callee.property.name='setAttribute'][arguments.0.value=/^(aria-label|title|placeholder)$/] > :matches(Literal[value=/ /], TemplateLiteral).arguments:nth-child(2)",
+          message: 'Text the user reads lives in core/studio/shared/text.js: TEXT.<name> (J14).',
+        },
+        {
+          selector: "CallExpression[callee.name='toast'] > :matches(Literal, TemplateLiteral)",
+          message: 'Text the user reads lives in core/studio/shared/text.js: toast(TEXT.<name>) (J14).',
+        },
+        {
+          selector: 'Property[key.name=/^(message|error)$/] > :matches(Literal[value=/ /], TemplateLiteral)',
+          message: 'Text the user reads lives in core/studio/shared/text.js: TEXT.<name> (J14).',
+        },
+      ],
+    },
+  },
+  {
+    files: ['core/studio/app/**/*.js'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['../overlay/*', '../live/*'],
+              message: 'app/ runs in the Studio page; frame code talks to it through shared/protocol.js (J14).',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['core/studio/overlay/**/*.js', 'core/studio/live/**/*.js'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { group: ['../app/*'], message: 'Frame code cannot use the Studio page modules; share through core/studio/shared/ (J14).' },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // Runs in Penpot's plugin sandbox as a classic script; `penpot` (the plugin API) is declared in the file.
     files: ['core/studio/penpot/plugin.js'],
     languageOptions: { sourceType: 'script' },

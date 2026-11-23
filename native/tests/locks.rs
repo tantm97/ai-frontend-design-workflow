@@ -2,6 +2,11 @@
 //! several processes are all kept and journaled, and writers behind a lock whose holder died
 //! take it over once and keep every comment.
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "binary tests build fixtures with std::fs and std::process directly"
+)]
+
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};

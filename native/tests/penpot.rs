@@ -2,6 +2,11 @@
 //! tests/unit/penpot-tokens.test.mjs and penpot-screens.test.mjs. Each test names its
 //! JavaScript original.
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "binary tests build fixtures with std::fs and std::process directly"
+)]
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;

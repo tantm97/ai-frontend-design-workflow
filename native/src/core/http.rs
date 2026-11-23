@@ -4,9 +4,30 @@
 //! telemetry POST and the review proxy keep their own clients (see `telemetry/flush.rs` and
 //! `studio/live_proxy.rs` for why).
 
+use std::io;
+use std::net::{TcpStream, ToSocketAddrs};
 use std::time::Duration;
 
 use ureq::ResponseExt;
+
+/// A TCP connection that gives up after `deadline` instead of waiting for the system's own
+/// timeout (minutes on an address that drops packets), with the same deadline set for reads and
+/// writes. Every raw socket dfw opens goes through here: `TcpStream::connect` is a
+/// `disallowed-methods` entry in `clippy.toml` (§0 row 21).
+pub fn connect(host: &str, port: u16, deadline: Duration) -> io::Result<TcpStream> {
+    let mut last = io::Error::new(io::ErrorKind::NotFound, format!("no address for {host}"));
+    for addr in (host, port).to_socket_addrs()? {
+        match TcpStream::connect_timeout(&addr, deadline) {
+            Ok(stream) => {
+                stream.set_read_timeout(Some(deadline))?;
+                stream.set_write_timeout(Some(deadline))?;
+                return Ok(stream);
+            }
+            Err(err) => last = err,
+        }
+    }
+    Err(last)
+}
 
 /// What a GET returned.
 #[derive(Debug)]
@@ -77,6 +98,29 @@ mod tests {
         assert!(big.ok() && big.body.len() == 2048 && big.landed.ends_with("/big"));
         let gone = get(&format!("{base}/gone"), &[], t, 1024).unwrap();
         assert_eq!((gone.status, gone.ok()), (404, false));
+    }
+
+    #[test]
+    fn connect_gives_up_at_its_deadline() {
+        // A port nothing listens on is refused at once; an address that drops packets
+        // (TEST-NET-1, RFC 5737) is given up at the deadline, not after the system's minutes.
+        let free = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = free.local_addr().unwrap().port();
+        drop(free);
+        assert!(connect("127.0.0.1", port, Duration::from_secs(2)).is_err());
+        let start = std::time::Instant::now();
+        let dropped = connect("192.0.2.1", 9, Duration::from_millis(300));
+        assert!(dropped.is_err());
+        assert!(
+            start.elapsed() < Duration::from_secs(5),
+            "took {:?}",
+            start.elapsed()
+        );
+        // A listening port connects, with the deadline set for reads.
+        let up = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = up.local_addr().unwrap().port();
+        let s = connect("127.0.0.1", port, Duration::from_secs(2)).unwrap();
+        assert_eq!(s.read_timeout().unwrap(), Some(Duration::from_secs(2)));
     }
 
     #[test]

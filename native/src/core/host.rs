@@ -43,7 +43,10 @@ pub struct Host {
     pub cli: Option<&'static str>,
     /// Folder under `adapters/`.
     // Read by the build scripts' twin of this table (host.mjs); kept so the rows match.
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "Read by the build scripts' twin of this table (host.mjs); kept so the rows match"
+    )]
     pub adapter: Option<&'static str>,
     /// Hook events the host fires and whether a hook can add model context there.
     pub context: Option<&'static [(&'static str, bool)]>,
@@ -53,7 +56,10 @@ pub struct Host {
     pub qualified_skill_names: bool,
     /// Reached through the dfw MCP server.
     // Read by the build scripts' twin of this table (host.mjs); kept so the rows match.
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "Read by the build scripts' twin of this table (host.mjs); kept so the rows match"
+    )]
     pub mcp: bool,
 }
 

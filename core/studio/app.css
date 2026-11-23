@@ -238,7 +238,7 @@ body[data-mode="hand"] .world iframe, body.space .world iframe, body.panning .wo
 .box .tag { bottom: 100%; margin-bottom: 2px; }
 .box .dims { top: 100%; margin-top: 3px; left: 50%; transform: translateX(-50%); font-weight: 500; }
 .box.comp .tag, .box.comp .dims { background: var(--component); }
-/* Agent presence: where Claude is editing (dashed) or what it just changed (solid, fades). The cursor glides between them. */
+/* Agent presence: where the agent is editing (dashed) or what it just changed (solid, fades). The cursor glides between them. */
 .box.agent { border: 2px dashed var(--agent, #c2410c); border-radius: 3px; transition: transform .25s ease, width .25s ease, height .25s ease; }
 .box.agent .tag { background: var(--agent, #c2410c); left: -2px; font-size: var(--ui-text-sm); line-height: 18px; }
 .box.agent.changed { border-style: solid; background: color-mix(in srgb, var(--agent, #c2410c) 10%, transparent); animation: agent-fade 2.6s ease-out forwards; }

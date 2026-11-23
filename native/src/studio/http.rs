@@ -173,7 +173,7 @@ pub fn random_base64() -> String {
         h.write_u128(now);
         bytes.extend_from_slice(&h.finish().to_le_bytes());
     }
-    crate::browser::cdp::encoding::base64_encode(&bytes)
+    crate::core::encoding::base64_encode(&bytes)
 }
 
 /// A parsed message head (request or response) and the bytes read past it.

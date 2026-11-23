@@ -28,7 +28,7 @@ fn join_below(dir: &Path, file: &str) -> PathBuf {
 /// `lintManifest(root)`: design/design.json. A value of the wrong type ends the lint with an
 /// error that names the field.
 // Over 120 lines with its messages: the rules run in the order their findings are printed.
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_lines, reason = "A10 debt")]
 pub fn lint_manifest(root: &Path) -> Result<Vec<Value>, DfwError> {
     const REL: &str = "design/design.json";
     let p = project_paths(root);

@@ -86,9 +86,13 @@ fn take(path: PathBuf, patience: Duration) -> Option<Lock> {
 
 /// Replace a file through a temporary one, so a reader never sees half of it.
 fn replace(file: &Path, bytes: &[u8]) -> io::Result<()> {
-    let tmp = file.with_extension(format!("{}.tmp", std::process::id()));
-    fs::write(&tmp, bytes)?;
-    fs::rename(&tmp, file)
+    write(file, bytes)
+}
+
+/// [`crate::core::util::write_atomic`] with the `io::Error` the spool functions return.
+fn write(file: &Path, bytes: impl AsRef<[u8]>) -> io::Result<()> {
+    crate::core::util::write_atomic(file, bytes)
+        .map_err(|e| io::Error::other(e.message().to_string()))
 }
 
 /// The start of the newest lines of `old` that fit in `room` bytes.
@@ -136,7 +140,7 @@ pub fn append(dir: &Path, events: &[Spooled]) -> io::Result<bool> {
         .and_then(|at| SystemTime::now().duration_since(at).ok())
         .is_some_and(|age| age < FLUSH_EVERY);
     if !recent {
-        fs::write(&stamp, b"")?;
+        write(&stamp, b"")?;
     }
     Ok(!recent)
 }
@@ -223,7 +227,7 @@ pub fn install_id(dir: &Path, create: bool) -> Option<String> {
     }
     let id = random_id();
     fs::create_dir_all(dir).ok()?;
-    fs::write(&file, format!("{id}\n")).ok()?;
+    write(&file, format!("{id}\n")).ok()?;
     Some(id)
 }
 
@@ -235,7 +239,7 @@ pub fn notice_shown(dir: &Path) -> bool {
 /// Remember that the notice was printed.
 pub fn mark_notice_shown(dir: &Path) -> io::Result<()> {
     fs::create_dir_all(dir)?;
-    fs::write(dir.join(NOTICE), b"shown\n")
+    write(&dir.join(NOTICE), b"shown\n")
 }
 
 /// Delete the install id, the spool and everything else of telemetry.

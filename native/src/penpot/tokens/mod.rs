@@ -57,9 +57,8 @@ const INHERITED: [&str; 11] = [
 /// run every one of them).
 macro_rules! pattern {
     ($name:ident, $source:expr) => {
-        #[allow(clippy::expect_used)]
         static $name: LazyLock<Regex> =
-            LazyLock::new(|| Regex::new(&$source).expect("constant pattern"));
+            LazyLock::new(|| $crate::core::js::regex::fixed_regex(&$source));
     };
 }
 

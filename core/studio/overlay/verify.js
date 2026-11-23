@@ -4,6 +4,9 @@
 // of failing silently.
 import { post } from './state.js';
 import { styleProp } from './layout.js';
+import { MSG } from '../shared/protocol.js';
+import { LAYOUT_PROP } from '../shared/enums.js';
+import { TEXT } from '../shared/text.js';
 
 /**
  * Style rules of a sheet (recursing into @media that matches now, @layer, @supports) for which pick(rule) is truthy.
@@ -29,7 +32,9 @@ export function verifyLayout(/** @type {{ id: string, prop: string }} */ d) {
   const own = rulesOf(sheet.cssRules, (r) => r.style.getPropertyValue(d.prop) && el.matches(r.selectorText));
   if (!own.length) return; // not at this width (or already reset)
   const read = () =>
-    (d.prop === 'grid-column' ? ['gridColumnStart', 'gridColumnEnd'] : [styleProp[d.prop]]).map((k) => getComputedStyle(el)[k]).join(' / ');
+    (d.prop === LAYOUT_PROP.GRID_COLUMN ? ['gridColumnStart', 'gridColumnEnd'] : [styleProp[d.prop]])
+      .map((k) => getComputedStyle(el)[k])
+      .join(' / ');
   const prev = el.style.getPropertyValue(d.prop);
   const prevPrio = el.style.getPropertyPriority(d.prop);
   const now = read();
@@ -38,16 +43,16 @@ export function verifyLayout(/** @type {{ id: string, prop: string }} */ d) {
   el.style.setProperty(d.prop, prev, prevPrio);
   if (now === ideal) return;
   const by = conflictFor(el, d.prop, sheet);
-  post('dfw:layout-conflict', { id: d.id, prop: d.prop, selector: by });
-  post('dfw:toast', {
-    message: `Saved, but ${d.id} did not change: ${by ? `"${by}"` : 'another rule'} still sets ${d.prop}${by === 'style attribute' ? '' : ' with higher priority'}. Remove ${d.prop} there (or ask Claude), then resize again.`,
+  post(MSG.LAYOUT_CONFLICT, { id: d.id, prop: d.prop, selector: by });
+  post(MSG.TOAST, {
+    message: TEXT.layoutConflict(d.id, d.prop, by),
   });
 }
 
 const LONGHANDS = {
-  'grid-column': ['grid-column', 'grid-column-start', 'grid-column-end', 'grid-area'],
-  width: ['width'],
-  'min-height': ['min-height'],
+  [LAYOUT_PROP.GRID_COLUMN]: ['grid-column', 'grid-column-start', 'grid-column-end', 'grid-area'],
+  [LAYOUT_PROP.WIDTH]: ['width'],
+  [LAYOUT_PROP.MIN_HEIGHT]: ['min-height'],
 };
 
 /**

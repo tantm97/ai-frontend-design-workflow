@@ -7,6 +7,8 @@ import { clearSelection, markSection, noteCameraMove, pageBounds, scheduleLoads 
 import { updateHud } from './hud.js';
 import { closeComposer } from './comments.js';
 import { closePop } from './pins.js';
+import { MODE } from '../shared/enums.js';
+import { TEXT } from '../shared/text.js';
 
 let rafCam = 0;
 /** @type {ReturnType<typeof setTimeout> | undefined} */
@@ -22,7 +24,7 @@ export function applyCam() {
     world.classList.add('moving');
     clearTimeout(movingT);
     movingT = setTimeout(() => world.classList.remove('moving'), 160);
-    $('#zoom-label').textContent = `${Math.round(z * 100)}%`;
+    $('#zoom-label').textContent = TEXT.zoom(z);
     S.cams[S.page] = { ...S.cam };
     updateHud();
     scheduleLoads();
@@ -174,7 +176,7 @@ export function initCanvas() {
     zoomAt(e.clientX - r.left, e.clientY - r.top, gestureZ * e.scale);
   });
   viewport.addEventListener('mousedown', (/** @type {MouseEvent} */ e) => {
-    if (e.button === 1 || S.mode === 'hand' || S.space) {
+    if (e.button === 1 || S.mode === MODE.HAND || S.space) {
       e.preventDefault();
       startPan(e.screenX, e.screenY);
       return;

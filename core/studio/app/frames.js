@@ -10,6 +10,8 @@ import { updateHud } from './hud.js';
 import { renderLayers } from './layers.js';
 import { renderInspector } from './inspector.js';
 import { loadPresent, openPresent } from './present.js';
+import { MSG } from '../shared/protocol.js';
+import { MODE, SYSTEM_SCREEN } from '../shared/enums.js';
 
 /**
  * The canvas of each recently shown page, kept (hidden) so that going back to it shows its loaded
@@ -165,7 +167,7 @@ function addFrame(spec, pageId, canvas, before) {
   el.innerHTML = `<div class="frame-title" title="${esc(f.title)} (double-click to present)">${esc(f.title)}<a href="${esc(f.src)}" target="_blank" rel="noopener" title="Open in a new tab">↗</a></div><div class="placeholder">${esc(f.title)}</div>`;
   const t = $('.frame-title', el);
   t.addEventListener('mousedown', (/** @type {MouseEvent} */ e) => {
-    if (/** @type {HTMLElement} */ (e.target).tagName === 'A' || e.button !== 0 || S.mode === 'hand' || S.space) return;
+    if (/** @type {HTMLElement} */ (e.target).tagName === 'A' || e.button !== 0 || S.mode === MODE.HAND || S.space) return;
     e.stopPropagation();
     selectFrame(f.key);
   });
@@ -332,7 +334,7 @@ export function renderPages() {
   for (const p of S.pages) {
     const n = p.system ? '' : countOf(ctx, p);
     const open = S.comments.filter(
-      (c) => ACTIVE.includes(c.status) && (p.system ? c.screen === 'system' : p.screens.includes(c.screen)),
+      (c) => ACTIVE.includes(c.status) && (p.system ? c.screen === SYSTEM_SCREEN : p.screens.includes(c.screen)),
     ).length;
     const li = document.createElement('li');
     const inAll = S.page === ALL;
@@ -371,19 +373,19 @@ export function selectFrame(key, { keepSel = false } = {}) {
   if (S.selKey !== key) S.layers = null;
   S.selKey = key;
   if (!keepSel && S.sel) {
-    postAll({ type: 'dfw:clear-selection' });
+    postAll({ type: MSG.CLEAR_SELECTION });
     S.sel = null;
   }
   for (const f of S.frames.values()) f.el.classList.toggle('selected', f.key === key);
   const f = S.frames.get(key);
-  if (f?.loaded && (!S.layers || S.layers.key !== key)) post(f, { type: 'dfw:layers' });
+  if (f?.loaded && (!S.layers || S.layers.key !== key)) post(f, { type: MSG.LAYERS });
   renderLayers();
   renderInspector();
   updateHud();
 }
 
 export function clearSelection() {
-  postAll({ type: 'dfw:clear-selection' });
+  postAll({ type: MSG.CLEAR_SELECTION });
   S.sel = null;
   S.selKey = null;
   for (const f of S.frames.values()) f.el.classList.remove('selected');
@@ -434,7 +436,7 @@ export function softReload(f, files = []) {
   if (files.some((x) => /\.(?!(?:html|css|json)$)[\w-]+$/.test(x))) return reloadFrame(f);
   clearTimeout(f.softTimer);
   f.softTimer = setTimeout(() => reloadFrame(f), 4000);
-  post(f, { type: 'dfw:soft-reload', files, agent: Date.now() > S.selfEditUntil });
+  post(f, { type: MSG.SOFT_RELOAD, files, agent: Date.now() > S.selfEditUntil });
 }
 
 /** Highlight the page buttons of a section on "All pages". */

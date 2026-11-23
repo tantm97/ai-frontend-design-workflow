@@ -10,6 +10,10 @@
 // Bundled into core/studio/live.js (one classic script) by scripts/build-overlay.mjs.
 import { isShortcut, parseShortcut, shortcutLabel } from './shortcut.js';
 import { isTypingTarget } from '../overlay/fields.js';
+import { PATH } from '../shared/paths.js';
+import { LIVE_COMMENT_EVENT } from '../shared/protocol.js';
+import { KEY } from '../shared/enums.js';
+import { TEXT } from '../shared/text.js';
 
 // main is about 190 lines (general.md GE4): the shadow-root UI, its state and its handlers share one
 // closure, as the injected script always had; the pure part (the shortcut) lives in shortcut.js.
@@ -45,8 +49,8 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
 [hidden]{display:none!important}`;
   sh.innerHTML = `<div class="box" hidden><span class="tag"></span></div>
 <div class="bar" role="toolbar" aria-label="dfw review"><b>dfw</b><button type="button" class="toggle" aria-pressed="false">Comment</button></div>
-<form class="pop" hidden><span class="src"></span><textarea aria-label="Comment for Claude" placeholder="What should change?"></textarea>
-<div class="row"><button type="button" class="ghost cancel">Cancel</button><button type="submit" class="primary">Send to Claude</button></div></form>
+<form class="pop" hidden><span class="src"></span><textarea aria-label="Comment for the AI" placeholder="What should change?"></textarea>
+<div class="row"><button type="button" class="ghost cancel">Cancel</button><button type="submit" class="primary">Send to AI</button></div></form>
 <div class="toast" role="status" hidden></div>`;
   if (sh.adoptedStyleSheets && typeof CSSStyleSheet === 'function' && 'replaceSync' in CSSStyleSheet.prototype) {
     const sheet = new CSSStyleSheet();
@@ -61,7 +65,7 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
   const box = $('.box');
   const toggle = $('.toggle');
   // The label comes from data-shortcut (config): an attribute, never markup (javascript.md J4).
-  toggle.title = `Comment on an element${label ? ` (${label})` : ''}`;
+  toggle.title = TEXT.liveToggleTitle(label);
   const pop = $('.pop');
   const text = $('textarea');
   const toastEl = $('.toast');
@@ -136,7 +140,7 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
       target: { ...base, insp: inspOf(el) },
     };
     try {
-      const res = await fetch('/__dfw/api/comments', {
+      const res = await fetch(PATH.COMMENTS, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -145,10 +149,10 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
       if (!res.ok) throw new Error(c.error || res.statusText);
       closeComposer();
       setOn(false);
-      toast(`Sent to Claude · comment #${String(c.id).replace('fb_', '')}`);
-      window.dispatchEvent(new CustomEvent('dfw:comment', { detail: c }));
+      toast(TEXT.liveSent(String(c.id).replace('fb_', '')));
+      window.dispatchEvent(new CustomEvent(LIVE_COMMENT_EVENT, { detail: c }));
     } catch (e) {
-      toast(`Not sent: ${e.message}`);
+      toast(TEXT.liveNotSent(e.message));
     }
   }
 
@@ -163,10 +167,10 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
   });
   text.addEventListener('keydown', (e) => {
     e.stopPropagation(); // the app's shortcuts must not fire while typing a comment
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    if (e.key === KEY.ENTER && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       sendComment();
-    } else if (e.key === 'Escape') closeComposer();
+    } else if (e.key === KEY.ESCAPE) closeComposer();
   });
 
   const block = (e) => {
@@ -200,7 +204,7 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
       if (ours(e)) return;
       const t = /** @type {any} */ (e.composedPath()[0] || e.target); // the real target inside the app's own shadow roots
       const typing = isTypingTarget(t);
-      if (e.key === 'Escape' && (on || !pop.hidden)) {
+      if (e.key === KEY.ESCAPE && (on || !pop.hidden)) {
         closeComposer();
         setOn(false);
       } else if (!typing && !e.repeat && pop.hidden && isShortcut(SHORTCUT, e)) {

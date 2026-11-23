@@ -4,6 +4,8 @@
 import { post, st } from './state.js';
 import { placeHandles } from './layout.js';
 import { reportSelection } from './select.js';
+import { MSG } from '../shared/protocol.js';
+import { TEXT } from '../shared/text.js';
 
 /** Text with runs of white space as one space, trimmed. */
 export const norm = (/** @type {string | null | undefined} */ s) => (s || '').replace(/\s+/g, ' ').trim();
@@ -14,18 +16,17 @@ export const norm = (/** @type {string | null | undefined} */ s) => (s || '').re
  * @returns {{ el?: HTMLElement, id?: string, error?: string }}
  */
 export function editTarget(el) {
-  if (!el || el.children.length) return { error: 'Only text-only elements can be edited in place.' };
-  if (/^(INPUT|TEXTAREA|SELECT|IMG|SVG|svg)$/.test(el.tagName) || !norm(el.textContent))
-    return { error: 'This element has no text to edit.' };
+  if (!el || el.children.length) return { error: TEXT.onlyTextOnly };
+  if (/^(INPUT|TEXTAREA|SELECT|IMG|SVG|svg)$/.test(el.tagName) || !norm(el.textContent)) return { error: TEXT.noText };
   if (el.dataset.dfwId) return { el, id: el.dataset.dfwId };
   const host = el.closest('[data-dfw-id]');
   if (host && host.dataset.dfwComponent && norm(host.textContent) === norm(el.textContent)) return { el, id: host.dataset.dfwId };
-  return { error: 'Give this element a data-dfw-id to edit it in place, or leave a comment.' };
+  return { error: TEXT.needsIdToEdit };
 }
 
 export function startEdit(/** @type {HTMLElement} */ el) {
   const t = editTarget(el);
-  if (t.error) return post('dfw:toast', { message: t.error });
+  if (t.error) return post(MSG.TOAST, { message: t.error });
   st.editing = { el: t.el, id: t.id, orig: t.el.textContent };
   t.el.setAttribute('contenteditable', 'plaintext-only');
   t.el.focus();
@@ -36,7 +37,6 @@ export function startEdit(/** @type {HTMLElement} */ el) {
   sel.addRange(range);
   t.el.addEventListener('blur', onEditBlur);
   placeHandles();
-  post('dfw:editing', { on: true, id: t.id });
 }
 
 function onEditBlur() {
@@ -53,7 +53,6 @@ export function endEdit(/** @type {boolean} */ save) {
   const text = el.textContent;
   if (!save) el.textContent = orig;
   getSelection()?.removeAllRanges();
-  post('dfw:editing', { on: false, id });
-  if (save && norm(text) !== norm(orig)) post('dfw:edit-text', { id, text: norm(text) });
+  if (save && norm(text) !== norm(orig)) post(MSG.EDIT_TEXT, { id, text: norm(text) });
   reportSelection();
 }

@@ -30,15 +30,13 @@ use super::tokens::{
 
 use crate::core::error::DfwError;
 use crate::core::js;
+use crate::core::js::regex::fixed_regex;
 use crate::core::util::{now_iso, read_json, sha256, to_json_compact, write_json_inside};
 use crate::design::compose::{load_components, Library};
 use crate::design::tokens::relative_path;
 use crate::review::comments::add_comment;
 
-// A constant pattern: it compiles, and every test that reaches it proves so.
-#[allow(clippy::expect_used)]
-static EXPORT_ID: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^px_[0-9A-Za-z_]+$").expect("constant pattern"));
+static EXPORT_ID: LazyLock<Regex> = LazyLock::new(|| fixed_regex(r"^px_[0-9A-Za-z_]+$"));
 
 fn fingerprint(x: &Value) -> String {
     sha256(to_json_compact(x))[..16].to_string()
@@ -541,7 +539,7 @@ fn ledger_has(ledger: &[Value], fingerprint: &str) -> bool {
 /// ledger, thread links and the token diff file; never edits `design/`.
 // Long: the steps share the ledger, the thread links and the result, and their order is the
 // order files are written in (comments, ledger, threads, archive).
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_lines, reason = "A10 debt")]
 pub fn import_changes(
     root: &Path,
     changes: &mut Value,

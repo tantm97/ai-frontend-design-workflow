@@ -179,7 +179,7 @@ struct Page {
 /// `studioPages(manifest)`: the canvas pages, Design System first.
 // Over 120 lines: the page order rules (declared pages, `screen.page`, Screens,
 // Explorations, Flow) read in one sequence, the order the pages are shown in.
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_lines, reason = "A10 debt")]
 pub fn studio_pages(manifest: &Value) -> Vec<Value> {
     let screens = screens_of(manifest);
     let by_id: Vec<Value> = screens.iter().map(|s| id_of(s)).collect();

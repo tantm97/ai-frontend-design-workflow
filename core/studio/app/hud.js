@@ -4,6 +4,8 @@
 import { frameToScreen } from './geometry.js';
 import { $, $$, P, S, frameByKey, hud, viewportRect, visibleFrame } from './state.js';
 import { placePop } from './pins.js';
+import { MODE, AGENT_PHASE } from '../shared/enums.js';
+import { TEXT } from '../shared/text.js';
 
 /**
  * Frame-viewport rect -> client (window) coordinates.
@@ -37,7 +39,7 @@ export function updateHud() {
   const hb = $('#hover-box');
   const hf = S.hover && frameByKey(S.hover.key);
   const same = S.sel && S.hover && S.sel.key === S.hover.key && S.sel.rect && S.hover.rect && S.sel.rect.join() === S.hover.rect.join();
-  if (visibleFrame(hf) && S.hover.rect && !same && S.mode !== 'hand') {
+  if (visibleFrame(hf) && S.hover.rect && !same && S.mode !== MODE.HAND) {
     hb.hidden = false;
     hb.classList.toggle('comp', !!S.hover.comp);
     place(hb, toScreen(hf, S.hover.rect));
@@ -50,7 +52,7 @@ export function updateHud() {
     const r = toScreen(sf, S.sel.rect);
     place(sb, [r[0] - 1, r[1] - 1, r[2] + 2, r[3] + 2]);
     $('.tag', sb).textContent = S.sel.label;
-    $('.dims', sb).textContent = `${Math.round(S.sel.rect[2])} × ${Math.round(S.sel.rect[3])}`;
+    $('.dims', sb).textContent = TEXT.dims(S.sel.rect[2], S.sel.rect[3]);
   } else sb.hidden = true;
   for (const b of $$('#pins button')) {
     const f = frameByKey(b.dataset.key);
@@ -74,7 +76,7 @@ export function updateHud() {
 export function showAgent(f, phase, items, count = items.length) {
   const cur = S.agent.get(f.key);
   clearTimeout(cur?.timer);
-  S.agent.set(f.key, { phase, items, count, timer: setTimeout(() => clearAgent(f.key), phase === 'editing' ? 6000 : 2600) });
+  S.agent.set(f.key, { phase, items, count, timer: setTimeout(() => clearAgent(f.key), phase === AGENT_PHASE.EDITING ? 6000 : 2600) });
   S.agentLast = f.key;
   updateHud();
 }
@@ -100,10 +102,7 @@ function drawAgent() {
       boxes.push({
         r,
         phase: a.phase,
-        label:
-          i === 0
-            ? `Claude ${a.phase === 'editing' ? 'is editing' : 'changed'} ${it.whole ? 'this frame' : it.label || ''}${more}`.trim()
-            : '',
+        label: i === 0 ? TEXT.agentLabel(a.phase === AGENT_PHASE.EDITING, it.whole ? TEXT.agentWholeFrame : it.label || '', more) : '',
       });
       if (i === 0 && (key === S.agentLast || !cursorAt)) cursorAt = [r[0] + Math.min(r[2] - 4, 14), r[1] + Math.min(r[3] - 4, 14)];
     });
@@ -118,7 +117,7 @@ function drawAgent() {
     const x = boxes[i];
     b.hidden = !x;
     if (!x) return;
-    b.classList.toggle('changed', x.phase === 'changed');
+    b.classList.toggle('changed', x.phase === AGENT_PHASE.CHANGED);
     place(b, [x.r[0] - 2, x.r[1] - 2, x.r[2] + 4, x.r[3] + 4]);
     b.firstChild.textContent = x.label;
     b.firstChild.hidden = !x.label;

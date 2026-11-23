@@ -2,6 +2,7 @@
 // Shared state of the Studio and the small helpers every feature module uses: DOM lookup, local
 // settings, the server API, the toast, and messages to the frames.
 import { pageModel as modelOf, screenById as findScreen } from './model.js';
+import { MODE } from '../shared/enums.js';
 
 /**
  * querySelector with a loose result type: the Studio's own markup (app.html) is known.
@@ -58,7 +59,7 @@ export const S = {
   tokens: [],
   components: new Map(),
   page: null,
-  mode: 'select',
+  mode: MODE.SELECT,
   cam: { x: 0, y: 0, z: 0.25 },
   cams: {},
   activeBps: store.get('bps3', null), // null = all

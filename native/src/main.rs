@@ -4,6 +4,16 @@
 //! and its exit code is the process's. The golden tests (tests/golden) hold the dispatch order.
 //! The end of every command is a record point of `telemetry` (off unless a collector address exists).
 
+// Tests build their fixtures with std::fs and std::process freely; the product build (without
+// cfg(test)) is the one clippy.toml's disallowed-methods checks.
+#![cfg_attr(
+    test,
+    allow(
+        clippy::disallowed_methods,
+        reason = "test fixtures use std::fs and std::process directly"
+    )
+)]
+
 mod assets;
 mod browser;
 mod cli;

@@ -21,6 +21,248 @@
   var EDITABLE_FIELD = 'input, textarea, select, [contenteditable]:not([contenteditable="false"])';
   var isTypingTarget = (t) => !!t && (t.isContentEditable === true || typeof t.closest === "function" && !!t.closest(EDITABLE_FIELD));
 
+  // core/studio/shared/paths.js
+  var PATH = Object.freeze({
+    /** The Design System page shown in its own frame. */
+    SYSTEM_PAGE: "/__dfw/system.html",
+    /** Server-Sent Events: `design`, `presence`, `comments`. */
+    EVENTS: "/__dfw/events",
+    MANIFEST: "/__dfw/api/manifest",
+    STATE: "/__dfw/api/state",
+    TOKENS: "/__dfw/api/tokens",
+    COMPONENTS: "/__dfw/api/components",
+    COMMENTS: "/__dfw/api/comments",
+    /** Hand every draft comment to the agent (POST). */
+    COMMENTS_SEND: "/__dfw/api/comments/send",
+    /** Whether a `dfw comments wait` listens for this project (GET). */
+    LISTENING: "/__dfw/api/listening",
+    SESSIONS: "/__dfw/api/sessions",
+    SHOOT: "/__dfw/api/shoot",
+    EDIT: "/__dfw/api/edit",
+    UNDO: "/__dfw/api/undo"
+  });
+
+  // core/studio/shared/protocol.js
+  var MSG = Object.freeze({
+    // to frame
+    /** to frame: the tool changed `{ mode }`. */
+    MODE: "dfw:mode",
+    /** to frame: the design tokens `{ vars }`, for the inspector's token names. */
+    TOKENS: "dfw:tokens",
+    /** to frame: the comment pins of this frame `{ pins }`. */
+    PINS: "dfw:pins",
+    /** to frame: whether drag/resize editing is on `{ enabled, scope }`. */
+    LAYOUT: "dfw:layout",
+    /** to frame: a key for the layout editor `{ key, shift }`. */
+    LAYOUT_KEY: "dfw:layout-key",
+    /** to frame: check a saved layout edit `{ id, ... }`. */
+    LAYOUT_VERIFY: "dfw:layout-verify",
+    /** to frame: hover the layer at index `{ i }`. */
+    LAYER_HOVER: "dfw:layer-hover",
+    /** to frame: select the layer at index `{ i }`. */
+    LAYER_SELECT: "dfw:layer-select",
+    /** to frame: select an element `{ dfwId, selector }`. */
+    SELECT_ID: "dfw:select-id",
+    /** to frame: drop the selection. */
+    CLEAR_SELECTION: "dfw:clear-selection",
+    /** to frame: re-read the source and patch the page in place `{ files, agent }`. */
+    SOFT_RELOAD: "dfw:soft-reload",
+    /** to frame: start editing the selected text. */
+    EDIT: "dfw:edit",
+    /** to frame: move the selection `{ dir }`. */
+    NAV: "dfw:nav",
+    // both ways
+    /** to frame: send the layer tree; to studio: the tree `{ tree, selected }`. */
+    LAYERS: "dfw:layers",
+    /** to frame: where the agent is about to edit `{ dfwId | component, fallback }`; to studio: its box `{ rect, label }`. */
+    PRESENCE: "dfw:presence",
+    // to studio
+    /** to studio: the overlay is ready (after a load or a soft reload). */
+    READY: "dfw:ready",
+    /** to studio: the document height `{ h }`. */
+    SIZE: "dfw:size",
+    /** to studio: what a soft reload changed `{ agent, count, items }`. */
+    CHANGED: "dfw:changed",
+    /** to studio: the hovered element `{ rect, label, comp }`. */
+    HOVER: "dfw:hover",
+    /** to studio: an element was clicked `{ target, rect, own, comment, ... }`. */
+    SELECT: "dfw:select",
+    /** to studio: the selected element moved `{ rect }`. */
+    SEL_RECT: "dfw:sel-rect",
+    /** to studio: where the pins are drawn `{ pins }`. */
+    PIN_RECTS: "dfw:pin-rects",
+    /** to studio: a wheel over the frame `{ dx, dy, dm, ctrl, shift, x, y }`. */
+    WHEEL: "dfw:wheel",
+    /** to studio: a pan gesture `{ phase, sx, sy }`. */
+    PAN: "dfw:pan",
+    /** to studio: a key pressed in the frame (Studio shortcuts). */
+    KEY: "dfw:key",
+    /** to studio: a prototype link `{ to }`. */
+    GOTO: "dfw:goto",
+    /** to studio: edited text to save `{ id, text }`. */
+    EDIT_TEXT: "dfw:edit-text",
+    /** to studio: a drag/resize result to save. */
+    LAYOUT_OP: "dfw:layout-op",
+    /** to studio: a layout edit conflicts with the source. */
+    LAYOUT_CONFLICT: "dfw:layout-conflict",
+    /** to studio: show a short message `{ message }`. */
+    TOAST: "dfw:toast",
+    /** to studio: the frame took the keyboard focus. */
+    FOCUS: "dfw:focus"
+  });
+  var SSE = Object.freeze({
+    /** Design files changed `{ files }`. */
+    DESIGN: "design",
+    /** The agent is about to edit `{ file, dfwId }`. */
+    PRESENCE: "presence",
+    /** Review comments changed. */
+    COMMENTS: "comments"
+  });
+  var LIVE_COMMENT_EVENT = "dfw:comment";
+
+  // core/studio/shared/enums.js
+  var MODE = Object.freeze({
+    SELECT: "select",
+    HAND: "hand",
+    COMMENT: "comment",
+    INTERACT: "interact",
+    /** Presenter only: click through the prototype. */
+    PRESENT: "present"
+  });
+  var STATUS = Object.freeze({
+    OPEN: "open",
+    ACKNOWLEDGED: "acknowledged",
+    REOPENED: "reopened",
+    FIXED: "fixed",
+    RESOLVED: "resolved",
+    DISMISSED: "dismissed"
+  });
+  var COMMENT_FILTER = Object.freeze({ ACTIVE: "active", FIXED: "fixed", CLOSED: "closed", ALL: "all" });
+  var PIN_FILTER = Object.freeze({ ACTIVE: "active", ALL: "all", OFF: "off" });
+  var TAB = Object.freeze({ INSPECT: "inspect", COMMENTS: "comments" });
+  var SECTION_KIND = Object.freeze({ BREAKPOINT: "breakpoint", VARIANTS: "variants", STATES: "states", CUSTOM: "custom" });
+  var UI_ACTION = Object.freeze({
+    MASTER: "master",
+    EDIT_TEXT: "edit-text",
+    LAYOUT_RESET: "layout-reset",
+    COMMENT: "comment"
+  });
+  var INSTANCE_FIELD = Object.freeze({ VARIANT: "variant", SIZE: "size", PROP: "prop" });
+  var EDIT_OP = Object.freeze({
+    TEXT: "text",
+    PROP: "prop",
+    VARIANT: "variant",
+    SIZE: "size",
+    SPACING: "spacing",
+    LAYOUT: "layout",
+    MOVE: "move"
+  });
+  var LAYOUT_PROP = Object.freeze({ GRID_COLUMN: "grid-column", WIDTH: "width", MIN_HEIGHT: "min-height" });
+  var LAYOUT_KEY = Object.freeze({ RESET: "reset" });
+  var DROP = Object.freeze({ BEFORE: "before", AFTER: "after", INSIDE: "inside" });
+  var PHASE = Object.freeze({ START: "start", MOVE: "move", END: "end", DOWN: "down", UP: "up" });
+  var AGENT_PHASE = Object.freeze({ EDITING: "editing", CHANGED: "changed" });
+  var NAV_DIR = Object.freeze({ UP: "up", DOWN: "down", LEFT: "left", RIGHT: "right" });
+  var KEY = Object.freeze({
+    ESCAPE: "Escape",
+    ENTER: "Enter",
+    SPACE: " ",
+    UP: "ArrowUp",
+    DOWN: "ArrowDown",
+    LEFT: "ArrowLeft",
+    RIGHT: "ArrowRight",
+    HOME: "Home",
+    END: "End",
+    HELP: "?",
+    TAB: "Tab"
+  });
+
+  // core/studio/shared/text.js
+  var plural = (n) => n === 1 ? "" : "s";
+  var TEXT = Object.freeze({
+    // Comments
+    draftSaved: (n) => `Draft #${n} saved · press Send to AI when you are done.`,
+    draftLabel: "Draft · not sent yet",
+    sendButton: (drafts) => drafts ? `Send to AI (${drafts})` : "Send to AI",
+    sentListening: (n) => `Sent ${n} comment${plural(n)} to the AI.`,
+    sentNotListening: (n) => `Sent ${n} comment${plural(n)}. The AI gets them with your next message in the terminal.`,
+    noDrafts: "No drafts to send.",
+    /** Markup: `<b>` names the state (studio-ui.md U1). */
+    listeningHtml: "<b>The AI is listening.</b> Sent comments wake it at once.",
+    notListeningHtml: "<b>The AI is not listening.</b> Sent comments reach it with your next message in the terminal.",
+    agentWorking: (n) => `The AI is working on #${n}.`,
+    agentFixed: (n) => `The AI fixed #${n}: please verify (Comments → To verify).`,
+    newRound: "New review round started.",
+    screenNotOnPage: "That screen is not on any page.",
+    frameNotVisible: "That frame is not visible (check breakpoints and States).",
+    statusLabel: Object.freeze({
+      [STATUS.OPEN]: "Open · waiting for the AI",
+      [STATUS.ACKNOWLEDGED]: "AI is working",
+      [STATUS.REOPENED]: "Reopened · waiting for the AI",
+      [STATUS.FIXED]: "Fixed · please verify",
+      [STATUS.RESOLVED]: "Resolved",
+      [STATUS.DISMISSED]: "Dismissed"
+    }),
+    resolveButton: "Looks right · resolve",
+    reopenButton: "Not yet · reopen",
+    dismissButton: "Dismiss",
+    reopenAgainButton: "Reopen",
+    verifiedInStudio: "Verified in studio.",
+    reasonPlaceholder: "Why? (sent to the AI)",
+    reasonSend: "Send",
+    composerTarget: (where, target) => `${where} → ${target}`,
+    // Canvas and toolbar
+    zoom: (z) => `${Math.round(z * 100)}%`,
+    dims: (w, h) => `${Math.round(w)} × ${Math.round(h)}`,
+    /** @param {boolean} all @param {string[]} on */
+    statesSummary: (all, on) => `States: ${all ? "all" : !on.length ? "off" : on.length <= 2 ? on.join(", ") : on.length}`,
+    // Pins
+    pinTitle: (n, status) => `Comment #${n} · ${status}`,
+    pinLabel: (n, text) => `Comment ${n}: ${text}`,
+    pinsHidden: "Comment pins hidden (Shift+C shows them).",
+    pinsAll: "Showing every pin, closed comments too.",
+    pinsActive: "Showing pins of open and to-verify comments.",
+    // Agent presence
+    agentLabel: (editing, what, more) => `AI ${editing ? "is editing" : "changed"} ${what}${more}`.trim(),
+    agentWholeFrame: "this frame",
+    // Present
+    nothingToPresent: "Nothing to present on this page.",
+    noScreen: (id) => `No screen "${id}".`,
+    linkNotAScreen: (to) => `Link target is not a screen in design.json: ${to}`,
+    screenNotShown: (name) => `${name} is not shown with the current breakpoints.`,
+    noFullscreen: "Fullscreen is not available here.",
+    // Screenshots
+    shootCount: (n) => `${n} frame${plural(n)} · shown breakpoints/states`,
+    shootButton: (n) => `Screenshot ${n}`,
+    noScreenToShoot: "No screen to screenshot.",
+    shooting: (n) => `Screenshotting ${n} screen${plural(n)}…`,
+    shot: (ok, all, dir, failed) => `${ok}/${all} PNG saved${dir ? ` in ${dir}` : ""}${failed ? ` · failed: ${failed}` : ""}`,
+    shootNeedsNewServer: 'Screenshot needs a newer Studio server: run "dfw studio stop" then "dfw studio start", and reload.',
+    shootFailed: (why) => `Screenshot failed: ${why}`,
+    // Edits
+    saved: (label, file, line) => `${label ? `${label}. ` : ""}Saved to ${file}:${line}  (⌘Z to undo)`,
+    noChange: "No change.",
+    undid: (op, file) => `Undid ${op} edit in ${file}.`,
+    onlyTextOnly: "Only text-only elements can be edited in place.",
+    noText: "This element has no text to edit.",
+    needsIdToEdit: "Give this element a data-dfw-id to edit it in place, or leave a comment.",
+    // Layout edits (inside a frame)
+    widthHandle: "Drag to resize the width (snaps to grid columns, size tokens or percentages). Alt+Shift+Left/Right. Double-click: back to auto",
+    minHeightHandle: "Drag to set a min-height (snaps to spacing/size tokens). Alt+Shift+Up/Down. Double-click: back to auto",
+    noSizeTokens: "No size tokens to snap to.",
+    needsIdToMove: "Select an element with a data-dfw-id to move or resize it.",
+    onlyFlexGridChildren: "Only children of a flex or grid container can be reordered.",
+    alreadyFirst: "Already the first item.",
+    alreadyLast: "Already the last item.",
+    alreadyAt: (label) => `Already ${label}.`,
+    elementNotFound: (what) => `Element ${what} not found in this frame.`,
+    layoutConflict: (id, prop, by) => `Saved, but ${id} did not change: ${by ? `"${by}"` : "another rule"} still sets ${prop}${by === "style attribute" ? "" : " with higher priority"}. Remove ${prop} there (or ask the AI), then resize again.`,
+    // Live review (in the running app)
+    liveToggleTitle: (shortcut) => `Comment on an element${shortcut ? ` (${shortcut})` : ""}`,
+    liveSent: (n) => `Sent to AI · comment #${n}`,
+    liveNotSent: (why) => `Not sent: ${why}`
+  });
+
   // core/studio/live/main.js
   function main() {
     if (window.__dfwLive || window.top !== window) return;
@@ -53,8 +295,8 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
 [hidden]{display:none!important}`;
     sh.innerHTML = `<div class="box" hidden><span class="tag"></span></div>
 <div class="bar" role="toolbar" aria-label="dfw review"><b>dfw</b><button type="button" class="toggle" aria-pressed="false">Comment</button></div>
-<form class="pop" hidden><span class="src"></span><textarea aria-label="Comment for Claude" placeholder="What should change?"></textarea>
-<div class="row"><button type="button" class="ghost cancel">Cancel</button><button type="submit" class="primary">Send to Claude</button></div></form>
+<form class="pop" hidden><span class="src"></span><textarea aria-label="Comment for the AI" placeholder="What should change?"></textarea>
+<div class="row"><button type="button" class="ghost cancel">Cancel</button><button type="submit" class="primary">Send to AI</button></div></form>
 <div class="toast" role="status" hidden></div>`;
     if (sh.adoptedStyleSheets && typeof CSSStyleSheet === "function" && "replaceSync" in CSSStyleSheet.prototype) {
       const sheet = new CSSStyleSheet();
@@ -68,7 +310,7 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
     const $ = (s) => sh.querySelector(s);
     const box = $(".box");
     const toggle = $(".toggle");
-    toggle.title = `Comment on an element${label ? ` (${label})` : ""}`;
+    toggle.title = TEXT.liveToggleTitle(label);
     const pop = $(".pop");
     const text = $("textarea");
     const toastEl = $(".toast");
@@ -131,7 +373,7 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
         target: { ...base, insp: inspOf(el) }
       };
       try {
-        const res = await fetch("/__dfw/api/comments", {
+        const res = await fetch(PATH.COMMENTS, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body)
@@ -140,10 +382,10 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
         if (!res.ok) throw new Error(c.error || res.statusText);
         closeComposer();
         setOn(false);
-        toast(`Sent to Claude · comment #${String(c.id).replace("fb_", "")}`);
-        window.dispatchEvent(new CustomEvent("dfw:comment", { detail: c }));
+        toast(TEXT.liveSent(String(c.id).replace("fb_", "")));
+        window.dispatchEvent(new CustomEvent(LIVE_COMMENT_EVENT, { detail: c }));
       } catch (e) {
-        toast(`Not sent: ${e.message}`);
+        toast(TEXT.liveNotSent(e.message));
       }
     }
     toggle.addEventListener("click", () => {
@@ -157,10 +399,10 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
     });
     text.addEventListener("keydown", (e) => {
       e.stopPropagation();
-      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      if (e.key === KEY.ENTER && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         sendComment();
-      } else if (e.key === "Escape") closeComposer();
+      } else if (e.key === KEY.ESCAPE) closeComposer();
     });
     const block = (e) => {
       if (!on || ours(e)) return;
@@ -202,7 +444,7 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
           e.composedPath()[0] || e.target
         );
         const typing = isTypingTarget(t);
-        if (e.key === "Escape" && (on || !pop.hidden)) {
+        if (e.key === KEY.ESCAPE && (on || !pop.hidden)) {
           closeComposer();
           setOn(false);
         } else if (!typing && !e.repeat && pop.hidden && isShortcut(SHORTCUT, e)) {

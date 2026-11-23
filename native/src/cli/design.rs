@@ -338,7 +338,7 @@ pub(super) fn debug_lint(ctx: &Ctx) -> Result<i32, DfwError> {
 // ---------------------------------------------------------------- system
 
 // One arm per subcommand, as the `system` case of cli.mjs.
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_lines, reason = "A10 debt")]
 fn system(ctx: &Ctx) -> Result<i32, DfwError> {
     let root = ctx.root();
     let a = &ctx.args;

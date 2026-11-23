@@ -5,9 +5,9 @@
 The user reviews in the Studio (`dfw studio start`). Comments are stored in `.dfw/reviews/rv_*.json` using the feedback contract (`schemas/feedback.schema.json`): screen, variant, breakpoint, state, theme, target (`dfwId`, CSS selector, bounding box, accessible role/name, text, computed style summary, source file:line), comment text, status, thread.
 
 ### Live comments (the user comments, you fix, no relaying)
-- As soon as the Studio is shown to the user, start listening: run `dfw comments wait --timeout 3600` **in the background** ({{BACKGROUND}}). The user writes comments as drafts and hands them over with the Studio's **Send to Claude** button (the Studio shows whether a wait is listening); the wait exits the moment they are sent and prints them; you are re-invoked with that output. Apply them (below), then start `dfw comments wait` in the background again. Stop listening only when the user says review is over or the phase moves on.
+- As soon as the Studio is shown to the user, start listening: run `dfw comments wait --timeout 3600` **in the background** ({{BACKGROUND}}). The user writes comments as drafts and hands them over with the Studio's **Send to AI** button (the Studio shows whether a wait is listening); the wait exits the moment they are sent and prints them; you are re-invoked with that output. Apply them (below), then start `dfw comments wait` in the background again. Stop listening only when the user says review is over or the phase moves on.
 - The hooks are the safety net: new comments are also injected with the user's next message (UserPromptSubmit) and before you stop (Stop hook). Each comment is delivered once, drafts only after they are sent; `dfw comments inbox --peek` shows undelivered ones.
-- The Studio shows live status per comment: Draft → Open → Claude is working (ack) → Fixed, please verify → Resolved by the user.
+- The Studio shows live status per comment: Draft → Open → AI is working (ack) → Fixed, please verify → Resolved by the user.
 
 ### Applying comments
 1. Read the delivered comments (or `dfw comments list --status active --json`), including `target.source`, `target.component` and `target.styles`.

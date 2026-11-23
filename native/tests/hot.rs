@@ -2,6 +2,11 @@
 //! reviews lock under several writer processes, and the command line from `dfw init` on.
 //! Ported from tests/unit/*.test.mjs; each test names its JavaScript original.
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "binary tests build fixtures with std::fs and std::process directly"
+)]
+
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};

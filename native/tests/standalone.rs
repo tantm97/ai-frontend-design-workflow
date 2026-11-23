@@ -2,6 +2,11 @@
 //! `DFW_PLUGIN_ROOT`, every command that reads a file of `core/` still works, because those files
 //! are embedded (`src/assets.rs`). This is how `install.sh` installs dfw.
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "binary tests build fixtures with std::fs and std::process directly"
+)]
+
 use std::fs;
 use std::io::{Read, Write};
 use std::net::TcpStream;

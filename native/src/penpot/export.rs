@@ -25,6 +25,7 @@ use crate::browser::launch::{browser_status, fonts_ready, open_renderer, Rendere
 use crate::core::config::load_config;
 use crate::core::error::DfwError;
 use crate::core::js;
+use crate::core::js::regex::fixed_regex;
 use crate::core::paths::{file_url, file_url_to_path, project_paths, resolve, to_posix};
 use crate::core::util::{
     get_path, now_iso, read_json, sha256, to_json_compact, write_json, write_json_inside,
@@ -107,28 +108,12 @@ pub fn simplify(nodes: Vec<Value>) -> Vec<Value> {
     out
 }
 
-// A constant pattern: it compiles, and every test that reaches it proves so.
-#[allow(clippy::expect_used)]
-static PLAIN_ALIAS: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^\{([^{}]+)\}$").expect("constant pattern"));
-// A constant pattern: it compiles, and every test that reaches it proves so.
-#[allow(clippy::expect_used)]
-static SCALE_STEP: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\.[0-9]+$").expect("constant pattern"));
-// A constant pattern: it compiles, and every test that reaches it proves so.
-#[allow(clippy::expect_used)]
-static RADIUS_NAME: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(^|\.)radius(\.|$)").expect("constant pattern"));
-// A constant pattern: it compiles, and every test that reaches it proves so.
-#[allow(clippy::expect_used)]
-static TEXTISH: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(^|[.-])(ink|text|on|fg|foreground|muted|subtle)([.-]|$)")
-        .expect("constant pattern")
-});
-// A constant pattern: it compiles, and every test that reaches it proves so.
-#[allow(clippy::expect_used)]
-static EXPORT_FILE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^px_[0-9A-Za-z_]+\.json$").expect("constant pattern"));
+static PLAIN_ALIAS: LazyLock<Regex> = LazyLock::new(|| fixed_regex(r"^\{([^{}]+)\}$"));
+static SCALE_STEP: LazyLock<Regex> = LazyLock::new(|| fixed_regex(r"\.[0-9]+$"));
+static RADIUS_NAME: LazyLock<Regex> = LazyLock::new(|| fixed_regex(r"(^|\.)radius(\.|$)"));
+static TEXTISH: LazyLock<Regex> =
+    LazyLock::new(|| fixed_regex(r"(^|[.-])(ink|text|on|fg|foreground|muted|subtle)([.-]|$)"));
+static EXPORT_FILE: LazyLock<Regex> = LazyLock::new(|| fixed_regex(r"^px_[0-9A-Za-z_]+\.json$"));
 
 /// `resolveAlias`: the token a name ends at, aliases followed (`"{a.b}"` to `a.b` and on);
 /// `None` when it is missing or circular.
@@ -243,7 +228,7 @@ impl Linker<'_> {
     }
 
     // Long: one step per property of a snapshot node, in the key order of the export file.
-    #[allow(clippy::too_many_lines)]
+    #[allow(clippy::too_many_lines, reason = "A10 debt")]
     fn layer(&self, n: &Value, path: &str) -> Value {
         let kind = n.get("kind").and_then(Value::as_str);
         let st = |key: &str| style(n, key);
@@ -501,7 +486,7 @@ pub struct ExportInput<'a> {
 /// `buildExport`: the export document from rendered snapshots. Its id carries the render time
 /// and a hash of the pages.
 // Long: the document is built in the key order its hash (the export id) is taken over.
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_lines, reason = "A10 debt")]
 pub fn build_export(input: &ExportInput) -> Value {
     let base = input.tokens.map(|t| &t.base);
     let colors = color_token_index(base);

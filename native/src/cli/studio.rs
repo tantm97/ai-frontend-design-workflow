@@ -3,7 +3,7 @@
 
 use std::fs;
 use std::io::{Read, Write};
-use std::net::{TcpListener, TcpStream};
+use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -37,7 +37,8 @@ fn port_free(port: u16) -> bool {
 
 /// A GET to the local server: status and body, `None` when nothing answers.
 fn get(port: u16, path: &str) -> Option<(u16, String)> {
-    let mut s = TcpStream::connect(("127.0.0.1", port)).ok()?;
+    // A port that swallows the connection counts as "not running" after 2 s (no hang).
+    let mut s = crate::core::http::connect("127.0.0.1", port, Duration::from_secs(2)).ok()?;
     let _ = s.set_read_timeout(Some(Duration::from_secs(5)));
     s.write_all(
         format!("GET {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n")

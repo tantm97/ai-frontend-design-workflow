@@ -125,6 +125,12 @@ fn try_take(path: &Path, token: &str) -> Result<bool, DfwError> {
     }
     let new = sibling(path, token, "new");
     fs::create_dir(&new)?;
+    // The owner file goes into a fresh private folder that is then renamed onto the lock: the
+    // lock's own atomic step, which write_atomic (a rename onto a file) would break.
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "the lock is taken by renaming a fresh folder; its owner file is written before"
+    )]
     let made = fs::write(new.join(OWNER), token).and_then(|()| {
         // Fails while the lock exists (Unix: not empty; Windows: access denied); on Unix a
         // rename onto an empty folder succeeds, which only an owner-less lock of an older dfw is.

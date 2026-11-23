@@ -148,6 +148,17 @@ pub fn translate(source: &str, flags: &str) -> Result<String, DfwError> {
     Ok(out)
 }
 
+/// A constant pattern written in the `regex` crate's own syntax (inline flags such as `(?i)`),
+/// compiled once in a `LazyLock`. The one home of `expect` on a constant pattern: callers need no
+/// `#[allow]`, and the unit tests that reach each pattern prove it compiles.
+pub fn fixed_regex(source: &str) -> Regex {
+    #[allow(
+        clippy::expect_used,
+        reason = "a constant pattern of this crate; the tests that reach it prove it compiles"
+    )]
+    Regex::new(source).expect("constant pattern")
+}
+
 /// `new RegExp(source, flags)`.
 pub fn js_regex(source: &str, flags: &str) -> Result<Regex, DfwError> {
     Regex::new(&translate(source, flags)?)
@@ -174,7 +185,10 @@ macro_rules! js_re {
         static $name: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
             // The source is a literal of this crate and the unit tests of its module compile
             // every one of them (`patterns_compile`), so this cannot fail at run time.
-            #[allow(clippy::expect_used)]
+            #[allow(
+                clippy::expect_used,
+                reason = "a constant pattern of this crate; the module tests compile every one (`patterns_compile`)"
+            )]
             $crate::core::js::regex::js_regex($source, $flags).expect("constant regular expression")
         });
     };

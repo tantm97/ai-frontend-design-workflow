@@ -3,6 +3,8 @@
 import { esc, layerParents } from './model.js';
 import { $, S, post } from './state.js';
 import { updateHud } from './hud.js';
+import { MSG } from '../shared/protocol.js';
+import { KEY } from '../shared/enums.js';
 
 const LANDMARKS = ['header', 'nav', 'main', 'aside', 'footer', 'section', 'form', 'dialog'];
 /** Layer index of the row that has the roving tabindex (the selected row wins). */
@@ -86,19 +88,19 @@ function layerKey(/** @type {KeyboardEvent} */ e) {
   const at = rowEls.indexOf(row);
   const expanded = row.getAttribute('aria-expanded');
   const byI = (/** @type {number | null | undefined} */ i) => rowEls.find((r) => r.dataset.i === String(i));
-  if (e.key === 'ArrowDown') focusRow(rowEls[at + 1]);
-  else if (e.key === 'ArrowUp') focusRow(rowEls[at - 1]);
-  else if (e.key === 'Home') focusRow(rowEls[0]);
-  else if (e.key === 'End') focusRow(rowEls.at(-1));
-  else if (e.key === 'ArrowRight') {
+  if (e.key === KEY.DOWN) focusRow(rowEls[at + 1]);
+  else if (e.key === KEY.UP) focusRow(rowEls[at - 1]);
+  else if (e.key === KEY.HOME) focusRow(rowEls[0]);
+  else if (e.key === KEY.END) focusRow(rowEls.at(-1));
+  else if (e.key === KEY.RIGHT) {
     if (expanded === 'false') toggleRow(f, row);
     else if (expanded === 'true') focusRow(rowEls[at + 1]);
-  } else if (e.key === 'ArrowLeft') {
+  } else if (e.key === KEY.LEFT) {
     if (expanded === 'true') toggleRow(f, row);
     else focusRow(byI(S.layers?.parents.get(Number(row.dataset.i))));
-  } else if (e.key === 'Enter' || e.key === ' ') {
+  } else if (e.key === KEY.ENTER || e.key === KEY.SPACE) {
     S.revealOnSelect = true;
-    post(f, { type: 'dfw:layer-select', i: Number(row.dataset.i) });
+    post(f, { type: MSG.LAYER_SELECT, i: Number(row.dataset.i) });
   } else return;
   // Handled here: the canvas shortcuts (arrows, Space to pan, Enter to edit) must not see it.
   e.preventDefault();
@@ -117,19 +119,19 @@ export function initLayers() {
     if (t.closest('.tw')) return toggleRow(f, row);
     // The element may be outside the viewport: the camera follows the selection (canvas.js revealSelection).
     S.revealOnSelect = true;
-    post(f, { type: 'dfw:layer-select', i });
+    post(f, { type: MSG.LAYER_SELECT, i });
   });
   $('#layers').addEventListener('keydown', layerKey);
   // A focused row outlines its element in the frame, as hovering it does.
   $('#layers').addEventListener('focusin', (/** @type {FocusEvent} */ e) => {
     const row = /** @type {HTMLElement | null} */ (/** @type {HTMLElement} */ (e.target).closest('.row'));
     const f = S.frames.get(S.selKey);
-    if (row && f) post(f, { type: 'dfw:layer-hover', i: Number(row.dataset.i) });
+    if (row && f) post(f, { type: MSG.LAYER_HOVER, i: Number(row.dataset.i) });
   });
   $('#layers').addEventListener('mouseover', (/** @type {MouseEvent} */ e) => {
     const row = /** @type {HTMLElement | null} */ (/** @type {HTMLElement} */ (e.target).closest('.row'));
     const f = S.frames.get(S.selKey);
-    if (row && f) post(f, { type: 'dfw:layer-hover', i: Number(row.dataset.i) });
+    if (row && f) post(f, { type: MSG.LAYER_HOVER, i: Number(row.dataset.i) });
   });
   $('#layers').addEventListener('mouseleave', () => {
     S.hover = null;

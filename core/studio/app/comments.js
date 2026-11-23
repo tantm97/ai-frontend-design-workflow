@@ -2,17 +2,21 @@
 // Comments: the list in the right panel, the composer (click an element, write, save), status
 // actions (resolve, reopen, dismiss) and live status updates from the agent.
 import { ACTIVE, commentLabel, esc, inFilter, isDraft } from './model.js';
-import { $, $$, ALL, P, PKEY, S, api, post, postAll, toast } from './state.js';
+import { $, $$, ALL, P, PKEY, S, post, postAll, toast } from './state.js';
 import { renderPages, selectFrame, setPage } from './frames.js';
 import { zoomToRect } from './canvas.js';
 import { toScreen, updateHud } from './hud.js';
 import { closePop, pinStatuses, placePop, renderPop, syncPins } from './pins.js';
 import { closePresent, flash } from './present.js';
+import { MSG } from '../shared/protocol.js';
+import { server } from './api.js';
+import { MODE, STATUS, COMMENT_FILTER, TAB, SYSTEM_SCREEN } from '../shared/enums.js';
+import { TEXT } from '../shared/text.js';
 
 export function renderComments() {
   const list = $('#comment-list');
   const items = S.comments.filter((c) => inFilter(S.filter, c)).sort((a, b) => b.id.localeCompare(a.id));
-  $('#open-count').textContent = S.comments.filter((c) => ACTIVE.includes(c.status) || c.status === 'fixed').length;
+  $('#open-count').textContent = S.comments.filter((c) => ACTIVE.includes(c.status) || c.status === STATUS.FIXED).length;
   // A re-render (a status change over SSE, a click) must not drop the keyboard focus inside the list.
   const had = /** @type {HTMLElement | null} */ (list.contains(document.activeElement) ? document.activeElement : null);
   const focusId = /** @type {HTMLElement | null} */ (had?.closest('.comment'))?.dataset.id;
@@ -56,13 +60,13 @@ export function commentActions(c, actions) {
     };
     actions.append(b);
   };
-  if (c.status === 'fixed') {
-    btn('Looks right · resolve', 'ok', () => patch(c.id, { status: 'resolved', message: 'Verified in studio.' }));
-    btn('Not yet · reopen', '', () => askReason(actions, (msg) => patch(c.id, { status: 'reopened', message: msg })));
+  if (c.status === STATUS.FIXED) {
+    btn(TEXT.resolveButton, 'ok', () => patch(c.id, { status: STATUS.RESOLVED, message: TEXT.verifiedInStudio }));
+    btn(TEXT.reopenButton, '', () => askReason(actions, (msg) => patch(c.id, { status: STATUS.REOPENED, message: msg })));
   } else if (ACTIVE.includes(c.status)) {
-    btn('Dismiss', '', () => askReason(actions, (msg) => patch(c.id, { status: 'dismissed', message: msg })));
+    btn(TEXT.dismissButton, '', () => askReason(actions, (msg) => patch(c.id, { status: STATUS.DISMISSED, message: msg })));
   } else {
-    btn('Reopen', '', () => askReason(actions, (msg) => patch(c.id, { status: 'reopened', message: msg })));
+    btn(TEXT.reopenAgainButton, '', () => askReason(actions, (msg) => patch(c.id, { status: STATUS.REOPENED, message: msg })));
   }
 }
 
@@ -75,10 +79,10 @@ function askReason(container, done) {
   if ($('textarea', container)) return;
   const ta = document.createElement('textarea');
   ta.rows = 2;
-  ta.placeholder = 'Why? (sent to Claude)';
+  ta.placeholder = TEXT.reasonPlaceholder;
   const ok = document.createElement('button');
   ok.type = 'button';
-  ok.textContent = 'Send';
+  ok.textContent = TEXT.reasonSend;
   ok.className = 'ok';
   ok.onclick = (e) => {
     e.stopPropagation();
@@ -92,7 +96,7 @@ function askReason(container, done) {
 
 async function patch(/** @type {string} */ id, /** @type {Record<string, any>} */ body) {
   try {
-    await api(`/__dfw/api/comments/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+    await server.patchComment(id, body);
     await loadComments();
   } catch (e) {
     toast(e.message);
@@ -103,23 +107,23 @@ async function patch(/** @type {string} */ id, /** @type {Record<string, any>} *
 function focusComment(/** @type {any} */ c) {
   S.selectedComment = c.id;
   renderComments();
-  const page = c.screen === 'system' ? S.pages.find((p) => p.system) : S.pages.find((p) => p.screens.includes(c.screen));
-  if (!page) return toast('That screen is not on any page.');
+  const page = c.screen === SYSTEM_SCREEN ? S.pages.find((p) => p.system) : S.pages.find((p) => p.screens.includes(c.screen));
+  if (!page) return toast(TEXT.screenNotOnPage);
   if (P.open) closePresent();
   if (S.page !== ALL && page.id !== S.page) setPage(page.id);
   const fs = [...S.frames.values()].filter((f) =>
-    c.screen === 'system' ? f.system : !f.system && f.screen.id === c.screen && f.variant.id === c.variant,
+    c.screen === SYSTEM_SCREEN ? f.system : !f.system && f.screen.id === c.screen && f.variant.id === c.variant,
   );
   const f =
     fs.find((x) => x.bp?.id === c.breakpoint && (x.state || null) === (c.state || null)) ||
     fs.find((x) => (x.state || null) === (c.state || null)) ||
     fs[0];
-  if (!f) return toast('That frame is not visible (check breakpoints and States).');
+  if (!f) return toast(TEXT.frameNotVisible);
   selectFrame(f.key);
   zoomToRect([f.x, f.y, f.w, f.h], { max: 1 });
   flash(f);
   const sel = { dfwId: c.target?.dfwId, selector: c.target?.selector };
-  if (f.loaded) post(f, { type: 'dfw:select-id', ...sel });
+  if (f.loaded) post(f, { type: MSG.SELECT_ID, ...sel });
   else f.pendingSelect = sel;
 }
 
@@ -132,7 +136,7 @@ function focusComment(/** @type {any} */ c) {
 export function openComposer(sel, f, prefill) {
   const s = f.screen;
   S.pending = f.system
-    ? { screen: 'system', variant: null, breakpoint: null, file: null, state: null, theme: S.theme || null, target: sel.target }
+    ? { screen: SYSTEM_SCREEN, variant: null, breakpoint: null, file: null, state: null, theme: S.theme || null, target: sel.target }
     : {
         screen: s?.id || null,
         variant: f.variant?.id || null,
@@ -143,7 +147,7 @@ export function openComposer(sel, f, prefill) {
         target: sel.target,
       };
   const where = f.system ? 'Design System' : [s?.id || f.file, f.variant?.id, f.bp?.id, f.state].filter(Boolean).join(' / ');
-  $('#composer-target').textContent = `${where} → ${sel.target.dfwId || sel.target.selector}`;
+  $('#composer-target').textContent = TEXT.composerTarget(where, sel.target.dfwId || sel.target.selector);
   const r = toScreen(f, sel.rect || [0, 0, 0, 0]);
   const comp = $('#composer');
   comp.hidden = false;
@@ -160,11 +164,11 @@ export function closeComposer() {
   $('#composer').hidden = true;
   S.pending = null;
   if (S.sel?.key === PKEY) {
-    post(P, { type: 'dfw:clear-selection' });
+    post(P, { type: MSG.CLEAR_SELECTION });
     S.sel = null;
     updateHud();
-  } else if (S.mode === 'comment') {
-    postAll({ type: 'dfw:clear-selection' });
+  } else if (S.mode === MODE.COMMENT) {
+    postAll({ type: MSG.CLEAR_SELECTION });
     S.sel = null;
     updateHud();
   }
@@ -174,15 +178,15 @@ export async function saveComment() {
   const text = $('#composer-text').value.trim();
   if (!text || !S.pending) return;
   try {
-    // Saved as a draft: Claude gets the drafts together when the user presses "Send to Claude".
-    const c = await api('/__dfw/api/comments', { method: 'POST', body: JSON.stringify({ ...S.pending, comment: text, draft: true }) });
+    // Saved as a draft: the agent gets the drafts together when the user presses "Send to AI".
+    const c = await server.addComment({ ...S.pending, comment: text, draft: true });
     closeComposer();
     S.selectedComment = c.id;
-    S.filter = 'active';
+    S.filter = COMMENT_FILTER.ACTIVE;
     setFilterTabs();
-    setTab('comments');
+    setTab(TAB.COMMENTS);
     await loadComments();
-    toast(`Draft #${c.id.replace('fb_', '')} saved · press Send to Claude when you are done.`);
+    toast(TEXT.draftSaved(c.id.replace('fb_', '')));
   } catch (e) {
     toast(e.message);
   }
@@ -199,41 +203,33 @@ function setFilterTabs() {
  * @param {{ quiet?: boolean }} [opts]
  */
 export function setTab(tab, { quiet = false } = {}) {
-  if (quiet && tab === 'inspect' && !$('#tab-comments').hidden && S.mode === 'comment') return;
+  if (quiet && tab === TAB.INSPECT && !$('#tab-comments').hidden && S.mode === MODE.COMMENT) return;
   for (const b of $$('.ptabs button')) b.setAttribute('aria-selected', String(b.dataset.tab === tab));
   // Keyboard focus inside the panel that goes away moves to the tab of the panel that comes.
-  const leaving = $(tab === 'inspect' ? '#tab-comments' : '#tab-inspect');
+  const leaving = $(tab === TAB.INSPECT ? '#tab-comments' : '#tab-inspect');
   if (!leaving.hidden && leaving.contains(document.activeElement))
-    $(`.ptabs button[data-tab="${tab === 'inspect' ? 'inspect' : 'comments'}"]`).focus();
-  $('#tab-inspect').hidden = tab !== 'inspect';
-  $('#tab-comments').hidden = tab !== 'comments';
+    $(`.ptabs button[data-tab="${tab === TAB.INSPECT ? TAB.INSPECT : TAB.COMMENTS}"]`).focus();
+  $('#tab-inspect').hidden = tab !== TAB.INSPECT;
+  $('#tab-comments').hidden = tab !== TAB.COMMENTS;
 }
 
-/** The drafts count on the Send button and whether a Claude session listens (dfw comments wait). */
+/** The drafts count on the Send button and whether an agent session listens (dfw comments wait). */
 export function renderSendBar() {
   const drafts = S.comments.filter(isDraft).length;
   const send = $('#send-drafts');
   send.disabled = drafts === 0;
-  send.textContent = drafts ? `Send to Claude (${drafts})` : 'Send to Claude';
+  send.textContent = TEXT.sendButton(drafts);
   const listen = $('#listen');
   listen.dataset.on = String(!!S.listening);
-  listen.innerHTML = S.listening
-    ? '<b>Claude is listening.</b> Sent comments wake it at once.'
-    : '<b>Claude is not listening.</b> Sent comments reach Claude with your next message in the terminal.';
+  listen.innerHTML = S.listening ? TEXT.listeningHtml : TEXT.notListeningHtml;
 }
 
-/** Send every draft to Claude at once. */
+/** Send every draft to the agent at once. */
 async function sendDrafts() {
   try {
-    const r = await api('/__dfw/api/comments/send', { method: 'POST' });
+    const r = await server.sendDrafts();
     S.listening = r.listening;
-    toast(
-      r.sent
-        ? r.listening
-          ? `Sent ${r.sent} comment(s) to Claude.`
-          : `Sent ${r.sent} comment(s). Claude gets them with your next message in the terminal.`
-        : 'No drafts to send.',
-    );
+    toast(r.sent ? (r.listening ? TEXT.sentListening(r.sent) : TEXT.sentNotListening(r.sent)) : TEXT.noDrafts);
     await loadComments();
   } catch (e) {
     toast(e.message);
@@ -243,20 +239,17 @@ async function sendDrafts() {
 /** Fetch the comments; announce what the agent changed since the last fetch. */
 export async function loadComments() {
   const prev = new Map(S.comments.map((c) => [c.id, c.status]));
-  const [comments, listening] = await Promise.all([
-    api('/__dfw/api/comments'),
-    api('/__dfw/api/listening').catch(() => ({ listening: false })),
-  ]);
+  const [comments, listening] = await Promise.all([server.comments(), server.listening().catch(() => ({ listening: false }))]);
   S.comments = comments;
   S.listening = listening.listening;
-  // Live updates from Claude (via .dfw/reviews/ + SSE): announce status changes.
+  // Live updates from the agent (via .dfw/reviews/ + SSE): announce status changes.
   if (prev.size) {
     for (const c of S.comments) {
       const was = prev.get(c.id);
       if (!was || was === c.status) continue;
       const n = c.id.replace('fb_', '');
-      if (c.status === 'acknowledged') toast(`Claude is working on #${n}.`);
-      else if (c.status === 'fixed') toast(`Claude fixed #${n}: please verify (Comments → To verify).`);
+      if (c.status === STATUS.ACKNOWLEDGED) toast(TEXT.agentWorking(n));
+      else if (c.status === STATUS.FIXED) toast(TEXT.agentFixed(n));
     }
   }
   renderComments();
@@ -284,8 +277,8 @@ export function initComments() {
   }
   $('#send-drafts').onclick = sendDrafts;
   $('#new-session').onclick = async () => {
-    await api('/__dfw/api/sessions', { method: 'POST' });
-    toast('New review round started.');
+    await server.newSession();
+    toast(TEXT.newRound);
     await loadComments();
   };
 }
