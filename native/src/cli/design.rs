@@ -340,129 +340,143 @@ pub(super) fn debug_lint(ctx: &Ctx) -> Result<i32, DfwError> {
 
 // ---------------------------------------------------------------- system
 
-// One arm per subcommand, as the `system` case of cli.mjs.
-#[allow(clippy::too_many_lines, reason = "A10 debt")]
+/// `dfw system <subcommand>`: one function per subcommand, as the `system` case of cli.mjs.
 fn system(ctx: &Ctx) -> Result<i32, DfwError> {
     let root = ctx.root();
     let a = &ctx.args;
     match sub(ctx, "list").as_str() {
-        "presets" => {
-            let lines: Vec<String> = list_presets()?
-                .iter()
-                .map(|(name, description)| {
-                    format!(
-                        "{} {}",
-                        js::pad_end(name, 12),
-                        short_description(description)
-                    )
-                })
-                .collect();
-            out(&lines.join("\n"));
-        }
-        "init" => {
-            if a.truthy("only") {
-                return usage("--only was removed: components are no longer copied from the kit. List what the product needs in design/system/inventory.json and design each master; read a kit master for its states with \"dfw system ref <name>\".");
-            }
-            let r = system_init(
-                &root,
-                &InitOptions {
-                    preset: flag(a, "preset").unwrap_or_else(|| "crisp".to_string()),
-                    style: flag(a, "style"),
-                    fonts: fonts_arg(a).to_string(),
-                    force: a.truthy("force"),
-                },
-            )?;
-            out(&format!("Design system from \"{}\": tokens {}; {}. No components were copied. Next: list every component the product needs (name, purpose, usedBy, states) in design/system/inventory.json, then design each master for this product (\"dfw system ref <name>\" shows a kit master as a states checklist).",
-                r.preset,
-                if r.tokens_written { "written" } else { "kept (pass --force to replace)" },
-                if r.inventory_created { "design/system/inventory.json created" } else { "inventory kept" }));
-        }
-        "ref" => {
-            if let Some(name) = a.pos(2).filter(|n| !n.is_empty()) {
-                out(&kit_ref(name)?);
-                return Ok(0);
-            }
-            let refs = kit_refs()?;
-            if a.truthy("json") {
-                out(&to_json_pretty(&Value::Array(
-                    refs.iter().map(|r| r.to_json()).collect(),
-                )));
-                return Ok(0);
-            }
-            let lines: Vec<String> = refs
-                .iter()
-                .map(|r| {
-                    let mut parts = Vec::new();
-                    if !r.variants.is_empty() {
-                        parts.push(format!("variants: {}", r.variants));
-                    }
-                    if !r.sizes.is_empty() {
-                        parts.push(format!("sizes: {}", r.sizes));
-                    }
-                    if !r.states.is_empty() {
-                        parts.push(format!("states: {}", r.states.join(", ")));
-                    }
-                    format!("{} {}", js::pad_end(&r.name, 14), parts.join("  "))
-                })
-                .collect();
-            out(&format!("Starter-kit references (read-only; design your own master, never copy):\n{}\nRead one: dfw system ref <name>", lines.join("\n")));
-        }
-        "inventory" => return system_inventory(&root, a),
+        "presets" => system_presets(),
+        "init" => system_init_cmd(&root, a),
+        "ref" => system_ref(a),
+        "inventory" => system_inventory(&root, a),
         "options" => {
             let themes = system_options(&root, &rest(ctx), fonts_arg(a))?;
             out(&format!("Option themes: {}. Compare them in the studio (theme menu / \"Themes\" toggle), then: dfw system choose <preset>.", themes.join(", ")));
+            Ok(0)
         }
         "choose" => {
             let chosen = system_choose(&root, a.pos(2).unwrap_or("undefined"), fonts_arg(a))?;
             out(&format!("Tokens now come from \"{chosen}\". Adapt design/tokens/tokens.json to the direction, then review the Design System page."));
+            Ok(0)
         }
-        "audit" => return system_audit(&root, a),
-        "list" => {
-            let summary = system_summary(&root)?;
-            if a.truthy("json") {
-                out(&to_json_pretty(&summary));
-                return Ok(0);
-            }
-            let strings = |c: &Value, key: &str| -> Vec<String> {
-                c[key]
-                    .as_array()
-                    .map(|l| l.iter().map(|v| js::to_string(Some(v))).collect())
-                    .unwrap_or_default()
-            };
-            let lines: Vec<String> = summary["components"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .map(|c| {
-                    let mut parts = Vec::new();
-                    for (key, label, sep) in [
-                        ("variants", "variants", "|"),
-                        ("sizes", "sizes", "|"),
-                        ("props", "props", ", "),
-                    ] {
-                        let values = strings(c, key);
-                        if !values.is_empty() {
-                            parts.push(format!("{label}: {}", values.join(sep)));
-                        }
-                    }
-                    format!(
-                        "{} {}",
-                        js::pad_end(&js::to_string(c.get("name")), 14),
-                        parts.join("  ")
-                    )
-                })
-                .collect();
-            let text = lines.join("\n");
-            out(if text.is_empty() {
-                "No components yet (dfw system init)."
-            } else {
-                &text
-            });
-        }
-        _ => {
-            return usage("Usage: dfw system init|inventory|ref|presets|options|choose|audit|list")
-        }
+        "audit" => system_audit(&root, a),
+        "list" => system_list(&root, a),
+        _ => usage("Usage: dfw system init|inventory|ref|presets|options|choose|audit|list"),
     }
+}
+
+/// `dfw system presets`: each preset with its short description.
+fn system_presets() -> Result<i32, DfwError> {
+    let lines: Vec<String> = list_presets()?
+        .iter()
+        .map(|(name, description)| {
+            format!(
+                "{} {}",
+                js::pad_end(name, 12),
+                short_description(description)
+            )
+        })
+        .collect();
+    out(&lines.join("\n"));
+    Ok(0)
+}
+
+/// `dfw system init [--preset <p>] [--style <s>] [--fonts ...] [--force]`.
+fn system_init_cmd(root: &Path, a: &Args) -> Result<i32, DfwError> {
+    if a.truthy("only") {
+        return usage("--only was removed: components are no longer copied from the kit. List what the product needs in design/system/inventory.json and design each master; read a kit master for its states with \"dfw system ref <name>\".");
+    }
+    let r = system_init(
+        root,
+        &InitOptions {
+            preset: flag(a, "preset").unwrap_or_else(|| "crisp".to_string()),
+            style: flag(a, "style"),
+            fonts: fonts_arg(a).to_string(),
+            force: a.truthy("force"),
+        },
+    )?;
+    out(&format!("Design system from \"{}\": tokens {}; {}. No components were copied. Next: list every component the product needs (name, purpose, usedBy, states) in design/system/inventory.json, then design each master for this product (\"dfw system ref <name>\" shows a kit master as a states checklist).",
+        r.preset,
+        if r.tokens_written { "written" } else { "kept (pass --force to replace)" },
+        if r.inventory_created { "design/system/inventory.json created" } else { "inventory kept" }));
+    Ok(0)
+}
+
+/// `dfw system ref [<name>] [--json]`: one kit master, or the list of them.
+fn system_ref(a: &Args) -> Result<i32, DfwError> {
+    if let Some(name) = a.pos(2).filter(|n| !n.is_empty()) {
+        out(&kit_ref(name)?);
+        return Ok(0);
+    }
+    let refs = kit_refs()?;
+    if a.truthy("json") {
+        out(&to_json_pretty(&Value::Array(
+            refs.iter().map(|r| r.to_json()).collect(),
+        )));
+        return Ok(0);
+    }
+    let lines: Vec<String> = refs
+        .iter()
+        .map(|r| {
+            let mut parts = Vec::new();
+            if !r.variants.is_empty() {
+                parts.push(format!("variants: {}", r.variants));
+            }
+            if !r.sizes.is_empty() {
+                parts.push(format!("sizes: {}", r.sizes));
+            }
+            if !r.states.is_empty() {
+                parts.push(format!("states: {}", r.states.join(", ")));
+            }
+            format!("{} {}", js::pad_end(&r.name, 14), parts.join("  "))
+        })
+        .collect();
+    out(&format!("Starter-kit references (read-only; design your own master, never copy):\n{}\nRead one: dfw system ref <name>", lines.join("\n")));
+    Ok(0)
+}
+
+/// `dfw system list [--json]`: the components and their variants, sizes and props.
+fn system_list(root: &Path, a: &Args) -> Result<i32, DfwError> {
+    let summary = system_summary(root)?;
+    if a.truthy("json") {
+        out(&to_json_pretty(&summary));
+        return Ok(0);
+    }
+    let strings = |c: &Value, key: &str| -> Vec<String> {
+        c[key]
+            .as_array()
+            .map(|l| l.iter().map(|v| js::to_string(Some(v))).collect())
+            .unwrap_or_default()
+    };
+    let lines: Vec<String> = summary["components"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|c| {
+            let mut parts = Vec::new();
+            for (key, label, sep) in [
+                ("variants", "variants", "|"),
+                ("sizes", "sizes", "|"),
+                ("props", "props", ", "),
+            ] {
+                let values = strings(c, key);
+                if !values.is_empty() {
+                    parts.push(format!("{label}: {}", values.join(sep)));
+                }
+            }
+            format!(
+                "{} {}",
+                js::pad_end(&js::to_string(c.get("name")), 14),
+                parts.join("  ")
+            )
+        })
+        .collect();
+    let text = lines.join("\n");
+    out(if text.is_empty() {
+        "No components yet (dfw system init)."
+    } else {
+        &text
+    });
     Ok(0)
 }
 

@@ -2,6 +2,7 @@
 
 pub mod binary;
 pub mod check;
+pub mod doctor;
 pub mod handoff;
 pub mod inspector;
 pub mod install;

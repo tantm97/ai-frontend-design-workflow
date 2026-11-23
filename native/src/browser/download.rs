@@ -254,7 +254,8 @@ mod tests {
     use crate::core::util::test_dir;
     use std::collections::HashMap;
     use std::io::Write;
-    use std::sync::atomic::Ordering;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
     use zip::write::SimpleFileOptions;
 
     /// cdp: the headless Chrome download is https on storage.googleapis.com only
@@ -347,24 +348,77 @@ mod tests {
             .ok_or_else(|| DfwError::new("not the fixture server"))
     }
 
-    /// The whole download against a local HTTP server: index, archive, unzip, where it is
-    /// stored, and no second download once it is there.
-    #[test]
-    // One scenario end to end: the steps share the server and the folder they fill.
-    #[allow(clippy::too_many_lines, reason = "A10 debt")]
-    fn install_from_a_local_index() {
-        let home = test_dir("download").join("browser");
-        let archive = zip_of(&[
+    /// A browser folder and two local servers: one with the archive, one with the indexes that
+    /// point at it (the index names its own server, so it is built once the port is known).
+    struct LocalIndex {
+        home: PathBuf,
+        base: String,
+        files: String,
+        file_hits: Arc<AtomicUsize>,
+    }
+
+    impl LocalIndex {
+        fn new() -> Self {
+            let home = test_dir("download").join("browser");
+            let (files, file_hits) = serve(HashMap::from([(
+                "/shell.zip".to_string(),
+                (200, shell_archive()),
+            )]));
+            let (base, _) = serve(index_routes(&files));
+            Self {
+                home,
+                base,
+                files,
+                file_hits,
+            }
+        }
+
+        /// `install_from` with the index `name` of the fixture server.
+        fn install(
+            &self,
+            name: &str,
+            plat: &str,
+            check: fn(&Value) -> Result<String, DfwError>,
+            log: &dyn Fn(&str),
+        ) -> Result<Value, DfwError> {
+            install_from(
+                &format!("{}/{name}", self.base),
+                plat,
+                &self.home,
+                check,
+                log,
+            )
+        }
+
+        /// How many times the archive was downloaded.
+        fn hits(&self) -> usize {
+            self.file_hits.load(Ordering::SeqCst)
+        }
+
+        /// Where the installed shell lands.
+        fn exe(&self) -> PathBuf {
+            self.home
+                .join("131.0.6778.85")
+                .join("chrome-headless-shell-test-plat")
+                .join("chrome-headless-shell")
+        }
+    }
+
+    /// The headless shell archive: an executable and a licence.
+    fn shell_archive() -> Vec<u8> {
+        zip_of(&[
             (
                 "chrome-headless-shell-test-plat/chrome-headless-shell",
                 b"#!/bin/sh\necho shell\n",
                 0o755,
             ),
             ("chrome-headless-shell-test-plat/LICENSE", b"license", 0o644),
-        ]);
-        // The index names its own server, so it is built once the port is known: two servers.
-        let (files, file_hits) = serve(HashMap::from([("/shell.zip".to_string(), (200, archive))]));
-        let (base, _) = serve(HashMap::from([
+        ])
+    }
+
+    /// The indexes: a good one, a look-alike host, a version that is a path, a missing archive.
+    fn index_routes(files: &str) -> HashMap<String, (u16, Vec<u8>)> {
+        HashMap::from([
             (
                 "/index.json".to_string(),
                 (
@@ -396,135 +450,116 @@ mod tests {
                     index(&json!("132.0.1.2"), &format!("{files}/gone.zip")),
                 ),
             ),
-        ]));
-        let logged = std::cell::RefCell::new(Vec::new());
-        let log = |m: &str| logged.borrow_mut().push(m.to_string());
+        ])
+    }
 
-        let r = install_from(
-            &format!("{base}/index.json"),
-            "test-plat",
-            &home,
-            local_only,
-            &log,
-        )
-        .unwrap();
-        let exe = home
-            .join("131.0.6778.85")
-            .join("chrome-headless-shell-test-plat")
-            .join("chrome-headless-shell");
+    /// The first install: its result, the files and their modes, `current.json`, the log line,
+    /// one download, and the record of the archive.
+    fn assert_installed(fx: &LocalIndex, r: &Value, logged: &[String]) {
+        let exe = fx.exe();
         assert_eq!(
-            r,
+            *r,
             json!({ "installed": true, "path": exe.display().to_string(), "source": "downloaded", "version": "131.0.6778.85" })
         );
         assert_eq!(fs::read(&exe).unwrap(), b"#!/bin/sh\necho shell\n");
         #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            assert_eq!(
-                fs::metadata(&exe).unwrap().permissions().mode() & 0o777,
-                0o755
-            );
-            assert_eq!(
-                fs::metadata(exe.with_file_name("LICENSE"))
-                    .unwrap()
-                    .permissions()
-                    .mode()
-                    & 0o777,
-                0o644
-            );
-        }
+        assert_unix_modes(&exe);
         assert_eq!(
-            fs::read_to_string(home.join("current.json")).unwrap(),
+            fs::read_to_string(fx.home.join("current.json")).unwrap(),
             // The path as a JSON string: a Windows path has its backslashes escaped.
             format!("{{\n  \"version\": \"131.0.6778.85\",\n  \"platform\": \"test-plat\",\n  \"path\": {}\n}}", json!(exe.display().to_string()))
         );
         assert_eq!(
-            *logged.borrow(),
+            logged,
             [format!(
                 "Downloading headless Chrome 131.0.6778.85 (test-plat) from {} ...",
-                files.trim_start_matches("http://")
+                fx.files.trim_start_matches("http://")
             )]
         );
-        assert_eq!(file_hits.load(Ordering::SeqCst), 1);
+        assert_eq!(fx.hits(), 1);
         // No checksum is published: the archive that was unpacked is recorded.
         let record: Value = serde_json::from_str(
-            &fs::read_to_string(home.join("131.0.6778.85/archive.json")).unwrap(),
+            &fs::read_to_string(fx.home.join("131.0.6778.85/archive.json")).unwrap(),
         )
         .unwrap();
-        assert_eq!(record["url"], json!(format!("{files}/shell.zip")));
+        assert_eq!(record["url"], json!(format!("{}/shell.zip", fx.files)));
         assert!(record["bytes"].as_u64().unwrap() > 0);
         assert_eq!(record["sha256"].as_str().unwrap().len(), 64);
+    }
 
-        // Already there: the index is read again, the archive is not.
-        install_from(
-            &format!("{base}/index.json"),
-            "test-plat",
-            &home,
-            local_only,
-            &log,
-        )
-        .unwrap();
-        assert_eq!(file_hits.load(Ordering::SeqCst), 1);
+    /// The archive's modes survive the unpacking.
+    #[cfg(unix)]
+    fn assert_unix_modes(exe: &Path) {
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(
+            fs::metadata(exe).unwrap().permissions().mode() & 0o777,
+            0o755
+        );
+        assert_eq!(
+            fs::metadata(exe.with_file_name("LICENSE"))
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o644
+        );
+    }
 
+    /// What is refused, each with its message, and nothing more downloaded.
+    fn assert_refusals(fx: &LocalIndex, log: &dyn Fn(&str)) {
         // The real check refuses the fixture server and any look-alike host, before any download.
-        for index in ["index.json", "evil.json"] {
-            let err = install_from(
-                &format!("{base}/{index}"),
-                "test-plat",
-                &home,
-                checked,
-                &log,
-            )
-            .unwrap_err();
+        for name in ["index.json", "evil.json"] {
+            let err = fx.install(name, "test-plat", checked, log).unwrap_err();
             assert!(
                 err.message()
                     .starts_with("refusing to download a browser from \"http"),
                 "{err}"
             );
         }
-        assert_eq!(file_hits.load(Ordering::SeqCst), 1);
+        assert_eq!(fx.hits(), 1);
 
-        let err = install_from(
-            &format!("{base}/version.json"),
-            "test-plat",
-            &home,
-            local_only,
-            &log,
-        )
-        .unwrap_err();
+        let err = fx
+            .install("version.json", "test-plat", local_only, log)
+            .unwrap_err();
         assert_eq!(
             err.message(),
             "unexpected Chrome version \"../../131\" in the Chrome for Testing index."
         );
-        let err = install_from(
-            &format!("{base}/index.json"),
-            "mars-x1",
-            &home,
-            local_only,
-            &log,
-        )
-        .unwrap_err();
+        let err = fx
+            .install("index.json", "mars-x1", local_only, log)
+            .unwrap_err();
         assert_eq!(
             err.message(),
             "Chrome for Testing has no headless shell for mars-x1."
         );
-        let err = install_from(
-            &format!("{base}/gone.json"),
-            "test-plat",
-            &home,
-            local_only,
-            &log,
-        )
-        .unwrap_err();
+        let err = fx
+            .install("gone.json", "test-plat", local_only, log)
+            .unwrap_err();
         assert_eq!(err.message(), "download failed: HTTP 404");
-        assert!(install_from(
-            &format!("{base}/missing.json"),
-            "test-plat",
-            &home,
-            local_only,
-            &log
-        )
-        .is_err());
+        assert!(fx
+            .install("missing.json", "test-plat", local_only, log)
+            .is_err());
+    }
+
+    /// The whole download against a local HTTP server: index, archive, unzip, where it is
+    /// stored, and no second download once it is there.
+    #[test]
+    fn install_from_a_local_index() {
+        let fx = LocalIndex::new();
+        let logged = std::cell::RefCell::new(Vec::new());
+        let log = |m: &str| logged.borrow_mut().push(m.to_string());
+
+        let r = fx
+            .install("index.json", "test-plat", local_only, &log)
+            .unwrap();
+        assert_installed(&fx, &r, &logged.borrow());
+
+        // Already there: the index is read again, the archive is not.
+        fx.install("index.json", "test-plat", local_only, &log)
+            .unwrap();
+        assert_eq!(fx.hits(), 1);
+
+        assert_refusals(&fx, &log);
     }
 
     #[test]
