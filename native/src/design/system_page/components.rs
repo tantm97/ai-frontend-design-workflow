@@ -348,12 +348,12 @@ pub(super) fn comp_section(
             .split("\n\u{0}")
             .filter(|x| !js::trim(x).is_empty())
             .map(|ex| {
-                format!("<div class=\"ds-frame\"><div class=\"ds-frame__inner\">{ex}</div></div>")
+                format!("<div class=\"ds-frame\"><div class=\"ds-frame__inner ds-live\">{ex}</div></div>")
             })
             .collect();
         format!("<div class=\"ds-frames\">{frames}</div>")
     } else {
-        format!("<div class=\"ds-examples\">{examples}</div>")
+        format!("<div class=\"ds-examples ds-live\">{examples}</div>")
     };
     let notes: String = parts
         .notes
