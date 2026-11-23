@@ -2,44 +2,16 @@
 //! tokens a changed size or radius is matched to (`dimensionTokenIndex`).
 
 use super::*;
+use crate::core::js::regex::fixed_regex;
 
-// A constant pattern: it compiles, and every test that reaches it proves so.
-#[allow(
-    clippy::expect_used,
-    reason = "A constant pattern: it compiles, and every test that reaches it proves so"
-)]
-static RADIUS_NAME: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(^|\.)radius(\.|$)").expect("constant pattern"));
-// A constant pattern: it compiles, and every test that reaches it proves so.
-#[allow(
-    clippy::expect_used,
-    reason = "A constant pattern: it compiles, and every test that reaches it proves so"
-)]
+static RADIUS_NAME: LazyLock<Regex> = LazyLock::new(|| fixed_regex(r"(^|\.)radius(\.|$)"));
 static BORDER_NAME: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(border|stroke|focus)[.-]?width").expect("constant pattern"));
-// A constant pattern: it compiles, and every test that reaches it proves so.
-#[allow(
-    clippy::expect_used,
-    reason = "A constant pattern: it compiles, and every test that reaches it proves so"
-)]
-static SPACE_NAME: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(^|\.)(space|spacing|gap|inset|padding)(\.|$)").expect("constant pattern")
-});
-// A constant pattern: it compiles, and every test that reaches it proves so.
-#[allow(
-    clippy::expect_used,
-    reason = "A constant pattern: it compiles, and every test that reaches it proves so"
-)]
-static SIZE_NAME: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(^|\.)(size|sizing|width|height)(\.|$)").expect("constant pattern")
-});
-// A constant pattern: it compiles, and every test that reaches it proves so.
-#[allow(
-    clippy::expect_used,
-    reason = "A constant pattern: it compiles, and every test that reaches it proves so"
-)]
-static MAIN_PREFIX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^main:[^#]*#").expect("constant pattern"));
+    LazyLock::new(|| fixed_regex(r"(border|stroke|focus)[.-]?width"));
+static SPACE_NAME: LazyLock<Regex> =
+    LazyLock::new(|| fixed_regex(r"(^|\.)(space|spacing|gap|inset|padding)(\.|$)"));
+static SIZE_NAME: LazyLock<Regex> =
+    LazyLock::new(|| fixed_regex(r"(^|\.)(size|sizing|width|height)(\.|$)"));
+static MAIN_PREFIX: LazyLock<Regex> = LazyLock::new(|| fixed_regex(r"^main:[^#]*#"));
 
 /// A dimension token in px, with what it is for.
 #[derive(Debug, Clone, PartialEq)]
@@ -196,10 +168,7 @@ pub(super) fn diff_components(
 
 /// The changes of one main component.
 // Long: one block per property the designer can change, in the order the changes are listed.
-#[allow(
-    clippy::too_many_lines,
-    reason = "long function kept as ported; split it when it next changes (A10)"
-)]
+#[allow(clippy::too_many_lines, reason = "A10 debt")]
 fn diff_component(
     c: &Value,
     cc: &Value,

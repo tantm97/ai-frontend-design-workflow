@@ -159,7 +159,7 @@ fn violations(src: &Path) -> Vec<String> {
                 }
                 out.push(format!(
                     "src/{}:{n}: `{from}` (layer {}) uses `crate::{to}` (layer {}): A2 allows only lower layers (docs/conventions/architecture.md)",
-                    rel.display(),
+                    rel.to_string_lossy().replace('\\', "/"),
                     show(layer(&from)),
                     show(layer(&to)),
                 ));

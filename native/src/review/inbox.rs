@@ -65,7 +65,7 @@ pub fn undelivered(root: &Path) -> Result<Vec<Value>, DfwError> {
             && last_of_thread(c).and_then(|l| l.get("by")) == Some(&json!("user"))
     };
     let active = |c: &Value| matches!(status(c).as_deref(), Some("open" | "reopened"));
-    // A Studio draft waits for the user's "Send to Claude".
+    // A Studio draft waits for the user's "Send to AI".
     let draft = |c: &Value| c.get("draft") == Some(&Value::Bool(true));
     Ok(all_comments(root)?
         .into_iter()

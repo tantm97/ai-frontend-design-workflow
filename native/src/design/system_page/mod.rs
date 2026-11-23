@@ -36,10 +36,7 @@ const CSS: &str = include_str!("../system_page.css");
 /// under which `design/` is served (`../` from `design/system/`).
 // Over 120 lines: the page template in one piece, in page order; the sections are built by
 // the other files of this module.
-#[allow(
-    clippy::too_many_lines,
-    reason = "long function kept as ported; split it when it next changes (A10)"
-)]
+#[allow(clippy::too_many_lines, reason = "A10 debt")]
 pub fn render_system_page(root: &Path, design_base: &str) -> Result<String, DfwError> {
     let p = project_paths(root);
     let manifest = js::read_json(&p.design.join("design.json"), Some(json!({})))?;

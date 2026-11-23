@@ -371,10 +371,7 @@ fn previous_step(step: f64) -> f64 {
 /// Returns `{ ramps, roles, status, names, notes, seeds }` as the Node function did.
 // Over 120 lines: the light and dark role tables are built side by side, so the two values
 // of a role read together.
-#[allow(
-    clippy::too_many_lines,
-    reason = "long function kept as ported; split it when it next changes (A10)"
-)]
+#[allow(clippy::too_many_lines, reason = "A10 debt")]
 pub fn build_palette(seeds: &Seeds, names: &Names) -> Value {
     let brand_seed = match &seeds.brand_hex {
         Some(hex) => {
@@ -711,10 +708,7 @@ const ROLE_PAIRS: [(&str, &str, f64, bool, &str); 13] = [
 /// returns `[{ level, rule, message }]`.
 // Over 120 lines: the checks run in the order their findings are printed (the golden tests
 // compare that order).
-#[allow(
-    clippy::too_many_lines,
-    reason = "long function kept as ported; split it when it next changes (A10)"
-)]
+#[allow(clippy::too_many_lines, reason = "A10 debt")]
 pub fn audit_colors(input: &Value, exceptions: &[String]) -> Vec<Value> {
     let empty = Map::new();
     let roles = input

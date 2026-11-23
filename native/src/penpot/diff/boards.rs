@@ -40,10 +40,7 @@ pub(super) fn change(ty: &str, parts: Vec<Pairs>) -> Value {
 /// `changes` (the Node code did the same to the object it was given).
 // Long: boards, deleted boards, masters and comment threads, in the order the change list
 // reports them (the order decides how changes group into comments; the golden tests hold it).
-#[allow(
-    clippy::too_many_lines,
-    reason = "long function kept as ported; split it when it next changes (A10)"
-)]
+#[allow(clippy::too_many_lines, reason = "A10 debt")]
 pub fn diff_changes(baseline: &Value, changes: &mut Value, dims: &[Dim]) -> Result<Diff, DfwError> {
     if changes.get("schema").and_then(Value::as_str) != Some(CHANGES_SCHEMA) {
         return Err(DfwError::new(format!(
@@ -201,10 +198,7 @@ pub fn diff_changes(baseline: &Value, changes: &mut Value, dims: &[Dim]) -> Resu
 /// The changes of one screen board. Returns the layers whose path the export does not know.
 // Long: one block per kind of change on a layer (text, box, fill, name), then removed and
 // added layers, in the order the change list reports them.
-#[allow(
-    clippy::too_many_lines,
-    reason = "long function kept as ported; split it when it next changes (A10)"
-)]
+#[allow(clippy::too_many_lines, reason = "A10 debt")]
 fn diff_board(
     b: &Value,
     cb: &Value,

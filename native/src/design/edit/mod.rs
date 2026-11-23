@@ -186,10 +186,7 @@ fn with_attr(text: &str, el: &Located, name: &str, value: Option<&str>) -> Strin
 /// `transform`: the new source text for an edit op `{op, id, value, prop, ref, position,
 /// maxWidth}`; a refusal is an error and nothing is written.
 // Over 120 lines: one arm per op, so every op's checks and splice read in one place.
-#[allow(
-    clippy::too_many_lines,
-    reason = "long function kept as ported; split it when it next changes (A10)"
-)]
+#[allow(clippy::too_many_lines, reason = "A10 debt")]
 pub fn transform(root: &Path, text: &str, op: &Value) -> Result<String, DfwError> {
     let field = |key: &str| op.get(key);
     let shown = |key: &str| js::to_string(field(key));

@@ -460,6 +460,7 @@ fn check_page(renderer: &Renderer, job: &Job, url: Option<&str>, axe_src: &str) 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use std::process::Command;
 
     /// The JavaScript that runs in the page is one self-contained function per file; axe is

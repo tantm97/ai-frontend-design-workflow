@@ -617,7 +617,7 @@ fn review_in_a_browser_click_to_comment_carries_the_nearest_insp_path() {
       const src = ui.querySelector('.src').textContent;
       ui.querySelector('textarea').value = 'Total should be bold';
       ui.querySelector('.pop').requestSubmit();
-      for (let i = 0; i < 50 && !/Sent to Claude/.test(ui.querySelector('.toast').textContent); i++) await new Promise((res) => setTimeout(res, 50));
+      for (let i = 0; i < 50 && !/Sent to AI/.test(ui.querySelector('.toast').textContent); i++) await new Promise((res) => setTimeout(res, 50));
       return `${src}|${ui.querySelector('.toast').textContent}`;
     }"#,
             None,
@@ -626,7 +626,7 @@ fn review_in_a_browser_click_to_comment_carries_the_nearest_insp_path() {
     browser.close();
     let out = out.as_str().unwrap_or_default().to_string();
     assert!(
-        regex::Regex::new(r"Summary\.tsx:42:7\|Sent to Claude · comment #001")
+        regex::Regex::new(r"Summary\.tsx:42:7\|Sent to AI · comment #001")
             .unwrap()
             .is_match(&out),
         "{out}"
@@ -723,7 +723,7 @@ fn review_in_a_browser_strict_csp_localhost_cookies_and_the_shortcut() {
       document.querySelector('#t').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       ui.querySelector('textarea').value = 'Bigger title';
       ui.querySelector('.pop').requestSubmit();
-      for (let i = 0; i < 50 && !/Sent to Claude|Not sent/.test(ui.querySelector('.toast').textContent); i++) await new Promise((res) => setTimeout(res, 50));
+      for (let i = 0; i < 50 && !/Sent to AI|Not sent/.test(ui.querySelector('.toast').textContent); i++) await new Promise((res) => setTimeout(res, 50));
       return ui.querySelector('.toast').textContent;
     }"#,
             None,
@@ -732,7 +732,7 @@ fn review_in_a_browser_strict_csp_localhost_cookies_and_the_shortcut() {
     browser.close();
     let out = out.as_str().unwrap_or_default().to_string();
     assert!(
-        out.contains("Sent to Claude · comment #001"),
+        out.contains("Sent to AI · comment #001"),
         "comment POST allowed by connect-src: {out}"
     );
     assert_eq!(all_comments(&root).unwrap()[0]["comment"], "Bigger title");

@@ -351,10 +351,7 @@ mod tests {
     /// stored, and no second download once it is there.
     #[test]
     // One scenario end to end: the steps share the server and the folder they fill.
-    #[allow(
-        clippy::too_many_lines,
-        reason = "long function kept as ported; split it when it next changes (A10)"
-    )]
+    #[allow(clippy::too_many_lines, reason = "A10 debt")]
     fn install_from_a_local_index() {
         let home = test_dir("download").join("browser");
         let archive = zip_of(&[
