@@ -3,8 +3,8 @@
 import { esc, layerParents } from './model.js';
 import { $, S, post } from './state.js';
 import { updateHud } from './hud.js';
-import { MSG } from '../shared/protocol.js';
-import { KEY } from '../shared/enums.js';
+import { MSG } from '#studio/shared/protocol.js';
+import { KEY } from '#studio/shared/enums.js';
 
 const LANDMARKS = ['header', 'nav', 'main', 'aside', 'footer', 'section', 'form', 'dialog'];
 /** Layer index of the row that has the roving tabindex (the selected row wins). */

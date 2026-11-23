@@ -2,9 +2,9 @@
 // Pure model of the Studio canvas: which frames a page shows, in which rows, and the small text
 // helpers around them. Functions of values only (javascript.md J3): no DOM, no Studio state, so
 // tests/unit/studio-app-model.test.mjs imports them in Node.
-import { PATH } from '../shared/paths.js';
-import { TEXT } from '../shared/text.js';
-import { STATUS, COMMENT_FILTER, SECTION_KIND, SYSTEM_SCREEN, PIN_FILTER } from '../shared/enums.js';
+import { PATH } from '#studio/shared/paths.js';
+import { TEXT } from '#studio/shared/text.js';
+import { STATUS, COMMENT_FILTER, SECTION_KIND, SYSTEM_SCREEN, PIN_FILTER } from '#studio/shared/enums.js';
 
 /**
  * @typedef {{ id: string, label?: string, short?: string, width: number, height: number }} Breakpoint

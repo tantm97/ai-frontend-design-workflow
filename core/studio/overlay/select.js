@@ -1,17 +1,15 @@
 // @ts-check
 // Selection and the reports to the Studio: what is selected (with its inspector rows), where the
 // selection and the comment pins are, and the document height (frames grow to their content).
-import { post, st } from './state.js';
+import { post, st, ui } from './state.js';
 import { info, labelOf, rectOf } from './target.js';
 import { inspect } from './tokens.js';
-import { editTarget } from './edit.js';
-import { placeHandles } from './layout.js';
-import { MSG } from '../shared/protocol.js';
-import { MODE } from '../shared/enums.js';
+import { MSG } from '#studio/shared/protocol.js';
+import { MODE } from '#studio/shared/enums.js';
 
 /** What the Studio needs to show a selected element. */
 function selPayload(/** @type {HTMLElement} */ el, /** @type {boolean} */ withInspect) {
-  const t = editTarget(el);
+  const t = ui.editTarget(el);
   return {
     target: info(el),
     rect: rectOf(el),
@@ -35,7 +33,7 @@ function selPayload(/** @type {HTMLElement} */ el, /** @type {boolean} */ withIn
  */
 export function select(el, { inspectIt = true, scroll = false } = {}) {
   st.selected = el;
-  placeHandles();
+  ui.placeHandles();
   if (!el) return post(MSG.SELECT, { target: null });
   if (scroll) el.scrollIntoView({ block: 'nearest' });
   post(MSG.SELECT, { comment: st.mode === MODE.COMMENT, ...selPayload(el, inspectIt && st.mode !== MODE.COMMENT) });
@@ -43,7 +41,7 @@ export function select(el, { inspectIt = true, scroll = false } = {}) {
 
 export function reportSelection() {
   if (st.selected && st.selected.isConnected) post(MSG.SEL_RECT, { rect: rectOf(st.selected) });
-  placeHandles();
+  ui.placeHandles();
 }
 
 /** Where each comment pin's element is now. */

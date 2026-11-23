@@ -2,10 +2,9 @@
 // HUD: the screen-space chrome drawn over the frames (hover and selection boxes, pins, the agent's
 // boxes and cursor), and agent presence (what the agent is editing or just changed).
 import { frameToScreen } from './geometry.js';
-import { $, $$, P, S, frameByKey, hud, viewportRect, visibleFrame } from './state.js';
-import { placePop } from './pins.js';
-import { MODE, AGENT_PHASE } from '../shared/enums.js';
-import { TEXT } from '../shared/text.js';
+import { $, $$, P, S, frameByKey, hud, viewportRect, visibleFrame, ui } from './state.js';
+import { MODE, AGENT_PHASE } from '#studio/shared/enums.js';
+import { TEXT } from '#studio/shared/text.js';
 
 /**
  * Frame-viewport rect -> client (window) coordinates.
@@ -63,7 +62,7 @@ export function updateHud() {
     b.style.top = `${r[1]}px`;
   }
   drawAgent();
-  placePop();
+  ui.placePop();
 }
 
 /**

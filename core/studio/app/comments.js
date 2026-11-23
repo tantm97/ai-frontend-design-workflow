@@ -2,16 +2,15 @@
 // Comments: the list in the right panel, the composer (click an element, write, save), status
 // actions (resolve, reopen, dismiss) and live status updates from the agent.
 import { ACTIVE, commentLabel, esc, inFilter, isDraft } from './model.js';
-import { $, $$, ALL, P, PKEY, S, post, postAll, toast } from './state.js';
+import { $, $$, ALL, P, PKEY, S, post, postAll, toast, ui } from './state.js';
 import { renderPages, selectFrame, setPage } from './frames.js';
 import { zoomToRect } from './canvas.js';
 import { toScreen, updateHud } from './hud.js';
 import { closePop, pinStatuses, placePop, renderPop, syncPins } from './pins.js';
-import { closePresent, flash } from './present.js';
-import { MSG } from '../shared/protocol.js';
+import { MSG } from '#studio/shared/protocol.js';
 import { server } from './api.js';
-import { MODE, STATUS, COMMENT_FILTER, TAB, SYSTEM_SCREEN } from '../shared/enums.js';
-import { TEXT } from '../shared/text.js';
+import { MODE, STATUS, COMMENT_FILTER, TAB, SYSTEM_SCREEN } from '#studio/shared/enums.js';
+import { TEXT } from '#studio/shared/text.js';
 
 export function renderComments() {
   const list = $('#comment-list');
@@ -109,7 +108,7 @@ function focusComment(/** @type {any} */ c) {
   renderComments();
   const page = c.screen === SYSTEM_SCREEN ? S.pages.find((p) => p.system) : S.pages.find((p) => p.screens.includes(c.screen));
   if (!page) return toast(TEXT.screenNotOnPage);
-  if (P.open) closePresent();
+  if (P.open) ui.closePresent();
   if (S.page !== ALL && page.id !== S.page) setPage(page.id);
   const fs = [...S.frames.values()].filter((f) =>
     c.screen === SYSTEM_SCREEN ? f.system : !f.system && f.screen.id === c.screen && f.variant.id === c.variant,
@@ -121,7 +120,7 @@ function focusComment(/** @type {any} */ c) {
   if (!f) return toast(TEXT.frameNotVisible);
   selectFrame(f.key);
   zoomToRect([f.x, f.y, f.w, f.h], { max: 1 });
-  flash(f);
+  ui.flash(f);
   const sel = { dfwId: c.target?.dfwId, selector: c.target?.selector };
   if (f.loaded) post(f, { type: MSG.SELECT_ID, ...sel });
   else f.pendingSelect = sel;

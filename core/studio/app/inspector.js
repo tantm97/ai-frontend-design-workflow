@@ -6,8 +6,8 @@ import { esc } from './model.js';
 import { $, S, currentPage, post } from './state.js';
 import { edit, goToMaster, layoutScopeOf } from './edits.js';
 import { openComposer } from './comments.js';
-import { MSG } from '../shared/protocol.js';
-import { UI_ACTION, INSTANCE_FIELD, EDIT_OP, LAYOUT_KEY } from '../shared/enums.js';
+import { MSG } from '#studio/shared/protocol.js';
+import { UI_ACTION, INSTANCE_FIELD, EDIT_OP, LAYOUT_KEY } from '#studio/shared/enums.js';
 
 const COLORISH = new Set(['color', 'background-color', 'border-color']);
 const TYPE = new Set(['font-size', 'font-weight', 'line-height']);

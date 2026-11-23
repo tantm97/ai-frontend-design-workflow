@@ -3,7 +3,7 @@
 // arrow-key navigation through it.
 import { st } from './state.js';
 import { isLayer } from './target.js';
-import { NAV_DIR } from '../shared/enums.js';
+import { NAV_DIR } from '#studio/shared/enums.js';
 
 /**
  * @typedef {{ i: number, id: string | null, comp: string | null, variant: string | null, size: string | null, tag: string,

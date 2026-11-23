@@ -6,7 +6,7 @@ import { rebuildKeepCam } from './frames.js';
 import { zoomStep, zoomToFit } from './canvas.js';
 import { cyclePins, renderPinsToggle } from './pins.js';
 import { setMode } from './keys.js';
-import { TEXT } from '../shared/text.js';
+import { TEXT } from '#studio/shared/text.js';
 
 export function renderToolbar() {
   const m = S.manifest;

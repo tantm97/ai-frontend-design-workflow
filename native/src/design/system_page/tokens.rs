@@ -12,7 +12,7 @@ use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::js::regex::with_js_classes;
 use crate::core::paths::project_paths;
-use crate::design::edit::{collect_tokens, TokenEntry};
+use crate::design::tokens::{collect_tokens, TokenEntry};
 use crate::design::tokens::{dir_names, file_declarations};
 
 /// `loadTokens`: the tokens of every `design/tokens/*.json`.

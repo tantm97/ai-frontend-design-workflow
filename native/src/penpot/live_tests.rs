@@ -4,7 +4,9 @@
 use super::*;
 use crate::core::util::{iso_from_millis, to_json_compact};
 use crate::penpot::export::tests::{draft, fixture_export_at, project, with_export};
+use crate::review::comments::{update_comment, Update};
 use crate::review::inbox::{format_for_claude, undelivered};
+use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
 
 /// The fixture project with an export rendered after its files were copied; returns the root

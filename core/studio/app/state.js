@@ -2,7 +2,7 @@
 // Shared state of the Studio and the small helpers every feature module uses: DOM lookup, local
 // settings, the server API, the toast, and messages to the frames.
 import { pageModel as modelOf, screenById as findScreen } from './model.js';
-import { MODE } from '../shared/enums.js';
+import { MODE } from '#studio/shared/enums.js';
 
 /**
  * querySelector with a loose result type: the Studio's own markup (app.html) is known.
@@ -166,3 +166,31 @@ export const postAll = (/** @type {Record<string, any>} */ msg) => S.frames.forE
 export const frameByKey = (/** @type {string} */ k) => (k === PKEY ? (P.open ? P : null) : S.frames.get(k));
 /** Frames whose chrome is visible right now: the presenter hides the canvas. */
 export const visibleFrame = (/** @type {any} */ f) => !!f && (P.open ? f === P : !f.present);
+
+/** A placeholder of `ui` that says which entry was not wired. */
+const notWired = (/** @type {string} */ name) => () => {
+  throw new Error(`ui.${name} is not wired (app start-up)`);
+};
+
+/**
+ * Calls from a lower module to a higher one (the layer order is in tests/unit/imports.test.mjs):
+ * the lower module calls `ui.<name>()`, and app.js fills this table at start-up. A call
+ * before that throws, so a missing entry shows at once.
+ */
+export const ui = {
+  /** @type {(...args: any[]) => any} */ applyCam: notWired('applyCam'), // canvas.js
+  /** @type {(...args: any[]) => any} */ closeComposer: notWired('closeComposer'), // comments.js
+  /** @type {(...args: any[]) => any} */ closePop: notWired('closePop'), // pins.js
+  /** @type {(...args: any[]) => any} */ closePresent: notWired('closePresent'), // present.js
+  /** @type {(...args: any[]) => any} */ commentActions: notWired('commentActions'), // comments.js
+  /** @type {(...args: any[]) => any} */ flash: notWired('flash'), // present.js
+  /** @type {(...args: any[]) => any} */ loadPresent: notWired('loadPresent'), // present.js
+  /** @type {(...args: any[]) => any} */ openPresent: notWired('openPresent'), // present.js
+  /** @type {(...args: any[]) => any} */ placePop: notWired('placePop'), // pins.js
+  /** @type {(...args: any[]) => any} */ renderComments: notWired('renderComments'), // comments.js
+  /** @type {(...args: any[]) => any} */ renderInspector: notWired('renderInspector'), // inspector.js
+  /** @type {(...args: any[]) => any} */ renderLayers: notWired('renderLayers'), // layers.js
+  /** @type {(...args: any[]) => any} */ setTab: notWired('setTab'), // comments.js
+  /** @type {(...args: any[]) => any} */ zoomToFit: notWired('zoomToFit'), // canvas.js
+  /** @type {(...args: any[]) => any} */ zoomToSection: notWired('zoomToSection'), // canvas.js
+};

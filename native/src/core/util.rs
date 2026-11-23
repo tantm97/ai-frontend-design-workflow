@@ -7,7 +7,7 @@
 //!
 //! Over 800 lines only with its tests (the ported cases of the JavaScript tests sit next to the code).
 
-use crate::core::js;
+use crate::core::js::number::number as js_number;
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self, IsTerminal, Read, Write};
@@ -250,11 +250,11 @@ struct JsFormatter<F>(F);
 
 impl<F: Formatter> Formatter for JsFormatter<F> {
     fn write_f64<W: ?Sized + Write>(&mut self, w: &mut W, v: f64) -> io::Result<()> {
-        w.write_all(js::number(v).as_bytes())
+        w.write_all(js_number(v).as_bytes())
     }
     fn write_u64<W: ?Sized + Write>(&mut self, w: &mut W, v: u64) -> io::Result<()> {
         let text = if v > MAX_SAFE_INTEGER {
-            js::number(v as f64)
+            js_number(v as f64)
         } else {
             v.to_string()
         };
@@ -262,7 +262,7 @@ impl<F: Formatter> Formatter for JsFormatter<F> {
     }
     fn write_i64<W: ?Sized + Write>(&mut self, w: &mut W, v: i64) -> io::Result<()> {
         let text = if v.unsigned_abs() > MAX_SAFE_INTEGER {
-            js::number(v as f64)
+            js_number(v as f64)
         } else {
             v.to_string()
         };
@@ -953,7 +953,7 @@ mod tests {
             (123456.789, "123456.789"),
             (9007199254740993.0, "9007199254740992"),
         ] {
-            assert_eq!(js::number(v), s);
+            assert_eq!(js_number(v), s);
         }
         assert_eq!(
             to_json_compact(&json!(9007199254740993u64)),

@@ -8,7 +8,7 @@ use serde_json::Value;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::project_paths;
-use crate::design::tokens::css_var_name;
+use crate::design::tokens::{collect_tokens, TokenEntry};
 
 /// `WIDTH_PERCENTS`: the widths a resize may snap to.
 pub const WIDTH_PERCENTS: [&str; 6] = ["25%", "33.333%", "50%", "66.667%", "75%", "100%"];
@@ -77,78 +77,6 @@ pub fn set_style_prop(style: &str, prop: &str, value: Option<&str>) -> String {
     }
     let parts: Vec<String> = decls.iter().map(|(k, v)| format!("{k}: {v}")).collect();
     parts.join("; ")
-}
-
-/// One token of a DTCG tree, as the `walk` of edit.mjs and system-page.mjs sees it.
-#[derive(Debug, Clone, PartialEq)]
-pub struct TokenEntry {
-    /// Dotted name (`space.4`).
-    pub name: String,
-    /// `$type` of the token or the nearest group that has one (`node.$type || type`).
-    pub ty: Option<Value>,
-    /// `$value`.
-    pub value: Value,
-    /// `$description` when it is truthy.
-    pub description: Option<Value>,
-}
-
-impl TokenEntry {
-    /// True when the type is the string `name` (`t.type === 'color'`).
-    pub fn is_type(&self, name: &str) -> bool {
-        self.ty.as_ref().and_then(Value::as_str) == Some(name)
-    }
-
-    /// The css variable of the token (`--space-4`).
-    pub fn var(&self) -> String {
-        css_var_name(&self.name)
-    }
-}
-
-/// Every token of a tree in the order JavaScript walks it (integer-like keys first). A name
-/// that appears twice is listed twice: callers that built a `Map` keep the last one.
-pub fn collect_tokens(tree: &Value) -> Vec<TokenEntry> {
-    fn walk(node: &Value, trail: &mut Vec<String>, ty: Option<&Value>, out: &mut Vec<TokenEntry>) {
-        let children: Vec<(String, &Value)> = match node {
-            Value::Object(map) => {
-                let ty = map.get("$type").filter(|t| js::truthy(Some(t))).or(ty);
-                if let Some(value) = map.get("$value") {
-                    out.push(TokenEntry {
-                        name: trail.join("."),
-                        ty: ty.cloned(),
-                        value: value.clone(),
-                        description: map
-                            .get("$description")
-                            .filter(|d| js::truthy(Some(d)))
-                            .cloned(),
-                    });
-                    return;
-                }
-                for (key, child) in js::entries(map) {
-                    if !key.starts_with('$') {
-                        trail.push(key.clone());
-                        walk(child, trail, ty, out);
-                        trail.pop();
-                    }
-                }
-                return;
-            }
-            // An array is an object without `$type` and `$value`: its indexes are the keys.
-            Value::Array(items) => items
-                .iter()
-                .enumerate()
-                .map(|(i, v)| (i.to_string(), v))
-                .collect(),
-            _ => return,
-        };
-        for (key, child) in children {
-            trail.push(key);
-            walk(child, trail, ty, out);
-            trail.pop();
-        }
-    }
-    let mut out = Vec::new();
-    walk(tree, &mut Vec::new(), None, &mut out);
-    out
 }
 
 /// `loadTokenNames`: the tokens of `design/tokens/tokens.json` by name, in file order (a `Map`

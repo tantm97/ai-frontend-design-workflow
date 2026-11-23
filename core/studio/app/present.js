@@ -8,10 +8,10 @@ import { zoomToRect } from './canvas.js';
 import { updateHud } from './hud.js';
 import { closePop, pinsFor, renderPins, syncPins } from './pins.js';
 import { closeComposer } from './comments.js';
-import { MSG } from '../shared/protocol.js';
-import { PATH } from '../shared/paths.js';
-import { MODE } from '../shared/enums.js';
-import { TEXT } from '../shared/text.js';
+import { MSG } from '#studio/shared/protocol.js';
+import { PATH } from '#studio/shared/paths.js';
+import { MODE } from '#studio/shared/enums.js';
+import { TEXT } from '#studio/shared/text.js';
 
 /** @param {string} href */
 function screenForHref(href) {

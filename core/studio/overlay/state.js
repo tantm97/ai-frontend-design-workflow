@@ -1,6 +1,6 @@
 // @ts-check
 // State shared by the overlay modules, and the one way they talk to the Studio.
-import { MODE } from '../shared/enums.js';
+import { MODE } from '#studio/shared/enums.js';
 
 /**
  * @typedef {{ name: string, var: string, type?: string }} TokenVar a design token and its CSS variable
@@ -46,3 +46,18 @@ export const st = {
  * @param {Record<string, any>} [data]
  */
 export const post = (type, data = {}) => parent.postMessage({ type, ...data }, '/');
+
+/** A placeholder of `ui` that says which entry was not wired. */
+const notWired = (/** @type {string} */ name) => () => {
+  throw new Error(`ui.${name} is not wired (app start-up)`);
+};
+
+/**
+ * Calls from a lower module to a higher one (the layer order is in tests/unit/imports.test.mjs):
+ * the lower module calls `ui.<name>()`, and overlay/main.js fills this table at start-up. A call
+ * before that throws, so a missing entry shows at once.
+ */
+export const ui = {
+  /** @type {(...args: any[]) => any} */ editTarget: notWired('editTarget'), // edit.js
+  /** @type {(...args: any[]) => any} */ placeHandles: notWired('placeHandles'), // layout.js
+};

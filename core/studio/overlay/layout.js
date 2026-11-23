@@ -6,9 +6,9 @@
 import { post, st } from './state.js';
 import { isUi } from './target.js';
 import { reportSelection } from './select.js';
-import { MSG } from '../shared/protocol.js';
-import { MODE, EDIT_OP, LAYOUT_PROP, LAYOUT_KEY, DROP, KEY } from '../shared/enums.js';
-import { TEXT } from '../shared/text.js';
+import { MSG } from '#studio/shared/protocol.js';
+import { MODE, EDIT_OP, LAYOUT_PROP, LAYOUT_KEY, DROP, KEY } from '#studio/shared/enums.js';
+import { TEXT } from '#studio/shared/text.js';
 
 const FLOW = /^(inline-)?(flex|grid)$/;
 const isFlow = (/** @type {any} */ el) => !!el && el.nodeType === 1 && FLOW.test(getComputedStyle(el).display);

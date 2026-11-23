@@ -4,9 +4,9 @@
 // of failing silently.
 import { post } from './state.js';
 import { styleProp } from './layout.js';
-import { MSG } from '../shared/protocol.js';
-import { LAYOUT_PROP } from '../shared/enums.js';
-import { TEXT } from '../shared/text.js';
+import { MSG } from '#studio/shared/protocol.js';
+import { LAYOUT_PROP } from '#studio/shared/enums.js';
+import { TEXT } from '#studio/shared/text.js';
 
 /**
  * Style rules of a sheet (recursing into @media that matches now, @layer, @supports) for which pick(rule) is truthy.

@@ -2,13 +2,11 @@
 // Canvas and camera: pan and zoom only change the transform of the "world" element that holds every
 // frame (real-size iframes). Wheel, pinch, middle-drag and the hand tool move the camera.
 import { L, fitRect, nextZoom, wheelCamera, zoomAtPoint } from './geometry.js';
-import { $, S, viewport, world } from './state.js';
+import { $, S, viewport, world, ui } from './state.js';
 import { clearSelection, markSection, noteCameraMove, pageBounds, scheduleLoads } from './frames.js';
 import { updateHud } from './hud.js';
-import { closeComposer } from './comments.js';
-import { closePop } from './pins.js';
-import { MODE } from '../shared/enums.js';
-import { TEXT } from '../shared/text.js';
+import { MODE } from '#studio/shared/enums.js';
+import { TEXT } from '#studio/shared/text.js';
 
 let rafCam = 0;
 /** @type {ReturnType<typeof setTimeout> | undefined} */
@@ -187,8 +185,8 @@ export function initCanvas() {
         e.target === world ||
         /** @type {HTMLElement} */ (e.target).matches?.('.page-canvas, .page-deco, .page-frames'))
     ) {
-      closeComposer();
-      closePop();
+      ui.closeComposer();
+      ui.closePop();
       clearSelection();
     }
   });

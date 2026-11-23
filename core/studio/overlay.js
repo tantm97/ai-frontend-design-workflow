@@ -209,6 +209,17 @@
     lengthCache: null
   };
   var post = (type, data = {}) => parent.postMessage({ type, ...data }, "/");
+  var notWired = (name) => () => {
+    throw new Error(`ui.${name} is not wired (app start-up)`);
+  };
+  var ui = {
+    /** @type {(...args: any[]) => any} */
+    editTarget: notWired("editTarget"),
+    // edit.js
+    /** @type {(...args: any[]) => any} */
+    placeHandles: notWired("placeHandles")
+    // layout.js
+  };
 
   // core/studio/overlay/fields.js
   var EDITABLE_FIELD = 'input, textarea, select, [contenteditable]:not([contenteditable="false"])';
@@ -458,7 +469,7 @@
 
   // core/studio/overlay/select.js
   function selPayload(el, withInspect) {
-    const t = editTarget(el);
+    const t = ui.editTarget(el);
     return {
       target: info(el),
       rect: rectOf(el),
@@ -476,14 +487,14 @@
   }
   function select(el, { inspectIt = true, scroll = false } = {}) {
     st.selected = el;
-    placeHandles();
+    ui.placeHandles();
     if (!el) return post(MSG.SELECT, { target: null });
     if (scroll) el.scrollIntoView({ block: "nearest" });
     post(MSG.SELECT, { comment: st.mode === MODE.COMMENT, ...selPayload(el, inspectIt && st.mode !== MODE.COMMENT) });
   }
   function reportSelection() {
     if (st.selected && st.selected.isConnected) post(MSG.SEL_RECT, { rect: rectOf(st.selected) });
-    placeHandles();
+    ui.placeHandles();
   }
   function reportPins() {
     const out = [];
@@ -603,7 +614,7 @@
   var PERCENTS = [25, 33.333, 50, 66.667, 75, 100];
   var HANDLE = "width:10px;height:10px;background:#fff;border:2px solid #0d99ff;border-radius:2px;pointer-events:auto;";
   var parts = null;
-  function ui() {
+  function ui2() {
     if (parts) return parts;
     const root = document.createElement("div");
     root.setAttribute("data-dfw-ui", "");
@@ -629,9 +640,9 @@
     parts = { ui: root, hX, hY, line, zone, badge };
     return parts;
   }
-  var mountUi = () => !ui().ui.isConnected && (document.body || document.documentElement).append(ui().ui);
+  var mountUi = () => !ui2().ui.isConnected && (document.body || document.documentElement).append(ui2().ui);
   function placeHandles() {
-    const { hX, hY } = ui();
+    const { hX, hY } = ui2();
     const show = !st.drag?.active && !st.resize?.moved && st.selected && canLayout(st.selected) && st.selected.getClientRects().length;
     hX.style.display = hY.style.display = show ? "block" : "none";
     if (!show) return;
@@ -643,7 +654,7 @@
     hY.style.top = `${r.bottom - 5}px`;
   }
   function showBadge(text, x, y) {
-    const { badge } = ui();
+    const { badge } = ui2();
     mountUi();
     badge.textContent = text;
     badge.style.display = "block";
@@ -651,7 +662,7 @@
     badge.style.top = `${Math.max(4, y - 28)}px`;
   }
   var hideFeedback = () => {
-    const { line, zone, badge } = ui();
+    const { line, zone, badge } = ui2();
     line.style.display = "none";
     zone.style.display = "none";
     badge.style.display = "none";
@@ -795,7 +806,7 @@
   }
   function moveDrag(e) {
     const drag = st.drag;
-    const { line, zone } = ui();
+    const { line, zone } = ui2();
     if (!drag.active) {
       if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 5) return;
       drag.active = true;
@@ -1478,6 +1489,7 @@
   }
 
   // core/studio/overlay/main.js
+  Object.assign(ui, { editTarget, placeHandles });
   function main() {
     if (window.__dfwOverlay) return;
     window.__dfwOverlay = true;

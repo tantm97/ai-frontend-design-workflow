@@ -15,7 +15,10 @@ use serde_json::{Map, Value};
 use crate::core::error::DfwError;
 use crate::core::util::read_json as read_json_as_written;
 
+pub mod number;
 pub mod regex;
+
+pub use number::number;
 
 /// What the value functions take: a JSON value, or `None` for `undefined`. Implemented for the
 /// shapes call sites hold (`&Value`, `Option<&Value>`, and those behind one more reference), so
@@ -121,17 +124,6 @@ pub fn read_text(file: &Path) -> Result<String, DfwError> {
     let bytes =
         fs::read(file).map_err(|err| DfwError::internal(format!("{}: {err}", file.display())))?;
     Ok(String::from_utf8_lossy(&bytes).into_owned())
-}
-
-/// `String(number)`, including `NaN` and `Infinity`.
-pub fn number(v: f64) -> String {
-    if v.is_nan() {
-        "NaN".into()
-    } else if v.is_infinite() {
-        if v > 0.0 { "Infinity" } else { "-Infinity" }.into()
-    } else {
-        finite_number(v)
-    }
 }
 
 /// A JavaScript number as a JSON value (`NaN` and the infinities are `null`).
@@ -441,40 +433,6 @@ pub const SPACE: &str = r"\t\n\x0B\x0C\r \x{a0}\x{1680}\x{2000}-\x{200a}\x{2028}
 
 /// [`is_space`] as a `regex` crate character class.
 pub const SPACE_CLASS: &str = r"[\t\n\x0B\x0C\r \x{a0}\x{1680}\x{2000}-\x{200a}\x{2028}\x{2029}\x{202f}\x{205f}\x{3000}\x{feff}]";
-
-/// `Number.prototype.toString()` of a finite number (ECMAScript Number::toString).
-fn finite_number(v: f64) -> String {
-    if v == 0.0 {
-        return "0".into();
-    }
-    // `{:e}` gives the shortest digits that read back as the same double: "d.ddde<exp>".
-    let sci = format!("{:e}", v.abs());
-    let (mantissa, exp) = sci.split_once('e').unwrap_or((&sci, "0"));
-    let digits: String = mantissa.chars().filter(|c| *c != '.').collect();
-    let k = digits.len() as i32;
-    let n = exp.parse::<i32>().unwrap_or(0) + 1;
-    let body = if k <= n && n <= 21 {
-        format!("{digits}{}", "0".repeat((n - k) as usize))
-    } else if 0 < n && n <= 21 {
-        format!("{}.{}", &digits[..n as usize], &digits[n as usize..])
-    } else if -6 < n && n <= 0 {
-        format!("0.{}{digits}", "0".repeat((-n) as usize))
-    } else {
-        let e = n - 1;
-        let sign = if e < 0 { '-' } else { '+' };
-        let (first, rest) = digits.split_at(1);
-        if rest.is_empty() {
-            format!("{first}e{sign}{}", e.abs())
-        } else {
-            format!("{first}.{rest}e{sign}{}", e.abs())
-        }
-    };
-    if v < 0.0 {
-        format!("-{body}")
-    } else {
-        body
-    }
-}
 
 /// The value when JavaScript treats it as true (`value || fallback` keeps it).
 pub fn truthy_value<'a>(value: impl Arg<'a>) -> Option<&'a Value> {

@@ -83,7 +83,12 @@ export default [
         {
           patterns: [
             {
-              group: ['../overlay/*', '../live/*'],
+              group: ['../*'],
+              message:
+                'Import across folders with #studio/<folder>/<file>.js (package.json "imports", app.html import map), never ../ (J14).',
+            },
+            {
+              group: ['../overlay/*', '../live/*', '#studio/overlay/*', '#studio/live/*'],
               message: 'app/ runs in the Studio page; frame code talks to it through shared/protocol.js (J14).',
             },
           ],
@@ -98,7 +103,11 @@ export default [
         'error',
         {
           patterns: [
-            { group: ['../app/*'], message: 'Frame code cannot use the Studio page modules; share through core/studio/shared/ (J14).' },
+            { group: ['../*'], message: 'Import across folders with #studio/<folder>/<file>.js, never ../ (J14).' },
+            {
+              group: ['../app/*', '#studio/app/*'],
+              message: 'Frame code cannot use the Studio page modules; share through core/studio/shared/ (J14).',
+            },
           ],
         },
       ],
