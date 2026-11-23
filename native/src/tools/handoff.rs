@@ -14,6 +14,7 @@ use crate::core::paths::project_paths;
 use crate::core::util::{get_path, list_files, read_json, write_atomic_inside};
 use crate::design::manifest::key;
 use crate::review::comments::all_comments;
+use crate::review::status::{self, Status};
 use crate::workflow::freeze::check_snapshot_name;
 use crate::workflow::gates::relative;
 use crate::workflow::state::{current_approval, require_state};
@@ -194,8 +195,7 @@ pub fn write_handoff(root: &Path) -> Result<String, DfwError> {
     let resolved: Vec<Value> = all_comments(root)?
         .into_iter()
         .filter(|c| {
-            c.get("status").and_then(Value::as_str) == Some("resolved")
-                && c.get("designVersion") == appr.get("version")
+            status::of(c) == Some(Status::Resolved) && c.get("designVersion") == appr.get("version")
         })
         .collect();
     let file = p.handoff.join(format!("{version}.md"));

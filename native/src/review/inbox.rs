@@ -16,6 +16,7 @@ use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::project_paths;
 use crate::core::util::{read_json, write_json_inside};
+use crate::review::status::{self, Status};
 
 use super::comments::{all_comments, locked, try_locked};
 
@@ -58,13 +59,13 @@ fn last_of_thread(c: &Value) -> Option<&Value> {
 pub fn undelivered(root: &Path) -> Result<Vec<Value>, DfwError> {
     let seen = read_delivered(root)?;
     let seen: HashSet<&str> = seen.iter().filter_map(Value::as_str).collect();
-    let status = |c: &Value| c.get("status").and_then(Value::as_str).map(str::to_string);
+    let status = |c: &Value| status::of(c);
     // A follow-up from the user on a comment being worked on (e.g. a reply in its Penpot thread) is news too.
     let follow_up = |c: &Value| {
-        status(c).as_deref() == Some("acknowledged")
+        status(c) == Some(Status::Acknowledged)
             && last_of_thread(c).and_then(|l| l.get("by")) == Some(&json!("user"))
     };
-    let active = |c: &Value| matches!(status(c).as_deref(), Some("open" | "reopened"));
+    let active = |c: &Value| matches!(status(c), Some(Status::Open | Status::Reopened));
     // A Studio draft waits for the user's "Send to AI".
     let draft = |c: &Value| c.get("draft") == Some(&Value::Bool(true));
     Ok(all_comments(root)?

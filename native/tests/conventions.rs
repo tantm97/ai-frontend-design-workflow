@@ -136,3 +136,68 @@ fn manifest_keys_are_read_through_design_manifest() {
         found.join("\n")
     );
 }
+
+/// Comment statuses are `review::status::Status`, never literals. "acknowledged", "reopened" and
+/// "dismissed" mean nothing else, so they are refused everywhere; "open", "fixed" and
+/// "resolved" also name other things (a gate, the Penpot thread field `resolved`, keys of
+/// `dfw status --json`), so in the comment modules only a comparison or a value is refused:
+/// `Some("fixed")`, `== "fixed"`, `"fixed" |`, `to("fixed")`.
+#[test]
+fn comment_statuses_are_review_status() {
+    const ONLY_STATUS: &[&str] = &["acknowledged", "reopened", "dismissed"];
+    const SHARED: &[&str] = &["open", "fixed", "resolved"];
+    const COMMENT_MODULES: &[&str] = &[
+        "src/review/",
+        "src/cli/comments.rs",
+        "src/cli/workflow.rs",
+        "src/hooks/session_start.rs",
+        "src/penpot/threads.rs",
+        "src/penpot/live.rs",
+        "src/tools/handoff.rs",
+    ];
+    let src = native().join("src");
+    let mut files = Vec::new();
+    rust_files(&src, &mut files);
+    files.sort();
+    let mut found = Vec::new();
+    for f in files {
+        let rel = f
+            .strip_prefix(native())
+            .unwrap()
+            .to_string_lossy()
+            .replace('\\', "/");
+        if rel == "src/review/status.rs" || rel.ends_with("tests.rs") {
+            continue;
+        }
+        let comment_module = COMMENT_MODULES.iter().any(|m| rel.starts_with(m));
+        let text = fs::read_to_string(&f).unwrap();
+        let product = text.split("#[cfg(test)]").next().unwrap_or_default();
+        for (i, line) in product.lines().enumerate() {
+            let code = line.split("//").next().unwrap_or_default();
+            let bad = ONLY_STATUS
+                .iter()
+                .any(|k| code.contains(&format!("\"{k}\"")))
+                || comment_module
+                    && SHARED.iter().any(|k| {
+                        [
+                            format!("Some(\"{k}\")"),
+                            format!("== \"{k}\""),
+                            format!("\"{k}\" |"),
+                            format!("| \"{k}\""),
+                            format!("to(\"{k}\")"),
+                            format!("[\"{k}\""),
+                        ]
+                        .iter()
+                        .any(|p| code.contains(p.as_str()))
+                    });
+            if bad {
+                found.push(format!("{rel}:{}: {}", i + 1, line.trim()));
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "comment statuses spelled as literals; use review::status::Status:\n{}",
+        found.join("\n")
+    );
+}

@@ -16,26 +16,7 @@ use crate::core::js;
 use crate::core::lock::{self, LockTimes};
 use crate::core::paths::project_paths;
 use crate::core::util::{iso_from_millis, now_iso, read_json, write_json_inside};
-
-/// Every status a comment can have.
-pub const STATUSES: [&str; 6] = [
-    "open",
-    "acknowledged",
-    "fixed",
-    "resolved",
-    "reopened",
-    "dismissed",
-];
-
-/// Allowed transitions. "fixed" means the agent applied a change; only the user resolves.
-const NEXT: [(&str, &[&str]); 6] = [
-    ("open", &["acknowledged", "fixed", "dismissed"]),
-    ("acknowledged", &["fixed", "dismissed"]),
-    ("fixed", &["resolved", "reopened"]),
-    ("reopened", &["acknowledged", "fixed", "dismissed"]),
-    ("resolved", &["reopened"]),
-    ("dismissed", &["reopened"]),
-];
+use crate::review::status::{self, field, Status};
 
 /// `locked(root, fn)`: run `f` holding the reviews lock (`.dfw/reviews/.lock`, see
 /// `core::lock`). The Studio server and the CLI (hooks, `dfw comments ...`) change the same
@@ -337,7 +318,7 @@ fn add_comment_unlocked(root: &Path, input: &Value) -> Result<Value, DfwError> {
         ("target", Some(Value::Object(target))),
         ("comment", Some(text.into())),
         ("screenshot", Some(or_null("screenshot"))),
-        ("status", Some("open".into())),
+        (field::STATUS, Some(Status::Open.as_str().into())),
         ("thread", Some(json!([]))),
         ("resolution", Some(Value::Null)),
         (
@@ -498,43 +479,43 @@ fn update_comment_unlocked(
     let status = update.status.as_deref().filter(|s| !s.is_empty());
     let message = update.message.clone().filter(|v| js::truthy(v));
     let by = update.by.clone().unwrap_or_else(|| "claude".into());
-    let current = comment.get("status").cloned();
+    let current = comment.get(field::STATUS).cloned();
     // The status the comment already has is not a transition: it is refused like any other one
-    // not in NEXT.
-    if let Some(status) = status {
-        if !STATUSES.contains(&status) {
-            return Err(DfwError::new(format!("Unknown status \"{status}\".")));
-        }
+    // not in `Status::next`.
+    if let Some(name) = status {
+        let Some(status) = Status::parse(name) else {
+            return Err(DfwError::new(format!("Unknown status \"{name}\".")));
+        };
         let allowed = current
             .as_ref()
             .and_then(Value::as_str)
-            .and_then(|c| NEXT.iter().find(|(from, _)| *from == c))
-            .map(|(_, to)| *to)
+            .and_then(Status::parse)
+            .map(Status::next)
             .ok_or_else(|| {
                 DfwError::new(format!(
                     "Comment {id} in {} has the status {}, which is not one of {}. Correct it in that file and run the command again.",
                     shown(&file),
                     current.as_ref().map_or("none".into(), crate::core::util::to_json_compact),
-                    STATUSES.join(", ")
+                    status::names(&Status::ALL)
                 ))
             })?;
         if !allowed.contains(&status) {
             return Err(DfwError::new(format!(
-                "Comment {id}: cannot go from \"{}\" to \"{status}\" (allowed: {}).",
+                "Comment {id}: cannot go from \"{}\" to \"{name}\" (allowed: {}).",
                 js::to_string(current.as_ref()),
-                allowed.join(", ")
+                status::names(allowed)
             )));
         }
-        if status == "resolved" && by.as_str() != Some("user") {
+        if status == Status::Resolved && by.as_str() != Some("user") {
             return Err(DfwError::new("Only the user resolves a comment (from the studio, or \"dfw comments resolve --by user\" when they say so)."));
         }
-        if status == "fixed" && message.is_none() {
+        if status == Status::Fixed && message.is_none() {
             return Err(DfwError::new(
                 "Marking a comment fixed needs a short note describing the change.",
             ));
         }
-        comment.insert("status".into(), status.into());
-        if status == "fixed" {
+        comment.insert(field::STATUS.into(), name.into());
+        if status == Status::Fixed {
             let evidence = update.evidence.clone().filter(|v| js::truthy(v));
             comment.insert(
                 "resolution".into(),
@@ -705,13 +686,15 @@ mod tests {
             json!({ "at": c["updatedAt"], "by": "claude", "message": "Which one?" })
         );
         assert_eq!(status(), "open");
-        // The same status again is refused like any move not in NEXT.
+        // The same status again is refused like any move not in `Status::next`.
         assert_eq!(
             go("open", None, None).unwrap_err().message(),
             "Comment fb_001: cannot go from \"open\" to \"open\" (allowed: acknowledged, fixed, dismissed)."
         );
-        for (from, allowed) in NEXT {
-            for to in STATUSES {
+        for from_status in Status::ALL {
+            let (from, allowed) = (from_status.as_str(), from_status.next());
+            for to_status in Status::ALL {
+                let to = to_status.as_str();
                 // Bring the comment to `from` by a legal path, then try `to`.
                 let path: &[&str] = match from {
                     "open" => &[],
@@ -728,7 +711,11 @@ mod tests {
                     update_comment(&root, cid, &update(step, Some("m"), Some("user"))).unwrap();
                 }
                 let result = update_comment(&root, cid, &update(to, Some("m"), Some("user")));
-                assert_eq!(result.is_ok(), allowed.contains(&to), "{from} -> {to}");
+                assert_eq!(
+                    result.is_ok(),
+                    allowed.contains(&to_status),
+                    "{from} -> {to}"
+                );
             }
         }
         let fixed = go("fixed", Some("lg size"), None).unwrap();

@@ -24,6 +24,7 @@ use crate::core::paths::project_paths;
 use crate::core::util::{list_files, read_json, write_json_inside};
 
 use crate::review::comments::all_comments;
+use crate::review::status::{self, Status};
 
 /// `threadReplies`: what dfw did with a linked comment, as replies for its Penpot thread:
 /// `[{ seq, key, text }]` not posted yet.
@@ -49,7 +50,7 @@ pub fn thread_replies(root: &Path, file_id: &str) -> Result<Vec<Value>, DfwError
         let seq = js::num(js::str_to_number(number));
         let id = js::to_string(c.get("id"));
         let mut events: Vec<(String, String)> = Vec::new();
-        if c.get("status").and_then(Value::as_str) == Some("acknowledged") {
+        if status::of(c) == Some(Status::Acknowledged) {
             events.push((
                 // One "seen" per round: keyed by how often the comment was reopened, not by
                 // its last change (a reply would post it again).
@@ -57,7 +58,7 @@ pub fn thread_replies(root: &Path, file_id: &str) -> Result<Vec<Value>, DfwError
                     "ack:{}",
                     list(c.get("thread"))
                         .iter()
-                        .filter(|e| e.get("status").and_then(Value::as_str) == Some("reopened"))
+                        .filter(|e| status::of(e) == Some(Status::Reopened))
                         .count()
                 ),
                 format!("[dfw] {id} seen, working on it."),
@@ -71,9 +72,9 @@ pub fn thread_replies(root: &Path, file_id: &str) -> Result<Vec<Value>, DfwError
                 continue;
             };
             let message = js::to_string(Some(message));
-            let text = match e.get("status").and_then(Value::as_str) {
-                Some("fixed") => format!("[dfw] {id} fixed: {message}\nUpdate the boards to see it. Resolve this thread to accept, or reply here to reopen."),
-                Some("dismissed") => format!("[dfw] {id} dismissed: {message}\nReply here to reopen."),
+            let text = match status::of(e) {
+                Some(Status::Fixed) => format!("[dfw] {id} fixed: {message}\nUpdate the boards to see it. Resolve this thread to accept, or reply here to reopen."),
+                Some(Status::Dismissed) => format!("[dfw] {id} dismissed: {message}\nReply here to reopen."),
                 _ => format!("[dfw] {id}: {message}"),
             };
             let status = js::truthy_value(e.get("status"))
