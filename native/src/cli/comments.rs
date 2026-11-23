@@ -10,6 +10,7 @@ use crate::review::comments::{add_comment, all_comments, new_session, update_com
 use crate::review::inbox::{
     format_for_claude, take_undelivered, undelivered, wait_for_comments, WaitOptions,
 };
+use crate::review::status::{self, field, Status};
 use crate::workflow::state::arg_truthy;
 
 /// The commands of this group: every subcommand runs here.
@@ -55,12 +56,12 @@ fn comments(ctx: &Ctx) -> Result<i32, DfwError> {
             }
         }
         "ack" => change(Update {
-            status: to("acknowledged"),
+            status: to(Status::Acknowledged.as_str()),
             message: msg,
             ..Update::default()
         }),
         "fixed" => change(Update {
-            status: to("fixed"),
+            status: to(Status::Fixed.as_str()),
             message: msg,
             evidence: arg_truthy(a, "evidence"),
             ..Update::default()
@@ -77,20 +78,20 @@ fn comments(ctx: &Ctx) -> Result<i32, DfwError> {
                 "Dismissing needs --message explaining why (and the user must agree).",
             )),
             message => change(Update {
-                status: to("dismissed"),
+                status: to(Status::Dismissed.as_str()),
                 message,
                 by: by("claude"),
                 ..Update::default()
             }),
         },
         "resolve" => change(Update {
-            status: to("resolved"),
+            status: to(Status::Resolved.as_str()),
             message: msg.or_else(|| Some("Confirmed by user.".into())),
             by: by("claude"),
             ..Update::default()
         }),
         "reopen" => change(Update {
-            status: to("reopened"),
+            status: to(Status::Reopened.as_str()),
             message: msg.or_else(|| Some("Reopened.".into())),
             by: by("user"),
             ..Update::default()
@@ -128,15 +129,19 @@ fn comments(ctx: &Ctx) -> Result<i32, DfwError> {
 fn list(ctx: &Ctx) -> Result<i32, DfwError> {
     let a = &ctx.args;
     let mut list = all_comments(&ctx.root())?;
-    let status_of = |c: &Value| c.get("status").and_then(Value::as_str).map(str::to_string);
+    let status_of = |c: &Value| {
+        c.get(field::STATUS)
+            .and_then(Value::as_str)
+            .map(str::to_string)
+    };
     if let Some(filter) = arg_truthy(a, "status") {
         let filter = js::to_string(Some(&filter));
-        let wanted: Vec<&str> = if filter == "active" {
-            vec!["open", "acknowledged", "reopened"]
+        if filter == "active" {
+            list.retain(|c| status::of(c).is_some_and(Status::is_active));
         } else {
-            filter.split(',').collect()
-        };
-        list.retain(|c| status_of(c).is_some_and(|s| wanted.contains(&s.as_str())));
+            let wanted: Vec<&str> = filter.split(',').collect();
+            list.retain(|c| status_of(c).is_some_and(|s| wanted.contains(&s.as_str())));
+        }
     }
     if a.truthy("json") {
         return print_json(&Value::Array(list));

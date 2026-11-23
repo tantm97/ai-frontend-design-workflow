@@ -24,6 +24,7 @@ use crate::design::dsaudit::audit_design_system;
 use crate::design::inventory::DS_GATE_RULES;
 use crate::design::tokens::{build_tokens, dir_names};
 use crate::review::comments::{add_comment, all_comments};
+use crate::review::status::{self, Status};
 use crate::tools::check::{format_report, run_checks, CheckOptions};
 use crate::workflow::decisions::{decide, format_decisions, read_decisions};
 use crate::workflow::freeze::{freeze_design, reopen_design, verify_snapshot};
@@ -139,20 +140,16 @@ fn status(ctx: &Ctx) -> Result<i32, DfwError> {
         Some(_) => all_comments(&root)?,
         None => Vec::new(),
     };
-    let count = |statuses: &[&str]| {
+    let count = |wanted: fn(Status) -> bool| {
         comments
             .iter()
-            .filter(|c| {
-                c.get("status")
-                    .and_then(Value::as_str)
-                    .is_some_and(|s| statuses.contains(&s))
-            })
+            .filter(|c| status::of(c).is_some_and(wanted))
             .count()
     };
     let (active, fixed, resolved) = (
-        count(&["open", "acknowledged", "reopened"]),
-        count(&["fixed"]),
-        count(&["resolved"]),
+        count(Status::is_active),
+        count(|s| s == Status::Fixed),
+        count(|s| s == Status::Resolved),
     );
     let studio = read_json(&p.studio, Some(Value::Null))?;
     let studio = if js::truthy(&studio) {
@@ -374,11 +371,7 @@ fn approve_g2(root: &Path, a: &Args, state: &mut Value, note: Value) -> Result<i
     }
     let open: Vec<String> = all_comments(root)?
         .iter()
-        .filter(|c| {
-            c.get("status")
-                .and_then(Value::as_str)
-                .is_some_and(|s| ["open", "acknowledged", "reopened", "fixed"].contains(&s))
-        })
+        .filter(|c| status::of(c).is_some_and(|s| s.is_active() || s == Status::Fixed))
         .map(|c| js::to_string(c.get("id")))
         .collect();
     if !open.is_empty() && !a.truthy("accept-open-comments") {

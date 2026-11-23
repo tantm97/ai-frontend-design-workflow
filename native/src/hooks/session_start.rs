@@ -11,6 +11,7 @@ use crate::core::host::{HookInput, HookResult};
 use crate::core::js;
 use crate::core::paths::env_nonempty;
 use crate::review::comments::all_comments;
+use crate::review::status::{self, Status};
 use crate::workflow::lang::prune_sessions;
 use crate::workflow::state::{load_state, summarize};
 
@@ -39,22 +40,18 @@ pub fn session_start(input: &HookInput) -> Result<Option<HookResult>, DfwError> 
         return Ok(None);
     }
     let comments = all_comments(&root)?;
-    let count = |statuses: &[&str]| {
+    let count = |wanted: fn(Status) -> bool| {
         comments
             .iter()
-            .filter(|c| {
-                c.get("status")
-                    .and_then(Value::as_str)
-                    .is_some_and(|s| statuses.contains(&s))
-            })
+            .filter(|c| status::of(c).is_some_and(wanted))
             .count()
     };
     let lines = [
         summarize(Some(&state))?,
         format!(
             "review comments: {} open, {} awaiting user verification",
-            count(&["open", "reopened", "acknowledged"]),
-            count(&["fixed"])
+            count(Status::is_active),
+            count(|s| s == Status::Fixed)
         ),
         format!(
             "Session id for \"dfw lang\": {}.",

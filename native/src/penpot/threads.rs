@@ -11,6 +11,7 @@ use super::export::penpot_dir;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::review::comments::{all_comments, update_comment, Update};
+use crate::review::status::{self, Status};
 
 /// `.dfw/penpot/threads.json`.
 pub(crate) fn threads_file(root: &Path) -> PathBuf {
@@ -62,8 +63,11 @@ pub(crate) fn continue_thread(
         .map(|m| m.get("content").cloned().unwrap_or(Value::Null))
         .collect();
     let text = js::join(&contents, "\n");
-    let status = cur.get("status").and_then(Value::as_str);
-    let done = matches!(status, Some("fixed" | "resolved" | "dismissed"));
+    let status = status::of(cur);
+    let done = matches!(
+        status,
+        Some(Status::Fixed | Status::Resolved | Status::Dismissed)
+    );
     let (thread_resolved, link_resolved) = (
         js::truthy(c0.get("resolved")),
         js::truthy(link.get("resolved")),
@@ -76,11 +80,11 @@ pub(crate) fn continue_thread(
         }
     };
     let (to, message) = if thread_resolved && !link_resolved {
-        if status == Some("fixed") {
-            (Some("resolved"), or("Resolved in Penpot."))
+        if status == Some(Status::Fixed) {
+            (Some(Status::Resolved.as_str()), or("Resolved in Penpot."))
         } else if !done {
             (
-                Some("dismissed"),
+                Some(Status::Dismissed.as_str()),
                 or("Thread resolved in Penpot before a fix."),
             )
         } else {
@@ -92,7 +96,10 @@ pub(crate) fn continue_thread(
     {
         // A reply in a thread that stays resolved reopens the comment too: otherwise the agent
         // never sees it.
-        (Some("reopened"), or("Thread reopened in Penpot."))
+        (
+            Some(Status::Reopened.as_str()),
+            or("Thread reopened in Penpot."),
+        )
     } else {
         (None, text.clone())
     };

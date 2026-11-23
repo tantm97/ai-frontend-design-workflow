@@ -3,3 +3,4 @@
 pub mod comments;
 pub mod inbox;
 pub mod locate;
+pub mod status;
