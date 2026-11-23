@@ -355,7 +355,7 @@ mod tests {
                     let held = acquire(lock, &FAST).unwrap();
                     let now = inside.fetch_add(1, Ordering::SeqCst) + 1;
                     most.fetch_max(now, Ordering::SeqCst);
-                    // Longer than FAST.wait (300 ms) for the first holder.
+                    // T12: the slow holder itself, longer than FAST.wait (300 ms) for the first.
                     thread::sleep(Duration::from_millis(if i == 0 { 500 } else { 5 }));
                     assert_eq!(
                         owner(lock).as_deref(),
