@@ -350,7 +350,7 @@ pub fn system_summary(root: &Path) -> Result<Value, DfwError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::paths::{file, in_design};
+    use crate::core::paths::in_design;
     use crate::core::util::test_dir;
     use crate::design::compose::{compose_file, compose_html, ComposeOptions};
     use crate::design::icons::add_icons;
@@ -814,6 +814,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn init_never_writes_through_a_link_out_of_the_project() {
+        use crate::core::paths::file;
         let dir = test_dir("system-link");
         let root = dir.join("project");
         let p = project_paths(&root);
