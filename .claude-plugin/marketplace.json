@@ -19,7 +19,7 @@
       "name": "frontend-design",
       "source": "./plugins/frontend-design",
       "description": "Anthropic frontend-design: distinctive, intentional visual direction instead of templated defaults. Invoked by dfw.",
-      "version": "0.0.0-2c5958e",
+      "version": "0.0.0-e4bb5d9",
       "category": "design",
       "license": "Apache-2.0"
     },

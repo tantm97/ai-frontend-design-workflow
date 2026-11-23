@@ -4,7 +4,7 @@ This repository vendors unmodified copies of the following projects (adapted onl
 
 | Plugin | Upstream | Commit | License | Author |
 |---|---|---|---|---|
-| frontend-design | https://github.com/anthropics/skills | `2c5958ecac7c` | Apache-2.0 | Anthropic |
+| frontend-design | https://github.com/anthropics/skills | `e4bb5d960d87` | Apache-2.0 | Anthropic |
 | ux-research | https://github.com/anthropics/knowledge-work-plugins | `02717ef04446` | Apache-2.0 | Anthropic |
 | ui-ux-pro-max | https://github.com/nextlevelbuilder/ui-ux-pro-max-skill | `6ae86f61f520` | MIT | Next Level Builder |
 | impeccable | https://github.com/pbakaus/impeccable | `c4cd1924c389` | Apache-2.0 | Paul Bakaus |

@@ -1,0 +1,25 @@
+{
+  "id": "frontend-design",
+  "plugin": "frontend-design",
+  "repo": "anthropics/skills",
+  "from": "2c5958ecac7cee2b583967a2c4981d0f4a75c579",
+  "to": "e4bb5d960d87126ff3b3a8af1a104b7db67560ba",
+  "createdAt": "2026-11-23T06:23:26.952Z",
+  "blocking": [],
+  "warnings": [],
+  "commits": 2,
+  "added": [],
+  "removed": [],
+  "changed": [],
+  "descriptionChanges": [],
+  "executables": {
+    "added": [],
+    "changed": [],
+    "removed": []
+  },
+  "newConflictHits": [],
+  "skillMdBytes": {
+    "before": 9416,
+    "after": 9416
+  }
+}
