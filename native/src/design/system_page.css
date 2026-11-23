@@ -1,17 +1,19 @@
   /* The documentation page uses the system's own fonts and colours, so nothing on it is foreign to the system. */
   .ds { margin: 0; padding: 56px 64px 120px; display: grid; gap: 72px; background: var(--color-surface, #fff); color: var(--color-ink, #111); font: var(--font-weight-regular, 400) var(--font-size-sm, 14px) / 1.5 var(--font-family-body, system-ui, sans-serif); }
   /* Documentation text uses three sizes only: 14px text, 13px code, 12px labels. Lines stay under ~75 characters. */
-  .ds code, .ds .ds-mono { font-family: var(--font-family-mono, ui-monospace, monospace); font-size: 13px; color: var(--color-muted, #555); overflow-wrap: anywhere; }
-  .ds p, .ds li, .ds dd { max-width: 75ch; }
+  /* Rules on bare elements skip .ds-live, where the components themselves render: the page must
+     not restyle a master's own <p>, <b> or <code> (zero extra specificity, so a master's rule wins). */
+  .ds :where(code, .ds-mono):where(:not(.ds-live *)) { font-family: var(--font-family-mono, ui-monospace, monospace); font-size: 13px; color: var(--color-muted, #555); overflow-wrap: anywhere; }
+  .ds :where(p, li, dd):where(:not(.ds-live *)) { max-width: 75ch; }
   /* Weight carries the hierarchy: names and labels are bold in ink, explanations regular, secondary facts muted. */
-  .ds b, .ds strong, .ds dt { font-weight: 700; color: var(--color-ink, #111); }
+  .ds :where(b, strong, dt):where(:not(.ds-live *)) { font-weight: 700; color: var(--color-ink, #111); }
   .ds > header { display: grid; gap: 8px; }
   .ds > header h1 { margin: 0; font: var(--font-weight-display, 600) var(--font-size-display-md, 40px) / 1.05 var(--font-family-display, inherit); letter-spacing: var(--font-tracking-display, -0.02em); }
   .ds > header p { margin: 0; color: var(--color-muted); }
   .ds > section > h2 { margin: 0 0 24px; padding-bottom: 12px; border-bottom: 1px solid var(--color-rule); font: var(--font-weight-semibold, 600) var(--font-size-xl, 20px) / 1.2 var(--font-family-body); }
-  .ds h3 { margin: 0; font: 700 var(--font-size-lg, 18px) / 1.3 var(--font-family-body); }
-  .ds h4 { margin: 32px 0 12px; font: var(--font-weight-semibold, 600) var(--font-size-xs, 12px) / 1.3 var(--font-family-body); text-transform: uppercase; letter-spacing: .08em; color: var(--color-ink, #111); font-weight: 700; }
-  .ds small { color: var(--color-muted); }
+  .ds :where(h3):where(:not(.ds-live *)) { margin: 0; font: 700 var(--font-size-lg, 18px) / 1.3 var(--font-family-body); }
+  .ds :where(h4):where(:not(.ds-live *)) { margin: 32px 0 12px; font: var(--font-weight-semibold, 600) var(--font-size-xs, 12px) / 1.3 var(--font-family-body); text-transform: uppercase; letter-spacing: .08em; color: var(--color-ink, #111); font-weight: 700; }
+  .ds :where(small):where(:not(.ds-live *)) { color: var(--color-muted); }
   .ds-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 48px; }
   .ds-lead { margin: 0 0 24px; font-size: var(--font-size-md, 16px); line-height: 1.6; }
   .ds-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }

@@ -76,7 +76,7 @@ pub fn render_system_page(root: &Path, design_base: &str) -> Result<String, DfwE
         out.push_str(&concept::concept(style, &md, &inline)?);
     }
     let sample = manifest_text(&manifest, "sampleText", "The quick brown fox · 0123456789");
-    let found = Foundations::render(&all, &tokens, lib.get(Some("text")).is_some(), &sample)?;
+    let found = Foundations::render(&all, &tokens, lib.get(Some("text")), &sample)?;
     let components = components_html(&groups, &vars, &inline)?;
     out.push_str(&page_sections(
         &audit,
@@ -159,7 +159,7 @@ impl Foundations {
     fn render(
         all: &[TokenEntry],
         tokens: &Tokens,
-        has_text: bool,
+        text_master: Option<&ComponentDef>,
         sample: &str,
     ) -> Result<Self, DfwError> {
         let palette = foundations::palette(all, tokens)?;
@@ -168,7 +168,7 @@ impl Foundations {
         let status = foundations::status(tokens);
         let families = foundations::families(all, tokens);
         let scale_note = tokens.description("font.size.md");
-        let text = foundations::text_styles(has_text, tokens, sample);
+        let text = foundations::text_styles(text_master, tokens, sample)?;
         let spacing = foundations::spacing(all);
         let shapes = foundations::shapes(all);
         let scale = if scale_note.is_empty() {

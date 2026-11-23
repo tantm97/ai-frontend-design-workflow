@@ -10,6 +10,7 @@ use regex::Regex;
 use super::components::{describe_text, Parts};
 use super::text::{alias, bullets, encode_uri, has_heading, md_parts, part_body, sentences};
 use super::*;
+use crate::core::paths::rel;
 use crate::core::util::{copy_dir, test_dir};
 use crate::design::compose::{build_system, compose_html, ComposeOptions};
 use crate::design::icons::add_icons;
@@ -284,4 +285,53 @@ fn javascript_text_rules() {
     assert_eq!(encode_uri("a b/ảnh(1)#.png"), "a%20b/%E1%BA%A3nh(1)#.png");
     assert_eq!(alias(&json!("{color.ink}")), Some("color.ink"));
     assert_eq!(alias(&json!("{a}b}")), None);
+}
+
+/// The type table shows the project's own text styles: a master with `h1 lead body` lists body
+/// (a style dfw knows, with its usage) then h1 and lead with their meaning, and none of the kit
+/// styles it lacks (they used to be listed and rendered as the default style).
+#[test]
+fn type_table_follows_the_text_master() {
+    /// The master's own variants, and the meaning its description gives each.
+    const MASTER: &str = r#"<dfw-component name="text" variants="h1 lead body" description="Text styles. h1 = page titles; lead = the intro paragraph; body = default text."><template><p class="t t--{variant}"><dfw-slot>Text</dfw-slot></p></template></dfw-component>"#;
+    let root = project();
+    system_init(&root, &InitOptions::default()).unwrap();
+    write(&root, &rel::component("text.html"), MASTER);
+    let page = render_system_page(&root, "../").unwrap();
+    let shown: Vec<&str> = Regex::new(r#"<code>text ([a-z0-9-]+)"#)
+        .unwrap()
+        .captures_iter(&page)
+        .map(|c| c.get(1).unwrap().as_str())
+        .collect();
+    assert_eq!(shown, ["body", "h1", "lead"]);
+    assert!(page.contains("<b>Body</b><span>Default reading text</span>"));
+    assert!(page.contains("<b>h1</b><span>page titles</span>"));
+    assert!(page.contains("<b>lead</b><span>the intro paragraph</span>"));
+}
+
+/// The page's rules on bare elements never reach a component: each one skips `.ds-live`, and
+/// every place where masters render (examples, app-shell frames, the type samples) is `.ds-live`.
+/// `.ds code` used to set 13px on a master's own `<code>`, `.ds p` a 75ch width on its `<p>`.
+#[test]
+fn page_styles_leave_the_components_alone() {
+    let css = include_str!("../system_page.css");
+    let bare = Regex::new(r"\.ds\s+(?:[a-z][a-z0-9]*|:where\([^)]*\))[^{]*\{").unwrap();
+    for rule in bare.find_iter(css) {
+        assert!(
+            rule.as_str().contains(":where(:not(.ds-live *))"),
+            "a page rule on bare elements reaches the components: {}",
+            rule.as_str()
+        );
+    }
+    let root = project();
+    system_init(&root, &InitOptions::default()).unwrap();
+    use_kit(&root, Some(&["button", "text", "app-shell"]));
+    let page = render_system_page(&root, "../").unwrap();
+    for live in [
+        "class=\"ds-examples ds-live\"",
+        "class=\"ds-frame__inner ds-live\"",
+        "<td class=\"ds-live\"><dfw-use c=\"text\"",
+    ] {
+        assert!(page.contains(live), "{live}");
+    }
 }

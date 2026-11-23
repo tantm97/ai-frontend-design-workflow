@@ -3,12 +3,14 @@
 
 use serde_json::Value;
 
+use super::components::describe_parts;
 use super::text::{cut_note, dim, DOT};
 use super::tokens::Tokens;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::js::regex::with_js_classes;
 use crate::design::color::contrast;
+use crate::design::compose::ComponentDef;
 use crate::design::html::escape_html as esc;
 use crate::design::tokens::css_var_name;
 use crate::design::tokens::TokenEntry;
@@ -269,51 +271,75 @@ pub(super) fn families(all: &[TokenEntry], tokens: &Tokens) -> String {
     family_html
 }
 
-/// The named text styles in their real font (needs the `text` master).
-pub(super) fn text_styles(has_text: bool, tokens: &Tokens, sample: &str) -> String {
-    let mut text_html = String::new();
-    if has_text {
-        text_html.push_str("<table class=\"ds-table ds-types\">");
-        for (v, label, usage) in TEXT_STYLES {
-            let size = match v {
-                _ if v.starts_with("display") => tokens.size_of(v),
-                "title" => tokens.size_of("xl"),
-                "subtitle" => tokens.size_of("lg"),
-                "body" => tokens.size_of("md"),
-                "body-sm" | "mono" => tokens.size_of("sm"),
-                "caption" => tokens.size_of("xs"),
-                "eyebrow" => tokens
-                    .get("font.eyebrow.size")
-                    .and_then(|t| t.value.get("value")),
-                _ => None,
-            };
-            let size = if js::truthy(size) {
-                format!(" · {}px", js::to_string(size))
-            } else {
-                String::new()
-            };
-            let shown = if v.starts_with("display") {
-                js::trim(sample.split('·').next().unwrap_or_default()).to_string()
-            } else if v == "mono" {
-                "TP-TOOL-00421 · 20417".to_string()
-            } else {
-                sample.to_string()
-            };
-            text_html.push_str(&format!(
-                "<tr><td class=\"ds-types__meta\"><b>{}</b><span>{}</span><code>text {}{size}</code></td><td><dfw-use c=\"text\" variant=\"{v}\" as=\"div\">{}</dfw-use></td></tr>",
-                esc(label),
-                esc(usage),
-                esc(v),
-                esc(&shown)
-            ));
-        }
-        text_html.push_str("</table>");
+/// The text styles of the project's `text` master in their real font: the named styles dfw
+/// knows (in [`TEXT_STYLES`] order, with their usage) that the master has, then the master's own
+/// variants with the meaning its description gives them. A style the master lacks is not shown:
+/// `<dfw-use c="text" variant="...">` of a missing variant renders as the default style.
+pub(super) fn text_styles(
+    text: Option<&ComponentDef>,
+    tokens: &Tokens,
+    sample: &str,
+) -> Result<String, DfwError> {
+    let Some(def) = text else {
+        return Ok(
+            "<p class=\"ds-empty\">Add the text component to see the type styles.</p>".to_string(),
+        );
+    };
+    let parts = describe_parts(def)?;
+    let has = |v: &str| def.variants.iter().any(|own| own == v);
+    let known = TEXT_STYLES
+        .iter()
+        .filter(|(v, ..)| has(v))
+        .map(|&(v, label, usage)| (v, label.to_string(), usage.to_string()));
+    let own = def
+        .variants
+        .iter()
+        .filter(|v| !TEXT_STYLES.iter().any(|(k, ..)| k == v))
+        .map(|v| {
+            let usage = parts.meaning_of(v).unwrap_or_default().to_string();
+            (v.as_str(), v.clone(), usage)
+        });
+    let mut html = String::from("<table class=\"ds-table ds-types\">");
+    for (v, label, usage) in known.chain(own) {
+        html.push_str(&text_style_row(v, &label, &usage, tokens, sample));
     }
-    if text_html.is_empty() {
-        text_html
-            .push_str("<p class=\"ds-empty\">Add the text component to see the type styles.</p>");
-    }
-    text_html
+    html.push_str("</table>");
+    Ok(html)
+}
+
+/// One row of the type table: name, usage and size, then the sample in the style.
+fn text_style_row(v: &str, label: &str, usage: &str, tokens: &Tokens, sample: &str) -> String {
+    let size = match v {
+        _ if v.starts_with("display") => tokens.size_of(v),
+        "title" => tokens.size_of("xl"),
+        "subtitle" => tokens.size_of("lg"),
+        "body" => tokens.size_of("md"),
+        "body-sm" | "mono" => tokens.size_of("sm"),
+        "caption" => tokens.size_of("xs"),
+        "eyebrow" => tokens
+            .get("font.eyebrow.size")
+            .and_then(|t| t.value.get("value")),
+        _ => None,
+    };
+    let size = if js::truthy(size) {
+        format!(" · {}px", js::to_string(size))
+    } else {
+        String::new()
+    };
+    let shown = if v.starts_with("display") {
+        js::trim(sample.split('·').next().unwrap_or_default()).to_string()
+    } else if v == "mono" {
+        "TP-TOOL-00421 · 20417".to_string()
+    } else {
+        sample.to_string()
+    };
+    format!(
+        "<tr><td class=\"ds-types__meta\"><b>{}</b><span>{}</span><code>text {}{size}</code></td><td class=\"ds-live\"><dfw-use c=\"text\" variant=\"{v}\" as=\"div\">{}</dfw-use></td></tr>",
+        esc(label),
+        esc(usage),
+        esc(v),
+        esc(&shown)
+    )
 }
 
 fn dimension<'a>(all: &'a [TokenEntry], prefix: &str) -> Vec<&'a TokenEntry> {
