@@ -2,6 +2,7 @@
 //! `<dfw-icon>`, `<dfw-head>`, and the instances and issues found on the way.
 
 use super::*;
+use crate::core::level::Level as FindingLevel;
 
 struct RawInstance {
     component: Option<String>,
@@ -252,7 +253,7 @@ pub fn compose_html(root: &Path, html: &str, opts: ComposeOptions) -> Result<Com
             .issues
             .into_iter()
             .map(|i| Issue {
-                level: "error",
+                level: FindingLevel::Error.as_str(),
                 rule: i.rule,
                 line: line(i.index),
                 message: i.message,

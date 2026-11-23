@@ -24,6 +24,7 @@ use super::launch::{
 use crate::core::config::{load_config, studio_breakpoints, Breakpoint};
 use crate::core::error::DfwError;
 use crate::core::js;
+use crate::core::level::Level;
 use crate::core::paths::{file_url, project_paths, resolve, to_posix};
 use crate::core::util::read_json;
 use crate::design::compose::{
@@ -590,35 +591,35 @@ fn findings_of(results: &[(RenderJob, Result<Measure, String>)]) -> Vec<Finding>
         let mm = match measured {
             Ok(mm) => mm,
             Err(error) => {
-                add("warn", "render", format!("could not render ({})", head(error, 120)));
+                add(Level::Warn.as_str(), "render", format!("could not render ({})", head(error, 120)));
                 continue;
             }
         };
         if r.reflow {
             // Two-dimensional content (data tables, toolbars) is exempt from reflow in WCAG: a SHOULD, not a MUST.
             if mm.h_overflow > 1.0 {
-                add("warn", "reflow", format!("page scrolls sideways by {}px. Content should reflow to one column at 320px (WCAG 1.4.10); scroll only inside data tables.", n(mm.h_overflow)));
+                add(Level::Warn.as_str(), "reflow", format!("page scrolls sideways by {}px. Content should reflow to one column at 320px (WCAG 1.4.10); scroll only inside data tables.", n(mm.h_overflow)));
             }
             for o in mm.overlaps.iter().take(3) {
-                add("warn", "reflow", format!("\"{}\" overlaps \"{}\" when text is enlarged.", o.a, o.b));
+                add(Level::Warn.as_str(), "reflow", format!("\"{}\" overlaps \"{}\" when text is enlarged.", o.a, o.b));
             }
             for c in mm.clipped.iter().take(3) {
-                add("warn", "reflow", format!("text clipped in \"{}\" when text is enlarged (\"{}…\"). Let boxes grow with their text.", c.el, c.text));
+                add(Level::Warn.as_str(), "reflow", format!("text clipped in \"{}\" when text is enlarged (\"{}…\"). Let boxes grow with their text.", c.el, c.text));
             }
             continue;
         }
         if mm.h_overflow > 1.0 {
-            add("error", "h-overflow", format!("page is {}px wider than the viewport.", n(mm.h_overflow)));
+            add(Level::Error.as_str(), "h-overflow", format!("page is {}px wider than the viewport.", n(mm.h_overflow)));
         }
         for o in mm.overlaps.iter().take(5) {
-            add("error", "overlap", format!("\"{}\" overlaps \"{}\" ({}px²).", o.a, o.b, n(o.area)));
+            add(Level::Error.as_str(), "overlap", format!("\"{}\" overlaps \"{}\" ({}px²).", o.a, o.b, n(o.area)));
         }
         for a in mm.anchors.iter().filter(|a| !a.in_view && r.screen != "_system") {
             let grow = if r.stress { " even when lists grow: scroll the list inside its container" } else { "" };
-            add("error", "anchor", format!("anchored \"{}\" is not fully visible (top {}, bottom {}, viewport {}). Anchored feedback and primary actions must stay on screen{grow}.", a.name, n(a.top), n(a.bottom), n(mm.vh)));
+            add(Level::Error.as_str(), "anchor", format!("anchored \"{}\" is not fully visible (top {}, bottom {}, viewport {}). Anchored feedback and primary actions must stay on screen{grow}.", a.name, n(a.top), n(a.bottom), n(mm.vh)));
         }
         for c in mm.clipped.iter().take(3) {
-            add("warn", "clipped", format!("text clipped in \"{}\" (\"{}…\").", c.el, c.text));
+            add(Level::Warn.as_str(), "clipped", format!("text clipped in \"{}\" (\"{}…\").", c.el, c.text));
         }
         if !mm.small.is_empty() {
             // `new Map(small.map((x) => [x.el, x]))`: the place of the first, the sizes of the last.
@@ -628,15 +629,15 @@ fn findings_of(results: &[(RenderJob, Result<Measure, String>)]) -> Vec<Finding>
             }
             let shown: Vec<String> = uniq.iter().take(5).map(|(_, x)| format!("\"{}\" {}x{}", x.el, n(x.w), n(x.h))).collect();
             let more = if uniq.len() > 5 { ", …" } else { "" };
-            add("warn", "touch-target", format!("{} tappable element(s) smaller than 44x44px on a touch screen: {}{more}. Size controls with var(--size-target-touch) (44px); var(--size-target-wcag) (24px) is only the legal floor.", mm.small.len(), shown.join(", ")));
+            add(Level::Warn.as_str(), "touch-target", format!("{} tappable element(s) smaller than 44x44px on a touch screen: {}{more}. Size controls with var(--size-target-touch) (44px); var(--size-target-wcag) (24px) is only the legal floor.", mm.small.len(), shown.join(", ")));
         }
         if !r.stress {
             for v in find_voids(mm, 0.22) {
                 match v {
-                    Void::Gap { from, height } => add("warn", "void", format!("empty band of {}px between content blocks (from y={}). Close it, or let the block above fill the space.", n(height), n(from))),
-                    Void::Tail { height, fill } if r.screen != "_system" => add("warn", "void", format!("content ends early: {}px empty at the bottom of the first screen ({}% of the view filled). Fill the height (task layouts) or tighten the layout.", n(height), n(fill))),
+                    Void::Gap { from, height } => add(Level::Warn.as_str(), "void", format!("empty band of {}px between content blocks (from y={}). Close it, or let the block above fill the space.", n(height), n(from))),
+                    Void::Tail { height, fill } if r.screen != "_system" => add(Level::Warn.as_str(), "void", format!("content ends early: {}px empty at the bottom of the first screen ({}% of the view filled). Fill the height (task layouts) or tighten the layout.", n(height), n(fill))),
                     Void::Tail { .. } => {}
-                    Void::Sparse { fill } => add("warn", "void", format!("only {}% of the first screen holds content.", n(fill))),
+                    Void::Sparse { fill } => add(Level::Warn.as_str(), "void", format!("only {}% of the first screen holds content.", n(fill))),
                 }
             }
         }
@@ -659,7 +660,7 @@ fn findings_of(results: &[(RenderJob, Result<Measure, String>)]) -> Vec<Finding>
     let before_at = |key: &str| key.split('@').next().unwrap_or_default().to_string();
     for (key, by_sig) in sigs.iter().filter(|(_, by_sig)| by_sig.len() > 1) {
         let variants: Vec<String> = by_sig.iter().map(|(sig, screens)| format!("{}: {sig}", screens.join(", "))).collect();
-        findings.push(layout("warn", "consistency", "design/design.json", format!("Component {} renders differently across screens ({}). A screen is overriding the master; fix the master or the screen.", before_at(key), variants.join(" | "))));
+        findings.push(layout(Level::Warn.as_str(), "consistency", "design/design.json", format!("Component {} renders differently across screens ({}). A screen is overriding the master; fix the master or the screen.", before_at(key), variants.join(" | "))));
     }
     // Variants that only restyle the same structure should be themes (compare at the same breakpoint, default state).
     struct Shape<'a> {
@@ -683,7 +684,7 @@ fn findings_of(results: &[(RenderJob, Result<Measure, String>)]) -> Vec<Finding>
                     continue;
                 }
                 seen_pairs.push(pair);
-                findings.push(layout("warn", "variant-cosmetic", b.rel, format!("{screen}: variants \"{}\" and \"{}\" have the same component structure ({} components in the same order). A variant should be a different layout or flow; a restyle belongs in a theme (design/tokens/themes/).", a.variant, b.variant, a.n)));
+                findings.push(layout(Level::Warn.as_str(), "variant-cosmetic", b.rel, format!("{screen}: variants \"{}\" and \"{}\" have the same component structure ({} components in the same order). A variant should be a different layout or flow; a restyle belongs in a theme (design/tokens/themes/).", a.variant, b.variant, a.n)));
             }
         }
     }

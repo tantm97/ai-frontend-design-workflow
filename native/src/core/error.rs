@@ -5,6 +5,19 @@
 
 use std::fmt;
 
+/// The exit codes of dfw (`contracts.md` C3). Agents and CI scripts branch on them.
+pub mod exit {
+    /// Done, nothing to report, or findings below error level.
+    pub const OK: i32 = 0;
+    /// The command could not do its job (a `DfwError`).
+    pub const FAILED: i32 = 1;
+    /// The command ran and found problems (lint, check or layout errors, a failed shot, a
+    /// modified snapshot, missing fonts, Penpot export errors).
+    pub const PROBLEMS: i32 = 2;
+    /// `dfw check --strict`: a configured tool could not run, and no error was found.
+    pub const UNVERIFIED: i32 = 3;
+}
+
 /// The one error type of the crate.
 #[derive(Debug)]
 pub enum DfwError {
@@ -19,7 +32,7 @@ impl DfwError {
     pub fn new(message: impl Into<String>) -> Self {
         DfwError::User {
             message: message.into(),
-            code: 1,
+            code: exit::FAILED,
         }
     }
 
@@ -50,8 +63,8 @@ impl DfwError {
     pub fn exit_code(&self) -> i32 {
         match self {
             // An error never exits 0 (`errors.md` E9).
-            DfwError::User { code, .. } if *code != 0 => *code,
-            _ => 1,
+            DfwError::User { code, .. } if *code != exit::OK => *code,
+            _ => exit::FAILED,
         }
     }
 

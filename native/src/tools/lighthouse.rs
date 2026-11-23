@@ -11,6 +11,7 @@ use serde_json::{json, Value};
 
 use crate::browser::launch::find_browser;
 use crate::core::js;
+use crate::core::level::Level;
 use crate::core::process::{node_executable, run_timed, Spawn};
 
 const LIGHTHOUSE_VERSION: &str = "13.6.0";
@@ -168,7 +169,7 @@ pub fn lighthouse_report(stdout: Option<&str>, url: &str, error_detail: &str) ->
             };
             let display = a.get("displayValue").filter(|v| js::truthy(v));
             findings.push(json!({
-                "level": if score < 0.5 { "warn" } else { "info" },
+                "level": if score < 0.5 { Level::Warn } else { Level::Info }.as_str(),
                 "rule": format!("lighthouse-{}", js::to_string(a.get("id"))),
                 "file": url,
                 "line": 1,

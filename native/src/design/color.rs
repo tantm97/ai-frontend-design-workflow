@@ -6,6 +6,7 @@
 // Over 800 lines with its tests: one Node module, kept whole so the two read side by side.
 
 use crate::core::js;
+use crate::core::level::Level;
 use serde_json::{json, Map, Value};
 
 // ------------------------------------------------------------------ conversions
@@ -734,7 +735,7 @@ pub fn audit_colors(input: &Value, exceptions: &[String]) -> Vec<Value> {
     let mut add = |level: &str, rule: &str, message: String| {
         let excepted = exceptions.iter().any(|e| e == rule);
         out.push(json!({
-            "level": if excepted && level == "error" { "info" } else { level },
+            "level": if excepted && level == Level::Error.as_str() { Level::Info.as_str() } else { level },
             "rule": rule,
             "message": if excepted { format!("{message} (recorded exception)") } else { message },
         }));
@@ -746,7 +747,7 @@ pub fn audit_colors(input: &Value, exceptions: &[String]) -> Vec<Value> {
         let r = contrast(&f, &b);
         if r < min {
             add(
-                if must { "error" } else { "warn" },
+                if must { Level::Error } else { Level::Warn }.as_str(),
                 "contrast",
                 format!(
                     "{what}: {fg} on {bg} is {}:1, needs {}:1.",
@@ -761,7 +762,7 @@ pub fn audit_colors(input: &Value, exceptions: &[String]) -> Vec<Value> {
             let r = contrast(on_fill, &fill);
             if r < 4.5 {
                 add(
-                    "error",
+                    Level::Error.as_str(),
                     "contrast",
                     format!("Text on status.{s} fill is {}:1.", js::to_fixed(r, 2)),
                 );
@@ -774,7 +775,7 @@ pub fn audit_colors(input: &Value, exceptions: &[String]) -> Vec<Value> {
             let r = contrast(&text, &tint);
             if r < 4.5 {
                 add(
-                    "error",
+                    Level::Error.as_str(),
                     "contrast",
                     format!("status.{s}-text on its tint is {}:1.", js::to_fixed(r, 2)),
                 );
@@ -795,10 +796,10 @@ pub fn audit_colors(input: &Value, exceptions: &[String]) -> Vec<Value> {
             } else {
                 "a success"
             };
-            add("error", "accent-vs-status", format!("Accent ({accent}) and status.{s} ({fill}) are only {}° apart: users will read the primary action as {reads_as} signal. Move the accent, or make the brand hue a surface/ornament colour and use a different accent.", js::to_fixed(d, 0)));
+            add(Level::Error.as_str(), "accent-vs-status", format!("Accent ({accent}) and status.{s} ({fill}) are only {}° apart: users will read the primary action as {reads_as} signal. Move the accent, or make the brand hue a surface/ornament colour and use a different accent.", js::to_fixed(d, 0)));
         } else if acc.c > 0.05 && d < 40.0 {
             add(
-                "warn",
+                Level::Warn.as_str(),
                 "accent-vs-status",
                 format!(
                     "Accent and status.{s} are {}° apart; keep icons + words on every {s} message.",
@@ -818,18 +819,18 @@ pub fn audit_colors(input: &Value, exceptions: &[String]) -> Vec<Value> {
             .iter()
             .find(|(_, o)| hue_distance(first.1.h, o.h) > 40.0)
         {
-            add("warn", "neutral-temperature", format!("Neutrals mix temperatures: {} hue {}° vs {} {}°. Tint all neutrals toward one hue.", first.0, js::to_fixed(first.1.h, 0), other.0, js::to_fixed(other.1.h, 0)));
+            add(Level::Warn.as_str(), "neutral-temperature", format!("Neutrals mix temperatures: {} hue {}° vs {} {}°. Tint all neutrals toward one hue.", first.0, js::to_fixed(first.1.h, 0), other.0, js::to_fixed(other.1.h, 0)));
         }
     }
     if let (Some(brand), Some(err)) = (role("brand"), stat("err")) {
         let br = hex_to_oklch(&brand);
         if br.c > 0.05 && hue_distance(br.h, hex_to_oklch(&err).h) < 20.0 {
-            add("info", "brand-vs-error", "The brand hue shares the error hue: never place error messages on brand surfaces, and keep errors iconified with words.".to_string());
+            add(Level::Info.as_str(), "brand-vs-error", "The brand hue shares the error hue: never place error messages on brand surfaces, and keep errors iconified with words.".to_string());
         }
     }
     let canvas = hex_to_oklch(&role("canvas").unwrap_or_default());
     if canvas.c > 0.035 {
-        add("warn", "canvas-chroma", format!("Canvas chroma {} is high for a large surface (tires the eye, shifts every colour on it). Keep ≤ 0.03.", js::to_fixed(canvas.c, 3)));
+        add(Level::Warn.as_str(), "canvas-chroma", format!("Canvas chroma {} is high for a large surface (tires the eye, shifts every colour on it). Keep ≤ 0.03.", js::to_fixed(canvas.c, 3)));
     }
     // Hue budget.
     let mut hues: Vec<f64> = Vec::new();
@@ -843,7 +844,7 @@ pub fn audit_colors(input: &Value, exceptions: &[String]) -> Vec<Value> {
         }
     }
     if hues.len() > 2 {
-        add("warn", "hue-budget", format!("{} distinct chromatic hues in UI roles (besides status). One accent hue (+ one brand/signature) reads as designed; more reads as decoration.", hues.len()));
+        add(Level::Warn.as_str(), "hue-budget", format!("{} distinct chromatic hues in UI roles (besides status). One accent hue (+ one brand/signature) reads as designed; more reads as decoration.", hues.len()));
     }
     out
 }
@@ -952,7 +953,7 @@ pub fn audit_type_scale(scale: &Value, body: f64, surface: &str) -> Vec<Value> {
             .fold(f64::NEG_INFINITY, js::max);
         if dev > 0.08 {
             let ratios: Vec<String> = rr.iter().map(|x| js::to_fixed(*x, 2)).collect();
-            out.push(json!({ "level": "warn", "rule": "type-ratio", "message": format!("Display steps {} do not follow one ratio ({}). Use a modular scale (dfw type scale).", list(&display, "/"), ratios.join(", ")) }));
+            out.push(json!({ "level": Level::Warn.as_str(), "rule": "type-ratio", "message": format!("Display steps {} do not follow one ratio ({}). Use a modular scale (dfw type scale).", list(&display, "/"), ratios.join(", ")) }));
         }
     }
     let top = if display.is_empty() {
@@ -964,7 +965,7 @@ pub fn audit_type_scale(scale: &Value, body: f64, surface: &str) -> Vec<Value> {
     let need = if surface == "marketing" { 3.0 } else { 1.8 };
     if let Some(top) = top {
         if top / body < need {
-            out.push(json!({ "level": "warn", "rule": "type-contrast", "message": format!("Largest size {}px is only {}× body; {surface} UIs need ≥ {}× for clear hierarchy.", js::number(top), js::to_fixed(top / body, 1), js::number(need)) }));
+            out.push(json!({ "level": Level::Warn.as_str(), "rule": "type-contrast", "message": format!("Largest size {}px is only {}× body; {surface} UIs need ≥ {}× for clear hierarchy.", js::number(top), js::to_fixed(top / body, 1), js::number(need)) }));
         }
     }
     let mut all = ui.clone();
@@ -980,7 +981,7 @@ pub fn audit_type_scale(scale: &Value, body: f64, surface: &str) -> Vec<Value> {
         .filter(|w| w[1] / w[0] < if w[0] < 20.0 { 1.08 } else { 1.06 })
         .count();
     if close >= 2 {
-        out.push(json!({ "level": "warn", "rule": "type-steps", "message": format!("{close} adjacent sizes are too close (e.g. 14/15): they look like mistakes, not hierarchy. Merge them or use a modular scale.") }));
+        out.push(json!({ "level": Level::Warn.as_str(), "rule": "type-steps", "message": format!("{close} adjacent sizes are too close (e.g. 14/15): they look like mistakes, not hierarchy. Merge them or use a modular scale.") }));
     }
     out
 }

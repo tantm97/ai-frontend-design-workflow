@@ -3,6 +3,8 @@
 use crate::core::js;
 use std::cmp::Ordering;
 
+use crate::core::error::exit;
+use crate::core::level::{self, Level};
 use serde_json::{json, Value};
 
 /// `flatten(results)`: every finding of every tool.
@@ -45,14 +47,18 @@ pub fn locale_compare(a: &str, b: &str) -> Ordering {
     pa.cmp(&pb).then_with(|| ua.cmp(&ub))
 }
 
-const LEVELS: [(&str, &str); 3] = [("error", "MUST"), ("warn", "SHOULD"), ("info", "NICE")];
-
+/// The rank of a finding's level, most severe first; an unknown level sorts last.
 fn level_rank(finding: &Value) -> usize {
-    let level = finding.get("level").and_then(Value::as_str);
-    LEVELS
-        .iter()
-        .position(|(l, _)| Some(*l) == level)
-        .unwrap_or(LEVELS.len())
+    level::of(finding).map_or(Level::ALL.len(), |l| l as usize)
+}
+
+/// The report's label: as [`Level::label`], but "NICE" for info (the check report's word).
+fn report_label(rank: usize) -> &'static str {
+    match Level::ALL.get(rank) {
+        Some(Level::Info) => "NICE",
+        Some(l) => l.label(),
+        None => "undefined",
+    }
 }
 
 /// The result of [`format_report`].
@@ -72,7 +78,7 @@ pub struct Report {
 impl Report {
     /// `{ error, warn, info }`.
     pub fn tally(&self) -> Value {
-        json!({ "error": self.errors, "warn": self.warnings, "info": self.infos })
+        json!({ Level::Error.as_str(): self.errors, Level::Warn.as_str(): self.warnings, Level::Info.as_str(): self.infos })
     }
 }
 
@@ -107,7 +113,7 @@ pub fn format_report(results: &[Value], max: usize) -> Report {
         tools.join(", ")
     )];
     for f in all.iter().take(max) {
-        let label = LEVELS.get(level_rank(f)).map_or("undefined", |(_, l)| *l);
+        let label = report_label(level_rank(f));
         lines.push(format!(
             "- [{label}] {}:{} ({}/{}) {}",
             text_of(f, "file"),
@@ -175,10 +181,10 @@ pub fn format_report(results: &[Value], max: usize) -> Report {
 /// `--strict`, 3 when a configured tool did not run.
 pub fn check_exit_code(report: &Report, strict: bool) -> i32 {
     if report.errors > 0 {
-        2
+        exit::PROBLEMS
     } else if strict && !report.unverified.is_empty() {
-        3
+        exit::UNVERIFIED
     } else {
-        0
+        exit::OK
     }
 }

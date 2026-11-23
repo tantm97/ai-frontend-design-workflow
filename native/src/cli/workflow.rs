@@ -11,8 +11,10 @@ use serde_json::{json, Map, Value};
 use super::{Ctx, Handler};
 use crate::browser::a11y::{a11y_check, A11yOptions};
 use crate::core::config::{get_config_value, load_config, set_config_value, Scope};
+use crate::core::error::exit;
 use crate::core::error::DfwError;
 use crate::core::js;
+use crate::core::level::{self, Level};
 use crate::core::paths::project_paths;
 use crate::core::process::is_alive;
 use crate::core::util::{
@@ -319,7 +321,7 @@ fn approve_ds(root: &Path, a: &Args) -> Result<(), DfwError> {
         let rule = finding.get("rule").and_then(Value::as_str);
         let must = rule.is_some_and(|r| r == "rationale" || DS_GATE_RULES.contains(&r));
         if let (true, Value::Object(map)) = (must, finding) {
-            map.insert("level".into(), "error".into());
+            map.insert("level".into(), Level::Error.as_str().into());
         }
     }
     results.push(json!({ "tool": "dfw-ds-audit", "status": "ran", "findings": audit }));
@@ -391,7 +393,7 @@ fn approve_g2(root: &Path, a: &Args, state: &mut Value, note: Value) -> Result<i
         let musts: Vec<Value> = report
             .findings
             .iter()
-            .filter(|f| f.get("level").and_then(Value::as_str) == Some("error"))
+            .filter(|f| level::of(f) == Some(Level::Error))
             .take(50)
             .cloned()
             .collect();
@@ -617,7 +619,7 @@ fn verify_snapshot_cmd(ctx: &Ctx) -> Result<i32, DfwError> {
         "Snapshot {version} was modified:\n{}",
         problems.join("\n")
     ));
-    Ok(2)
+    Ok(exit::PROBLEMS)
 }
 
 /// `__debug hot <what> ...`: what the modules without a native command of their own compute,
