@@ -21,6 +21,7 @@ use crate::design::compose::{compose_html, load_components, ComposeOptions};
 use crate::design::edit::load_token_names;
 use crate::design::html::escape_html;
 use crate::design::lint::designed_states;
+use crate::design::manifest::{self, key};
 use crate::design::system_page::render_system_page;
 use crate::design::tokens::relative_path;
 
@@ -94,7 +95,7 @@ pub fn manifest(root: &Path, config: &Value) -> Result<Value, DfwError> {
     let m = read_json(&p.manifest, Some(Value::Null))?;
     let mut base = Map::new();
     if let Some(bps) = get_path(config, "studio.breakpoints") {
-        base.insert("breakpoints".into(), bps.clone());
+        base.insert(key::BREAKPOINTS.into(), bps.clone());
     }
     base.insert("themes".into(), json!([]));
     base.insert("states".into(), json!([]));
@@ -103,32 +104,27 @@ pub fn manifest(root: &Path, config: &Value) -> Result<Value, DfwError> {
         for (k, v) in js::spread(Some(&m)) {
             out.insert(k, v);
         }
-        match m.get("breakpoints").filter(|b| js::truthy(b)) {
+        match m.get(key::BREAKPOINTS).filter(|b| js::truthy(b)) {
             Some(b) => {
-                out.insert("breakpoints".into(), b.clone());
+                out.insert(key::BREAKPOINTS.into(), b.clone());
             }
-            None => match base.get("breakpoints") {
+            None => match base.get(key::BREAKPOINTS) {
                 Some(b) => {
-                    out.insert("breakpoints".into(), b.clone());
+                    out.insert(key::BREAKPOINTS.into(), b.clone());
                 }
                 None => {
-                    out.shift_remove("breakpoints");
+                    out.shift_remove(key::BREAKPOINTS);
                 }
             },
         }
         let mut files: HashMap<String, String> = HashMap::new();
         let screens = out
-            .get("screens")
+            .get(key::SCREENS)
             .and_then(Value::as_array)
             .cloned()
             .unwrap_or_default();
         for s in &screens {
-            for v in s
-                .get("variants")
-                .and_then(Value::as_array)
-                .into_iter()
-                .flatten()
-            {
+            for v in manifest::items(s.get(key::VARIANTS)).iter() {
                 let Some(file) = v
                     .get("file")
                     .and_then(Value::as_str)
@@ -147,9 +143,9 @@ pub fn manifest(root: &Path, config: &Value) -> Result<Value, DfwError> {
         }
         mark_designed_states(root, &mut out, &files)?;
         let flows = screen_flows(&Value::Object(out.clone()), &files);
-        out.insert("flows".into(), Value::Array(flows));
+        out.insert(key::FLOWS.into(), Value::Array(flows));
         let pages = studio_pages(&Value::Object(out.clone()));
-        out.insert("studioPages".into(), Value::Array(pages));
+        out.insert(key::STUDIO_PAGES.into(), Value::Array(pages));
         return Ok(Value::Object(out));
     }
     let mut screens: Vec<(String, Vec<Value>)> = Vec::new();
@@ -184,9 +180,9 @@ pub fn manifest(root: &Path, config: &Value) -> Result<Value, DfwError> {
         .into_iter()
         .map(|(id, variants)| json!({ "id": id, "title": id, "variants": variants }))
         .collect();
-    out.insert("screens".into(), Value::Array(screens));
+    out.insert(key::SCREENS.into(), Value::Array(screens));
     let pages = studio_pages(&Value::Object(out.clone()));
-    out.insert("studioPages".into(), Value::Array(pages));
+    out.insert(key::STUDIO_PAGES.into(), Value::Array(pages));
     Ok(Value::Object(out))
 }
 
@@ -199,7 +195,7 @@ fn mark_designed_states(
     files: &HashMap<String, String>,
 ) -> Result<(), DfwError> {
     let top_states = out.get("states").cloned().unwrap_or(json!([]));
-    if let Some(Value::Array(list)) = out.get_mut("screens") {
+    if let Some(Value::Array(list)) = out.get_mut(key::SCREENS) {
         for s in list.iter_mut() {
             let declared: Vec<String> = match s.get("states") {
                 Some(Value::Array(own)) if !own.is_empty() => own.clone(),
@@ -208,7 +204,7 @@ fn mark_designed_states(
             .iter()
             .filter_map(|v| v.as_str().map(str::to_string))
             .collect();
-            let Some(Value::Array(variants)) = s.get_mut("variants") else {
+            let Some(Value::Array(variants)) = s.get_mut(key::VARIANTS) else {
                 continue;
             };
             for v in variants.iter_mut() {
@@ -220,7 +216,7 @@ fn mark_designed_states(
                     continue;
                 };
                 let designed = designed_states(root, text, &declared)?;
-                map.insert("designedStates".into(), json!(designed));
+                map.insert(key::DESIGNED_STATES.into(), json!(designed));
             }
         }
     }

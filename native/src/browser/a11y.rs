@@ -31,6 +31,7 @@ use crate::core::paths::file_url;
 use crate::core::paths::{global_dir, project_paths};
 use crate::core::util::read_json;
 use crate::design::compose::{build_composed, build_system};
+use crate::design::manifest::{Manifest, Screen, Variant};
 
 /// The pinned axe-core release (`AXE`).
 pub const AXE_VERSION: &str = "4.14.0";
@@ -250,8 +251,7 @@ fn screen_jobs(root: &Path, opts: &A11yOptions) -> Result<Vec<Job>, DfwError> {
         themes.extend(texts(&manifest, "themes").into_iter().map(Some));
     }
     let mut jobs = Vec::new();
-    let screens = manifest.get("screens").and_then(Value::as_array);
-    for s in screens.into_iter().flatten() {
+    for s in Manifest(&manifest).screens().map(Screen::value) {
         let id = js::to_string(s.get("id"));
         if opts
             .screens
@@ -264,8 +264,7 @@ fn screen_jobs(root: &Path, opts: &A11yOptions) -> Result<Vec<Job>, DfwError> {
         if opts.states {
             states.extend(states_of(s, &manifest).into_iter().map(Some));
         }
-        let variants = s.get("variants").and_then(Value::as_array);
-        for v in variants.into_iter().flatten() {
+        for v in Screen(s).variants().map(Variant::value) {
             // Node reads `bp.width` here and fails when the design has no breakpoint at all.
             let bp = bp.ok_or_else(|| {
                 DfwError::internal("Cannot read properties of undefined (reading 'width')")
