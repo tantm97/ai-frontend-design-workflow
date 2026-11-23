@@ -1,4 +1,4 @@
 {
   "$comment": "The count tests/conventions.rs compares with (convention G15). Lower it when a suppression goes away; never raise it without a reviewed reason.",
-  "allow": 40
+  "allow": 20
 }
