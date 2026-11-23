@@ -16,6 +16,14 @@ use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
+#[path = "../src/core/paths/layout.rs"]
+#[allow(
+    dead_code,
+    reason = "each test binary uses a part of the project layout"
+)]
+mod layout;
+use layout::{file, rel};
+
 const DFW: &str = env!("CARGO_BIN_EXE_dfw");
 
 /// A fresh folder outside the repository (its real path: macOS reaches the temporary directory
@@ -153,9 +161,9 @@ fn the_binary_alone_runs_every_command_that_reads_embedded_files() {
 
     // Templates.
     s.ok(&["init", "--product", "Standalone"]);
-    assert!(s.project.join(".dfw/state.json").is_file());
+    assert!(s.project.join(rel::STATE).is_file());
     assert!(s.project.join("PRODUCT.md").is_file());
-    assert!(s.project.join("design/design.json").is_file());
+    assert!(s.project.join(rel::MANIFEST).is_file());
 
     // Kits: presets, style guides, the starter kit's masters.
     assert!(s.ok(&["system", "presets"]).contains("crisp"));
@@ -164,19 +172,22 @@ fn the_binary_alone_runs_every_command_that_reads_embedded_files() {
         .ok(&["system", "ref", "button"])
         .contains("<dfw-component"));
     s.ok(&["system", "init", "--preset", "soft"]);
-    let tokens = fs::read_to_string(s.project.join("design/tokens/tokens.json")).unwrap();
+    let tokens = fs::read_to_string(s.project.join(rel::TOKENS_JSON)).unwrap();
     assert!(!tokens.contains("Placeholder tokens created by dfw init"));
     s.ok(&["style", "apply", "swiss-grid", "--fonts", "latin"]);
 
     // Assets: the icon library.
     assert!(s.ok(&["icons", "search", "arrow"]).contains("arrow"));
     s.ok(&["icons", "add", "check"]);
-    assert!(s.project.join("design/system/icons/check.svg").is_file());
+    assert!(s.project.join(rel::join(rel::ICONS, "check.svg")).is_file());
 
     s.ok(&["build"]);
-    assert!(s.project.join("design/tokens/tokens.css").is_file());
+    assert!(s
+        .project
+        .join(rel::join(rel::TOKENS, file::TOKENS_CSS))
+        .is_file());
     fs::write(
-        s.project.join("design/screens/home.html"),
+        s.project.join(rel::screen("home.html")),
         "<!doctype html>\n<html lang=\"en\"><head><title>Home</title></head><body><main><h1>Home</h1></main></body></html>\n",
     )
     .unwrap();
@@ -189,9 +200,10 @@ fn the_binary_alone_runs_every_command_that_reads_embedded_files() {
 
     // The Studio serves its embedded browser files.
     assert!(s.ok(&["studio", "start"]).contains("studio"));
-    let info: Value =
-        serde_json::from_str(&fs::read_to_string(s.project.join(".dfw/studio.json")).unwrap())
-            .unwrap();
+    let info: Value = serde_json::from_str(
+        &fs::read_to_string(s.project.join(rel::join(rel::DFW, file::STUDIO))).unwrap(),
+    )
+    .unwrap();
     let port = info["port"].as_u64().unwrap();
     let end = Instant::now() + Duration::from_secs(10);
     let mut page = None;

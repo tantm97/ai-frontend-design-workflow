@@ -10,7 +10,7 @@ use serde_json::{json, Value};
 use crate::core::config::load_config;
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::{file, in_design, project_paths};
+use crate::core::paths::{file, in_design, project_paths, rel};
 use crate::core::util::{get_path, list_files, read_json, write_atomic_inside};
 use crate::design::manifest::key;
 use crate::review::comments::all_comments;
@@ -101,7 +101,8 @@ fn screen_rows(m: &Value, version: &str) -> Result<Vec<String>, DfwError> {
             .and_then(Value::as_array)
             .ok_or_else(|| {
                 DfwError::new(format!(
-                    "design/approved/{version}/design.json: screen \"{}\" has no \"variants\" list. The snapshot is frozen: run \"dfw verify-snapshot {version}\", and if it was edited restore it from version control.",
+                    "{}: screen \"{}\" has no \"variants\" list. The snapshot is frozen: run \"dfw verify-snapshot {version}\", and if it was edited restore it from version control.",
+                    rel::join(&rel::approved(version), file::MANIFEST),
                     js::to_string(s.get("id"))
                 ))
             })?;
@@ -116,10 +117,11 @@ fn screen_rows(m: &Value, version: &str) -> Result<Vec<String>, DfwError> {
             })
             .or_else(|| variants.first());
         screens.push(format!(
-            "| `{}` | {} | `{}` (`design/approved/{version}/{}`) | {} |",
+            "| `{}` | {} | `{}` (`{}/{}`) | {} |",
             js::to_string(s.get("id")),
             text_or(s.get("title"), ""),
             js::to_string(chosen.and_then(|c| c.get("id"))),
+            rel::approved(version),
             js::to_string(chosen.and_then(|c| c.get("file"))),
             text_or(s.get("route"), "TBD"),
         ));
@@ -171,11 +173,13 @@ pub fn write_handoff(root: &Path) -> Result<String, DfwError> {
     // freeze writes (`v<number>`), never `../x`.
     check_snapshot_name(&version).map_err(|_| {
         DfwError::new(format!(
-            ".dfw/state.json: the last design.approved entry has version \"{version}\", not a snapshot name (v1, v2, ...). Restore the file from version control, or set that version to the folder under design/approved/, and run the command again."
+            "{}: the last design.approved entry has version \"{version}\", not a snapshot name (v1, v2, ...). Restore the file from version control, or set that version to the folder under {}/, and run the command again.",
+            rel::STATE,
+            rel::APPROVED
         ))
     })?;
     let dir = p.approved.join(&version);
-    let m = read_json(&dir.join("design.json"), Some(json!({})))?;
+    let m = read_json(&dir.join(file::MANIFEST), Some(json!({})))?;
     let stack = read_json(&p.stack, Some(Value::Null))?;
     let tokens_css = dir.join(file::TOKENS).join(file::TOKENS_CSS);
     let tokens = if tokens_css.exists() {
@@ -227,10 +231,15 @@ pub fn write_handoff(root: &Path) -> Result<String, DfwError> {
         .collect();
     let components = comps
         .iter()
-        .map(|c| format!("- `design/approved/{version}/{}/{c}`", file::COMPONENTS))
+        .map(|c| format!("- `{}/{}/{c}`", rel::approved(&version), file::COMPONENTS))
         .collect();
     let tokens_text = if tokens > 0 {
-        format!("{tokens} CSS custom properties in `design/approved/{version}/{}` (source: `{}`, W3C DTCG).", in_design::TOKENS_CSS, in_design::TOKENS_JSON)
+        format!(
+            "{tokens} CSS custom properties in `{}/{}` (source: `{}`, W3C DTCG).",
+            rel::approved(&version),
+            in_design::TOKENS_CSS,
+            in_design::TOKENS_JSON
+        )
     } else {
         "No tokens found.".to_string()
     };
@@ -290,7 +299,7 @@ mod tests {
     fn an_approved_version_that_is_not_a_snapshot_name_is_refused() {
         let root = crate::core::util::test_dir("handoff-version");
         crate::core::util::write_json(
-            &root.join(".dfw/state.json"),
+            &root.join(rel::STATE),
             &json!({ "design": { "status": "approved", "approved": [{ "version": "../../x", "hash": "h" }] } }),
         )
         .unwrap();

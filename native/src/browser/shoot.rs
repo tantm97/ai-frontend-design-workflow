@@ -11,7 +11,7 @@ use super::screenshot::Job;
 use crate::core::config::{load_config, studio_breakpoints, Breakpoint};
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::{project_paths, resolve, ProjectPaths};
+use crate::core::paths::{project_paths, rel, resolve, ProjectPaths};
 use crate::core::process::is_alive;
 use crate::core::util::read_json;
 use crate::design::manifest::{self, key};
@@ -175,8 +175,7 @@ pub fn url_jobs(
                 let page = squash(&url_pathname(url)?, word);
                 let page = if page.is_empty() { "root" } else { &page };
                 project_paths(root)
-                    .dfw
-                    .join("shots")
+                    .shots
                     .join("url")
                     .join(format!("{page}__{}.png", bp.id))
             }
@@ -278,7 +277,7 @@ fn running_studio(p: &ProjectPaths) -> Result<(Value, Value), DfwError> {
     }
     let m = read_json(&p.manifest, Some(Value::Null))?;
     if !js::truthy(&m) {
-        return Err(DfwError::new("design/design.json not found."));
+        return Err(DfwError::new(format!("{} not found.", rel::MANIFEST)));
     }
     Ok((info, m))
 }
@@ -299,7 +298,7 @@ pub fn studio_jobs(
         .as_deref()
         .map(|page| screens_of_page(&m, &screens_all, page));
     let studio_url = text(&info, "url");
-    let shots_dir = p.dfw.join("shots").join(version);
+    let shots_dir = p.shots.join(version);
     let name = |parts: &[&str]| {
         let kept: Vec<&str> = parts.iter().copied().filter(|s| !s.is_empty()).collect();
         format!("{}.png", kept.join("__"))
@@ -352,7 +351,7 @@ pub fn studio_jobs(
                         let q = query(th.as_deref(), st.as_deref());
                         let q = if q.is_empty() { q } else { format!("?{q}") };
                         jobs.push(Job {
-                            url: format!("{studio_url}design/{}{q}", text(v, "file")),
+                            url: format!("{studio_url}{}{q}", rel::design(text(v, "file"))),
                             width: bp.width,
                             height: bp.height,
                             out: shots_dir.join(name(&[
@@ -432,7 +431,7 @@ mod tests {
                 .map(|j| j.out)
                 .collect()
         };
-        let shot = |name: &str| root.join(".dfw/shots/url").join(name);
+        let shot = |name: &str| root.join(rel::join(rel::SHOTS, "url")).join(name);
         assert_eq!(
             outs("http://localhost:3000/cart/items?x=1#top", None, &both),
             [
@@ -532,7 +531,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             jobs().unwrap_err().message(),
-            "design/design.json not found."
+            format!("{} not found.", rel::MANIFEST)
         );
         write_json(&p.manifest, &json!({ "screens": [] })).unwrap();
         assert!(jobs().unwrap().is_empty());
@@ -546,6 +545,7 @@ mod tests {
 
     #[test]
     fn studio_jobs_cover_screens_variants_breakpoints_states_and_themes() {
+        let v3 = |file: &str| rel::join(rel::SHOTS, &format!("v3/{file}"));
         let root = test_dir("shoot-studio");
         let p = project_paths(&root);
         let both = both();
@@ -586,11 +586,11 @@ mod tests {
         assert_eq!(
             all[0],
             (
-                ".dfw/shots/v3/cart__a__mobile.png".to_string(),
-                "http://127.0.0.1:4600/design/screens/cart/a.html".to_string()
+                v3("cart__a__mobile.png"),
+                format!("http://127.0.0.1:4600/{}", rel::screen("cart/a.html"))
             )
         );
-        assert_eq!(all[5].0, ".dfw/shots/v3/admin__users__a__desktop.png");
+        assert_eq!(all[5].0, v3("admin__users__a__desktop.png"));
         assert_eq!(
             list(ShootOptions {
                 variant: some("b"),
@@ -613,15 +613,12 @@ mod tests {
         assert_eq!(
             states
                 .iter()
-                .map(|(o, u)| (o.as_str(), u.rsplit('/').next().unwrap()))
+                .map(|(o, u)| (o.clone(), u.rsplit('/').next().unwrap()))
                 .collect::<Vec<_>>()[..2],
             [
+                (v3("admin__users__a__mobile__dark.png"), "a.html?theme=dark"),
                 (
-                    ".dfw/shots/v3/admin__users__a__mobile__dark.png",
-                    "a.html?theme=dark"
-                ),
-                (
-                    ".dfw/shots/v3/admin__users__a__mobile__dark__loading state.png",
+                    v3("admin__users__a__mobile__dark__loading state.png"),
                     "a.html?theme=dark&state=loading+state"
                 ),
             ]
@@ -643,7 +640,7 @@ mod tests {
         });
         assert_eq!(
             one[0].0,
-            ".dfw/shots/v3/cart__a__mobile__dark__empty__el-main_.card_data-x.png"
+            v3("cart__a__mobile__dark__empty__el-main_.card_data-x.png")
         );
         let system = ShootOptions {
             system: true,
@@ -652,7 +649,7 @@ mod tests {
         assert_eq!(
             list(system.clone()),
             [(
-                ".dfw/shots/v3/_system__mobile.png".to_string(),
+                v3("_system__mobile.png"),
                 "http://127.0.0.1:4600/__dfw/system.html".to_string()
             )]
         );

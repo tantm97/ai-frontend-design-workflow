@@ -18,7 +18,7 @@ use super::server::{Request, Response, Studio, JSON};
 use crate::assets::{studio_file, studio_text};
 use crate::core::config::global_config_path;
 use crate::core::error::DfwError;
-use crate::core::paths::project_paths;
+use crate::core::paths::{file, project_paths};
 use crate::core::util::{get_path, read_json, to_json_pretty};
 use crate::penpot::export::{export_penpot, ExportOptions};
 use crate::penpot::import::{format_import_changes, import_changes, ImportOptions};
@@ -186,10 +186,7 @@ pub fn route(studio: &Studio, req: &Request) -> Result<Response, DfwError> {
         // A GET only reads the last export: rendering (files written, a browser started) is a
         // POST, so a page elsewhere cannot start it with an <img>.
         "export.json" if method == method::GET => {
-            let file = project_paths(&studio.root)
-                .dfw
-                .join("penpot")
-                .join("export.json");
+            let file = project_paths(&studio.root).penpot.join(file::PENPOT_EXPORT);
             if !file.exists() {
                 return Ok(Response::error(status::NOT_FOUND, NO_EXPORT));
             }

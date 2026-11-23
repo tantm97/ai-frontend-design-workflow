@@ -15,7 +15,7 @@ use crate::core::util::{read_json, sha256, write_json_inside};
 use crate::design::manifest::Manifest;
 
 /// Files every screen loads besides the tokens.
-const SHARED: [&str; 2] = ["styles/base.css", in_design::HEAD];
+const SHARED: [&str; 2] = [in_design::BASE_CSS, in_design::HEAD];
 
 /// A content hash, not a modification time: a checkout or touch that does not change a file
 /// does not invalidate its check, and an edit always does. `None` when the file cannot be read.
@@ -36,7 +36,7 @@ fn differs(hash: &Option<String>, cached: Option<&Value>) -> bool {
 }
 
 fn cache_file(p: &ProjectPaths) -> std::path::PathBuf {
-    p.dfw.join("layout-cache.json")
+    p.layout_cache.clone()
 }
 
 /// The `file` of every variant of every screen in the manifest, with the screen's id.
@@ -145,6 +145,7 @@ pub fn mark_checked(root: &Path) -> Result<(), DfwError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::paths::rel;
     use crate::core::util::test_dir;
 
     fn write(root: &Path, rel: &str, text: &str) {
@@ -162,35 +163,31 @@ mod tests {
         let root = test_dir("layout-cache");
         write(
             &root,
-            "design/design.json",
+            rel::MANIFEST,
             r#"{"screens":[{"id":"home","variants":[{"id":"a","file":"screens/home/index.html"}]}]}"#,
         );
-        write(&root, "design/tokens/tokens.json", "{}");
+        write(&root, rel::TOKENS_JSON, "{}");
         write(
             &root,
-            "design/system/components/card.html",
+            &rel::component("card.html"),
             r#"<dfw-component name="card"><template><div class="card"><dfw-use c="button">Go</dfw-use></div></template></dfw-component>"#,
         );
-        write(&root, "design/system/components/button.html", &button(4));
-        write(&root, "design/styles/base.css", "body{margin:0}");
+        write(&root, &rel::component("button.html"), &button(4));
+        write(&root, rel::BASE_CSS, "body{margin:0}");
         write(
             &root,
-            "design/screens/home/index.html",
+            &rel::screen("home/index.html"),
             r#"<html><body><dfw-use c="card"></dfw-use></body></html>"#,
         );
         let screens = || changed_screens(&root).unwrap().screens;
         let none: Vec<String> = Vec::new();
         mark_checked(&root).unwrap();
         assert_eq!(screens(), none);
-        write(&root, "design/system/components/button.html", &button(400));
+        write(&root, &rel::component("button.html"), &button(400));
         assert_eq!(screens(), ["home"], "home uses button through card");
         mark_checked(&root).unwrap();
         assert_eq!(screens(), none);
-        write(
-            &root,
-            "design/styles/base.css",
-            "body{margin:0;width:3000px}",
-        );
+        write(&root, rel::BASE_CSS, "body{margin:0;width:3000px}");
         assert_eq!(screens(), ["home"], "base.css is loaded by every screen");
     }
 
@@ -201,16 +198,16 @@ mod tests {
         let root = test_dir("layout-cache");
         write(
             &root,
-            "design/design.json",
+            rel::MANIFEST,
             r#"{"screens":[{"id":"home","variants":[{"id":"a","file":"screens/home/index.html"},{"id":"b","file":"screens/home/missing.html"}]}]}"#,
         );
-        write(&root, "design/screens/home/index.html", "abc");
-        write(&root, "design/system/components/b.html", "abc");
+        write(&root, &rel::screen("home/index.html"), "abc");
+        write(&root, &rel::component("b.html"), "abc");
         let first = changed_screens(&root).unwrap();
         assert_eq!(first.changed_comps, ["b"]);
         assert!(first.tokens_changed);
         mark_checked(&root).unwrap();
-        let text = fs::read_to_string(root.join(".dfw/layout-cache.json")).unwrap();
+        let text = fs::read_to_string(root.join(rel::join(rel::DFW, "layout-cache.json"))).unwrap();
         // sha256("abc") starts with ba7816bf8f01cfea.
         assert_eq!(
             text,
@@ -230,22 +227,22 @@ mod tests {
             fs::create_dir_all(file.parent().unwrap()).unwrap();
             fs::write(file, text).unwrap();
         };
-        write("design/design.json", r#"{"screens":[{"id":"home","variants":[{"id":"a","file":"screens/home/a.html"},{"id":"gone","file":"screens/home/gone.html"}]}]}"#);
-        write("design/screens/home/a.html", "<p>a</p>");
-        write("design/system/components/button.html", "<b></b>");
-        write("design/tokens/tokens.json", "{}");
+        write(rel::MANIFEST, r#"{"screens":[{"id":"home","variants":[{"id":"a","file":"screens/home/a.html"},{"id":"gone","file":"screens/home/gone.html"}]}]}"#);
+        write(&rel::screen("home/a.html"), "<p>a</p>");
+        write(&rel::component("button.html"), "<b></b>");
+        write(rel::TOKENS_JSON, "{}");
         let first = changed_screens(&root).unwrap();
         assert_eq!(first, Changed { screens: vec!["home".into()], changed_comps: vec!["button".into()], tokens_changed: true });
         mark_checked(&root).unwrap();
         assert!(changed_screens(&root).unwrap().is_empty());
-        let cache = fs::read_to_string(root.join(".dfw/layout-cache.json")).unwrap();
+        let cache = fs::read_to_string(root.join(rel::join(rel::DFW, "layout-cache.json"))).unwrap();
         let keys: Vec<String> = serde_json::from_str::<Value>(&cache).unwrap().as_object().unwrap().keys().cloned().collect();
         assert_eq!(keys, ["c:button.html", "t:tokens", "f:styles/base.css", "f:system/head.html", "s:screens/home/a.html", "s:screens/home/gone.html"]);
         assert!(cache.contains("\"f:styles/base.css\": null") && cache.ends_with("}\n"));
-        write("design/styles/base.css", "body{}");
+        write(rel::BASE_CSS, "body{}");
         assert_eq!(changed_screens(&root).unwrap(), Changed { screens: vec!["home".into()], changed_comps: vec![], tokens_changed: true });
         mark_checked(&root).unwrap();
-        write("design/system/components/button.html", "<i></i>");
+        write(&rel::component("button.html"), "<i></i>");
         assert_eq!(changed_screens(&root).unwrap(), Changed { screens: vec!["home".into()], changed_comps: vec!["button".into()], tokens_changed: false });
     }
 }

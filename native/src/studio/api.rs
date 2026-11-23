@@ -15,7 +15,7 @@ use crate::design::pages::{screen_flows, studio_pages};
 
 use crate::core::error::DfwError;
 use crate::core::js::regex::with_js_classes;
-use crate::core::paths::{in_design, project_paths, rel, resolve_inside, to_posix};
+use crate::core::paths::{file, in_design, project_paths, rel, resolve_inside, to_posix};
 use crate::core::util::{get_path, list_files, read_json};
 use crate::design::compose::{compose_html, load_components, ComposeOptions};
 use crate::design::edit::load_token_names;
@@ -150,7 +150,7 @@ pub fn manifest(root: &Path, config: &Value) -> Result<Value, DfwError> {
         return Ok(Value::Object(out));
     }
     let mut screens: Vec<(String, Vec<Value>)> = Vec::new();
-    for rel in list_files(&p.design.join("screens"), &[])? {
+    for rel in list_files(&p.screens, &[])? {
         let Some(stem) = rel.strip_suffix(".html") else {
             continue;
         };
@@ -164,7 +164,8 @@ pub fn manifest(root: &Path, config: &Value) -> Result<Value, DfwError> {
         } else {
             (stem.to_string(), "a".to_string())
         };
-        let entry = json!({ "id": variant, "label": variant, "file": format!("screens/{rel}") });
+        let entry =
+            json!({ "id": variant, "label": variant, "file": format!("{}/{rel}", file::SCREENS) });
         match screens.iter_mut().find(|(sid, _)| *sid == id) {
             Some((_, variants)) => variants.push(entry),
             None => screens.push((id, vec![entry])),
@@ -431,14 +432,14 @@ pub fn shoot_frames(root: &Path, port: u16, body: &Value) -> Result<Value, DfwEr
         .filter(|f| {
             f.get("src")
                 .and_then(Value::as_str)
-                .is_some_and(|s| s.starts_with("/design/") || s == paths::SYSTEM_PAGE)
+                .is_some_and(|s| s.starts_with(DESIGN_BASE) || s == paths::SYSTEM_PAGE)
         })
         .take(200)
         .collect();
     if list.is_empty() {
         return Err(DfwError::new("Nothing to screenshot."));
     }
-    let dir = new_run_dir(&p.dfw.join("shots").join("studio"), &local_stamp())?;
+    let dir = new_run_dir(&p.shots.join("studio"), &local_stamp())?;
     let size = |v: Option<&Value>, fallback: f64| -> u32 {
         let n = js::to_number(v);
         let n = if n.is_nan() || n == 0.0 { fallback } else { n };
@@ -549,6 +550,7 @@ fn local_stamp() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::paths::file;
 
     /// a design file or a screenshot reached through a symlink (file or folder) that leads
     /// out of its root is not served
@@ -561,12 +563,12 @@ mod tests {
         fs::write(outside.join("secret.txt"), "secret").unwrap();
         fs::write(outside.join("folder/secret.png"), "secret").unwrap();
         let design = dir.join("project/design");
-        fs::create_dir_all(design.join("screens")).unwrap();
+        fs::create_dir_all(design.join(file::SCREENS)).unwrap();
         fs::write(design.join("screens/a.html"), "<p>a</p>").unwrap();
         std::os::unix::fs::symlink(outside.join("secret.txt"), design.join("leak.txt")).unwrap();
         std::os::unix::fs::symlink(outside.join("folder"), design.join("linked")).unwrap();
         // A link that stays inside is fine.
-        std::os::unix::fs::symlink(design.join("screens"), design.join("alias")).unwrap();
+        std::os::unix::fs::symlink(design.join(file::SCREENS), design.join("alias")).unwrap();
         assert_eq!(safe_join(&design, "leak.txt"), None);
         assert_eq!(safe_join(&design, "linked/secret.png"), None);
         assert_eq!(safe_join(&design, "linked"), None);

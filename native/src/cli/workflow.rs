@@ -15,7 +15,7 @@ use crate::core::error::exit;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::level::{self, Level};
-use crate::core::paths::{project_paths, rel};
+use crate::core::paths::{file, project_paths, rel};
 use crate::core::process::is_alive;
 use crate::core::util::{
     append_jsonl_inside, now_iso, out, parse_value, read_json, to_json_compact, to_json_pretty,
@@ -89,14 +89,24 @@ fn init(ctx: &Ctx) -> Result<i32, DfwError> {
     }
     write_atomic_inside(
         &root,
-        &p.dfw.join(".gitignore"),
-        "config.local.json\nstudio.json\nstudio.log\nreview.json\nreview.log\npresence.json\nshots/\nchecks/\n",
+        &p.dfw.join(file::GITIGNORE),
+        format!(
+            "{}\n{}\n{}\n{}\n{}\n{}\n{}/\n{}/\n",
+            file::CONFIG_LOCAL,
+            file::STUDIO,
+            file::STUDIO_LOG,
+            file::REVIEW,
+            file::REVIEW_LOG,
+            file::PRESENCE,
+            file::SHOTS,
+            file::CHECKS
+        ),
     )?;
     let mut created = Vec::new();
     for doc in ["PRODUCT.md", "DESIGN.md"] {
         if !root.join(doc).exists() {
             write_atomic_inside(&root, &root.join(doc), crate::assets::template_text(doc)?)?;
-            created.push(doc);
+            created.push(doc.to_string());
         }
     }
     if !p.design.exists() {
@@ -115,7 +125,7 @@ fn init(ctx: &Ctx) -> Result<i32, DfwError> {
             map.insert("product".into(), product);
         }
         write_json_inside(&root, &p.manifest, &m)?;
-        created.push("design/");
+        created.push(format!("{}/", rel::DESIGN));
         // `try { buildTokens(root) } catch {}`: a starter that does not build is not an error here.
         let _ = build_tokens(&root);
     }
@@ -262,7 +272,12 @@ fn next_step(
         "concepts" => "review in the studio; when the user approves: \"dfw approve G2 --note ...\"",
         "stack" if g3 => "\"dfw phase implement\"",
         "stack" => "propose/confirm the stack; \"dfw approve G3 --note ...\"",
-        "implement" => "implement from design/handoff; then \"dfw phase verify\"",
+        "implement" => {
+            return Some(format!(
+                "implement from {}; then \"dfw phase verify\"",
+                rel::HANDOFF
+            ))
+        }
         "verify" => {
             "compare against the approved design; when accepted: \"dfw approve G4 --note ...\""
         }
@@ -447,7 +462,7 @@ fn approve(ctx: &Ctx) -> Result<i32, DfwError> {
     if gate == "G3" {
         stack = read_json(&file, Some(Value::Null))?;
         if file.exists() && !stack.is_object() {
-            return Err(DfwError::new("G3 needs a stack proposal: .dfw/stack.json must hold a JSON object (run: dfw stack set ... or dfw stack detect --write)."));
+            return Err(DfwError::new(format!("G3 needs a stack proposal: {} must hold a JSON object (run: dfw stack set ... or dfw stack detect --write).", rel::STACK)));
         }
     }
     approve_gate(&root, &mut state, &gate, Some(note), Map::new())?;

@@ -8,7 +8,7 @@ use super::{finding, malformed};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::level::Level;
-use crate::core::paths::project_paths;
+use crate::core::paths::{project_paths, rel};
 use crate::core::util::read_json;
 use crate::design::manifest::{items_checked as list, key, not_null as item, Screen};
 
@@ -28,7 +28,7 @@ fn join_below(dir: &Path, file: &str) -> PathBuf {
 }
 
 /// The file every finding of this lint names.
-const REL: &str = "design/design.json";
+const REL: &str = rel::MANIFEST;
 
 /// One finding on design/design.json, at line 1.
 fn add(out: &mut Vec<Value>, level: Level, rule: &str, message: String) {
@@ -62,7 +62,7 @@ pub fn lint_manifest(root: &Path) -> Result<Vec<Value>, DfwError> {
             &mut out,
             Level::Error,
             "manifest-missing",
-            "design/design.json is missing.".into(),
+            format!("{REL} is missing."),
         );
         return Ok(out);
     }
@@ -218,9 +218,10 @@ fn check_variants(design: &Path, screen: &Value, out: &mut Vec<Value>) -> Result
                 Level::Error,
                 "manifest-file-missing",
                 format!(
-                    "Variant \"{}/{}\" points to missing file design/{file}.",
+                    "Variant \"{}/{}\" points to missing file {}.",
                     id(screen),
-                    id(variant)
+                    id(variant),
+                    rel::design(file)
                 ),
             );
         }

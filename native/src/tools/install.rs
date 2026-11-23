@@ -16,7 +16,7 @@ use crate::browser::download::install_browser;
 use crate::browser::launch::{browser_status, BrowserStatus};
 use crate::core::error::DfwError;
 use crate::core::host::{get_host, supported_hosts, Host, Status, HOSTS};
-use crate::core::paths::{plugin_root, resolve};
+use crate::core::paths::{file, plugin_root, rel, resolve};
 use crate::core::process::{find_executable, plan_for, run_timed, Ran, Spawn};
 use crate::core::util::make_temp_dir;
 use crate::core::util::{out, plugin_manifest, read_json};
@@ -533,7 +533,7 @@ pub fn install(opts: &InstallOptions) -> Result<(), DfwError> {
         }
         step("Impeccable engine (detect only, telemetry and update checks off)");
         let tmp = make_temp_dir(&env::temp_dir(), "dfw-setup-")?;
-        fs::create_dir_all(tmp.join(".dfw"))?;
+        fs::create_dir_all(tmp.join(file::DFW))?;
         let ran = run.run_env(
             &me,
             &["check", "--setup"],
@@ -578,7 +578,11 @@ pub fn uninstall(host: &str, scope: &str, quiet: bool) -> Result<(), DfwError> {
         }
         out(&ok(&format!("{}: removed dfw and its skills.", h.name)));
     }
-    out("Project files (.dfw/, design/) are untouched.");
+    out(&format!(
+        "Project files ({}/, {}/) are untouched.",
+        rel::DFW,
+        rel::DESIGN
+    ));
     Ok(())
 }
 

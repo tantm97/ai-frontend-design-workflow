@@ -10,12 +10,13 @@ use super::diff::list;
 use super::export::penpot_dir;
 use crate::core::error::DfwError;
 use crate::core::js;
+use crate::core::paths::file;
 use crate::review::comments::{all_comments, update_comment, Update};
 use crate::review::status::{self, Status};
 
 /// `.dfw/penpot/threads.json`.
 pub(crate) fn threads_file(root: &Path) -> PathBuf {
-    penpot_dir(root).join("threads.json")
+    penpot_dir(root).join(file::PENPOT_THREADS)
 }
 
 /// The key of a thread: the Penpot file's id and the thread's number in it.

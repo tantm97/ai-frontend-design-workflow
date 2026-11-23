@@ -750,7 +750,7 @@ mod tests {
             b"POST / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n+5\r\nabcde\r\n0\r\n\r\n",
         );
         match read_body(&mut r, &head, 100, false) {
-            Err(BodyError::Io(e)) => assert_eq!(refusal(&e), Some((400, "Malformed request."))),
+            Err(BodyError::Io(e)) => assert_eq!(refusal(&e), Some((400, message::MALFORMED))),
             other => panic!("{other:?}"),
         }
     }
@@ -781,10 +781,10 @@ mod tests {
         big.extend(std::iter::repeat_n(b'a', MAX_HEAD + 10));
         let mut r: &[u8] = &big;
         let err = read_head(&mut r).unwrap_err();
-        assert_eq!(refusal(&err), Some((413, "Request too large.")));
+        assert_eq!(refusal(&err), Some((413, message::TOO_LARGE)));
         let mut r: &[u8] = b"GET / HTTP/1.1\r\nno colon\r\n\r\n";
         let err = read_head(&mut r).unwrap_err();
-        assert_eq!(refusal(&err), Some((400, "Malformed request.")));
+        assert_eq!(refusal(&err), Some((400, message::MALFORMED)));
         let timed_out = io::Error::new(io::ErrorKind::TimedOut, "slow");
         assert_eq!(refusal(&timed_out), None);
     }

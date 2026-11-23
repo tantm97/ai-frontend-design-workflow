@@ -67,7 +67,7 @@ pub fn export_penpot_tokens(
             file
         }
         None => {
-            let file = resolve(root.join(".dfw").join("penpot").join("tokens.penpot.json"));
+            let file = resolve(project_paths(root).penpot.join(file::PENPOT_TOKENS));
             write_json_inside(root, &file, &json)?;
             file
         }

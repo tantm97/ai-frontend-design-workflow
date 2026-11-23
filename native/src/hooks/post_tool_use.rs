@@ -26,7 +26,7 @@ use super::user_prompt_submit::{delivers_on_prompt, inbox_for};
 
 /// `/^design\/<dir>.*\.json$/.test(rel)`.
 fn design_json(rel: &str, dir: &str) -> bool {
-    let prefix = format!("design/{dir}");
+    let prefix = rel::design(dir);
     rel.starts_with(&prefix)
         && rel.ends_with(".json")
         && rel.len() >= prefix.len() + ".json".len()
@@ -38,7 +38,7 @@ fn design_json(rel: &str, dir: &str) -> bool {
 fn is_checked(rel: &str) -> bool {
     rel != ".."
         && !rel.starts_with("../")
-        && !rel.starts_with("design/approved/")
+        && !rel::under(rel::APPROVED, rel)
         && (UI_EXT.contains(&extname(rel)) || design_json(rel, ""))
 }
 
@@ -138,17 +138,21 @@ pub fn post_tool_use(input: &HookInput, host: &Host) -> Result<Option<HookResult
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::paths::file;
 
     #[test]
     fn design_json_is_the_node_expression() {
-        assert!(design_json("design/design.json", ""));
-        assert!(design_json("design/.json", ""));
-        assert!(!design_json("design/json", ""));
-        assert!(!design_json("src/design/a.json", ""));
-        assert!(design_json("design/tokens/themes/dark.json", "tokens/"));
-        assert!(design_json("design/tokens/.json", "tokens/"));
-        assert!(!design_json("design/tokens.json", "tokens/"));
-        assert!(!design_json("design/tokens/a\nb.json", "tokens/"));
+        assert!(design_json(rel::MANIFEST, ""));
+        assert!(design_json(&rel::design(".json"), ""));
+        assert!(!design_json(&rel::design("json"), ""));
+        assert!(!design_json(&format!("src/{}", rel::design("a.json")), ""));
+        assert!(design_json(&rel::join(rel::THEMES, "dark.json"), "tokens/"));
+        assert!(design_json(&rel::join(rel::TOKENS, ".json"), "tokens/"));
+        assert!(!design_json(&rel::design(file::TOKENS_JSON), "tokens/"));
+        assert!(!design_json(
+            &rel::join(rel::TOKENS, "a\nb.json"),
+            "tokens/"
+        ));
     }
 
     /// d: a file whose name starts with two dots is in the project (tests/unit/node-stable)
@@ -159,7 +163,7 @@ mod tests {
         assert!(is_checked("src/a.tsx"));
         assert!(!is_checked("../x.html"));
         assert!(!is_checked(".."));
-        assert!(!is_checked("design/approved/v1/a.html"));
+        assert!(!is_checked(&rel::approved("v1/a.html")));
         assert!(!is_checked("README.md"));
     }
 }

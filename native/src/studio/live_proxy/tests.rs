@@ -7,6 +7,7 @@ use std::thread;
 
 use super::proxy::LiveServer;
 use super::*;
+use crate::core::paths::rel;
 use crate::core::util::test_dir;
 use crate::review::comments::all_comments;
 
@@ -423,8 +424,10 @@ fn the_proxy_answers_requests_over_its_limits() {
     let (port, _server) = proxy_for(&root, "http://127.0.0.1:9");
     let big = format!(r#"{{"comment":"{}"}}"#, "x".repeat(1_000_001));
     let r = post_comment(port, "", &big);
+    let too_large =
+        crate::studio::http::error_body(crate::studio::http::message::TOO_LARGE).to_string();
     assert!(
-        r.starts_with("HTTP/1.1 413") && body(&r) == r#"{"error":"Request too large."}"#,
+        r.starts_with("HTTP/1.1 413") && body(&r) == too_large,
         "{r}"
     );
     let r = call(port, &format!("POST /__dfw/api/comments HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nTransfer-Encoding: chunked\r\n\r\nffffffffffffffff\r\nabc"));
@@ -592,9 +595,9 @@ fn browser_page(
 #[ignore = "needs Chrome"]
 fn review_in_a_browser_click_to_comment_carries_the_nearest_insp_path() {
     let root = test_dir("live-browser");
-    std::fs::create_dir_all(root.join(".dfw")).unwrap();
+    std::fs::create_dir_all(root.join(rel::DFW)).unwrap();
     std::fs::write(
-        root.join(".dfw/state.json"),
+        root.join(rel::STATE),
         "{\"schema\":1,\"mode\":\"existing-project\",\"phase\":\"verify\",\"active\":true}\n",
     )
     .unwrap();
@@ -680,9 +683,9 @@ fn strict_app() -> (u16, Arc<std::sync::Mutex<Vec<String>>>) {
 #[ignore = "needs Chrome"]
 fn review_in_a_browser_strict_csp_localhost_cookies_and_the_shortcut() {
     let root = test_dir("live-browser-csp");
-    std::fs::create_dir_all(root.join(".dfw")).unwrap();
+    std::fs::create_dir_all(root.join(rel::DFW)).unwrap();
     std::fs::write(
-        root.join(".dfw/state.json"),
+        root.join(rel::STATE),
         "{\"schema\":1,\"mode\":\"existing-project\",\"phase\":\"verify\",\"active\":true}\n",
     )
     .unwrap();

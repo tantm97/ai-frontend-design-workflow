@@ -1,4 +1,4 @@
-//! Convention checks on the source of `src/`.
+//! Convention checks on the source of `src/` (and, for the project layout, of the tests).
 //!
 //! The growth guard of convention G15 (git-and-review.md): the number of suppressions
 //! (`#[allow(...)]` in product code) may only go down. A higher count fails with the new ones; a lower count fails until the
@@ -353,8 +353,8 @@ fn servers_name_methods_statuses_and_errors() {
 }
 
 /// The text of a source file before its test module (`#[cfg(test)]`, maybe more attributes,
-/// then `mod`). A single `#[cfg(test)]` item before it (a fixture helper) does not end the
-/// product code.
+/// then `mod name {`). A single `#[cfg(test)]` item before it (a fixture helper) and a test
+/// module in its own file (`mod tests;`, read as a test file) do not end the product code.
 fn product_part(text: &str) -> &str {
     let mut at = 0;
     let mut lines = text.split_inclusive('\n').peekable();
@@ -362,7 +362,9 @@ fn product_part(text: &str) -> &str {
         if line.trim() == "#[cfg(test)]" {
             let mut rest = lines.clone();
             let item = rest.find(|l| !l.trim_start().starts_with("#["));
-            if item.is_some_and(|l| l.trim_start().starts_with("mod ")) {
+            if item
+                .is_some_and(|l| l.trim_start().starts_with("mod ") && l.trim_end().ends_with('{'))
+            {
                 return &text[..at];
             }
         }
@@ -456,6 +458,10 @@ fn exit_codes_are_named() {
     );
 }
 
+/// The files that name the project layout, and so may spell it: `core::paths` and its
+/// `layout` module.
+const LAYOUT_HOME: [&str; 2] = ["src/core/paths.rs", "src/core/paths/layout.rs"];
+
 /// The design system's folders and files are named once, in `core::paths` (`ProjectPaths`
 /// fields, `file`, `in_design`, `rel`), never spelled in a `join` or a message. The Penpot set
 /// prefix `themes/` and the Node regex ports that look for `tokens/` anywhere in a path
@@ -484,7 +490,7 @@ fn design_system_paths_are_core_paths() {
         "join(\"themes\")",
     ];
     let mut found = Vec::new();
-    for (rel, lines) in product_sources(&["src/core/paths.rs"]) {
+    for (rel, lines) in product_sources(&LAYOUT_HOME) {
         for (i, code) in lines.iter().enumerate() {
             if spelled.iter().any(|s| code.contains(s)) {
                 found.push(format!("{rel}:{}: {}", i + 1, code.trim()));
@@ -494,6 +500,189 @@ fn design_system_paths_are_core_paths() {
     assert!(
         found.is_empty(),
         "design system paths spelled out; use core::paths (ProjectPaths, file, in_design, rel):\n{}",
+        found.join("\n")
+    );
+}
+
+/// The rest of the project layout (the manifest, screens, styles, assets, snapshots, handoff
+/// and the files of `.dfw/`) is named once too, in `core::paths`. JSON keys (`"screens"`,
+/// `"approved"`), commands (`handoff`), SSE event names and the Studio's URLs (`/__dfw/`, and
+/// `/design/`, `studio::api::DESIGN_BASE`) are other things and do not match.
+#[test]
+fn project_layout_paths_are_core_paths() {
+    let spelled = [
+        "design/",
+        "design/design.json",
+        "design/screens",
+        "design/styles",
+        "design/approved",
+        "design/handoff",
+        "styles/base.css",
+        ".dfw/",
+        "\".dfw\"",
+        "\"design.json\"",
+        "\"base.css\"",
+        "\"state.json\"",
+        "\"config.json\"",
+        "\"config.local.json\"",
+        "\"decisions.jsonl\"",
+        "\"stack.json\"",
+        "\"studio.json\"",
+        "\"studio.log\"",
+        "\"review.json\"",
+        "\"review.log\"",
+        "\"presence.json\"",
+        "\"layout-cache.json\"",
+        "\"approval.lock.json\"",
+        "\".delivered.json\"",
+        "\".listening.json\"",
+        "\"tokens.penpot.json\"",
+        "\"tokens.from-penpot.json\"",
+        "\"imported.json\"",
+        "\"threads.json\"",
+        "\"setup.html\"",
+        "join(\"design\")",
+        "join(\"screens\")",
+        "join(\"styles\")",
+        "join(\"approved\")",
+        "join(\"handoff\")",
+        "join(\"reviews\")",
+        "join(\"checks\")",
+        "join(\"build\")",
+        "join(\"shots\")",
+        "join(\"edits\")",
+        "join(\"penpot\")",
+        "join(\"exports\")",
+        "join(\"changes\")",
+        "join(\"export.json\")",
+    ];
+    let mut found = Vec::new();
+    for (rel, lines) in product_sources(&LAYOUT_HOME) {
+        for (i, code) in lines.iter().enumerate() {
+            let code_but_urls = code.replace("/design/", "/");
+            if spelled.iter().any(|s| code_but_urls.contains(s)) {
+                found.push(format!("{rel}:{}: {}", i + 1, code.trim()));
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "project paths spelled out; use core::paths (ProjectPaths, file, in_design, rel):\n{}",
+        found.join("\n")
+    );
+}
+
+/// The test code of every Rust file, as `(path, lines)`: the `#[cfg(test)] mod` part of a
+/// source file, a `tests.rs` file, and the binary tests but this one (it holds the patterns).
+fn test_sources(skip: &[&str]) -> Vec<(String, Vec<String>)> {
+    let mut files = Vec::new();
+    rust_files(&native().join("src"), &mut files);
+    rust_files(&native().join("tests"), &mut files);
+    files.sort();
+    let mut out = Vec::new();
+    for f in files {
+        let rel = f
+            .strip_prefix(native())
+            .unwrap()
+            .to_string_lossy()
+            .replace('\\', "/");
+        if skip.contains(&rel.as_str()) || rel == "tests/conventions.rs" {
+            continue;
+        }
+        let text = fs::read_to_string(&f).unwrap();
+        let whole = rel.starts_with("tests/") || rel.ends_with("tests.rs");
+        let test = if whole {
+            &text[..]
+        } else {
+            &text[product_part(&text).len()..]
+        };
+        let first = text[..text.len() - test.len()].lines().count();
+        out.push((
+            rel,
+            std::iter::repeat_n(String::new(), first)
+                .chain(
+                    test.lines()
+                        .map(|l| l.split("//").next().unwrap_or_default().to_string()),
+                )
+                .collect(),
+        ));
+    }
+    out
+}
+
+/// A line without the raw strings on it (`r#"..."#`, `r##"..."##`): fixture content. A raw
+/// string that goes on past the line takes the rest of it.
+fn without_raw_strings(code: &str) -> String {
+    let mut out = String::new();
+    let mut rest = code;
+    while let Some(at) = rest.find("r#") {
+        let hashes = rest[at + 1..].chars().take_while(|c| *c == '#').count();
+        let open = format!("r{}\"", "#".repeat(hashes));
+        if !rest[at..].starts_with(&open) {
+            out.push_str(&rest[..at + 2]);
+            rest = &rest[at + 2..];
+            continue;
+        }
+        out.push_str(&rest[..at]);
+        let close = format!("\"{}", "#".repeat(hashes));
+        let body = &rest[at + open.len()..];
+        rest = body
+            .find(&close)
+            .map_or("", |end| &body[end + close.len()..]);
+    }
+    out.push_str(rest);
+    out
+}
+
+/// Tests build the project paths of their fixtures from `core::paths` too (the binary tests
+/// include its `layout` module), so a layout change is made in one place. Fixture data is not
+/// a path and may stay a literal: file content (a page's `<link href="../tokens/tokens.css">`,
+/// a raw string `r#"..."#` of JSON or HTML), a component name, a Studio URL (`/design/...`).
+#[test]
+fn tests_build_project_paths_from_core_paths() {
+    let spelled = [
+        "design/",
+        ".dfw/",
+        "\".dfw\"",
+        "\"design.json\"",
+        "\"tokens.json\"",
+        "\"tokens.css\"",
+        "\"head.html\"",
+        "\"components.css\"",
+        "\"style.json\"",
+        "\"inventory.json\"",
+        "\"base.css\"",
+        "\"state.json\"",
+        "\"config.json\"",
+        "\"config.local.json\"",
+        "\"decisions.jsonl\"",
+        "\"stack.json\"",
+        "join(\"design\")",
+        "join(\"system\")",
+        "join(\"tokens\")",
+        "join(\"components\")",
+        "join(\"icons\")",
+        "join(\"screens\")",
+        "join(\"styles\")",
+        "join(\"approved\")",
+        "join(\"handoff\")",
+        "join(\"reviews\")",
+        "join(\"penpot\")",
+        "join(\"edits\")",
+        "join(\"shots\")",
+    ];
+    let mut found = Vec::new();
+    for (rel, lines) in test_sources(&LAYOUT_HOME) {
+        for (i, code) in lines.iter().enumerate() {
+            let code_but_urls = without_raw_strings(code).replace("/design/", "/");
+            if spelled.iter().any(|s| code_but_urls.contains(s)) {
+                found.push(format!("{rel}:{}: {}", i + 1, code.trim()));
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "project paths spelled out in tests; build them from core::paths (project_paths, file, in_design, rel):\n{}",
         found.join("\n")
     );
 }

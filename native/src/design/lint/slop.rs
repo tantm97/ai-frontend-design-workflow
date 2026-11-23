@@ -5,6 +5,7 @@ use super::{style_blocks, Add};
 use crate::core::js;
 use crate::core::js::regex::{blank_matches, js_re};
 use crate::core::level::Level;
+use crate::core::paths::rel;
 use crate::design::color::hex_to_oklch;
 
 /// Colours AI-generated UIs default to. Exact values only: a brand that really uses one keeps
@@ -265,7 +266,7 @@ pub(super) fn slop_html(text: &str, add: &mut Add) {
         add(Level::Warn.as_str(), "invented-metric", Some(body + m.start()), format!("\"{}\" looks like an invented metric. Use a real figure from the brief, or a clearly labelled placeholder.", m.as_str()));
     }
     for m in PLACEHOLDER_IMG.find_iter(text) {
-        add(Level::Warn.as_str(), "placeholder-image-host", Some(m.start()), format!("External placeholder image host \"{}\": fragile and obviously generic. Use a local asset in design/assets/ or a designed placeholder.", m.as_str()));
+        add(Level::Warn.as_str(), "placeholder-image-host", Some(m.start()), format!("External placeholder image host \"{}\": fragile and obviously generic. Use a local asset in {}/ or a designed placeholder.", m.as_str(), rel::ASSETS));
     }
 }
 

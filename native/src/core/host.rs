@@ -484,6 +484,7 @@ pub fn render_text(text: &str, host_id: &str) -> Result<String, DfwError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::paths::rel;
     use crate::core::util::{test_dir, to_json_compact};
 
     fn format(host: &str, event: &str, result: Value) -> Option<Value> {
@@ -518,7 +519,10 @@ mod tests {
                 .as_deref(),
             Some("Edit")
         );
-        let body = "*** Begin Patch\n*** Add File: src/x.ts\n*** Update File: design/a.html\n*** End Patch";
+        let body = format!(
+            "*** Begin Patch\n*** Add File: src/x.ts\n*** Update File: {}\n*** End Patch",
+            rel::design("a.html")
+        );
         let patch =
             normalize_hook_input(&json!({ "toolName": "apply_patch", "toolArgs": body })).unwrap();
         assert_eq!(patch.tool_name.as_deref(), Some("ApplyPatch"));

@@ -29,7 +29,7 @@ use crate::core::http;
 use crate::core::js;
 use crate::core::level::Level;
 use crate::core::paths::file_url;
-use crate::core::paths::{global_dir, project_paths};
+use crate::core::paths::{global_dir, project_paths, rel};
 use crate::core::util::read_json;
 use crate::design::compose::{build_composed, build_system};
 use crate::design::manifest::{Manifest, Screen, Variant};
@@ -276,7 +276,7 @@ fn screen_jobs(root: &Path, opts: &A11yOptions) -> Result<Vec<Job>, DfwError> {
                     let state = truthy(st).map(|t| format!(" [{t}]")).unwrap_or_default();
                     let theme = truthy(th).map(|t| format!(" {{{t}}}")).unwrap_or_default();
                     jobs.push(Job {
-                        rel: format!("design/{}", js::to_string(v.get("file"))),
+                        rel: rel::design(&js::to_string(v.get("file"))),
                         label: format!("{id}/{}{state}{theme}", js::to_string(v.get("id"))),
                         state: st.clone(),
                         theme: th.clone(),
@@ -568,7 +568,7 @@ mod tests {
         let finding = Finding {
             level: impact_level(Some("serious")),
             rule: "axe-color-contrast".into(),
-            file: "design/screens/s/a.html".into(),
+            file: rel::screen("s/a.html"),
             message: "s/a: Elements must meet minimum color contrast ratio thresholds (2 element(s), e.g. p)".into(),
             source: "axe",
         };

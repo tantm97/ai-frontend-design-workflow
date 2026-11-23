@@ -10,7 +10,7 @@ use serde_json::Value;
 use crate::core::config::{gate_allow, gate_design_paths, gate_immutable};
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::resolve;
+use crate::core::paths::{self, resolve};
 use crate::core::util::matches_any;
 
 use super::state::{current_approval, gate_passed};
@@ -145,16 +145,16 @@ fn decide_rel(
         return Ok(Decision::allow());
     }
     if matches(rel, &gate_immutable(config), fold) {
-        if rel.to_lowercase().starts_with(".dfw/") {
+        if paths::rel::under(paths::rel::DFW, &rel.to_lowercase()) {
             return Ok(Decision::deny(format!("dfw gate: \"{rel}\" holds dfw's gates, approvals, decisions, settings or review comments; only dfw commands change it. Run the dfw command for the change (dfw approve, dfw reopen, dfw decide, dfw config set, dfw stack set, dfw comments ...); approvals, re-opening and gate settings need the user's word first.")));
         }
-        return Ok(Decision::deny(format!("dfw gate: \"{rel}\" is part of a frozen, approved design snapshot and is immutable. To change the approved design, ask the user, then run \"dfw reopen --reason <why>\" and edit the working copy in design/.")));
+        return Ok(Decision::deny(format!("dfw gate: \"{rel}\" is part of a frozen, approved design snapshot and is immutable. To change the approved design, ask the user, then run \"dfw reopen --reason <why>\" and edit the working copy in {}/.", paths::rel::DESIGN)));
     }
     if matches_any(rel, &gate_allow(config)) {
         return Ok(Decision::allow());
     }
     if state.get("mode").and_then(Value::as_str) == Some("review-only") {
-        return Ok(Decision::deny("dfw gate: this project is in review-only mode; no files may be modified except under .dfw/. Report findings instead.".into()));
+        return Ok(Decision::deny(format!("dfw gate: this project is in review-only mode; no files may be modified except under {}/. Report findings instead.", paths::rel::DFW)));
     }
     let design_paths = gate_design_paths(config);
     let design = state.get("design");
@@ -242,6 +242,7 @@ mod tests {
     use super::*;
     use crate::core::config::defaults;
     use crate::core::host::normalize_hook_input;
+    use crate::core::paths::rel;
     use crate::workflow::state::new_state;
     use serde_json::json;
 
@@ -256,9 +257,9 @@ mod tests {
                 .unwrap()
                 .allow
         };
-        assert!(w(&s, "design/screens/a/a.html"));
+        assert!(w(&s, &rel::screen("a/a.html")));
         assert!(w(&s, "PRODUCT.md"));
-        assert!(w(&s, ".dfw/notes.md"));
+        assert!(w(&s, &rel::join(rel::DFW, "notes.md")));
         assert!(!w(&s, "src/App.tsx"));
         assert!(
             decide_write(&root, Some(&s), &config, Path::new("/elsewhere/x.js"))
@@ -267,14 +268,14 @@ mod tests {
             "outside project"
         );
         assert!(
-            !w(&s, "design/approved/v1/screens/a.html"),
+            !w(&s, &rel::approved("v1/screens/a.html")),
             "snapshots immutable"
         );
         // After freeze: design locked, handoff allowed, code still blocked until G3 + implement phase.
         s["design"] = json!({ "version": 1, "status": "approved", "locked": true, "approved": [{ "version": "v1" }] });
-        assert!(!w(&s, "design/screens/a/a.html"));
+        assert!(!w(&s, &rel::screen("a/a.html")));
         assert!(!w(&s, "DESIGN.md"));
-        assert!(w(&s, "design/handoff/v1.md"));
+        assert!(w(&s, &rel::join(rel::HANDOFF, "v1.md")));
         assert!(!w(&s, "src/App.tsx"));
         s["gates"]["G3"] = json!({ "approvedAt": "x" });
         s["phase"] = "implement".into();
@@ -285,8 +286,8 @@ mod tests {
         assert!(w(&s, "src/App.tsx"));
         // Review-only blocks everything except .dfw.
         let r = new_state("review-only", "".into()).unwrap();
-        assert!(!w(&r, "design/x.html"));
-        assert!(w(&r, ".dfw/report.md"));
+        assert!(!w(&r, &rel::design("x.html")));
+        assert!(w(&r, &rel::join(rel::DFW, "report.md")));
     }
 
     #[test]
@@ -301,11 +302,10 @@ mod tests {
                 .unwrap()
         };
         assert_eq!(reason(&s, "src/a.ts"), "dfw gate: implementation files cannot be modified yet (\"src/a.ts\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \"implement\" (current: \"discovery\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).");
-        assert!(reason(&s, "design/approved/v1/a.html").contains("is immutable"));
+        assert!(reason(&s, &rel::approved("v1/a.html")).contains("is immutable"));
         s["design"]["locked"] = true.into();
-        assert!(
-            reason(&s, "design/a.html").starts_with("dfw gate: design v1 is approved and locked.")
-        );
+        assert!(reason(&s, &rel::design("a.html"))
+            .starts_with("dfw gate: design v1 is approved and locked."));
         assert!(
             decide_write(&root, None, &config, &root.join("src/a.ts"))
                 .unwrap()
@@ -313,9 +313,14 @@ mod tests {
         );
         // A relative path is taken from the project root; `..` is resolved before the check.
         assert!(
-            !decide_write(&root, Some(&s), &config, Path::new("design/../src/a.ts"))
-                .unwrap()
-                .allow
+            !decide_write(
+                &root,
+                Some(&s),
+                &config,
+                Path::new(&rel::design("../src/a.ts"))
+            )
+            .unwrap()
+            .allow
         );
         assert!(
             decide_write(&root, Some(&s), &config, Path::new("../other/a.ts"))
@@ -356,10 +361,10 @@ mod tests {
         let allow = |s: &Value, rel: &str, fold: bool| {
             decide_rel(s, &config, rel, true, fold).unwrap().allow
         };
-        assert!(!allow(&draft, "design/Approved/v1/a.html", true));
+        assert!(!allow(&draft, &rel::design("Approved/v1/a.html"), true));
         assert!(!allow(&draft, "DESIGN/APPROVED/v1/a.html", true));
         assert!(
-            allow(&draft, "design/Approved/v1/a.html", false),
+            allow(&draft, &rel::design("Approved/v1/a.html"), false),
             "case-sensitive: another folder"
         );
         let s = implementing();
@@ -372,18 +377,18 @@ mod tests {
             allow(&s, "Design/screens/a.html", false),
             "case-sensitive: app code"
         );
-        assert!(allow(&s, "design/handoff/v1.md", true));
+        assert!(allow(&s, &rel::join(rel::HANDOFF, "v1.md"), true));
         // On the file system of this machine: a reopened project, the frozen file by another case.
         let root = crate::core::util::test_dir("gate-case");
-        fs::create_dir_all(root.join("design/approved/v1")).unwrap();
-        fs::write(root.join("design/approved/v1/a.html"), "x").unwrap();
+        fs::create_dir_all(root.join(rel::approved("v1"))).unwrap();
+        fs::write(root.join(rel::approved("v1/a.html")), "x").unwrap();
         let mut reopened = draft.clone();
         reopened["design"]["version"] = 2.into();
         let written = decide_write(
             &root,
             Some(&reopened),
             &config,
-            &root.join("design/Approved/v1/a.html"),
+            &root.join(rel::design("Approved/v1/a.html")),
         )
         .unwrap();
         assert_eq!(written.allow, !FOLD_CASE);
@@ -396,25 +401,25 @@ mod tests {
         use std::os::unix::fs::symlink;
         let config = defaults();
         let root = crate::core::util::test_dir("gate-link");
-        fs::create_dir_all(root.join("design/approved/v1")).unwrap();
+        fs::create_dir_all(root.join(rel::approved("v1"))).unwrap();
         fs::create_dir_all(root.join("src")).unwrap();
-        symlink(root.join("design/approved"), root.join("design/snap")).unwrap();
-        symlink("../src/new.ts", root.join("design/dangling.html")).unwrap();
-        symlink(root.join("src"), root.join("design/code")).unwrap();
+        symlink(root.join(rel::APPROVED), root.join(rel::design("snap"))).unwrap();
+        symlink("../src/new.ts", root.join(rel::design("dangling.html"))).unwrap();
+        symlink(root.join("src"), root.join(rel::design("code"))).unwrap();
         let s = new_state("new-product", "".into()).unwrap();
         let decide = |f: &str| decide_write(&root, Some(&s), &config, &root.join(f)).unwrap();
-        let snap = decide("design/snap/v1/a.html");
+        let snap = decide(&rel::design("snap/v1/a.html"));
         assert!(!snap.allow);
-        assert!(snap
-            .reason
-            .unwrap()
-            .contains("\"design/approved/v1/a.html\" is part of a frozen"));
+        assert!(snap.reason.unwrap().contains(&format!(
+            "\"{}\" is part of a frozen",
+            rel::approved("v1/a.html")
+        )));
         assert!(
-            !decide("design/dangling.html").allow,
+            !decide(&rel::design("dangling.html")).allow,
             "a write through a dangling link creates src/new.ts"
         );
-        assert!(!decide("design/code/a.ts").allow);
-        assert!(decide("design/screens/a.html").allow);
+        assert!(!decide(&rel::design("code/a.ts")).allow);
+        assert!(decide(&rel::screen("a.html")).allow);
     }
 
     /// CO-4: an alias of the project folder (`/tmp` and `/private/tmp` on macOS, a symlinked
@@ -464,10 +469,15 @@ mod tests {
     /// (tests/unit/host.test.mjs: the two assertions on filesFromToolInput and filesFromPatch)
     #[test]
     fn host_normalizes_payloads_files_of_a_patch() {
-        let patch = normalize_hook_input(&json!({ "toolName": "apply_patch", "toolArgs": "*** Begin Patch\n*** Add File: src/x.ts\n*** Update File: design/a.html\n*** End Patch" })).unwrap();
+        let body = format!(
+            "*** Begin Patch\n*** Add File: src/x.ts\n*** Update File: {}\n*** End Patch",
+            rel::design("a.html")
+        );
+        let patch =
+            normalize_hook_input(&json!({ "toolName": "apply_patch", "toolArgs": body })).unwrap();
         assert_eq!(
             files_from_tool_input(patch.tool_name.as_deref(), &patch.tool_input).unwrap(),
-            ["src/x.ts", "design/a.html"]
+            ["src/x.ts", &rel::design("a.html")]
         );
         assert_eq!(
             files_from_patch("*** Update File: a\n*** Move to: b"),

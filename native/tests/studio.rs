@@ -12,6 +12,14 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant};
 
+#[path = "../src/core/paths/layout.rs"]
+#[allow(
+    dead_code,
+    reason = "each test binary uses a part of the project layout"
+)]
+mod layout;
+use layout::{file, rel};
+
 const DFW: &str = env!("CARGO_BIN_EXE_dfw");
 
 fn repo() -> PathBuf {
@@ -111,14 +119,14 @@ fn studio_start_with_a_broken_design_json_can_be_stopped() {
     let dir = std::env::temp_dir().join(format!("dfw-native-studio-{}", std::process::id()));
     fs::create_dir_all(&dir).unwrap();
     let root = dir.canonicalize().unwrap();
-    fs::create_dir_all(root.join("design/screens/home")).unwrap();
-    fs::write(root.join("design/screens/home/a.html"), "<p>a</p>").unwrap();
-    fs::write(root.join("design/design.json"), "{ broken").unwrap();
+    fs::create_dir_all(root.join(rel::screen("home"))).unwrap();
+    fs::write(root.join(rel::screen("home/a.html")), "<p>a</p>").unwrap();
+    fs::write(root.join(rel::MANIFEST), "{ broken").unwrap();
     let port = free_port();
     let (code, stdout, stderr) = cli(&root, &["studio", "start", "--port", &port.to_string()]);
     assert_eq!(code, 0, "{stdout}{stderr}");
     assert!(stdout.contains(&format!("studio running: http://127.0.0.1:{port}/")));
-    assert!(root.join(".dfw/studio.json").exists());
+    assert!(root.join(rel::join(rel::DFW, file::STUDIO)).exists());
     assert_eq!(status_of(port, "/__dfw/api/ping"), Some(200));
     assert_eq!(
         status_of(port, "/__dfw/api/manifest"),

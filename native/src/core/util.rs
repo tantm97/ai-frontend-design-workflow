@@ -760,18 +760,22 @@ pub fn test_dir(label: &str) -> std::path::PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::paths::{file, rel};
     use serde_json::json;
 
     /// glob matching (tests/unit/dfw.test.mjs)
     #[test]
     fn glob_matching() {
-        assert!(glob_to_regex("design/**")
+        let design = format!("{}/**", rel::DESIGN);
+        assert!(glob_to_regex(&design)
             .unwrap()
-            .is_match("design/screens/a.html"));
-        assert!(glob_to_regex("design/approved/**")
+            .is_match(&rel::screen("a.html")));
+        assert!(glob_to_regex(&format!("{}/**", rel::APPROVED))
             .unwrap()
-            .is_match("design/approved/v1/x.html"));
-        assert!(!glob_to_regex("design/**").unwrap().is_match("src/design/x"));
+            .is_match(&rel::approved("v1/x.html")));
+        assert!(!glob_to_regex(&design)
+            .unwrap()
+            .is_match(&format!("src/{}", rel::design("x"))));
         assert!(glob_to_regex("PRODUCT.md").unwrap().is_match("PRODUCT.md"));
     }
 
@@ -796,8 +800,11 @@ mod tests {
         assert!(glob_to_regex("**/b.html").unwrap().is_match("b.html"));
         assert!(glob_to_regex("a?c").unwrap().is_match("abc"));
         assert!(!glob_to_regex("a?c").unwrap().is_match("a/c"));
-        assert!(matches_any("design/x.html", &["src/**", "design/**"]));
-        assert!(!matches_any("design/x.html", &[] as &[&str]));
+        assert!(matches_any(
+            &rel::design("x.html"),
+            &["src/**", &format!("{}/**", rel::DESIGN)]
+        ));
+        assert!(!matches_any(&rel::design("x.html"), &[] as &[&str]));
     }
 
     /// j: names that are prototype keys are not ids (tests/unit/node-stable.test.mjs; the util part)
@@ -967,7 +974,7 @@ mod tests {
     fn write_atomic_keeps_the_mode_and_writes_through_a_link() {
         use std::os::unix::fs::PermissionsExt;
         let dir = test_dir("atomic-mode");
-        let file = dir.join("config.json");
+        let file = dir.join(file::CONFIG);
         fs::write(&file, "{}").unwrap();
         fs::set_permissions(&file, fs::Permissions::from_mode(0o600)).unwrap();
         write_atomic(&file, "{\"a\":1}").unwrap();
@@ -991,33 +998,33 @@ mod tests {
     fn write_atomic_inside_refuses_a_link_out_of_the_project() {
         let dir = test_dir("atomic-inside");
         let root = dir.join("project");
-        fs::create_dir_all(root.join(".dfw")).unwrap();
+        fs::create_dir_all(root.join(rel::DFW)).unwrap();
         fs::create_dir_all(dir.join("victim")).unwrap();
         let victim = dir.join("victim").join("settings.json");
         fs::write(&victim, "{\"keep\":1}").unwrap();
-        let link = root.join(".dfw").join("config.local.json");
+        let link = root.join(rel::CONFIG_LOCAL);
         std::os::unix::fs::symlink("../../victim/settings.json", &link).unwrap();
         let err = write_json_inside(&root, &link, &json!({})).unwrap_err();
         assert!(
             err.message()
-                .starts_with(".dfw/config.local.json leads outside the project"),
+                .starts_with(&format!("{} leads outside the project", rel::CONFIG_LOCAL)),
             "{err}"
         );
         assert!(matches!(err, DfwError::User { .. }));
         assert_eq!(fs::read_to_string(&victim).unwrap(), "{\"keep\":1}");
         // A dangling link out of the project and a linked folder are refused too.
-        let gone = root.join(".dfw").join("gone.json");
+        let gone = root.join(rel::DFW).join("gone.json");
         std::os::unix::fs::symlink(dir.join("victim").join("new.json"), &gone).unwrap();
         assert!(write_atomic_inside(&root, &gone, "x").is_err());
         assert!(!dir.join("victim").join("new.json").exists());
-        std::os::unix::fs::symlink(dir.join("victim"), root.join("design")).unwrap();
-        assert!(write_atomic_inside(&root, &root.join("design").join("head.html"), "x").is_err());
+        std::os::unix::fs::symlink(dir.join("victim"), root.join(rel::DESIGN)).unwrap();
+        assert!(write_atomic_inside(&root, &root.join(rel::design(file::HEAD)), "x").is_err());
         // Inside the project: written through the link, a new file is created.
         fs::write(root.join("real.json"), "1").unwrap();
-        std::os::unix::fs::symlink("../real.json", root.join(".dfw").join("near.json")).unwrap();
-        write_atomic_inside(&root, &root.join(".dfw").join("near.json"), "2").unwrap();
+        std::os::unix::fs::symlink("../real.json", root.join(rel::DFW).join("near.json")).unwrap();
+        write_atomic_inside(&root, &root.join(rel::DFW).join("near.json"), "2").unwrap();
         assert_eq!(fs::read_to_string(root.join("real.json")).unwrap(), "2");
-        write_atomic_inside(&root, &root.join(".dfw").join("new").join("a.json"), "3").unwrap();
+        write_atomic_inside(&root, &root.join(rel::DFW).join("new").join("a.json"), "3").unwrap();
         fs::remove_dir_all(&dir).unwrap();
     }
 
@@ -1074,7 +1081,7 @@ mod tests {
     #[test]
     fn write_json_is_atomic_and_read_json_falls_back() {
         let dir = test_dir("json");
-        let file = dir.join("deep").join("state.json");
+        let file = dir.join("deep").join(file::STATE);
         assert_eq!(read_json(&file, Some(Value::Null)).unwrap(), Value::Null);
         assert!(
             read_json(&file, None).is_err(),
@@ -1113,7 +1120,7 @@ mod tests {
     #[test]
     fn jsonl_appends_and_reads_back() {
         let dir = test_dir("jsonl");
-        let file = dir.join(".dfw").join("decisions.jsonl");
+        let file = dir.join(rel::DECISIONS);
         assert!(read_jsonl(&file).unwrap().is_empty());
         append_jsonl(&file, &json!({"at": "t", "level": 1})).unwrap();
         append_jsonl(&file, &json!({"at": "u", "level": 2.0})).unwrap();

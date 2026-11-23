@@ -14,7 +14,7 @@ use serde_json::{json, Map, Value};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::lock::{self, LockTimes};
-use crate::core::paths::project_paths;
+use crate::core::paths::{project_paths, rel};
 use crate::core::util::{iso_from_millis, now_iso, read_json, write_json_inside};
 use crate::review::status::{self, field, Status};
 
@@ -125,7 +125,7 @@ fn new_session_unlocked(root: &Path, design_version: Option<&str>) -> Result<Ses
     let state = read_json(&p.state, Some(json!({})))?;
     if state.is_null() {
         return Err(DfwError::new(
-            ".dfw/state.json holds null instead of the workflow state. Restore it from version control (or remove it and run \"dfw init\"), then run the command again.",
+            format!("{} holds null instead of the workflow state. Restore it from version control (or remove it and run \"dfw init\"), then run the command again.", rel::STATE),
         ));
     }
     for file in session_files(root)? {
@@ -180,15 +180,16 @@ fn comments_of<'a>(file: &Path, session: &'a Value) -> Result<&'a Vec<Value>, Df
 /// A review session file whose list is something else: name the file, the field and the fix.
 fn not_a_list(file: &Path, what: &str) -> DfwError {
     DfwError::new(format!(
-        "{}: {what} is not a list. Fix that review session file (or move it out of .dfw/reviews/) and run the command again.",
-        shown(file)
+        "{}: {what} is not a list. Fix that review session file (or move it out of {}/) and run the command again.",
+        shown(file),
+        rel::REVIEWS
     ))
 }
 
 /// A session file as the user finds it: `.dfw/reviews/<name>`.
 fn shown(file: &Path) -> String {
     let name = file.file_name().unwrap_or_default().to_string_lossy();
-    format!(".dfw/reviews/{name}")
+    rel::join(rel::REVIEWS, &name)
 }
 
 /// `allComments(root)`: every comment of every session, oldest first, each with the id of its
@@ -257,10 +258,10 @@ pub fn locate_source(
     if let Some(id) = dfw_id.filter(|id| !id.is_empty()) {
         if let Some(i) = text.find(&format!("data-dfw-id=\"{id}\"")) {
             let line = text[..i].matches('\n').count() + 1;
-            return Ok(Some(format!("design/{design_file}:{line}")));
+            return Ok(Some(format!("{}:{line}", rel::design(design_file))));
         }
     }
-    Ok(Some(format!("design/{design_file}")))
+    Ok(Some(rel::design(design_file)))
 }
 
 /// `addComment(root, input)`: store a new open comment in the current session and return it.
@@ -313,7 +314,7 @@ fn add_comment_unlocked(root: &Path, input: &Value) -> Result<Value, DfwError> {
         ("theme", Some(or_null("theme"))),
         (
             "file",
-            Some(design_file.map_or(Value::Null, |f| format!("design/{f}").into())),
+            Some(design_file.map_or(Value::Null, |f| rel::design(f).into())),
         ),
         ("target", Some(Value::Object(target))),
         ("comment", Some(text.into())),
@@ -397,9 +398,10 @@ impl Found {
         {
             Some(Value::Object(comment)) => Ok(comment),
             _ => Err(DfwError::new(format!(
-                "{}: comment {} of \"comments\" is not an object. Fix that review session file (or move it out of .dfw/reviews/) and run the command again.",
+                "{}: comment {} of \"comments\" is not an object. Fix that review session file (or move it out of {}/) and run the command again.",
                 shown(&self.file),
-                self.index + 1
+                self.index + 1,
+                rel::REVIEWS
             ))),
         }
     }
@@ -564,15 +566,18 @@ mod tests {
     #[test]
     fn feedback_lifecycle_only_the_user_resolves() {
         let root = project("comments");
-        fs::create_dir_all(root.join("design/screens/home")).unwrap();
+        fs::create_dir_all(root.join(rel::screen("home"))).unwrap();
         fs::write(
-            root.join("design/screens/home/a.html"),
+            root.join(rel::screen("home/a.html")),
             "<html>\n<body>\n<button data-dfw-id=\"home.cta\">Go</button>\n</body></html>",
         )
         .unwrap();
         let c = add_comment(&root, &json!({ "screen": "home", "variant": "a", "file": "screens/home/a.html", "target": { "dfwId": "home.cta" }, "comment": "Bigger" })).unwrap();
         assert_eq!(c["id"], "fb_001");
-        assert_eq!(c["target"]["source"], "design/screens/home/a.html:3");
+        assert_eq!(
+            c["target"]["source"],
+            format!("{}:3", rel::screen("home/a.html"))
+        );
         let id = Some("fb_001");
         let fails = |u: Update| {
             update_comment(&root, id, &u)
@@ -591,7 +596,7 @@ mod tests {
             add_comment(&root, &json!({ "comment": "second" })).unwrap()["id"],
             "fb_002"
         );
-        assert!(!root.join(".dfw/reviews/.lock").exists());
+        assert!(!root.join(rel::join(rel::REVIEWS, ".lock")).exists());
     }
 
     /// layout: ... comment source line points at the element, not its layout rule
@@ -599,20 +604,23 @@ mod tests {
     #[test]
     fn comment_source_line_points_at_the_element_not_its_layout_rule() {
         let root = test_dir("locate-source");
-        fs::create_dir_all(root.join("design/screens/dash")).unwrap();
+        fs::create_dir_all(root.join(rel::screen("dash"))).unwrap();
         let text = "<html><head>\n<style data-dfw-layout>[data-dfw-id='dash.a'] { width: 50% }</style>\n</head><body>\n<div data-dfw-id=\"dash.a\">A</div>\n</body></html>";
-        fs::write(root.join("design/screens/dash/index.html"), text).unwrap();
+        fs::write(root.join(rel::screen("dash/index.html")), text).unwrap();
         let at =
             |id: Option<&str>| locate_source(&root, Some("screens/dash/index.html"), id).unwrap();
         assert_eq!(
             at(Some("dash.a")).as_deref(),
-            Some("design/screens/dash/index.html:4")
+            Some(format!("{}:4", rel::screen("dash/index.html")).as_str())
         );
         assert_eq!(
             at(Some("nope")).as_deref(),
-            Some("design/screens/dash/index.html")
+            Some(rel::screen("dash/index.html").as_str())
         );
-        assert_eq!(at(None).as_deref(), Some("design/screens/dash/index.html"));
+        assert_eq!(
+            at(None).as_deref(),
+            Some(rel::screen("dash/index.html").as_str())
+        );
         assert_eq!(
             locate_source(&root, Some("screens/none.html"), Some("x")).unwrap(),
             None
@@ -736,8 +744,9 @@ mod tests {
                 .message(),
             "No comment id given: name the comment by its id (\"dfw comments list\" shows the ids)."
         );
-        let shot = set_comment_screenshot(&root, "fb_001", ".dfw/shots/fb_001.png").unwrap();
-        assert_eq!(shot["screenshot"], ".dfw/shots/fb_001.png");
+        let shot =
+            set_comment_screenshot(&root, "fb_001", &rel::join(rel::SHOTS, "fb_001.png")).unwrap();
+        assert_eq!(shot["screenshot"], rel::join(rel::SHOTS, "fb_001.png"));
     }
 
     /// a: review rounds started in the same second get different session files
@@ -784,9 +793,9 @@ mod tests {
     fn a_comment_file_from_input_never_leaves_design() {
         let root = project("comments-file");
         fs::write(root.join("outside.html"), "<p data-dfw-id=\"a\">x</p>").unwrap();
-        fs::create_dir_all(root.join("design/screens/home")).unwrap();
+        fs::create_dir_all(root.join(rel::screen("home"))).unwrap();
         fs::write(
-            root.join("design/screens/home/a.html"),
+            root.join(rel::screen("home/a.html")),
             "<main>\n<p data-dfw-id=\"a\">x</p>\n</main>",
         )
         .unwrap();
@@ -820,8 +829,11 @@ mod tests {
             &json!({ "comment": "x", "file": "screens/home/a.html", "target": { "dfwId": "a" } }),
         )
         .unwrap();
-        assert_eq!(ok["file"], "design/screens/home/a.html");
-        assert_eq!(ok["target"]["source"], "design/screens/home/a.html:2");
+        assert_eq!(ok["file"], rel::screen("home/a.html"));
+        assert_eq!(
+            ok["target"]["source"],
+            format!("{}:2", rel::screen("home/a.html"))
+        );
         assert!(!safe_design_file("a\0b") && !safe_design_file("") && safe_design_file("..x.html"));
     }
 
@@ -876,7 +888,7 @@ mod tests {
         add_comment(&root, &json!({ "comment": "first" })).unwrap();
         let first = current_session(&root, false).unwrap().unwrap();
         // A session id is the time to the second: write the first one as an older file.
-        let old = root.join(".dfw/reviews/rv_20200101T000000.json");
+        let old = root.join(rel::join(rel::REVIEWS, "rv_20200101T000000.json"));
         fs::rename(&first.file, &old).unwrap();
         let second = new_session(&root, Some("v7")).unwrap();
         assert_eq!(second.session["designVersion"], "v7");
@@ -894,7 +906,7 @@ mod tests {
     #[test]
     fn a_stale_lock_is_taken_over() {
         let root = project("comments-lock");
-        let lock = root.join(".dfw/reviews/.lock");
+        let lock = root.join(rel::join(rel::REVIEWS, ".lock"));
         fs::create_dir_all(&lock).unwrap();
         let long_ago = SystemTime::now() - Duration::from_secs(60);
         fs::File::open(&lock)
@@ -942,7 +954,7 @@ mod tests {
             all.iter().map(|c| js::to_string(c.get("id"))).collect();
         assert_eq!(ids.len(), 31);
         assert_eq!(
-            fs::read_dir(root.join(".dfw/reviews"))
+            fs::read_dir(root.join(rel::REVIEWS))
                 .unwrap()
                 .filter(|e| e
                     .as_ref()
@@ -968,26 +980,27 @@ mod tests {
             "The comment must be text: give \"comment\" as a string."
         );
         fs::write(
-            root.join(".dfw/reviews/rv_20200101T000000.json"),
+            root.join(rel::join(rel::REVIEWS, "rv_20200101T000000.json")),
             r#"{"id":"rv_20200101T000000","comments":5}"#,
         )
         .unwrap();
         let err = all_comments(&root).unwrap_err();
         assert_eq!(
             err.report(),
-            ".dfw/reviews/rv_20200101T000000.json: \"comments\" is not a list. Fix that review session file (or move it out of .dfw/reviews/) and run the command again."
+            format!("{}: \"comments\" is not a list. Fix that review session file (or move it out of {}/) and run the command again.", rel::join(rel::REVIEWS, "rv_20200101T000000.json"), rel::REVIEWS)
         );
         fs::write(
-            root.join(".dfw/reviews/rv_20200101T000000.json"),
+            root.join(rel::join(rel::REVIEWS, "rv_20200101T000000.json")),
             r#"{"id":"rv_20200101T000000","comments":[{"id":"fb_001","status":"odd","thread":[]}]}"#,
         )
         .unwrap();
         let err =
             update_comment(&root, Some("fb_001"), &update("fixed", Some("x"), None)).unwrap_err();
         assert!(
-            err.report().starts_with(
-                "Comment fb_001 in .dfw/reviews/rv_20200101T000000.json has the status \"odd\""
-            ),
+            err.report().starts_with(&format!(
+                "Comment fb_001 in {} has the status \"odd\"",
+                rel::join(rel::REVIEWS, "rv_20200101T000000.json")
+            )),
             "{err}"
         );
     }

@@ -7,7 +7,7 @@ use serde_json::{json, Map, Value};
 
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::{project_paths, resolve};
+use crate::core::paths::{file, project_paths, rel, resolve};
 use crate::core::util::{
     copy_dir, ensure_inside, list_files, now_iso, read_json, sha256, write_json_inside,
 };
@@ -15,7 +15,7 @@ use crate::core::util::{
 use super::gates::relative;
 use super::state::{approve_gate, push_history, save_state, state_field_error};
 
-const EXCLUDE: [&str; 2] = ["approved", "handoff"];
+const EXCLUDE: [&str; 2] = [file::APPROVED, file::HANDOFF];
 
 /// Canonical product/design documents live at the project root because Impeccable and Hallmark
 /// read them there; they are frozen with the design.
@@ -76,16 +76,18 @@ pub fn freeze_design(root: &Path, state: &mut Value, note: Option<Value>) -> Res
     let p = project_paths(root);
     let note = note.filter(|v| js::truthy(v));
     if !p.manifest.exists() {
-        return Err(DfwError::new(
-            "Cannot freeze: design/design.json does not exist.",
-        ));
+        return Err(DfwError::new(format!(
+            "Cannot freeze: {} does not exist.",
+            rel::MANIFEST
+        )));
     }
     let design = design_of(state)?;
     let version = format!("v{}", js::to_string(design.get("version")));
     // The state is the user's file: its version names a folder only in the form freeze writes.
     check_snapshot_name(&version).map_err(|_| {
         DfwError::new(format!(
-            "Cannot freeze: design.version in .dfw/state.json is {}, not a whole number. Set it to the number of this design version (1, 2, ...) and run the command again.",
+            "Cannot freeze: design.version in {} is {}, not a whole number. Set it to the number of this design version (1, 2, ...) and run the command again.",
+            rel::STATE,
             js::to_string(design.get("version"))
         ))
     })?;
@@ -124,7 +126,7 @@ pub fn freeze_design(root: &Path, state: &mut Value, note: Option<Value>) -> Res
         ("note", note.clone()),
         ("files", Some(Value::Array(files))),
     ]);
-    write_json_inside(root, &dest.join("approval.lock.json"), &lock)?;
+    write_json_inside(root, &dest.join(file::APPROVAL_LOCK), &lock)?;
     design.insert("status".into(), "approved".into());
     design.insert("locked".into(), true.into());
     let entry = js::object(vec![
@@ -160,7 +162,7 @@ pub fn check_snapshot_name(version: &str) -> Result<(), DfwError> {
 pub fn verify_snapshot(root: &Path, version: &str) -> Result<Vec<String>, DfwError> {
     check_snapshot_name(version)?;
     let dir = project_paths(root).approved.join(version);
-    let lock = read_json(&dir.join("approval.lock.json"), Some(Value::Null))?;
+    let lock = read_json(&dir.join(file::APPROVAL_LOCK), Some(Value::Null))?;
     if !js::truthy(&lock) {
         return Err(DfwError::new(format!(
             "No approval.lock.json in {}",
@@ -187,7 +189,7 @@ pub fn verify_snapshot(root: &Path, version: &str) -> Result<Vec<String>, DfwErr
     }
     for rel in list_files(&dir, &[])? {
         let known = listed.iter().any(|f| path_of(f).as_deref() == Some(&rel));
-        if rel != "approval.lock.json" && !known {
+        if rel != file::APPROVAL_LOCK && !known {
             problems.push(format!("added: {rel}"));
         }
     }
@@ -283,8 +285,8 @@ mod tests {
     #[test]
     fn a_version_from_the_state_never_leaves_design_approved() {
         let root = test_dir("freeze-escape");
-        fs::create_dir_all(root.join("design")).unwrap();
-        fs::write(root.join("design/design.json"), "{}").unwrap();
+        fs::create_dir_all(root.join(rel::DESIGN)).unwrap();
+        fs::write(root.join(rel::MANIFEST), "{}").unwrap();
         for bad in [
             json!("1/../../../../escaped"),
             json!("../x"),
@@ -296,14 +298,16 @@ mod tests {
             s["design"]["version"] = bad.clone();
             let err = freeze_design(&root, &mut s, None).unwrap_err();
             assert!(
-                err.message()
-                    .starts_with("Cannot freeze: design.version in .dfw/state.json is "),
+                err.message().starts_with(&format!(
+                    "Cannot freeze: design.version in {} is ",
+                    rel::STATE
+                )),
                 "{bad}"
             );
             assert_eq!(s["design"]["status"], "draft", "{bad}");
         }
         assert!(!root.join("escaped").exists() && !root.parent().unwrap().join("escaped").exists());
-        assert!(!root.join("design/approved").exists());
+        assert!(!root.join(rel::APPROVED).exists());
     }
 
     /// freeze: snapshot, lock, tamper detection, reopen (tests/unit/dfw.test.mjs)
@@ -314,21 +318,17 @@ mod tests {
         s["gates"]["G1"] = json!({ "approvedAt": "x" });
         s["phase"] = "concepts".into();
         save_state(&root, &mut s).unwrap();
-        fs::create_dir_all(root.join("design/screens/home")).unwrap();
-        fs::write(
-            root.join("design/design.json"),
-            r#"{"schema":1,"screens":[]}"#,
-        )
-        .unwrap();
-        fs::write(root.join("design/screens/home/a.html"), "<html></html>").unwrap();
+        fs::create_dir_all(root.join(rel::screen("home"))).unwrap();
+        fs::write(root.join(rel::MANIFEST), r#"{"schema":1,"screens":[]}"#).unwrap();
+        fs::write(root.join(rel::screen("home/a.html")), "<html></html>").unwrap();
         fs::write(root.join("DESIGN.md"), "# Design").unwrap();
         let mut s = load_state(&root).unwrap().unwrap();
         freeze_design(&root, &mut s, Some("ok".into())).unwrap();
         assert_eq!(s["design"]["status"], "approved");
-        assert!(root.join("design/approved/v1/docs/DESIGN.md").exists());
+        assert!(root.join(rel::approved("v1/docs/DESIGN.md")).exists());
         assert!(verify_snapshot(&root, "v1").unwrap().is_empty());
         fs::write(
-            root.join("design/approved/v1/screens/home/a.html"),
+            root.join(rel::approved("v1/screens/home/a.html")),
             "<html>x</html>",
         )
         .unwrap();
@@ -351,15 +351,15 @@ mod tests {
     #[test]
     fn the_lock_file_and_the_records_have_the_node_shape() {
         let root = test_dir("freeze-shape");
-        fs::create_dir_all(root.join("design/approved/old")).unwrap();
-        fs::create_dir_all(root.join("design/handoff")).unwrap();
-        fs::write(root.join("design/design.json"), "{}").unwrap();
-        fs::write(root.join("design/b.css"), "b").unwrap();
-        fs::write(root.join("design/handoff/v0.md"), "not frozen").unwrap();
+        fs::create_dir_all(root.join(rel::approved("old"))).unwrap();
+        fs::create_dir_all(root.join(rel::HANDOFF)).unwrap();
+        fs::write(root.join(rel::MANIFEST), "{}").unwrap();
+        fs::write(root.join(rel::design("b.css")), "b").unwrap();
+        fs::write(root.join(rel::join(rel::HANDOFF, "v0.md")), "not frozen").unwrap();
         fs::write(root.join("PRODUCT.md"), "# Product").unwrap();
         let h = hash_design(&root).unwrap();
         let paths: Vec<&str> = h.files.iter().map(|f| f.path.as_str()).collect();
-        assert_eq!(paths, ["b.css", "design.json", "docs/PRODUCT.md"]);
+        assert_eq!(paths, ["b.css", file::MANIFEST, "docs/PRODUCT.md"]);
         let lines: Vec<String> = h
             .files
             .iter()
@@ -369,18 +369,18 @@ mod tests {
 
         let mut s = new_state("new-product", "".into()).unwrap();
         freeze_design(&root, &mut s, None).unwrap();
-        let lock = fs::read_to_string(root.join("design/approved/v1/approval.lock.json")).unwrap();
+        let lock = fs::read_to_string(root.join(rel::approved("v1/approval.lock.json"))).unwrap();
         assert!(lock.starts_with("{\n  \"version\": \"v1\",\n  \"approvedAt\": \""));
         assert!(!lock.contains("\"note\""), "no note, no field");
-        assert!(!root.join("design/approved/v1/handoff").exists());
+        assert!(!root.join(rel::approved("v1/handoff")).exists());
         assert_eq!(s["gates"]["G2"]["hash"], h.hash.as_str());
         assert_eq!(s["design"]["approved"][0]["version"], "v1");
         let last = s["history"].as_array().unwrap().last().unwrap();
         assert_eq!(last["gate"], "G2");
         assert_eq!(last["version"], "v1");
 
-        fs::write(root.join("design/approved/v1/extra.txt"), "x").unwrap();
-        fs::remove_file(root.join("design/approved/v1/b.css")).unwrap();
+        fs::write(root.join(rel::approved("v1/extra.txt")), "x").unwrap();
+        fs::remove_file(root.join(rel::approved("v1/b.css"))).unwrap();
         assert_eq!(
             verify_snapshot(&root, "v1").unwrap(),
             ["missing: b.css", "added: extra.txt"]
@@ -413,7 +413,7 @@ mod tests {
     fn snapshot_problems_are_missing_modified_and_added() {
         let root = test_dir("doctor-snapshot");
         let dir = project_paths(&root).approved.join("v1");
-        fs::create_dir_all(dir.join("screens")).unwrap();
+        fs::create_dir_all(dir.join(file::SCREENS)).unwrap();
         fs::write(dir.join("kept.html"), "kept").unwrap();
         fs::write(dir.join("screens/changed.html"), "now").unwrap();
         fs::write(dir.join("extra.css"), "x").unwrap();

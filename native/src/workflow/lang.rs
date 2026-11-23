@@ -10,7 +10,7 @@ use serde_json::{json, Map, Value};
 
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::{env_nonempty, global_dir};
+use crate::core::paths::{self, env_nonempty, file, global_dir};
 use crate::core::util::{now_iso, read_json, write_json};
 
 const SESSION_TTL_DAYS: u64 = 30;
@@ -45,7 +45,7 @@ fn empty() -> Value {
 }
 
 fn last_used_in(home: &Path) -> Result<Value, DfwError> {
-    let config = read_json(&home.join("config.json"), Some(empty()))?;
+    let config = read_json(&home.join(file::CONFIG), Some(empty()))?;
     let last = js::truthy_value(config.get("language").and_then(|l| l.get("lastUsed")));
     Ok(last.cloned().unwrap_or_else(|| "en".into()))
 }
@@ -98,7 +98,7 @@ fn set_language_in(home: &Path, code: Option<&str>, id: Option<&str>) -> Result<
             &json!({ "language": lang, "setAt": now_iso() }),
         )?;
     }
-    let file = home.join("config.json");
+    let file = home.join(paths::file::CONFIG);
     let mut config = read_json(&file, Some(empty()))?;
     if let Value::Object(map) = &mut config {
         let mut language = js::spread(js::truthy_value(map.get("language")));
@@ -161,14 +161,14 @@ mod tests {
     fn codes_are_normalised_and_other_config_is_kept() {
         let home = test_dir("lang-config");
         fs::write(
-            home.join("config.json"),
+            home.join(file::CONFIG),
             r#"{"marketplaceRepo":"/r","language":{"askPolicy":"session"}}"#,
         )
         .unwrap();
         let set = set_language_in(&home, Some("  VI \n"), None).unwrap();
         assert_eq!(set, json!({ "session": null, "language": "vi" }));
         assert_eq!(
-            fs::read_to_string(home.join("config.json")).unwrap(),
+            fs::read_to_string(home.join(file::CONFIG)).unwrap(),
             "{\n  \"marketplaceRepo\": \"/r\",\n  \"language\": {\n    \"askPolicy\": \"session\",\n    \"lastUsed\": \"vi\"\n  }\n}\n"
         );
         assert_eq!(

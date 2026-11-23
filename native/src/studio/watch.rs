@@ -16,12 +16,12 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use serde_json::{json, Value};
 
 use super::sse::{presence_event, Clients};
-use crate::core::paths::env_nonempty;
+use crate::core::paths::{env_nonempty, file};
 use crate::design::compose::build_system;
 
 /// Files the Studio does not react to (`ignored` in server.mjs).
 pub fn ignored(rel: &str) -> bool {
-    rel.is_empty() || rel.starts_with("approved") || rel.ends_with(".tmp") || rel == ".lock"
+    rel.is_empty() || rel.starts_with(file::APPROVED) || rel.ends_with(".tmp") || rel == ".lock"
 }
 
 /// What identifies a version of a file: modification time and size.
@@ -153,7 +153,7 @@ pub fn run(root: PathBuf, clients: &Clients) {
     } else {
         Duration::from_millis(250)
     };
-    let presence = paths.dfw.join("presence.json");
+    let presence = paths.presence.clone();
     let mut presence_seen = stamp(&presence);
     let mut pending: Vec<String> = Vec::new();
     let mut deadline: Option<Instant> = None;
@@ -235,12 +235,12 @@ mod tests {
     #[test]
     fn a_poll_reports_new_changed_and_removed_files() {
         let dir = test_dir("studio-watch-poll");
-        fs::create_dir_all(dir.join("screens")).unwrap();
-        fs::write(dir.join("screens").join("a.html"), "a").unwrap();
+        fs::create_dir_all(dir.join(file::SCREENS)).unwrap();
+        fs::write(dir.join(file::SCREENS).join("a.html"), "a").unwrap();
         fs::write(dir.join("gone.css"), "x").unwrap();
         let mut w = Watched::new("design", dir.clone());
         assert!(w.poll().is_empty());
-        fs::write(dir.join("screens").join("a.html"), "ab").unwrap();
+        fs::write(dir.join(file::SCREENS).join("a.html"), "ab").unwrap();
         fs::write(dir.join("new.css"), "x").unwrap();
         fs::write(dir.join("skip.json.1.tmp"), "x").unwrap();
         fs::remove_file(dir.join("gone.css")).unwrap();

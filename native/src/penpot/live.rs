@@ -20,7 +20,7 @@ use super::threads::{thread_key, threads_file};
 
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::project_paths;
+use crate::core::paths::{file, project_paths};
 use crate::core::util::{list_files, read_json, write_json_inside};
 
 use crate::review::comments::all_comments;
@@ -193,13 +193,16 @@ fn parse_iso_ms(text: &str) -> Option<f64> {
 /// `exportStale`: true when a design file changed after the latest export was rendered (the
 /// Penpot boards are behind).
 pub fn export_stale(root: &Path) -> Result<bool, DfwError> {
-    let doc = read_json(&penpot_dir(root).join("export.json"), Some(Value::Null))?;
+    let doc = read_json(
+        &penpot_dir(root).join(file::PENPOT_EXPORT),
+        Some(Value::Null),
+    )?;
     let generated_at = js::truthy_value(doc.get("generatedAt")).and_then(Value::as_str);
     let Some(at) = generated_at.and_then(parse_iso_ms).filter(|at| *at != 0.0) else {
         return Ok(false);
     };
     let design = project_paths(root).design;
-    for rel in list_files(&design, &["approved", "handoff"])? {
+    for rel in list_files(&design, &[file::APPROVED, file::HANDOFF])? {
         let modified = fs::metadata(design.join(&rel)).and_then(|m| m.modified());
         let Ok(modified) = modified else {
             continue;

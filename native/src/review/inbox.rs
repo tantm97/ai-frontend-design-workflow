@@ -14,7 +14,7 @@ use serde_json::{json, Value};
 
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::project_paths;
+use crate::core::paths::{file, project_paths, rel};
 use crate::core::util::{read_json, write_json_inside};
 use crate::review::status::{self, Status};
 
@@ -35,18 +35,16 @@ fn key(c: &Value) -> String {
 }
 
 fn delivered_file(root: &Path) -> PathBuf {
-    project_paths(root)
-        .dfw
-        .join("reviews")
-        .join(".delivered.json")
+    project_paths(root).reviews.join(file::REVIEWS_DELIVERED)
 }
 
 fn read_delivered(root: &Path) -> Result<Vec<Value>, DfwError> {
     match read_json(&delivered_file(root), Some(json!([])))? {
         Value::Array(seen) => Ok(seen),
-        _ => Err(DfwError::internal(
-            ".dfw/reviews/.delivered.json does not hold a list.",
-        )),
+        _ => Err(DfwError::internal(format!(
+            "{} does not hold a list.",
+            rel::join(rel::REVIEWS, file::REVIEWS_DELIVERED)
+        ))),
     }
 }
 
@@ -211,10 +209,7 @@ impl Default for WaitOptions {
 }
 
 fn listening_file(root: &Path) -> PathBuf {
-    project_paths(root)
-        .dfw
-        .join("reviews")
-        .join(".listening.json")
+    project_paths(root).reviews.join(file::REVIEWS_LISTENING)
 }
 
 /// The marker of a running `dfw comments wait`, removed when the wait ends (also on an error).
@@ -451,12 +446,12 @@ mod tests {
     #[test]
     fn the_text_for_the_agent_is_the_node_text() {
         let comments = [
-            json!({ "id": "fb_001", "status": "open", "screen": "home", "breakpoint": "mobile", "theme": "dark", "target": { "dfwId": "home.cta", "source": "design/screens/home/a.html:3" }, "comment": "Bigger" }),
+            json!({ "id": "fb_001", "status": "open", "screen": "home", "breakpoint": "mobile", "theme": "dark", "target": { "dfwId": "home.cta", "source": format!("{}:3", rel::screen("home/a.html")) }, "comment": "Bigger" }),
             json!({ "id": "fb_002", "status": "open", "comment": "x", "provider": "dfw-live" }),
         ];
         assert_eq!(
             format_for_claude(&comments),
-            "2 new Studio comment(s) from the user:\n- fb_001 [open] home / mobile / dark -> home.cta (design/screens/home/a.html:3)\n    \"Bigger\"\n- fb_002 [open] design system -> ?\n    \"x\"\nComments marked \"live\" are on the running app (dfw review): open target.source (file:line:col) and fix the implementation there; without a source, find the element by its selector and text (phase-verify).\nApply them now (references/phase-review.md > \"Applying comments\"): \"dfw comments ack <id>\", fix (prefer design-system fixes when the comment is about a component or token), check, then \"dfw comments fixed <id> --message \\\"<what changed>\\\"\". If a comment conflicts with an approved decision or is ambiguous, reply with \"dfw comments reply <id> --message ...\" and ask the user."
+            format!("2 new Studio comment(s) from the user:\n- fb_001 [open] home / mobile / dark -> home.cta ({}:3)\n    \"Bigger\"\n- fb_002 [open] design system -> ?\n    \"x\"\nComments marked \"live\" are on the running app (dfw review): open target.source (file:line:col) and fix the implementation there; without a source, find the element by its selector and text (phase-verify).\nApply them now (references/phase-review.md > \"Applying comments\"): \"dfw comments ack <id>\", fix (prefer design-system fixes when the comment is about a component or token), check, then \"dfw comments fixed <id> --message \\\"<what changed>\\\"\". If a comment conflicts with an approved decision or is ambiguous, reply with \"dfw comments reply <id> --message ...\" and ask the user.", rel::screen("home/a.html"))
         );
     }
 
@@ -501,7 +496,7 @@ mod tests {
         assert!(take_undelivered(&root, true).unwrap().is_empty());
         assert!(!delivered_file(&root).exists());
         add_comment(&root, &json!({ "comment": "later" })).unwrap();
-        let lock = root.join(".dfw/reviews/.lock");
+        let lock = root.join(rel::join(rel::REVIEWS, ".lock"));
         let held = crate::core::lock::acquire(&lock, &crate::core::lock::STANDARD).unwrap();
         let start = Instant::now();
         assert!(take_undelivered(&root, true).unwrap().is_empty());

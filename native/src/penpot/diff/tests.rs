@@ -238,7 +238,7 @@ fn source_line_of_a_master_change() {
         change["component"] = comp("button", variant);
         master_source(&root, &change, None).unwrap().source.unwrap()
     };
-    let at = |line: u32| format!("design/system/components/button.html:{line}");
+    let at = |line: u32| format!("{}:{line}", rel::component("button.html"));
     // .btn--primary background
     assert_eq!(
         src(

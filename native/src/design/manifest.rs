@@ -13,6 +13,7 @@ use serde_json::Value;
 
 use crate::core::error::DfwError;
 use crate::core::js;
+use crate::core::paths::rel;
 
 /// `design/design.json` keys.
 pub mod key {
@@ -36,7 +37,7 @@ pub mod key {
 
 /// A `design.json` value of the wrong type, as `dfw lint` reports it.
 pub fn malformed(what: &str) -> DfwError {
-    super::malformed("design/design.json", what)
+    super::malformed(rel::MANIFEST, what)
 }
 
 /// `value || []` before an array method, the skipping way: the items of a list, nothing for

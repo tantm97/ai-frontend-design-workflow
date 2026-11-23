@@ -8,7 +8,7 @@ use crate::browser::download::install_browser;
 use crate::core::config::{set_config_value, Scope};
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::{project_paths, resolve};
+use crate::core::paths::{project_paths, rel, resolve};
 use crate::core::util::{out, read_json, to_json_compact, to_json_pretty, ArgValue, Args};
 use crate::tools::binary::{install_binary, RELEASE_REPO};
 use crate::tools::doctor::doctor_checks;
@@ -226,7 +226,7 @@ fn stack(ctx: &Ctx) -> Result<i32, DfwError> {
                     save_state(&root, &mut state)?;
                 }
             }
-            out("Stack proposal written to .dfw/stack.json. Approve with \"dfw approve G3 --note ...\" after the user confirms.");
+            out(&format!("Stack proposal written to {}. Approve with \"dfw approve G3 --note ...\" after the user confirms.", rel::STACK));
         }
         _ => {
             return Err(DfwError::new(

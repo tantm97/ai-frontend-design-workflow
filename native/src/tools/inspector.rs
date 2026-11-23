@@ -15,7 +15,7 @@ use serde_json::{json, Map, Value};
 
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::{project_paths, resolve};
+use crate::core::paths::{project_paths, rel, resolve};
 use crate::core::util::{ensure_inside, read_json, to_json_pretty, write_atomic_inside};
 use crate::workflow::stack::detect_stack;
 use crate::workflow::state::{gate_passed, load_state};
@@ -638,7 +638,7 @@ pub fn format_plan(plan: &Value) -> String {
         format!("1. devDependency: \"{PACKAGE}\": \"{VERSION}\"  then {install}"),
         step,
         String::new(),
-        "Needs the user's approval at G3: list it in .dfw/stack.json dependencies, e.g.".to_string(),
+        format!("Needs the user's approval at G3: list it in {} dependencies, e.g.", rel::STACK),
         format!("  {{\"name\":\"{PACKAGE}\",\"version\":\"{VERSION}\",\"dev\":true,\"license\":\"{LICENSE}\",\"purpose\":\"live review source mapping\"}}"),
         "then \"dfw approve G3 ...\" and \"dfw inspector setup --write\".".to_string(),
     ]
@@ -690,7 +690,8 @@ pub fn inspector_setup(root: &Path, write: bool) -> Result<(Value, Vec<String>),
     }
     if !stack_approves(&stack) {
         missing.push(format!(
-            ".dfw/stack.json does not list \"{PACKAGE}\" in its dependencies"
+            "{} does not list \"{PACKAGE}\" in its dependencies",
+            rel::STACK
         ));
     }
     if !missing.is_empty() {
@@ -794,11 +795,11 @@ mod tests {
     /// G3 approved and the given stack, as `saveState` + `approveGate` + `writeJson` leave them.
     fn approve_g3(root: &Path, stack: Value) {
         write_json(
-            &root.join(".dfw/state.json"),
+            &root.join(rel::STATE),
             &json!({ "schema": 1, "mode": "existing-project", "phase": "implement", "gates": { "G1": null, "DS": null, "G2": null, "G3": { "at": "2026-01-02T03:04:05.678Z", "note": "ok" }, "G4": null }, "waived": {} }),
         )
         .unwrap();
-        write_json(&root.join(".dfw/stack.json"), &stack).unwrap();
+        write_json(&root.join(rel::STACK), &stack).unwrap();
     }
 
     /// parseInspPath: file:line:col:tag, Windows paths, absolute paths, missing attribute

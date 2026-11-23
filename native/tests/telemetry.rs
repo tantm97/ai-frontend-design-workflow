@@ -20,6 +20,14 @@ use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
 
+#[path = "../src/core/paths/layout.rs"]
+#[allow(
+    dead_code,
+    reason = "each test binary uses a part of the project layout"
+)]
+mod layout;
+use layout::rel;
+
 const DFW: &str = env!("CARGO_BIN_EXE_dfw");
 /// What the build script passed on when these tests were compiled (the same build as the binary).
 const BUILT_WITH_ENDPOINT: Option<&str> = option_env!("DFW_OTLP_ENDPOINT");
@@ -337,7 +345,7 @@ fn events_arrive_as_otlp_json_and_carry_no_content() {
     ]);
     assert_eq!(m.run(&["phase", "nowhere-phase"]).code, 1);
     assert_eq!(
-        m.run(&["no-such-command", "design/screens/home/a.html"])
+        m.run(&["no-such-command", &rel::screen("home/a.html")])
             .code,
         1
     );
@@ -494,6 +502,7 @@ fn events_arrive_as_otlp_json_and_carry_no_content() {
         .to_string_lossy()
         .into_owned();
     let home = m.home.to_string_lossy().into_owned();
+    let design_folder = format!("{}/", rel::DESIGN);
     let secrets = [
         // the folder and its name, a file name, argument values, anything that looks like a path or a URL
         project.as_str(),
@@ -508,7 +517,7 @@ fn events_arrive_as_otlp_json_and_carry_no_content() {
         "framework",
         "nowhere-phase",
         "no-such-command",
-        "design/",
+        design_folder.as_str(),
         "screens",
         "a.html",
         ".html",

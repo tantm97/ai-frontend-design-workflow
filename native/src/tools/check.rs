@@ -23,7 +23,7 @@ pub use self::report::{check_exit_code, format_report};
 use crate::core::config::env_map;
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::{canonicalize, project_paths, rel, resolve, to_posix};
+use crate::core::paths::{canonicalize, file, project_paths, rel, resolve, to_posix};
 use crate::core::process::{node_executable, plan_for, run_timed, Ran, Spawn};
 use crate::core::util::read_json;
 use crate::design::compose::{build_composed, build_system};
@@ -154,7 +154,7 @@ fn sloplint_scope(root: &Path) -> Result<&'static str, DfwError> {
     if manifest.is_null() {
         // A design.json that holds `null` ends the run (as in Node), with what to fix.
         return Err(DfwError::new(
-            "design/design.json holds null, not the design manifest (a JSON object). Restore it from version control, or fix it by hand, and run the command again.",
+            format!("{} holds null, not the design manifest (a JSON object). Restore it from version control, or fix it by hand, and run the command again.", rel::MANIFEST),
         ));
     }
     Ok(
@@ -515,8 +515,8 @@ fn list_design_ui(root: &Path) -> Result<Vec<String>, DfwError> {
         for (name, is_dir) in entries {
             let r = format!("{rel}/{name}");
             if is_dir {
-                let skipped = name == "approved"
-                    || name == "handoff"
+                let skipped = name == file::APPROVED
+                    || name == file::HANDOFF
                     || (name == "components" && rel.ends_with("/system"));
                 if !skipped {
                     walk(&abs.join(&name), &r, out)?;
@@ -586,7 +586,7 @@ fn remap(mut res: Value, composed: &[(String, String)]) -> Value {
         );
         // `k.replace(/^.*?(\.dfw\/build\/)/, '$1')`: an absolute path of a composed copy.
         let tail = k
-            .find(".dfw/build/")
+            .find(&format!("{}/", rel::BUILD))
             .filter(|i| !k[..*i].contains(['\n', '\r', '\u{2028}', '\u{2029}']));
         let hit = source_of(&k).or_else(|| tail.and_then(|i| source_of(&k[i..])));
         if let (Some(hit), Value::Object(map)) = (hit, f) {
@@ -653,7 +653,7 @@ pub fn run_checks_with(
         let lint_targets: Option<Vec<String>> = targets.as_ref().map(|_| {
             design_targets
                 .iter()
-                .filter(|t| t.starts_with("design/"))
+                .filter(|t| rel::under(rel::DESIGN, t))
                 .cloned()
                 .collect()
         });

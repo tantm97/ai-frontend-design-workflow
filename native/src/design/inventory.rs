@@ -300,7 +300,7 @@ fn usages(root: &Path) -> Result<BTreeSet<String>, DfwError> {
     }
     let p = project_paths(root);
     let mut used = BTreeSet::new();
-    scan(&p.design.join("screens"), &mut used)?;
+    scan(&p.screens, &mut used)?;
     scan(&p.components, &mut used)?;
     Ok(used)
 }

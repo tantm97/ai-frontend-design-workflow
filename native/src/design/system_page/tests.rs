@@ -27,11 +27,11 @@ fn write(root: &Path, rel: &str, text: &str) {
 /// `project()` of system.test.mjs.
 fn project() -> PathBuf {
     let root = test_dir("system-page");
-    write(&root, ".dfw/state.json", "{}");
-    fs::create_dir_all(root.join("design/tokens")).unwrap();
+    write(&root, rel::STATE, "{}");
+    fs::create_dir_all(root.join(rel::TOKENS)).unwrap();
     write(
         &root,
-        "design/design.json",
+        rel::MANIFEST,
         r#"{"schema":1,"product":"T","screens":[]}"#,
     );
     root
@@ -39,7 +39,7 @@ fn project() -> PathBuf {
 
 /// Test fixture only: put starter-kit masters into a project (the CLI never copies them).
 fn use_kit(root: &Path, names: Option<&[&str]>) {
-    let dir = root.join("design/system/components");
+    let dir = root.join(rel::COMPONENTS);
     fs::create_dir_all(&dir).unwrap();
     let kit = kit_components().unwrap();
     for f in dir_names(&kit).unwrap() {
@@ -185,7 +185,7 @@ fn short_hex_tokens() {
     let root = test_dir("system-page");
     write(
         &root,
-        "design/tokens/tokens.json",
+        rel::TOKENS_JSON,
         r##"{"color":{"$type":"color","ink":{"$value":"#ccc"},"surface":{"$value":"#fff"},"canvas":{"$value":"#fff"},"accent":{"$value":"#ddd"},"muted":{"$value":"#eee"}}}"##,
     );
     let page = render_system_page(&root, "../").unwrap();
@@ -195,7 +195,7 @@ fn short_hex_tokens() {
     let root_long = test_dir("system-page");
     write(
         &root_long,
-        "design/tokens/tokens.json",
+        rel::TOKENS_JSON,
         r##"{"color":{"$type":"color","ink":{"$value":"#cccccc"},"surface":{"$value":"#ffffff"},"canvas":{"$value":"#ffffff"},"accent":{"$value":"#dddddd"},"muted":{"$value":"#eeeeee"}}}"##,
     );
     let long = render_system_page(&root_long, "../").unwrap();
@@ -247,7 +247,7 @@ fn base_in_examples() {
     let root = project();
     write(
         &root,
-        "design/system/components/logo.html",
+        &rel::component("logo.html"),
         r#"<dfw-component name="logo" props="img={{base}}assets/logo.png"><template><a href="{{base}}screens/home/a.html"><img src="{{img}}" alt=""></a></template><dfw-examples><dfw-use c="logo"></dfw-use></dfw-examples></dfw-component>"#,
     );
     let page = composed(&root, "/design/", Some("/design/")).html;

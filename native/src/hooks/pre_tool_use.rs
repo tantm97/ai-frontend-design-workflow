@@ -11,7 +11,7 @@ use crate::core::config::load_config;
 use crate::core::error::DfwError;
 use crate::core::host::{HookInput, HookResult};
 use crate::core::js;
-use crate::core::paths::{env_nonempty, find_project_root, project_paths, resolve};
+use crate::core::paths::{env_nonempty, file, find_project_root, project_paths, rel, resolve};
 use crate::core::util::{now_iso, write_json_inside};
 use crate::design::html::{Attr, Quote, Token, Tokenizer};
 use crate::workflow::gates::{decide_write, files_from_tool_input, relative};
@@ -144,7 +144,7 @@ pub fn note_presence(
     let p = project_paths(root);
     let rel = relative(&resolve(&p.design), &resolve(abs_file));
     // "..x.html" is a design file; only ".." and "../..." are outside.
-    if rel == ".." || rel.starts_with("../") || rel.starts_with("approved/") {
+    if rel == ".." || rel.starts_with("../") || rel::under(file::APPROVED, &rel) {
         return Ok(None);
     }
     let first_edit = tool_input
@@ -169,7 +169,7 @@ pub fn note_presence(
         }
     }
     let note = json!({ "file": rel, "dfwId": dfw_id, "at": now_iso() });
-    write_json_inside(root, &p.dfw.join("presence.json"), &note)?;
+    write_json_inside(root, &p.presence, &note)?;
     Ok(Some(note))
 }
 
@@ -183,7 +183,7 @@ mod tests {
     #[test]
     fn presence_the_hook_names_the_element_the_agent_is_about_to_edit() {
         let root = test_dir("presence");
-        let file = root.join("design/screens/demo/a.html");
+        let file = root.join(rel::screen("demo/a.html"));
         fs::create_dir_all(file.parent().unwrap()).unwrap();
         fs::write(&file, "<main data-dfw-id=\"demo.main\">\n  <h1 data-dfw-id=\"demo.title\">Hello</h1>\n  <p>Plain line</p>\n  <dfw-use c=\"button\" id=\"demo.cta\">Go</dfw-use>\n  <span>After</span>\n</main>\n").unwrap();
         let note = |input: Value, f: &Path| note_presence(&root, &input, f).unwrap();
@@ -214,11 +214,11 @@ mod tests {
             "not a design file"
         );
         assert_eq!(
-            note(json!({}), &root.join("design/approved/v1/a.html")),
+            note(json!({}), &root.join(rel::approved("v1/a.html"))),
             None
         );
         // The note on disk is the one returned.
-        let written = fs::read_to_string(root.join(".dfw/presence.json")).unwrap();
+        let written = fs::read_to_string(root.join(rel::join(rel::DFW, file::PRESENCE))).unwrap();
         assert!(written.starts_with(
             "{\n  \"file\": \"screens/demo/a.html\",\n  \"dfwId\": null,\n  \"at\": \""
         ));
@@ -229,7 +229,7 @@ mod tests {
     #[test]
     fn presence_ids_in_html_comments_are_skipped_and_single_quotes_are_read() {
         let root = test_dir("presence-comments");
-        let file = root.join("design/screens/demo/a.html");
+        let file = root.join(rel::screen("demo/a.html"));
         fs::create_dir_all(file.parent().unwrap()).unwrap();
         fs::write(&file, "<main data-dfw-id=\"page\">\n<!-- <section data-dfw-id=\"old.hero\"> removed -->\n<header data-dfw-id='nav'><a>Home</a></header>\n<section data-dfw-id='hero'><h1>Title</h1></section>\n<!-- <p data-dfw-id=\"never.closed\">\n</main>\n").unwrap();
         let at = |old: &str| {
@@ -246,7 +246,7 @@ mod tests {
         );
         assert_eq!(at("</main>"), "hero", "an unclosed comment hides the rest");
         // "..x.html" is inside design/ (node-stable d: two leading dots are not "outside").
-        let dots = root.join("design/..x.html");
+        let dots = root.join(rel::design("..x.html"));
         assert_eq!(
             note_presence(&root, &json!({}), &dots).unwrap().unwrap()["file"],
             "..x.html"

@@ -15,7 +15,7 @@ use crate::core::error::exit;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::level::{self, Level};
-use crate::core::paths::{project_paths, rel, resolve};
+use crate::core::paths::{file, project_paths, rel, resolve};
 use crate::core::util::{
     out, to_json_compact, to_json_pretty, write_atomic_inside, write_json_inside, ArgValue, Args,
 };
@@ -241,7 +241,7 @@ fn check(ctx: &Ctx) -> Result<i32, DfwError> {
     let setup = a.truthy("setup");
     let config = load_config(Some(&root))?;
     if setup {
-        let page = project_paths(&root).dfw.join("checks").join("setup.html");
+        let page = project_paths(&root).checks.join(file::SETUP_PAGE);
         write_atomic_inside(&root, &page, SETUP_PAGE)?;
         let done = setup_engine(
             &env_map(&config),

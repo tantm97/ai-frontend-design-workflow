@@ -594,8 +594,8 @@ mod tests {
         let root = project();
         init(&root, "crisp");
         use_kit(&root, Some(&["button"]));
-        write(&root, "design/screens/s/a.html", "<html><head><dfw-head></dfw-head></head><body><dfw-use c=\"button\" id=\"go\">Go</dfw-use></body></html>");
-        let r = compose_file(&root, "design/screens/s/a.html").unwrap();
+        write(&root, rel::screen("s/a.html"), "<html><head><dfw-head></dfw-head></head><body><dfw-use c=\"button\" id=\"go\">Go</dfw-use></body></html>");
+        let r = compose_file(&root, &rel::screen("s/a.html")).unwrap();
         let link = format!("href=\"../../{}\"", in_design::COMPONENTS_CSS);
         assert!(r.composed.html.contains(&link));
         assert_eq!(build_system(&root).unwrap().components, 1);
@@ -712,7 +712,7 @@ mod tests {
         );
         write(
             &root,
-            "design/screens/product/a.html",
+            rel::screen("product/a.html"),
             "<dfw-use c=\"button\">Thêm</dfw-use>",
         );
         assert_eq!(

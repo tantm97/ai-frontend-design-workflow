@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::project_paths;
+use crate::core::paths::{project_paths, rel};
 use crate::core::util::{append_jsonl_inside, now_iso, read_jsonl};
 
 /// The entry `approveGate` appends: a level 1 (user) decision named after the gate.
@@ -70,9 +70,10 @@ pub fn format_decisions(list: &[Value]) -> Result<String, DfwError> {
         .iter()
         .map(|d| {
             let at = d.get("at").and_then(Value::as_str).ok_or_else(|| {
-                DfwError::new(
-                    ".dfw/decisions.jsonl: a decision has no \"at\" time. Fix or remove that line.",
-                )
+                DfwError::new(format!(
+                    "{}: a decision has no \"at\" time. Fix or remove that line.",
+                    rel::DECISIONS
+                ))
             })?;
             // slice(0, 16) counts UTF-16 units; a timestamp is ASCII.
             let units: Vec<u16> = at.encode_utf16().take(16).collect();

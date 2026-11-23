@@ -15,6 +15,14 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 use serde_json::{json, Value};
 
+#[path = "../src/core/paths/layout.rs"]
+#[allow(
+    dead_code,
+    reason = "each test binary uses a part of the project layout"
+)]
+mod layout;
+use layout::rel;
+
 const DFW: &str = env!("CARGO_BIN_EXE_dfw");
 
 /// A fresh, empty folder (its real path: macOS reaches the temporary directory through a symlink).
@@ -85,7 +93,7 @@ fn edits_from_concurrent_processes_are_all_kept_and_journaled() {
         .map(|i| format!("<p data-dfw-id=\"p.{i}\">old {i}</p>\n"))
         .collect();
     let source = format!("<!doctype html><html><body>\n{paras}</body></html>\n");
-    let screen = root.join("design/screens/many/a.html");
+    let screen = root.join(rel::screen("many/a.html"));
     fs::create_dir_all(screen.parent().unwrap()).unwrap();
     fs::write(&screen, &source).unwrap();
     let root_arg = root.to_string_lossy().into_owned();
@@ -103,7 +111,7 @@ fn edits_from_concurrent_processes_are_all_kept_and_journaled() {
     for i in 0..12 {
         assert!(text.contains(&format!(">new {i}<")), "edit {i} lost");
     }
-    let records = fs::read_dir(root.join(".dfw/edits")).unwrap().count();
+    let records = fs::read_dir(root.join(rel::EDITS)).unwrap().count();
     assert_eq!(records, 12, "one record per edit, no lock left");
     for left in (0..12).rev() {
         let undone: Value = serde_json::from_str(
@@ -121,13 +129,17 @@ fn edits_from_concurrent_processes_are_all_kept_and_journaled() {
 #[test]
 fn writers_behind_a_dead_holder_keep_every_comment() {
     let root = tmp_dir("held");
-    fs::create_dir_all(root.join(".dfw/reviews/.lock")).unwrap();
+    fs::create_dir_all(root.join(rel::join(rel::REVIEWS, ".lock"))).unwrap();
     fs::write(
-        root.join(".dfw/state.json"),
+        root.join(rel::STATE),
         r#"{"design":{"version":1,"status":"draft","locked":false}}"#,
     )
     .unwrap();
-    fs::write(root.join(".dfw/reviews/.lock/owner"), "a process that died").unwrap();
+    fs::write(
+        root.join(rel::join(rel::REVIEWS, ".lock/owner")),
+        "a process that died",
+    )
+    .unwrap();
     let writers: Vec<Child> = (0..10)
         .map(|i| {
             let input = json!({ "comment": format!("w{i}") }).to_string();
@@ -146,7 +158,7 @@ fn writers_behind_a_dead_holder_keep_every_comment() {
         .map(|c| c["id"].as_str().unwrap())
         .collect();
     assert_eq!(ids.len(), 10);
-    let left: Vec<String> = fs::read_dir(root.join(".dfw/reviews"))
+    let left: Vec<String> = fs::read_dir(root.join(rel::REVIEWS))
         .unwrap()
         .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
         .filter(|n| n.starts_with(".lock"))
