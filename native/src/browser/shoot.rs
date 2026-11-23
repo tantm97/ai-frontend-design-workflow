@@ -14,6 +14,7 @@ use crate::core::js;
 use crate::core::paths::{project_paths, resolve, ProjectPaths};
 use crate::core::process::is_alive;
 use crate::core::util::read_json;
+use crate::design::manifest::{self, key};
 use crate::workflow::state::{load_state, state_field_error};
 
 /// What to shoot, as the flags of `dfw shoot` give it. A text flag given alone reads `"true"`,
@@ -123,7 +124,7 @@ fn query(theme: Option<&str>, state: Option<&str>) -> String {
 pub fn shoot_breakpoints(root: &Path, bp: Option<&str>) -> Result<Vec<Breakpoint>, DfwError> {
     let config = load_config(Some(root))?;
     let manifest = read_json(&project_paths(root).manifest, Some(json!({})))?;
-    let all = match manifest.get("breakpoints").filter(|b| js::truthy(b)) {
+    let all = match manifest.get(key::BREAKPOINTS).filter(|b| js::truthy(b)) {
         Some(list) => list
             .as_array()
             .into_iter()
@@ -225,13 +226,10 @@ fn shots_version(root: &Path) -> Result<String, DfwError> {
 
 /// The screens of page `page`: those its entry in `pages` lists, then those that name it.
 fn screens_of_page(m: &Value, screens: &[&Value], page: &str) -> Vec<String> {
-    let listed = m
-        .get("pages")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
+    let listed = manifest::items(m.get(key::PAGES))
+        .iter()
         .find(|pg| text(pg, "id") == page)
-        .map(|pg| strings(pg.get("screens")))
+        .map(|pg| strings(pg.get(key::SCREENS)))
         .unwrap_or_default();
     let tagged = screens
         .iter()
@@ -295,12 +293,7 @@ pub fn studio_jobs(
     let p = project_paths(root);
     let (info, m) = running_studio(&p)?;
     let version = shots_version(root)?;
-    let screens_all: Vec<&Value> = m
-        .get("screens")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .collect();
+    let screens_all: Vec<&Value> = manifest::items(m.get(key::SCREENS)).iter().collect();
     let page_screens: Option<Vec<String>> = opts
         .page
         .as_deref()
@@ -349,12 +342,7 @@ pub fn studio_jobs(
             continue;
         }
         let (states, themes) = states_and_themes(&m, s, opts);
-        for v in s
-            .get("variants")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-        {
+        for v in manifest::items(s.get(key::VARIANTS)).iter() {
             if variant.as_deref().is_some_and(|only| only != text(v, "id")) {
                 continue;
             }

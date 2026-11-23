@@ -12,6 +12,7 @@ use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::project_paths;
 use crate::core::util::{get_path, list_files, read_json, write_atomic_inside};
+use crate::design::manifest::key;
 use crate::review::comments::all_comments;
 use crate::workflow::freeze::check_snapshot_name;
 use crate::workflow::gates::relative;
@@ -93,9 +94,9 @@ fn or_text(lines: Vec<String>, fallback: &str) -> String {
 /// The table rows of the screens: each with its approved, else recommended, else first variant.
 fn screen_rows(m: &Value, version: &str) -> Result<Vec<String>, DfwError> {
     let mut screens = Vec::new();
-    for s in items(m.get("screens"), "m.screens")? {
+    for s in items(m.get(key::SCREENS), "m.screens")? {
         let variants = s
-            .get("variants")
+            .get(key::VARIANTS)
             .and_then(Value::as_array)
             .ok_or_else(|| {
                 DfwError::new(format!(
@@ -207,7 +208,7 @@ pub fn write_handoff(root: &Path) -> Result<String, DfwError> {
     let screens = screen_rows(&m, &version)?;
     let stack_text = stack_line(&stack, &state)?;
     let config;
-    let breakpoints = match js::truthy_value(m.get("breakpoints")) {
+    let breakpoints = match js::truthy_value(m.get(key::BREAKPOINTS)) {
         Some(own) => Some(own),
         None => {
             config = load_config(Some(root))?;

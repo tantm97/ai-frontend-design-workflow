@@ -10,6 +10,7 @@ pub mod icons;
 pub mod inventory;
 pub mod layout_cache;
 pub mod lint;
+pub mod manifest;
 pub mod pages;
 pub mod style;
 pub mod system;

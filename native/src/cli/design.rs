@@ -28,6 +28,7 @@ use crate::design::inventory::{inventory_findings, kit_ref, kit_refs, load_inven
 use crate::design::lint::{
     lint_component_file, lint_css, lint_html, lint_screen, lint_tokens, state_coverage,
 };
+use crate::design::manifest::{self, key};
 use crate::design::style::{
     apply_style, format_style, get_style, list_styles, match_styles, search_styles, AXES,
 };
@@ -813,11 +814,8 @@ fn blueprint(ctx: &Ctx) -> Result<i32, DfwError> {
     let a = &ctx.args;
     let m = js::read_json(&project_paths(&root).manifest, Some(json!({})))?;
     let wanted = a.pos(1).filter(|w| !w.is_empty() && *w != "list");
-    let screens: Vec<&Value> = m
-        .get("screens")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
+    let screens: Vec<&Value> = manifest::items(m.get(key::SCREENS))
+        .iter()
         .filter(|x| match wanted {
             Some(id) => x.get("id").and_then(Value::as_str) == Some(id),
             None => !js::to_string(x.get("id")).starts_with('_'),
@@ -833,9 +831,9 @@ fn blueprint(ctx: &Ctx) -> Result<i32, DfwError> {
                         item.insert(key.into(), v.clone());
                     }
                 }
-                let blueprint = x.get("blueprint").filter(|b| js::truthy(Some(b)));
+                let blueprint = x.get(key::BLUEPRINT).filter(|b| js::truthy(Some(b)));
                 item.insert(
-                    "blueprint".into(),
+                    key::BLUEPRINT.into(),
                     blueprint.cloned().unwrap_or(Value::Null),
                 );
                 Value::Object(item)
@@ -862,7 +860,7 @@ fn blueprint_text(x: &Value) -> String {
             .map_or(fallback.to_string(), |v| js::to_string(Some(v)))
     };
     let id = s(x.get("id"));
-    let Some(b) = x.get("blueprint").filter(|b| js::truthy(Some(b))) else {
+    let Some(b) = x.get(key::BLUEPRINT).filter(|b| js::truthy(Some(b))) else {
         return format!("{id}: NO BLUEPRINT");
     };
     let list = |key: &str| {

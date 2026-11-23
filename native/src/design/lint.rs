@@ -34,6 +34,7 @@ use crate::core::js;
 use crate::core::js::regex::{blank_css_comments, js_re, js_regex};
 use crate::core::paths::{project_paths, resolve, to_posix};
 use crate::core::util::{list_files, read_json};
+use crate::design::manifest::Manifest;
 
 /// Reports a finding: level, rule, byte offset in the linted text (`None` is line 1), message.
 type Add<'a> = dyn FnMut(&'static str, &'static str, Option<usize>, String) + 'a;
@@ -392,63 +393,6 @@ fn malformed(what: &str) -> DfwError {
     super::malformed("design/design.json", what)
 }
 
-/// `value || []` before an array method: a list, nothing for a missing or falsy value, and the
-/// TypeError of Node for any other value.
-fn list<'a>(value: Option<&'a Value>, what: &str) -> Result<&'a [Value], DfwError> {
-    match value {
-        Some(Value::Array(items)) => Ok(items),
-        Some(other) if js::truthy(Some(other)) => Err(malformed(&format!("{what} must be a list"))),
-        _ => Ok(&[]),
-    }
-}
-
-/// An item the Node code read a property of: `null` was a TypeError there.
-fn item<'a>(value: &'a Value, what: &str) -> Result<&'a Value, DfwError> {
-    if value.is_null() {
-        return Err(malformed(&format!("{what} must not be null")));
-    }
-    Ok(value)
-}
-
-/// `String(sc.id).startsWith('_')`: screens the workflow keeps out of the checks.
-fn is_private(screen: &Value) -> bool {
-    js::to_string(screen.get("id")).starts_with('_')
-}
-
-/// `(m?.screens || []).find((s) => (s.variants || []).some((v) => v.file === file))`: the screen
-/// that owns a file. Like `find` and `some`, it stops at the first match, so only what comes
-/// before it has to be well-formed.
-fn screen_of<'a>(manifest: &'a Value, file: &str) -> Result<Option<&'a Value>, DfwError> {
-    for screen in list(manifest.get("screens"), "\"screens\"")? {
-        let screen = item(screen, "a screen")?;
-        for variant in list(screen.get("variants"), "\"variants\" of a screen")? {
-            if item(variant, "a variant")?
-                .get("file")
-                .and_then(Value::as_str)
-                == Some(file)
-            {
-                return Ok(Some(screen));
-            }
-        }
-    }
-    Ok(None)
-}
-
-/// `sc.states?.length ? sc.states : m.states || []`, which the Node code then maps.
-fn declared_states<'a>(screen: &'a Value, manifest: &'a Value) -> Result<&'a [Value], DfwError> {
-    match screen.get("states") {
-        Some(Value::Array(own)) if !own.is_empty() => return Ok(own),
-        Some(Value::String(text)) if !text.is_empty() => {
-            return Err(malformed("\"states\" of a screen must be a list"));
-        }
-        Some(Value::Object(map)) if js::truthy(map.get("length")) => {
-            return Err(malformed("\"states\" of a screen must be a list"));
-        }
-        _ => {}
-    }
-    list(manifest.get("states"), "\"states\"")
-}
-
 js_re!(STATE_NAME, r"^[a-z][a-z0-9-]*$");
 
 /// The states, out of `states`, that this screen actually designs: a `.when-<state>` or
@@ -503,10 +447,12 @@ pub fn state_coverage(root: &Path, rel: &str, text: &str) -> Result<Vec<Value>, 
         return Ok(Vec::new());
     };
     let file = rel.strip_prefix("design/").unwrap_or(rel);
-    let Some(screen) = screen_of(&manifest, file)?.filter(|s| !is_private(s)) else {
+    let m = Manifest(&manifest);
+    let Some(screen) = m.screen_of_file_checked(file)?.filter(|s| !s.is_private()) else {
         return Ok(Vec::new());
     };
-    let declared = declared_states(screen, &manifest)?;
+    let declared = screen.declared_states_checked(m)?;
+    let screen = screen.value();
     let states: Vec<String> = declared
         .iter()
         .map(|s| js::to_string(Some(s)).to_lowercase())

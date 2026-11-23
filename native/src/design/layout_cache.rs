@@ -12,6 +12,7 @@ use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{project_paths, resolve, ProjectPaths};
 use crate::core::util::{read_json, sha256, write_json_inside};
+use crate::design::manifest::Manifest;
 
 /// Files every screen loads besides the tokens.
 const SHARED: [&str; 2] = ["styles/base.css", "system/head.html"];
@@ -40,14 +41,11 @@ fn cache_file(p: &ProjectPaths) -> std::path::PathBuf {
 
 /// The `file` of every variant of every screen in the manifest, with the screen's id.
 fn variants(manifest: &Value) -> Vec<(String, &str)> {
-    fn list(v: Option<&Value>) -> impl Iterator<Item = &Value> {
-        v.and_then(Value::as_array).into_iter().flatten()
-    }
     let mut out = Vec::new();
-    for screen in list(manifest.get("screens")) {
-        for variant in list(screen.get("variants")) {
-            if let Some(file) = variant.get("file").and_then(Value::as_str) {
-                out.push((js::to_string(screen.get("id")), file));
+    for screen in Manifest(manifest).screens() {
+        for variant in screen.variants() {
+            if let Some(file) = variant.file() {
+                out.push((screen.id_text(), file));
             }
         }
     }

@@ -31,6 +31,7 @@ use crate::core::util::{
     get_path, now_iso, read_json, sha256, to_json_compact, write_json, write_json_inside,
 };
 use crate::design::compose::{build_composed, build_system};
+use crate::design::manifest::{self, key};
 use crate::design::pages::studio_pages;
 use crate::design::tokens::{dir_names, relative_path};
 
@@ -695,11 +696,8 @@ fn screen_pages(manifest: &Value) -> Vec<(String, Value, Vec<String>)> {
         .into_iter()
         .filter(|p| !js::truthy(p.get("system")) && !js::truthy(p.get("flow")))
         .map(|p| {
-            let screens = p
-                .get("screens")
-                .and_then(Value::as_array)
-                .into_iter()
-                .flatten()
+            let screens = manifest::items(p.get(key::SCREENS))
+                .iter()
                 .map(js::to_string)
                 .collect();
             (
@@ -726,7 +724,7 @@ fn select_renders(
     let list = |v: Option<&Value>| -> Vec<Value> {
         v.and_then(Value::as_array).cloned().unwrap_or_default()
     };
-    let all_bps = match js::truthy_value(m.get("breakpoints")) {
+    let all_bps = match js::truthy_value(m.get(key::BREAKPOINTS)) {
         Some(bps) => list(Some(bps)),
         None => list(get_path(&load_config(Some(root))?, "studio.breakpoints")),
     };
@@ -766,7 +764,7 @@ fn select_renders(
             "No page \"{page}\" in design/design.json."
         )));
     }
-    let screens = list(m.get("screens"));
+    let screens = list(m.get(key::SCREENS));
     let mut jobs = Vec::new();
     for (id, title, screen_ids) in &pages {
         for sid in screen_ids {
@@ -775,7 +773,7 @@ fn select_renders(
                 .iter()
                 .rev()
                 .find(|s| s.get("id").and_then(Value::as_str) == Some(sid));
-            for v in list(screen.and_then(|s| js::truthy_value(s.get("variants")))) {
+            for v in list(screen.and_then(|s| js::truthy_value(s.get(key::VARIANTS)))) {
                 for b in &bps {
                     jobs.push(js::object(vec![
                         ("page", Some(json!({ "id": id, "title": title }))),

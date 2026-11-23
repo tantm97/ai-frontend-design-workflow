@@ -1,3 +1,5 @@
+//! Convention checks on the source of `src/`.
+//!
 //! The growth guard of convention G15 (git-and-review.md): the number of suppressions
 //! (`#[allow(...)]` in product code) may only go down. A higher count fails with the new ones; a lower count fails until the
 //! baseline (`tests/conventions-baseline.json`) is lowered to it, so progress is recorded.
@@ -80,4 +82,57 @@ fn compare(what: &str, key: &str, found: &[String]) {
 #[test]
 fn allow_attributes_do_not_grow() {
     compare("allow attributes in src/", "allow", &allows());
+}
+
+/// The keys of `design/design.json` that only the manifest has: product code reads them through
+/// `design::manifest` (its `key` constants and views), never by a literal. `penpot/diff` reads
+/// the Penpot export document, whose `pages` are its own.
+const MANIFEST_KEYS: &[&str] = &[
+    "screens",
+    "variants",
+    "pages",
+    "sections",
+    "breakpoints",
+    "studioPages",
+    "designedStates",
+    "blueprint",
+    "flows",
+];
+
+#[test]
+fn manifest_keys_are_read_through_design_manifest() {
+    let src = native().join("src");
+    let mut files = Vec::new();
+    rust_files(&src, &mut files);
+    files.sort();
+    let mut found = Vec::new();
+    for f in files {
+        let rel = f
+            .strip_prefix(native())
+            .unwrap()
+            .to_string_lossy()
+            .replace('\\', "/");
+        if rel == "src/design/manifest.rs"
+            || rel.starts_with("src/penpot/diff/")
+            || rel.ends_with("tests.rs")
+        {
+            continue;
+        }
+        let text = fs::read_to_string(&f).unwrap();
+        let product = text.split("#[cfg(test)]").next().unwrap_or_default();
+        for (i, line) in product.lines().enumerate() {
+            for k in MANIFEST_KEYS {
+                if line.contains(&format!(".get(\"{k}\")"))
+                    || line.contains(&format!(".get_mut(\"{k}\")"))
+                {
+                    found.push(format!("{rel}:{}: {}", i + 1, line.trim()));
+                }
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "design.json keys read by a literal; use design::manifest::key (or its views):\n{}",
+        found.join("\n")
+    );
 }

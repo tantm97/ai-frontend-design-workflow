@@ -4,11 +4,12 @@ use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
-use super::{finding, is_private, item, list, malformed};
+use super::{finding, malformed};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::project_paths;
 use crate::core::util::read_json;
+use crate::design::manifest::{items_checked as list, key, not_null as item, Screen};
 
 /// `Set.prototype.has` for values read from JSON: text, numbers, booleans and null are equal
 /// by value, an object or an array only to itself (so never to another entry).
@@ -50,7 +51,7 @@ pub fn lint_manifest(root: &Path) -> Result<Vec<Value>, DfwError> {
         );
         return Ok(out);
     }
-    let screens = list(manifest.get("screens"), "\"screens\"")?;
+    let screens = list(manifest.get(key::SCREENS), "\"screens\"")?;
     for screen in screens {
         item(screen, "a screen")?;
     }
@@ -61,12 +62,12 @@ pub fn lint_manifest(root: &Path) -> Result<Vec<Value>, DfwError> {
             "Manifest has no screens yet (fine during the system phase).".into(),
         );
     }
-    let id = |v: &Value| js::to_string(v.get("id"));
+    let id = |v: &Value| js::to_string(v.get(key::ID));
     for screen in screens {
-        if is_private(screen) {
+        if Screen(screen).is_private() {
             continue;
         }
-        let Some(blueprint) = screen.get("blueprint").filter(|b| js::truthy(Some(b))) else {
+        let Some(blueprint) = screen.get(key::BLUEPRINT).filter(|b| js::truthy(Some(b))) else {
             add("warn", "blueprint", format!("Screen \"{}\" has no blueprint (goal, layout, aboveFold, data, feedback). Agree it with the user before building: it is cheaper to fix a blueprint than a screen.", id(screen)));
             continue;
         };
@@ -83,14 +84,14 @@ pub fn lint_manifest(root: &Path) -> Result<Vec<Value>, DfwError> {
     }
     // `for (const pg of m.pages || [])`: a text is iterated letter by letter (no letter has
     // screens), any other value that is not a list is a TypeError.
-    let pages = match manifest.get("pages") {
+    let pages = match manifest.get(key::PAGES) {
         Some(Value::String(_)) => &[],
         other => list(other, "\"pages\"")?,
     };
     for page in pages {
         // Of a text, each character is taken for a screen id.
         let letters: Vec<Value>;
-        let listed = match item(page, "a page")?.get("screens") {
+        let listed = match item(page, "a page")?.get(key::SCREENS) {
             Some(Value::String(text)) => {
                 letters = text.chars().map(|c| Value::String(c.into())).collect();
                 letters.as_slice()
@@ -100,7 +101,7 @@ pub fn lint_manifest(root: &Path) -> Result<Vec<Value>, DfwError> {
         for sid in listed {
             let known = screens
                 .iter()
-                .any(|s| s.get("id").is_some_and(|have| same_value(have, sid)));
+                .any(|s| s.get(key::ID).is_some_and(|have| same_value(have, sid)));
             if !known {
                 add(
                     "error",
@@ -116,7 +117,7 @@ pub fn lint_manifest(root: &Path) -> Result<Vec<Value>, DfwError> {
     }
     let mut seen: Vec<Option<&Value>> = Vec::new();
     for screen in screens {
-        let sid = screen.get("id");
+        let sid = screen.get(key::ID);
         if !js::truthy(sid) {
             add("error", "manifest-screen-id", "A screen has no id.".into());
         }
@@ -134,7 +135,7 @@ pub fn lint_manifest(root: &Path) -> Result<Vec<Value>, DfwError> {
         }
         seen.push(sid);
         let variants = screen
-            .get("variants")
+            .get(key::VARIANTS)
             .and_then(Value::as_array)
             .map_or(&[][..], Vec::as_slice);
         if variants.is_empty() {
@@ -146,7 +147,7 @@ pub fn lint_manifest(root: &Path) -> Result<Vec<Value>, DfwError> {
             continue;
         }
         for variant in variants {
-            let file = item(variant, "a variant")?.get("file");
+            let file = item(variant, "a variant")?.get(key::FILE);
             let Some(file) = file.filter(|f| js::truthy(Some(f))) else {
                 add(
                     "error",

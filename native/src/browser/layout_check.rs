@@ -29,6 +29,7 @@ use crate::core::util::read_json;
 use crate::design::compose::{
     build_composed, build_system, compose_html, load_components, ComposeOptions,
 };
+use crate::design::manifest::{self, key};
 use crate::design::system_page::render_system_page;
 use crate::design::tokens::relative_path;
 
@@ -261,11 +262,7 @@ fn reflow_bp() -> Breakpoint {
 }
 
 fn list<'a>(value: &'a Value, key: &str) -> impl Iterator<Item = &'a Value> {
-    value
-        .get(key)
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
+    manifest::items(value.get(key)).iter()
 }
 
 /// `s.states || m.states || []`, as text.
@@ -282,7 +279,7 @@ pub(crate) fn states_of(screen: &Value, manifest: &Value) -> Vec<String> {
 
 /// `m.breakpoints || config.studio.breakpoints`.
 pub(crate) fn manifest_breakpoints(manifest: &Value, config: &Value) -> Vec<Breakpoint> {
-    match manifest.get("breakpoints").filter(|b| js::truthy(b)) {
+    match manifest.get(key::BREAKPOINTS).filter(|b| js::truthy(b)) {
         Some(all) => all
             .as_array()
             .into_iter()
@@ -295,7 +292,7 @@ pub(crate) fn manifest_breakpoints(manifest: &Value, config: &Value) -> Vec<Brea
 
 fn screen_jobs(manifest: &Value, bps: &[Breakpoint], opts: &LayoutOptions) -> Vec<RenderJob> {
     let mut jobs = Vec::new();
-    for s in list(manifest, "screens") {
+    for s in list(manifest, key::SCREENS) {
         let id = js::to_string(s.get("id"));
         if opts
             .screens
@@ -308,7 +305,7 @@ fn screen_jobs(manifest: &Value, bps: &[Breakpoint], opts: &LayoutOptions) -> Ve
         if opts.states {
             states.extend(states_of(s, manifest).into_iter().map(Some));
         }
-        for v in list(s, "variants") {
+        for v in list(s, key::VARIANTS) {
             let job =
                 |bp: &Breakpoint, state: Option<String>, stress: bool, reflow: bool| RenderJob {
                     screen: id.clone(),

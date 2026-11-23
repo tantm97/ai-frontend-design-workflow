@@ -5,6 +5,7 @@
 //! - Unassigned screens go to "Screens"; ids starting with "_" go to "Explorations".
 
 use crate::core::js;
+use crate::design::manifest::{self, key};
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
@@ -25,7 +26,7 @@ static EXTERNAL: LazyLock<Option<Regex>> = LazyLock::new(|| Regex::new(r"(?i)^[a
 
 fn screens_of(manifest: &Value) -> Vec<&Value> {
     manifest
-        .get("screens")
+        .get(key::SCREENS)
         .and_then(Value::as_array)
         .map(|list| {
             list.iter()
@@ -37,7 +38,7 @@ fn screens_of(manifest: &Value) -> Vec<&Value> {
 
 fn variants_of(screen: &Value) -> &[Value] {
     screen
-        .get("variants")
+        .get(key::VARIANTS)
         .and_then(Value::as_array)
         .map(Vec::as_slice)
         .unwrap_or_default()
@@ -198,7 +199,7 @@ pub fn studio_pages(manifest: &Value) -> Vec<Value> {
         let mut map = Map::new();
         map.insert("id".into(), id.clone());
         map.insert("title".into(), title);
-        map.insert("screens".into(), Value::Null);
+        map.insert(key::SCREENS.into(), Value::Null);
         pages.push(Page {
             map,
             screens: Vec::new(),
@@ -214,7 +215,7 @@ pub fn studio_pages(manifest: &Value) -> Vec<Value> {
     };
 
     let declared = manifest
-        .get("pages")
+        .get(key::PAGES)
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
@@ -232,32 +233,17 @@ pub fn studio_pages(manifest: &Value) -> Vec<Value> {
             continue;
         }
         let page = ensure(&mut pages, &pid, p.get("title"));
-        for key in ["description", "notes", "sections"] {
+        for key in [key::DESCRIPTION, key::NOTES, key::SECTIONS] {
             if let Some(v) = p.get(key).filter(|v| js::truthy(Some(v))) {
                 pages[page].map.insert(key.into(), v.clone());
             }
         }
-        for sid in p
-            .get("screens")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-        {
+        for sid in manifest::items(p.get(key::SCREENS)).iter() {
             add(&mut pages, &mut assigned, page, sid);
         }
         // Screens referenced only from sections ("id" or "id/variant") belong to the page too.
-        for sec in p
-            .get("sections")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-        {
-            for r in sec
-                .get("screens")
-                .and_then(Value::as_array)
-                .into_iter()
-                .flatten()
-            {
+        for sec in manifest::items(p.get(key::SECTIONS)).iter() {
+            for r in manifest::items(sec.get(key::SCREENS)).iter() {
                 let text = js::to_string(Some(r));
                 let id = json!(text.split('/').next().unwrap_or_default());
                 add(&mut pages, &mut assigned, page, &id);
@@ -311,12 +297,7 @@ pub fn studio_pages(manifest: &Value) -> Vec<Value> {
         add(&mut pages, &mut assigned, page, &id_of(s));
     }
     let mut flow_screens: Vec<Value> = Vec::new();
-    for e in manifest
-        .get("flows")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-    {
+    for e in manifest::items(manifest.get(key::FLOWS)).iter() {
         for key in ["from", "to"] {
             let id = e.get(key).cloned().unwrap_or(Value::Null);
             if !flow_screens.contains(&id) {
@@ -330,7 +311,7 @@ pub fn studio_pages(manifest: &Value) -> Vec<Value> {
     system.insert("id".into(), json!("system"));
     system.insert("title".into(), json!("Design System"));
     system.insert("system".into(), json!(true));
-    system.insert("screens".into(), json!([]));
+    system.insert(key::SCREENS.into(), json!([]));
     for (k, v) in system_extra {
         system.insert(k, v);
     }
@@ -345,7 +326,7 @@ pub fn studio_pages(manifest: &Value) -> Vec<Value> {
         }));
     }
     for Page { mut map, screens } in pages {
-        map.insert("screens".into(), Value::Array(screens));
+        map.insert(key::SCREENS.into(), Value::Array(screens));
         out.push(Value::Object(map));
     }
     out

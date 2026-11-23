@@ -29,6 +29,7 @@ use crate::core::js::regex::with_js_classes;
 use crate::core::paths::project_paths;
 use crate::core::util::{get_path, read_json};
 use crate::design::html::escape_attr;
+use crate::design::manifest::key;
 
 // Compiled once: every proxied page and response goes through them. A pattern that did not
 // compile would be a typo the tests catch; callers then leave the text as it is.
@@ -384,7 +385,7 @@ pub fn inject_live(html: &str, nonce: Option<&str>, shortcut: &str) -> String {
 pub fn nearest_breakpoint(root: &Path, width: f64) -> Result<Option<Value>, DfwError> {
     let manifest = read_json(&project_paths(root).manifest, Some(serde_json::json!({})))?;
     let mut bps = manifest
-        .get("breakpoints")
+        .get(key::BREAKPOINTS)
         .filter(|b| crate::core::js::truthy(b))
         .cloned();
     if bps.is_none() {
