@@ -558,6 +558,7 @@
     pinsHidden: "Comment pins hidden (Shift+C shows them).",
     pinsAll: "Showing every pin, closed comments too.",
     pinsActive: "Showing pins of open and to-verify comments.",
+    pinsMenu: Object.freeze({ active: "Pins: open", all: "Pins: all", off: "Pins: off" }),
     // Agent presence
     agentLabel: (editing, what, more) => `AI ${editing ? "is editing" : "changed"} ${what}${more}`.trim(),
     agentWholeFrame: "this frame",
@@ -596,7 +597,57 @@
     // Live review (in the running app)
     liveToggleTitle: (shortcut) => `Comment on an element${shortcut ? ` (${shortcut})` : ""}`,
     liveSent: (n) => `Sent to AI · comment #${n}`,
-    liveNotSent: (why) => `Not sent: ${why}`
+    liveNotSent: (why) => `Not sent: ${why}`,
+    liveBarLabel: "dfw review",
+    liveCommentLabel: "Comment for the AI",
+    liveCommentPlaceholder: "What should change?",
+    // Comments list and pins
+    nothingHere: "Nothing here.",
+    showOnCanvas: (n) => `Show comment #${n} on the canvas`,
+    areaTarget: "(area)",
+    openComments: "Open comments",
+    // Frames and pages
+    frameTitleHint: (title) => `${title} (double-click to present)`,
+    openInNewTab: "Open in new tab",
+    pageInAllHint: "Click: go to this section · Double-click: open the page alone",
+    // Layers
+    layersNoSelection: "Select a frame or an element to see its layers.",
+    layersLoading: "Loading layers…",
+    layersNone: "No layers (add data-dfw-id to elements).",
+    // Inspector (markup: the caller puts it in innerHTML as is)
+    inspectorHelpHtml: "Click a frame title to select a frame, click inside a frame to select an element. Double-click text to edit it. Press <kbd>?</kbd> for shortcuts.",
+    systemFrameHtml: "Generated from design/system/ and the tokens. Edit masters in <code>design/system/components/</code>.",
+    /** @param {string} scopeHtml the breakpoint scope, already escaped, or '' */
+    layoutHelpHtml: (scopeHtml) => `Layout: drag to reorder among flex/grid siblings or into an empty flex/grid container (<kbd>Alt</kbd>+arrows); drag the handles to resize (<kbd>Alt</kbd><kbd>Shift</kbd>+arrows), snapped to grid columns or tokens${scopeHtml ? `. Resizes here apply at ${scopeHtml}` : ""}. Double-click a handle or press <kbd>Alt</kbd><kbd>Shift</kbd><kbd>0</kbd> to reset.`,
+    layoutResetTitle: (scope) => `Remove this element's Studio layout rule${scope ? ` at ${scope}` : ""} (back to the screen's own layout)`,
+    layoutReset: (scope) => `Reset size to auto${scope ? ` (${scope})` : ""}`,
+    editText: "Edit text",
+    orDoubleClick: "or double-click it",
+    goToMaster: "Go to master",
+    inside: "inside",
+    emptyValue: "(empty)",
+    /** Short labels: field names, menu rows, buttons. */
+    label: Object.freeze({
+      designSystem: "Design System",
+      frame: "Frame",
+      screen: "Screen",
+      variant: "Variant",
+      breakpoint: "Breakpoint",
+      state: "State",
+      file: "File",
+      element: "Element",
+      tag: "Tag",
+      size: "Size",
+      role: "Role",
+      component: "Component",
+      none: "none",
+      default: "default",
+      all: "All",
+      allPages: "All pages",
+      close: "Close",
+      comment: "Comment",
+      cancel: "Cancel"
+    })
   });
 
   // core/studio/overlay/layout.js

@@ -50,7 +50,7 @@ export function renderToolbar() {
   const themes = m.themes || [];
   $('#theme-wrap').hidden = !themes.length;
   $('#theme').innerHTML =
-    `<option value="">default</option>` +
+    `<option value="">${TEXT.label.default}</option>` +
     themes.map((/** @type {string} */ t) => `<option ${t === S.theme ? 'selected' : ''}>${esc(t)}</option>`).join('');
 }
 
@@ -72,7 +72,7 @@ function checkList(wrap, items, checked, onChange) {
   wrap.innerHTML = '';
   const all = document.createElement('label');
   all.className = 'ms-all';
-  all.innerHTML = `<input type="checkbox" ${n === items.length ? 'checked' : ''}> All`;
+  all.innerHTML = `<input type="checkbox" ${n === items.length ? 'checked' : ''}> ${TEXT.label.all}`;
   all.querySelector('input').indeterminate = n > 0 && n < items.length;
   all.querySelector('input').onchange = (e) => change(/** @type {HTMLInputElement} */ (e.target).checked ? null : []);
   wrap.append(all);

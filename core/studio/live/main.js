@@ -10,7 +10,7 @@
 // Bundled into core/studio/live.js (one classic script) by scripts/build-overlay.mjs.
 import { isShortcut, parseShortcut, shortcutLabel } from './shortcut.js';
 import { isTypingTarget } from '#studio/overlay/fields.js';
-import { PATH } from '#studio/shared/paths.js';
+import { PATH, METHOD } from '#studio/shared/paths.js';
 import { LIVE_COMMENT_EVENT } from '#studio/shared/protocol.js';
 import { KEY } from '#studio/shared/enums.js';
 import { TEXT } from '#studio/shared/text.js';
@@ -48,9 +48,9 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
 .toast{position:fixed;left:50%;bottom:72px;transform:translateX(-50%);background:#111;color:#fff;padding:8px 14px;border-radius:6px;pointer-events:none}
 [hidden]{display:none!important}`;
   sh.innerHTML = `<div class="box" hidden><span class="tag"></span></div>
-<div class="bar" role="toolbar" aria-label="dfw review"><b>dfw</b><button type="button" class="toggle" aria-pressed="false">Comment</button></div>
-<form class="pop" hidden><span class="src"></span><textarea aria-label="Comment for the AI" placeholder="What should change?"></textarea>
-<div class="row"><button type="button" class="ghost cancel">Cancel</button><button type="submit" class="primary">Send to AI</button></div></form>
+<div class="bar" role="toolbar" aria-label="${TEXT.liveBarLabel}"><b>dfw</b><button type="button" class="toggle" aria-pressed="false">${TEXT.label.comment}</button></div>
+<form class="pop" hidden><span class="src"></span><textarea aria-label="${TEXT.liveCommentLabel}" placeholder="${TEXT.liveCommentPlaceholder}"></textarea>
+<div class="row"><button type="button" class="ghost cancel">${TEXT.label.cancel}</button><button type="submit" class="primary">${TEXT.sendButton(0)}</button></div></form>
 <div class="toast" role="status" hidden></div>`;
   if (sh.adoptedStyleSheets && typeof CSSStyleSheet === 'function' && 'replaceSync' in CSSStyleSheet.prototype) {
     const sheet = new CSSStyleSheet();
@@ -141,7 +141,7 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
     };
     try {
       const res = await fetch(PATH.COMMENTS, {
-        method: 'POST',
+        method: METHOD.POST,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });

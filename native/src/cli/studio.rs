@@ -19,6 +19,7 @@ use crate::core::util::{ensure_inside, now_iso, out, read_json, write_json_insid
 use crate::studio::live_proxy::{
     assert_local_target, configured_shortcut, start_live_server, LiveOptions,
 };
+use crate::studio::paths;
 use crate::studio::server;
 
 /// The commands of this group.
@@ -148,7 +149,7 @@ fn studio(ctx: &Ctx) -> Result<i32, DfwError> {
     let pid = spawn_server(&args, &log)?;
     let url = format!("http://127.0.0.1:{port}/");
     // The ping route answers even when design.json is broken (the manifest route does not).
-    if wait_for(port, "/__dfw/api/ping").is_none_or(|b| !b.contains(r#""dfw":"studio""#)) {
+    if wait_for(port, paths::PING).is_none_or(|b| !b.contains(r#""dfw":"studio""#)) {
         // Never leave a server running that no studio.json names: "studio stop" could not
         // reach it.
         kill(Some(&json!(pid)));
@@ -253,7 +254,7 @@ fn review(ctx: &Ctx) -> Result<i32, DfwError> {
     let pid = spawn_server(&args, &log)?;
     // Always bound on 127.0.0.1; served as http://localhost:<port>/ for a localhost app (its
     // cookies then reach the proxy).
-    let Some(body) = wait_for(port, "/__dfw/api/live") else {
+    let Some(body) = wait_for(port, paths::LIVE) else {
         kill(Some(&json!(pid)));
         return Err(DfwError::new(format!(
             "dfw review did not start; see {}",

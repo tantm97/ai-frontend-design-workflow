@@ -329,7 +329,7 @@ struct RpcError {
 impl RpcError {
     fn invalid_params(message: String) -> Self {
         RpcError {
-            code: -32602,
+            code: rpc_code::INVALID_PARAMS,
             message,
         }
     }
@@ -341,7 +341,7 @@ fn param<'a>(params: Option<&'a Value>, key: &str) -> Result<Option<&'a Value>, 
     match params {
         None => Ok(None),
         Some(Value::Null) => Err(RpcError {
-            code: -32603,
+            code: rpc_code::INTERNAL_ERROR,
             message: format!("Cannot read properties of null (reading '{key}')"),
         }),
         Some(value) => Ok(value.get(key)),
@@ -404,7 +404,7 @@ fn handle(method: Option<&Value>, params: Option<&Value>) -> Result<Value, RpcEr
                 )));
             }
             let text = guide(None).map_err(|message| RpcError {
-                code: -32603,
+                code: rpc_code::INTERNAL_ERROR,
                 message,
             })?;
             Ok(
@@ -412,10 +412,26 @@ fn handle(method: Option<&Value>, params: Option<&Value>) -> Result<Value, RpcEr
             )
         }
         _ => Err(RpcError {
-            code: -32601,
+            code: rpc_code::METHOD_NOT_FOUND,
             message: format!("Method not found: {}", js::to_string(method)),
         }),
     }
+}
+
+/// JSON-RPC 2.0 error codes (the specification's names).
+mod rpc_code {
+    pub const PARSE_ERROR: i64 = -32700;
+    pub const INVALID_REQUEST: i64 = -32600;
+    pub const METHOD_NOT_FOUND: i64 = -32601;
+    pub const INVALID_PARAMS: i64 = -32602;
+    pub const INTERNAL_ERROR: i64 = -32603;
+}
+
+const JSONRPC: &str = "2.0";
+
+/// A JSON-RPC error reply.
+fn rpc_error(id: Value, code: i64, message: &str) -> Value {
+    json!({ "jsonrpc": JSONRPC, "id": id, "error": { "code": code, "message": message } })
 }
 
 /// The reply to one input line, or `None` when it needs none (blank line, notification).
@@ -424,20 +440,21 @@ fn reply_to(line: &str) -> Option<Value> {
     if line.is_empty() {
         return None;
     }
-    let error = |id: Value, code: i64, message: &str| {
-        Some(json!({ "jsonrpc": "2.0", "id": id, "error": { "code": code, "message": message } }))
-    };
     let Ok(msg) = serde_json::from_str::<Value>(line) else {
-        return error(Value::Null, -32700, "Parse error");
+        return Some(rpc_error(Value::Null, rpc_code::PARSE_ERROR, "Parse error"));
     };
     // Valid JSON that is not a request object (null, a number, a batch array): answer, never crash.
     let Value::Object(msg) = msg else {
-        return error(Value::Null, -32600, "Invalid Request");
+        return Some(rpc_error(
+            Value::Null,
+            rpc_code::INVALID_REQUEST,
+            "Invalid Request",
+        ));
     };
     let id = msg.get("id")?.clone(); // no id: a notification
     match handle(msg.get("method"), msg.get("params")) {
-        Ok(result) => Some(json!({ "jsonrpc": "2.0", "id": id, "result": result })),
-        Err(err) => error(id, err.code, &err.message),
+        Ok(result) => Some(json!({ "jsonrpc": JSONRPC, "id": id, "result": result })),
+        Err(err) => Some(rpc_error(id, err.code, &err.message)),
     }
 }
 
@@ -495,10 +512,14 @@ fn serve_lines(input: &mut impl BufRead, output: &mut impl Write) -> Result<(), 
     loop {
         let reply = match read_line(input, &mut line)? {
             Line::End => return Ok(()),
-            Line::TooLong => Some(json!({ "jsonrpc": "2.0", "id": null, "error": {
-                "code": -32600,
-                "message": format!("Request too large: a message may be at most {} MB.", MAX_LINE / (1024 * 1024)),
-            } })),
+            Line::TooLong => Some(rpc_error(
+                Value::Null,
+                rpc_code::INVALID_REQUEST,
+                &format!(
+                    "Request too large: a message may be at most {} MB.",
+                    MAX_LINE / (1024 * 1024)
+                ),
+            )),
             Line::Text => reply_to(&String::from_utf8_lossy(&line)),
         };
         let Some(reply) = reply else {

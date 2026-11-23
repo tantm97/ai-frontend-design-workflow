@@ -35,10 +35,11 @@ use crate::core::util::to_json_compact;
 use crate::design::tokens::relative_path;
 use crate::review::comments::{add_comment, set_comment_screenshot};
 use crate::studio::http::{
-    drain, http_version, node_headers, random_base64, read_body, read_head, read_request_head,
-    refusal, spawn_connection, url_pathname, write_error, write_head, write_response, BodyError,
-    Connections, Head, MAX_CONNECTIONS,
+    drain, error_body, http_version, message, method, node_headers, random_base64, read_body,
+    read_head, read_request_head, refusal, spawn_connection, status, url_pathname, write_error,
+    write_head, write_response, BodyError, Connections, Head, MAX_CONNECTIONS,
 };
+use crate::studio::paths;
 use crate::studio::server::json_body;
 use crate::tools::inspector::parse_insp_path;
 
@@ -155,7 +156,7 @@ impl LiveServer {
             let shown = if host.is_empty() { "(none)" } else { host };
             return Some(format!("host {shown} not allowed"));
         }
-        let writes = !matches!(head.method(), "GET" | "HEAD" | "OPTIONS") || head.is_upgrade();
+        let writes = !method::is_read_only(head.method()) || head.is_upgrade();
         if let Some(from) = head.header("origin").filter(|_| writes) {
             let own = ["localhost", "127.0.0.1", "[::1]"]
                 .iter()
@@ -173,7 +174,7 @@ impl LiveServer {
             Ok(None) => return,
             Err(err) => {
                 if let Some((code, message)) = refusal(&err) {
-                    write_error(&mut stream, "GET", code, message);
+                    write_error(&mut stream, method::GET, code, message);
                 }
                 return;
             }
@@ -181,18 +182,13 @@ impl LiveServer {
         let port = stream.local_addr().map_or(0, |a| a.port());
         if head.is_upgrade() {
             if let Some(refused) = self.foreign(&head, port) {
-                return write_error(&mut stream, "GET", 403, &refused);
+                return write_error(&mut stream, method::GET, status::FORBIDDEN, &refused);
             }
             return self.upgrade(stream, head);
         }
         let method = head.method().to_string();
         if let Err(err) = self.request(&mut stream, head) {
-            let code = if matches!(err, DfwError::User { .. }) {
-                400
-            } else {
-                500
-            };
-            write_error(&mut stream, &method, code, err.message());
+            write_error(&mut stream, &method, status::of(&err), err.message());
         }
     }
 
@@ -209,34 +205,39 @@ impl LiveServer {
         if let Some(refused) = self.foreign(&head, port) {
             let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
             drain(stream, &head, 1024 * 1024);
-            let body = to_json_compact(&json!({ "error": refused }));
-            send(stream, 403, body.as_bytes(), JSON);
+            let body = to_json_compact(&error_body(&refused));
+            send(stream, status::FORBIDDEN, body.as_bytes(), JSON);
             return Ok(());
         }
         let p = url_pathname(head.target());
-        if p == "/__dfw/overlay.js" || p == "/__dfw/live.js" {
-            let file = studio_file(&p["/__dfw/".len()..])
+        if p == paths::OVERLAY_JS || p == paths::LIVE_JS {
+            let file = studio_file(&p[paths::PREFIX.len()..])
                 .ok_or_else(|| DfwError::internal(format!("ENOENT: {p}")))?;
-            send(stream, 200, &file, "text/javascript; charset=utf-8");
+            send(stream, status::OK, &file, "text/javascript; charset=utf-8");
             return Ok(());
         }
-        if p == "/__dfw/api/live" {
+        if p == paths::LIVE {
             let info = json!({
                 "target": self.t.origin(),
                 "url": format!("http://{}:{port}/", self.public_host),
                 "shots": self.shots,
                 "shortcut": self.keys,
             });
-            send(stream, 200, to_json_compact(&info).as_bytes(), JSON);
+            send(stream, status::OK, to_json_compact(&info).as_bytes(), JSON);
             return Ok(());
         }
-        if p == "/__dfw/api/comments" && method == "POST" {
+        if p == paths::COMMENTS && method == method::POST {
             let body = match read_body(stream, &head, MAX_COMMENT, false) {
                 Ok(b) => b,
                 Err(BodyError::TooLarge) => {
                     let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
                     drain(stream, &head, 64 * 1024 * 1024);
-                    write_error(stream, &method, 413, "Request too large.");
+                    write_error(
+                        stream,
+                        &method,
+                        status::PAYLOAD_TOO_LARGE,
+                        message::TOO_LARGE,
+                    );
                     return Ok(());
                 }
                 Err(BodyError::Io(e)) => {
@@ -248,7 +249,12 @@ impl LiveServer {
             };
             let b = json_body(&body)?;
             let c = self.post_comment(&b)?;
-            send(stream, 201, to_json_compact(&c).as_bytes(), JSON);
+            send(
+                stream,
+                status::CREATED,
+                to_json_compact(&c).as_bytes(),
+                JSON,
+            );
             return Ok(());
         }
         self.proxy(stream, head, port);
@@ -317,7 +323,12 @@ impl LiveServer {
         let body = match read_body(stream, &head, MAX_PASS, false) {
             Ok(b) => b,
             Err(BodyError::TooLarge) => {
-                return write_error(stream, head.method(), 413, "Request too large.")
+                return write_error(
+                    stream,
+                    head.method(),
+                    status::PAYLOAD_TOO_LARGE,
+                    message::TOO_LARGE,
+                )
             }
             Err(BodyError::Io(e)) => {
                 if let Some((code, message)) = refusal(&e) {
@@ -417,10 +428,12 @@ impl LiveServer {
         };
         let html = get(&h, "content-type")
             .is_some_and(|t| t.to_ascii_lowercase().contains("text/html"))
-            && method == "GET"
-            && status == 200;
-        let no_body =
-            method == "HEAD" || status == 204 || status == 304 || (100..200).contains(&status);
+            && method == method::GET
+            && status == status::OK;
+        let no_body = method == method::HEAD
+            || status == status::NO_CONTENT
+            || status == status::NOT_MODIFIED
+            || (100..200).contains(&status);
         if !html || no_body {
             return pass_through(stream, status, h, body, no_body);
         }

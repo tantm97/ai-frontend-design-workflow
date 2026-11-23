@@ -15,8 +15,9 @@ use serde_json::{json, Value};
 
 use super::api::{self, DesignFile};
 use super::http::{
-    decode_uri_component, drain, read_body, read_request_head, refusal, spawn_connection,
-    url_pathname, write_error, write_response, BodyError, Connections, Head, MAX_CONNECTIONS,
+    decode_uri_component, drain, error_body, message, method, read_body, read_request_head,
+    refusal, spawn_connection, status, url_pathname, write_error, write_response, BodyError,
+    Connections, Head, MAX_CONNECTIONS,
 };
 use super::sse::Clients;
 use super::{penpot_routes, watch};
@@ -33,6 +34,7 @@ use crate::review::comments::{
     add_comment, all_comments, current_session, new_session, send_drafts, update_comment, Update,
 };
 use crate::review::inbox::is_listening;
+use crate::studio::paths;
 use crate::workflow::state::{load_state, summarize};
 
 /// Largest request body the Studio reads (edits, comments and Penpot changes are far smaller).
@@ -97,9 +99,34 @@ impl Response {
         Self::send(code, to_json_compact(body), JSON)
     }
 
+    /// 200 with a JSON body.
+    pub fn ok(body: &Value) -> Self {
+        Self::json(status::OK, body)
+    }
+
+    /// 201 with the created record.
+    pub fn created(body: &Value) -> Self {
+        Self::json(status::CREATED, body)
+    }
+
+    /// 204, nothing to say.
+    pub fn no_content() -> Self {
+        Self::send(status::NO_CONTENT, "", JSON)
+    }
+
+    /// `{"error": message}` with `code`.
+    pub fn error(code: u16, message: &str) -> Self {
+        Self::json(code, &error_body(message))
+    }
+
+    /// A failed route: 400 for an error the user can fix, 500 for the others.
+    pub fn from_error(err: &DfwError) -> Self {
+        Self::error(status::of(err), err.message())
+    }
+
     /// `{ error: 'not found' }` with 404.
     pub fn not_found() -> Self {
-        Self::json(404, &json!({ "error": "not found" }))
+        Self::error(status::NOT_FOUND, message::NOT_FOUND)
     }
 }
 
@@ -148,7 +175,7 @@ impl Studio {
             let shown = if host.is_empty() { "(none)" } else { host };
             return Some(format!("host {shown} not allowed"));
         }
-        let writes = !matches!(head.method(), "GET" | "HEAD" | "OPTIONS");
+        let writes = !method::is_read_only(head.method());
         if let Some(from) = head.header("origin").filter(|_| writes) {
             if !selves
                 .iter()
@@ -167,13 +194,13 @@ impl Studio {
         let method = req.head.method();
         let root = self.root.as_path();
         // Readiness for `dfw studio start`: answers whatever state design/ is in.
-        if p == "/__dfw/api/ping" {
-            return Ok(Response::json(200, &json!({ "dfw": "studio" })));
+        if p == paths::PING {
+            return Ok(Response::ok(&json!({ "dfw": "studio" })));
         }
         if p == "/" || p == "/index.html" {
             return Ok(asset("app.html", HTML).unwrap_or_else(Response::not_found));
         }
-        if let Some(rel) = p.strip_prefix("/__dfw/static/") {
+        if let Some(rel) = p.strip_prefix(paths::STATIC) {
             let clean = api::clamp_rel(rel).join("/");
             let ty = api::mime(api::extname(&clean)).unwrap_or("text/plain");
             let mut r = asset(&clean, ty).unwrap_or_else(Response::not_found);
@@ -185,54 +212,51 @@ impl Studio {
             return Ok(r);
         }
         if p == "/favicon.ico" {
-            return Ok(Response::send(204, "", JSON));
+            return Ok(Response::no_content());
         }
-        if p == "/__dfw/overlay.js" {
+        if p == paths::OVERLAY_JS {
             return Ok(asset("overlay.js", JS).unwrap_or_else(Response::not_found));
         }
         if let Some(rel) = p.strip_prefix("/design/") {
             return Ok(match api::design_file(root, rel)? {
-                DesignFile::Found(body, ty) => Response::send(200, body, ty),
+                DesignFile::Found(body, ty) => Response::send(status::OK, body, ty),
                 DesignFile::Missing => Response::not_found(),
             });
         }
-        if p == "/__dfw/system.html" {
-            return Ok(Response::send(200, api::system_page(root)?, HTML));
+        if p == paths::SYSTEM_PAGE {
+            return Ok(Response::send(status::OK, api::system_page(root)?, HTML));
         }
-        if p == "/__dfw/api/tokens" {
-            return Ok(Response::json(200, &api::token_list(root)?));
+        if p == paths::TOKENS {
+            return Ok(Response::ok(&api::token_list(root)?));
         }
-        if p == "/__dfw/api/components" {
-            return Ok(Response::json(200, &api::components(root)?));
+        if p == paths::COMPONENTS {
+            return Ok(Response::ok(&api::components(root)?));
         }
-        if p == "/__dfw/api/edit" && method == "POST" {
-            return Ok(Response::json(
-                200,
-                &apply_edit(root, &req.json()?)?.to_json(),
-            ));
+        if p == paths::EDIT && method == method::POST {
+            return Ok(Response::ok(&apply_edit(root, &req.json()?)?.to_json()));
         }
-        if p == "/__dfw/api/undo" && method == "POST" {
-            return Ok(Response::json(200, &undo_edit(root)?.to_json()));
+        if p == paths::UNDO && method == method::POST {
+            return Ok(Response::ok(&undo_edit(root)?.to_json()));
         }
-        if p == "/__dfw/api/shoot" && method == "POST" {
+        if p == paths::SHOOT && method == method::POST {
             return self.shoot(req);
         }
-        if let Some(rel) = p.strip_prefix("/__dfw/shots/") {
+        if let Some(rel) = p.strip_prefix(paths::SHOTS) {
             // Through `resolve_inside`: a symlink out of .dfw/shots is not served.
             let Some(f) = api::safe_join(&project_paths(root).dfw.join("shots"), rel)
                 .filter(|f| f.to_string_lossy().ends_with(".png") && f.is_file())
             else {
                 return Ok(Response::not_found());
             };
-            return Ok(Response::send(200, std::fs::read(&f)?, "image/png"));
+            return Ok(Response::send(status::OK, std::fs::read(&f)?, "image/png"));
         }
-        if p.starts_with("/__dfw/penpot/") {
+        if p.starts_with(paths::PENPOT) {
             return penpot_routes::route(self, req);
         }
-        if p == "/__dfw/api/manifest" {
-            return Ok(Response::json(200, &api::manifest(root, &self.config)?));
+        if p == paths::MANIFEST {
+            return Ok(Response::ok(&api::manifest(root, &self.config)?));
         }
-        if p == "/__dfw/api/state" {
+        if p == paths::STATE {
             let state = load_state(root)?;
             let summary = summarize(state.as_ref())?;
             let session = current_session(root, false)?
@@ -240,31 +264,28 @@ impl Studio {
                 .filter(|v| js::truthy(v))
                 .unwrap_or(Value::Null);
             let body = json!({ "state": state, "summary": summary, "session": session });
-            return Ok(Response::json(200, &body));
+            return Ok(Response::ok(&body));
         }
-        if p == "/__dfw/api/comments" && method == "GET" {
-            return Ok(Response::json(200, &Value::Array(all_comments(root)?)));
+        if p == paths::COMMENTS && method == method::GET {
+            return Ok(Response::ok(&Value::Array(all_comments(root)?)));
         }
-        if p == "/__dfw/api/listening" && method == "GET" {
-            return Ok(Response::json(
-                200,
-                &json!({ "listening": is_listening(root) }),
-            ));
+        if p == paths::LISTENING && method == method::GET {
+            return Ok(Response::ok(&json!({ "listening": is_listening(root) })));
         }
-        if p == "/__dfw/api/comments/send" && method == "POST" {
+        if p == paths::COMMENTS_SEND && method == method::POST {
             let sent = send_drafts(root)?;
             self.clients
                 .broadcast("comments", &json!({ "sent": sent.len() }));
             let body = json!({ "sent": sent.len(), "listening": is_listening(root) });
-            return Ok(Response::json(200, &body));
+            return Ok(Response::ok(&body));
         }
-        if p == "/__dfw/api/comments" && method == "POST" {
+        if p == paths::COMMENTS && method == method::POST {
             let c = add_comment(root, &req.json()?)?;
             self.clients
                 .broadcast("comments", &json!({ "id": c.get("id") }));
-            return Ok(Response::json(201, &c));
+            return Ok(Response::created(&c));
         }
-        if let Some(id) = comment_id(p).filter(|_| method == "PATCH") {
+        if let Some(id) = comment_id(p).filter(|_| method == method::PATCH) {
             let b = req.json()?;
             // Requests from the studio UI are the user's own actions.
             let update = Update {
@@ -279,12 +300,12 @@ impl Studio {
             let c = update_comment(root, Some(id), &update)?;
             self.clients
                 .broadcast("comments", &json!({ "id": c.get("id") }));
-            return Ok(Response::json(200, &c));
+            return Ok(Response::ok(&c));
         }
-        if p == "/__dfw/api/sessions" && method == "POST" {
+        if p == paths::SESSIONS && method == method::POST {
             let s = new_session(root, None)?;
             self.clients.broadcast("comments", &json!({}));
-            return Ok(Response::json(201, &s.session));
+            return Ok(Response::created(&s.session));
         }
         Ok(Response::not_found())
     }
@@ -297,7 +318,7 @@ impl Studio {
             .json()
             .and_then(|body| api::shoot_frames(&self.root, self.port, &body));
         self.shooting.store(false, Ordering::SeqCst);
-        Ok(Response::json(200, &result?))
+        Ok(Response::ok(&result?))
     }
 
     /// One connection: read the request, answer it. Host and Origin are checked on the head,
@@ -308,7 +329,7 @@ impl Studio {
             Ok(None) => return,
             Err(err) => {
                 if let Some((code, message)) = refusal(&err) {
-                    write_error(&mut stream, "GET", code, message);
+                    write_error(&mut stream, method::GET, code, message);
                 }
                 return;
             }
@@ -325,16 +346,18 @@ impl Studio {
         };
         if let Some(refused) = self.foreign(&head) {
             settle(&mut stream, &head, 1024 * 1024);
-            return reply(
-                &mut stream,
-                Response::json(403, &json!({ "error": refused })),
-            );
+            return reply(&mut stream, Response::error(status::FORBIDDEN, &refused));
         }
         let body = match read_body(&mut stream, &head, MAX_BODY, false) {
             Ok(body) => body,
             Err(BodyError::TooLarge) => {
                 settle(&mut stream, &head, MAX_BODY as u64);
-                return write_error(&mut stream, &method, 413, "Request too large.");
+                return write_error(
+                    &mut stream,
+                    &method,
+                    status::PAYLOAD_TOO_LARGE,
+                    message::TOO_LARGE,
+                );
             }
             Err(BodyError::Io(err)) => {
                 if let Some((code, message)) = refusal(&err) {
@@ -346,33 +369,28 @@ impl Studio {
         let Some(path) = decode_uri_component(&url_pathname(head.target())) else {
             return reply(
                 &mut stream,
-                Response::json(500, &json!({ "error": "URI malformed" })),
+                Response::error(status::INTERNAL_SERVER_ERROR, message::URI_MALFORMED),
             );
         };
-        if path == "/__dfw/events" {
+        if path == paths::EVENTS {
             return self.clients.connect(stream);
         }
         let req = Request { head, path, body };
-        let response = self.route(&req).unwrap_or_else(|err| {
-            let code = if matches!(err, DfwError::User { .. }) {
-                400
-            } else {
-                500
-            };
-            Response::json(code, &json!({ "error": err.message() }))
-        });
+        let response = self
+            .route(&req)
+            .unwrap_or_else(|err| Response::from_error(&err));
         reply(&mut stream, response);
     }
 }
 
 /// A file of `core/studio` as a 200 response.
 fn asset(rel: &str, content_type: &str) -> Option<Response> {
-    studio_file(rel).map(|bytes| Response::send(200, bytes.into_owned(), content_type))
+    studio_file(rel).map(|bytes| Response::send(status::OK, bytes.into_owned(), content_type))
 }
 
 /// The id of `/__dfw/api/comments/fb_<digits>`.
 fn comment_id(path: &str) -> Option<&str> {
-    let id = path.strip_prefix("/__dfw/api/comments/")?;
+    let id = path.strip_prefix(paths::COMMENT)?;
     let digits = id.strip_prefix("fb_")?;
     (!digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())).then_some(id)
 }

@@ -37,7 +37,7 @@ impl Clients {
             ("Content-Type".to_string(), "text/event-stream".to_string()),
             ("Cache-Control".to_string(), "no-store".to_string()),
         ];
-        let ok = write_head(&mut stream, 200, &head)
+        let ok = write_head(&mut stream, super::http::status::OK, &head)
             .and_then(|_| stream.write_all(b"event: hello\ndata: {}\n\n"))
             .and_then(|_| stream.flush())
             .is_ok();

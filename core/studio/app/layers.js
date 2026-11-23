@@ -5,6 +5,7 @@ import { $, S, post } from './state.js';
 import { updateHud } from './hud.js';
 import { MSG } from '#studio/shared/protocol.js';
 import { KEY } from '#studio/shared/enums.js';
+import { TEXT } from '#studio/shared/text.js';
 
 const LANDMARKS = ['header', 'nav', 'main', 'aside', 'footer', 'section', 'form', 'dialog'];
 /** Layer index of the row that has the roving tabindex (the selected row wins). */
@@ -25,8 +26,8 @@ export function renderLayers() {
   const box = $('#layers');
   const f = S.frames.get(S.selKey);
   $('#layers-for').textContent = f ? f.title : '';
-  if (!f) return (box.innerHTML = '<p class="hint muted">Select a frame or an element to see its layers.</p>');
-  if (!S.layers || S.layers.key !== f.key) return (box.innerHTML = '<p class="hint muted">Loading layers…</p>');
+  if (!f) return (box.innerHTML = `<p class="hint muted">${TEXT.layersNoSelection}</p>`);
+  if (!S.layers || S.layers.key !== f.key) return (box.innerHTML = `<p class="hint muted">${TEXT.layersLoading}</p>`);
   const selI = S.sel?.key === f.key ? S.sel.layer : null;
   const hadFocus = box.contains(document.activeElement);
   // Open the ancestors of the selected layer.
@@ -49,7 +50,7 @@ export function renderLayers() {
     }
   };
   walk(S.layers.tree, 0);
-  box.innerHTML = rows.join('') || '<p class="hint muted">No layers (add data-dfw-id to elements).</p>';
+  box.innerHTML = rows.join('') || `<p class="hint muted">${TEXT.layersNone}</p>`;
   // Roving tabindex (studio-ui.md U7): one row is in the tab order, the arrows move between rows.
   const rowEls = /** @type {HTMLElement[]} */ ([...box.querySelectorAll('.row')]);
   const find = (/** @type {number | null} */ i) => (i == null ? undefined : rowEls.find((r) => r.dataset.i === String(i)));

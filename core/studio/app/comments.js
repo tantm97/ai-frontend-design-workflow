@@ -20,16 +20,16 @@ export function renderComments() {
   const had = /** @type {HTMLElement | null} */ (list.contains(document.activeElement) ? document.activeElement : null);
   const focusId = /** @type {HTMLElement | null} */ (had?.closest('.comment'))?.dataset.id;
   const focusOpen = !!had?.matches('.open');
-  list.innerHTML = items.length ? '' : `<li class="muted" style="padding:12px">Nothing here.</li>`;
+  list.innerHTML = items.length ? '' : `<li class="muted" style="padding:12px">${TEXT.nothingHere}</li>`;
   for (const c of items) {
     const li = document.createElement('li');
     li.className = `comment${S.selectedComment === c.id ? ' selected' : ''}`;
     li.dataset.id = c.id;
     const where = [c.screen, c.variant, c.breakpoint, c.state].filter(Boolean).join(' / ');
-    const target = c.target?.dfwId || c.target?.selector || '(area)';
+    const target = c.target?.dfwId || c.target?.selector || TEXT.areaTarget;
     const last = c.thread?.slice(-2) || [];
     li.innerHTML = `
-      <div class="comment-top"><button type="button" class="num open" aria-label="Show comment #${esc(c.id.replace('fb_', ''))} on the canvas">#${esc(c.id.replace('fb_', ''))}</button><span>${esc(where)}</span><span class="status" data-s="${esc(isDraft(c) ? 'draft' : c.status)}">${esc(commentLabel(c))}</span></div>
+      <div class="comment-top"><button type="button" class="num open" aria-label="${esc(TEXT.showOnCanvas(c.id.replace('fb_', '')))}">#${esc(c.id.replace('fb_', ''))}</button><span>${esc(where)}</span><span class="status" data-s="${esc(isDraft(c) ? 'draft' : c.status)}">${esc(commentLabel(c))}</span></div>
       <div class="comment-target">${esc(target)}${c.target?.source ? ` · ${esc(c.target.source)}` : ''}</div>
       <p class="comment-text">${esc(c.comment)}</p>
       ${last.length ? `<ul class="thread">${last.map((/** @type {any} */ t) => `<li><span class="by">${esc(t.by)} · ${esc(new Date(t.at).toLocaleString())}</span>${esc(t.message)}</li>`).join('')}</ul>` : ''}

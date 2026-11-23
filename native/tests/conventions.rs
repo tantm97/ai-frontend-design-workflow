@@ -247,3 +247,107 @@ fn tests_do_not_sleep_before_asserting() {
         found.join("\n")
     );
 }
+
+/// Studio paths come from `studio::paths` (the Rust home of the route table; the browser's is
+/// `core/studio/shared/paths.js`). `api::OVERLAY_TAG` is text a `const` cannot build; a test in
+/// `studio::paths` checks it names the same path.
+#[test]
+fn studio_paths_are_studio_paths() {
+    let mut files = Vec::new();
+    rust_files(&native().join("src"), &mut files);
+    files.sort();
+    let mut found = Vec::new();
+    for f in files {
+        let rel = f
+            .strip_prefix(native())
+            .unwrap()
+            .to_string_lossy()
+            .replace('\\', "/");
+        if rel == "src/studio/paths.rs" || rel.ends_with("tests.rs") {
+            continue;
+        }
+        let text = fs::read_to_string(&f).unwrap();
+        let product = text.split("#[cfg(test)]").next().unwrap_or_default();
+        for (i, line) in product.lines().enumerate() {
+            let code = line.split("//").next().unwrap_or_default();
+            if code.contains("/__dfw/") && !code.contains("OVERLAY_TAG: &str") {
+                found.push(format!("{rel}:{}: {}", i + 1, code.trim()));
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "Studio paths spelled as literals; use studio::paths:\n{}",
+        found.join("\n")
+    );
+}
+
+/// The servers name their HTTP methods, status codes and error bodies (`studio::http`'s
+/// `method`, `status`, `message`, `error_body`, and `Response::{ok, created, error, ...}`), and
+/// the MCP server its JSON-RPC codes (`rpc_code`), as Go's `net/http` does.
+#[test]
+fn servers_name_methods_statuses_and_errors() {
+    let server_files = |rel: &str| {
+        rel == "src/studio/server.rs"
+            || rel == "src/studio/penpot_routes.rs"
+            || rel == "src/studio/sse.rs"
+            || rel.starts_with("src/studio/live_proxy/")
+            || rel == "src/tools/mcp.rs"
+    };
+    let methods = [
+        "\"GET\"",
+        "\"HEAD\"",
+        "\"POST\"",
+        "\"PATCH\"",
+        "\"OPTIONS\"",
+    ];
+    let codes = [
+        "200", "201", "204", "304", "400", "403", "404", "413", "500", "503",
+    ];
+    let mut files = Vec::new();
+    rust_files(&native().join("src"), &mut files);
+    files.sort();
+    let mut found = Vec::new();
+    for f in files {
+        let rel = f
+            .strip_prefix(native())
+            .unwrap()
+            .to_string_lossy()
+            .replace('\\', "/");
+        if !server_files(&rel) || rel.ends_with("tests.rs") {
+            continue;
+        }
+        let text = fs::read_to_string(&f).unwrap();
+        let product = text.split("#[cfg(test)]").next().unwrap_or_default();
+        for (i, line) in product.lines().enumerate() {
+            let code = line.split("//").next().unwrap_or_default();
+            let number = |n: &str| {
+                code.match_indices(n).any(|(at, _)| {
+                    let before = code[..at].chars().last();
+                    let after = code[at + n.len()..].chars().next();
+                    !before.is_some_and(|c| c.is_alphanumeric() || c == '.' || c == '_')
+                        && !after.is_some_and(|c| c.is_alphanumeric() || c == '.' || c == '_')
+                })
+            };
+            // The definitions themselves: the codes table and the one error reply of MCP.
+            if code.trim_start().starts_with("pub const")
+                || code.contains("\"error\": { \"code\": code")
+            {
+                continue;
+            }
+            let bad = methods.iter().any(|m| code.contains(m))
+                || code.contains("\"error\":")
+                || code.contains("-327")
+                || code.contains("-326")
+                || codes.iter().any(|n| number(n));
+            if bad {
+                found.push(format!("{rel}:{}: {}", i + 1, code.trim()));
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "HTTP methods, status codes or error bodies spelled out; use studio::http::{{method, status, message}} and Response helpers:\n{}",
+        found.join("\n")
+    );
+}
