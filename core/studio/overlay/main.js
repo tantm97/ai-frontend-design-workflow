@@ -9,7 +9,12 @@ import { listenInput } from './events.js';
 import { listenStudio } from './messages.js';
 import { ready } from './update.js';
 import { reportPins, reportSelection, reportSize } from './select.js';
-import { st } from './state.js';
+import { st, ui } from './state.js';
+import { editTarget } from './edit.js';
+import { placeHandles } from './layout.js';
+
+// Higher modules answer the calls of lower ones (state.js `ui`); wired before anything runs.
+Object.assign(ui, { editTarget, placeHandles });
 
 function main() {
   if (window.__dfwOverlay) return;

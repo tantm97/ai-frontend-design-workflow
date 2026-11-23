@@ -12,8 +12,8 @@ import { undo } from './edits.js';
 import { closeComposer, saveComment } from './comments.js';
 import { closePop, cyclePins } from './pins.js';
 import { closePresent, openPresent, presentStep, setPresentMode, toggleFullscreen, togglePresentPins } from './present.js';
-import { MSG } from '../shared/protocol.js';
-import { MODE, PHASE, KEY } from '../shared/enums.js';
+import { MSG } from '#studio/shared/protocol.js';
+import { MODE, PHASE, KEY } from '#studio/shared/enums.js';
 
 /** @typedef {{ phase: 'down' | 'up', key: string, code: string, meta: boolean, ctrl: boolean, shift: boolean, alt: boolean }} KeyInput */
 

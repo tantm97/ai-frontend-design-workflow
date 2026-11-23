@@ -14,9 +14,9 @@ import { closeComposer, loadComments, openComposer, setTab } from './comments.js
 import { pinsFor, renderPins } from './pins.js';
 import { handleKey } from './keys.js';
 import { renderToolbar } from './toolbar.js';
-import { MSG, SSE } from '../shared/protocol.js';
+import { MSG, SSE } from '#studio/shared/protocol.js';
 import { events, server } from './api.js';
-import { MODE, TAB, EDIT_OP, PHASE, AGENT_PHASE } from '../shared/enums.js';
+import { MODE, TAB, EDIT_OP, PHASE, AGENT_PHASE } from '#studio/shared/enums.js';
 
 /** A frame (or the presenter) loaded its overlay: send it the tool, tokens, pins and selection. */
 function onReady(/** @type {any} */ f) {

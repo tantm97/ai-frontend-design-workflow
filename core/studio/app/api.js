@@ -2,7 +2,7 @@
 // Every call the Studio page makes to its server, one function per route (paths in
 // shared/paths.js). Feature modules call these, never `fetch` or a `/__dfw/` string.
 import { api } from './state.js';
-import { PATH, commentPath } from '../shared/paths.js';
+import { PATH, commentPath } from '#studio/shared/paths.js';
 
 /** @param {unknown} body */
 const post = (body) => ({ method: 'POST', body: JSON.stringify(body ?? {}) });

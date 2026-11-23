@@ -28,9 +28,7 @@ use serde_json::{json, Map, Value};
 pub use layout::set_layout_rule;
 pub use locate::{locate_own, locate_value, Located};
 pub use moves::{move_inside, move_source};
-pub use style::{
-    collect_tokens, layout_value, load_token_names, set_style_prop, token_var, TokenEntry,
-};
+pub use style::{layout_value, load_token_names, set_style_prop, token_var};
 
 use crate::core::error::DfwError;
 use crate::core::js;

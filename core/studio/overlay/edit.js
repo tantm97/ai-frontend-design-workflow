@@ -4,8 +4,8 @@
 import { post, st } from './state.js';
 import { placeHandles } from './layout.js';
 import { reportSelection } from './select.js';
-import { MSG } from '../shared/protocol.js';
-import { TEXT } from '../shared/text.js';
+import { MSG } from '#studio/shared/protocol.js';
+import { TEXT } from '#studio/shared/text.js';
 
 /** Text with runs of white space as one space, trimmed. */
 export const norm = (/** @type {string | null | undefined} */ s) => (s || '').replace(/\s+/g, ' ').trim();

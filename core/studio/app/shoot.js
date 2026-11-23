@@ -6,7 +6,7 @@ import { $, P, S, pageModel, store, toast } from './state.js';
 import { allFrameSpecs } from './frames.js';
 import { presentSrc } from './present.js';
 import { server } from './api.js';
-import { TEXT } from '../shared/text.js';
+import { TEXT } from '#studio/shared/text.js';
 
 const shootKey = (/** @type {any} */ f) => (f.system ? 'system' : f.screen?.id || f.file);
 /** @type {string[] | null} */

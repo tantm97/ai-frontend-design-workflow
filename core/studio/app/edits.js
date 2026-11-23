@@ -4,10 +4,10 @@
 import { layoutScope } from './model.js';
 import { S, post, toast } from './state.js';
 import { reloadFrame, selectFrame, setPage } from './frames.js';
-import { MSG } from '../shared/protocol.js';
+import { MSG } from '#studio/shared/protocol.js';
 import { server } from './api.js';
-import { EDIT_OP } from '../shared/enums.js';
-import { TEXT } from '../shared/text.js';
+import { EDIT_OP } from '#studio/shared/enums.js';
+import { TEXT } from '#studio/shared/text.js';
 
 /** Layout edit scope of a frame (see model.js layoutScope). */
 export const layoutScopeOf = (/** @type {any} */ f) => layoutScope(S.manifest?.breakpoints, f);

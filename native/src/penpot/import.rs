@@ -23,7 +23,7 @@ use super::diff::{
     master_source, walkable, MasterSource,
 };
 use super::export::penpot_dir;
-use super::live::{continue_thread, thread_key, threads_file};
+use super::threads::{continue_thread, thread_key, threads_file};
 use super::tokens::{
     import_penpot_tokens, nest, read_dfw_tokens, short_value, NestEntry, TokenImport, RESERVED,
 };

@@ -5,7 +5,7 @@ import { post, st } from './state.js';
 import { isUi, labelOf, pick, rectOf } from './target.js';
 import { reportPins, reportSelection, reportSize } from './select.js';
 import { ROOT_OWNED, morph, sheetPath, syncAttrs } from './morph.js';
-import { MSG } from '../shared/protocol.js';
+import { MSG } from '#studio/shared/protocol.js';
 
 /** Tell the Studio the overlay is ready (soft: after an in-place update). */
 export const ready = (/** @type {unknown} */ soft) => {

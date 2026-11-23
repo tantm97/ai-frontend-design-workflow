@@ -4,14 +4,10 @@
 // frame reloads (in place when that is safe, studio-ui.md U8).
 import { ACTIVE, esc, frameCount as countOf, notesHtml } from './model.js';
 import { L, boundsOf, flowArrows, layoutSections } from './geometry.js';
-import { $, $$, ALL, P, S, currentPage, pageModel, post, postAll, store, viewContext, viewport, world } from './state.js';
-import { applyCam, zoomToFit, zoomToSection } from './canvas.js';
+import { $, $$, ALL, P, S, currentPage, pageModel, post, postAll, store, viewContext, viewport, world, ui } from './state.js';
 import { updateHud } from './hud.js';
-import { renderLayers } from './layers.js';
-import { renderInspector } from './inspector.js';
-import { loadPresent, openPresent } from './present.js';
-import { MSG } from '../shared/protocol.js';
-import { MODE, SYSTEM_SCREEN } from '../shared/enums.js';
+import { MSG } from '#studio/shared/protocol.js';
+import { MODE, SYSTEM_SCREEN } from '#studio/shared/enums.js';
 
 /**
  * The canvas of each recently shown page, kept (hidden) so that going back to it shows its loaded
@@ -122,8 +118,8 @@ export function buildPage() {
   scheduleLoads();
   $('#empty').hidden = S.frames.size > 0;
   renderPages();
-  renderLayers();
-  renderInspector();
+  ui.renderLayers();
+  ui.renderInspector();
   updateHud();
 }
 
@@ -173,7 +169,7 @@ function addFrame(spec, pageId, canvas, before) {
   });
   t.addEventListener('dblclick', (/** @type {MouseEvent} */ e) => {
     if (/** @type {HTMLElement} */ (e.target).tagName === 'A') return;
-    openPresent(f);
+    ui.openPresent(f);
   });
   f.el = el;
   canvas.frames.set(f.key, f);
@@ -340,7 +336,7 @@ export function renderPages() {
     const inAll = S.page === ALL;
     li.innerHTML = `<button type="button" data-page="${esc(p.id)}" ${p.id === S.page ? 'aria-current="page"' : ''} title="${inAll ? 'Click: go to this section · Double-click: open the page alone' : ''}"><span>${esc(p.title)}</span>${open ? `<span class="c" title="Open comments">${open}</span>` : ''}<span class="n">${n}</span></button>`;
     const b = $('button', li);
-    b.onclick = () => (S.page === ALL ? zoomToSection(p.id) : setPage(p.id));
+    b.onclick = () => (S.page === ALL ? ui.zoomToSection(p.id) : setPage(p.id));
     b.ondblclick = () => setPage(p.id);
     list.append(li);
   }
@@ -361,8 +357,8 @@ export function setPage(id, { fit = false } = {}) {
   buildPage();
   if (S.cams[id] && !fit) {
     S.cam = { ...S.cams[id] };
-    applyCam();
-  } else zoomToFit({ initial: true });
+    ui.applyCam();
+  } else ui.zoomToFit({ initial: true });
 }
 
 /**
@@ -379,8 +375,8 @@ export function selectFrame(key, { keepSel = false } = {}) {
   for (const f of S.frames.values()) f.el.classList.toggle('selected', f.key === key);
   const f = S.frames.get(key);
   if (f?.loaded && (!S.layers || S.layers.key !== key)) post(f, { type: MSG.LAYERS });
-  renderLayers();
-  renderInspector();
+  ui.renderLayers();
+  ui.renderInspector();
   updateHud();
 }
 
@@ -389,8 +385,8 @@ export function clearSelection() {
   S.sel = null;
   S.selKey = null;
   for (const f of S.frames.values()) f.el.classList.remove('selected');
-  renderLayers();
-  renderInspector();
+  ui.renderLayers();
+  ui.renderInspector();
   updateHud();
 }
 
@@ -398,7 +394,7 @@ export function clearSelection() {
 export function rebuildKeepCam() {
   const selKey = S.selKey;
   buildPage();
-  applyCam();
+  ui.applyCam();
   if (selKey && S.frames.has(selKey)) selectFrame(selKey);
 }
 
@@ -411,7 +407,7 @@ export function allFrameSpecs() {
 
 /** Reload a frame (or the presenter) from the server. */
 export function reloadFrame(/** @type {any} */ f) {
-  if (f?.present) return P.open && loadPresent();
+  if (f?.present) return P.open && ui.loadPresent();
   if (!f?.iframe) return;
   clearTimeout(f.softTimer);
   f.loaded = false;

@@ -9,9 +9,9 @@ import { reportPins, select } from './select.js';
 import { layoutKey, placeHandles } from './layout.js';
 import { verifyLayout } from './verify.js';
 import { softReload } from './update.js';
-import { MSG } from '../shared/protocol.js';
-import { MODE } from '../shared/enums.js';
-import { TEXT } from '../shared/text.js';
+import { MSG } from '#studio/shared/protocol.js';
+import { MODE } from '#studio/shared/enums.js';
+import { TEXT } from '#studio/shared/text.js';
 
 const interactive = () => st.mode === MODE.SELECT || st.mode === MODE.COMMENT;
 

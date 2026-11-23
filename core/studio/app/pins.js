@@ -1,12 +1,11 @@
 // @ts-check
 // Comment pins on the frames and the pin popover (read, verify or reopen a comment where it was made).
 import { PIN_STATUSES, esc, own, pinsOf, commentLabel, isDraft } from './model.js';
-import { $, $$, P, S, post, store, toast } from './state.js';
+import { $, $$, P, S, post, store, toast, ui } from './state.js';
 import { updateHud } from './hud.js';
-import { commentActions, renderComments, setTab } from './comments.js';
-import { MSG } from '../shared/protocol.js';
-import { MODE, PIN_FILTER, TAB, SYSTEM_SCREEN } from '../shared/enums.js';
-import { TEXT } from '../shared/text.js';
+import { MSG } from '#studio/shared/protocol.js';
+import { MODE, PIN_FILTER, TAB, SYSTEM_SCREEN } from '#studio/shared/enums.js';
+import { TEXT } from '#studio/shared/text.js';
 
 const STATUS_COLOR = { open: '#c2410c', acknowledged: '#c2410c', reopened: '#c2410c', fixed: '#a16207', resolved: '#15803d' };
 const PIN_LABEL = { active: 'Pins: open', all: 'Pins: all', off: 'Pins: off' };
@@ -45,8 +44,8 @@ export function renderPins() {
         if (S.pop === c.id) return closePop();
         S.selectedComment = c.id;
         if (!P.open) {
-          setTab(TAB.COMMENTS);
-          renderComments();
+          ui.setTab(TAB.COMMENTS);
+          ui.renderComments();
           document.querySelector(`.comment[data-id="${CSS.escape(c.id)}"]`)?.scrollIntoView({ block: 'nearest' });
         }
         openPop(c.id);
@@ -105,7 +104,7 @@ export function renderPop() {
     ${thread.length ? `<ul class="thread">${thread.map((/** @type {any} */ t) => `<li><span class="by">${esc(t.by)} · ${esc(new Date(t.at).toLocaleString())}</span>${esc(t.message)}</li>`).join('')}</ul>` : ''}
     <div class="comment-actions"></div>`;
   $('.pop-x', pop).onclick = closePop;
-  commentActions(c, $('.comment-actions', pop));
+  ui.commentActions(c, $('.comment-actions', pop));
   pop.hidden = false;
   placePop();
 }

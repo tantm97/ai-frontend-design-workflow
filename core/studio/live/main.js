@@ -9,11 +9,11 @@
 // a constructed stylesheet, so the app's Content-Security-Policy style-src does not block it.
 // Bundled into core/studio/live.js (one classic script) by scripts/build-overlay.mjs.
 import { isShortcut, parseShortcut, shortcutLabel } from './shortcut.js';
-import { isTypingTarget } from '../overlay/fields.js';
-import { PATH } from '../shared/paths.js';
-import { LIVE_COMMENT_EVENT } from '../shared/protocol.js';
-import { KEY } from '../shared/enums.js';
-import { TEXT } from '../shared/text.js';
+import { isTypingTarget } from '#studio/overlay/fields.js';
+import { PATH } from '#studio/shared/paths.js';
+import { LIVE_COMMENT_EVENT } from '#studio/shared/protocol.js';
+import { KEY } from '#studio/shared/enums.js';
+import { TEXT } from '#studio/shared/text.js';
 
 // main is about 190 lines (general.md GE4): the shadow-root UI, its state and its handlers share one
 // closure, as the injected script always had; the pure part (the shortcut) lives in shortcut.js.

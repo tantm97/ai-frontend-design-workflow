@@ -9,8 +9,8 @@ import { buildLayers } from './layers.js';
 import { endEdit, norm, startEdit } from './edit.js';
 import { reportPins, reportSelection, select } from './select.js';
 import { armDrag, canLayout, canMove, endDrag, endResize, moveDrag, moveResize, resetLayout, snapOptions, startResize } from './layout.js';
-import { MSG } from '../shared/protocol.js';
-import { MODE, PHASE, KEY } from '../shared/enums.js';
+import { MSG } from '#studio/shared/protocol.js';
+import { MODE, PHASE, KEY } from '#studio/shared/enums.js';
 
 const capture = { capture: true };
 const interactive = () => st.mode === MODE.SELECT || st.mode === MODE.COMMENT;

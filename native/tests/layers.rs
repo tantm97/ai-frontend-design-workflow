@@ -1,5 +1,6 @@
 //! Architecture rule A2 (docs/conventions/architecture.md), checked: every `crate::<group>` edge
-//! in product code goes down the layer table. A cycle or an upward call fails this test with the
+//! in product code goes down the layer table, and no two modules depend on each other (no cycle,
+//! inside a group either; `crate::` and `super::` paths both count). A cycle or an upward call fails this test with the
 //! file, the line and both layers. Test code (`#[cfg(test)]` items, `tests.rs` files) is skipped:
 //! a test may build fixtures from any layer.
 
@@ -8,6 +9,7 @@
     reason = "binary tests build fixtures with std::fs and std::process directly"
 )]
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -221,4 +223,201 @@ fn the_checker_reports_an_upward_edge_and_skips_test_code() {
     assert_eq!(found.len(), 2, "{found:?}");
     assert!(found[0].contains("src/core/bad.rs:2") && found[0].contains("`crate::browser`"));
     assert!(found[1].contains("src/core/bad.rs:11") && found[1].contains("`crate::design`"));
+}
+
+/// The module path of a source file: `core/js/mod.rs` -> `core::js`, `core/util.rs` -> `core::util`.
+fn module_path(rel: &Path) -> String {
+    let text = rel.to_string_lossy().replace('\\', "/");
+    let text = text.trim_end_matches(".rs");
+    let text = text.strip_suffix("/mod").unwrap_or(text);
+    text.replace('/', "::")
+}
+
+/// The module paths a line names: `crate::a::b::c` and `super::x` (resolved against `here`),
+/// each cut to the longest prefix that is a module of the crate.
+fn module_edges(line: &str, here: &str, modules: &BTreeSet<String>) -> Vec<String> {
+    let code = line.split("//").next().unwrap_or("");
+    let mut out = Vec::new();
+    let path_at = |rest: &str| -> Vec<String> {
+        rest.split("::")
+            .map(|seg| {
+                seg.chars()
+                    .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+                    .collect::<String>()
+            })
+            .take_while(|seg| {
+                !seg.is_empty() && seg.chars().next().is_some_and(|c| c.is_ascii_lowercase())
+            })
+            .collect()
+    };
+    let mut push = |segs: Vec<String>| {
+        for k in (1..=segs.len()).rev() {
+            let cand = segs[..k].join("::");
+            if modules.contains(&cand) {
+                if cand != here {
+                    out.push(cand);
+                }
+                return;
+            }
+        }
+    };
+    let mut rest = code;
+    while let Some(at) = rest.find("crate::") {
+        rest = &rest[at + "crate::".len()..];
+        push(path_at(rest));
+    }
+    // `super::` is relative to the parent of `here` (a file module's parent is its folder).
+    let mut rest = code;
+    while let Some(at) = rest.find("super::") {
+        let before = &rest[..at];
+        rest = &rest[at + "super::".len()..];
+        if before.ends_with("::") {
+            continue; // super::super:: is read by the next round
+        }
+        let parent: Vec<&str> = here.split("::").collect();
+        if parent.len() < 2 {
+            continue;
+        }
+        let mut segs: Vec<String> = parent[..parent.len() - 1]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        segs.extend(path_at(rest));
+        push(segs);
+    }
+    out
+}
+
+/// The cycles (strongly connected components of more than one module) of a graph.
+fn module_cycles(graph: &BTreeMap<String, BTreeSet<String>>) -> Vec<Vec<String>> {
+    struct T<'a> {
+        g: &'a BTreeMap<String, BTreeSet<String>>,
+        index: usize,
+        idx: BTreeMap<&'a str, usize>,
+        low: BTreeMap<&'a str, usize>,
+        stack: Vec<&'a str>,
+        on: BTreeSet<&'a str>,
+        out: Vec<Vec<String>>,
+    }
+    fn visit<'a>(t: &mut T<'a>, v: &'a str) {
+        t.idx.insert(v, t.index);
+        t.low.insert(v, t.index);
+        t.index += 1;
+        t.stack.push(v);
+        t.on.insert(v);
+        if let Some(ws) = t.g.get(v) {
+            for w in ws {
+                let w = w.as_str();
+                if !t.idx.contains_key(w) {
+                    visit(t, w);
+                    let l = t.low[w].min(t.low[v]);
+                    t.low.insert(v, l);
+                } else if t.on.contains(w) {
+                    let l = t.idx[w].min(t.low[v]);
+                    t.low.insert(v, l);
+                }
+            }
+        }
+        if t.low[v] == t.idx[v] {
+            let mut c = Vec::new();
+            while let Some(w) = t.stack.pop() {
+                t.on.remove(w);
+                c.push(w.to_string());
+                if w == v {
+                    break;
+                }
+            }
+            if c.len() > 1 {
+                c.sort();
+                t.out.push(c);
+            }
+        }
+    }
+    let mut t = T {
+        g: graph,
+        index: 0,
+        idx: BTreeMap::new(),
+        low: BTreeMap::new(),
+        stack: Vec::new(),
+        on: BTreeSet::new(),
+        out: Vec::new(),
+    };
+    for v in graph.keys() {
+        if !t.idx.contains_key(v.as_str()) {
+            visit(&mut t, v.as_str());
+        }
+    }
+    t.out
+}
+
+fn module_graph(src: &Path) -> BTreeMap<String, BTreeSet<String>> {
+    let mut files = Vec::new();
+    rust_files(src, &mut files);
+    let mut modules = BTreeSet::new();
+    for f in &files {
+        modules.insert(module_path(f.strip_prefix(src).unwrap()));
+    }
+    let mut graph = BTreeMap::new();
+    for f in files {
+        let rel = f.strip_prefix(src).unwrap().to_path_buf();
+        if rel.file_name().is_some_and(|n| n == "tests.rs") || rel == Path::new("main.rs") {
+            continue;
+        }
+        let here = module_path(&rel);
+        let text = fs::read_to_string(&f).unwrap();
+        let entry: &mut BTreeSet<String> = graph.entry(here.clone()).or_default();
+        for (_, line) in product_lines(&text) {
+            for to in module_edges(line, &here, &modules) {
+                // A module may use its own children and its parent's items freely.
+                if to.starts_with(&format!("{here}::")) || here.starts_with(&format!("{to}::")) {
+                    continue;
+                }
+                entry.insert(to);
+            }
+        }
+    }
+    graph
+}
+
+#[test]
+fn no_two_modules_depend_on_each_other() {
+    let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let found = module_cycles(&module_graph(&src));
+    assert!(
+        found.is_empty(),
+        "module cycles (move the shared piece into a module both can use):\n{}",
+        found
+            .iter()
+            .map(|c| c.join(" <-> "))
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}
+
+#[test]
+fn the_cycle_checker_finds_a_cycle() {
+    let mut g: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    g.entry("a".into()).or_default().insert("b".into());
+    g.entry("b".into()).or_default().insert("a".into());
+    g.entry("c".into()).or_default().insert("a".into());
+    assert_eq!(
+        module_cycles(&g),
+        vec![vec!["a".to_string(), "b".to_string()]]
+    );
+    let modules: BTreeSet<String> = ["core::js", "core::js::number", "core::util"]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+    assert_eq!(
+        module_edges(
+            "use crate::core::js::number::number;",
+            "core::util",
+            &modules
+        ),
+        ["core::js::number"]
+    );
+    assert_eq!(
+        module_edges("use super::util::x;", "core::js", &modules),
+        ["core::util"]
+    );
 }
