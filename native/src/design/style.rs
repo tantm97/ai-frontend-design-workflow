@@ -17,9 +17,45 @@ use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{project_paths, resolve};
 use crate::core::util::{write_atomic_inside, write_json_inside};
+use crate::design::tokens::option;
 
 /// `STYLES_DIR`: the guides shipped with dfw, a folder of the embedded kits.
 const STYLES_DIR: &str = "styles";
+
+/// The motif master a guide brings, in `design/system/components/`.
+pub const MOTIF_FILE: &str = "motif.html";
+
+/// The messages of style guides, named once (as `studio::http::message`).
+pub mod message {
+    /// A guide file given by path does not exist.
+    pub fn guide_file_not_found(id: &str) -> String {
+        format!("Style guide file not found: {id}")
+    }
+
+    /// No guide of the library has this id.
+    pub fn unknown_guide(id: &str) -> String {
+        format!("Unknown style guide \"{id}\". List them: dfw style list")
+    }
+
+    /// A guide file whose own id and file name are both unfit for a theme name.
+    pub fn guide_id_not_plain(file: &str) -> String {
+        format!(
+            "Give the guide in {file} an \"id\" of lower-case letters, digits and dashes (e.g. \"my-brand\")."
+        )
+    }
+
+    /// A kit preset lacks a token group the guide writes into (a bug of the kit).
+    pub fn no_group(path: &str) -> String {
+        format!("The preset tokens have no \"{path}\" group.")
+    }
+
+    /// The `base` a guide names is not a kit preset.
+    pub fn unknown_base_preset(base: &str) -> String {
+        format!(
+            "The style guide's base preset \"{base}\" does not exist. Presets: dfw system presets"
+        )
+    }
+}
 
 fn text(v: Option<&Value>) -> String {
     js::to_string(v)
@@ -56,7 +92,7 @@ pub fn get_style(id: &str) -> Result<Value, DfwError> {
     if id.ends_with(".json") {
         let own = js::read_json(&resolve(id), Some(Value::Null))?;
         if !js::truthy(Some(&own)) {
-            return Err(DfwError::new(format!("Style guide file not found: {id}")));
+            return Err(DfwError::new(message::guide_file_not_found(id)));
         }
         let mut guide = Map::new();
         guide.insert(
@@ -83,11 +119,38 @@ pub fn get_style(id: &str) -> Result<Value, DfwError> {
         }
         return Ok(js::key_order(Value::Object(guide)));
     }
-    assets::json(Folder::Kits, &format!("{STYLES_DIR}/{id}.json"))?.ok_or_else(|| {
-        DfwError::new(format!(
-            "Unknown style guide \"{id}\". List them: dfw style list"
-        ))
-    })
+    assets::json(Folder::Kits, &format!("{STYLES_DIR}/{id}.json"))?
+        .ok_or_else(|| DfwError::new(message::unknown_guide(id)))
+}
+
+/// The name a guide goes by in option themes (`opt-<name>`) and `dfw system choose`: a library id
+/// as given; for a guide file, its own `id` when that is a plain name, else the file name without
+/// `.json`. A path never becomes part of a theme name.
+pub fn style_name(id: &str) -> Result<String, DfwError> {
+    if !id.ends_with(".json") {
+        return Ok(id.to_string());
+    }
+    let plain = |s: &str| {
+        s.starts_with(|c: char| c.is_ascii_lowercase() || c.is_ascii_digit())
+            && s.chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+    };
+    if let Some(own) = get_style(id)?
+        .get("id")
+        .and_then(Value::as_str)
+        .filter(|s| plain(s))
+    {
+        return Ok(own.to_string());
+    }
+    let stem = Path::new(id)
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+    if plain(&stem) {
+        Ok(stem)
+    } else {
+        Err(DfwError::new(message::guide_id_not_plain(id)))
+    }
 }
 
 /// `isStyle`: the name of a guide file, or the id of a guide of the library.
@@ -311,12 +374,7 @@ const SERIF_DISPLAY: [&str; 6] = [
 
 /// The token group at `path` of a token tree (`t.font.size` in the Node code).
 fn group<'a>(tree: &'a mut Value, path: &[&str]) -> Result<&'a mut Map<String, Value>, DfwError> {
-    let missing = || {
-        DfwError::internal(format!(
-            "The preset tokens have no \"{}\" group.",
-            path.join(".")
-        ))
-    };
+    let missing = || DfwError::internal(message::no_group(&path.join(".")));
     let mut node = tree;
     for key in path {
         node = node.get_mut(key).ok_or_else(missing)?;
@@ -347,11 +405,8 @@ pub fn style_tokens(g: &Value, fonts: &str) -> Result<Value, DfwError> {
 /// The kit preset a guide is based on (`base`), as a token tree.
 fn base_preset(g: &Value) -> Result<Value, DfwError> {
     let base = text(g.get("base"));
-    assets::json(Folder::Kits, &format!("base/presets/{base}.tokens.json"))?.ok_or_else(|| {
-        DfwError::new(format!(
-            "The style guide's base preset \"{base}\" does not exist. Presets: dfw system presets"
-        ))
-    })
+    assets::json(Folder::Kits, &format!("base/presets/{base}.tokens.json"))?
+        .ok_or_else(|| DfwError::new(message::unknown_base_preset(&base)))
 }
 
 /// The `color` group: the named palette, the roles (aliases or hex), the text colours on
@@ -556,8 +611,8 @@ pub fn motif_component(g: &Value) -> Option<String> {
 <style>
 /* Motifs belong to the \"{id}\" style. While comparing other option themes, decorative motifs
    are hidden and motifs with content fall back to plain text (content never disappears). */
-[data-theme^=\"opt-\"]:not([data-theme=\"opt-{id}\"]) .motif:empty {{ display: none; }}
-[data-theme^=\"opt-\"]:not([data-theme=\"opt-{id}\"]) .motif:not(:empty) {{ all: unset; font-family: var(--font-family-mono); font-size: var(--font-size-sm); color: var(--color-muted); }}
+[data-theme^=\"{prefix}\"]:not([data-theme=\"{theme}\"]) .motif:empty {{ display: none; }}
+[data-theme^=\"{prefix}\"]:not([data-theme=\"{theme}\"]) .motif:not(:empty) {{ all: unset; font-family: var(--font-family-mono); font-size: var(--font-size-sm); color: var(--color-muted); }}
 {css}
 </style>
 <template>
@@ -568,6 +623,8 @@ pub fn motif_component(g: &Value) -> Option<String> {
 </dfw-examples>
 </dfw-component>
 ",
+        prefix = option::PREFIX,
+        theme = option::theme(&id),
         variants = names.join(" "),
         desc = desc.join(" | ").replace('"', "'"),
         css = css.join("\n"),
@@ -583,6 +640,12 @@ fn pattern(source: &str) -> Result<Regex, DfwError> {
     Regex::new(source).map_err(|err| DfwError::internal(err.to_string()))
 }
 
+/// The `## Rationale` section seeded from guide `id`: one line per reason.
+fn rationale_block(id: &str, rationale: &[String]) -> String {
+    let lines: Vec<String> = rationale.iter().map(|r| format!("- {r}")).collect();
+    format!("## Rationale\n<!-- Seeded from style guide \"{id}\". Rewrite each line for THIS product: decision - because <context fact or principle>. -->\n{}\n", lines.join("\n"))
+}
+
 /// Seed DESIGN.md with the guide's reasoning so the DS gate starts from reasons, not from a
 /// blank page. A rationale the user has written is never replaced.
 fn seed_rationale(
@@ -592,8 +655,7 @@ fn seed_rationale(
     rationale: &[String],
 ) -> Result<(), DfwError> {
     let text = js::read_text(design_md)?;
-    let lines: Vec<String> = rationale.iter().map(|r| format!("- {r}")).collect();
-    let block = format!("## Rationale\n<!-- Seeded from style guide \"{id}\". Rewrite each line for THIS product: decision - because <context fact or principle>. -->\n{}\n", lines.join("\n"));
+    let block = rationale_block(id, rationale);
     let seeded = pattern(&format!(
         r#"(?m)^## Rationale{WS}*\n<!-- Seeded from style guide "[^"]*"[\s\S]*?-->\n(?:- {DOT}*\n?)*"#
     ))?;
@@ -632,16 +694,11 @@ pub fn apply_style(root: &Path, id: &str, fonts: &str) -> Result<AppliedStyle, D
     let g = get_style(id)?;
     let p = project_paths(root);
     fs::create_dir_all(&p.tokens)?;
-    write_json_inside(
-        root,
-        &p.tokens.join("tokens.json"),
-        &style_tokens(&g, fonts)?,
-    )?;
-    let sys = p.design.join("system");
-    fs::create_dir_all(sys.join("components"))?;
-    write_atomic_inside(root, &sys.join("head.html"), head_for(&g, fonts))?;
+    write_json_inside(root, &p.tokens_json, &style_tokens(&g, fonts)?)?;
+    fs::create_dir_all(&p.components)?;
+    write_atomic_inside(root, &p.head, head_for(&g, fonts))?;
     if let Some(motif) = motif_component(&g) {
-        write_atomic_inside(root, &sys.join("components").join("motif.html"), motif)?;
+        write_atomic_inside(root, &p.components.join(MOTIF_FILE), motif)?;
     }
     let font_set = fonts_for(&g, fonts).cloned();
     let mut style = Map::new();
@@ -686,11 +743,7 @@ pub fn apply_style(root: &Path, id: &str, fonts: &str) -> Result<AppliedStyle, D
     put("paletteNotes", or_empty("paletteNotes"));
     put("fonts", font_set.clone());
     put("fontsVariant", Some(json!(fonts)));
-    write_json_inside(
-        root,
-        &sys.join("style.json"),
-        &js::key_order(Value::Object(style)),
-    )?;
+    write_json_inside(root, &p.style, &js::key_order(Value::Object(style)))?;
     let id = text(g.get("id"));
     let design_md = root.join("DESIGN.md");
     let rationale = strings(g.get("rationale"));
@@ -955,10 +1008,10 @@ mod tests {
             shown.starts_with("Swiss grid (swiss-grid)\nConcept: International typographic style"),
             "{shown}"
         );
-        assert!(get_style("nope")
-            .unwrap_err()
-            .message()
-            .contains("Unknown style guide \"nope\""));
+        assert_eq!(
+            get_style("nope").unwrap_err().message(),
+            message::unknown_guide("nope")
+        );
         assert!(is_style("swiss-grid") && is_style("x.json") && !is_style("crisp"));
     }
 
@@ -966,14 +1019,18 @@ mod tests {
     fn rationale_is_seeded_once_and_never_over_the_users_text() {
         let dir = test_dir("style-md");
         let md = dir.join("DESIGN.md");
+        let reasons = ["one".to_string(), "two".to_string()];
         let seed = |text: &str, id: &str| {
             fs::write(&md, text).unwrap();
-            seed_rationale(&dir, &md, id, &["one".to_string(), "two".to_string()]).unwrap();
+            seed_rationale(&dir, &md, id, &reasons).unwrap();
             fs::read_to_string(&md).unwrap()
         };
-        let block = |id: &str| {
-            format!("## Rationale\n<!-- Seeded from style guide \"{id}\". Rewrite each line for THIS product: decision - because <context fact or principle>. -->\n- one\n- two\n")
-        };
+        let block = |id: &str| rationale_block(id, &reasons);
+        assert!(
+            block("a").ends_with("-->\n- one\n- two\n"),
+            "{}",
+            block("a")
+        );
         // No heading: appended.
         assert_eq!(
             seed("# Design\n\ntext\n\n", "a"),

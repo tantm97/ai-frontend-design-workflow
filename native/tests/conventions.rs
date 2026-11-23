@@ -352,6 +352,25 @@ fn servers_name_methods_statuses_and_errors() {
     );
 }
 
+/// The text of a source file before its test module (`#[cfg(test)]`, maybe more attributes,
+/// then `mod`). A single `#[cfg(test)]` item before it (a fixture helper) does not end the
+/// product code.
+fn product_part(text: &str) -> &str {
+    let mut at = 0;
+    let mut lines = text.split_inclusive('\n').peekable();
+    while let Some(line) = lines.next() {
+        if line.trim() == "#[cfg(test)]" {
+            let mut rest = lines.clone();
+            let item = rest.find(|l| !l.trim_start().starts_with("#["));
+            if item.is_some_and(|l| l.trim_start().starts_with("mod ")) {
+                return &text[..at];
+            }
+        }
+        at += line.len();
+    }
+    text
+}
+
 /// The product source of every Rust file but the skipped ones, as `(path, lines)`.
 fn product_sources(skip: &[&str]) -> Vec<(String, Vec<String>)> {
     let mut files = Vec::new();
@@ -368,10 +387,9 @@ fn product_sources(skip: &[&str]) -> Vec<(String, Vec<String>)> {
             continue;
         }
         let text = fs::read_to_string(&f).unwrap();
-        let product = text.split("#[cfg(test)]").next().unwrap_or_default();
         out.push((
             rel,
-            product
+            product_part(&text)
                 .lines()
                 .map(|l| l.split("//").next().unwrap_or_default().to_string())
                 .collect(),
@@ -434,6 +452,97 @@ fn exit_codes_are_named() {
     assert!(
         found.is_empty(),
         "exit codes as numbers; use core::error::exit::{{FAILED, PROBLEMS, UNVERIFIED}}:\n{}",
+        found.join("\n")
+    );
+}
+
+/// The design system's folders and files are named once, in `core::paths` (`ProjectPaths`
+/// fields, `file`, `in_design`, `rel`), never spelled in a `join` or a message. The Penpot set
+/// prefix `themes/` and the Node regex ports that look for `tokens/` anywhere in a path
+/// (`lint::is_token_file`, the post-edit hook) are other things and do not match.
+#[test]
+fn design_system_paths_are_core_paths() {
+    let spelled = [
+        "design/system",
+        "design/tokens",
+        "system/head.html",
+        "system/components.css",
+        "tokens/tokens.",
+        "\"head.html\"",
+        "\"style.json\"",
+        "\"inventory.json\"",
+        "\"components.css\"",
+        "\"tokens.json\"",
+        "\"tokens.css\"",
+        "\"brief.json\"",
+        "\"style-source.json\"",
+        "\"extracted.tokens.json\"",
+        "join(\"system\")",
+        "join(\"tokens\")",
+        "join(\"components\")",
+        "join(\"icons\")",
+        "join(\"themes\")",
+    ];
+    let mut found = Vec::new();
+    for (rel, lines) in product_sources(&["src/core/paths.rs"]) {
+        for (i, code) in lines.iter().enumerate() {
+            if spelled.iter().any(|s| code.contains(s)) {
+                found.push(format!("{rel}:{}: {}", i + 1, code.trim()));
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "design system paths spelled out; use core::paths (ProjectPaths, file, in_design, rel):\n{}",
+        found.join("\n")
+    );
+}
+
+/// Option themes are `design::tokens::option` (`PREFIX`, `theme`, `is_option`, `file`). The
+/// flag `--opt-themes` of `dfw tokens export` is a flag, not a theme, and is left out.
+#[test]
+fn option_themes_are_design_tokens_option() {
+    let mut found = Vec::new();
+    for (rel, lines) in product_sources(&["src/design/tokens.rs"]) {
+        for (i, code) in lines.iter().enumerate() {
+            if code.replace("opt-themes", "").contains("opt-") {
+                found.push(format!("{rel}:{}: {}", i + 1, code.trim()));
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "option theme names spelled out; use design::tokens::option:\n{}",
+        found.join("\n")
+    );
+}
+
+/// The errors of the design system and style guide commands take their text from the
+/// module's `message` table, never a literal or a `format!` at the call.
+#[test]
+fn system_and_style_errors_come_from_their_message_table() {
+    let mut found = Vec::new();
+    for (rel, lines) in product_sources(&[]) {
+        if rel != "src/design/system.rs" && rel != "src/design/style.rs" {
+            continue;
+        }
+        for (i, code) in lines.iter().enumerate() {
+            for call in ["DfwError::new(", "DfwError::internal("] {
+                let next = i + 1 < lines.len() && code.trim_end().ends_with(call);
+                let arg = match code.find(call) {
+                    Some(at) if !next => code[at + call.len()..].trim_start(),
+                    Some(_) => lines[i + 1].trim_start(),
+                    None => continue,
+                };
+                if arg.starts_with('"') || arg.starts_with("r\"") || arg.starts_with("format!") {
+                    found.push(format!("{rel}:{}: {}", i + 1, code.trim()));
+                }
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "error text written at the call; add it to the module's `message` table:\n{}",
         found.join("\n")
     );
 }

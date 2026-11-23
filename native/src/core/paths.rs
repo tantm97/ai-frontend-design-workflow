@@ -124,6 +124,65 @@ pub fn find_project_root(start: Option<&Path>) -> PathBuf {
     git_root.unwrap_or(start)
 }
 
+/// Names of the folders and files of a project's design system, one level each: what a
+/// `join` takes. A tokens folder (`design/tokens`, or an approved copy of it) holds
+/// [`file::TOKENS_JSON`], [`file::TOKENS_CSS`] and [`file::THEMES`].
+pub mod file {
+    pub const DESIGN: &str = "design";
+    pub const SYSTEM: &str = "system";
+    pub const TOKENS: &str = "tokens";
+    pub const COMPONENTS: &str = "components";
+    pub const ICONS: &str = "icons";
+    pub const THEMES: &str = "themes";
+    pub const HEAD: &str = "head.html";
+    pub const STYLE: &str = "style.json";
+    pub const INVENTORY: &str = "inventory.json";
+    pub const COMPONENTS_CSS: &str = "components.css";
+    pub const TOKENS_JSON: &str = "tokens.json";
+    pub const TOKENS_CSS: &str = "tokens.css";
+}
+
+/// Design system files relative to `design/`, as pages link them (`{base}tokens/tokens.css`).
+pub mod in_design {
+    pub const HEAD: &str = "system/head.html";
+    pub const COMPONENTS_CSS: &str = "system/components.css";
+    pub const TOKENS_CSS: &str = "tokens/tokens.css";
+    pub const TOKENS_JSON: &str = "tokens/tokens.json";
+}
+
+/// Design system paths relative to the project root, with `/` as messages, output and
+/// project-relative targets write them. [`super::ProjectPaths`] has the same places as paths.
+pub mod rel {
+    pub const SYSTEM: &str = "design/system";
+    pub const TOKENS: &str = "design/tokens";
+    pub const COMPONENTS: &str = "design/system/components";
+    pub const ICONS: &str = "design/system/icons";
+    pub const THEMES: &str = "design/tokens/themes";
+    pub const HEAD: &str = "design/system/head.html";
+    pub const STYLE: &str = "design/system/style.json";
+    pub const INVENTORY: &str = "design/system/inventory.json";
+    pub const COMPONENTS_CSS: &str = "design/system/components.css";
+    pub const TOKENS_JSON: &str = "design/tokens/tokens.json";
+    /// The brief `dfw init` creates and `dfw style match` reads.
+    pub const BRIEF: &str = "design/system/brief.json";
+    /// A project's own style guide file (core/workflow/references/phase-direction.md).
+    pub const STYLE_SOURCE: &str = "design/system/style-source.json";
+    /// Where `dfw tokens extract` writes its seed by default.
+    pub const EXTRACTED_TOKENS: &str = "design/system/extracted.tokens.json";
+    /// The built Design System page.
+    pub const SYSTEM_PAGE: &str = "design/system/index.html";
+
+    /// A master file (`button.html`) of `design/system/components/`.
+    pub fn component(file: &str) -> String {
+        format!("{COMPONENTS}/{file}")
+    }
+
+    /// `rel` is inside the folder `dir` (a `/`-separated project-relative path).
+    pub fn under(dir: &str, rel: &str) -> bool {
+        rel.strip_prefix(dir).is_some_and(|r| r.starts_with('/'))
+    }
+}
+
 /// Well-known files and folders of a project (`projectPaths`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProjectPaths {
@@ -142,12 +201,34 @@ pub struct ProjectPaths {
     pub tokens: PathBuf,
     pub approved: PathBuf,
     pub handoff: PathBuf,
+    /// `design/system`.
+    pub system: PathBuf,
+    /// `design/system/components`: the masters.
+    pub components: PathBuf,
+    /// `design/system/icons`.
+    pub icons: PathBuf,
+    /// `design/system/head.html`: the font links every page loads.
+    pub head: PathBuf,
+    /// `design/system/style.json`: the applied style guide.
+    pub style: PathBuf,
+    /// `design/system/inventory.json`.
+    pub inventory: PathBuf,
+    /// `design/system/components.css`, generated from the masters.
+    pub components_css: PathBuf,
+    /// `design/tokens/tokens.json`.
+    pub tokens_json: PathBuf,
+    /// `design/tokens/tokens.css`, generated from the tokens.
+    pub tokens_css: PathBuf,
+    /// `design/tokens/themes`.
+    pub themes: PathBuf,
 }
 
 /// `projectPaths(root)`.
 pub fn project_paths(root: &Path) -> ProjectPaths {
     let dfw = root.join(".dfw");
-    let design = root.join("design");
+    let design = root.join(file::DESIGN);
+    let system = design.join(file::SYSTEM);
+    let tokens = design.join(file::TOKENS);
     ProjectPaths {
         root: root.to_path_buf(),
         state: dfw.join("state.json"),
@@ -159,9 +240,19 @@ pub fn project_paths(root: &Path) -> ProjectPaths {
         studio: dfw.join("studio.json"),
         checks: dfw.join("checks"),
         manifest: design.join("design.json"),
-        tokens: design.join("tokens"),
         approved: design.join("approved"),
         handoff: design.join("handoff"),
+        components: system.join(file::COMPONENTS),
+        icons: system.join(file::ICONS),
+        head: system.join(file::HEAD),
+        style: system.join(file::STYLE),
+        inventory: system.join(file::INVENTORY),
+        components_css: system.join(file::COMPONENTS_CSS),
+        tokens_json: tokens.join(file::TOKENS_JSON),
+        tokens_css: tokens.join(file::TOKENS_CSS),
+        themes: tokens.join(file::THEMES),
+        system,
+        tokens,
         dfw,
         design,
     }
@@ -391,6 +482,48 @@ mod tests {
         );
         assert_eq!(p.approved, Path::new("r").join("design").join("approved"));
         assert_eq!(p.handoff, Path::new("r").join("design").join("handoff"));
+    }
+
+    /// The paths of the design system and their project-relative spellings name one place.
+    #[test]
+    fn design_system_paths_match_their_relative_names() {
+        let root = Path::new("r");
+        let p = project_paths(root);
+        let pairs = [
+            (&p.system, rel::SYSTEM),
+            (&p.tokens, rel::TOKENS),
+            (&p.components, rel::COMPONENTS),
+            (&p.icons, rel::ICONS),
+            (&p.themes, rel::THEMES),
+            (&p.head, rel::HEAD),
+            (&p.style, rel::STYLE),
+            (&p.inventory, rel::INVENTORY),
+            (&p.components_css, rel::COMPONENTS_CSS),
+            (&p.tokens_json, rel::TOKENS_JSON),
+        ];
+        for (path, name) in pairs {
+            assert_eq!(*path, root.join(name), "{name}");
+        }
+        assert_eq!(p.tokens_css, p.design.join(in_design::TOKENS_CSS));
+        for (inside, name) in [
+            (in_design::HEAD, rel::HEAD),
+            (in_design::COMPONENTS_CSS, rel::COMPONENTS_CSS),
+            (in_design::TOKENS_JSON, rel::TOKENS_JSON),
+        ] {
+            assert_eq!(format!("{}/{inside}", file::DESIGN), name);
+        }
+        for name in [
+            rel::BRIEF,
+            rel::STYLE_SOURCE,
+            rel::EXTRACTED_TOKENS,
+            rel::SYSTEM_PAGE,
+        ] {
+            assert!(rel::under(rel::SYSTEM, name), "{name}");
+        }
+        assert_eq!(rel::component("a.html"), "design/system/components/a.html");
+        assert!(rel::under(rel::COMPONENTS, &rel::component("a.html")));
+        assert!(!rel::under(rel::SYSTEM, "design/systemx/a"));
+        assert!(!rel::under(rel::SYSTEM, rel::SYSTEM));
     }
 
     #[test]

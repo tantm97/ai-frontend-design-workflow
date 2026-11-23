@@ -15,7 +15,7 @@ use crate::core::error::exit;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::level::{self, Level};
-use crate::core::paths::project_paths;
+use crate::core::paths::{project_paths, rel};
 use crate::core::process::is_alive;
 use crate::core::util::{
     append_jsonl_inside, now_iso, out, parse_value, read_json, to_json_compact, to_json_pretty,
@@ -24,7 +24,7 @@ use crate::core::util::{
 use crate::design::compose::{build_system, load_components};
 use crate::design::dsaudit::audit_design_system;
 use crate::design::inventory::DS_GATE_RULES;
-use crate::design::tokens::{build_tokens, dir_names};
+use crate::design::tokens::{build_tokens, dir_names, option};
 use crate::review::comments::{add_comment, all_comments};
 use crate::review::status::{self, Status};
 use crate::tools::check::{format_report, run_checks, CheckOptions};
@@ -255,7 +255,7 @@ fn next_step(
         "direction" => "present directions; record the choice with \"dfw approve G1 --note ...\"",
         "system" if ds => "\"dfw phase concepts\"",
         "system" if components > 0 => "review the Design System page in the studio; when the user approves: \"dfw approve DS --note ...\"",
-        "system" => "build the design system: \"dfw system init --style <id>\", list the components the product needs in design/system/inventory.json, then design each master",
+        "system" => return Some(format!("build the design system: \"dfw system init --style <id>\", list the components the product needs in {}, then design each master", rel::INVENTORY)),
         "concepts" if active > 0 => return Some(format!("apply {active} open review comment(s)")),
         "concepts" if fixed > 0 => "ask the user to verify fixed comments in the studio",
         "concepts" if approved => "design approved; \"dfw phase stack\"",
@@ -299,18 +299,14 @@ fn phase(ctx: &Ctx) -> Result<i32, DfwError> {
 /// rationale and the inventory rules as MUST; no preset option is left undecided.
 fn approve_ds(root: &Path, a: &Args) -> Result<(), DfwError> {
     if load_components(root)?.is_empty() {
-        return Err(DfwError::new("DS needs a design system: component masters in design/system/components/, designed from design/system/inventory.json (start with \"dfw system init\")."));
+        return Err(DfwError::new(format!("DS needs a design system: component masters in {}/, designed from {} (start with \"dfw system init\").", rel::COMPONENTS, rel::INVENTORY)));
     }
     build_system(root)?;
     let config = load_config(Some(root))?;
     let p = project_paths(root);
-    let mut targets = vec!["design/tokens/tokens.json".to_string()];
-    let masters = dir_names(&p.design.join("system").join("components"))?;
-    targets.extend(
-        masters
-            .iter()
-            .map(|f| format!("design/system/components/{f}")),
-    );
+    let mut targets = vec![rel::TOKENS_JSON.to_string()];
+    let masters = dir_names(&p.components)?;
+    targets.extend(masters.iter().map(|f| rel::component(f)));
     let opts = CheckOptions {
         timeout_ms: Some(30000),
         tools: Some(&["dfw"]),
@@ -332,11 +328,9 @@ fn approve_ds(root: &Path, a: &Args) -> Result<(), DfwError> {
             report.errors, report.text
         )));
     }
-    let options = dir_names(&p.tokens.join("themes"))?
-        .iter()
-        .any(|f| f.starts_with("opt-"));
+    let options = dir_names(&p.themes)?.iter().any(|f| option::is_option(f));
     if options && !a.truthy("force") {
-        return Err(DfwError::new("Preset options are still active (opt-* themes). Promote the chosen one first: dfw system choose <preset>."));
+        return Err(DfwError::new(format!("Preset options are still active ({}* themes). Promote the chosen one first: dfw system choose <preset>.", option::PREFIX)));
     }
     Ok(())
 }

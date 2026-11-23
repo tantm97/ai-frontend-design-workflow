@@ -23,7 +23,7 @@ pub use self::report::{check_exit_code, format_report};
 use crate::core::config::env_map;
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::{canonicalize, project_paths, resolve, to_posix};
+use crate::core::paths::{canonicalize, project_paths, rel, resolve, to_posix};
 use crate::core::process::{node_executable, plan_for, run_timed, Ran, Spawn};
 use crate::core::util::read_json;
 use crate::design::compose::{build_composed, build_system};
@@ -549,7 +549,7 @@ fn tool_targets(root: &Path, external: Vec<String>) -> Result<(Vec<String>, Comp
             expanded.push(t);
         }
     }
-    expanded.retain(|t| !t.starts_with("design/system/components/"));
+    expanded.retain(|t| !rel::under(rel::COMPONENTS, t));
     let mut composed = Composed::new();
     let mut targets = Vec::new();
     for t in expanded {
@@ -664,7 +664,7 @@ pub fn run_checks_with(
         results.push(result("dfw-lint", "ran", None, findings));
         let system_touched = lint_targets.as_ref().is_none_or(|list| {
             list.iter()
-                .any(|t| t.starts_with("design/tokens/") || t.starts_with("design/system/"))
+                .any(|t| rel::under(rel::TOKENS, t) || rel::under(rel::SYSTEM, t))
         });
         if system_touched {
             results.push(result(

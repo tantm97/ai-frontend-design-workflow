@@ -41,17 +41,17 @@ pub fn render_system_page(root: &Path, design_base: &str) -> Result<String, DfwE
     let tokens = Tokens::new(&all);
     let lib = load_components(root)?;
     let icons = list_icons(root)?;
-    let head_file = p.design.join("system").join("head.html");
+    let head_file = &p.head;
     let head = if head_file.exists() {
-        js::read_text(&head_file)?.replace("{{base}}", design_base)
+        js::read_text(head_file)?.replace("{{base}}", design_base)
     } else {
         String::new()
     };
     let vars = Vars::load(root)?;
     let inline = Inline::new()?;
-    let style_file = p.design.join("system").join("style.json");
+    let style_file = &p.style;
     let style = if style_file.exists() {
-        js::read_json(&style_file, Some(Value::Null))?
+        js::read_json(style_file, Some(Value::Null))?
     } else {
         Value::Null
     };

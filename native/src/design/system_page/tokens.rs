@@ -17,7 +17,7 @@ use crate::design::tokens::{dir_names, file_declarations};
 
 /// `loadTokens`: the tokens of every `design/tokens/*.json`.
 pub(super) fn load_tokens(root: &Path) -> Result<Vec<TokenEntry>, DfwError> {
-    let dir = project_paths(root).design.join("tokens");
+    let dir = project_paths(root).tokens;
     let mut out = Vec::new();
     for f in dir_names(&dir)? {
         if f.ends_with(".json") {
@@ -36,10 +36,7 @@ pub(super) struct Vars {
 
 impl Vars {
     pub(super) fn load(root: &Path) -> Result<Vars, DfwError> {
-        let file = project_paths(root)
-            .design
-            .join("tokens")
-            .join("tokens.json");
+        let file = project_paths(root).tokens_json;
         let tree = if file.exists() {
             js::read_json(&file, Some(json!({})))?
         } else {

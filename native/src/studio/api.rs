@@ -15,7 +15,7 @@ use crate::design::pages::{screen_flows, studio_pages};
 
 use crate::core::error::DfwError;
 use crate::core::js::regex::with_js_classes;
-use crate::core::paths::{project_paths, resolve_inside, to_posix};
+use crate::core::paths::{in_design, project_paths, rel, resolve_inside, to_posix};
 use crate::core::util::{get_path, list_files, read_json};
 use crate::design::compose::{compose_html, load_components, ComposeOptions};
 use crate::design::edit::load_token_names;
@@ -256,7 +256,7 @@ pub fn token_list(root: &Path) -> Result<Value, DfwError> {
     for x in &out {
         seen.push(js::to_string(x.get("var")));
     }
-    let css = project_paths(root).tokens.join("tokens.css");
+    let css = project_paths(root).tokens_css;
     if css.exists() {
         let text = js::read_text(&css)?;
         let decl = TOKEN_DECL
@@ -306,8 +306,11 @@ pub fn prepare_html(root: &Path, html: &str) -> Result<String, DfwError> {
         },
     )?;
     let mut out = r.html;
-    if !r.instances.is_empty() && !out.contains("system/components.css") {
-        let link = format!(r#"<link rel="stylesheet" href="{DESIGN_BASE}system/components.css">"#);
+    if !r.instances.is_empty() && !out.contains(in_design::COMPONENTS_CSS) {
+        let link = format!(
+            r#"<link rel="stylesheet" href="{DESIGN_BASE}{}">"#,
+            in_design::COMPONENTS_CSS
+        );
         out = match find_ci(&out, "</head>", false) {
             Some(i) => format!("{}{link}{}", &out[..i], &out[i..]),
             None => link + &out,
@@ -344,13 +347,17 @@ pub fn fallback_system_page(root: &Path) -> Result<String, DfwError> {
         })
         .collect();
     let sections = if sections.is_empty() {
-        "<p>No components yet. Add masters to <code>design/system/components/</code>.</p>"
-            .to_string()
+        format!(
+            "<p>No components yet. Add masters to <code>{}/</code>.</p>",
+            rel::COMPONENTS
+        )
     } else {
         sections.join("\n")
     };
     Ok(format!(
-        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Design System</title>\n<link rel=\"stylesheet\" href=\"{DESIGN_BASE}tokens/tokens.css\"><link rel=\"stylesheet\" href=\"{DESIGN_BASE}system/components.css\">\n</head><body style=\"margin:0;padding:48px;font-family:system-ui,sans-serif\">\n<h1 data-dfw-id=\"system.title\">Design System</h1>\n{sections}\n</body></html>"
+        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Design System</title>\n<link rel=\"stylesheet\" href=\"{DESIGN_BASE}{tokens_css}\"><link rel=\"stylesheet\" href=\"{DESIGN_BASE}{components_css}\">\n</head><body style=\"margin:0;padding:48px;font-family:system-ui,sans-serif\">\n<h1 data-dfw-id=\"system.title\">Design System</h1>\n{sections}\n</body></html>",
+        tokens_css = in_design::TOKENS_CSS,
+        components_css = in_design::COMPONENTS_CSS,
     ))
 }
 
@@ -384,7 +391,7 @@ pub fn design_file(root: &Path, rel: &str) -> Result<DesignFile, DfwError> {
         return Ok(DesignFile::Missing);
     };
     // Pages link the generated component CSS even before any component exists.
-    if rel == "system/components.css" && !abs.exists() {
+    if rel == in_design::COMPONENTS_CSS && !abs.exists() {
         return Ok(DesignFile::Found(
             b"/* no components yet */".to_vec(),
             "text/css; charset=utf-8",

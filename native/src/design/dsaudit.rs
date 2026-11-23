@@ -16,10 +16,10 @@ use super::inventory::inventory_findings;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::level::Level;
-use crate::core::paths::project_paths;
+use crate::core::paths::{project_paths, rel};
 use crate::core::util::read_json;
 
-const TOKENS_FILE: &str = "design/tokens/tokens.json";
+const TOKENS_FILE: &str = rel::TOKENS_JSON;
 
 const ROLES: [&str; 20] = [
     "canvas",
@@ -187,7 +187,7 @@ fn max_min(items: &[Value]) -> (f64, f64) {
 /// A token value of the wrong type: the audit stops (a token file of the wrong shape never
 /// passes a gate).
 fn malformed(what: &str) -> DfwError {
-    super::malformed("design/tokens/tokens.json", what)
+    super::malformed(TOKENS_FILE, what)
 }
 
 /// A shadow whose every layer is a neutral near-black. Like `every`, it stops at the first
@@ -320,12 +320,12 @@ fn add_all(findings: &mut Vec<Value>, found: Vec<Value>) {
 /// Nothing when the project has no `design/tokens/tokens.json`.
 pub fn audit_design_system(root: &Path) -> Result<Vec<Value>, DfwError> {
     let p = project_paths(root);
-    let file = p.tokens.join("tokens.json");
+    let file = &p.tokens_json;
     let mut findings = Vec::new();
     if !file.exists() {
         return Ok(findings);
     }
-    let tree = read_json(&file, Some(json!({})))?;
+    let tree = read_json(file, Some(json!({})))?;
     let tokens = collect(&tree);
     let r = Resolver { tokens: &tokens };
 

@@ -31,6 +31,7 @@ use super::tokens::{
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::js::regex::fixed_regex;
+use crate::core::paths::rel;
 use crate::core::util::{now_iso, read_json, sha256, to_json_compact, write_json_inside};
 use crate::design::compose::{load_components, Library};
 use crate::design::tokens::relative_path;
@@ -358,7 +359,7 @@ fn component_comment(root: &Path, cs: &[Value], lib: Option<&Library>, gate_note
     let part = |key: &str| js::to_string(comp.get(key));
     let location = |c: &Value| {
         master_source(root, c, lib).unwrap_or_else(|| MasterSource {
-            file: format!("design/system/components/{}.html", part("name")),
+            file: rel::component(&format!("{}.html", part("name"))),
             source: None,
         })
     };

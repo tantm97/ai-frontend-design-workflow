@@ -15,7 +15,7 @@ use crate::core::error::exit;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::level::{self, Level};
-use crate::core::paths::{project_paths, resolve};
+use crate::core::paths::{project_paths, rel, resolve};
 use crate::core::util::{
     out, to_json_compact, to_json_pretty, write_atomic_inside, write_json_inside, ArgValue, Args,
 };
@@ -33,6 +33,7 @@ use crate::design::lint::{
 use crate::design::manifest::{self, key};
 use crate::design::style::{
     apply_style, format_style, get_style, list_styles, match_styles, search_styles, AXES,
+    MOTIF_FILE,
 };
 use crate::design::system::{
     list_presets, system_choose, system_init, system_options, system_summary, InitOptions,
@@ -128,7 +129,12 @@ fn tokens_extract(ctx: &Ctx) -> Result<i32, DfwError> {
     // `--url` alone never gets here (`require_flag_values`).
     let url = match a.text("url") {
         Some(url) if !url.is_empty() => url,
-        _ => return usage("Usage: dfw tokens extract --url <reference site or running app> [--out design/system/extracted.tokens.json]"),
+        _ => {
+            return usage(&format!(
+                "Usage: dfw tokens extract --url <reference site or running app> [--out {}]",
+                rel::EXTRACTED_TOKENS
+            ))
+        }
     };
     if !crate::browser::launch::browser_status().installed() {
         return Err(DfwError::new(
@@ -166,8 +172,9 @@ fn build(ctx: &Ctx) -> Result<i32, DfwError> {
     };
     let components = if sys.components > 0 {
         format!(
-            "; {} component(s) -> design/system/components.css",
-            sys.components
+            "; {} component(s) -> {}",
+            sys.components,
+            rel::COMPONENTS_CSS
         )
     } else {
         String::new()
@@ -356,7 +363,7 @@ fn system(ctx: &Ctx) -> Result<i32, DfwError> {
         }
         "choose" => {
             let chosen = system_choose(&root, a.pos(2).unwrap_or("undefined"), fonts_arg(a))?;
-            out(&format!("Tokens now come from \"{chosen}\". Adapt design/tokens/tokens.json to the direction, then review the Design System page."));
+            out(&format!("Tokens now come from \"{chosen}\". Adapt {} to the direction, then review the Design System page.", rel::TOKENS_JSON));
             Ok(0)
         }
         "audit" => system_audit(&root, a),
@@ -384,7 +391,7 @@ fn system_presets() -> Result<i32, DfwError> {
 /// `dfw system init [--preset <p>] [--style <s>] [--fonts ...] [--force]`.
 fn system_init_cmd(root: &Path, a: &Args) -> Result<i32, DfwError> {
     if a.truthy("only") {
-        return usage("--only was removed: components are no longer copied from the kit. List what the product needs in design/system/inventory.json and design each master; read a kit master for its states with \"dfw system ref <name>\".");
+        return usage(&format!("--only was removed: components are no longer copied from the kit. List what the product needs in {} and design each master; read a kit master for its states with \"dfw system ref <name>\".", rel::INVENTORY));
     }
     let r = system_init(
         root,
@@ -395,10 +402,11 @@ fn system_init_cmd(root: &Path, a: &Args) -> Result<i32, DfwError> {
             force: a.truthy("force"),
         },
     )?;
-    out(&format!("Design system from \"{}\": tokens {}; {}. No components were copied. Next: list every component the product needs (name, purpose, usedBy, states) in design/system/inventory.json, then design each master for this product (\"dfw system ref <name>\" shows a kit master as a states checklist).",
+    out(&format!("Design system from \"{}\": tokens {}; {}. No components were copied. Next: list every component the product needs (name, purpose, usedBy, states) in {}, then design each master for this product (\"dfw system ref <name>\" shows a kit master as a states checklist).",
         r.preset,
         if r.tokens_written { "written" } else { "kept (pass --force to replace)" },
-        if r.inventory_created { "design/system/inventory.json created" } else { "inventory kept" }));
+        if r.inventory_created { format!("{} created", rel::INVENTORY) } else { "inventory kept".to_string() },
+        rel::INVENTORY));
     Ok(0)
 }
 
@@ -530,7 +538,7 @@ fn system_inventory(root: &Path, a: &Args) -> Result<i32, DfwError> {
         })
         .collect();
     let table = if rows.is_empty() {
-        "Inventory is empty: design/system/inventory.json".to_string()
+        format!("Inventory is empty: {}", rel::INVENTORY)
     } else {
         rows.join("\n")
     };
@@ -601,11 +609,11 @@ fn style(ctx: &Ctx) -> Result<i32, DfwError> {
             });
         }
         "match" => {
-            let brief_arg = flag(a, "brief").unwrap_or_else(|| "design/system/brief.json".into());
+            let brief_arg = flag(a, "brief").unwrap_or_else(|| rel::BRIEF.into());
             let file = resolve(root.join(brief_arg));
             let brief = js::read_json(&file, Some(Value::Null))?;
             if !js::truthy(Some(&brief)) {
-                return usage(&format!("Brief not found: {} (template: dfw init creates design/system/brief.json).", relative_path(&root, &file)));
+                return usage(&format!("Brief not found: {} (template: dfw init creates {}).", relative_path(&root, &file), rel::BRIEF));
             }
             let res = limit(match_styles(&brief)?);
             if a.truthy("json") {
@@ -650,16 +658,19 @@ fn style(ctx: &Ctx) -> Result<i32, DfwError> {
             out(&lines.join("\n"));
         }
         "apply" => {
-            let r = apply_style(&root, a.pos(2).unwrap_or("undefined"), fonts_arg(a))?;
+            let id = a.pos(2).unwrap_or("undefined");
+            let r = apply_style(&root, id, fonts_arg(a))?;
             build_tokens(&root)?;
             build_system(&root)?;
-            let has_motifs = get_style(&r.id)?
+            // The argument, not the guide's own id: a project guide file is not in the library.
+            let has_motifs = get_style(id)?
                 .get("motifs")
                 .and_then(Value::as_array)
                 .is_some_and(|m| !m.is_empty());
-            out(&format!("Applied style \"{}\" (fonts: {} / {} / {}). Wrote design/tokens/tokens.json, design/system/head.html, design/system/style.json{}.",
+            out(&format!("Applied style \"{}\" (fonts: {} / {} / {}). Wrote {}, {}, {}{}.",
                 r.id, text(&r.fonts, "display"), text(&r.fonts, "body"), text(&r.fonts, "mono"),
-                if has_motifs { ", design/system/components/motif.html" } else { "" }));
+                rel::TOKENS_JSON, rel::HEAD, rel::STYLE,
+                if has_motifs { format!(", {}", rel::component(MOTIF_FILE)) } else { String::new() }));
         }
         _ => return usage("Usage: dfw style list | search <words> | match [--brief f] | show <id> [--json] | apply <id|file.json> [--fonts latin]"),
     }
@@ -687,7 +698,7 @@ fn type_scale(ctx: &Ctx) -> Result<i32, DfwError> {
     );
     let write = a.truthy("write");
     if write {
-        let file = project_paths(&root).tokens.join("tokens.json");
+        let file = project_paths(&root).tokens_json;
         let mut t = js::read_json(&file, None)?;
         let old_font = t.get("font").filter(|f| js::truthy(Some(f))).cloned();
         let mut font = old_font
@@ -716,9 +727,10 @@ fn type_scale(ctx: &Ctx) -> Result<i32, DfwError> {
         match t.as_object_mut() {
             Some(tree) => tree.insert("font".into(), Value::Object(font)),
             None => {
-                return Err(DfwError::internal(
-                    "design/tokens/tokens.json is not a JSON object.",
-                ))
+                return Err(DfwError::internal(format!(
+                    "{} is not a JSON object.",
+                    rel::TOKENS_JSON
+                )))
             }
         };
         write_json_inside(&root, &file, &js::key_order(t))?;
@@ -736,9 +748,9 @@ fn type_scale(ctx: &Ctx) -> Result<i32, DfwError> {
         row(&ts.ui),
         row(&ts.display),
         if write {
-            "\nWritten to design/tokens/tokens.json."
+            format!("\nWritten to {}.", rel::TOKENS_JSON)
         } else {
-            ""
+            String::new()
         }
     ));
     Ok(0)
@@ -943,8 +955,9 @@ fn icons(ctx: &Ctx) -> Result<i32, DfwError> {
         "add" => {
             let r = add_icons(&root, &rest(ctx))?;
             let mut lines = vec![format!(
-                "Added {} icon(s) to design/system/icons/.",
-                r.added.len()
+                "Added {} icon(s) to {}/.",
+                r.added.len(),
+                rel::ICONS
             )];
             for m in &r.missing {
                 let similar = r
@@ -964,7 +977,7 @@ fn icons(ctx: &Ctx) -> Result<i32, DfwError> {
             }
         }
         "list" => {
-            let dir = project_paths(&root).design.join("system").join("icons");
+            let dir = project_paths(&root).icons;
             let names: Vec<String> = dir_names(&dir)?
                 .iter()
                 .filter_map(|f| f.strip_suffix(".svg").map(str::to_string))

@@ -20,7 +20,7 @@ use super::html::{element_at, escape_html, line_of, parse_attrs, Attr, Tag, Toke
 use super::tokens::{dir_names, relative_path};
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::{project_paths, resolve, to_posix};
+use crate::core::paths::{in_design, project_paths, rel, resolve, to_posix};
 
 /// Attributes of `<dfw-use>` that are not props and are not copied to the root element.
 const RESERVED: [&str; 6] = ["c", "component", "variant", "size", "id", "class"];

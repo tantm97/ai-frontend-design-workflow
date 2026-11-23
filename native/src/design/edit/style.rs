@@ -82,7 +82,7 @@ pub fn set_style_prop(style: &str, prop: &str, value: Option<&str>) -> String {
 /// `loadTokenNames`: the tokens of `design/tokens/tokens.json` by name, in file order (a `Map`
 /// in the Node code: a repeated name keeps its first place and takes the later token).
 pub fn load_token_names(root: &Path) -> Result<Vec<TokenEntry>, DfwError> {
-    let file = project_paths(root).tokens.join("tokens.json");
+    let file = project_paths(root).tokens_json;
     let tree = js::read_json(&file, Some(Value::Null))?;
     let mut names: Vec<TokenEntry> = Vec::new();
     for token in collect_tokens(&tree) {

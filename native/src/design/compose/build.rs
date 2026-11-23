@@ -27,7 +27,7 @@ pub fn compose_file(root: &Path, rel: &str) -> Result<ComposedFile, DfwError> {
         },
     )?;
     let needs_components_css =
-        !text.contains("system/components.css") && !composed.instances.is_empty();
+        !text.contains(in_design::COMPONENTS_CSS) && !composed.instances.is_empty();
     Ok(ComposedFile {
         composed,
         needs_components_css,
@@ -50,7 +50,7 @@ pub fn build_system(root: &Path) -> Result<BuiltSystem, DfwError> {
     let mut written = Vec::new();
     if !lib.is_empty() {
         fs::create_dir_all(&sys)?;
-        let file = sys.join("components.css");
+        let file = project_paths(root).components_css;
         let css = components_css(&lib);
         if !file.exists() || js::read_text(&file)? != css {
             write_atomic_inside(root, &file, css)?;
