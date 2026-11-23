@@ -1,6 +1,7 @@
 //! Shared foundations: errors, JSON io, paths, globs, argument parsing, configuration, hosts.
 
 pub mod config;
+pub mod encoding;
 pub mod error;
 pub mod host;
 pub mod http;

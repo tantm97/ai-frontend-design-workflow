@@ -36,7 +36,10 @@ use crate::design::tokens::relative_path;
 use crate::review::comments::add_comment;
 
 // A constant pattern: it compiles, and every test that reaches it proves so.
-#[allow(clippy::expect_used)]
+#[allow(
+    clippy::expect_used,
+    reason = "A constant pattern: it compiles, and every test that reaches it proves so"
+)]
 static EXPORT_ID: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^px_[0-9A-Za-z_]+$").expect("constant pattern"));
 
@@ -541,7 +544,10 @@ fn ledger_has(ledger: &[Value], fingerprint: &str) -> bool {
 /// ledger, thread links and the token diff file; never edits `design/`.
 // Long: the steps share the ledger, the thread links and the result, and their order is the
 // order files are written in (comments, ledger, threads, archive).
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "long function kept as ported; split it when it next changes (A10)"
+)]
 pub fn import_changes(
     root: &Path,
     changes: &mut Value,

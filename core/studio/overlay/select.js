@@ -6,6 +6,8 @@ import { info, labelOf, rectOf } from './target.js';
 import { inspect } from './tokens.js';
 import { editTarget } from './edit.js';
 import { placeHandles } from './layout.js';
+import { MSG } from '../shared/protocol.js';
+import { MODE } from '../shared/enums.js';
 
 /** What the Studio needs to show a selected element. */
 function selPayload(/** @type {HTMLElement} */ el, /** @type {boolean} */ withInspect) {
@@ -34,13 +36,13 @@ function selPayload(/** @type {HTMLElement} */ el, /** @type {boolean} */ withIn
 export function select(el, { inspectIt = true, scroll = false } = {}) {
   st.selected = el;
   placeHandles();
-  if (!el) return post('dfw:select', { target: null });
+  if (!el) return post(MSG.SELECT, { target: null });
   if (scroll) el.scrollIntoView({ block: 'nearest' });
-  post('dfw:select', { comment: st.mode === 'comment', ...selPayload(el, inspectIt && st.mode !== 'comment') });
+  post(MSG.SELECT, { comment: st.mode === MODE.COMMENT, ...selPayload(el, inspectIt && st.mode !== MODE.COMMENT) });
 }
 
 export function reportSelection() {
-  if (st.selected && st.selected.isConnected) post('dfw:sel-rect', { rect: rectOf(st.selected) });
+  if (st.selected && st.selected.isConnected) post(MSG.SEL_RECT, { rect: rectOf(st.selected) });
   placeHandles();
 }
 
@@ -57,10 +59,10 @@ export function reportPins() {
     } catch {}
     if (el && el.getClientRects().length) out.push({ id: p.id, rect: rectOf(el) });
   }
-  post('dfw:pin-rects', { pins: out });
+  post(MSG.PIN_RECTS, { pins: out });
 }
 
 export function reportSize() {
   const d = document.documentElement;
-  post('dfw:size', { h: Math.max(d.scrollHeight, document.body ? document.body.scrollHeight : 0), title: document.title });
+  post(MSG.SIZE, { h: Math.max(d.scrollHeight, document.body ? document.body.scrollHeight : 0), title: document.title });
 }

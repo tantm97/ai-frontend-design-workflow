@@ -9,8 +9,11 @@ import { reportPins, select } from './select.js';
 import { layoutKey, placeHandles } from './layout.js';
 import { verifyLayout } from './verify.js';
 import { softReload } from './update.js';
+import { MSG } from '../shared/protocol.js';
+import { MODE } from '../shared/enums.js';
+import { TEXT } from '../shared/text.js';
 
-const interactive = () => st.mode === 'select' || st.mode === 'comment';
+const interactive = () => st.mode === MODE.SELECT || st.mode === MODE.COMMENT;
 
 /** The element with this data-dfw-id (or matching the selector), or null; a bad selector is no match. */
 function find(/** @type {{ dfwId?: string, selector?: string, component?: string }} */ d) {
@@ -31,72 +34,63 @@ function find(/** @type {{ dfwId?: string, selector?: string, component?: string
  * @type {Record<string, (d: any) => void>}
  */
 const ON = {
-  'dfw:env': (d) => {
-    if (d.theme) document.documentElement.dataset.theme = d.theme;
-    else delete document.documentElement.dataset.theme;
-    if (d.state) document.documentElement.dataset.state = d.state;
-    else delete document.documentElement.dataset.state;
-  },
-  'dfw:mode': (d) => {
+  [MSG.MODE]: (d) => {
     st.mode = d.mode;
     if (!interactive()) {
       st.hoverEl = null;
-      post('dfw:hover', { rect: null });
+      post(MSG.HOVER, { rect: null });
     }
-    document.documentElement.style.cursor = st.mode === 'comment' ? 'crosshair' : '';
+    document.documentElement.style.cursor = st.mode === MODE.COMMENT ? 'crosshair' : '';
     placeHandles();
   },
-  'dfw:layout': (d) => {
+  [MSG.LAYOUT]: (d) => {
     st.layoutCfg = { enabled: !!d.enabled, scope: d.scope || '' };
     placeHandles();
   },
-  'dfw:layout-key': (d) => layoutKey(d.key, !!d.shift),
-  'dfw:layout-verify': verifyLayout,
-  'dfw:tokens': (d) => {
+  [MSG.LAYOUT_KEY]: (d) => layoutKey(d.key, !!d.shift),
+  [MSG.LAYOUT_VERIFY]: verifyLayout,
+  [MSG.TOKENS]: (d) => {
     st.tokenVars = d.vars || [];
     st.tokenCache = null;
   },
-  'dfw:pins': (d) => {
+  [MSG.PINS]: (d) => {
     st.pins = d.pins || [];
     reportPins();
   },
-  'dfw:layers': () =>
-    post('dfw:layers', { tree: buildLayers(), selected: st.selected ? (st.layerNode.get(st.selected)?.node.i ?? null) : null }),
-  'dfw:layer-hover': (d) => {
+  [MSG.LAYERS]: () =>
+    post(MSG.LAYERS, { tree: buildLayers(), selected: st.selected ? (st.layerNode.get(st.selected)?.node.i ?? null) : null }),
+  [MSG.LAYER_HOVER]: (d) => {
     const el = st.layerEls[d.i];
-    post('dfw:hover', el ? { rect: rectOf(el), label: labelOf(el), comp: !!el.dataset.dfwComponent } : { rect: null });
+    post(MSG.HOVER, el ? { rect: rectOf(el), label: labelOf(el), comp: !!el.dataset.dfwComponent } : { rect: null });
   },
-  'dfw:layer-select': (d) => {
+  [MSG.LAYER_SELECT]: (d) => {
     if (st.layerEls[d.i]) select(st.layerEls[d.i], { scroll: true });
   },
-  'dfw:select-id': (d) => {
+  [MSG.SELECT_ID]: (d) => {
     if (!st.layerEls.length) buildLayers();
     // A component name is not looked up here: only the id, else the selector.
     const el = /** @type {HTMLElement | null} */ (find({ dfwId: d.dfwId, selector: d.selector }));
     if (el) select(el, { scroll: !!d.scroll });
-    else if (d.required) post('dfw:toast', { message: `Element ${d.dfwId || d.selector} not found in this frame.` });
+    else if (d.required) post(MSG.TOAST, { message: TEXT.elementNotFound(d.dfwId || d.selector) });
   },
-  'dfw:clear-selection': () => {
+  [MSG.CLEAR_SELECTION]: () => {
     st.selected = null;
     if (st.editing) endEdit(false);
     placeHandles();
   },
-  'dfw:soft-reload': softReload,
-  'dfw:presence': (d) => {
+  [MSG.SOFT_RELOAD]: softReload,
+  [MSG.PRESENCE]: (d) => {
     // The id, else the component (no selector).
     const el = /** @type {HTMLElement | null} */ (find({ dfwId: d.dfwId, component: d.component }));
     post(
-      'dfw:presence',
+      MSG.PRESENCE,
       el && el.getClientRects().length ? { rect: rectOf(el), label: labelOf(el) } : { rect: null, fallback: !!d.fallback },
     );
   },
-  'dfw:reinspect': () => {
-    if (st.selected && st.selected.isConnected) select(st.selected);
-  },
-  'dfw:edit': () => {
+  [MSG.EDIT]: () => {
     if (st.selected) startEdit(st.selected);
   },
-  'dfw:nav': (d) => {
+  [MSG.NAV]: (d) => {
     if (!st.selected) return;
     const next = navLayer(d.dir);
     if (next) select(next, { scroll: true });

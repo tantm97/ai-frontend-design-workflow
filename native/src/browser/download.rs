@@ -166,8 +166,8 @@ fn install_from(
         check(&Value::String(landed.clone()))?; // a redirect must stay on the same host
                                                 // Chrome for Testing publishes no checksum for its archives: what was unpacked is
                                                 // recorded instead, so a later question "which file was this" has an answer.
-        fs::write(
-            dir.join("archive.json"),
+        crate::core::util::write_atomic(
+            &dir.join("archive.json"),
             to_json_pretty(
                 &json!({ "url": from, "landed": landed, "bytes": zip.len(), "sha256": sha256(&zip) }),
             ),
@@ -183,8 +183,8 @@ fn install_from(
         }
     }
     let exe_text = exe.display().to_string();
-    fs::write(
-        browser_dir.join("current.json"),
+    crate::core::util::write_atomic(
+        &browser_dir.join("current.json"),
         to_json_pretty(&json!({ "version": version, "platform": plat, "path": exe_text })),
     )?;
     Ok(json!({ "installed": true, "path": exe_text, "source": "downloaded", "version": version }))
@@ -228,6 +228,12 @@ fn unpack(zip_bytes: &[u8], dir: &Path) -> io::Result<()> {
             return Err(bad("the archive holds a symbolic link"));
         }
         let mode = entry.unix_mode();
+        // Streams one entry of the verified archive into the fresh folder it unpacks to
+        // (symbolic links were refused above); no reader looks at it before the unpack ends.
+        #[allow(
+            clippy::disallowed_methods,
+            reason = "streaming an archive entry into a fresh private folder"
+        )]
         let mut file = fs::File::create(&to)?;
         io::copy(&mut entry, &mut file)?;
         #[cfg(unix)]
@@ -345,7 +351,10 @@ mod tests {
     /// stored, and no second download once it is there.
     #[test]
     // One scenario end to end: the steps share the server and the folder they fill.
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "long function kept as ported; split it when it next changes (A10)"
+    )]
     fn install_from_a_local_index() {
         let home = test_dir("download").join("browser");
         let archive = zip_of(&[

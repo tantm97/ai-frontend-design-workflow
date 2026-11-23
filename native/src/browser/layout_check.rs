@@ -384,7 +384,7 @@ fn build_system_page(root: &Path) -> Result<PathBuf, DfwError> {
     let with_base = regex(r"(?i)<head([^>]*)>")?.replacen(&inlined, 1, |head: &Captures| {
         format!("<head{}><base href=\"{base}/\">", &head[1])
     });
-    fs::write(&sys_out, with_base.as_bytes())?;
+    crate::core::util::write_atomic_inside(root, &sys_out, with_base.as_bytes())?;
     Ok(sys_out)
 }
 

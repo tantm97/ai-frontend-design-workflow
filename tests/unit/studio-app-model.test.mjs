@@ -155,7 +155,7 @@ test('studio-app-model: layer parents, shot names, escaping', () => {
 });
 
 test('studio-app-model: statusLabel reads own keys only, so an unknown status comes back as its own text', () => {
-  assert.equal(statusLabel('open'), 'Open · waiting for Claude');
+  assert.equal(statusLabel('open'), 'Open · waiting for the AI');
   // Inherited keys of a plain object are not labels: 'constructor' gave the Object function before.
   for (const k of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) assert.equal(statusLabel(k), k);
   assert.equal(statusLabel(undefined), '');

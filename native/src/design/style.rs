@@ -328,7 +328,10 @@ fn group<'a>(tree: &'a mut Value, path: &[&str]) -> Result<&'a mut Map<String, V
 /// guide's colour, type, shape and elevation on top).
 // Over 120 lines: the token groups are written in one sequence, the key order of the
 // tokens.json users diff.
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "long function kept as ported; split it when it next changes (A10)"
+)]
 pub fn style_tokens(g: &Value, fonts: &str) -> Result<Value, DfwError> {
     let base = text(g.get("base"));
     let mut t = assets::json(Folder::Kits, &format!("base/presets/{base}.tokens.json"))?

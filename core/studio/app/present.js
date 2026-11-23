@@ -8,6 +8,10 @@ import { zoomToRect } from './canvas.js';
 import { updateHud } from './hud.js';
 import { closePop, pinsFor, renderPins, syncPins } from './pins.js';
 import { closeComposer } from './comments.js';
+import { MSG } from '../shared/protocol.js';
+import { PATH } from '../shared/paths.js';
+import { MODE } from '../shared/enums.js';
+import { TEXT } from '../shared/text.js';
 
 /** @param {string} href */
 function screenForHref(href) {
@@ -31,9 +35,9 @@ const presentList = () => [...S.frames.values()];
 /** Present a frame (the selected one, else the first). */
 export function openPresent(/** @type {any} */ f) {
   f = f || S.frames.get(S.sel?.key || S.selKey) || presentList()[0];
-  if (!f) return toast('Nothing to present on this page.');
+  if (!f) return toast(TEXT.nothingToPresent);
   P.open = true;
-  P.mode = 'present';
+  P.mode = MODE.PRESENT;
   P.system = !!f.system;
   P.screen = f.screen;
   P.variant = f.variant;
@@ -64,7 +68,7 @@ export function closePresent() {
 
 /** URL of what the presenter shows. */
 export function presentSrc() {
-  if (P.system) return '/__dfw/system.html';
+  if (P.system) return PATH.SYSTEM_PAGE;
   return frameSrc(P.file, P.state, S.theme);
 }
 
@@ -156,7 +160,7 @@ export function renderPresentBar() {
     `<option value="">default</option>` +
     themes.map((/** @type {string} */ t) => `<option ${t === S.theme ? 'selected' : ''}>${esc(t)}</option>`).join('');
   $('#p-open').href = presentSrc();
-  $('#p-comment').setAttribute('aria-pressed', String(P.mode === 'comment'));
+  $('#p-comment').setAttribute('aria-pressed', String(P.mode === MODE.COMMENT));
   $('#p-pins').setAttribute('aria-pressed', String(P.pins));
 }
 
@@ -180,10 +184,10 @@ export function presentStep(/** @type {number} */ dir) {
 /** 'present' (click through the prototype) or 'comment'. */
 export function setPresentMode(/** @type {string} */ mode) {
   P.mode = mode;
-  if (mode !== 'comment') closeComposer();
-  if (mode !== 'comment' && !P.pins) closePop();
-  if (P.loaded) post(P, { type: 'dfw:pins', pins: pinsFor(P) });
-  if (P.loaded) post(P, { type: 'dfw:mode', mode });
+  if (mode !== MODE.COMMENT) closeComposer();
+  if (mode !== MODE.COMMENT && !P.pins) closePop();
+  if (P.loaded) post(P, { type: MSG.PINS, pins: pinsFor(P) });
+  if (P.loaded) post(P, { type: MSG.MODE, mode });
   renderPresentBar();
 }
 
@@ -213,7 +217,7 @@ export function handleGoto(f, d) {
         P.system = false;
         return loadPresent();
       }
-      return toast(`No screen "${d.goto}".`);
+      return toast(TEXT.noScreen(d.goto));
     }
     P.system = false;
     P.screen = t.s;
@@ -223,7 +227,7 @@ export function handleGoto(f, d) {
     return loadPresent();
   }
   // On the canvas: jump to the target screen's frame (same breakpoint when possible).
-  if (!t) return toast(`Link target is not a screen in design.json: ${d.href || d.goto}`);
+  if (!t) return toast(TEXT.linkNotAScreen(d.href || d.goto));
   const pick = () => {
     const cands = [...S.frames.values()].filter((x) => x.screen === t.s && !x.state);
     return cands.find((x) => x.variant === t.v && x.bp?.id === f.bp?.id) || cands.find((x) => x.variant === t.v) || cands[0];
@@ -236,7 +240,7 @@ export function handleGoto(f, d) {
       target = pick();
     }
   }
-  if (!target) return toast(`${t.s.title || t.s.id} is not shown with the current breakpoints.`);
+  if (!target) return toast(TEXT.screenNotShown(t.s.title || t.s.id));
   selectFrame(target.key);
   zoomToRect([target.x, target.y, target.w, target.h], { max: S.cam.z > 0.5 ? S.cam.z : 0.5 });
   flash(target);
@@ -251,7 +255,7 @@ export function flash(/** @type {any} */ f) {
 
 export function toggleFullscreen() {
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-  else document.documentElement.requestFullscreen?.().catch(() => toast('Fullscreen is not available here.'));
+  else document.documentElement.requestFullscreen?.().catch(() => toast(TEXT.noFullscreen));
 }
 
 /** Keep the presenter's position in the frame list after a breakpoint or state change. */
@@ -271,7 +275,7 @@ export function initPresent() {
     layoutPresent();
   };
   $('#p-full').onclick = toggleFullscreen;
-  $('#p-comment').onclick = () => setPresentMode(P.mode === 'comment' ? 'present' : 'comment');
+  $('#p-comment').onclick = () => setPresentMode(P.mode === MODE.COMMENT ? MODE.PRESENT : MODE.COMMENT);
   $('#p-pins').onclick = () => togglePresentPins();
   $('#p-bp').onchange = (/** @type {any} */ e) => {
     P.bp = S.manifest.breakpoints.find((/** @type {any} */ b) => b.id === e.target.value) || P.bp;

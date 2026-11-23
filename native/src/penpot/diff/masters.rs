@@ -4,25 +4,40 @@
 use super::*;
 
 // A constant pattern: it compiles, and every test that reaches it proves so.
-#[allow(clippy::expect_used)]
+#[allow(
+    clippy::expect_used,
+    reason = "A constant pattern: it compiles, and every test that reaches it proves so"
+)]
 static RADIUS_NAME: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(^|\.)radius(\.|$)").expect("constant pattern"));
 // A constant pattern: it compiles, and every test that reaches it proves so.
-#[allow(clippy::expect_used)]
+#[allow(
+    clippy::expect_used,
+    reason = "A constant pattern: it compiles, and every test that reaches it proves so"
+)]
 static BORDER_NAME: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(border|stroke|focus)[.-]?width").expect("constant pattern"));
 // A constant pattern: it compiles, and every test that reaches it proves so.
-#[allow(clippy::expect_used)]
+#[allow(
+    clippy::expect_used,
+    reason = "A constant pattern: it compiles, and every test that reaches it proves so"
+)]
 static SPACE_NAME: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(^|\.)(space|spacing|gap|inset|padding)(\.|$)").expect("constant pattern")
 });
 // A constant pattern: it compiles, and every test that reaches it proves so.
-#[allow(clippy::expect_used)]
+#[allow(
+    clippy::expect_used,
+    reason = "A constant pattern: it compiles, and every test that reaches it proves so"
+)]
 static SIZE_NAME: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(^|\.)(size|sizing|width|height)(\.|$)").expect("constant pattern")
 });
 // A constant pattern: it compiles, and every test that reaches it proves so.
-#[allow(clippy::expect_used)]
+#[allow(
+    clippy::expect_used,
+    reason = "A constant pattern: it compiles, and every test that reaches it proves so"
+)]
 static MAIN_PREFIX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^main:[^#]*#").expect("constant pattern"));
 
@@ -181,7 +196,10 @@ pub(super) fn diff_components(
 
 /// The changes of one main component.
 // Long: one block per property the designer can change, in the order the changes are listed.
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "long function kept as ported; split it when it next changes (A10)"
+)]
 fn diff_component(
     c: &Value,
     cc: &Value,

@@ -2,3 +2,12 @@ too-many-lines-threshold = 120
 allow-unwrap-in-tests = true
 allow-expect-in-tests = true
 allow-panic-in-tests = true
+
+# Each entry is a §0 row turned into a check (docs/conventions/git-and-review.md G15): the
+# reason names the helper to use. A call that must stay is allowed in place with a reason.
+disallowed-methods = [
+  { path = "std::process::Command::new", reason = "spawn through core::process (run_timed, spawn_detached): deadlines, Windows quoting, absolute paths (§0 22, 40)" },
+  { path = "std::fs::write", reason = "write through core::util::write_atomic_inside for project files, write_atomic otherwise (§0 39, D2)" },
+  { path = "std::fs::File::create", reason = "write through core::util::write_atomic_inside for project files, write_atomic otherwise (§0 39, D2)" },
+  { path = "std::net::TcpStream::connect", reason = "connect through core::http::connect, which gives up at a deadline (§0 21, P4)" },
+]

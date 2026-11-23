@@ -165,7 +165,7 @@ fn token_or(token: Option<&Value>, what: &str) -> String {
 /// `describeComponentChange`: one line for a change on a component master (dfw components
 /// page).
 // Long: one sentence per change type.
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_lines, reason = "Long: one sentence per change type")]
 pub fn describe_component_change(c: &Value) -> String {
     let s = |key: &str| js::to_string(c.get(key));
     let (from, to) = (c.get("from"), c.get("to"));

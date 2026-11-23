@@ -17,6 +17,10 @@ use std::time::Duration;
 
 use serde_json::{json, Map, Value};
 
+/// How long the app may take to accept a connection before the proxy answers 502 (a target that
+/// drops packets would otherwise hold the request for the system's own minutes).
+const CONNECT_DEADLINE: Duration = Duration::from_secs(10);
+
 use super::{
     assert_local_target, configured_shortcut, fix_set_cookie, inject_live, nearest_breakpoint,
     patch_csp, patch_meta_csp, proxy_host, Target,
@@ -473,9 +477,13 @@ impl LiveServer {
             .trim_start_matches('[')
             .trim_end_matches(']')
             .to_string();
-        let Ok(mut up) = TcpStream::connect((host.as_str(), self.t.connect_port())) else {
+        let Ok(mut up) = crate::core::http::connect(&host, self.t.connect_port(), CONNECT_DEADLINE)
+        else {
             return;
         };
+        // A WebSocket stays open while idle: no read or write deadline once it is connected.
+        let _ = up.set_read_timeout(None);
+        let _ = up.set_write_timeout(None);
         let mut lines = vec![format!(
             "{} {} HTTP/{}",
             head.method(),
@@ -602,7 +610,7 @@ fn http_upstream(
     body: &[u8],
 ) -> Result<Upstream, String> {
     let host = t.hostname.trim_start_matches('[').trim_end_matches(']');
-    let mut up = TcpStream::connect((host, t.connect_port()))
+    let mut up = crate::core::http::connect(host, t.connect_port(), CONNECT_DEADLINE)
         .map_err(|e| format!("connect {e} {host}:{}", t.connect_port()))?;
     let _ = up.set_read_timeout(Some(Duration::from_secs(300)));
     let mut req = format!("{method} {path} HTTP/1.1\r\n");
@@ -698,6 +706,7 @@ fn spawn_shots(root: PathBuf, origin: String) -> Option<Sender<Shot>> {
                 full_page: true,
                 selector: None,
                 scale: 1.0,
+                inside: Some(root.clone()),
             };
             match screenshot(&[job], 1) {
                 Ok(results) => match results.into_iter().next() {

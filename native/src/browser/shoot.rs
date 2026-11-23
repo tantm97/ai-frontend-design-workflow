@@ -188,6 +188,8 @@ pub fn url_jobs(
             full_page: !opts.viewport,
             selector: opts.selector.clone(),
             scale: 1.0,
+            // A file the user named with --out is theirs to place; the default is in the project.
+            inside: opts.out.is_none().then(|| root.to_path_buf()),
         });
     }
     Ok(jobs)
@@ -321,6 +323,7 @@ pub fn studio_jobs(
                 full_page: true,
                 selector: None,
                 scale: 1.0,
+                inside: Some(root.to_path_buf()),
             });
         }
     }
@@ -375,6 +378,7 @@ pub fn studio_jobs(
                             full_page: !opts.viewport,
                             selector: selector.clone(),
                             scale: 1.0,
+                            inside: Some(root.to_path_buf()),
                         });
                     }
                 }
@@ -401,6 +405,28 @@ mod tests {
 
     fn some(v: &str) -> Option<String> {
         Some(v.to_string())
+    }
+
+    /// Shots dfw places in the project are written only inside it (a `.dfw/shots` link out of the
+    /// project is refused when the PNG is written); a file the user names with --out is theirs.
+    #[test]
+    fn shots_in_the_project_carry_the_root_and_a_named_out_file_does_not() {
+        let root = test_dir("shoot-inside");
+        let one = [bp("desktop", 1440, 900)];
+        let default = url_jobs(
+            &root,
+            "http://localhost:3000/",
+            &one,
+            &ShootOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(default[0].inside.as_deref(), Some(root.as_path()));
+        let named = ShootOptions {
+            out: Some("shot.png".into()),
+            ..ShootOptions::default()
+        };
+        let named = url_jobs(&root, "http://localhost:3000/", &one, &named).unwrap();
+        assert_eq!(named[0].inside, None);
     }
 
     #[test]

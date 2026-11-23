@@ -5,11 +5,12 @@ import { post, st } from './state.js';
 import { isUi, labelOf, pick, rectOf } from './target.js';
 import { reportPins, reportSelection, reportSize } from './select.js';
 import { ROOT_OWNED, morph, sheetPath, syncAttrs } from './morph.js';
+import { MSG } from '../shared/protocol.js';
 
 /** Tell the Studio the overlay is ready (soft: after an in-place update). */
 export const ready = (/** @type {unknown} */ soft) => {
   reportSize();
-  post('dfw:ready', { href: location.pathname + location.search, title: document.title, soft: soft === true });
+  post(MSG.READY, { href: location.pathname + location.search, title: document.title, soft: soft === true });
 };
 
 /** Reload the stylesheets whose file changed: the new one loads next to the old one, which goes when it is ready. */
@@ -64,7 +65,7 @@ export async function softReload(/** @type {{ files?: string[], agent?: boolean 
         el.getClientRects().length,
     );
     const tops = els.filter((el) => !els.some((o) => o !== el && o.contains(el)));
-    post('dfw:changed', {
+    post(MSG.CHANGED, {
       agent: !!d.agent,
       count: tops.length,
       items: tops.slice(0, 4).map((el) => ({ rect: rectOf(el), label: labelOf(pick(el, false) || el) })),

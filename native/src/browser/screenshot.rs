@@ -27,6 +27,9 @@ pub struct Job {
     pub selector: Option<String>,
     /// Device scale factor (1 = CSS pixels).
     pub scale: f64,
+    /// The project `out` belongs to: then the PNG is never written through a link that leaves
+    /// it (`write_atomic_inside`). `None` for a file the user named (`dfw shoot --url --out`).
+    pub inside: Option<PathBuf>,
 }
 
 /// The outcome of one job (`{ out, ok, error }`).
@@ -95,6 +98,7 @@ fn shoot(renderer: &Renderer, job: &Job) -> Result<(), DfwError> {
         page.wait_for_timeout(60);
         page.screenshot(&ShotOptions {
             path: Some(&job.out),
+            inside: job.inside.as_deref(),
             full_page: job.full_page,
             selector: job.selector.as_deref(),
         })
@@ -119,6 +123,7 @@ mod tests {
             full_page: true,
             selector: None,
             scale: 1.0,
+            inside: None,
         }
     }
 
@@ -148,6 +153,7 @@ mod tests {
             Job {
                 full_page: false,
                 scale: 2.0,
+                inside: None,
                 ..job(page, dir.join("retina.png"))
             },
             job("http://127.0.0.1:9/refused", dir.join("refused.png")),

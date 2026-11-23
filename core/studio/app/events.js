@@ -2,7 +2,7 @@
 // Events into the Studio: messages from the frames' overlay (postMessage) and the server's
 // Server-Sent Events (design files changed, the agent is about to edit, comments changed), and the
 // initial load of the manifest, state, tokens and components.
-import { $, P, S, api, post, store, toast } from './state.js';
+import { $, P, S, post, store, toast } from './state.js';
 import { loadPresent, handleGoto, renderPresentBar } from './present.js';
 import { isShown, liveFrames, positionFrames, rebuildKeepCam, selectFrame, setPage, softReload } from './frames.js';
 import { onWheel, startPan, movePan, endPan, revealSelection, zoomToSelection } from './canvas.js';
@@ -14,14 +14,17 @@ import { closeComposer, loadComments, openComposer, setTab } from './comments.js
 import { pinsFor, renderPins } from './pins.js';
 import { handleKey } from './keys.js';
 import { renderToolbar } from './toolbar.js';
+import { MSG, SSE } from '../shared/protocol.js';
+import { events, server } from './api.js';
+import { MODE, TAB, EDIT_OP, PHASE, AGENT_PHASE } from '../shared/enums.js';
 
 /** A frame (or the presenter) loaded its overlay: send it the tool, tokens, pins and selection. */
 function onReady(/** @type {any} */ f) {
   if (f.present) {
     P.loaded = true;
-    post(P, { type: 'dfw:mode', mode: P.mode });
-    post(P, { type: 'dfw:tokens', vars: S.tokens });
-    post(P, { type: 'dfw:pins', pins: pinsFor(P) });
+    post(P, { type: MSG.MODE, mode: P.mode });
+    post(P, { type: MSG.TOKENS, vars: S.tokens });
+    post(P, { type: MSG.PINS, pins: pinsFor(P) });
     renderPresentBar();
     return;
   }
@@ -30,20 +33,20 @@ function onReady(/** @type {any} */ f) {
   f.sizeCount = 0;
   f.lastStep = 0;
   f.sizeStop = false;
-  post(f, { type: 'dfw:mode', mode: S.mode });
-  post(f, { type: 'dfw:tokens', vars: S.tokens });
-  post(f, { type: 'dfw:pins', pins: pinsFor(f) });
-  post(f, { type: 'dfw:layout', enabled: !f.system && !!f.file, scope: layoutScopeOf(f).scope });
+  post(f, { type: MSG.MODE, mode: S.mode });
+  post(f, { type: MSG.TOKENS, vars: S.tokens });
+  post(f, { type: MSG.PINS, pins: pinsFor(f) });
+  post(f, { type: MSG.LAYOUT, enabled: !f.system && !!f.file, scope: layoutScopeOf(f).scope });
   if (f.pendingVerify) {
-    post(f, { type: 'dfw:layout-verify', ...f.pendingVerify });
+    post(f, { type: MSG.LAYOUT_VERIFY, ...f.pendingVerify });
     f.pendingVerify = null;
   }
   if (f.pendingSelect) {
-    post(f, { type: 'dfw:select-id', ...f.pendingSelect });
+    post(f, { type: MSG.SELECT_ID, ...f.pendingSelect });
     f.pendingSelect = null;
   } else if (S.sel?.key === f.key)
-    post(f, { type: 'dfw:select-id', dfwId: S.sel.own?.id || S.sel.target?.dfwId, selector: S.sel.target?.selector });
-  if (S.selKey === f.key) post(f, { type: 'dfw:layers' });
+    post(f, { type: MSG.SELECT_ID, dfwId: S.sel.own?.id || S.sel.target?.dfwId, selector: S.sel.target?.selector });
+  if (S.selKey === f.key) post(f, { type: MSG.LAYERS });
 }
 
 /**
@@ -85,7 +88,7 @@ function onSelect(/** @type {any} */ f, /** @type {any} */ d) {
     }
     return;
   }
-  if (d.comment && S.mode === 'comment') {
+  if (d.comment && S.mode === MODE.COMMENT) {
     S.sel = { key: f.key, ...d };
     updateHud();
     openComposer(S.sel, f, '');
@@ -93,10 +96,10 @@ function onSelect(/** @type {any} */ f, /** @type {any} */ d) {
   }
   S.sel = { key: f.key, ...d };
   if (S.selKey !== f.key) selectFrame(f.key, { keepSel: true });
-  if (S.layers?.key !== f.key) post(f, { type: 'dfw:layers' });
+  if (S.layers?.key !== f.key) post(f, { type: MSG.LAYERS });
   renderLayers();
   renderInspector();
-  setTab('inspect', { quiet: true });
+  setTab(TAB.INSPECT, { quiet: true });
   updateHud();
   if (S.zoomOnSelect) {
     S.zoomOnSelect = false;
@@ -113,33 +116,33 @@ function onSelect(/** @type {any} */ f, /** @type {any} */ d) {
  * @type {Record<string, (f: any, d: any) => void>}
  */
 const ON = {
-  'dfw:ready': onReady,
-  'dfw:size': onSize,
-  'dfw:presence': (f, d) => {
+  [MSG.READY]: onReady,
+  [MSG.SIZE]: onSize,
+  [MSG.PRESENCE]: (f, d) => {
     // The agent is about to edit this element (or, without a rect, something in this frame).
-    if (d.rect) showAgent(f, 'editing', [{ rect: d.rect, label: d.label }]);
-    else if (d.fallback) showAgent(f, 'editing', [{ rect: [0, 0, f.w, f.h], whole: true }]);
+    if (d.rect) showAgent(f, AGENT_PHASE.EDITING, [{ rect: d.rect, label: d.label }]);
+    else if (d.fallback) showAgent(f, AGENT_PHASE.EDITING, [{ rect: [0, 0, f.w, f.h], whole: true }]);
   },
-  'dfw:changed': (f, d) => {
-    if (d.agent && d.items?.length) showAgent(f, 'changed', d.items, d.count);
-    else if (S.agent.get(f.key)?.phase === 'editing') clearAgent(f.key);
+  [MSG.CHANGED]: (f, d) => {
+    if (d.agent && d.items?.length) showAgent(f, AGENT_PHASE.CHANGED, d.items, d.count);
+    else if (S.agent.get(f.key)?.phase === AGENT_PHASE.EDITING) clearAgent(f.key);
   },
-  'dfw:hover': (f, d) => {
+  [MSG.HOVER]: (f, d) => {
     S.hover = d.rect ? { key: f.key, rect: d.rect, label: d.label, comp: d.comp } : null;
     updateHud();
   },
-  'dfw:select': onSelect,
-  'dfw:sel-rect': (f, d) => {
+  [MSG.SELECT]: onSelect,
+  [MSG.SEL_RECT]: (f, d) => {
     if (S.sel?.key !== f.key) return;
     S.sel.rect = d.rect;
     updateHud();
   },
-  'dfw:layers': setLayers,
-  'dfw:pin-rects': (f, d) => {
+  [MSG.LAYERS]: setLayers,
+  [MSG.PIN_RECTS]: (f, d) => {
     f.pinRects = d.pins;
     renderPins();
   },
-  'dfw:wheel': (f, d) => {
+  [MSG.WHEEL]: (f, d) => {
     if (f.present) return;
     onWheel({
       dx: d.dx,
@@ -151,31 +154,31 @@ const ON = {
       y: (f.y + d.y) * S.cam.z + S.cam.y,
     });
   },
-  'dfw:pan': (f, d) => {
-    if (d.phase === 'start') startPan(d.sx, d.sy);
-    else if (d.phase === 'move') movePan(d.sx, d.sy);
+  [MSG.PAN]: (f, d) => {
+    if (d.phase === PHASE.START) startPan(d.sx, d.sy);
+    else if (d.phase === PHASE.MOVE) movePan(d.sx, d.sy);
     else endPan();
   },
-  'dfw:key': (f, d) => handleKey(d),
-  'dfw:goto': handleGoto,
-  'dfw:edit-text': (f, d) => edit(f, { op: 'text', id: d.id, value: d.text }),
-  'dfw:layout-op': layoutOp,
-  'dfw:toast': (f, d) => toast(d.message),
-  'dfw:layout-conflict': (f, d) => {
+  [MSG.KEY]: (f, d) => handleKey(d),
+  [MSG.GOTO]: handleGoto,
+  [MSG.EDIT_TEXT]: (f, d) => edit(f, { op: EDIT_OP.TEXT, id: d.id, value: d.text }),
+  [MSG.LAYOUT_OP]: layoutOp,
+  [MSG.TOAST]: (f, d) => toast(d.message),
+  [MSG.LAYOUT_CONFLICT]: (f, d) => {
     S.layoutConflict = { key: f.key, ...d }; // for tests and the inspector note
   },
-  'dfw:focus': () => {
-    if (!$('#composer').hidden && S.mode !== 'comment') closeComposer();
+  [MSG.FOCUS]: () => {
+    if (!$('#composer').hidden && S.mode !== MODE.COMMENT) closeComposer();
   },
 };
 
 /** Fetch the manifest, state, tokens and components, then show the page (or rebuild it in place). */
 export async function loadAll({ keepCam = false } = {}) {
   const [manifest, st, tokens, comps] = await Promise.all([
-    api('/__dfw/api/manifest'),
-    api('/__dfw/api/state'),
-    api('/__dfw/api/tokens').catch(() => []),
-    api('/__dfw/api/components').catch(() => []),
+    server.manifest(),
+    server.state(),
+    server.tokens().catch(() => []),
+    server.components().catch(() => []),
   ]);
   S.manifest = manifest;
   S.pages = manifest.studioPages || [{ id: 'system', title: 'Design System', system: true, screens: [] }];
@@ -195,9 +198,9 @@ export async function loadAll({ keepCam = false } = {}) {
 async function onDesign(/** @type {MessageEvent} */ e) {
   const { files = [] } = JSON.parse(e.data);
   if (files.some((/** @type {string} */ f) => /(^|\/)design\.json$/.test(f))) return loadAll({ keepCam: true });
-  if (files.some((/** @type {string} */ f) => f.startsWith('tokens/'))) S.tokens = await api('/__dfw/api/tokens').catch(() => S.tokens);
+  if (files.some((/** @type {string} */ f) => f.startsWith('tokens/'))) S.tokens = await server.tokens().catch(() => S.tokens);
   if (files.some((/** @type {string} */ f) => f.startsWith('system/')))
-    S.components = new Map((await api('/__dfw/api/components').catch(() => [])).map((/** @type {any} */ c) => [c.name, c]));
+    S.components = new Map((await server.components().catch(() => [])).map((/** @type {any} */ c) => [c.name, c]));
   const screenOnly = files.every(
     (/** @type {string} */ f) => f.endsWith('.html') && !f.startsWith('system/') && !f.startsWith('components/'),
   );
@@ -216,10 +219,10 @@ function onPresence(/** @type {MessageEvent} */ e) {
   for (const f of S.frames.values()) {
     if (!f.iframe || !f.loaded) continue;
     if (f.system) {
-      if (component) post(f, { type: 'dfw:presence', dfwId: `system.component.${component}` });
-      else if (file.startsWith('tokens/')) post(f, { type: 'dfw:presence', dfwId: 'system.colors' });
-    } else if (f.file === file) post(f, { type: 'dfw:presence', dfwId, fallback: true });
-    else if (component) post(f, { type: 'dfw:presence', component });
+      if (component) post(f, { type: MSG.PRESENCE, dfwId: `system.component.${component}` });
+      else if (file.startsWith('tokens/')) post(f, { type: MSG.PRESENCE, dfwId: 'system.colors' });
+    } else if (f.file === file) post(f, { type: MSG.PRESENCE, dfwId, fallback: true });
+    else if (component) post(f, { type: MSG.PRESENCE, component });
   }
 }
 
@@ -233,8 +236,8 @@ export function initEvents() {
     const d = e.data || {};
     if (Object.hasOwn(ON, d.type)) ON[d.type](f, d);
   });
-  const es = new EventSource('/__dfw/events');
-  es.addEventListener('design', onDesign);
-  es.addEventListener('presence', onPresence);
-  es.addEventListener('comments', () => loadComments());
+  const es = events();
+  es.addEventListener(SSE.DESIGN, onDesign);
+  es.addEventListener(SSE.PRESENCE, onPresence);
+  es.addEventListener(SSE.COMMENTS, () => loadComments());
 }

@@ -103,6 +103,10 @@ pub fn write_atomic(file: &Path, data: impl AsRef<[u8]>) -> Result<(), DfwError>
     }
     let mut tmp = file.as_os_str().to_owned();
     tmp.push(format!(".{}.tmp", unique_suffix()));
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "write_atomic is the one home of plain file writes"
+    )]
     fs::write(&tmp, data)?;
     if let Ok(meta) = fs::metadata(file) {
         // Best effort: the new content matters more than its mode.

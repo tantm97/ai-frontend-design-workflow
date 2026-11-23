@@ -276,11 +276,11 @@ try {
   await page.waitForSelector('.comment[data-id="fb_001"]');
   assert.equal(await page.isVisible('#composer'), false, 'composer closes after saving');
 
-  // A Studio comment is a draft: Claude gets nothing until the user presses "Send to Claude".
+  // A Studio comment is a draft: the agent gets nothing until the user presses "Send to AI".
   assert.match(await page.textContent('.comment[data-id="fb_001"] .status'), /Draft/);
   assert.match(dfw('comments', 'inbox', '--peek'), /No new comments/, 'a draft is not delivered');
   assert.match(await page.textContent('#listen'), /not listening/, 'no dfw comments wait runs');
-  assert.equal(await page.textContent('#send-drafts'), 'Send to Claude (1)');
+  assert.equal(await page.textContent('#send-drafts'), 'Send to AI (1)');
   await page.click('#send-drafts');
   await page.waitForSelector('.comment[data-id="fb_001"] .status[data-s="open"]');
   assert.match(dfw('comments', 'inbox', '--peek'), /fb_001/, 'sent: the inbox delivers it');
@@ -496,7 +496,7 @@ try {
   await page.waitForSelector('.comment[data-id="fb_002"] .status[data-s="open"]');
   dfw('comments', 'ack', 'fb_002', '--message', 'On it.');
   await page.waitForSelector('.comment[data-id="fb_002"] .status[data-s="acknowledged"]');
-  assert.match(await page.textContent('.comment[data-id="fb_002"] .status'), /Claude is working/);
+  assert.match(await page.textContent('.comment[data-id="fb_002"] .status'), /AI is working/);
   dfw('comments', 'fixed', 'fb_002', '--message', 'Lede shortened.');
   await page.click('.tabs button[data-filter="fixed"]');
   await page.waitForSelector('.comment[data-id="fb_002"] .status[data-s="fixed"]');
@@ -545,7 +545,7 @@ try {
     }),
   });
   await page.waitForFunction(
-    () => /Claude is editing home\.title/.test(document.querySelector('#agent .box.agent:not([hidden]) .tag')?.textContent || ''),
+    () => /AI is editing home\.title/.test(document.querySelector('#agent .box.agent:not([hidden]) .tag')?.textContent || ''),
     null,
     { timeout: 5000 },
   );
@@ -554,7 +554,7 @@ try {
   // 2. The edit lands: the frame is patched in place and the changed element is marked.
   fs.writeFileSync(homeFile, fs.readFileSync(homeFile, 'utf8').replace('Welcome back', 'Good morning'));
   await page.waitForFunction(
-    () => /Claude changed/.test(document.querySelector('#agent .box.agent.changed:not([hidden]) .tag')?.textContent || ''),
+    () => /AI changed/.test(document.querySelector('#agent .box.agent.changed:not([hidden]) .tag')?.textContent || ''),
     null,
     { timeout: 5000 },
   );

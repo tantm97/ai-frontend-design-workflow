@@ -1,5 +1,6 @@
 // @ts-check
 // State shared by the overlay modules, and the one way they talk to the Studio.
+import { MODE } from '../shared/enums.js';
 
 /**
  * @typedef {{ name: string, var: string, type?: string }} TokenVar a design token and its CSS variable
@@ -7,7 +8,7 @@
 
 export const st = {
   /** Studio tool: 'select', 'hand', 'comment', 'interact' or 'present'. */
-  mode: 'select',
+  mode: /** @type {import('../shared/enums.js').Mode} */ (MODE.SELECT),
   /** @type {HTMLElement | null} */
   hoverEl: null,
   /** @type {HTMLElement | null} */

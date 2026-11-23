@@ -174,7 +174,10 @@ macro_rules! js_re {
         static $name: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
             // The source is a literal of this crate and the unit tests of its module compile
             // every one of them (`patterns_compile`), so this cannot fail at run time.
-            #[allow(clippy::expect_used)]
+            #[allow(
+                clippy::expect_used,
+                reason = "every one of them (`patterns_compile`), so this cannot fail at run time"
+            )]
             $crate::core::js::regex::js_regex($source, $flags).expect("constant regular expression")
         });
     };

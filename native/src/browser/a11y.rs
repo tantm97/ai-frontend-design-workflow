@@ -6,7 +6,6 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 use std::thread;
@@ -15,7 +14,10 @@ use std::time::Duration;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha512};
 
-use super::cdp::encoding::base64_encode;
+use crate::core::encoding::base64_encode;
+
+/// How long unpacking the axe-core archive may take.
+const UNPACK_DEADLINE: std::time::Duration = std::time::Duration::from_secs(60);
 use super::cdp::lock;
 use super::launch::{
     browser_status, fonts_ready, open_renderer_with, BrowserStatus, LaunchOptions, Renderer,
@@ -123,26 +125,37 @@ fn install_axe_from(
     }
     fs::create_dir_all(dir)?;
     let tgz = dir.join("axe-core.tgz");
-    fs::write(&tgz, &body)?;
-    let tar = Command::new("tar")
-        .arg("-xzf")
-        .arg(&tgz)
-        .arg("-C")
-        .arg(dir)
-        .args([
-            "--strip-components=1",
-            "package/axe.min.js",
-            "package/LICENSE",
-        ])
-        .output();
+    crate::core::util::write_atomic(&tgz, &body)?;
+    // Through core::process: a deadline, and on Windows an absolute path (never a bare name).
+    let tar_exe = crate::core::process::find_executable("tar")
+        .map_or_else(|| "tar".to_string(), |p| p.display().to_string());
+    let plan = crate::core::process::Spawn::direct(
+        tar_exe,
+        vec![
+            "-xzf".into(),
+            tgz.display().to_string(),
+            "-C".into(),
+            dir.display().to_string(),
+            "--strip-components=1".into(),
+            "package/axe.min.js".into(),
+            "package/LICENSE".into(),
+        ],
+    );
+    let ran = crate::core::process::run_timed(&plan, None, &[], UNPACK_DEADLINE);
     let _ = fs::remove_file(&tgz);
-    let (ok, stderr) = match &tar {
-        Ok(run) => (
-            run.status.success(),
-            String::from_utf8_lossy(&run.stderr).into_owned(),
-        ),
-        // Node reports a tar that cannot start with an empty reason.
-        Err(_) => (false, String::new()),
+    // Node reports a tar that cannot start with an empty reason.
+    let (ok, stderr) = if ran.timed_out {
+        (
+            false,
+            format!(
+                "tar did not finish within {} s and was stopped; run the command again",
+                UNPACK_DEADLINE.as_secs()
+            ),
+        )
+    } else if ran.error.is_some() {
+        (false, String::new())
+    } else {
+        (ran.status == Some(0), ran.stderr)
     };
     if !ok || !dir.join("axe.min.js").exists() {
         return Err(DfwError::new(format!(
@@ -447,6 +460,7 @@ fn check_page(renderer: &Renderer, job: &Job, url: Option<&str>, axe_src: &str) 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::process::Command;
 
     /// The JavaScript that runs in the page is one self-contained function per file; axe is
     /// pinned by version and integrity (the golden render tests check what they do in Chrome).
@@ -462,7 +476,7 @@ mod tests {
     }
 
     /// One HTTP response per connection, for as many connections as there are bodies.
-    #[cfg_attr(not(unix), allow(dead_code))] // used by the Unix-only tests
+    #[cfg_attr(not(unix), allow(dead_code, reason = "used by the Unix-only tests"))]
     fn serve(responses: Vec<(u16, Vec<u8>)>) -> String {
         use std::io::{Read, Write};
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();

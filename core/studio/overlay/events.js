@@ -9,16 +9,18 @@ import { buildLayers } from './layers.js';
 import { endEdit, norm, startEdit } from './edit.js';
 import { reportPins, reportSelection, select } from './select.js';
 import { armDrag, canLayout, canMove, endDrag, endResize, moveDrag, moveResize, resetLayout, snapOptions, startResize } from './layout.js';
+import { MSG } from '../shared/protocol.js';
+import { MODE, PHASE, KEY } from '../shared/enums.js';
 
 const capture = { capture: true };
-const interactive = () => st.mode === 'select' || st.mode === 'comment';
+const interactive = () => st.mode === MODE.SELECT || st.mode === MODE.COMMENT;
 const inEdit = (/** @type {EventTarget} */ t) => st.editing && st.editing.el.contains(/** @type {Node} */ (t));
 const exact = (/** @type {MouseEvent} */ e) => e.metaKey || e.ctrlKey || e.altKey;
 const hoverPayload = (/** @type {HTMLElement} */ t) => ({ rect: rectOf(t), label: labelOf(t), comp: !!t.dataset.dfwComponent });
 
 let raf = 0;
 function onMouseMove(/** @type {MouseEvent} */ e) {
-  if (st.midPan) return post('dfw:pan', { phase: 'move', sx: e.screenX, sy: e.screenY });
+  if (st.midPan) return post(MSG.PAN, { phase: PHASE.MOVE, sx: e.screenX, sy: e.screenY });
   if (st.resize || st.drag) {
     if (!(e.buttons & 1)) return st.resize ? endResize(false) : endDrag(false); // released outside the frame
     return st.resize ? moveResize(e) : moveDrag(e);
@@ -28,15 +30,15 @@ function onMouseMove(/** @type {MouseEvent} */ e) {
   if (t === st.hoverEl) return;
   st.hoverEl = t;
   cancelAnimationFrame(raf);
-  raf = requestAnimationFrame(() => post('dfw:hover', t ? hoverPayload(t) : { rect: null }));
+  raf = requestAnimationFrame(() => post(MSG.HOVER, t ? hoverPayload(t) : { rect: null }));
 }
 
 function onMouseDown(/** @type {MouseEvent} */ e) {
   const t = /** @type {HTMLElement} */ (e.target);
-  if (e.button === 1 && st.mode !== 'present') {
+  if (e.button === 1 && st.mode !== MODE.PRESENT) {
     e.preventDefault();
     st.midPan = true;
-    return post('dfw:pan', { phase: 'start', sx: e.screenX, sy: e.screenY });
+    return post(MSG.PAN, { phase: PHASE.START, sx: e.screenX, sy: e.screenY });
   }
   st.suppressClick = false;
   if (inEdit(t)) return;
@@ -45,8 +47,8 @@ function onMouseDown(/** @type {MouseEvent} */ e) {
     e.preventDefault();
     e.stopPropagation();
   }
-  post('dfw:focus');
-  if (e.button !== 0 || st.mode !== 'select') return;
+  post(MSG.FOCUS);
+  if (e.button !== 0 || st.mode !== MODE.SELECT) return;
   if (t.dataset && t.dataset.dfwHandle && canLayout(st.selected)) {
     e.preventDefault();
     e.stopPropagation();
@@ -59,7 +61,7 @@ function onMouseUp(/** @type {MouseEvent} */ e) {
   if (st.midPan) {
     st.midPan = false;
     e.preventDefault();
-    post('dfw:pan', { phase: 'end' });
+    post(MSG.PAN, { phase: PHASE.END });
   }
   if (st.resize) endResize(true);
   else if (st.drag) endDrag(true);
@@ -82,7 +84,7 @@ function onClick(/** @type {MouseEvent} */ e) {
 }
 
 function onDblClick(/** @type {MouseEvent} */ e) {
-  if (st.mode !== 'select' || inEdit(e.target)) return;
+  if (st.mode !== MODE.SELECT || inEdit(e.target)) return;
   e.preventDefault();
   e.stopPropagation();
   const t = /** @type {HTMLElement} */ (e.target);
@@ -95,18 +97,18 @@ function onDblClick(/** @type {MouseEvent} */ e) {
 }
 
 const fwd = (/** @type {KeyboardEvent} */ e, /** @type {string} */ type) =>
-  post('dfw:key', { phase: type, key: e.key, code: e.code, meta: e.metaKey, ctrl: e.ctrlKey, shift: e.shiftKey, alt: e.altKey });
+  post(MSG.KEY, { phase: type, key: e.key, code: e.code, meta: e.metaKey, ctrl: e.ctrlKey, shift: e.shiftKey, alt: e.altKey });
 
 function onKeyDown(/** @type {KeyboardEvent} */ e) {
-  if ((st.resize || st.drag) && e.key === 'Escape') {
+  if ((st.resize || st.drag) && e.key === KEY.ESCAPE) {
     e.preventDefault();
     return st.resize ? endResize(false) : endDrag(false);
   }
   if (st.editing) {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === KEY.ENTER && !e.shiftKey) {
       e.preventDefault();
       endEdit(true);
-    } else if (e.key === 'Escape') {
+    } else if (e.key === KEY.ESCAPE) {
       e.preventDefault();
       endEdit(false);
     }
@@ -114,18 +116,18 @@ function onKeyDown(/** @type {KeyboardEvent} */ e) {
   }
   const target = /** @type {any} */ (e.target);
   const typing = isTypingTarget(target);
-  if (st.mode === 'present' || st.mode === 'interact') {
+  if (st.mode === MODE.PRESENT || st.mode === MODE.INTERACT) {
     // The page is live: keep its keyboard behaviour; only forward what the Studio needs.
-    if (typing) return e.key === 'Escape' && fwd(e, 'down');
-    if (st.mode === 'present' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !e.metaKey && !e.ctrlKey) e.preventDefault();
-    if (st.mode === 'interact' && e.key === ' ') e.preventDefault();
-    return fwd(e, 'down');
+    if (typing) return e.key === KEY.ESCAPE && fwd(e, PHASE.DOWN);
+    if (st.mode === MODE.PRESENT && (e.key === KEY.LEFT || e.key === KEY.RIGHT) && !e.metaKey && !e.ctrlKey) e.preventDefault();
+    if (st.mode === MODE.INTERACT && e.key === KEY.SPACE) e.preventDefault();
+    return fwd(e, PHASE.DOWN);
   }
   if (typing && !interactive()) return;
-  if ([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key) || e.metaKey || e.ctrlKey) {
+  if (/** @type {string[]} */ ([KEY.SPACE, KEY.UP, KEY.DOWN, KEY.LEFT, KEY.RIGHT, KEY.TAB]).includes(e.key) || e.metaKey || e.ctrlKey) {
     if (!(e.metaKey && ['c', 'v', 'x', 'a', 'r', 'q', 'w', 't'].includes(e.key.toLowerCase()))) e.preventDefault();
   }
-  fwd(e, 'down');
+  fwd(e, PHASE.DOWN);
 }
 
 /** Interact and present tools: data-dfw-goto and links to other design files navigate the prototype. */
@@ -135,7 +137,7 @@ function prototypeClick(/** @type {MouseEvent} */ e) {
   if (goto) {
     e.preventDefault();
     e.stopPropagation();
-    return post('dfw:goto', { goto: goto.getAttribute('data-dfw-goto') });
+    return post(MSG.GOTO, { goto: goto.getAttribute('data-dfw-goto') });
   }
   const a = target.closest && target.closest('a[href]');
   if (!a || e.defaultPrevented) return;
@@ -144,7 +146,7 @@ function prototypeClick(/** @type {MouseEvent} */ e) {
   const url = new URL(href, location.href);
   e.preventDefault();
   if (url.origin !== location.origin) return void window.open(url.href, '_blank', 'noopener');
-  post('dfw:goto', { href: url.pathname + url.search });
+  post(MSG.GOTO, { href: url.pathname + url.search });
 }
 
 /** Listen to pointer, wheel, keys and scroll in the frame (capture: the page's own handlers come after). */
@@ -152,7 +154,7 @@ export function listenInput() {
   document.addEventListener('mousemove', onMouseMove, capture);
   document.addEventListener('mouseleave', () => {
     st.hoverEl = null;
-    post('dfw:hover', { rect: null });
+    post(MSG.HOVER, { rect: null });
   });
   document.addEventListener('mousedown', onMouseDown, capture);
   document.addEventListener('mouseup', onMouseUp, capture);
@@ -164,9 +166,9 @@ export function listenInput() {
   addEventListener(
     'wheel',
     (e) => {
-      if (st.mode === 'present') return; // the presented page scrolls normally
+      if (st.mode === MODE.PRESENT) return; // the presented page scrolls normally
       e.preventDefault();
-      post('dfw:wheel', {
+      post(MSG.WHEEL, {
         dx: e.deltaX,
         dy: e.deltaY,
         dm: e.deltaMode,
@@ -179,13 +181,13 @@ export function listenInput() {
     { passive: false, capture: true },
   );
   document.addEventListener('keydown', onKeyDown, capture);
-  document.addEventListener('keyup', (e) => !st.editing && st.mode !== 'present' && e.key === ' ' && fwd(e, 'up'), capture);
+  document.addEventListener('keyup', (e) => !st.editing && st.mode !== MODE.PRESENT && e.key === KEY.SPACE && fwd(e, PHASE.UP), capture);
   addEventListener(
     'scroll',
     () => {
       reportSelection();
       if (st.pins.length) reportPins();
-      if (st.hoverEl) post('dfw:hover', hoverPayload(st.hoverEl));
+      if (st.hoverEl) post(MSG.HOVER, hoverPayload(st.hoverEl));
     },
     true,
   );

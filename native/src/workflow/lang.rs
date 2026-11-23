@@ -52,7 +52,10 @@ fn last_used_in(home: &Path) -> Result<Value, DfwError> {
 
 /// `lastUsedLanguage()`: the language of the last `dfw lang set`, `en` when there was none.
 // Not called by a command yet (the Node CLI has no caller either); kept as the module's API.
-#[allow(dead_code)]
+#[allow(
+    dead_code,
+    reason = "Not called by a command yet (the Node CLI has no caller either); kept as the module's API"
+)]
 pub fn last_used_language() -> Result<Value, DfwError> {
     last_used_in(&global_dir())
 }

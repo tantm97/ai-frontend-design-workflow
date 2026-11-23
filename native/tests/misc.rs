@@ -2,6 +2,11 @@
 //! Ported from tests/unit/mcp.test.mjs and tests/unit/mcp-robust.test.mjs; each test names its
 //! JavaScript original.
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "binary tests build fixtures with std::fs and std::process directly"
+)]
+
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};

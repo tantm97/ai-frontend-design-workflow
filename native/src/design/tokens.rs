@@ -202,7 +202,10 @@ fn list<'a>(value: Option<&'a Value>, what: &str) -> Result<&'a [Value], DfwErro
 }
 
 // Over 120 lines: one match arm per DTCG type, so every type's CSS form reads in one place.
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "long function kept as ported; split it when it next changes (A10)"
+)]
 fn value_to_css(value: Option<&Value>, ty: &str) -> Result<String, DfwError> {
     if let Some(Value::String(text)) = value {
         return Ok(aliases_to_css(text));

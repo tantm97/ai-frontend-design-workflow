@@ -5,6 +5,11 @@
 //! std has no kill(2) or OpenProcess, and this crate has no `unsafe`: the system tools (`kill`,
 //! `tasklist`, `taskkill`) answer those questions instead.
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "core::process is the one home of Command::new (clippy.toml disallowed-methods)"
+)]
+
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -480,7 +485,7 @@ fn spawn_detached_windows(
         ]
         .iter()
         .map(|a| (*a).to_string())
-        .chain([crate::browser::cdp::encoding::base64_encode(&utf16)])
+        .chain([crate::core::encoding::base64_encode(&utf16)])
         .collect(),
     );
     let ran = run_timed(&plan, None, &[], Duration::from_secs(30));
@@ -496,7 +501,10 @@ fn spawn_detached_windows(
 /// A PowerShell string literal: single quotes, each single quote doubled (PowerShell also reads
 /// the typographic single quotes as quotes).
 // Used on Windows only; its tests run everywhere.
-#[cfg_attr(unix, allow(dead_code))]
+#[cfg_attr(
+    unix,
+    allow(dead_code, reason = "Used on Windows only; its tests run everywhere")
+)]
 pub fn quote_for_powershell(text: &str) -> String {
     let mut out = String::from("'");
     for c in text.chars() {
@@ -514,7 +522,10 @@ pub fn quote_for_powershell(text: &str) -> String {
 /// `""`, which also keeps cmd.exe's own quote state balanced, so `&`, `|`, `<`, `>` and `^`
 /// stay inside the quotes for it. cmd.exe still expands a `%NAME%` that names a variable.
 // Used on Windows only; its tests run everywhere.
-#[cfg_attr(unix, allow(dead_code))]
+#[cfg_attr(
+    unix,
+    allow(dead_code, reason = "Used on Windows only; its tests run everywhere")
+)]
 pub fn quote_windows_arg(arg: &str) -> String {
     let mut out = String::from("\"");
     let mut backslashes = 0;
@@ -541,7 +552,10 @@ pub fn quote_windows_arg(arg: &str) -> String {
 /// The PowerShell script of [`spawn_detached`] on Windows: `Start-Process` (ShellExecute: no
 /// handle inheritance, the environment of this process), hidden, and the pid it prints.
 // Used on Windows only; its tests run everywhere.
-#[cfg_attr(unix, allow(dead_code))]
+#[cfg_attr(
+    unix,
+    allow(dead_code, reason = "Used on Windows only; its tests run everywhere")
+)]
 fn detached_script(
     exe: &Path,
     args: &[String],

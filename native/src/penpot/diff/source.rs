@@ -17,22 +17,34 @@ fn css_property(change: &Value) -> Option<&'static str> {
 }
 
 // A constant pattern: it compiles, and every test that reaches it proves so.
-#[allow(clippy::expect_used)]
+#[allow(
+    clippy::expect_used,
+    reason = "A constant pattern: it compiles, and every test that reaches it proves so"
+)]
 static CSS_RULE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"([^{}<>]+)\{([^{}]*)\}").expect("constant pattern"));
 // A constant pattern: it compiles, and every test that reaches it proves so.
-#[allow(clippy::expect_used)]
+#[allow(
+    clippy::expect_used,
+    reason = "A constant pattern: it compiles, and every test that reaches it proves so"
+)]
 static STATE_SELECTOR: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r":(hover|focus|focus-visible|focus-within|active|disabled|checked)|\[(aria|data)-")
         .expect("constant pattern")
 });
 // A constant pattern: it compiles, and every test that reaches it proves so.
-#[allow(clippy::expect_used)]
+#[allow(
+    clippy::expect_used,
+    reason = "A constant pattern: it compiles, and every test that reaches it proves so"
+)]
 static TEXT_SELECTOR: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?-u:\b)(span|p|label|strong)(?-u:\b)").expect("constant pattern")
 });
 // A constant pattern: it compiles, and every test that reaches it proves so.
-#[allow(clippy::expect_used)]
+#[allow(
+    clippy::expect_used,
+    reason = "A constant pattern: it compiles, and every test that reaches it proves so"
+)]
 static CLASS_NAME: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)^[a-z][0-9A-Za-z_-]*\.([0-9A-Za-z_-]+)$").expect("constant pattern")
 });
@@ -70,7 +82,10 @@ fn first_element(text: &str) -> Option<usize> {
 /// tag/class), else the component tag. `None` when the change is not on a component.
 // Long: three lookups in one text (CSS rule, template element, component tag) that share
 // the offsets of the master block.
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "long function kept as ported; split it when it next changes (A10)"
+)]
 pub fn master_source(root: &Path, change: &Value, lib: Option<&Library>) -> Option<MasterSource> {
     let comp = js::truthy_value(change.get("component"))?;
     let comp_name = comp.get("name").and_then(Value::as_str);

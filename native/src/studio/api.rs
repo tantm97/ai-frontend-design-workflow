@@ -456,6 +456,7 @@ pub fn shoot_frames(root: &Path, port: u16, body: &Value) -> Result<Value, DfwEr
                 full_page,
                 selector: None,
                 scale: 1.0,
+                inside: Some(root.to_path_buf()),
             }
         })
         .collect();
@@ -531,13 +532,10 @@ pub fn frame_name(name: &str) -> String {
 /// The local time as `2026-11-19T10-20-30` (the folder name of a Studio screenshot run).
 fn local_stamp() -> String {
     // std knows no time zone; `date` does. Without it (Windows) the time is UTC.
-    let local = std::process::Command::new("date")
-        .arg("+%Y-%m-%dT%H-%M-%S")
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-        .filter(|s| s.len() == 19);
+    let plan = crate::core::process::Spawn::direct("date", vec!["+%Y-%m-%dT%H-%M-%S".into()]);
+    let ran = crate::core::process::run_timed(&plan, None, &[], std::time::Duration::from_secs(2));
+    let local =
+        Some(ran.stdout.trim().to_string()).filter(|s| ran.status == Some(0) && s.len() == 19);
     local.unwrap_or_else(|| {
         let iso = crate::core::util::iso_from_millis(super::watch::now_ms());
         iso.replace([':', '.'], "-").chars().take(19).collect()

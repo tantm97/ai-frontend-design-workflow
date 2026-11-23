@@ -114,6 +114,11 @@ fn install_binary_from(base: &str, version: &str, log: &dyn Fn(&str)) -> Result<
     }
     let mut tmp = dest.clone().into_os_string();
     tmp.push(".download");
+    // Its own temporary file: written, made executable, then renamed into place in one step.
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "the binary is chmod-ed before its rename, which write_atomic cannot do"
+    )]
     fs::write(&tmp, &buf)?;
     #[cfg(unix)]
     {

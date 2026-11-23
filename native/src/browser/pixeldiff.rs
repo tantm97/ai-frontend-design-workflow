@@ -13,7 +13,7 @@
 //! A few lines over 800 with its tests.
 
 use std::fs;
-use std::io::{BufWriter, Cursor};
+use std::io::Cursor;
 use std::path::{Path, PathBuf};
 
 use serde_json::{json, Map, Value};
@@ -128,12 +128,17 @@ fn encode(file: &Path, w: u32, h: u32, rgba: &[u8]) -> Result<(), String> {
         if let Some(dir) = file.parent() {
             fs::create_dir_all(dir)?;
         }
-        let mut encoder = png::Encoder::new(BufWriter::new(fs::File::create(file)?), w, h);
-        encoder.set_color(png::ColorType::Rgba);
-        encoder.set_depth(png::BitDepth::Eight);
-        let mut writer = encoder.write_header()?;
-        writer.write_image_data(rgba)?;
-        writer.finish()?;
+        // Encoded in memory, then written whole (a reader never sees half a PNG).
+        let mut png_bytes = Vec::new();
+        {
+            let mut encoder = png::Encoder::new(&mut png_bytes, w, h);
+            encoder.set_color(png::ColorType::Rgba);
+            encoder.set_depth(png::BitDepth::Eight);
+            let mut writer = encoder.write_header()?;
+            writer.write_image_data(rgba)?;
+            writer.finish()?;
+        }
+        crate::core::util::write_atomic(file, &png_bytes).map_err(|e| e.message().to_string())?;
         Ok(())
     };
     write().map_err(|e| format!("{}: {e}", file.display()))

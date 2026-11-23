@@ -4,6 +4,11 @@
 //! directory and fails when a browser process or profile is left behind. Nothing is downloaded:
 //! axe-core is copied from this machine's dfw home when it is there.
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "binary tests build fixtures with std::fs and std::process directly"
+)]
+
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};

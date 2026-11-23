@@ -2,6 +2,9 @@
 // Pure model of the Studio canvas: which frames a page shows, in which rows, and the small text
 // helpers around them. Functions of values only (javascript.md J3): no DOM, no Studio state, so
 // tests/unit/studio-app-model.test.mjs imports them in Node.
+import { PATH } from '../shared/paths.js';
+import { TEXT } from '../shared/text.js';
+import { STATUS, COMMENT_FILTER, SECTION_KIND, SYSTEM_SCREEN, PIN_FILTER } from '../shared/enums.js';
 
 /**
  * @typedef {{ id: string, label?: string, short?: string, width: number, height: number }} Breakpoint
@@ -99,7 +102,7 @@ export function systemSpec() {
     system: true,
     screen: null,
     title: 'Design System',
-    src: '/__dfw/system.html',
+    src: PATH.SYSTEM_PAGE,
     w: 1440,
     h: 900,
     auto: true,
@@ -159,18 +162,18 @@ export function pageModel(ctx, page) {
   }
   if (page.sections && page.sections.length) {
     for (const sec of page.sections) {
-      const kind = sec.kind || (sec.breakpoint ? 'breakpoint' : sec.states ? 'states' : 'custom');
+      const kind = sec.kind || (sec.breakpoint ? SECTION_KIND.BREAKPOINT : sec.states ? SECTION_KIND.STATES : SECTION_KIND.CUSTOM);
       const bpDecl = sec.breakpoint && m.breakpoints.find((b) => b.id === sec.breakpoint);
-      if (kind === 'breakpoint' && bpDecl && !bpShown(ctx, bpDecl.id)) continue;
+      if (kind === SECTION_KIND.BREAKPOINT && bpDecl && !bpShown(ctx, bpDecl.id)) continue;
       const bp = bpDecl || primary;
       if (!bp) continue;
       const list = sec.screens ? refs(m, sec.screens) : screens.map((s) => ({ s, v: null }));
       const frames = [];
       for (const { s, v } of list) {
-        if (kind === 'variants') {
+        if (kind === SECTION_KIND.VARIANTS) {
           const vs = v ? [v] : (s.variants || []).filter((x) => x !== primaryVariant(s));
           for (const x of vs) frames.push(makeSpec(ctx, s, x, bp, null));
-        } else if (kind === 'states') {
+        } else if (kind === SECTION_KIND.STATES) {
           const sv = v || primaryVariant(s);
           for (const st of designedOf(sv, shownStates(ctx, sec.states || statesOf(m, s)))) frames.push(makeSpec(ctx, s, sv, bp, st));
         } else frames.push(makeSpec(ctx, s, v || primaryVariant(s), bp, null));
@@ -178,7 +181,7 @@ export function pageModel(ctx, page) {
       const defTitle = { breakpoint: `${bp.label || bp.id} ${bp.width}`, variants: 'Variants', states: 'States' }[kind] || '';
       rows.push({
         title: sec.title || defTitle,
-        sub: kind === 'breakpoint' ? `${bp.width} × ${bp.height}` : `at ${bp.label || bp.id} ${bp.width}`,
+        sub: kind === SECTION_KIND.BREAKPOINT ? `${bp.width} × ${bp.height}` : `at ${bp.label || bp.id} ${bp.width}`,
         notes: sec.notes || null,
         frames,
       });
@@ -248,7 +251,8 @@ export function layoutScope(breakpoints, f) {
 }
 
 /** Comment statuses that wait for the agent. */
-export const ACTIVE = ['open', 'acknowledged', 'reopened'];
+/** @type {string[]} */
+export const ACTIVE = [STATUS.OPEN, STATUS.ACKNOWLEDGED, STATUS.REOPENED];
 
 /**
  * The value of an own key of a table, else undefined: a key from data never reaches an inherited
@@ -260,20 +264,13 @@ export const ACTIVE = ['open', 'acknowledged', 'reopened'];
  */
 export const own = (table, key) => (typeof key === 'string' && Object.hasOwn(table, key) ? table[key] : undefined);
 
-const STATUS_LABEL = {
-  open: 'Open · waiting for Claude',
-  acknowledged: 'Claude is working',
-  reopened: 'Reopened · waiting for Claude',
-  fixed: 'Fixed · please verify',
-  resolved: 'Resolved',
-  dismissed: 'Dismissed',
-};
+const STATUS_LABEL = TEXT.statusLabel;
 
-/** A Studio comment not sent to Claude yet (the user sends the drafts with one button). */
+/** A Studio comment not sent to the agent yet (the user sends the drafts with one button). */
 export const isDraft = (/** @type {any} */ c) => c?.draft === true;
 
 /** Words for a comment's status, a draft first (plain text: esc() it for innerHTML). */
-export const commentLabel = (/** @type {any} */ c) => (isDraft(c) ? 'Draft · not sent yet' : statusLabel(c?.status));
+export const commentLabel = (/** @type {any} */ c) => (isDraft(c) ? TEXT.draftLabel : statusLabel(c?.status));
 
 /** Words for a comment status (plain text: esc() it for innerHTML); an unknown status is shown as it is. */
 export function statusLabel(/** @type {unknown} */ s) {
@@ -282,19 +279,19 @@ export function statusLabel(/** @type {unknown} */ s) {
 
 /** Does a comment show under a filter tab ("active", "fixed", "closed", "all")? */
 export const inFilter = (/** @type {string} */ filter, /** @type {{ status: string }} */ c) =>
-  filter === 'active'
+  filter === COMMENT_FILTER.ACTIVE
     ? ACTIVE.includes(c.status)
-    : filter === 'fixed'
-      ? c.status === 'fixed'
-      : filter === 'closed'
-        ? ['resolved', 'dismissed'].includes(c.status)
+    : filter === COMMENT_FILTER.FIXED
+      ? c.status === STATUS.FIXED
+      : filter === COMMENT_FILTER.CLOSED
+        ? /** @type {string[]} */ ([STATUS.RESOLVED, STATUS.DISMISSED]).includes(c.status)
         : true;
 
 /** Pin statuses per Pins setting: 'active' (open + to verify), 'all' (also closed) or 'off'. */
 export const PIN_STATUSES = {
-  active: ['open', 'acknowledged', 'reopened', 'fixed'],
-  all: ['open', 'acknowledged', 'reopened', 'fixed', 'resolved'],
-  off: [],
+  [PIN_FILTER.ACTIVE]: [...ACTIVE, STATUS.FIXED],
+  [PIN_FILTER.ALL]: [...ACTIVE, STATUS.FIXED, STATUS.RESOLVED],
+  [PIN_FILTER.OFF]: [],
 };
 
 /**
@@ -309,7 +306,7 @@ export function pinsOf(comments, f, show) {
       (c) =>
         show.includes(c.status) &&
         (f.system
-          ? c.screen === 'system'
+          ? c.screen === SYSTEM_SCREEN
           : f.screen && c.screen === f.screen.id && c.variant === f.variant?.id && (c.state || null) === (f.state || null)),
     )
     .map((c) => ({ id: c.id, n: Number(c.id.replace('fb_', '')), selector: c.target?.selector, dfwId: c.target?.dfwId, status: c.status }));

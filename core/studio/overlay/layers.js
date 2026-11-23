@@ -3,6 +3,7 @@
 // arrow-key navigation through it.
 import { st } from './state.js';
 import { isLayer } from './target.js';
+import { NAV_DIR } from '../shared/enums.js';
 
 /**
  * @typedef {{ i: number, id: string | null, comp: string | null, variant: string | null, size: string | null, tag: string,
@@ -65,9 +66,9 @@ export function navLayer(dir) {
     : [...st.layerNode.values()].filter((x) => !x.parent).map((x) => x.node);
   const idx = sibs.findIndex((/** @type {LayerNode} */ n) => st.layerEls[n.i] === cur);
   let next = null;
-  if (dir === 'up') next = cur !== selected ? cur : meta.parent;
-  else if (dir === 'down') next = meta.node.children[0] ? st.layerEls[meta.node.children[0].i] : null;
-  else if (dir === 'left') next = sibs[idx - 1] ? st.layerEls[sibs[idx - 1].i] : null;
-  else if (dir === 'right') next = sibs[idx + 1] ? st.layerEls[sibs[idx + 1].i] : null;
+  if (dir === NAV_DIR.UP) next = cur !== selected ? cur : meta.parent;
+  else if (dir === NAV_DIR.DOWN) next = meta.node.children[0] ? st.layerEls[meta.node.children[0].i] : null;
+  else if (dir === NAV_DIR.LEFT) next = sibs[idx - 1] ? st.layerEls[sibs[idx - 1].i] : null;
+  else if (dir === NAV_DIR.RIGHT) next = sibs[idx + 1] ? st.layerEls[sibs[idx + 1].i] : null;
   return next;
 }

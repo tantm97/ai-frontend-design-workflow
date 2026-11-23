@@ -1,5 +1,10 @@
 //! Tests of `dfw studio` that need the built binary: start, stop and what is left behind.
 
+#![allow(
+    clippy::disallowed_methods,
+    reason = "binary tests build fixtures with std::fs and std::process directly"
+)]
+
 use std::fs;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};

@@ -244,7 +244,7 @@ impl Browser {
 
     /// Whether the browser is ended and its profile removed if this process dies first.
     #[cfg(test)]
-    #[cfg_attr(not(unix), allow(dead_code))] // used by the Unix-only tests
+    #[cfg_attr(not(unix), allow(dead_code, reason = "used by the Unix-only tests"))]
     pub fn guarded(&self) -> bool {
         lock(&self.guard).is_some()
     }
@@ -329,7 +329,13 @@ rm -rf "$2""#;
 
 #[cfg(unix)]
 fn guard_process(pid: u32, data_dir: &Path) -> Option<Guard> {
-    Command::new("/bin/sh")
+    // A long-lived watchdog that outlives this call: not a run-and-wait for core::process.
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "long-lived watchdog child whose lifetime the guard manages"
+    )]
+    let mut watchdog = Command::new("/bin/sh");
+    watchdog
         .args(["-c", WATCHDOG, "dfw-browser-guard"])
         .arg(pid.to_string())
         .arg(data_dir)
@@ -368,6 +374,11 @@ pub fn launch_with(opts: &LaunchOptions) -> Result<Browser, DfwError> {
     let timeout_ms = opts.timeout_ms.unwrap_or(20_000);
     let base = opts.temp_dir.clone().unwrap_or_else(env::temp_dir);
     let data_dir = make_temp_dir(&base, "dfw-browser-")?;
+    // The browser runs for the whole session and is killed by its guard: not a run-and-wait.
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "long-lived browser child; its guard and close() end it"
+    )]
     let mut command = Command::new(&exe);
     command
         .args(["--headless", "--remote-debugging-port=0"])
