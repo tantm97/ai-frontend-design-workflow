@@ -10,11 +10,17 @@
 //!   or hangs. A lock held by the same owner for `wait` is taken over only when the owner file's
 //!   process id names a process that is gone: a live holder that is merely slow (a slow disk, an
 //!   antivirus scan) keeps its lock, so two writers never work at once. An owner file without a
-//!   process id (dfw 0.6.3 and earlier) is judged by `wait` alone, as before. The one waiter that makes the folder
-//!   `<lock>/takeover` (atomic, one winner) renames the lock to `<lock>.<token>.stale.tmp` and
-//!   removes it; every waiter starts its wait again for the next holder.
-//! - **release**: remove the lock only when its owner file still holds your token, so a holder
-//!   that was taken over never removes the lock of the next one.
+//!   process id (dfw 0.6.3 and earlier) is judged by `wait` alone, as before. The one waiter that
+//!   makes the claim folder `<lock>/takeover` (atomic, one winner) renames the lock to
+//!   `<lock>.<token>.stale.tmp` and removes it; every waiter starts its wait again for the next
+//!   holder.
+//! - **release**: claim the lock the same way, then remove it only when its owner file still
+//!   holds your token, so a holder that was taken over never removes the lock of the next one.
+//! - **claim before rename**: the folder at `<lock>` is renamed only by whoever holds the claim
+//!   inside it, so while you hold it the folder you checked is the folder you rename (checking
+//!   the owner and then renaming `<lock>` is otherwise two steps another process can come
+//!   between: a release and a new holder, whose live lock would be renamed away). The claim holds
+//!   its maker's process id; a claim older than `stale` whose maker is gone is removed.
 //!
 //! A lock folder without an owner file (left by dfw 0.6.0 or earlier) is taken over the same way.
 
@@ -25,7 +31,7 @@ use std::thread;
 use std::time::{Duration, Instant, SystemTime};
 
 use super::error::DfwError;
-use super::util::unique_suffix;
+use super::util::{unique_suffix, write_atomic};
 
 /// The timings of a lock.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -54,12 +60,31 @@ const TAKEOVER: &str = "takeover";
 pub struct Lock {
     path: PathBuf,
     token: String,
+    times: LockTimes,
 }
 
 impl Drop for Lock {
     fn drop(&mut self) {
-        if owner(&self.path).as_deref() != Some(self.token.as_str()) {
-            return; // taken over: the lock there now is someone else's
+        let mine = || owner(&self.path).as_deref() == Some(self.token.as_str());
+        let start = Instant::now();
+        loop {
+            if !mine() {
+                return; // taken over: the lock there now is someone else's
+            }
+            if try_claim(&self.path, &self.token) {
+                break;
+            }
+            // A waiter's claim: it checks the owner and lets go, or takes the lock over. A
+            // claim that stays longer than `stale` is a dead waiter's; waiters remove it.
+            if start.elapsed() > self.times.stale {
+                return;
+            }
+            thread::sleep(self.times.retry);
+        }
+        if !mine() {
+            // Cleanup: our claim in a lock that is no longer ours.
+            let _ = fs::remove_dir_all(self.path.join(TAKEOVER));
+            return;
         }
         let aside = sibling(&self.path, &self.token, "old");
         if fs::rename(&self.path, &aside).is_ok() {
@@ -94,6 +119,7 @@ pub fn acquire_within(
             return Ok(Some(Lock {
                 path: path.to_path_buf(),
                 token,
+                times: *times,
             }));
         }
         let Ok(modified) = fs::metadata(path).and_then(|m| m.modified()) else {
@@ -177,43 +203,50 @@ fn try_take(path: &Path, token: &str) -> Result<bool, DfwError> {
 }
 
 /// Move a dead holder's lock aside and remove it. Of many waiters that judged the same lock,
-/// only the one that makes the `takeover` folder inside it goes on; it checks that the owner
-/// is still the judged one, then renames the lock away (atomic). A waiter whose claim landed
-/// in a newer lock sees the new owner and removes its claim again.
+/// only the one that makes the claim inside it goes on; holding the claim, it checks that the
+/// owner is still the judged one and renames the lock away: nobody else renames a claimed
+/// folder, so the folder checked is the folder renamed.
 fn take_over(path: &Path, judged: &Option<String>, token: &str, times: &LockTimes) {
     let claim = path.join(TAKEOVER);
-    if fs::create_dir(&claim).is_err() {
-        // Another waiter is taking it over, or the lock is gone. A claim left by a waiter that
-        // died half way is removed once it is stale.
+    if !try_claim(path, token) {
+        // Another waiter or the holder's release holds the claim, or the lock is gone. A claim
+        // whose maker died half way is removed once it is stale; a live maker keeps it.
         let old = fs::metadata(&claim)
             .and_then(|m| m.modified())
             .ok()
             .and_then(|m| SystemTime::now().duration_since(m).ok());
-        if old.is_some_and(|age| age > times.stale) {
-            // Cleanup: a dead waiter's claim.
-            let _ = fs::remove_dir(&claim);
+        if old.is_some_and(|age| age > times.stale) && owner_gone(&claim) {
+            // Cleanup: a dead claimant's claim.
+            let _ = fs::remove_dir_all(&claim);
         }
         return;
     }
     if owner(path) != *judged {
         // Cleanup: our claim in a lock that is not the one we judged.
-        let _ = fs::remove_dir(&claim);
+        let _ = fs::remove_dir_all(&claim);
         return;
     }
     let aside = sibling(path, token, "stale");
-    if fs::rename(path, &aside).is_err() {
-        let _ = fs::remove_dir(&claim); // cleanup: the lock is gone already
-        return;
+    if fs::rename(path, &aside).is_ok() {
+        // Cleanup: the dead holder's folder.
+        let _ = fs::remove_dir_all(&aside);
     }
-    if owner(&aside) != *judged {
-        // The judged holder released and a new one took the lock between the check and the
-        // rename: give it back.
-        let _ = fs::remove_dir(aside.join(TAKEOVER));
-        let _ = fs::rename(&aside, path);
-        return;
+}
+
+/// Make the claim `<lock>/takeover` (atomic, one winner) with an owner file naming this
+/// process, as a lock's own owner file does, so a claim left by a process that died can be told
+/// from a live one. True when this caller made it.
+fn try_claim(path: &Path, token: &str) -> bool {
+    let claim = path.join(TAKEOVER);
+    if fs::create_dir(&claim).is_err() {
+        return false;
     }
-    // Cleanup: the dead holder's folder.
-    let _ = fs::remove_dir_all(&aside);
+    // Cleanup on failure: without its owner file the claim is judged by age alone.
+    let _ = write_atomic(
+        &claim.join(OWNER),
+        format!("{token}\n{}\n", std::process::id()),
+    );
+    true
 }
 
 /// The token in an owner file's text (its first line).
@@ -225,6 +258,12 @@ fn token_of(text: &str) -> &str {
 /// process id that is gone), so a waiter takes it over after `wait`.
 #[cfg(test)]
 pub fn mark_dead(lock: &Lock) {
+    write_owner_of_gone(&lock.path, &lock.token);
+}
+
+/// Tests: an owner file in `dir` naming `token` and a process id that is gone.
+#[cfg(test)]
+fn write_owner_of_gone(dir: &Path, token: &str) {
     let gone = if cfg!(windows) {
         std::process::Command::new("cmd")
             .args(["/c", "exit"])
@@ -235,7 +274,7 @@ pub fn mark_dead(lock: &Lock) {
     let pid = gone
         .and_then(|mut c| c.wait().map(|_| c.id()))
         .unwrap_or(u32::MAX - 1);
-    let _ = fs::write(lock.path.join(OWNER), format!("{}\n{pid}\n", lock.token));
+    let _ = fs::write(dir.join(OWNER), format!("{token}\n{pid}\n"));
 }
 
 /// The token of the lock's owner (the first line of its owner file).
@@ -399,6 +438,62 @@ mod tests {
         assert_eq!(owner(&lock).as_deref(), Some(held.token.as_str()));
         drop(held);
         assert!(!lock.exists());
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// Timings under which every claim is already stale: only its maker's life decides.
+    const STALE_AT_ONCE: LockTimes = LockTimes {
+        wait: Duration::from_millis(300),
+        stale: Duration::ZERO,
+        retry: Duration::from_millis(2),
+    };
+
+    /// A waiter never removes the claim of a maker that is alive, however old the claim: it
+    /// used to remove any claim older than `stale`, so two waiters went on at once and one
+    /// renamed away the live lock of the next holder (a ".stale.tmp" folder was left behind).
+    #[test]
+    fn a_live_claim_is_never_removed_and_a_dead_ones_is() {
+        /// The token of the waiter that claims, and of the one that finds the claim.
+        const CLAIMANT: &str = "waiter";
+        const LATER: &str = "other";
+        let dir = test_dir("lock-claim");
+        let lock = dir.join(".lock");
+        let held = acquire(&lock, &FAST).unwrap();
+        let claim = lock.join(TAKEOVER);
+        assert!(try_claim(&lock, CLAIMANT));
+        take_over(&lock, &Some(held.token.clone()), LATER, &STALE_AT_ONCE);
+        assert!(claim.exists(), "a live waiter's claim stays");
+        assert!(lock.exists(), "and so does the lock it claimed");
+        write_owner_of_gone(&claim, CLAIMANT);
+        take_over(&lock, &Some(held.token.clone()), LATER, &STALE_AT_ONCE);
+        assert!(!claim.exists(), "a dead waiter's stale claim is removed");
+        assert!(lock.exists(), "removing it takes nothing over yet");
+        drop(held);
+        assert!(!lock.exists());
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// A release claims the lock like a takeover does: it waits while a waiter holds the claim
+    /// (that waiter checks the owner and lets go), so the folder it renames is its own lock.
+    #[test]
+    fn a_release_waits_for_a_waiters_claim() {
+        let dir = test_dir("lock-release-claim");
+        let lock = dir.join(".lock");
+        let held = acquire(&lock, &FAST).unwrap();
+        assert!(try_claim(&lock, "waiter"));
+        thread::scope(|s| {
+            let release = s.spawn(move || drop(held));
+            // T12: proves nothing happens: the release holds back while the claim is there.
+            thread::sleep(Duration::from_millis(50));
+            assert!(lock.exists() && !release.is_finished(), "the release waits");
+            fs::remove_dir_all(lock.join(TAKEOVER)).unwrap();
+            release.join().unwrap();
+        });
+        assert!(
+            !lock.exists(),
+            "the release went on once the claim was gone"
+        );
+        assert_eq!(fs::read_dir(&dir).unwrap().count(), 0, "nothing is left");
         fs::remove_dir_all(&dir).unwrap();
     }
 }
