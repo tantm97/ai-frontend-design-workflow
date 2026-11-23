@@ -87,7 +87,7 @@ impl Drop for Lock {
             return;
         }
         let aside = sibling(&self.path, &self.token, "old");
-        if fs::rename(&self.path, &aside).is_ok() {
+        if rename_claimed(&self.path, &aside, &self.times) {
             // Cleanup: the lock is released either way.
             let _ = fs::remove_dir_all(&aside);
         }
@@ -227,9 +227,29 @@ fn take_over(path: &Path, judged: &Option<String>, token: &str, times: &LockTime
         return;
     }
     let aside = sibling(path, token, "stale");
-    if fs::rename(path, &aside).is_ok() {
+    if rename_claimed(path, &aside, times) {
         // Cleanup: the dead holder's folder.
         let _ = fs::remove_dir_all(&aside);
+    }
+}
+
+/// Rename the claimed lock at `path` to `aside`. On Windows a folder cannot be renamed while
+/// another process has a file in it open (a waiter reading the owner file, a virus scan), so a
+/// failure is tried again for up to `wait`. When it still fails, the claim is removed so the
+/// lock is not left claimed by a live process that has stopped trying (every waiter would wait
+/// for it forever); the lock then stays, and is taken over as any other.
+fn rename_claimed(path: &Path, aside: &Path, times: &LockTimes) -> bool {
+    let start = Instant::now();
+    loop {
+        if fs::rename(path, aside).is_ok() {
+            return true;
+        }
+        if !path.exists() || start.elapsed() > times.wait {
+            // Cleanup: our claim, when the lock is still there.
+            let _ = fs::remove_dir_all(path.join(TAKEOVER));
+            return false;
+        }
+        thread::sleep(times.retry);
     }
 }
 
