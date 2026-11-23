@@ -41,6 +41,7 @@
     EDIT: "/__dfw/api/edit",
     UNDO: "/__dfw/api/undo"
   });
+  var METHOD = Object.freeze({ GET: "GET", POST: "POST", PATCH: "PATCH" });
 
   // core/studio/shared/protocol.js
   var MSG = Object.freeze({
@@ -222,6 +223,7 @@
     pinsHidden: "Comment pins hidden (Shift+C shows them).",
     pinsAll: "Showing every pin, closed comments too.",
     pinsActive: "Showing pins of open and to-verify comments.",
+    pinsMenu: Object.freeze({ active: "Pins: open", all: "Pins: all", off: "Pins: off" }),
     // Agent presence
     agentLabel: (editing, what, more) => `AI ${editing ? "is editing" : "changed"} ${what}${more}`.trim(),
     agentWholeFrame: "this frame",
@@ -260,7 +262,57 @@
     // Live review (in the running app)
     liveToggleTitle: (shortcut) => `Comment on an element${shortcut ? ` (${shortcut})` : ""}`,
     liveSent: (n) => `Sent to AI · comment #${n}`,
-    liveNotSent: (why) => `Not sent: ${why}`
+    liveNotSent: (why) => `Not sent: ${why}`,
+    liveBarLabel: "dfw review",
+    liveCommentLabel: "Comment for the AI",
+    liveCommentPlaceholder: "What should change?",
+    // Comments list and pins
+    nothingHere: "Nothing here.",
+    showOnCanvas: (n) => `Show comment #${n} on the canvas`,
+    areaTarget: "(area)",
+    openComments: "Open comments",
+    // Frames and pages
+    frameTitleHint: (title) => `${title} (double-click to present)`,
+    openInNewTab: "Open in new tab",
+    pageInAllHint: "Click: go to this section · Double-click: open the page alone",
+    // Layers
+    layersNoSelection: "Select a frame or an element to see its layers.",
+    layersLoading: "Loading layers…",
+    layersNone: "No layers (add data-dfw-id to elements).",
+    // Inspector (markup: the caller puts it in innerHTML as is)
+    inspectorHelpHtml: "Click a frame title to select a frame, click inside a frame to select an element. Double-click text to edit it. Press <kbd>?</kbd> for shortcuts.",
+    systemFrameHtml: "Generated from design/system/ and the tokens. Edit masters in <code>design/system/components/</code>.",
+    /** @param {string} scopeHtml the breakpoint scope, already escaped, or '' */
+    layoutHelpHtml: (scopeHtml) => `Layout: drag to reorder among flex/grid siblings or into an empty flex/grid container (<kbd>Alt</kbd>+arrows); drag the handles to resize (<kbd>Alt</kbd><kbd>Shift</kbd>+arrows), snapped to grid columns or tokens${scopeHtml ? `. Resizes here apply at ${scopeHtml}` : ""}. Double-click a handle or press <kbd>Alt</kbd><kbd>Shift</kbd><kbd>0</kbd> to reset.`,
+    layoutResetTitle: (scope) => `Remove this element's Studio layout rule${scope ? ` at ${scope}` : ""} (back to the screen's own layout)`,
+    layoutReset: (scope) => `Reset size to auto${scope ? ` (${scope})` : ""}`,
+    editText: "Edit text",
+    orDoubleClick: "or double-click it",
+    goToMaster: "Go to master",
+    inside: "inside",
+    emptyValue: "(empty)",
+    /** Short labels: field names, menu rows, buttons. */
+    label: Object.freeze({
+      designSystem: "Design System",
+      frame: "Frame",
+      screen: "Screen",
+      variant: "Variant",
+      breakpoint: "Breakpoint",
+      state: "State",
+      file: "File",
+      element: "Element",
+      tag: "Tag",
+      size: "Size",
+      role: "Role",
+      component: "Component",
+      none: "none",
+      default: "default",
+      all: "All",
+      allPages: "All pages",
+      close: "Close",
+      comment: "Comment",
+      cancel: "Cancel"
+    })
   });
 
   // core/studio/live/main.js
@@ -294,9 +346,9 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
 .toast{position:fixed;left:50%;bottom:72px;transform:translateX(-50%);background:#111;color:#fff;padding:8px 14px;border-radius:6px;pointer-events:none}
 [hidden]{display:none!important}`;
     sh.innerHTML = `<div class="box" hidden><span class="tag"></span></div>
-<div class="bar" role="toolbar" aria-label="dfw review"><b>dfw</b><button type="button" class="toggle" aria-pressed="false">Comment</button></div>
-<form class="pop" hidden><span class="src"></span><textarea aria-label="Comment for the AI" placeholder="What should change?"></textarea>
-<div class="row"><button type="button" class="ghost cancel">Cancel</button><button type="submit" class="primary">Send to AI</button></div></form>
+<div class="bar" role="toolbar" aria-label="${TEXT.liveBarLabel}"><b>dfw</b><button type="button" class="toggle" aria-pressed="false">${TEXT.label.comment}</button></div>
+<form class="pop" hidden><span class="src"></span><textarea aria-label="${TEXT.liveCommentLabel}" placeholder="${TEXT.liveCommentPlaceholder}"></textarea>
+<div class="row"><button type="button" class="ghost cancel">${TEXT.label.cancel}</button><button type="submit" class="primary">${TEXT.sendButton(0)}</button></div></form>
 <div class="toast" role="status" hidden></div>`;
     if (sh.adoptedStyleSheets && typeof CSSStyleSheet === "function" && "replaceSync" in CSSStyleSheet.prototype) {
       const sheet = new CSSStyleSheet();
@@ -374,7 +426,7 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
       };
       try {
         const res = await fetch(PATH.COMMENTS, {
-          method: "POST",
+          method: METHOD.POST,
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body)
         });

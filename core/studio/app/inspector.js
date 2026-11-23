@@ -8,6 +8,7 @@ import { edit, goToMaster, layoutScopeOf } from './edits.js';
 import { openComposer } from './comments.js';
 import { MSG } from '#studio/shared/protocol.js';
 import { UI_ACTION, INSTANCE_FIELD, EDIT_OP, LAYOUT_KEY } from '#studio/shared/enums.js';
+import { TEXT } from '#studio/shared/text.js';
 
 const COLORISH = new Set(['color', 'background-color', 'border-color']);
 const TYPE = new Set(['font-size', 'font-weight', 'line-height']);
@@ -19,30 +20,30 @@ const spaceTokens = () =>
 
 function frameInfoHtml(/** @type {any} */ f) {
   if (f.system)
-    return `<div class="isec"><div class="ihead">Design System</div><p class="note">Generated from design/system/ and the tokens. Edit masters in <code>design/system/components/</code>.</p></div>`;
+    return `<div class="isec"><div class="ihead">${TEXT.label.designSystem}</div><p class="note">${TEXT.systemFrameHtml}</p></div>`;
   const s = f.screen;
   return `<div class="isec"><div class="ihead">${esc(s.title || s.id)}</div>${s.description ? `<p class="note">${esc(s.description)}</p>` : ''}</div>
-  <div class="isec"><h3>Frame</h3><dl class="kv">
-    <dt>Screen</dt><dd>${esc(s.id)}</dd>
-    <dt>Variant</dt><dd>${esc(f.variant.label || f.variant.id)}</dd>
-    <dt>Breakpoint</dt><dd>${esc(f.bp.label || f.bp.id)} · ${esc(f.bp.width)}×${esc(f.bp.height)}</dd>
-    <dt>State</dt><dd>${esc(f.state || 'default')}</dd>
-    <dt>File</dt><dd><code>design/${esc(f.file)}</code></dd>
-  </dl><div class="btn-row"><a class="btn" href="${esc(f.src)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;text-decoration:none;color:inherit">Open in new tab ↗</a></div></div>`;
+  <div class="isec"><h3>${TEXT.label.frame}</h3><dl class="kv">
+    <dt>${TEXT.label.screen}</dt><dd>${esc(s.id)}</dd>
+    <dt>${TEXT.label.variant}</dt><dd>${esc(f.variant.label || f.variant.id)}</dd>
+    <dt>${TEXT.label.breakpoint}</dt><dd>${esc(f.bp.label || f.bp.id)} · ${esc(f.bp.width)}×${esc(f.bp.height)}</dd>
+    <dt>${TEXT.label.state}</dt><dd>${esc(f.state || TEXT.label.default)}</dd>
+    <dt>${TEXT.label.file}</dt><dd><code>design/${esc(f.file)}</code></dd>
+  </dl><div class="btn-row"><a class="btn" href="${esc(f.src)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;text-decoration:none;color:inherit">${TEXT.openInNewTab} ↗</a></div></div>`;
 }
 
 /** The element section: id, tag, size, role, and the text and layout edit hints. */
 function elementHtml(/** @type {any} */ f, /** @type {any} */ sel, /** @type {boolean} */ editable) {
   const own = sel.own || {};
   const scope = layoutScopeOf(f).scope;
-  return `<div class="isec"><h3>Element</h3><dl class="kv">
-    <dt>dfw-id</dt><dd>${own.id ? `<code>${esc(own.id)}</code>` : `<span class="muted">none${sel.target.dfwId ? ` (inside ${esc(sel.target.dfwId)})` : ''}</span>`}</dd>
-    <dt>Tag</dt><dd><code>&lt;${esc(sel.target.tag)}&gt;</code></dd>
-    <dt>Size</dt><dd>${Math.round(sel.rect[2])} × ${Math.round(sel.rect[3])}</dd>
-    ${sel.target.a11y?.role ? `<dt>Role</dt><dd>${esc(sel.target.a11y.role)}${sel.target.a11y.name ? ` “${esc(sel.target.a11y.name.slice(0, 60))}”` : ''}</dd>` : ''}
-  </dl>${sel.textEditable && editable ? '<div class="btn-row"><button type="button" class="btn" data-act="edit-text">Edit text</button><span class="note" style="margin:0;align-self:center">or double-click it</span></div>' : ''}${
+  return `<div class="isec"><h3>${TEXT.label.element}</h3><dl class="kv">
+    <dt>dfw-id</dt><dd>${own.id ? `<code>${esc(own.id)}</code>` : `<span class="muted">${TEXT.label.none}${sel.target.dfwId ? ` (${TEXT.inside} ${esc(sel.target.dfwId)})` : ''}</span>`}</dd>
+    <dt>${TEXT.label.tag}</dt><dd><code>&lt;${esc(sel.target.tag)}&gt;</code></dd>
+    <dt>${TEXT.label.size}</dt><dd>${Math.round(sel.rect[2])} × ${Math.round(sel.rect[3])}</dd>
+    ${sel.target.a11y?.role ? `<dt>${TEXT.label.role}</dt><dd>${esc(sel.target.a11y.role)}${sel.target.a11y.name ? ` “${esc(sel.target.a11y.name.slice(0, 60))}”` : ''}</dd>` : ''}
+  </dl>${sel.textEditable && editable ? `<div class="btn-row"><button type="button" class="btn" data-act="edit-text">${TEXT.editText}</button><span class="note" style="margin:0;align-self:center">${TEXT.orDoubleClick}</span></div>` : ''}${
     editable && own.id
-      ? `<p class="note">Layout: drag to reorder among flex/grid siblings or into an empty flex/grid container (<kbd>Alt</kbd>+arrows); drag the handles to resize (<kbd>Alt</kbd><kbd>Shift</kbd>+arrows), snapped to grid columns or tokens${scope ? `. Resizes here apply at ${esc(scope)}` : ''}. Double-click a handle or press <kbd>Alt</kbd><kbd>Shift</kbd><kbd>0</kbd> to reset.</p><div class="btn-row"><button type="button" class="btn small" data-act="layout-reset" title="Remove this element's Studio layout rule${scope ? ` at ${esc(scope)}` : ''} (back to the screen's own layout)">Reset size to auto${scope ? ` (${esc(scope)})` : ''}</button></div>`
+      ? `<p class="note">${TEXT.layoutHelpHtml(scope ? esc(scope) : '')}</p><div class="btn-row"><button type="button" class="btn small" data-act="layout-reset" title="${esc(TEXT.layoutResetTitle(scope))}">${esc(TEXT.layoutReset(scope))}</button></div>`
       : ''
   }</div>`;
 }
@@ -53,11 +54,11 @@ function componentHtml(/** @type {any} */ own, /** @type {boolean} */ editable) 
   const can = editable && own.id && def;
   const opt = (/** @type {string[]} */ list, /** @type {string} */ cur) =>
     list.map((x) => `<option ${x === cur ? 'selected' : ''}>${esc(x)}</option>`).join('');
-  return `<div class="isec"><h3>Component <span class="sp"></span><button type="button" class="btn small comp" data-act="master">Go to master</button></h3><dl class="kv">
-      <dt>Component</dt><dd>${esc(own.comp)}</dd>
-      ${def?.variants?.length ? `<dt>Variant</dt><dd>${can ? `<select data-edit="variant">${opt(def.variants, own.variant)}</select>` : esc(own.variant)}</dd>` : ''}
-      ${def?.sizes?.length ? `<dt>Size</dt><dd>${can ? `<select data-edit="size">${opt(def.sizes, own.size)}</select>` : esc(own.size)}</dd>` : ''}
-      ${(def?.props || []).map((/** @type {string} */ p) => `<dt>${esc(p)}</dt><dd>${can ? `<input data-edit="prop" data-prop="${esc(p)}" placeholder="(empty)">` : ''}</dd>`).join('')}
+  return `<div class="isec"><h3>${TEXT.label.component} <span class="sp"></span><button type="button" class="btn small comp" data-act="master">${TEXT.goToMaster}</button></h3><dl class="kv">
+      <dt>${TEXT.label.component}</dt><dd>${esc(own.comp)}</dd>
+      ${def?.variants?.length ? `<dt>${TEXT.label.variant}</dt><dd>${can ? `<select data-edit="variant">${opt(def.variants, own.variant)}</select>` : esc(own.variant)}</dd>` : ''}
+      ${def?.sizes?.length ? `<dt>${TEXT.label.size}</dt><dd>${can ? `<select data-edit="size">${opt(def.sizes, own.size)}</select>` : esc(own.size)}</dd>` : ''}
+      ${(def?.props || []).map((/** @type {string} */ p) => `<dt>${esc(p)}</dt><dd>${can ? `<input data-edit="prop" data-prop="${esc(p)}" placeholder="${TEXT.emptyValue}">` : ''}</dd>`).join('')}
     </dl>${!own.id && editable ? '<p class="note">Give the instance an id to edit it here.</p>' : ''}${def?.description ? `<p class="note">${esc(def.description)}</p>` : ''}</div>`;
 }
 
@@ -91,7 +92,7 @@ export function renderInspector() {
   const f = S.frames.get(S.sel?.key || S.selKey);
   if (!f) {
     const p = currentPage();
-    box.innerHTML = `<div class="isec"><div class="ihead">${esc(p?.title || '')}</div><p class="note">Click a frame title to select a frame, click inside a frame to select an element. Double-click text to edit it. Press <kbd>?</kbd> for shortcuts.</p></div>`;
+    box.innerHTML = `<div class="isec"><div class="ihead">${esc(p?.title || '')}</div><p class="note">${TEXT.inspectorHelpHtml}</p></div>`;
     return;
   }
   if (!S.sel || S.sel.key !== f.key) return (box.innerHTML = frameInfoHtml(f));

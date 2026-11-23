@@ -24,6 +24,7 @@ use crate::design::lint::designed_states;
 use crate::design::manifest::{self, key};
 use crate::design::system_page::render_system_page;
 use crate::design::tokens::relative_path;
+use crate::studio::paths;
 
 /// `--name:` in tokens.css, compiled once (the token list is read on every Studio request).
 static TOKEN_DECL: LazyLock<Option<regex::Regex>> =
@@ -423,7 +424,7 @@ pub fn shoot_frames(root: &Path, port: u16, body: &Value) -> Result<Value, DfwEr
         .filter(|f| {
             f.get("src")
                 .and_then(Value::as_str)
-                .is_some_and(|s| s.starts_with("/design/") || s == "/__dfw/system.html")
+                .is_some_and(|s| s.starts_with("/design/") || s == paths::SYSTEM_PAGE)
         })
         .take(200)
         .collect();
@@ -474,7 +475,7 @@ pub fn shoot_frames(root: &Path, port: u16, body: &Value) -> Result<Value, DfwEr
             m.insert(
                 "url".into(),
                 if r.ok {
-                    json!(format!("/__dfw/{rel}"))
+                    json!(format!("{}{rel}", paths::PREFIX))
                 } else {
                     Value::Null
                 },

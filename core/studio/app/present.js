@@ -152,12 +152,13 @@ export function renderPresentBar() {
   bpSel.disabled = P.system;
   const states = s ? statesOf(S.manifest, s) : [];
   $('#p-state').innerHTML =
-    `<option value="">default</option>` + states.map((x) => `<option ${x === P.state ? 'selected' : ''}>${esc(x)}</option>`).join('');
+    `<option value="">${TEXT.label.default}</option>` +
+    states.map((x) => `<option ${x === P.state ? 'selected' : ''}>${esc(x)}</option>`).join('');
   $('#p-state').disabled = !states.length || P.system;
   const themes = S.manifest.themes || [];
   $('#p-theme-wrap').hidden = !themes.length;
   $('#p-theme').innerHTML =
-    `<option value="">default</option>` +
+    `<option value="">${TEXT.label.default}</option>` +
     themes.map((/** @type {string} */ t) => `<option ${t === S.theme ? 'selected' : ''}>${esc(t)}</option>`).join('');
   $('#p-open').href = presentSrc();
   $('#p-comment').setAttribute('aria-pressed', String(P.mode === MODE.COMMENT));

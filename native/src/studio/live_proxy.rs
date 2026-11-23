@@ -30,6 +30,7 @@ use crate::core::paths::project_paths;
 use crate::core::util::{get_path, read_json};
 use crate::design::html::escape_attr;
 use crate::design::manifest::key;
+use crate::studio::paths;
 
 // Compiled once: every proxied page and response goes through them. A pattern that did not
 // compile would be a typo the tests catch; callers then leave the text as it is.
@@ -102,8 +103,10 @@ pub fn normalize_shortcut(raw: &str) -> Result<String, DfwError> {
 pub fn live_tags(nonce: Option<&str>, shortcut: &str) -> String {
     let n = nonce.map_or(String::new(), |n| format!(" nonce=\"{}\"", escape_attr(n)));
     format!(
-        "<script defer src=\"/__dfw/overlay.js\" data-dfw-live{n}></script><script defer src=\"/__dfw/live.js\" data-shortcut=\"{}\"{n}></script>",
-        escape_attr(shortcut)
+        "<script defer src=\"{overlay}\" data-dfw-live{n}></script><script defer src=\"{live}\" data-shortcut=\"{}\"{n}></script>",
+        escape_attr(shortcut),
+        overlay = paths::OVERLAY_JS,
+        live = paths::LIVE_JS,
     )
 }
 

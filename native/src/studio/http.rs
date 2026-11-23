@@ -20,6 +20,58 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 /// Largest request or response head accepted (Node's default is 16 KiB; dev servers send big
 /// cookies, so a little more).
+/// HTTP methods the servers read (as `net/http`'s `MethodGet`, ...).
+pub mod method {
+    pub const GET: &str = "GET";
+    pub const HEAD: &str = "HEAD";
+    pub const POST: &str = "POST";
+    pub const PATCH: &str = "PATCH";
+    pub const OPTIONS: &str = "OPTIONS";
+
+    /// A method that only reads: nothing is written or started for it (`security-privacy.md`
+    /// S7), and it needs no `Origin` check.
+    pub fn is_read_only(m: &str) -> bool {
+        matches!(m, GET | HEAD | OPTIONS)
+    }
+}
+
+/// The status codes the servers send (as `net/http`'s `StatusOK`, ...).
+pub mod status {
+    pub const OK: u16 = 200;
+    pub const CREATED: u16 = 201;
+    pub const NO_CONTENT: u16 = 204;
+    pub const NOT_MODIFIED: u16 = 304;
+    pub const BAD_REQUEST: u16 = 400;
+    pub const FORBIDDEN: u16 = 403;
+    pub const NOT_FOUND: u16 = 404;
+    pub const PAYLOAD_TOO_LARGE: u16 = 413;
+    pub const INTERNAL_SERVER_ERROR: u16 = 500;
+    pub const SERVICE_UNAVAILABLE: u16 = 503;
+
+    /// The status of a failed route: 400 for an error the user can fix, 500 for the others.
+    pub fn of(err: &crate::core::error::DfwError) -> u16 {
+        if matches!(err, crate::core::error::DfwError::User { .. }) {
+            BAD_REQUEST
+        } else {
+            INTERNAL_SERVER_ERROR
+        }
+    }
+}
+
+/// The error texts the servers answer with, defined once (`{"error": <text>}`).
+pub mod message {
+    pub const NOT_FOUND: &str = "not found";
+    pub const URI_MALFORMED: &str = "URI malformed";
+    pub const TOO_LARGE: &str = "Request too large.";
+    pub const MALFORMED: &str = "Malformed request.";
+    pub const BUSY: &str = "Too many connections; try again in a moment.";
+}
+
+/// The body of every error answer: `{"error": message}`.
+pub fn error_body(message: &str) -> serde_json::Value {
+    serde_json::json!({ "error": message })
+}
+
 pub const MAX_HEAD: usize = 64 * 1024;
 
 /// How long one read of a request (head or body) may wait.
@@ -55,9 +107,9 @@ pub fn refusal(err: &io::Error) -> Option<(u16, &'static str)> {
         .get_ref()
         .is_some_and(|inner| inner.is::<HeadTooLarge>())
     {
-        return Some((413, "Request too large."));
+        return Some((status::PAYLOAD_TOO_LARGE, message::TOO_LARGE));
     }
-    (err.kind() == io::ErrorKind::InvalidData).then_some((400, "Malformed request."))
+    (err.kind() == io::ErrorKind::InvalidData).then_some((status::BAD_REQUEST, message::MALFORMED))
 }
 
 /// A reader over a socket that gives up at `end`: every read waits at most until then (and
@@ -98,7 +150,7 @@ pub fn read_request_head(stream: &mut TcpStream) -> io::Result<Option<Head>> {
 /// A short JSON error answer (`{"error": message}`) for a request that was refused before any
 /// route saw it.
 pub fn write_error(stream: &mut impl Write, method: &str, code: u16, message: &str) {
-    let body = format!("{{\"error\":{}}}", serde_json::Value::from(message));
+    let body = crate::core::util::to_json_compact(&error_body(message));
     let headers = [
         (
             "Content-Type".to_string(),
@@ -146,9 +198,9 @@ pub fn spawn_connection(
         let _ = stream.set_write_timeout(Some(Duration::from_secs(1)));
         write_error(
             &mut stream,
-            "GET",
-            503,
-            "Too many connections; try again in a moment.",
+            method::GET,
+            status::SERVICE_UNAVAILABLE,
+            message::BUSY,
         );
         return;
     };
@@ -497,7 +549,7 @@ pub fn write_response(
         all.push(("Content-Length".into(), body.len().to_string()));
     }
     write_head(stream, code, &all)?;
-    if method != "HEAD" && code != 204 && code != 304 {
+    if method != method::HEAD && code != status::NO_CONTENT && code != status::NOT_MODIFIED {
         stream.write_all(body)?;
     }
     stream.flush()

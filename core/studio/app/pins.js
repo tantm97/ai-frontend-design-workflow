@@ -4,11 +4,22 @@ import { PIN_STATUSES, esc, own, pinsOf, commentLabel, isDraft } from './model.j
 import { $, $$, P, S, post, store, toast, ui } from './state.js';
 import { updateHud } from './hud.js';
 import { MSG } from '#studio/shared/protocol.js';
-import { MODE, PIN_FILTER, TAB, SYSTEM_SCREEN } from '#studio/shared/enums.js';
+import { MODE, PIN_FILTER, STATUS, TAB, SYSTEM_SCREEN } from '#studio/shared/enums.js';
 import { TEXT } from '#studio/shared/text.js';
 
-const STATUS_COLOR = { open: '#c2410c', acknowledged: '#c2410c', reopened: '#c2410c', fixed: '#a16207', resolved: '#15803d' };
-const PIN_LABEL = { active: 'Pins: open', all: 'Pins: all', off: 'Pins: off' };
+/** Pin colours by status: CSS variables of app.css (fixed in both themes). */
+const STATUS_COLOR = {
+  [STATUS.OPEN]: 'var(--pin-open)',
+  [STATUS.ACKNOWLEDGED]: 'var(--pin-open)',
+  [STATUS.REOPENED]: 'var(--pin-open)',
+  [STATUS.FIXED]: 'var(--pin-fixed)',
+  [STATUS.RESOLVED]: 'var(--pin-resolved)',
+};
+const PIN_LABEL = {
+  [PIN_FILTER.ACTIVE]: TEXT.pinsMenu.active,
+  [PIN_FILTER.ALL]: TEXT.pinsMenu.all,
+  [PIN_FILTER.OFF]: TEXT.pinsMenu.off,
+};
 
 /** Presenter: pins only when toggled on, or while commenting. Canvas: the Pins setting. */
 export const pinStatuses = (/** @type {any} */ f) =>
@@ -38,7 +49,7 @@ export function renderPins() {
       b.dataset.key = f.key;
       b.dataset.id = c.id;
       b.dataset.rect = JSON.stringify(p.rect);
-      b.style.background = own(STATUS_COLOR, c.status) || '#78716c';
+      b.style.background = own(STATUS_COLOR, c.status) || 'var(--pin-other)';
       b.onclick = (e) => {
         e.stopPropagation();
         if (S.pop === c.id) return closePop();
@@ -95,12 +106,13 @@ export function renderPop() {
   const c = S.comments.find((x) => x.id === S.pop);
   const pop = $('#pin-pop');
   if (!c) return closePop();
-  const where = c.screen === SYSTEM_SCREEN ? 'Design System' : [c.screen, c.variant, c.breakpoint, c.state].filter(Boolean).join(' / ');
+  const where =
+    c.screen === SYSTEM_SCREEN ? TEXT.label.designSystem : [c.screen, c.variant, c.breakpoint, c.state].filter(Boolean).join(' / ');
   const thread = (c.thread || []).slice(-3);
   pop.innerHTML = `
-    <div class="pop-head"><span class="num">#${esc(c.id.replace('fb_', ''))}</span><span class="status" data-s="${esc(isDraft(c) ? 'draft' : c.status)}">${esc(commentLabel(c))}</span><button type="button" class="pop-x" aria-label="Close">✕</button></div>
+    <div class="pop-head"><span class="num">#${esc(c.id.replace('fb_', ''))}</span><span class="status" data-s="${esc(isDraft(c) ? 'draft' : c.status)}">${esc(commentLabel(c))}</span><button type="button" class="pop-x" aria-label="${TEXT.label.close}">✕</button></div>
     <p class="pop-text">${esc(c.comment)}</p>
-    <p class="pop-where">${esc(where)} · <code>${esc(c.target?.dfwId || c.target?.selector || 'area')}</code></p>
+    <p class="pop-where">${esc(where)} · <code>${esc(c.target?.dfwId || c.target?.selector || TEXT.areaTarget)}</code></p>
     ${thread.length ? `<ul class="thread">${thread.map((/** @type {any} */ t) => `<li><span class="by">${esc(t.by)} · ${esc(new Date(t.at).toLocaleString())}</span>${esc(t.message)}</li>`).join('')}</ul>` : ''}
     <div class="comment-actions"></div>`;
   $('.pop-x', pop).onclick = closePop;

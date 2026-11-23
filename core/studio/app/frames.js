@@ -8,6 +8,7 @@ import { $, $$, ALL, P, S, currentPage, pageModel, post, postAll, store, viewCon
 import { updateHud } from './hud.js';
 import { MSG } from '#studio/shared/protocol.js';
 import { MODE, SYSTEM_SCREEN } from '#studio/shared/enums.js';
+import { TEXT } from '#studio/shared/text.js';
 
 /**
  * The canvas of each recently shown page, kept (hidden) so that going back to it shows its loaded
@@ -160,7 +161,7 @@ function addFrame(spec, pageId, canvas, before) {
   const el = document.createElement('div');
   el.className = 'frame';
   el.dataset.key = f.key;
-  el.innerHTML = `<div class="frame-title" title="${esc(f.title)} (double-click to present)">${esc(f.title)}<a href="${esc(f.src)}" target="_blank" rel="noopener" title="Open in a new tab">↗</a></div><div class="placeholder">${esc(f.title)}</div>`;
+  el.innerHTML = `<div class="frame-title" title="${esc(TEXT.frameTitleHint(f.title))}">${esc(f.title)}<a href="${esc(f.src)}" target="_blank" rel="noopener" title="${TEXT.openInNewTab}">↗</a></div><div class="placeholder">${esc(f.title)}</div>`;
   const t = $('.frame-title', el);
   t.addEventListener('mousedown', (/** @type {MouseEvent} */ e) => {
     if (/** @type {HTMLElement} */ (e.target).tagName === 'A' || e.button !== 0 || S.mode === MODE.HAND || S.space) return;
@@ -324,7 +325,7 @@ export function renderPages() {
   list.innerHTML = '';
   const all = document.createElement('li');
   const total = S.pages.reduce((n, p) => n + (p.system ? 0 : countOf(ctx, p)), 0);
-  all.innerHTML = `<button type="button" data-page="${ALL}" class="all" ${S.page === ALL ? 'aria-current="page"' : ''}><span>All pages</span><span class="n">${total}</span></button>`;
+  all.innerHTML = `<button type="button" data-page="${ALL}" class="all" ${S.page === ALL ? 'aria-current="page"' : ''}><span>${TEXT.label.allPages}</span><span class="n">${total}</span></button>`;
   $('button', all).onclick = () => setPage(ALL, { fit: S.page === ALL });
   list.append(all);
   for (const p of S.pages) {
@@ -334,7 +335,7 @@ export function renderPages() {
     ).length;
     const li = document.createElement('li');
     const inAll = S.page === ALL;
-    li.innerHTML = `<button type="button" data-page="${esc(p.id)}" ${p.id === S.page ? 'aria-current="page"' : ''} title="${inAll ? 'Click: go to this section · Double-click: open the page alone' : ''}"><span>${esc(p.title)}</span>${open ? `<span class="c" title="Open comments">${open}</span>` : ''}<span class="n">${n}</span></button>`;
+    li.innerHTML = `<button type="button" data-page="${esc(p.id)}" ${p.id === S.page ? 'aria-current="page"' : ''} title="${inAll ? TEXT.pageInAllHint : ''}"><span>${esc(p.title)}</span>${open ? `<span class="c" title="${TEXT.openComments}">${open}</span>` : ''}<span class="n">${n}</span></button>`;
     const b = $('button', li);
     b.onclick = () => (S.page === ALL ? ui.zoomToSection(p.id) : setPage(p.id));
     b.ondblclick = () => setPage(p.id);

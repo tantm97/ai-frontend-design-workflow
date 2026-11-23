@@ -2,10 +2,10 @@
 // Every call the Studio page makes to its server, one function per route (paths in
 // shared/paths.js). Feature modules call these, never `fetch` or a `/__dfw/` string.
 import { api } from './state.js';
-import { PATH, commentPath } from '#studio/shared/paths.js';
+import { PATH, commentPath, METHOD } from '#studio/shared/paths.js';
 
 /** @param {unknown} body */
-const post = (body) => ({ method: 'POST', body: JSON.stringify(body ?? {}) });
+const post = (body) => ({ method: METHOD.POST, body: JSON.stringify(body ?? {}) });
 
 export const server = {
   manifest: () => api(PATH.MANIFEST),
@@ -19,10 +19,10 @@ export const server = {
    * @param {string} id
    * @param {Record<string, any>} body status change and/or a thread line
    */
-  patchComment: (id, body) => api(commentPath(id), { method: 'PATCH', body: JSON.stringify(body) }),
-  sendDrafts: () => api(PATH.COMMENTS_SEND, { method: 'POST' }),
+  patchComment: (id, body) => api(commentPath(id), { method: METHOD.PATCH, body: JSON.stringify(body) }),
+  sendDrafts: () => api(PATH.COMMENTS_SEND, { method: METHOD.POST }),
   listening: () => api(PATH.LISTENING),
-  newSession: () => api(PATH.SESSIONS, { method: 'POST' }),
+  newSession: () => api(PATH.SESSIONS, { method: METHOD.POST }),
   /** @param {Record<string, any>} body */
   shoot: (body) => api(PATH.SHOOT, post(body)),
   /** @param {Record<string, any>} body */

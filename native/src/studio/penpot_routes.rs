@@ -13,7 +13,7 @@
 use serde_json::{json, Value};
 
 use super::api::mime;
-use super::http::query_param;
+use super::http::{method, query_param, status};
 use super::server::{Request, Response, Studio, JSON};
 use crate::assets::{studio_file, studio_text};
 use crate::core::config::global_config_path;
@@ -23,18 +23,23 @@ use crate::core::util::{get_path, read_json, to_json_pretty};
 use crate::penpot::export::{export_penpot, ExportOptions};
 use crate::penpot::import::{format_import_changes, import_changes, ImportOptions};
 use crate::penpot::live::sync_threads;
+use crate::studio::paths;
 use crate::workflow::state::load_state;
 
 /// `PENPOT_CORS`: Penpot runs on another origin, and on a public one (private network access).
 const CORS: [(&str, &str); 4] = [
     ("Access-Control-Allow-Origin", "*"),
-    ("Access-Control-Allow-Methods", "GET"),
+    ("Access-Control-Allow-Methods", method::GET),
     ("Access-Control-Allow-Headers", "content-type"),
     ("Access-Control-Allow-Private-Network", "true"),
 ];
 
 /// The Penpot the panel works with when the user's config names none: the Penpot cloud.
 pub const DEFAULT_PENPOT_ORIGIN: &str = "https://design.penpot.app";
+
+/// The answer to a GET of the export before one exists.
+const NO_EXPORT: &str =
+    "No Penpot export yet: run \"dfw penpot export\", or tick \"Render now\" in the dfw bridge panel.";
 
 /// The header that carries the panel's token.
 pub const TOKEN_HEADER: &str = "x-dfw-bridge";
@@ -101,7 +106,7 @@ pub fn frame_ancestors(origins: &[String]) -> (String, String) {
 /// Why a panel request is refused: a browser that says it comes from another site, or a write
 /// without the Studio's token.
 fn bridge_refusal(studio: &Studio, req: &Request, needs_token: bool) -> Option<Response> {
-    let refuse = |msg: &str| Some(Response::json(403, &json!({ "error": msg })));
+    let refuse = |msg: &str| Some(Response::error(status::FORBIDDEN, msg));
     if req
         .head
         .header("sec-fetch-site")
@@ -137,18 +142,18 @@ fn manifest() -> Value {
 /// `penpotRoute(req, res, p, url)`.
 pub fn route(studio: &Studio, req: &Request) -> Result<Response, DfwError> {
     let method = req.head.method();
-    let rel = req.path.strip_prefix("/__dfw/penpot/").unwrap_or_default();
-    if method == "OPTIONS" {
-        return Ok(cors(204, "", "text/plain"));
+    let rel = req.path.strip_prefix(paths::PENPOT).unwrap_or_default();
+    if method == method::OPTIONS {
+        return Ok(cors(status::NO_CONTENT, "", "text/plain"));
     }
     let json_type = mime(".json").unwrap_or(JSON);
     Ok(match rel {
-        "manifest.json" => cors(200, to_json_pretty(&manifest()), json_type),
+        "manifest.json" => cors(status::OK, to_json_pretty(&manifest()), json_type),
         "plugin.js" => match studio_text("penpot/plugin.js") {
             Some(code) => {
                 let origin = format!("http://127.0.0.1:{}", studio.port);
                 cors(
-                    200,
+                    status::OK,
                     code.replace("__DFW_STUDIO_ORIGIN__", &origin),
                     mime(".js").unwrap_or(JSON),
                 )
@@ -156,43 +161,41 @@ pub fn route(studio: &Studio, req: &Request) -> Result<Response, DfwError> {
             None => Response::not_found(),
         },
         "icon.svg" => match studio_file("penpot/icon.svg") {
-            Some(svg) => cors(200, svg.into_owned(), mime(".svg").unwrap_or(JSON)),
+            Some(svg) => cors(status::OK, svg.into_owned(), mime(".svg").unwrap_or(JSON)),
             None => Response::not_found(),
         },
         "ui.html" => match studio_file("penpot/ui.html") {
             Some(html) => {
-                let mut r = Response::send(200, html.into_owned(), mime(".html").unwrap_or(JSON));
+                let mut r =
+                    Response::send(status::OK, html.into_owned(), mime(".html").unwrap_or(JSON));
                 r.headers.push(frame_ancestors(&studio.penpot_origins));
                 r
             }
             None => Response::not_found(),
         },
         // What the panel needs before it talks to Penpot or writes: the token and the origins.
-        "session.json" if method == "GET" => {
+        "session.json" if method == method::GET => {
             if let Some(refused) = bridge_refusal(studio, req, false) {
                 return Ok(refused);
             }
             Response::json(
-                200,
+                status::OK,
                 &json!({ "token": studio.penpot_token, "origins": studio.penpot_origins }),
             )
         }
         // A GET only reads the last export: rendering (files written, a browser started) is a
         // POST, so a page elsewhere cannot start it with an <img>.
-        "export.json" if method == "GET" => {
+        "export.json" if method == method::GET => {
             let file = project_paths(&studio.root)
                 .dfw
                 .join("penpot")
                 .join("export.json");
             if !file.exists() {
-                return Ok(Response::json(
-                    404,
-                    &json!({ "error": "No Penpot export yet: run \"dfw penpot export\", or tick \"Render now\" in the dfw bridge panel." }),
-                ));
+                return Ok(Response::error(status::NOT_FOUND, NO_EXPORT));
             }
-            Response::send(200, std::fs::read(&file)?, json_type)
+            Response::send(status::OK, std::fs::read(&file)?, json_type)
         }
-        "export.json" if method == "POST" => {
+        "export.json" if method == method::POST => {
             if let Some(refused) = bridge_refusal(studio, req, true) {
                 return Ok(refused);
             }
@@ -203,9 +206,9 @@ pub fn route(studio: &Studio, req: &Request) -> Result<Response, DfwError> {
                 bp: query_param(req.head.target(), "bp").filter(|b| !b.is_empty()),
                 out: None,
             };
-            Response::json(200, &export_penpot(&studio.root, &opts)?.1)
+            Response::json(status::OK, &export_penpot(&studio.root, &opts)?.1)
         }
-        "changes" if method == "POST" => {
+        "changes" if method == method::POST => {
             if let Some(refused) = bridge_refusal(studio, req, true) {
                 return Ok(refused);
             }
@@ -223,13 +226,13 @@ pub fn route(studio: &Studio, req: &Request) -> Result<Response, DfwError> {
                 .map(|c| c.get("id").cloned().unwrap_or(Value::Null))
                 .collect();
             Response::json(
-                200,
+                status::OK,
                 &json!({ "summary": format_import_changes(&r, false), "comments": ids, "changes": r.changes.len() }),
             )
         }
         // Live comments: the plugin panel sends the file's threads every few seconds and posts
         // dfw's replies back; a sync that adds or updates comments broadcasts `comments`.
-        "sync" if method == "POST" => {
+        "sync" if method == method::POST => {
             if let Some(refused) = bridge_refusal(studio, req, true) {
                 return Ok(refused);
             }
@@ -239,7 +242,7 @@ pub fn route(studio: &Studio, req: &Request) -> Result<Response, DfwError> {
             if count("comments") > 0 || count("updated") > 0 {
                 studio.clients.broadcast("comments", &json!({}));
             }
-            Response::json(200, &r)
+            Response::json(status::OK, &r)
         }
         _ => Response::not_found(),
     })

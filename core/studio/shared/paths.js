@@ -23,5 +23,8 @@ export const PATH = Object.freeze({
   UNDO: '/__dfw/api/undo',
 });
 
+/** The HTTP methods the browser code sends (the server's are `studio::http::method`). */
+export const METHOD = Object.freeze({ GET: 'GET', POST: 'POST', PATCH: 'PATCH' });
+
 /** The address of one comment (PATCH). */
 export const commentPath = (/** @type {string} */ id) => `${PATH.COMMENTS}/${encodeURIComponent(id)}`;
