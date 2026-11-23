@@ -259,6 +259,7 @@ pub fn wait_for_comments(root: &Path, options: WaitOptions) -> Result<Vec<Value>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::fixture::SCREEN_PAGE;
     use crate::core::util::test_dir;
     use crate::review::comments::{add_comment, update_comment, Update};
     use crate::workflow::state::{new_state, save_state};
@@ -446,12 +447,12 @@ mod tests {
     #[test]
     fn the_text_for_the_agent_is_the_node_text() {
         let comments = [
-            json!({ "id": "fb_001", "status": "open", "screen": "home", "breakpoint": "mobile", "theme": "dark", "target": { "dfwId": "home.cta", "source": format!("{}:3", rel::screen("home/a.html")) }, "comment": "Bigger" }),
+            json!({ "id": "fb_001", "status": "open", "screen": "home", "breakpoint": "mobile", "theme": "dark", "target": { "dfwId": "home.cta", "source": format!("{}:3", rel::screen(SCREEN_PAGE)) }, "comment": "Bigger" }),
             json!({ "id": "fb_002", "status": "open", "comment": "x", "provider": "dfw-live" }),
         ];
         assert_eq!(
             format_for_claude(&comments),
-            format!("2 new Studio comment(s) from the user:\n- fb_001 [open] home / mobile / dark -> home.cta ({}:3)\n    \"Bigger\"\n- fb_002 [open] design system -> ?\n    \"x\"\nComments marked \"live\" are on the running app (dfw review): open target.source (file:line:col) and fix the implementation there; without a source, find the element by its selector and text (phase-verify).\nApply them now (references/phase-review.md > \"Applying comments\"): \"dfw comments ack <id>\", fix (prefer design-system fixes when the comment is about a component or token), check, then \"dfw comments fixed <id> --message \\\"<what changed>\\\"\". If a comment conflicts with an approved decision or is ambiguous, reply with \"dfw comments reply <id> --message ...\" and ask the user.", rel::screen("home/a.html"))
+            format!("2 new Studio comment(s) from the user:\n- fb_001 [open] home / mobile / dark -> home.cta ({}:3)\n    \"Bigger\"\n- fb_002 [open] design system -> ?\n    \"x\"\nComments marked \"live\" are on the running app (dfw review): open target.source (file:line:col) and fix the implementation there; without a source, find the element by its selector and text (phase-verify).\nApply them now (references/phase-review.md > \"Applying comments\"): \"dfw comments ack <id>\", fix (prefer design-system fixes when the comment is about a component or token), check, then \"dfw comments fixed <id> --message \\\"<what changed>\\\"\". If a comment conflicts with an approved decision or is ambiguous, reply with \"dfw comments reply <id> --message ...\" and ask the user.", rel::screen(SCREEN_PAGE))
         );
     }
 
@@ -496,7 +497,7 @@ mod tests {
         assert!(take_undelivered(&root, true).unwrap().is_empty());
         assert!(!delivered_file(&root).exists());
         add_comment(&root, &json!({ "comment": "later" })).unwrap();
-        let lock = root.join(rel::join(rel::REVIEWS, ".lock"));
+        let lock = root.join(rel::join(rel::REVIEWS, file::REVIEWS_LOCK));
         let held = crate::core::lock::acquire(&lock, &crate::core::lock::STANDARD).unwrap();
         let start = Instant::now();
         assert!(take_undelivered(&root, true).unwrap().is_empty());

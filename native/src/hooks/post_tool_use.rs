@@ -138,21 +138,33 @@ pub fn post_tool_use(input: &HookInput, host: &Host) -> Result<Option<HookResult
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::fixture::{APP_DIR, APP_TSX, DARK_THEME};
     use crate::core::paths::file;
 
     #[test]
     fn design_json_is_the_node_expression() {
+        /// A file name that is only the extension.
+        const BARE_EXTENSION: &str = ".json";
+        /// A file name that ends with the extension's letters, no dot.
+        const NO_DOT: &str = "json";
+        /// A JSON file of a `design` folder inside the app.
+        const JSON_FILE: &str = "a.json";
+        /// A JSON file name with a line break.
+        const LINE_BREAK: &str = "a\nb.json";
         assert!(design_json(rel::MANIFEST, ""));
-        assert!(design_json(&rel::design(".json"), ""));
-        assert!(!design_json(&rel::design("json"), ""));
-        assert!(!design_json(&format!("src/{}", rel::design("a.json")), ""));
-        assert!(design_json(&rel::join(rel::THEMES, "dark.json"), "tokens/"));
-        assert!(design_json(&rel::join(rel::TOKENS, ".json"), "tokens/"));
-        assert!(!design_json(&rel::design(file::TOKENS_JSON), "tokens/"));
+        assert!(design_json(&rel::design(BARE_EXTENSION), ""));
+        assert!(!design_json(&rel::design(NO_DOT), ""));
         assert!(!design_json(
-            &rel::join(rel::TOKENS, "a\nb.json"),
+            &rel::join(APP_DIR, &rel::design(JSON_FILE)),
+            ""
+        ));
+        assert!(design_json(&rel::join(rel::THEMES, DARK_THEME), "tokens/"));
+        assert!(design_json(
+            &rel::join(rel::TOKENS, BARE_EXTENSION),
             "tokens/"
         ));
+        assert!(!design_json(&rel::design(file::TOKENS_JSON), "tokens/"));
+        assert!(!design_json(&rel::join(rel::TOKENS, LINE_BREAK), "tokens/"));
     }
 
     /// d: a file whose name starts with two dots is in the project (tests/unit/node-stable)
@@ -160,7 +172,7 @@ mod tests {
     fn only_dot_dot_and_dot_dot_slash_are_outside() {
         assert!(is_checked("..x.html"));
         assert!(is_checked("..x/y.css"));
-        assert!(is_checked("src/a.tsx"));
+        assert!(is_checked(APP_TSX));
         assert!(!is_checked("../x.html"));
         assert!(!is_checked(".."));
         assert!(!is_checked(&rel::approved("v1/a.html")));

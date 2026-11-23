@@ -20,6 +20,14 @@ use std::time::{Duration, Instant};
 mod layout;
 use layout::{file, rel};
 
+#[path = "../src/core/fixture.rs"]
+#[allow(
+    dead_code,
+    reason = "each test binary uses a part of the fixture names"
+)]
+mod fixture;
+use fixture::{SCREEN, SCREEN_PAGE};
+
 const DFW: &str = env!("CARGO_BIN_EXE_dfw");
 
 fn repo() -> PathBuf {
@@ -119,8 +127,8 @@ fn studio_start_with_a_broken_design_json_can_be_stopped() {
     let dir = std::env::temp_dir().join(format!("dfw-native-studio-{}", std::process::id()));
     fs::create_dir_all(&dir).unwrap();
     let root = dir.canonicalize().unwrap();
-    fs::create_dir_all(root.join(rel::screen("home"))).unwrap();
-    fs::write(root.join(rel::screen("home/a.html")), "<p>a</p>").unwrap();
+    fs::create_dir_all(root.join(rel::screen(SCREEN))).unwrap();
+    fs::write(root.join(rel::screen(SCREEN_PAGE)), "<p>a</p>").unwrap();
     fs::write(root.join(rel::MANIFEST), "{ broken").unwrap();
     let port = free_port();
     let (code, stdout, stderr) = cli(&root, &["studio", "start", "--port", &port.to_string()]);

@@ -214,6 +214,7 @@ pub fn now_ms() -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::fixture::HTML_FILE;
     use crate::core::util::test_dir;
 
     #[test]
@@ -236,11 +237,11 @@ mod tests {
     fn a_poll_reports_new_changed_and_removed_files() {
         let dir = test_dir("studio-watch-poll");
         fs::create_dir_all(dir.join(file::SCREENS)).unwrap();
-        fs::write(dir.join(file::SCREENS).join("a.html"), "a").unwrap();
+        fs::write(dir.join(file::SCREENS).join(HTML_FILE), "a").unwrap();
         fs::write(dir.join("gone.css"), "x").unwrap();
         let mut w = Watched::new("design", dir.clone());
         assert!(w.poll().is_empty());
-        fs::write(dir.join(file::SCREENS).join("a.html"), "ab").unwrap();
+        fs::write(dir.join(file::SCREENS).join(HTML_FILE), "ab").unwrap();
         fs::write(dir.join("new.css"), "x").unwrap();
         fs::write(dir.join("skip.json.1.tmp"), "x").unwrap();
         fs::remove_file(dir.join("gone.css")).unwrap();

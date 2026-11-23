@@ -11,7 +11,7 @@ use super::screenshot::Job;
 use crate::core::config::{load_config, studio_breakpoints, Breakpoint};
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::{project_paths, rel, resolve, ProjectPaths};
+use crate::core::paths::{file, project_paths, rel, resolve, ProjectPaths};
 use crate::core::process::is_alive;
 use crate::core::util::read_json;
 use crate::design::manifest::{self, key};
@@ -176,7 +176,7 @@ pub fn url_jobs(
                 let page = if page.is_empty() { "root" } else { &page };
                 project_paths(root)
                     .shots
-                    .join("url")
+                    .join(file::SHOTS_URL)
                     .join(format!("{page}__{}.png", bp.id))
             }
         };
@@ -378,6 +378,7 @@ pub fn studio_jobs(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::fixture::screen_page;
     use crate::core::util::{test_dir, write_json};
     use crate::design::tokens::relative_path;
 
@@ -431,7 +432,7 @@ mod tests {
                 .map(|j| j.out)
                 .collect()
         };
-        let shot = |name: &str| root.join(rel::join(rel::SHOTS, "url")).join(name);
+        let shot = |name: &str| root.join(rel::join(rel::SHOTS, file::SHOTS_URL)).join(name);
         assert_eq!(
             outs("http://localhost:3000/cart/items?x=1#top", None, &both),
             [
@@ -543,9 +544,12 @@ mod tests {
         assert!(jobs().is_err());
     }
 
+    /// The shots folder of design version 3.
+    const VERSION_3: &str = "v3";
+
     #[test]
     fn studio_jobs_cover_screens_variants_breakpoints_states_and_themes() {
-        let v3 = |file: &str| rel::join(rel::SHOTS, &format!("v3/{file}"));
+        let v3 = |file: &str| rel::join(&rel::join(rel::SHOTS, VERSION_3), file);
         let root = test_dir("shoot-studio");
         let p = project_paths(&root);
         let both = both();
@@ -587,7 +591,10 @@ mod tests {
             all[0],
             (
                 v3("cart__a__mobile.png"),
-                format!("http://127.0.0.1:4600/{}", rel::screen("cart/a.html"))
+                format!(
+                    "http://127.0.0.1:4600/{}",
+                    rel::screen(&screen_page("cart"))
+                )
             )
         );
         assert_eq!(all[5].0, v3("admin__users__a__desktop.png"));

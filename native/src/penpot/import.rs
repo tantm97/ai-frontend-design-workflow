@@ -359,7 +359,7 @@ fn component_comment(root: &Path, cs: &[Value], lib: Option<&Library>, gate_note
     let part = |key: &str| js::to_string(comp.get(key));
     let location = |c: &Value| {
         master_source(root, c, lib).unwrap_or_else(|| MasterSource {
-            file: rel::component(&format!("{}.html", part("name"))),
+            file: rel::master(&part("name")),
             source: None,
         })
     };

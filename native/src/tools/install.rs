@@ -15,7 +15,7 @@ use crate::browser::a11y::{axe_status, install_axe, AxeStatus};
 use crate::browser::download::install_browser;
 use crate::browser::launch::{browser_status, BrowserStatus};
 use crate::core::error::DfwError;
-use crate::core::host::{get_host, supported_hosts, Host, Status, HOSTS};
+use crate::core::host::{self, get_host, supported_hosts, Host, Status, HOSTS};
 use crate::core::paths::{file, plugin_root, rel, resolve};
 use crate::core::process::{find_executable, plan_for, run_timed, Ran, Spawn};
 use crate::core::util::make_temp_dir;
@@ -339,7 +339,7 @@ fn install_in_host(
     source: &str,
     plugins: &[String],
 ) -> Result<&'static str, DfwError> {
-    if h.id == "claude" {
+    if h.id == host::id::CLAUDE {
         step(&format!("Claude Code: marketplace {MARKET} from {source}"));
         let mut list = run.run("claude", &["plugin", "marketplace", "list", "--json"], true)?;
         if list.status != Some(0) {
@@ -384,7 +384,7 @@ fn install_in_host(
         }
         return Ok("Restart Claude Code (or run /reload-plugins), open a project and type /dfw.");
     }
-    if h.id == "copilot" {
+    if h.id == host::id::COPILOT {
         step(&format!(
             "GitHub Copilot: marketplace {MARKET} from {source}"
         ));
@@ -443,7 +443,7 @@ fn link_copilot_cli() {
     {
         let Some(target) = HOSTS
             .iter()
-            .find(|h| h.id == "copilot")
+            .find(|h| h.id == host::id::COPILOT)
             .and_then(Host::dfw_plugin_dir)
             .map(|dir| dir.join("bin").join("dfw"))
         else {
@@ -556,7 +556,7 @@ pub fn install(opts: &InstallOptions) -> Result<(), DfwError> {
 pub fn uninstall(host: &str, scope: &str, quiet: bool) -> Result<(), DfwError> {
     let run = Runner { quiet };
     for h in resolve_hosts(host)? {
-        if h.id == "claude" {
+        if h.id == host::id::CLAUDE {
             for p in plugin_list()? {
                 let plugin = format!("{p}@{MARKET}");
                 run.run(
@@ -566,7 +566,7 @@ pub fn uninstall(host: &str, scope: &str, quiet: bool) -> Result<(), DfwError> {
                 )?;
             }
             run.run("claude", &["plugin", "marketplace", "remove", MARKET], true)?;
-        } else if h.id == "copilot" {
+        } else if h.id == host::id::COPILOT {
             for p in plugin_list()? {
                 run.run("copilot", &["plugin", "uninstall", &p], true)?;
             }

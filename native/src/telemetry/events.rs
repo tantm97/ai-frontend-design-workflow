@@ -280,6 +280,7 @@ pub struct Spooled {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::fixture::SCREEN_PAGE;
     use crate::core::paths::rel;
 
     /// No string field accepts a path or free text (telemetry task 2.1).
@@ -287,7 +288,7 @@ mod tests {
     fn names_come_from_closed_lists_only() {
         for text in [
             "/Users/someone/project",
-            &rel::screen("home/a.html"),
+            &rel::screen(SCREEN_PAGE),
             "a.html",
             "status --root /tmp/x",
             "please fix the header",

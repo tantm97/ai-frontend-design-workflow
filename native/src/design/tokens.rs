@@ -7,7 +7,7 @@ use serde_json::Value;
 
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::{project_paths, rel, resolve};
+use crate::core::paths::{file, project_paths, rel, resolve};
 use crate::core::util::{to_json_compact, write_atomic_inside};
 
 /// Option themes: 2-3 style guides or presets compared side by side as token themes named
@@ -28,7 +28,7 @@ pub mod option {
 
     /// The file of an option theme in the themes folder: `opt-<name>.json`.
     pub fn file(name: &str) -> String {
-        format!("{}.json", theme(name))
+        crate::core::paths::file::theme(&theme(name))
     }
 }
 
@@ -506,7 +506,7 @@ pub fn build_tokens(root: &Path) -> Result<BuiltTokens, DfwError> {
         css.push('\n');
         css.push_str(&block(
             &format!("[data-theme=\"{name}\"]"),
-            &themes_dir.join(format!("{name}.json")),
+            &themes_dir.join(file::theme(name)),
         )?);
     }
     let out = p.tokens_css;
@@ -589,6 +589,7 @@ pub fn collect_tokens(tree: &Value) -> Vec<TokenEntry> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::fixture::DARK_THEME;
     use crate::core::paths::file;
     use crate::core::util::test_dir;
     use serde_json::json;
@@ -760,14 +761,14 @@ mod tests {
         fs::create_dir_all(&dir).unwrap();
         fs::write(root.join(rel::TOKENS_JSON), "{}").unwrap();
         fs::write(
-            dir.join("dark.json"),
+            dir.join(DARK_THEME),
             r#"{ "shadow": { "$type": "shadow", "card": { "$value": [null] } } }"#,
         )
         .unwrap();
         let err = build_tokens(&root).unwrap_err();
         assert_eq!(
             err.report(),
-            format!("{}: Token \"shadow.card\": malformed value: a shadow layer is null. Fix that token and run the command again.", rel::join(rel::THEMES, "dark.json"))
+            format!("{}: Token \"shadow.card\": malformed value: a shadow layer is null. Fix that token and run the command again.", rel::join(rel::THEMES, DARK_THEME))
         );
         fs::remove_dir_all(&root).unwrap();
     }

@@ -460,6 +460,7 @@ fn check_page(renderer: &Renderer, job: &Job, url: Option<&str>, axe_src: &str) 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::fixture::COMPOSED_PAGE;
     #[cfg(unix)]
     use std::process::Command;
 
@@ -568,7 +569,7 @@ mod tests {
         let finding = Finding {
             level: impact_level(Some("serious")),
             rule: "axe-color-contrast".into(),
-            file: rel::screen("s/a.html"),
+            file: rel::screen(COMPOSED_PAGE),
             message: "s/a: Elements must meet minimum color contrast ratio thresholds (2 element(s), e.g. p)".into(),
             source: "axe",
         };

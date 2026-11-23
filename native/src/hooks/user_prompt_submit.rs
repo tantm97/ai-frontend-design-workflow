@@ -4,7 +4,7 @@
 use serde_json::Value;
 
 use crate::core::error::DfwError;
-use crate::core::host::{HookInput, HookResult, Host};
+use crate::core::host::{event, HookInput, HookResult, Host};
 use crate::review::inbox::{format_for_claude, take_undelivered};
 use crate::workflow::state::load_state;
 
@@ -31,7 +31,7 @@ pub fn inbox_for(input: &HookInput) -> Result<Option<String>, DfwError> {
 /// A host that cannot add context to the user's prompt gets new comments on PostToolUse and
 /// Stop instead.
 pub fn delivers_on_prompt(host: &Host) -> bool {
-    host.context("UserPromptSubmit") != Some(false)
+    host.context(event::USER_PROMPT_SUBMIT) != Some(false)
 }
 
 /// `userPromptSubmit(input, host)`: undelivered comments as context.
@@ -61,7 +61,7 @@ mod tests {
             add_comment(&root, &json!({ "comment": format!("marker-{i}-end") })).unwrap();
         }
         let input = normalize_hook_input(&json!({
-            "hook_event_name": "UserPromptSubmit",
+            "hook_event_name": event::USER_PROMPT_SUBMIT,
             "cwd": root.to_string_lossy(),
             "prompt": "go",
         }))

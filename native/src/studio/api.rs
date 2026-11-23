@@ -439,7 +439,7 @@ pub fn shoot_frames(root: &Path, port: u16, body: &Value) -> Result<Value, DfwEr
     if list.is_empty() {
         return Err(DfwError::new("Nothing to screenshot."));
     }
-    let dir = new_run_dir(&p.shots.join("studio"), &local_stamp())?;
+    let dir = new_run_dir(&p.shots.join(file::SHOTS_STUDIO), &local_stamp())?;
     let size = |v: Option<&Value>, fallback: f64| -> u32 {
         let n = js::to_number(v);
         let n = if n.is_nan() || n == 0.0 { fallback } else { n };

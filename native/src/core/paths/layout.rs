@@ -49,6 +49,10 @@ pub mod file {
     pub const REVIEWS_DELIVERED: &str = ".delivered.json";
     /// Whether an agent session listens for comments, in [`REVIEWS`].
     pub const REVIEWS_LISTENING: &str = ".listening.json";
+    /// The lock folder of [`REVIEWS`] (`core::lock`).
+    pub const REVIEWS_LOCK: &str = ".lock";
+    /// The file in a lock folder that names who holds it (`core::lock`).
+    pub const LOCK_OWNER: &str = "owner";
     pub const CHECKS: &str = "checks";
     /// The setup page written in [`CHECKS`].
     pub const SETUP_PAGE: &str = "setup.html";
@@ -67,6 +71,25 @@ pub mod file {
     pub const PENPOT_IMPORTED: &str = "imported.json";
     pub const PENPOT_THREADS: &str = "threads.json";
     pub const PENPOT_CHANGES: &str = "changes";
+    /// Studio screenshots in [`SHOTS`].
+    pub const SHOTS_STUDIO: &str = "studio";
+    /// Screenshots of a URL in [`SHOTS`].
+    pub const SHOTS_URL: &str = "url";
+
+    /// The file of the icon `name` (`search.svg`), in [`ICONS`].
+    pub fn icon(name: &str) -> String {
+        format!("{name}.svg")
+    }
+
+    /// The file of the theme `name` (`dark.json`), in [`THEMES`].
+    pub fn theme(name: &str) -> String {
+        format!("{name}.json")
+    }
+
+    /// The master file of the component `name` (`button.html`), in [`COMPONENTS`].
+    pub fn master(name: &str) -> String {
+        format!("{name}.html")
+    }
 }
 
 /// Design system files relative to `design/`, as pages link them (`{base}tokens/tokens.css`).
@@ -140,6 +163,11 @@ pub mod rel {
     /// project-relative.
     pub fn design(rest: &str) -> String {
         join(DESIGN, rest)
+    }
+
+    /// The master of the component `name` (`design/system/components/button.html`).
+    pub fn master(name: &str) -> String {
+        component(&super::file::master(name))
     }
 
     /// A file or folder of `design/screens/` (`home/a.html`).

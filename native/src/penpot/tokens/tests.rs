@@ -2,6 +2,7 @@
 //! The CLI case is in native/tests/penpot.rs (it needs the binary).
 
 use super::*;
+use crate::core::fixture::DARK_THEME;
 use crate::core::js;
 use crate::core::util::test_dir;
 use crate::design::tokens::tokens_to_declarations;
@@ -55,7 +56,7 @@ fn project(tokens: bool) -> PathBuf {
         fs::copy(fix().join("dfw-tokens.json"), root.join(rel::TOKENS_JSON)).unwrap();
         fs::copy(
             fix().join("dfw-theme-dark.json"),
-            root.join(rel::join(rel::THEMES, "dark.json")),
+            root.join(rel::join(rel::THEMES, DARK_THEME)),
         )
         .unwrap();
     }
@@ -450,7 +451,7 @@ fn single_set_files_and_set_mapping() {
 fn round_trip_is_exact_in_the_exporting_project() {
     let root = project(true);
     let before = fs::read_to_string(root.join(rel::TOKENS_JSON)).unwrap();
-    let before_dark = fs::read_to_string(root.join(rel::join(rel::THEMES, "dark.json"))).unwrap();
+    let before_dark = fs::read_to_string(root.join(rel::join(rel::THEMES, DARK_THEME))).unwrap();
     let export = export_penpot_tokens(&root, None, false).unwrap();
     assert!(export.file.ends_with(rel::PENPOT_TOKENS));
     let r = import(&root, &export.file, false);
@@ -463,7 +464,7 @@ fn round_trip_is_exact_in_the_exporting_project() {
         before
     );
     assert_eq!(
-        fs::read_to_string(root.join(rel::join(rel::THEMES, "dark.json"))).unwrap(),
+        fs::read_to_string(root.join(rel::join(rel::THEMES, DARK_THEME))).unwrap(),
         before_dark
     );
 }
@@ -505,7 +506,7 @@ fn fresh_project_keeps_every_supported_token() {
         &b.get("shadow.sm").unwrap().value[0]["offsetY"],
         json!({ "value": 1, "unit": "px" }),
     );
-    assert!(dst.join(rel::join(rel::THEMES, "dark.json")).exists());
+    assert!(dst.join(rel::join(rel::THEMES, DARK_THEME)).exists());
 }
 
 /// penpot tokens: import of a Penpot-edited file -> diff, notes, skipped sets
@@ -639,8 +640,8 @@ fn a_file_holding_only_a_theme_is_never_the_base() {
     fs::create_dir_all(root.join(rel::TOKENS)).unwrap();
     let base = r##"{"color":{"$type":"color","a":{"$value":"#ffffff"}}}"##;
     fs::write(root.join(rel::TOKENS_JSON), base).unwrap();
-    fs::write(root.join("dark.json"), to_json_compact(&only)).unwrap();
-    let err = import_penpot_tokens(&root, &root.join("dark.json"), None, false, false).unwrap_err();
+    fs::write(root.join(DARK_THEME), to_json_compact(&only)).unwrap();
+    let err = import_penpot_tokens(&root, &root.join(DARK_THEME), None, false, false).unwrap_err();
     assert!(err.message().contains("No base token set"));
     assert_eq!(
         fs::read_to_string(root.join(rel::TOKENS_JSON)).unwrap(),
@@ -765,10 +766,12 @@ fn names_javascript_objects_inherit() {
     };
     fs::write(&file, doc("toString")).unwrap();
     assert!(import_penpot_tokens(&root, &file, None, false, false).is_err());
-    assert!(!root.join(rel::join(rel::THEMES, "toString.json")).exists());
+    assert!(!root
+        .join(rel::join(rel::THEMES, &file::theme("toString")))
+        .exists());
     fs::write(&file, doc("__proto__")).unwrap();
     assert_eq!(
         import(&root, &file, false).written,
-        [rel::join(rel::THEMES, "__proto__.json")]
+        [rel::join(rel::THEMES, &file::theme("__proto__"))]
     );
 }

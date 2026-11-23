@@ -99,7 +99,7 @@ pub fn master_source(root: &Path, change: &Value, lib: Option<&Library>) -> Opti
 fn master_file(def: Option<&ComponentDef>, comp: &Value) -> String {
     match def.map(|d| d.file.as_str()).filter(|f| !f.is_empty()) {
         Some(file) => file.to_string(),
-        None => rel::component(&format!("{}.html", js::to_string(comp.get("name")))),
+        None => rel::master(&js::to_string(comp.get("name"))),
     }
 }
 

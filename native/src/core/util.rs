@@ -760,6 +760,7 @@ pub fn test_dir(label: &str) -> std::path::PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::fixture::{APP_DIR, HTML_FILE, OTHER_HTML_FILE};
     use crate::core::paths::{file, rel};
     use serde_json::json;
 
@@ -769,13 +770,13 @@ mod tests {
         let design = format!("{}/**", rel::DESIGN);
         assert!(glob_to_regex(&design)
             .unwrap()
-            .is_match(&rel::screen("a.html")));
+            .is_match(&rel::screen(HTML_FILE)));
         assert!(glob_to_regex(&format!("{}/**", rel::APPROVED))
             .unwrap()
             .is_match(&rel::approved("v1/x.html")));
         assert!(!glob_to_regex(&design)
             .unwrap()
-            .is_match(&format!("src/{}", rel::design("x"))));
+            .is_match(&rel::join(APP_DIR, &rel::design(OTHER_HTML_FILE))));
         assert!(glob_to_regex("PRODUCT.md").unwrap().is_match("PRODUCT.md"));
     }
 
@@ -801,10 +802,10 @@ mod tests {
         assert!(glob_to_regex("a?c").unwrap().is_match("abc"));
         assert!(!glob_to_regex("a?c").unwrap().is_match("a/c"));
         assert!(matches_any(
-            &rel::design("x.html"),
+            &rel::design(OTHER_HTML_FILE),
             &["src/**", &format!("{}/**", rel::DESIGN)]
         ));
-        assert!(!matches_any(&rel::design("x.html"), &[] as &[&str]));
+        assert!(!matches_any(&rel::design(OTHER_HTML_FILE), &[] as &[&str]));
     }
 
     /// j: names that are prototype keys are not ids (tests/unit/node-stable.test.mjs; the util part)

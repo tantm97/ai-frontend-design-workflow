@@ -425,6 +425,7 @@ pub fn env_map(config: &Value) -> Vec<(String, String)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::fixture::{NOTES_FILE, REVIEW_SESSION};
     use crate::core::util::{test_dir, to_json_compact};
     use std::fs;
 
@@ -492,7 +493,7 @@ mod tests {
             rel::CONFIG_LOCAL,
             rel::DECISIONS,
             rel::STACK,
-            &rel::join(rel::REVIEWS, "rv_1.json"),
+            &rel::join(rel::REVIEWS, REVIEW_SESSION),
         ] {
             let d = decide_write(&root, Some(&state), &c, &root.join(file)).unwrap();
             assert!(!d.allow, "{file}");
@@ -505,7 +506,7 @@ mod tests {
             &root,
             Some(&state),
             &c,
-            &root.join(rel::join(rel::DFW, "notes.md")),
+            &root.join(rel::join(rel::DFW, NOTES_FILE)),
         )
         .unwrap();
         assert!(notes.allow, "the rest of {}/ stays writable", rel::DFW);

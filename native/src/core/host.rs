@@ -22,6 +22,19 @@ use super::error::DfwError;
 use super::paths::env_nonempty;
 use super::util::{ArgValue, MARKETPLACE_NAME};
 
+mod wire;
+pub use self::wire::{event, patch, tool};
+
+/// The ids of the hosts, as `--host` and `DFW_HOST` name them.
+pub mod id {
+    pub const CLAUDE: &str = "claude";
+    pub const COPILOT: &str = "copilot";
+    pub const MCP: &str = "mcp";
+    pub const OPENCODE: &str = "opencode";
+    pub const CODEX: &str = "codex";
+    pub const CURSOR: &str = "cursor";
+}
+
 /// How far the support for a host goes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Status {
@@ -80,12 +93,12 @@ const fn planned(id: &'static str, name: &'static str, cli: &'static str) -> Hos
 /// `HOSTS`, in the order of the Node table.
 pub static HOSTS: [Host; 6] = [
     Host {
-        id: "claude",
+        id: id::CLAUDE,
         name: "Claude Code",
         status: Status::Supported,
         cli: Some("claude"),
         adapter: Some("claude-code"),
-        context: Some(&[("SessionStart", true), ("UserPromptSubmit", true), ("PostToolUse", true)]),
+        context: Some(&[(event::SESSION_START, true), (event::USER_PROMPT_SUBMIT, true), (event::POST_TOOL_USE, true)]),
         text: Some(&[
             ("HOST_NAME", "Claude Code"),
             ("SKILL_DIR", "${CLAUDE_SKILL_DIR}"),
@@ -99,13 +112,13 @@ pub static HOSTS: [Host; 6] = [
         mcp: false,
     },
     Host {
-        id: "copilot",
+        id: id::COPILOT,
         name: "GitHub Copilot",
         status: Status::Supported,
         cli: Some("copilot"),
         adapter: Some("copilot"),
         // Copilot ignores additionalContext on userPromptSubmitted: comments ride on PostToolUse and Stop.
-        context: Some(&[("SessionStart", true), ("UserPromptSubmit", false), ("PostToolUse", true)]),
+        context: Some(&[(event::SESSION_START, true), (event::USER_PROMPT_SUBMIT, false), (event::POST_TOOL_USE, true)]),
         text: Some(&[
             ("HOST_NAME", "GitHub Copilot"),
             ("SKILL_DIR", "."),
@@ -123,7 +136,7 @@ pub static HOSTS: [Host; 6] = [
     },
     // Text rendering only: the guide served by "dfw mcp" to tools without a dfw plugin.
     Host {
-        id: "mcp",
+        id: id::MCP,
         name: "MCP",
         status: Status::Internal,
         cli: None,
@@ -148,9 +161,9 @@ pub static HOSTS: [Host; 6] = [
         mcp: false,
     },
     // Planned plugins (hooks): same core, new adapter. Until then they use "dfw mcp install <tool>".
-    planned("opencode", "OpenCode", "opencode"),
-    planned("codex", "OpenAI Codex", "codex"),
-    planned("cursor", "Cursor", "cursor-agent"),
+    planned(id::OPENCODE, "OpenCode", "opencode"),
+    planned(id::CODEX, "OpenAI Codex", "codex"),
+    planned(id::CURSOR, "Cursor", "cursor-agent"),
 ];
 
 impl Host {
@@ -171,14 +184,14 @@ impl Host {
     /// Claude Code uses a versioned cache instead (see review/locate).
     pub fn installed_plugin_dirs(&self) -> Vec<PathBuf> {
         match self.id {
-            "copilot" => vec![copilot_plugin_dirs().root],
+            id::COPILOT => vec![copilot_plugin_dirs().root],
             _ => Vec::new(),
         }
     }
 
     /// `dfwPluginDir()`: folder of the installed dfw plugin, for the hosts that have a fixed one.
     pub fn dfw_plugin_dir(&self) -> Option<PathBuf> {
-        (self.id == "copilot").then(|| copilot_plugin_dirs().dfw)
+        (self.id == id::COPILOT).then(|| copilot_plugin_dirs().dfw)
     }
 }
 
@@ -241,7 +254,7 @@ pub fn supported_hosts() -> Vec<&'static str> {
 
 /// `getHost(id)`: no id (or an empty one) is Claude Code; an unknown id is an error.
 pub fn get_host(id: Option<&str>) -> Result<&'static Host, DfwError> {
-    let id = id.filter(|i| !i.is_empty()).unwrap_or("claude");
+    let id = id.filter(|i| !i.is_empty()).unwrap_or(id::CLAUDE);
     HOSTS.iter().find(|h| h.id == id).ok_or_else(|| {
         let known: Vec<&str> = HOSTS.iter().map(|h| h.id).collect();
         // The user's to fix (a --host flag or DFW_HOST), so a user error.
@@ -271,16 +284,16 @@ fn current_host_from(
 
 /// Runtime tool names that write files, mapped to dfw's canonical names.
 const TOOL_ALIASES: [(&str, &str); 10] = [
-    ("Edit", "Edit"),
-    ("Write", "Write"),
-    ("MultiEdit", "MultiEdit"),
-    ("NotebookEdit", "NotebookEdit"),
-    ("edit", "Edit"),
-    ("str_replace_editor", "Edit"),
-    ("create", "Write"),
-    ("write", "Write"),
-    ("apply_patch", "ApplyPatch"),
-    ("ApplyPatch", "ApplyPatch"),
+    (tool::EDIT, tool::EDIT),
+    (tool::WRITE, tool::WRITE),
+    (tool::MULTI_EDIT, tool::MULTI_EDIT),
+    (tool::NOTEBOOK_EDIT, tool::NOTEBOOK_EDIT),
+    (tool::alias::EDIT, tool::EDIT),
+    (tool::alias::STR_REPLACE_EDITOR, tool::EDIT),
+    (tool::alias::CREATE, tool::WRITE),
+    (tool::alias::WRITE, tool::WRITE),
+    (tool::alias::APPLY_PATCH, tool::APPLY_PATCH),
+    (tool::APPLY_PATCH, tool::APPLY_PATCH),
 ];
 
 /// A hook payload in dfw's shape, whichever host sent it.
@@ -412,7 +425,7 @@ pub fn format_hook_output(
         return Ok(Some(json!({ "decision": "block", "reason": block })));
     }
     if let Some(deny) = field("deny") {
-        return Ok(Some(if host.id == "claude" {
+        return Ok(Some(if host.id == id::CLAUDE {
             json!({ "hookSpecificOutput": { "hookEventName": event, "permissionDecision": "deny", "permissionDecisionReason": deny } })
         } else {
             json!({ "permissionDecision": "deny", "permissionDecisionReason": deny })
@@ -423,7 +436,7 @@ pub fn format_hook_output(
         if host.context(event) == Some(false) {
             return Ok(None);
         }
-        return Ok(Some(if host.id == "claude" {
+        return Ok(Some(if host.id == id::CLAUDE {
             json!({ "hookSpecificOutput": { "hookEventName": event, "additionalContext": context } })
         } else {
             json!({ "additionalContext": context })
@@ -484,8 +497,19 @@ pub fn render_text(text: &str, host_id: &str) -> Result<String, DfwError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::fixture::{ADDED_APP_FILE, APP_FILE, HTML_FILE};
     use crate::core::paths::rel;
     use crate::core::util::{test_dir, to_json_compact};
+
+    use super::event::{PRE_TOOL_USE, SESSION_START, STOP, USER_PROMPT_SUBMIT};
+    use super::id::{CLAUDE, COPILOT, CURSOR, MCP, OPENCODE};
+
+    /// A tool that writes no file.
+    const BASH: &str = "Bash";
+    /// A host id no host has.
+    const NOPE: &str = "nope";
+    /// The value of `permissionDecision` that refuses a tool call.
+    const DENY: &str = "deny";
 
     fn format(host: &str, event: &str, result: Value) -> Option<Value> {
         format_hook_output(host, event, &result).unwrap()
@@ -494,8 +518,8 @@ mod tests {
     /// host: supported hosts are Claude Code and GitHub Copilot; others planned (tests/unit/host.test.mjs)
     #[test]
     fn supported_hosts_are_claude_code_and_github_copilot_others_planned() {
-        assert_eq!(supported_hosts(), ["claude", "copilot"]);
-        for id in ["opencode", "codex", "cursor"] {
+        assert_eq!(supported_hosts(), [CLAUDE, COPILOT]);
+        for id in [OPENCODE, id::CODEX, CURSOR] {
             assert_eq!(get_host(Some(id)).unwrap().status, Status::Planned);
         }
     }
@@ -505,27 +529,29 @@ mod tests {
     /// belong to workflow/gates and are ported there)
     #[test]
     fn normalizes_claude_copilot_pascal_case_and_copilot_camel_case_payloads() {
-        let claude = normalize_hook_input(&json!({ "session_id": "s", "tool_name": "Write", "tool_input": { "file_path": "a.ts" } })).unwrap();
-        assert_eq!(claude.tool_name.as_deref(), Some("Write"));
-        let camel = normalize_hook_input(&json!({ "sessionId": "s", "toolName": "create", "toolArgs": "{\"path\":\"src/a.ts\"}", "stopHookActive": true })).unwrap();
+        let claude = normalize_hook_input(&json!({ "session_id": "s", "tool_name": tool::WRITE, "tool_input": { "file_path": "a.ts" } })).unwrap();
+        assert_eq!(claude.tool_name.as_deref(), Some(tool::WRITE));
+        let camel = normalize_hook_input(&json!({ "sessionId": "s", "toolName": tool::alias::CREATE, "toolArgs": json!({ "path": APP_FILE }).to_string(), "stopHookActive": true })).unwrap();
         assert_eq!(camel.session_id.as_deref(), Some("s"));
-        assert_eq!(camel.tool_name.as_deref(), Some("Write"));
-        assert_eq!(camel.tool_input, json!({ "path": "src/a.ts" }));
+        assert_eq!(camel.tool_name.as_deref(), Some(tool::WRITE));
+        assert_eq!(camel.tool_input, json!({ "path": APP_FILE }));
         assert!(camel.stop_hook_active);
         assert_eq!(
-            normalize_hook_input(&json!({ "toolName": "str_replace_editor" }))
+            normalize_hook_input(&json!({ "toolName": tool::alias::STR_REPLACE_EDITOR }))
                 .unwrap()
                 .tool_name
                 .as_deref(),
-            Some("Edit")
+            Some(tool::EDIT)
         );
-        let body = format!(
-            "*** Begin Patch\n*** Add File: src/x.ts\n*** Update File: {}\n*** End Patch",
-            rel::design("a.html")
-        );
-        let patch =
-            normalize_hook_input(&json!({ "toolName": "apply_patch", "toolArgs": body })).unwrap();
-        assert_eq!(patch.tool_name.as_deref(), Some("ApplyPatch"));
+        let body = patch::body(&[
+            (patch::ADD, ADDED_APP_FILE),
+            (patch::UPDATE, &rel::design(HTML_FILE)),
+        ]);
+        let patch = normalize_hook_input(
+            &json!({ "toolName": tool::alias::APPLY_PATCH, "toolArgs": body }),
+        )
+        .unwrap();
+        assert_eq!(patch.tool_name.as_deref(), Some(tool::APPLY_PATCH));
         assert_eq!(patch.tool_input, json!({ "input": body }));
     }
 
@@ -533,136 +559,128 @@ mod tests {
     #[test]
     fn output_formats_per_host() {
         assert_eq!(
-            format("claude", "PreToolUse", json!({ "deny": "no" })),
+            format(CLAUDE, PRE_TOOL_USE, json!({ "deny": "no" })),
             Some(
-                json!({ "hookSpecificOutput": { "hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": "no" } })
+                json!({ "hookSpecificOutput": { "hookEventName": PRE_TOOL_USE, "permissionDecision": DENY, "permissionDecisionReason": "no" } })
             )
         );
         assert_eq!(
-            format("copilot", "PreToolUse", json!({ "deny": "no" })),
-            Some(json!({ "permissionDecision": "deny", "permissionDecisionReason": "no" }))
+            format(COPILOT, PRE_TOOL_USE, json!({ "deny": "no" })),
+            Some(json!({ "permissionDecision": DENY, "permissionDecisionReason": "no" }))
         );
         assert_eq!(
-            format("copilot", "SessionStart", json!({ "context": "c" })),
+            format(COPILOT, SESSION_START, json!({ "context": "c" })),
             Some(json!({ "additionalContext": "c" }))
         );
         assert_eq!(
-            format("copilot", "UserPromptSubmit", json!({ "context": "c" })),
+            format(COPILOT, USER_PROMPT_SUBMIT, json!({ "context": "c" })),
             None
         );
         assert_eq!(
-            format("copilot", "Stop", json!({ "block": "r" })),
+            format(COPILOT, STOP, json!({ "block": "r" })),
             Some(json!({ "decision": "block", "reason": "r" }))
         );
-        assert_eq!(format("claude", "Stop", Value::Null), None);
+        assert_eq!(format(CLAUDE, STOP, Value::Null), None);
     }
 
     /// host: renders skill text per host (tests/unit/host.test.mjs)
     #[test]
     fn renders_skill_text_per_host() {
-        let src = "Dir {{SKILL_DIR}}/references. Ask with {{ASK_TOOL}}. Use `impeccable:impeccable` and `dfw:screen-builder`.\n<!-- host:claude -->\nclaude only\n<!-- /host -->\n<!-- host:copilot -->\ncopilot only\n<!-- /host -->\n";
-        let c = render_text(src, "claude").unwrap();
+        const CLAUDE_ONLY: &str = "claude only";
+        const COPILOT_ONLY: &str = "copilot only";
+        let src = format!("Dir {{{{SKILL_DIR}}}}/references. Ask with {{{{ASK_TOOL}}}}. Use `impeccable:impeccable` and `dfw:screen-builder`.\n<!-- host:claude -->\n{CLAUDE_ONLY}\n<!-- /host -->\n<!-- host:copilot -->\n{COPILOT_ONLY}\n<!-- /host -->\n");
+        let c = render_text(&src, CLAUDE).unwrap();
         assert!(c.contains("${CLAUDE_SKILL_DIR}/references"));
         assert!(c.contains("AskUserQuestion"));
         assert!(c.contains("`impeccable:impeccable`"));
-        assert!(c.contains("claude only"));
-        assert!(!c.contains("copilot only"));
-        let g = render_text(src, "copilot").unwrap();
+        assert!(c.contains(CLAUDE_ONLY));
+        assert!(!c.contains(COPILOT_ONLY));
+        let g = render_text(&src, COPILOT).unwrap();
         assert!(g.contains("Dir ./references"));
         assert!(g.contains("ask_user"));
         assert!(g.contains("`impeccable` and `screen-builder`"));
-        assert!(g.contains("copilot only"));
-        assert!(!g.contains("claude only") && !g.contains("CLAUDE_SKILL_DIR"));
-        assert_eq!(g, "Dir ./references. Ask with the ask_user tool. Use `impeccable` and `screen-builder`.\ncopilot only\n");
+        assert!(g.contains(COPILOT_ONLY));
+        assert!(!g.contains(CLAUDE_ONLY) && !g.contains("CLAUDE_SKILL_DIR"));
+        assert_eq!(g, format!("Dir ./references. Ask with the ask_user tool. Use `impeccable` and `screen-builder`.\n{COPILOT_ONLY}\n"));
     }
 
     #[test]
     fn render_text_edge_cases() {
         assert_eq!(
-            render_text("{{NOPE}} {{lower}} {{HOST_NAME}}", "mcp").unwrap(),
+            render_text("{{NOPE}} {{lower}} {{HOST_NAME}}", MCP).unwrap(),
             "{{NOPE}} {{lower}} your AI coding tool (through the dfw MCP server)"
         );
         assert_eq!(
             render_text(
                 "a<!--host:mcp,copilot-->x<!--/host-->b<!-- host:claude -->y<!-- /host -->",
-                "copilot"
+                COPILOT
             )
             .unwrap(),
             "axb"
         );
         // A planned host has no texts: refused with its own message, placeholders or not.
         assert_eq!(
-            render_text("only", "codex").unwrap_err().message(),
+            render_text("only", id::CODEX).unwrap_err().message(),
             "Host \"codex\" has no text placeholders. Hosts with text: claude, copilot, mcp"
         );
-        assert!(render_text("x", "nope").is_err());
+        assert!(render_text("x", NOPE).is_err());
     }
 
     #[test]
     fn get_host_and_current_host() {
-        assert_eq!(get_host(None).unwrap().id, "claude");
-        assert_eq!(get_host(Some("")).unwrap().id, "claude");
+        assert_eq!(get_host(None).unwrap().id, CLAUDE);
+        assert_eq!(get_host(Some("")).unwrap().id, CLAUDE);
         assert_eq!(
-            get_host(Some("nope")).unwrap_err().report(),
+            get_host(Some(NOPE)).unwrap_err().report(),
             "Unknown host \"nope\" (from --host or DFW_HOST). Use one of: claude, copilot, mcp, opencode, codex, cursor."
         );
         let text = |t: &str| ArgValue::Text(t.to_string());
         assert_eq!(
-            current_host_from(Some(&text("copilot")), Some("mcp"))
+            current_host_from(Some(&text(COPILOT)), Some(MCP))
                 .unwrap()
                 .id,
-            "copilot"
+            COPILOT
         );
+        assert_eq!(current_host_from(None, Some(COPILOT)).unwrap().id, COPILOT);
         assert_eq!(
-            current_host_from(None, Some("copilot")).unwrap().id,
-            "copilot"
-        );
-        assert_eq!(
-            current_host_from(Some(&text("")), Some("copilot"))
+            current_host_from(Some(&text("")), Some(COPILOT))
                 .unwrap()
                 .id,
-            "copilot",
+            COPILOT,
             "an empty flag is falsy"
         );
-        assert_eq!(current_host_from(None, None).unwrap().id, "claude");
-        assert!(current_host_from(Some(&ArgValue::Flag), Some("copilot"))
+        assert_eq!(current_host_from(None, None).unwrap().id, CLAUDE);
+        assert!(current_host_from(Some(&ArgValue::Flag), Some(COPILOT))
             .unwrap_err()
             .message()
             .starts_with("Unknown host \"true\""));
-        assert!(current_host_from(None, Some("nope")).is_err());
+        assert!(current_host_from(None, Some(NOPE)).is_err());
     }
 
     #[test]
     fn host_table_matches_node() {
+        const SKILL_DIR: &str = "SKILL_DIR";
         let ids: Vec<&str> = HOSTS.iter().map(|h| h.id).collect();
-        assert_eq!(
-            ids,
-            ["claude", "copilot", "mcp", "opencode", "codex", "cursor"]
-        );
-        let copilot = get_host(Some("copilot")).unwrap();
+        assert_eq!(ids, [CLAUDE, COPILOT, MCP, OPENCODE, id::CODEX, CURSOR]);
+        let copilot = get_host(Some(COPILOT)).unwrap();
         assert_eq!(
             (copilot.name, copilot.cli, copilot.adapter),
-            ("GitHub Copilot", Some("copilot"), Some("copilot"))
+            ("GitHub Copilot", Some(COPILOT), Some(COPILOT))
         );
-        assert_eq!(copilot.context("UserPromptSubmit"), Some(false));
-        assert_eq!(copilot.context("Stop"), None);
-        assert_eq!(copilot.text("SKILL_DIR"), Some("."));
-        assert_eq!(
-            get_host(Some("claude")).unwrap().adapter,
-            Some("claude-code")
-        );
-        assert!(get_host(Some("claude"))
-            .unwrap()
-            .installed_plugin_dirs()
-            .is_empty());
-        assert_eq!(get_host(Some("claude")).unwrap().dfw_plugin_dir(), None);
-        let mcp = get_host(Some("mcp")).unwrap();
+        assert_eq!(copilot.context(USER_PROMPT_SUBMIT), Some(false));
+        assert_eq!(copilot.context(STOP), None);
+        assert_eq!(copilot.text(SKILL_DIR), Some("."));
+        let claude = get_host(Some(CLAUDE)).unwrap();
+        assert_eq!(claude.adapter, Some("claude-code"));
+        assert!(claude.installed_plugin_dirs().is_empty());
+        assert_eq!(claude.dfw_plugin_dir(), None);
+        let mcp = get_host(Some(MCP)).unwrap();
         assert_eq!(
             (mcp.status, mcp.cli, mcp.mcp),
             (Status::Internal, None, false)
         );
-        assert_eq!(mcp.text("SKILL_DIR"), Some("__DFW_SKILL_DIR__"));
-        let cursor = get_host(Some("cursor")).unwrap();
+        assert_eq!(mcp.text(SKILL_DIR), Some("__DFW_SKILL_DIR__"));
+        let cursor = get_host(Some(CURSOR)).unwrap();
         assert_eq!(
             (cursor.name, cursor.cli, cursor.mcp, cursor.text("ASK_TOOL")),
             ("Cursor", Some("cursor-agent"), true, None)
@@ -671,7 +689,8 @@ mod tests {
 
     #[test]
     fn normalized_input_keeps_the_payload_and_the_node_key_order() {
-        let n = normalize_hook_input(&json!({ "hook_event_name": "PreToolUse", "tool_name": "Bash", "cwd": "/p", "extra": 1, "session_id": null, "prompt": "hi" })).unwrap();
+        const ARGS: &str = "{\"a\":1}";
+        let n = normalize_hook_input(&json!({ "hook_event_name": PRE_TOOL_USE, "tool_name": BASH, "cwd": "/p", "extra": 1, "session_id": null, "prompt": "hi" })).unwrap();
         assert_eq!(
             to_json_compact(&n.raw),
             r#"{"hook_event_name":"PreToolUse","tool_name":"Bash","cwd":"/p","extra":1,"prompt":"hi","event":"PreToolUse","tool_input":{},"stop_hook_active":false}"#,
@@ -684,9 +703,9 @@ mod tests {
                 n.prompt.as_deref(),
                 n.session_id
             ),
-            (Some("PreToolUse"), Some("/p"), Some("hi"), None)
+            (Some(PRE_TOOL_USE), Some("/p"), Some("hi"), None)
         );
-        let camel = normalize_hook_input(&json!({ "hookEventName": "Stop", "sessionId": 7, "stopHookActive": "false", "toolArgs": "" })).unwrap();
+        let camel = normalize_hook_input(&json!({ "hookEventName": STOP, "sessionId": 7, "stopHookActive": "false", "toolArgs": "" })).unwrap();
         assert_eq!(
             to_json_compact(&camel.raw),
             r#"{"hookEventName":"Stop","sessionId":7,"stopHookActive":"false","toolArgs":"","event":"Stop","session_id":7,"tool_input":{"input":""},"stop_hook_active":true}"#
@@ -700,30 +719,30 @@ mod tests {
             json!([1])
         );
         assert_eq!(
-            normalize_hook_input(&json!({ "tool_input": 0, "toolArgs": "{\"a\":1}" }))
+            normalize_hook_input(&json!({ "tool_input": 0, "toolArgs": ARGS }))
                 .unwrap()
                 .tool_input,
             json!({})
         );
         assert_eq!(
-            normalize_hook_input(&json!({ "tool_input": null, "toolArgs": "{\"a\":1}" }))
+            normalize_hook_input(&json!({ "tool_input": null, "toolArgs": ARGS }))
                 .unwrap()
                 .tool_input,
             json!({ "a": 1 })
         );
         assert_eq!(
-            normalize_hook_input(&json!({ "tool_name": "", "toolName": "edit" }))
+            normalize_hook_input(&json!({ "tool_name": "", "toolName": tool::alias::EDIT }))
                 .unwrap()
                 .tool_name,
             None,
             "an empty name is not nullish"
         );
         assert_eq!(
-            normalize_hook_input(&json!({ "tool_name": "Bash" }))
+            normalize_hook_input(&json!({ "tool_name": BASH }))
                 .unwrap()
                 .tool_name
                 .as_deref(),
-            Some("Bash")
+            Some(BASH)
         );
         assert_eq!(
             to_json_compact(&normalize_hook_input(&json!(5)).unwrap().raw),
@@ -735,20 +754,20 @@ mod tests {
     #[test]
     fn host_helpers_answer_with_their_own_messages() {
         assert_eq!(
-            format("mcp", "SessionStart", json!({ "context": "x" })),
+            format(MCP, SESSION_START, json!({ "context": "x" })),
             Some(json!({ "additionalContext": "x" }))
         );
         assert_eq!(
-            format("opencode", "PostToolUse", json!({ "context": "x" })),
+            format(OPENCODE, event::POST_TOOL_USE, json!({ "context": "x" })),
             Some(json!({ "additionalContext": "x" }))
         );
         assert_eq!(
-            format("copilot", "UserPromptSubmit", json!({ "context": "x" })),
+            format(COPILOT, USER_PROMPT_SUBMIT, json!({ "context": "x" })),
             None,
             "a context table still decides"
         );
         assert_eq!(
-            render_text("a {{ASK_TOOL}}", "opencode").unwrap_err().report(),
+            render_text("a {{ASK_TOOL}}", OPENCODE).unwrap_err().report(),
             "Error: Host \"opencode\" has no text placeholders. Hosts with text: claude, copilot, mcp"
         );
         for raw in [Value::Null, json!([]), json!("text"), json!(5)] {
@@ -767,8 +786,8 @@ mod tests {
     #[test]
     fn a_tool_name_that_is_not_a_string_names_no_tool() {
         for tool in [
-            json!(["Write"]),
-            json!({ "name": "Write" }),
+            json!([tool::WRITE]),
+            json!({ "name": tool::WRITE }),
             json!(5),
             json!(true),
         ] {
@@ -780,10 +799,10 @@ mod tests {
         }
         let name = |raw: Value| normalize_hook_input(&raw).unwrap().tool_name;
         assert_eq!(
-            name(json!({ "tool_name": "create" })).as_deref(),
-            Some("Write")
+            name(json!({ "tool_name": tool::alias::CREATE })).as_deref(),
+            Some(tool::WRITE)
         );
-        assert_eq!(name(json!({ "toolName": "Bash" })).as_deref(), Some("Bash"));
+        assert_eq!(name(json!({ "toolName": BASH })).as_deref(), Some(BASH));
         for proto in ["constructor", "toString", "__proto__", "hasOwnProperty"] {
             assert_eq!(name(json!({ "tool_name": proto })).as_deref(), Some(proto));
         }
@@ -791,45 +810,46 @@ mod tests {
 
     #[test]
     fn output_format_edge_cases() {
+        const BLOCK: &str = "block";
         // block wins over deny, deny over context; empty text is no result.
         assert_eq!(
             format(
-                "claude",
-                "Stop",
+                CLAUDE,
+                STOP,
                 json!({ "context": "c", "deny": "d", "block": "b" })
             ),
-            Some(json!({ "decision": "block", "reason": "b" }))
+            Some(json!({ "decision": BLOCK, "reason": "b" }))
         );
         assert_eq!(
             format(
-                "copilot",
-                "PreToolUse",
+                COPILOT,
+                PRE_TOOL_USE,
                 json!({ "context": "c", "deny": "d", "block": "" })
             ),
-            Some(json!({ "permissionDecision": "deny", "permissionDecisionReason": "d" }))
+            Some(json!({ "permissionDecision": DENY, "permissionDecisionReason": "d" }))
         );
-        assert_eq!(format("claude", "Stop", json!({ "context": "" })), None);
-        assert_eq!(format("claude", "Stop", json!({})), None);
+        assert_eq!(format(CLAUDE, STOP, json!({ "context": "" })), None);
+        assert_eq!(format(CLAUDE, STOP, json!({})), None);
         assert_eq!(
             to_json_compact(
-                &format("claude", "Stop", HookResult::Context("c".into()).to_value()).unwrap()
+                &format(CLAUDE, STOP, HookResult::Context("c".into()).to_value()).unwrap()
             ),
             r#"{"hookSpecificOutput":{"hookEventName":"Stop","additionalContext":"c"}}"#,
             "an event outside the table still gets context"
         );
         assert_eq!(
-            format("", "PreToolUse", HookResult::Deny("d".into()).to_value()),
-            format("claude", "PreToolUse", json!({ "deny": "d" }))
+            format("", PRE_TOOL_USE, HookResult::Deny("d".into()).to_value()),
+            format(CLAUDE, PRE_TOOL_USE, json!({ "deny": "d" }))
         );
         assert_eq!(
-            format("cursor", "Stop", HookResult::Block("b".into()).to_value()),
-            Some(json!({ "decision": "block", "reason": "b" }))
+            format(CURSOR, STOP, HookResult::Block("b".into()).to_value()),
+            Some(json!({ "decision": BLOCK, "reason": "b" }))
         );
         // No result is decided before the host is looked up.
-        assert_eq!(format("nope", "Stop", Value::Null), None);
-        assert!(format_hook_output("nope", "Stop", &json!({})).is_err());
+        assert_eq!(format(NOPE, STOP, Value::Null), None);
+        assert!(format_hook_output(NOPE, STOP, &json!({})).is_err());
         assert_eq!(
-            format("mcp", "SessionStart", json!({ "context": "c" })),
+            format(MCP, SESSION_START, json!({ "context": "c" })),
             Some(json!({ "additionalContext": "c" })),
             "a host without a context table gets the generic form"
         );
@@ -837,25 +857,27 @@ mod tests {
 
     #[test]
     fn copilot_plugin_dirs_follow_the_marketplace_source() {
+        const SETTINGS: &str = "settings.json";
+        const DFW: &str = "dfw";
         let home = test_dir("copilot-home");
-        let installed = home.join("installed-plugins").join("dfw-marketplace");
+        let installed = home.join("installed-plugins").join(MARKETPLACE_NAME);
         assert_eq!(
             copilot_plugin_dirs_in(&home),
             CopilotPluginDirs {
-                dfw: installed.join("dfw"),
+                dfw: installed.join(DFW),
                 root: installed.clone()
             }
         );
-        fs::write(home.join("settings.json"), "{ broken").unwrap();
+        fs::write(home.join(SETTINGS), "{ broken").unwrap();
         assert_eq!(copilot_plugin_dirs_in(&home).root, installed);
-        fs::write(home.join("settings.json"), r#"{"extraKnownMarketplaces":{"dfw-marketplace":{"source":{"source":"github","repo":"x/y"}}}}"#).unwrap();
+        fs::write(home.join(SETTINGS), r#"{"extraKnownMarketplaces":{"dfw-marketplace":{"source":{"source":"github","repo":"x/y"}}}}"#).unwrap();
         assert_eq!(copilot_plugin_dirs_in(&home).root, installed);
-        fs::write(home.join("settings.json"), r#"{"extraKnownMarketplaces":{"dfw-marketplace":{"source":{"source":"directory","path":"/repo"}}}}"#).unwrap();
+        fs::write(home.join(SETTINGS), r#"{"extraKnownMarketplaces":{"dfw-marketplace":{"source":{"source":"directory","path":"/repo"}}}}"#).unwrap();
         let local = Path::new("/repo").join("plugins");
         assert_eq!(
             copilot_plugin_dirs_in(&home),
             CopilotPluginDirs {
-                dfw: local.join("dfw"),
+                dfw: local.join(DFW),
                 root: local
             }
         );

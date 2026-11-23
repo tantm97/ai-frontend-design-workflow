@@ -256,6 +256,7 @@ pub fn reopen_design(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::fixture::{SCREEN, SCREEN_PAGE};
     use crate::core::util::{test_dir, write_json};
     use crate::workflow::state::{load_state, new_state};
 
@@ -318,9 +319,9 @@ mod tests {
         s["gates"]["G1"] = json!({ "approvedAt": "x" });
         s["phase"] = "concepts".into();
         save_state(&root, &mut s).unwrap();
-        fs::create_dir_all(root.join(rel::screen("home"))).unwrap();
+        fs::create_dir_all(root.join(rel::screen(SCREEN))).unwrap();
         fs::write(root.join(rel::MANIFEST), r#"{"schema":1,"screens":[]}"#).unwrap();
-        fs::write(root.join(rel::screen("home/a.html")), "<html></html>").unwrap();
+        fs::write(root.join(rel::screen(SCREEN_PAGE)), "<html></html>").unwrap();
         fs::write(root.join("DESIGN.md"), "# Design").unwrap();
         let mut s = load_state(&root).unwrap().unwrap();
         freeze_design(&root, &mut s, Some("ok".into())).unwrap();
@@ -354,12 +355,20 @@ mod tests {
         fs::create_dir_all(root.join(rel::approved("old"))).unwrap();
         fs::create_dir_all(root.join(rel::HANDOFF)).unwrap();
         fs::write(root.join(rel::MANIFEST), "{}").unwrap();
-        fs::write(root.join(rel::design("b.css")), "b").unwrap();
-        fs::write(root.join(rel::join(rel::HANDOFF, "v0.md")), "not frozen").unwrap();
+        /// A stylesheet at the top of `design/`.
+        const CSS: &str = "b.css";
+        /// A handoff file of an earlier version.
+        const OLD_HANDOFF: &str = "v0.md";
+        fs::write(root.join(rel::design(CSS)), "b").unwrap();
+        fs::write(
+            root.join(rel::join(rel::HANDOFF, OLD_HANDOFF)),
+            "not frozen",
+        )
+        .unwrap();
         fs::write(root.join("PRODUCT.md"), "# Product").unwrap();
         let h = hash_design(&root).unwrap();
         let paths: Vec<&str> = h.files.iter().map(|f| f.path.as_str()).collect();
-        assert_eq!(paths, ["b.css", file::MANIFEST, "docs/PRODUCT.md"]);
+        assert_eq!(paths, [CSS, file::MANIFEST, "docs/PRODUCT.md"]);
         let lines: Vec<String> = h
             .files
             .iter()

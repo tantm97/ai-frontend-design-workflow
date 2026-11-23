@@ -23,7 +23,23 @@ use serde_json::{json, Value};
     reason = "each test binary uses a part of the project layout"
 )]
 mod layout;
-use layout::rel;
+use layout::{file, rel};
+
+#[path = "../src/core/fixture.rs"]
+#[allow(
+    dead_code,
+    reason = "each test binary uses a part of the fixture names"
+)]
+mod fixture;
+use fixture::screen_page;
+
+#[path = "../src/core/host/wire.rs"]
+#[allow(
+    dead_code,
+    reason = "each test binary uses a part of what a host sends"
+)]
+mod wire;
+use wire::event;
 
 const DFW: &str = env!("CARGO_BIN_EXE_dfw");
 
@@ -120,7 +136,7 @@ fn design(root: &Path, screens: &[(&str, &str)]) {
     let manifest = json!({ "schema": 1, "product": "T", "breakpoints": [{ "id": "mobile", "width": 390, "height": 844 }, { "id": "desktop", "width": 1440, "height": 900 }], "screens": list });
     write(root, rel::MANIFEST, &manifest.to_string());
     for (id, html) in screens {
-        write(root, &rel::screen(&format!("{id}/a.html")), html);
+        write(root, &rel::screen(&screen_page(id)), html);
     }
 }
 
@@ -264,7 +280,7 @@ fn layout_check_finds_overlap_overflow_anchor_and_void() {
             "{expected}: {found:#?}"
         );
     }
-    assert!(!root.join(rel::join(rel::DFW, "layout-cache.json")).exists());
+    assert!(!root.join(rel::join(rel::DFW, file::LAYOUT_CACHE)).exists());
     let (code, stdout, _) = dfw(&sb, &["layout", "check", "--screen", "void"], "");
     assert_eq!(code, 0);
     assert!(
@@ -272,7 +288,7 @@ fn layout_check_finds_overlap_overflow_anchor_and_void() {
         "{stdout}"
     );
     assert!(stdout.contains("- [SHOULD] (void) void/a @ mobile: content ends early: 784px empty at the bottom of the first screen"), "{stdout}");
-    assert!(root.join(rel::join(rel::DFW, "layout-cache.json")).exists());
+    assert!(root.join(rel::join(rel::DFW, file::LAYOUT_CACHE)).exists());
     assert_eq!(
         dfw(&sb, &["layout", "check", "--changed"], "").1,
         "Layout: nothing changed since the last check.\n"
@@ -293,7 +309,7 @@ fn stop_hook_blocks_once_on_a_layout_must_finding() {
         r#"{"schema":1,"phase":"concepts","active":true}"#,
     );
     design(&root, &[("wide", &page("<main><div data-dfw-id=\"wide\" style=\"width:2000px;height:880px;background:#ccd\">Wider than any screen</div></main>"))]);
-    let payload = json!({ "hook_event_name": "Stop", "cwd": root }).to_string();
+    let payload = json!({ "hook_event_name": event::STOP, "cwd": root }).to_string();
     let (code, stdout, stderr) = dfw(&sb, &["hook", "stop"], &payload);
     assert_eq!(code, 0, "{stderr}");
     let out: Value =
@@ -316,7 +332,7 @@ fn stop_hook_blocks_once_on_a_layout_must_finding() {
     // Switched off: an edit is not checked, and stays unchecked.
     write(&root, rel::CONFIG, r#"{"checks":{"layoutOnStop":false}}"#);
     fs::write(
-        root.join(rel::screen("wide/a.html")),
+        root.join(rel::screen(&screen_page("wide"))),
         page("<main>changed</main>"),
     )
     .unwrap();

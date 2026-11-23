@@ -435,6 +435,7 @@ pub fn serve(root: &Path, port: Option<u16>) -> Result<i32, DfwError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::fixture::{ITEMS_PAGE, REVIEW_SESSION};
     use crate::core::paths::file;
     use crate::core::paths::rel;
     use crate::core::util::test_dir;
@@ -698,22 +699,21 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn shots_do_not_follow_symlinks_out() {
+        /// A link to a file outside the project, in the shots and in `design/`.
+        const LEAK: &str = "leak.png";
         let root = fixture();
         let (port, _studio) = start(&root);
         let host = format!("Host: 127.0.0.1:{port}\r\n");
-        let shots = root.join(rel::join(rel::SHOTS, "studio"));
+        let shots = root.join(rel::join(rel::SHOTS, file::SHOTS_STUDIO));
         std::fs::create_dir_all(&shots).unwrap();
         std::fs::write(shots.join("ok.png"), "png").unwrap();
         let outside = root.with_extension("outside");
         std::fs::create_dir_all(&outside).unwrap();
         std::fs::write(outside.join("secret.png"), "secret").unwrap();
-        std::os::unix::fs::symlink(outside.join("secret.png"), shots.join("leak.png")).unwrap();
+        std::os::unix::fs::symlink(outside.join("secret.png"), shots.join(LEAK)).unwrap();
         std::os::unix::fs::symlink(&outside, shots.join("dir")).unwrap();
-        std::os::unix::fs::symlink(
-            outside.join("secret.png"),
-            root.join(rel::design("leak.png")),
-        )
-        .unwrap();
+        std::os::unix::fs::symlink(outside.join("secret.png"), root.join(rel::design(LEAK)))
+            .unwrap();
         let get = |p: &str| call(port, &format!("GET {p} HTTP/1.1\r\n{host}\r\n"));
         assert_eq!(get("/__dfw/shots/studio/ok.png"), (200, "png".to_string()));
         assert_eq!(get("/__dfw/shots/studio/leak.png").0, 404);
@@ -891,14 +891,14 @@ mod tests {
             "event: presence\ndata: {\"file\":\"screens/demo/a.html\",\"dfwId\":\"demo.title\"}\n\n",
         );
         assert!(got.contains("event: presence"), "{got}");
-        let review = root.join(rel::join(rel::REVIEWS, "rv_test.json"));
+        let review = root.join(rel::join(rel::REVIEWS, REVIEW_SESSION));
         let got = read_events(
             port,
             || std::fs::write(&review, r#"{"comments":[]}"#).unwrap(),
             "event: comments\n",
         );
         assert!(got.contains("event: comments\ndata: {}"), "{got}");
-        let screen = root.join(rel::screen("items/a.html"));
+        let screen = root.join(rel::screen(ITEMS_PAGE));
         let got = read_events(
             port,
             || {

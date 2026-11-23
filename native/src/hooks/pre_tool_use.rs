@@ -176,6 +176,7 @@ pub fn note_presence(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::fixture::{APP_MODULE, DEMO_PAGE};
     use crate::core::util::test_dir;
 
     /// presence: the hook names the element the agent is about to edit
@@ -183,7 +184,7 @@ mod tests {
     #[test]
     fn presence_the_hook_names_the_element_the_agent_is_about_to_edit() {
         let root = test_dir("presence");
-        let file = root.join(rel::screen("demo/a.html"));
+        let file = root.join(rel::screen(DEMO_PAGE));
         fs::create_dir_all(file.parent().unwrap()).unwrap();
         fs::write(&file, "<main data-dfw-id=\"demo.main\">\n  <h1 data-dfw-id=\"demo.title\">Hello</h1>\n  <p>Plain line</p>\n  <dfw-use c=\"button\" id=\"demo.cta\">Go</dfw-use>\n  <span>After</span>\n</main>\n").unwrap();
         let note = |input: Value, f: &Path| note_presence(&root, &input, f).unwrap();
@@ -209,7 +210,7 @@ mod tests {
             "Write: the file only"
         );
         assert_eq!(
-            note(json!({}), &root.join("src/app.ts")),
+            note(json!({}), &root.join(APP_MODULE)),
             None,
             "not a design file"
         );
@@ -229,7 +230,7 @@ mod tests {
     #[test]
     fn presence_ids_in_html_comments_are_skipped_and_single_quotes_are_read() {
         let root = test_dir("presence-comments");
-        let file = root.join(rel::screen("demo/a.html"));
+        let file = root.join(rel::screen(DEMO_PAGE));
         fs::create_dir_all(file.parent().unwrap()).unwrap();
         fs::write(&file, "<main data-dfw-id=\"page\">\n<!-- <section data-dfw-id=\"old.hero\"> removed -->\n<header data-dfw-id='nav'><a>Home</a></header>\n<section data-dfw-id='hero'><h1>Title</h1></section>\n<!-- <p data-dfw-id=\"never.closed\">\n</main>\n").unwrap();
         let at = |old: &str| {
@@ -246,10 +247,11 @@ mod tests {
         );
         assert_eq!(at("</main>"), "hero", "an unclosed comment hides the rest");
         // "..x.html" is inside design/ (node-stable d: two leading dots are not "outside").
-        let dots = root.join(rel::design("..x.html"));
+        const DOTS: &str = "..x.html";
+        let dots = root.join(rel::design(DOTS));
         assert_eq!(
             note_presence(&root, &json!({}), &dots).unwrap().unwrap()["file"],
-            "..x.html"
+            DOTS
         );
     }
 

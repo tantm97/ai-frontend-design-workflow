@@ -8,6 +8,11 @@ use std::path::{Path, PathBuf};
 use serde_json::{json, Value};
 
 use super::*;
+use crate::core::fixture::{
+    screen_page, BRAND_TOKENS, COMPOSED_PAGE, COMPOSED_PAGE_B, COMPOSED_PAGE_C, CSS_FILE,
+    DARK_THEME, DESIGN_PAGE_B, DIVIDER_MASTER, HTML_FILE, HTML_FILE_B, INDEX_PAGE,
+    MISSING_HTML_FILE, OTHER_CSS_FILE, OTHER_HTML_FILE, SCREEN_PAGE,
+};
 use crate::core::paths::{file, rel};
 use crate::core::util::test_dir;
 use crate::design::compose::build_system;
@@ -134,7 +139,7 @@ fn ids_alt_colors_focus() {
         assert!(found.iter().any(|r| r == rule), "{rule} in {found:?}");
     }
     let mut css = rules(&lint_css(
-        &rel::join(rel::STYLES, "x.css"),
+        &rel::join(rel::STYLES, OTHER_CSS_FILE),
         ":root{--x:#fff}\n.a{color:#123456}\n.b:focus{outline:none}",
     ));
     css.sort();
@@ -149,7 +154,7 @@ fn generic_ai_tells() {
   .hero{background:linear-gradient(135deg,#7c3aed,#2563eb)} .tile{border-radius:12px;border-left:4px solid var(--color-accent)}
   </style></head><body><h2 data-dfw-id="a">🚀 Fast</h2><button data-dfw-id="b">Go</button><p>Lorem ipsum dolor</p>
   <p>Teams ship 10x faster</p><img data-dfw-id="c" alt="" src="https://images.unsplash.com/x.jpg"><span style="color:#6366f1">x</span></body></html>"##;
-    let found = leveled(&lint_html(&rel::screen("a.html"), html));
+    let found = leveled(&lint_html(&rel::screen(HTML_FILE), html));
     for rule in [
         "error:emoji-icon",
         "error:filler-copy",
@@ -163,7 +168,7 @@ fn generic_ai_tells() {
     }
     // Clean markup raises none of them.
     let clean = lint_html(
-        &rel::screen("b.html"),
+        &rel::screen(HTML_FILE_B),
         r#"<html lang="en"><body><h2 data-dfw-id="a">Assets due for audit</h2><p>12 of 340 assets are overdue.</p></body></html>"#,
     );
     let tells = [
@@ -179,7 +184,7 @@ fn generic_ai_tells() {
         .any(|r| tells.iter().any(|t| r.contains(t))));
     assert!(has(
         &lint_css(
-            &rel::design("x.css"),
+            &rel::design(OTHER_CSS_FILE),
             ".card{border-radius:8px;border-left:3px solid red}"
         ),
         "left-border-card"
@@ -200,7 +205,7 @@ fn state_coverage_for_data_surfaces_and_forms() {
         write(&root, rel::MANIFEST, &text.to_string());
     };
     manifest(json!([]));
-    let rel = &rel::screen("list/a.html");
+    let rel = &rel::screen(&screen_page("list"));
     let found = state_coverage(&root, rel, "<body><table></table><form></form></body>").unwrap();
     assert_eq!(found.len(), 1);
     assert!(found[0]["message"]
@@ -226,7 +231,7 @@ fn declared_but_undesigned_states() {
     let root = test_dir("lint-states-undesigned");
     let text = json!({ "states": ["loading", "empty", "error"], "screens": [{ "id": "home", "variants": [{ "id": "a", "file": "screens/home/a.html" }] }] });
     write(&root, rel::MANIFEST, &text.to_string());
-    let rel = &rel::screen("home/a.html");
+    let rel = &rel::screen(SCREEN_PAGE);
     // Inherited from the top of design.json and designed nowhere: one finding naming all three.
     let found = state_coverage(&root, rel, "<body><h1>Home</h1></body>").unwrap();
     assert_eq!(rules(&found), ["state-undesigned"]);
@@ -235,7 +240,7 @@ fn declared_but_undesigned_states() {
     // A screen block, a data-state rule and a master the screen uses each count as designed.
     write(
         &root,
-        &rel::component("order-list.html"),
+        &rel::master("order-list"),
         r#"<dfw-component name="order-list"><style>html[data-state="loading"] .ol { opacity: .5 }</style><template><ul class="ol"></ul></template></dfw-component>"#,
     );
     let html = r#"<body><p class="when-empty">No orders yet</p><style>[data-state='error'] main{display:none}</style><dfw-use c="order-list"></dfw-use></body>"#;
@@ -265,7 +270,7 @@ fn guideline_and_copy_rules_near_duplicates_component_states() {
     let html = r##"<html lang="en"><head><style>input{font-size:13px} .menu{z-index:999}</style></head><body>
   <p data-dfw-id="a">Seamlessly manage everything.</p><p data-dfw-id="b">Oops! Something went wrong.</p><p data-dfw-id="c">Loading...</p>
   <a data-dfw-id="d" href="#x">click here</a></body></html>"##;
-    let found = rules(&lint_html(&rel::screen("x.html"), html));
+    let found = rules(&lint_html(&rel::screen(OTHER_HTML_FILE), html));
     for rule in [
         "copy-tell",
         "vague-error",
@@ -277,7 +282,7 @@ fn guideline_and_copy_rules_near_duplicates_component_states() {
         assert!(found.iter().any(|r| r == rule), "{rule} in {found:?}");
     }
     let clean = lint_html(
-        &rel::screen("y.html"),
+        &rel::screen(HTML_FILE_B),
         r##"<html lang="en"><head><style>input{font-size:16px} .menu{z-index:var(--z-menu)}</style></head><body><p data-dfw-id="a">Loading…</p><a data-dfw-id="d" href="#x">View invoice 1042</a></body></html>"##,
     );
     let guideline = [
@@ -296,7 +301,7 @@ fn guideline_and_copy_rules_near_duplicates_component_states() {
     assert_eq!(lines_of(&near, "near-duplicate-color").len(), 1);
     let button = |css: &str| {
         lint_component_file(
-            &rel::component("b.html"),
+            &rel::component(HTML_FILE_B),
             &format!(
                 r#"<dfw-component name="b"><style>{css}</style><template><button class="b">x</button></template></dfw-component>"#
             ),
@@ -341,7 +346,7 @@ fn screens_compose_the_design_system_and_keep_visual_styling_out() {
     let lib = load_components(&root).unwrap();
     let bad = r##"<!doctype html><html lang="en"><head><dfw-head></dfw-head><style>.x { display: grid; color: red; gap: 8px } .y{font-size:14px}</style></head>
 <body><main data-dfw-id="m"><button data-dfw-id="b">Raw</button><span style="background: #fff">x</span></main></body></html>"##;
-    let found = rules(&lint_screen(&root, &rel::screen("s/a.html"), bad, &lib).unwrap());
+    let found = rules(&lint_screen(&root, &rel::screen(COMPOSED_PAGE), bad, &lib).unwrap());
     assert_eq!(
         found.iter().filter(|r| *r == "screen-visual-style").count(),
         3
@@ -350,7 +355,7 @@ fn screens_compose_the_design_system_and_keep_visual_styling_out() {
     assert!(found.iter().any(|r| r == "no-components"));
     let good = r#"<!doctype html><html lang="en"><head><dfw-head></dfw-head><style>.x { display: grid; gap: var(--space-2) }</style></head><body><main data-dfw-id="m"><dfw-use c="button" id="m.ok">OK</dfw-use></main></body></html>"#;
     assert_eq!(
-        lint_screen(&root, &rel::screen("s/b.html"), good, &lib).unwrap(),
+        lint_screen(&root, &rel::screen(COMPOSED_PAGE_B), good, &lib).unwrap(),
         Vec::<Value>::new()
     );
 }
@@ -362,12 +367,12 @@ fn an_unclosed_instance_is_a_lint_finding() {
     let root = test_dir("lint-unclosed");
     write(
         &root,
-        &rel::component("divider.html"),
+        &rel::component(DIVIDER_MASTER),
         "<dfw-component name=\"divider\">\n<template>\n<hr class=\"divider\">\n</template>\n</dfw-component>\n",
     );
     let lib = load_components(&root).unwrap();
     let unclosed = "<body>\n<dfw-use c=\"divider\">\n<main data-dfw-id=\"main\"><h1>Title</h1></main>\n</body>";
-    let found = lint_screen(&root, &rel::screen("a/index.html"), unclosed, &lib).unwrap();
+    let found = lint_screen(&root, &rel::screen(INDEX_PAGE), unclosed, &lib).unwrap();
     assert_eq!(lines_of(&found, "component-unclosed"), [2]);
 }
 
@@ -383,7 +388,7 @@ fn a_theme_may_alias_tokens_of_the_base_file() {
         let text = json!({ "color": { "$type": "color", "ink": { "$value": alias } } });
         write(
             &root,
-            &rel::join(rel::THEMES, "dark.json"),
+            &rel::join(rel::THEMES, DARK_THEME),
             &text.to_string(),
         );
     };
@@ -398,7 +403,7 @@ fn a_theme_may_alias_tokens_of_the_base_file() {
     theme("{color.palette.n50}");
     assert_eq!(alias_errors(), Vec::<String>::new());
     theme("{color.palette.nope}");
-    assert_eq!(alias_errors(), [rel::join(rel::THEMES, "dark.json")]);
+    assert_eq!(alias_errors(), [rel::join(rel::THEMES, DARK_THEME)]);
 }
 
 /// lint: a malformed design.json is a finding, not a crash (tests/unit/audit-fixes.test.mjs,
@@ -414,7 +419,7 @@ fn a_malformed_manifest_is_a_finding() {
     );
     write(
         &root,
-        &rel::screen("a/index.html"),
+        &rel::screen(INDEX_PAGE),
         r#"<html lang="en"><head><dfw-head></dfw-head></head><body><main data-dfw-id="m">x</main></body></html>"#,
     );
     let found = lint_design(&root, None).unwrap();
@@ -431,6 +436,8 @@ fn a_malformed_manifest_is_a_finding() {
 
 #[test]
 fn findings_have_the_keys_of_the_node_objects_in_order() {
+    /// The page of the manifest below, straight in `design/`.
+    const FLAT_PAGE: &str = "s.html";
     let found = lint_html("a.html", "<html><body></body></html>");
     assert_eq!(
         found[0].to_string(),
@@ -442,7 +449,7 @@ fn findings_have_the_keys_of_the_node_objects_in_order() {
         rel::MANIFEST,
         r#"{"screens":[{"id":"s","variants":[{"id":"a","file":"s.html"}]}]}"#,
     );
-    let coverage = state_coverage(&root, &rel::design("s.html"), "<form>").unwrap();
+    let coverage = state_coverage(&root, &rel::design(FLAT_PAGE), "<form>").unwrap();
     let keys: Vec<&String> = coverage[0].as_object().unwrap().keys().collect();
     assert_eq!(keys, ["level", "rule", "file", "line", "source", "message"]);
     assert!(coverage[0]["message"]
@@ -540,7 +547,7 @@ fn slop_rules_one_by_one() {
 #[test]
 fn css_rules_one_by_one() {
     let css = "/* #fff in a comment\n */\n.a{color:#fff;transition : all .2s}\n.b{--c:#000;border-left:2px solid var(--c);border-radius:4px}\nselect.x,\n.y{font-size:15.5px;z-index:-2}\n.z{z-index:1;font-size:12px}\n.g{background:LINEAR-GRADIENT(#3b82f6,#8b5cf6)}\n.h{background:linear-gradient(#ff0000,#00ff00)}\n.o{outline:0}";
-    let f = lint_css(&rel::design("a.css"), css);
+    let f = lint_css(&rel::design(CSS_FILE), css);
     assert_eq!(lines_of(&f, "hardcoded-color"), [3, 8, 8, 9, 9]);
     assert_eq!(lines_of(&f, "transition-all"), [3]);
     assert_eq!(lines_of(&f, "left-border-card"), [4]);
@@ -566,7 +573,7 @@ fn css_rules_one_by_one() {
 
 #[test]
 fn component_rules_one_by_one() {
-    let lint = |text: &str| lint_component_file(&rel::component("x.html"), text);
+    let lint = |text: &str| lint_component_file(&rel::component(OTHER_HTML_FILE), text);
     assert_eq!(
         rules(&lint("<p>nothing</p>")),
         ["component-missing", "component-template"]
@@ -656,13 +663,15 @@ fn token_rules_one_by_one() {
 
 #[test]
 fn manifest_rules_one_by_one() {
+    /// The file a variant of the manifest below names; never written.
+    const NOT_WRITTEN: &str = "none.html";
     let root = test_dir("lint-manifest");
     assert_eq!(rules(&lint_manifest(&root).unwrap()), ["manifest-missing"]);
     write(&root, rel::MANIFEST, "null");
     assert_eq!(rules(&lint_manifest(&root).unwrap()), ["manifest-missing"]);
     write(&root, rel::MANIFEST, "{}");
     assert_eq!(rules(&lint_manifest(&root).unwrap()), ["manifest-screens"]);
-    write(&root, &rel::screen("a.html"), "x");
+    write(&root, &rel::screen(HTML_FILE), "x");
     let manifest = json!({
         "screens": [
             { "id": "a", "blueprint": { "goal": "g", "layout": "l", "aboveFold": [], "data": "d" }, "variants": [{ "id": "v", "file": "screens/a.html" }, { "id": "w" }, { "id": "x", "file": "screens/none.html" }] },
@@ -690,7 +699,7 @@ fn manifest_rules_one_by_one() {
             "Variant \"a/w\" has no file.",
             &format!(
                 "Variant \"a/x\" points to missing file {}.",
-                rel::screen("none.html")
+                rel::screen(NOT_WRITTEN)
             ),
             "Duplicate screen id \"a\".",
             "Screen \"a\" has no variants.",
@@ -709,7 +718,7 @@ fn screen_rules_one_by_one() {
     let master = |name: &str, attrs: &str, tpl: &str| {
         write(
             &root,
-            &rel::component(&format!("{name}.html")),
+            &rel::master(name),
             &format!("<dfw-component name=\"{name}\"{attrs}>\n<template>\n{tpl}\n</template>\n</dfw-component>\n"),
         );
     };
@@ -736,7 +745,7 @@ fn screen_rules_one_by_one() {
     let lib = load_components(&root).unwrap();
     let lint = |rel: &str, text: &str| lint_screen(&root, rel, text, &lib).unwrap();
     let text = "<html><head><button>in head</button><style>\n/* color: red */\n.x{display:grid;\n  BORDER-color: red; border-top-color:red}\n</style></head>\n<body>\n<button>raw</button>\n<dfw-use c=\"tabs\"> <button>accepted</button></dfw-use><dfw-use c=\"tabs\"><button>first child</button></dfw-use>\n<BUTTON>raw too</BUTTON>\n<p STYLE=\"color:red\" style=\"Color: red; --color: x; margin:0;FILL:x\">x</p>\n<dfw-use c=\"button\" variant=\"primary\">1</dfw-use><dfw-use c=\"button\" variant=\"primary\">2</dfw-use><dfw-use c=\"button\" variant=\"primary\">3</dfw-use>\n</body></html>";
-    let f = lint(&rel::screen("s/a.html"), text);
+    let f = lint(&rel::screen(COMPOSED_PAGE), text);
     // "BORDER-color" is not a property name for the Node expression; the next one is reported
     // from the white space before it.
     assert_eq!(lines_of(&f, "screen-visual-style"), [4, 10, 10]);
@@ -757,15 +766,18 @@ fn screen_rules_one_by_one() {
     assert!(!has(&f, "no-components"));
     // Shared screens (a path segment that starts with "_") need no page or shell.
     let shared = lint(
-        &rel::screen("_shared/a.html"),
+        &rel::screen(&screen_page("_shared")),
         "<body><dfw-use c=\"button\">x</dfw-use></body>",
     );
     assert_eq!(rules(&shared), Vec::<String>::new());
-    let empty = lint(&rel::screen("s/b.html"), "<html>\n<body></body></html>");
+    let empty = lint(
+        &rel::screen(COMPOSED_PAGE_B),
+        "<html>\n<body></body></html>",
+    );
     assert_eq!(lines_of(&empty, "no-components"), [2]);
     // Compose issues come first, with their line.
     let unknown = lint(
-        &rel::screen("s/c.html"),
+        &rel::screen(COMPOSED_PAGE_C),
         "<body>\n<dfw-use c=\"nope\">x</dfw-use></body>",
     );
     assert_eq!(unknown[0]["line"], 2);
@@ -773,12 +785,14 @@ fn screen_rules_one_by_one() {
     // Without masters only the compose issues and the state coverage remain.
     let bare = test_dir("lint-screen-bare");
     let none = load_components(&bare).unwrap();
-    let found = lint_screen(&bare, &rel::screen("s/a.html"), text, &none).unwrap();
+    let found = lint_screen(&bare, &rel::screen(COMPOSED_PAGE), text, &none).unwrap();
     assert_eq!(rules(&found), ["component-unknown"; 5]);
 }
 
 #[test]
 fn design_targets_and_file_kinds() {
+    /// A JSON file of `design/` that is not a tokens file.
+    const NOTES_JSON: &str = "notes.json";
     let root = test_dir("lint-design");
     write(&root, rel::MANIFEST, r#"{"screens":[]}"#);
     write(&root, &rel::approved("v1/a.html"), "<img>");
@@ -795,10 +809,10 @@ fn design_targets_and_file_kinds() {
         &rel::join(rel::TOKENS, file::TOKENS_CSS),
         ".a{color:#fff}",
     );
-    write(&root, &rel::design("brand.tokens.json"), "{}");
-    write(&root, &rel::design("notes.json"), "{ not linted");
-    write(&root, &rel::screen("a/index.html"), "<img>");
-    write(&root, &rel::design("pages/b.html"), "<img>");
+    write(&root, &rel::design(BRAND_TOKENS), "{}");
+    write(&root, &rel::design(NOTES_JSON), "{ not linted");
+    write(&root, &rel::screen(INDEX_PAGE), "<img>");
+    write(&root, &rel::design(DESIGN_PAGE_B), "<img>");
     let files = |found: &[Value]| -> Vec<String> {
         found
             .iter()
@@ -812,15 +826,15 @@ fn design_targets_and_file_kinds() {
             .collect()
     };
     let at = |file: &str, rule: &str| format!("{file} {rule}");
-    let screen = rel::screen("a/index.html");
-    let page = rel::design("pages/b.html");
+    let screen = rel::screen(INDEX_PAGE);
+    let page = rel::design(DESIGN_PAGE_B);
     let base_css = rel::join(rel::SYSTEM, file::BASE_CSS);
     let all = files(&lint_design(&root, None).unwrap());
     assert_eq!(
         all,
         [
             at(rel::MANIFEST, "manifest-screens"),
-            at(&rel::design("brand.tokens.json"), "token-empty"),
+            at(&rel::design(BRAND_TOKENS), "token-empty"),
             at(&page, "tokens-link"),
             at(&page, "img-alt"),
             at(&page, "dfw-id-missing"),
@@ -838,7 +852,7 @@ fn design_targets_and_file_kinds() {
         files(&lint_design(&root, Some(&list)).unwrap())
     };
     assert_eq!(
-        targets(&[rel::SCREENS, &rel::design("nope.html")]),
+        targets(&[rel::SCREENS, &rel::design(MISSING_HTML_FILE)]),
         [
             at(&screen, "tokens-link"),
             at(&screen, "img-alt"),
@@ -858,10 +872,10 @@ fn design_targets_and_file_kinds() {
         targets(&[abs.to_str().unwrap()]),
         [at(&base_css, "hardcoded-color")]
     );
-    assert!(is_token_file(&rel::join(rel::THEMES, "dark.json")));
+    assert!(is_token_file(&rel::join(rel::THEMES, DARK_THEME)));
     assert!(is_token_file("x.tokens.json"));
     assert!(!is_token_file(&rel::design(file::TOKENS_JSON)));
-    assert!(!is_token_file(&rel::join(rel::TOKENS, "a.css")));
+    assert!(!is_token_file(&rel::join(rel::TOKENS, CSS_FILE)));
 }
 
 /// Where the Node code died on a TypeError the lint ends with an error too (exit code 1): a
@@ -869,11 +883,11 @@ fn design_targets_and_file_kinds() {
 #[test]
 fn a_manifest_of_the_wrong_shape_is_an_error_where_node_dies() {
     let root = test_dir("lint-manifest-shapes");
-    write(&root, &rel::screen("a.html"), "<table></table>");
+    write(&root, &rel::screen(HTML_FILE), "<table></table>");
     let variant = json!({ "id": "a", "file": "screens/a.html" });
     let check = |manifest: Value| {
         write(&root, rel::MANIFEST, &manifest.to_string());
-        let coverage = state_coverage(&root, &rel::screen("a.html"), "<table></table>");
+        let coverage = state_coverage(&root, &rel::screen(HTML_FILE), "<table></table>");
         (lint_manifest(&root).is_ok(), coverage.is_ok())
     };
     // Wrong types the Node code read without trouble.

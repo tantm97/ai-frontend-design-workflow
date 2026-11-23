@@ -14,7 +14,7 @@ use serde_json::{json, Map, Value};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::lock::{self, LockTimes};
-use crate::core::paths::{project_paths, rel};
+use crate::core::paths::{file, project_paths, rel};
 use crate::core::util::{iso_from_millis, now_iso, read_json, write_json_inside};
 use crate::review::status::{self, field, Status};
 
@@ -49,7 +49,7 @@ pub fn try_locked<T>(
 }
 
 fn lock_path(root: &Path) -> PathBuf {
-    project_paths(root).reviews.join(".lock")
+    project_paths(root).reviews.join(file::REVIEWS_LOCK)
 }
 
 /// The session files (`rv_*.json`) of a project, oldest first.
@@ -544,6 +544,9 @@ fn update_comment_unlocked(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::fixture::{
+        index_page, APP_COMPONENT, OUTSIDE_PAGE, REVIEW_SESSION, SCREEN, SCREEN_PAGE,
+    };
     use crate::core::util::test_dir;
     use crate::workflow::state::{new_state, save_state};
 
@@ -566,9 +569,9 @@ mod tests {
     #[test]
     fn feedback_lifecycle_only_the_user_resolves() {
         let root = project("comments");
-        fs::create_dir_all(root.join(rel::screen("home"))).unwrap();
+        fs::create_dir_all(root.join(rel::screen(SCREEN))).unwrap();
         fs::write(
-            root.join(rel::screen("home/a.html")),
+            root.join(rel::screen(SCREEN_PAGE)),
             "<html>\n<body>\n<button data-dfw-id=\"home.cta\">Go</button>\n</body></html>",
         )
         .unwrap();
@@ -576,7 +579,7 @@ mod tests {
         assert_eq!(c["id"], "fb_001");
         assert_eq!(
             c["target"]["source"],
-            format!("{}:3", rel::screen("home/a.html"))
+            format!("{}:3", rel::screen(SCREEN_PAGE))
         );
         let id = Some("fb_001");
         let fails = |u: Update| {
@@ -596,31 +599,29 @@ mod tests {
             add_comment(&root, &json!({ "comment": "second" })).unwrap()["id"],
             "fb_002"
         );
-        assert!(!root.join(rel::join(rel::REVIEWS, ".lock")).exists());
+        assert!(!root
+            .join(rel::join(rel::REVIEWS, file::REVIEWS_LOCK))
+            .exists());
     }
 
     /// layout: ... comment source line points at the element, not its layout rule
     /// (tests/unit/edit.test.mjs: the assertion on locateSource; the rest is design/edit)
     #[test]
     fn comment_source_line_points_at_the_element_not_its_layout_rule() {
+        const DASH: &str = "dash";
+        let page = rel::screen(&index_page(DASH));
         let root = test_dir("locate-source");
-        fs::create_dir_all(root.join(rel::screen("dash"))).unwrap();
+        fs::create_dir_all(root.join(rel::screen(DASH))).unwrap();
         let text = "<html><head>\n<style data-dfw-layout>[data-dfw-id='dash.a'] { width: 50% }</style>\n</head><body>\n<div data-dfw-id=\"dash.a\">A</div>\n</body></html>";
-        fs::write(root.join(rel::screen("dash/index.html")), text).unwrap();
+        fs::write(root.join(&page), text).unwrap();
         let at =
             |id: Option<&str>| locate_source(&root, Some("screens/dash/index.html"), id).unwrap();
         assert_eq!(
             at(Some("dash.a")).as_deref(),
-            Some(format!("{}:4", rel::screen("dash/index.html")).as_str())
+            Some(format!("{page}:4").as_str())
         );
-        assert_eq!(
-            at(Some("nope")).as_deref(),
-            Some(rel::screen("dash/index.html").as_str())
-        );
-        assert_eq!(
-            at(None).as_deref(),
-            Some(rel::screen("dash/index.html").as_str())
-        );
+        assert_eq!(at(Some("nope")).as_deref(), Some(page.as_str()));
+        assert_eq!(at(None).as_deref(), Some(page.as_str()));
         assert_eq!(
             locate_source(&root, Some("screens/none.html"), Some("x")).unwrap(),
             None
@@ -631,7 +632,7 @@ mod tests {
     #[test]
     fn a_comment_has_the_node_shape() {
         let root = project("comments-shape");
-        let c = add_comment(&root, &json!({ "comment": "  Too wide \n", "url": "http://localhost:3000/a", "provider": "dfw-live", "target": { "selector": "main > p", "source": "src/App.tsx:3:5" } })).unwrap();
+        let c = add_comment(&root, &json!({ "comment": "  Too wide \n", "url": "http://localhost:3000/a", "provider": "dfw-live", "target": { "selector": "main > p", "source": format!("{APP_COMPONENT}:3:5") } })).unwrap();
         let keys: Vec<&str> = c.as_object().unwrap().keys().map(String::as_str).collect();
         assert_eq!(
             keys,
@@ -657,7 +658,7 @@ mod tests {
         );
         assert_eq!(c["comment"], "Too wide");
         assert_eq!(c["designVersion"], "v1");
-        assert_eq!(c["target"]["source"], "src/App.tsx:3:5");
+        assert_eq!(c["target"]["source"], format!("{APP_COMPONENT}:3:5"));
         assert_eq!(c["file"], Value::Null);
         let plain = add_comment(&root, &json!({ "comment": "x" })).unwrap();
         assert_eq!(plain["target"], json!({ "source": null }));
@@ -744,9 +745,10 @@ mod tests {
                 .message(),
             "No comment id given: name the comment by its id (\"dfw comments list\" shows the ids)."
         );
-        let shot =
-            set_comment_screenshot(&root, "fb_001", &rel::join(rel::SHOTS, "fb_001.png")).unwrap();
-        assert_eq!(shot["screenshot"], rel::join(rel::SHOTS, "fb_001.png"));
+        const SHOT: &str = "fb_001.png";
+        let file = rel::join(rel::SHOTS, SHOT);
+        let shot = set_comment_screenshot(&root, "fb_001", &file).unwrap();
+        assert_eq!(shot["screenshot"], file);
     }
 
     /// a: review rounds started in the same second get different session files
@@ -792,14 +794,14 @@ mod tests {
     #[test]
     fn a_comment_file_from_input_never_leaves_design() {
         let root = project("comments-file");
-        fs::write(root.join("outside.html"), "<p data-dfw-id=\"a\">x</p>").unwrap();
-        fs::create_dir_all(root.join(rel::screen("home"))).unwrap();
+        fs::write(root.join(OUTSIDE_PAGE), "<p data-dfw-id=\"a\">x</p>").unwrap();
+        fs::create_dir_all(root.join(rel::screen(SCREEN))).unwrap();
         fs::write(
-            root.join(rel::screen("home/a.html")),
+            root.join(rel::screen(SCREEN_PAGE)),
             "<main>\n<p data-dfw-id=\"a\">x</p>\n</main>",
         )
         .unwrap();
-        let abs = root.join("outside.html").display().to_string();
+        let abs = root.join(OUTSIDE_PAGE).display().to_string();
         let bad = [
             json!("../outside.html"),
             json!("screens/../../outside.html"),
@@ -829,10 +831,10 @@ mod tests {
             &json!({ "comment": "x", "file": "screens/home/a.html", "target": { "dfwId": "a" } }),
         )
         .unwrap();
-        assert_eq!(ok["file"], rel::screen("home/a.html"));
+        assert_eq!(ok["file"], rel::screen(SCREEN_PAGE));
         assert_eq!(
             ok["target"]["source"],
-            format!("{}:2", rel::screen("home/a.html"))
+            format!("{}:2", rel::screen(SCREEN_PAGE))
         );
         assert!(!safe_design_file("a\0b") && !safe_design_file("") && safe_design_file("..x.html"));
     }
@@ -888,7 +890,7 @@ mod tests {
         add_comment(&root, &json!({ "comment": "first" })).unwrap();
         let first = current_session(&root, false).unwrap().unwrap();
         // A session id is the time to the second: write the first one as an older file.
-        let old = root.join(rel::join(rel::REVIEWS, "rv_20200101T000000.json"));
+        let old = root.join(rel::join(rel::REVIEWS, REVIEW_SESSION));
         fs::rename(&first.file, &old).unwrap();
         let second = new_session(&root, Some("v7")).unwrap();
         assert_eq!(second.session["designVersion"], "v7");
@@ -906,7 +908,7 @@ mod tests {
     #[test]
     fn a_stale_lock_is_taken_over() {
         let root = project("comments-lock");
-        let lock = root.join(rel::join(rel::REVIEWS, ".lock"));
+        let lock = root.join(rel::join(rel::REVIEWS, file::REVIEWS_LOCK));
         fs::create_dir_all(&lock).unwrap();
         let long_ago = SystemTime::now() - Duration::from_secs(60);
         fs::File::open(&lock)
@@ -980,17 +982,17 @@ mod tests {
             "The comment must be text: give \"comment\" as a string."
         );
         fs::write(
-            root.join(rel::join(rel::REVIEWS, "rv_20200101T000000.json")),
+            root.join(rel::join(rel::REVIEWS, REVIEW_SESSION)),
             r#"{"id":"rv_20200101T000000","comments":5}"#,
         )
         .unwrap();
         let err = all_comments(&root).unwrap_err();
         assert_eq!(
             err.report(),
-            format!("{}: \"comments\" is not a list. Fix that review session file (or move it out of {}/) and run the command again.", rel::join(rel::REVIEWS, "rv_20200101T000000.json"), rel::REVIEWS)
+            format!("{}: \"comments\" is not a list. Fix that review session file (or move it out of {}/) and run the command again.", rel::join(rel::REVIEWS, REVIEW_SESSION), rel::REVIEWS)
         );
         fs::write(
-            root.join(rel::join(rel::REVIEWS, "rv_20200101T000000.json")),
+            root.join(rel::join(rel::REVIEWS, REVIEW_SESSION)),
             r#"{"id":"rv_20200101T000000","comments":[{"id":"fb_001","status":"odd","thread":[]}]}"#,
         )
         .unwrap();
@@ -999,7 +1001,7 @@ mod tests {
         assert!(
             err.report().starts_with(&format!(
                 "Comment fb_001 in {} has the status \"odd\"",
-                rel::join(rel::REVIEWS, "rv_20200101T000000.json")
+                rel::join(rel::REVIEWS, REVIEW_SESSION)
             )),
             "{err}"
         );

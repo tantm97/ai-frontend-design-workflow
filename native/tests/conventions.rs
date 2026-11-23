@@ -1,7 +1,7 @@
 //! Convention checks on the source of `src/` (and, for the project layout, of the tests).
 //!
 //! The growth guard of convention G15 (git-and-review.md): the number of suppressions
-//! (`#[allow(...)]` in product code) may only go down. A higher count fails with the new ones; a lower count fails until the
+//! (`#[allow(...)]` in product code), and of string literals a test writes twice, may only go down. A higher count fails with the new ones; a lower count fails until the
 //! baseline (`tests/conventions-baseline.json`) is lowered to it, so progress is recorded.
 
 #![allow(
@@ -67,7 +67,7 @@ fn compare(what: &str, key: &str, found: &[String]) {
     let base = baseline()[key].as_u64().unwrap() as usize;
     assert!(
         found.len() <= base,
-        "{what}: {} now, baseline {base}. New suppressions need a reason and a review (G15); the list:\n{}",
+        "{what}: {} now, baseline {base}. New ones need a reason and a review (G15); the list:\n{}",
         found.len(),
         found.join("\n")
     );
@@ -572,9 +572,10 @@ fn project_layout_paths_are_core_paths() {
     );
 }
 
-/// The test code of every Rust file, as `(path, lines)`: the `#[cfg(test)] mod` part of a
-/// source file, a `tests.rs` file, and the binary tests but this one (it holds the patterns).
-fn test_sources(skip: &[&str]) -> Vec<(String, Vec<String>)> {
+/// The test code of every Rust file, as `(path, line of its first line, text)`: the
+/// `#[cfg(test)] mod` part of a source file, a `tests.rs` file, and the binary tests but this
+/// one (it holds the patterns).
+fn test_texts(skip: &[&str]) -> Vec<(String, usize, String)> {
     let mut files = Vec::new();
     rust_files(&native().join("src"), &mut files);
     rust_files(&native().join("tests"), &mut files);
@@ -592,22 +593,31 @@ fn test_sources(skip: &[&str]) -> Vec<(String, Vec<String>)> {
         let text = fs::read_to_string(&f).unwrap();
         let whole = rel.starts_with("tests/") || rel.ends_with("tests.rs");
         let test = if whole {
-            &text[..]
+            text.clone()
         } else {
-            &text[product_part(&text).len()..]
+            text[product_part(&text).len()..].to_string()
         };
         let first = text[..text.len() - test.len()].lines().count();
-        out.push((
-            rel,
-            std::iter::repeat_n(String::new(), first)
+        out.push((rel, first, test));
+    }
+    out
+}
+
+/// The test code of every Rust file, as `(path, lines)`, comments cut off; the lines before
+/// the test code are empty, so a line's index is its line number less one.
+fn test_sources(skip: &[&str]) -> Vec<(String, Vec<String>)> {
+    test_texts(skip)
+        .into_iter()
+        .map(|(rel, first, test)| {
+            let lines = std::iter::repeat_n(String::new(), first)
                 .chain(
                     test.lines()
                         .map(|l| l.split("//").next().unwrap_or_default().to_string()),
                 )
-                .collect(),
-        ));
-    }
-    out
+                .collect();
+            (rel, lines)
+        })
+        .collect()
 }
 
 /// A line without the raw strings on it (`r#"..."#`, `r##"..."##`): fixture content. A raw
@@ -706,17 +716,26 @@ fn option_themes_are_design_tokens_option() {
     );
 }
 
-/// The errors of the design system and style guide commands take their text from the
-/// module's `message` table, never a literal or a `format!` at the call.
+/// The modules whose errors (and, for the write gate, refusals) take their text from the
+/// module's `message` table.
+const MESSAGE_TABLES: [&str; 3] = [
+    "src/design/system.rs",
+    "src/design/style.rs",
+    "src/workflow/gates.rs",
+];
+
+/// The errors of the design system and style guide commands and the refusals of the write
+/// gate take their text from the module's `message` table, never a literal or a `format!` at
+/// the call.
 #[test]
-fn system_and_style_errors_come_from_their_message_table() {
+fn errors_come_from_their_message_table() {
     let mut found = Vec::new();
     for (rel, lines) in product_sources(&[]) {
-        if rel != "src/design/system.rs" && rel != "src/design/style.rs" {
+        if !MESSAGE_TABLES.contains(&rel.as_str()) {
             continue;
         }
         for (i, code) in lines.iter().enumerate() {
-            for call in ["DfwError::new(", "DfwError::internal("] {
+            for call in ["DfwError::new(", "DfwError::internal(", "Decision::deny("] {
                 let next = i + 1 < lines.len() && code.trim_end().ends_with(call);
                 let arg = match code.find(call) {
                     Some(at) if !next => code[at + call.len()..].trim_start(),
@@ -732,6 +751,371 @@ fn system_and_style_errors_come_from_their_message_table() {
     assert!(
         found.is_empty(),
         "error text written at the call; add it to the module's `message` table:\n{}",
+        found.join("\n")
+    );
+}
+
+/// The hook events, the tool names and the apply_patch headers are named in
+/// `core::host::wire` (`event`, `tool`, `patch`); product code never spells them.
+#[test]
+fn hook_wire_names_are_core_host_wire() {
+    let spelled = [
+        "\"SessionStart\"",
+        "\"PreToolUse\"",
+        "\"PostToolUse\"",
+        "\"UserPromptSubmit\"",
+        "\"Stop\"",
+        "\"Write\"",
+        "\"Edit\"",
+        "\"MultiEdit\"",
+        "\"NotebookEdit\"",
+        "\"ApplyPatch\"",
+        "\"apply_patch\"",
+        "\"str_replace_editor\"",
+        "\"*** ",
+    ];
+    let mut found = Vec::new();
+    for (rel, lines) in product_sources(&["src/core/host/wire.rs"]) {
+        for (i, code) in lines.iter().enumerate() {
+            if spelled.iter().any(|s| code.contains(s)) {
+                found.push(format!("{rel}:{}: {}", i + 1, code.trim()));
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "hook events, tool names or patch headers spelled out; use core::host::{{event, tool, patch}}:\n{}",
+        found.join("\n")
+    );
+}
+
+/// One string literal of [`literals`].
+struct Literal {
+    /// The line of the `#[test]` function it is in, if any.
+    test: Option<usize>,
+    line: usize,
+    /// The text as written between the quotes.
+    text: String,
+    /// A `json!` object key: followed by a single `:`.
+    key: bool,
+}
+
+/// The string literals of a piece of Rust code. Comments, raw strings (`r"..."`, `r#"..."#`:
+/// fixture content) and character literals are left out.
+fn literals(code: &str) -> Vec<Literal> {
+    let chars: Vec<char> = code.chars().collect();
+    let ident = |c: char| c.is_alphanumeric() || c == '_';
+    let mut out = Vec::new();
+    let (mut i, mut line, mut depth) = (0, 1, 0usize);
+    let mut pending_test = false;
+    // The depth outside the open test function and the line of its `#[test]`.
+    let mut test: Option<(usize, usize)> = None;
+    let mut recent = String::new();
+    while i < chars.len() {
+        let c = chars[i];
+        let next = chars.get(i + 1).copied();
+        let prev = if i > 0 { chars[i - 1] } else { ' ' };
+        if c == '\n' {
+            line += 1;
+        }
+        if c == '/' && next == Some('/') {
+            while i < chars.len() && chars[i] != '\n' {
+                i += 1;
+            }
+            continue;
+        }
+        if c == '/' && next == Some('*') {
+            i += 2;
+            while i + 1 < chars.len() && !(chars[i] == '*' && chars[i + 1] == '/') {
+                line += usize::from(chars[i] == '\n');
+                i += 1;
+            }
+            i += 2;
+            continue;
+        }
+        if c == 'r' && !ident(prev) {
+            let hashes = chars[i + 1..].iter().take_while(|c| **c == '#').count();
+            if chars.get(i + 1 + hashes) == Some(&'"') {
+                i += 2 + hashes;
+                while i < chars.len() {
+                    if chars[i] == '"' && chars[i + 1..].iter().take(hashes).all(|c| *c == '#') {
+                        break;
+                    }
+                    line += usize::from(chars[i] == '\n');
+                    i += 1;
+                }
+                i += 1 + hashes;
+                continue;
+            }
+        }
+        if c == '\'' {
+            if next == Some('\\') {
+                i += 3;
+                while i < chars.len() && chars[i] != '\'' {
+                    i += 1;
+                }
+                i += 1;
+                continue;
+            }
+            if chars.get(i + 2) == Some(&'\'') {
+                i += 3;
+                continue;
+            }
+            i += 1;
+            continue;
+        }
+        if c == '"' {
+            let start = i + 1;
+            i += 1;
+            let first_line = line;
+            while i < chars.len() && chars[i] != '"' {
+                if chars[i] == '\\' {
+                    i += 1;
+                }
+                line += usize::from(chars.get(i) == Some(&'\n'));
+                i += 1;
+            }
+            let text: String = chars[start..i.min(chars.len())].iter().collect();
+            i += 1;
+            let rest: String = chars[i.min(chars.len())..]
+                .iter()
+                .skip_while(|c| c.is_whitespace())
+                .take(2)
+                .collect();
+            let key = rest.starts_with(':') && !rest.starts_with("::");
+            out.push(Literal {
+                test: test.map(|(_, at)| at),
+                line: first_line,
+                text,
+                key,
+            });
+            continue;
+        }
+        recent.push(c);
+        if recent.len() > 16 {
+            recent.remove(0);
+        }
+        if recent.ends_with("#[test]") {
+            pending_test = true;
+        }
+        if c == '{' {
+            if pending_test && test.is_none() {
+                test = Some((depth, line));
+                pending_test = false;
+            }
+            depth += 1;
+        } else if c == '}' {
+            depth = depth.saturating_sub(1);
+            if test.is_some_and(|(outside, _)| outside == depth) {
+                test = None;
+            }
+        }
+        i += 1;
+    }
+    out
+}
+
+/// A string literal that a test function writes twice is a value with a meaning typed twice:
+/// it becomes a `const` (in the test, or in the test module when tests share it), or the
+/// product's own name for it (a message table, `core::paths`, `core::host::tool`). Counted: in
+/// the test code (`#[cfg(test)] mod` of a source file, `*tests.rs`, `tests/*.rs` but this one),
+/// every literal of 3 or more characters that one `#[test]` function writes 2 or more times,
+/// once per function. Left out: raw strings `r#"..."#` (fixture content), `json!` object keys
+/// (`"key":`), a format string that is one placeholder (`"{name}"`: it names a value), comments. The count may only go down (`"repeated_test_literals"` in the baseline).
+#[test]
+fn test_literals_are_named_once() {
+    let mut found = Vec::new();
+    for (rel, first, text) in test_texts(&[]) {
+        let mut per_test: std::collections::BTreeMap<(usize, String), Vec<usize>> =
+            std::collections::BTreeMap::new();
+        for lit in literals(&text) {
+            let (Some(at), false) = (lit.test, lit.key) else {
+                continue;
+            };
+            let (line, literal) = (lit.line, lit.text);
+            let placeholders = literal.starts_with('{')
+                && literal.ends_with('}')
+                && !literal[1..literal.len() - 1].contains(['{', '}', '"']);
+            if literal.chars().count() < 3 || placeholders {
+                continue;
+            }
+            per_test
+                .entry((at, literal))
+                .or_default()
+                .push(line + first);
+        }
+        for ((_, literal), lines) in per_test {
+            if lines.len() > 1 {
+                found.push(format!(
+                    "{rel}:{}: \"{literal}\" {} times",
+                    lines[0],
+                    lines.len()
+                ));
+            }
+        }
+    }
+    compare(
+        "string literals written twice in one test",
+        "repeated_test_literals",
+        &found,
+    );
+}
+
+/// Where the fixture names of the app's files and of files outside the project live.
+const FIXTURE_HOME: &str = "src/core/fixture.rs";
+
+/// Tests name the app's source files they write (`src/a.ts`, `src/App.tsx`) from
+/// `core::fixture` (the binary tests include it), never by a literal: a literal that is such a
+/// path, or ends with one (`"{root}/src/a.ts"`), is refused. A source location
+/// (`src/App.tsx:3:5`) and a path inside file content (a config's `'./src/index.ts'`) do not end
+/// with the path and are fixture data.
+#[test]
+fn tests_name_app_files_from_core_fixture() {
+    let app_path = regex::Regex::new(
+        r"(^|/)(src|app|lib)/[A-Za-z0-9_./-]*\.(ts|tsx|js|jsx|mjs|vue|css|html)$",
+    )
+    .unwrap();
+    let mut found = Vec::new();
+    for (rel, first, text) in test_texts(&[FIXTURE_HOME]) {
+        for lit in literals(&text) {
+            if app_path.is_match(&lit.text) {
+                found.push(format!("{rel}:{}: \"{}\"", lit.line + first, lit.text));
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "app files spelled out in tests; use core::fixture (APP_FILE, APP_COMPONENT, ...):\n{}",
+        found.join("\n")
+    );
+}
+
+/// The project path helpers a test builds its fixture paths with.
+const PATH_HELPERS: [&str; 4] = ["rel::design", "rel::screen", "rel::component", "rel::join"];
+
+/// The string literals given to a [`PATH_HELPERS`] call, as `(line, call, literal)`: an
+/// argument, or the format string of a `format!` that is one (`&format!("{id}/a.html")`). A
+/// literal given to another function first (`&master_file("button")`: a component name) is
+/// that function's. Comments and character literals are left out; a raw string is a literal
+/// too; a format string that is one placeholder (`"{name}"`) names a value and is left out.
+fn path_helper_literals(code: &str) -> Vec<(usize, &'static str, String)> {
+    let chars: Vec<char> = code.chars().collect();
+    let ident = |c: char| c.is_alphanumeric() || c == '_';
+    let mut out = Vec::new();
+    // One entry per open `(`: the helper it calls, or the one it is nested in.
+    let mut open: Vec<Option<&'static str>> = Vec::new();
+    let (mut i, mut line) = (0, 1);
+    let mut recent = String::new();
+    while i < chars.len() {
+        let c = chars[i];
+        let next = chars.get(i + 1).copied();
+        let prev = if i > 0 { chars[i - 1] } else { ' ' };
+        if c == '\n' {
+            line += 1;
+        }
+        if c == '/' && next == Some('/') {
+            while i < chars.len() && chars[i] != '\n' {
+                i += 1;
+            }
+            continue;
+        }
+        if c == '/' && next == Some('*') {
+            i += 2;
+            while i + 1 < chars.len() && !(chars[i] == '*' && chars[i + 1] == '/') {
+                line += usize::from(chars[i] == '\n');
+                i += 1;
+            }
+            i += 2;
+            continue;
+        }
+        let call = open.last().copied().flatten();
+        let raw = c == 'r' && !ident(prev) && {
+            let hashes = chars[i + 1..].iter().take_while(|c| **c == '#').count();
+            chars.get(i + 1 + hashes) == Some(&'"')
+        };
+        if raw || c == '"' {
+            let hashes = if raw {
+                chars[i + 1..].iter().take_while(|c| **c == '#').count()
+            } else {
+                0
+            };
+            i += if raw { 2 + hashes } else { 1 };
+            let (start, first_line) = (i, line);
+            while i < chars.len() {
+                if chars[i] == '"' && chars[i + 1..].iter().take(hashes).all(|c| *c == '#') {
+                    break;
+                }
+                if !raw && chars[i] == '\\' {
+                    i += 1;
+                }
+                line += usize::from(chars.get(i) == Some(&'\n'));
+                i += 1;
+            }
+            let text: String = chars[start..i.min(chars.len())].iter().collect();
+            i += 1 + hashes;
+            let placeholder = text.starts_with('{')
+                && text.ends_with('}')
+                && !text[1..text.len() - 1].contains(['{', '}', '"']);
+            if let (Some(call), false) = (call, placeholder) {
+                out.push((first_line, call, text));
+            }
+            recent.clear();
+            continue;
+        }
+        if c == '\'' {
+            if next == Some('\\') {
+                i += 3;
+                while i < chars.len() && chars[i] != '\'' {
+                    i += 1;
+                }
+                i += 1;
+                continue;
+            }
+            if chars.get(i + 2) == Some(&'\'') {
+                i += 3;
+                continue;
+            }
+        }
+        if c == '(' {
+            let helper = PATH_HELPERS.iter().copied().find(|h| {
+                recent.ends_with(h)
+                    && !recent[..recent.len() - h.len()]
+                        .chars()
+                        .next_back()
+                        .is_some_and(ident)
+            });
+            let built_here = recent.ends_with("format!");
+            open.push(helper.or(call.filter(|_| built_here)));
+        } else if c == ')' {
+            open.pop();
+        }
+        recent.push(c);
+        if recent.len() > 32 {
+            recent.remove(0);
+        }
+        i += 1;
+    }
+    out
+}
+
+/// Tests name the design files of their fixtures (a screen page, a component master, a theme)
+/// from `core::fixture`, and the product's own files from `core::paths::file`, never by a
+/// literal passed to a path helper: `rel::screen("home/a.html")` is refused, so is
+/// `rel::screen(&format!("{id}/a.html"))`.
+#[test]
+fn tests_name_design_files_from_core_fixture() {
+    let mut found = Vec::new();
+    for (rel, first, text) in test_texts(&[FIXTURE_HOME]) {
+        for (line, call, literal) in path_helper_literals(&text) {
+            found.push(format!(
+                "{rel}:{}: {call}(.. \"{literal}\" ..)",
+                line + first
+            ));
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "design fixture files spelled out in tests; use core::fixture (SCREEN_PAGE, BUTTON_MASTER, ...) or core::paths::file:\n{}",
         found.join("\n")
     );
 }

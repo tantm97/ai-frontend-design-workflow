@@ -425,7 +425,9 @@ pub fn designed_states(
             continue;
         }
         // A master is read only inside the project (rule 5); a missing one is the compose check's job.
-        if let Ok(file) = crate::core::paths::resolve_inside(&components, &format!("{name}.html")) {
+        if let Ok(file) =
+            crate::core::paths::resolve_inside(&components, &paths::file::master(&name))
+        {
             if file.is_file() {
                 sources.push(js::read_text(&file)?);
             }

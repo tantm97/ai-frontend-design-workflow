@@ -145,7 +145,8 @@ pub fn mark_checked(root: &Path) -> Result<(), DfwError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::paths::rel;
+    use crate::core::fixture::{BUTTON_MASTER, HTML_FILE_B, SCREEN_INDEX, SCREEN_PAGE};
+    use crate::core::paths::{file, rel};
     use crate::core::util::test_dir;
 
     fn write(root: &Path, rel: &str, text: &str) {
@@ -169,21 +170,21 @@ mod tests {
         write(&root, rel::TOKENS_JSON, "{}");
         write(
             &root,
-            &rel::component("card.html"),
+            &rel::master("card"),
             r#"<dfw-component name="card"><template><div class="card"><dfw-use c="button">Go</dfw-use></div></template></dfw-component>"#,
         );
-        write(&root, &rel::component("button.html"), &button(4));
+        write(&root, &rel::component(BUTTON_MASTER), &button(4));
         write(&root, rel::BASE_CSS, "body{margin:0}");
         write(
             &root,
-            &rel::screen("home/index.html"),
+            &rel::screen(SCREEN_INDEX),
             r#"<html><body><dfw-use c="card"></dfw-use></body></html>"#,
         );
         let screens = || changed_screens(&root).unwrap().screens;
         let none: Vec<String> = Vec::new();
         mark_checked(&root).unwrap();
         assert_eq!(screens(), none);
-        write(&root, &rel::component("button.html"), &button(400));
+        write(&root, &rel::component(BUTTON_MASTER), &button(400));
         assert_eq!(screens(), ["home"], "home uses button through card");
         mark_checked(&root).unwrap();
         assert_eq!(screens(), none);
@@ -201,13 +202,13 @@ mod tests {
             rel::MANIFEST,
             r#"{"screens":[{"id":"home","variants":[{"id":"a","file":"screens/home/index.html"},{"id":"b","file":"screens/home/missing.html"}]}]}"#,
         );
-        write(&root, &rel::screen("home/index.html"), "abc");
-        write(&root, &rel::component("b.html"), "abc");
+        write(&root, &rel::screen(SCREEN_INDEX), "abc");
+        write(&root, &rel::component(HTML_FILE_B), "abc");
         let first = changed_screens(&root).unwrap();
         assert_eq!(first.changed_comps, ["b"]);
         assert!(first.tokens_changed);
         mark_checked(&root).unwrap();
-        let text = fs::read_to_string(root.join(rel::join(rel::DFW, "layout-cache.json"))).unwrap();
+        let text = fs::read_to_string(root.join(rel::join(rel::DFW, file::LAYOUT_CACHE))).unwrap();
         // sha256("abc") starts with ba7816bf8f01cfea.
         assert_eq!(
             text,
@@ -228,21 +229,21 @@ mod tests {
             fs::write(file, text).unwrap();
         };
         write(rel::MANIFEST, r#"{"screens":[{"id":"home","variants":[{"id":"a","file":"screens/home/a.html"},{"id":"gone","file":"screens/home/gone.html"}]}]}"#);
-        write(&rel::screen("home/a.html"), "<p>a</p>");
-        write(&rel::component("button.html"), "<b></b>");
+        write(&rel::screen(SCREEN_PAGE), "<p>a</p>");
+        write(&rel::component(BUTTON_MASTER), "<b></b>");
         write(rel::TOKENS_JSON, "{}");
         let first = changed_screens(&root).unwrap();
         assert_eq!(first, Changed { screens: vec!["home".into()], changed_comps: vec!["button".into()], tokens_changed: true });
         mark_checked(&root).unwrap();
         assert!(changed_screens(&root).unwrap().is_empty());
-        let cache = fs::read_to_string(root.join(rel::join(rel::DFW, "layout-cache.json"))).unwrap();
+        let cache = fs::read_to_string(root.join(rel::join(rel::DFW, file::LAYOUT_CACHE))).unwrap();
         let keys: Vec<String> = serde_json::from_str::<Value>(&cache).unwrap().as_object().unwrap().keys().cloned().collect();
         assert_eq!(keys, ["c:button.html", "t:tokens", "f:styles/base.css", "f:system/head.html", "s:screens/home/a.html", "s:screens/home/gone.html"]);
         assert!(cache.contains("\"f:styles/base.css\": null") && cache.ends_with("}\n"));
         write(rel::BASE_CSS, "body{}");
         assert_eq!(changed_screens(&root).unwrap(), Changed { screens: vec!["home".into()], changed_comps: vec![], tokens_changed: true });
         mark_checked(&root).unwrap();
-        write(&rel::component("button.html"), "<i></i>");
+        write(&rel::component(BUTTON_MASTER), "<i></i>");
         assert_eq!(changed_screens(&root).unwrap(), Changed { screens: vec!["home".into()], changed_comps: vec!["button".into()], tokens_changed: false });
     }
 }

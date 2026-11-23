@@ -1,6 +1,7 @@
 //! The system page cases of `tests/unit/system.test.mjs`, `studio-presence.test.mjs` and
 //! `audit-fixes.test.mjs`; each test's doc comment is the title of the JS test it ports.
 
+use crate::core::fixture::LOGO_MASTER;
 use crate::core::js;
 use std::fs;
 use std::path::PathBuf;
@@ -247,7 +248,7 @@ fn base_in_examples() {
     let root = project();
     write(
         &root,
-        &rel::component("logo.html"),
+        &rel::component(LOGO_MASTER),
         r#"<dfw-component name="logo" props="img={{base}}assets/logo.png"><template><a href="{{base}}screens/home/a.html"><img src="{{img}}" alt=""></a></template><dfw-examples><dfw-use c="logo"></dfw-use></dfw-examples></dfw-component>"#,
     );
     let page = composed(&root, "/design/", Some("/design/")).html;
@@ -296,7 +297,7 @@ fn type_table_follows_the_text_master() {
     const MASTER: &str = r#"<dfw-component name="text" variants="h1 lead body" description="Text styles. h1 = page titles; lead = the intro paragraph; body = default text."><template><p class="t t--{variant}"><dfw-slot>Text</dfw-slot></p></template></dfw-component>"#;
     let root = project();
     system_init(&root, &InitOptions::default()).unwrap();
-    write(&root, &rel::component("text.html"), MASTER);
+    write(&root, &rel::master("text"), MASTER);
     let page = render_system_page(&root, "../").unwrap();
     let shown: Vec<&str> = Regex::new(r#"<code>text ([a-z0-9-]+)"#)
         .unwrap()

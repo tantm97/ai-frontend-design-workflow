@@ -46,7 +46,7 @@ pub const STANDARD: LockTimes = LockTimes {
     retry: Duration::from_millis(15),
 };
 
-const OWNER: &str = "owner";
+const OWNER: &str = super::paths::file::LOCK_OWNER;
 const TAKEOVER: &str = "takeover";
 
 /// A held lock; dropping it releases the lock when it is still this holder's.

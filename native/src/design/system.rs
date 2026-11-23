@@ -350,6 +350,7 @@ pub fn system_summary(root: &Path) -> Result<Value, DfwError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::fixture::{screen_page, COMPOSED_PAGE};
     use crate::core::paths::in_design;
     use crate::core::util::test_dir;
     use crate::design::compose::{compose_file, compose_html, ComposeOptions};
@@ -594,8 +595,8 @@ mod tests {
         let root = project();
         init(&root, "crisp");
         use_kit(&root, Some(&["button"]));
-        write(&root, rel::screen("s/a.html"), "<html><head><dfw-head></dfw-head></head><body><dfw-use c=\"button\" id=\"go\">Go</dfw-use></body></html>");
-        let r = compose_file(&root, &rel::screen("s/a.html")).unwrap();
+        write(&root, rel::screen(COMPOSED_PAGE), "<html><head><dfw-head></dfw-head></head><body><dfw-use c=\"button\" id=\"go\">Go</dfw-use></body></html>");
+        let r = compose_file(&root, &rel::screen(COMPOSED_PAGE)).unwrap();
         let link = format!("href=\"../../{}\"", in_design::COMPONENTS_CSS);
         assert!(r.composed.html.contains(&link));
         assert_eq!(build_system(&root).unwrap().components, 1);
@@ -664,7 +665,7 @@ mod tests {
     fn inventory_findings_for_kit_copies_orphans_unbuilt_and_unused() {
         let root = project();
         let p = project_paths(&root);
-        let master = |name: &str| p.components.join(format!("{name}.html"));
+        let master = |name: &str| p.components.join(crate::core::paths::file::master(name));
         init(&root, "crisp");
         let rules = || {
             let mut r: Vec<String> = inventory_findings(&root)
@@ -712,7 +713,7 @@ mod tests {
         );
         write(
             &root,
-            rel::screen("product/a.html"),
+            rel::screen(&screen_page("product")),
             "<dfw-use c=\"button\">Thêm</dfw-use>",
         );
         assert_eq!(

@@ -373,6 +373,7 @@ pub fn resolve_inside(root: &Path, rel: &str) -> Result<PathBuf, DfwError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::fixture::{HTML_FILE, NESTED_PAGE, OTHER_CSS_FILE};
     use crate::core::util::test_dir;
     use std::fs;
 
@@ -493,8 +494,8 @@ mod tests {
         ] {
             assert!(rel::under(rel::SYSTEM, name), "{name}");
         }
-        assert_eq!(rel::component("a.html"), "design/system/components/a.html");
-        assert!(rel::under(rel::COMPONENTS, &rel::component("a.html")));
+        assert_eq!(rel::component(HTML_FILE), "design/system/components/a.html");
+        assert!(rel::under(rel::COMPONENTS, &rel::component(HTML_FILE)));
         assert!(!rel::under(rel::SYSTEM, "design/systemx/a"));
         assert!(!rel::under(rel::SYSTEM, rel::SYSTEM));
     }
@@ -542,8 +543,8 @@ mod tests {
             format!("{}/{}", file::DESIGN, in_design::BASE_CSS),
             rel::BASE_CSS
         );
-        assert_eq!(rel::screen("a/b.html"), "design/screens/a/b.html");
-        assert_eq!(rel::design("x.css"), "design/x.css");
+        assert_eq!(rel::screen(NESTED_PAGE), "design/screens/a/b.html");
+        assert_eq!(rel::design(OTHER_CSS_FILE), "design/x.css");
         assert_eq!(rel::approved("v1"), "design/approved/v1");
     }
 

@@ -11,7 +11,7 @@ use serde_json::{json, Value};
 use crate::browser::a11y::{axe_status, AxeStatus, AXE_VERSION};
 use crate::browser::launch::{browser_status, BrowserStatus};
 use crate::core::error::DfwError;
-use crate::core::host::{Host, Status, HOSTS};
+use crate::core::host::{self, Host, Status, HOSTS};
 use crate::core::js;
 use crate::core::paths::{claude_dir, global_dir};
 use crate::core::process::{find_executable, plan_for, run_timed};
@@ -300,7 +300,7 @@ fn check_host(report: &mut Report, h: &Host) -> Result<(), DfwError> {
         );
         return Ok(());
     }
-    let (plugin, state) = if h.id == "claude" {
+    let (plugin, state) = if h.id == host::id::CLAUDE {
         let installed = read_json(&installed_plugins_file(), Some(json!({})))?
             .get("plugins")
             .and_then(|p| p.get("dfw@dfw-marketplace"))

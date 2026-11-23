@@ -1,0 +1,67 @@
+//! What a host sends to a hook, named once: the hook events, the names of the tools that write
+//! files and the body of an apply_patch call. It uses nothing else, so the binary tests include it too
+//! (`#[path = "../src/core/host/wire.rs"] mod wire;`) and build their hook payloads from it.
+
+/// Hook events, by the names Claude Code gives them (`hook_event_name`); every host's output is
+/// formatted for one of them.
+pub mod event {
+    pub const SESSION_START: &str = "SessionStart";
+    pub const PRE_TOOL_USE: &str = "PreToolUse";
+    pub const POST_TOOL_USE: &str = "PostToolUse";
+    pub const USER_PROMPT_SUBMIT: &str = "UserPromptSubmit";
+    pub const STOP: &str = "Stop";
+}
+
+/// Tool names. The constants at the top are dfw's canonical names, the ones `core::host` turns
+/// a host's own name into and the write gate reads; [`alias`] holds the hosts' own names.
+pub mod tool {
+    pub const WRITE: &str = "Write";
+    pub const EDIT: &str = "Edit";
+    pub const MULTI_EDIT: &str = "MultiEdit";
+    pub const NOTEBOOK_EDIT: &str = "NotebookEdit";
+    /// A patch of several files; its body is read with [`super::patch`].
+    pub const APPLY_PATCH: &str = "ApplyPatch";
+    /// Every canonical tool that writes files.
+    pub const WRITES: [&str; 5] = [EDIT, WRITE, MULTI_EDIT, NOTEBOOK_EDIT, APPLY_PATCH];
+
+    /// A host's own name for a tool that writes files, as the host sends it (GitHub Copilot's
+    /// camelCase payloads).
+    pub mod alias {
+        pub const EDIT: &str = "edit";
+        pub const STR_REPLACE_EDITOR: &str = "str_replace_editor";
+        pub const CREATE: &str = "create";
+        pub const WRITE: &str = "write";
+        pub const APPLY_PATCH: &str = "apply_patch";
+    }
+}
+
+/// The body of an apply_patch call: a line `*** Begin Patch`, one header line per file
+/// (`*** Update File: a/b.ts`, `*** Move to: c.ts`) with the changes under it, `*** End Patch`.
+pub mod patch {
+    /// The first line of a body.
+    #[cfg(test)]
+    pub const BEGIN: &str = "*** Begin Patch";
+    /// The last line of a body.
+    #[cfg(test)]
+    pub const END: &str = "*** End Patch";
+    /// The headers that name a file, each followed by its path.
+    pub const ADD: &str = "*** Add File: ";
+    pub const UPDATE: &str = "*** Update File: ";
+    pub const DELETE: &str = "*** Delete File: ";
+    pub const MOVE_TO: &str = "*** Move to: ";
+    /// Every header that names a file the patch writes.
+    pub const HEADERS: [&str; 4] = [ADD, UPDATE, DELETE, MOVE_TO];
+
+    /// Header lines, one per `(header, path)`, joined by `\n`.
+    #[cfg(test)]
+    pub fn lines(lines: &[(&str, &str)]) -> String {
+        let lines: Vec<String> = lines.iter().map(|(h, p)| format!("{h}{p}")).collect();
+        lines.join("\n")
+    }
+
+    /// A whole body: [`BEGIN`], the header [`lines`], [`END`].
+    #[cfg(test)]
+    pub fn body(headers: &[(&str, &str)]) -> String {
+        format!("{BEGIN}\n{}\n{END}", lines(headers))
+    }
+}

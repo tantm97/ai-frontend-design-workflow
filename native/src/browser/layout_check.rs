@@ -695,12 +695,13 @@ fn findings_of(results: &[(RenderJob, Result<Measure, String>)]) -> Vec<Finding>
 #[rustfmt::skip]
 mod tests {
     use super::*;
+    use crate::core::fixture::{variant_page, COMPOSED_PAGE, SCREEN_PAGE_B};
 
     fn job(screen: &str, variant: &str, bp: &str, width: u32) -> RenderJob {
         RenderJob {
             screen: screen.into(),
             variant: variant.into(),
-            rel: rel::screen(&format!("{screen}/{variant}.html")),
+            rel: rel::screen(&variant_page(screen, variant)),
             bp: Breakpoint { id: bp.into(), label: None, width, height: 700 },
             state: None,
             stress: false,
@@ -773,7 +774,7 @@ mod tests {
         assert_eq!(names(&b_states)[..2], ["b/v1@desktop", "b/v1@desktop[empty]"]);
         let none = LayoutOptions { screens: Some(vec![]), ..LayoutOptions::default() };
         assert_eq!(names(&none), Vec::<String>::new());
-        assert_eq!(screen_jobs(&manifest, &bps, &plain)[0].rel, rel::screen("a/v1.html"));
+        assert_eq!(screen_jobs(&manifest, &bps, &plain)[0].rel, rel::screen(&variant_page("a", "v1")));
     }
 
     #[test]
@@ -799,7 +800,7 @@ mod tests {
             (reflow, measured(m.clone())),
             (system, measured(json!({ "vh": 900, "anchors": m["anchors"], "content": { "x": 0, "w": 1280, "top": 0 }, "blocks": [{ "x": 0, "y": 0, "w": 1280, "h": 300 }] }))),
         ];
-        let f = &rel::screen("s/a.html");
+        let f = &rel::screen(COMPOSED_PAGE);
         assert_eq!(lines(&results), [
             format!("error h-overflow {f} s/a @ mobile: page is 24px wider than the viewport."),
             format!("error overlap {f} s/a @ mobile: \"title\" overlaps \"badge\" (1200px²)."),
@@ -829,11 +830,11 @@ mod tests {
         ];
         assert_eq!(lines(&results), [
             format!("warn consistency {} Component button/primary/ renders differently across screens (home: 14px 600 normal 8px 16px 6px | list: 14px 600 normal 12px 16px 6px). A screen is overriding the master; fix the master or the screen.", rel::MANIFEST),
-            format!("warn variant-cosmetic {} home: variants \"a\" and \"b\" have the same component structure (3 components in the same order). A variant should be a different layout or flow; a restyle belongs in a theme ({}/).", rel::screen("home/b.html"), rel::THEMES),
+            format!("warn variant-cosmetic {} home: variants \"a\" and \"b\" have the same component structure (3 components in the same order). A variant should be a different layout or flow; a restyle belongs in a theme ({}/).", rel::screen(SCREEN_PAGE_B), rel::THEMES),
         ]);
         assert_eq!(
             crate::core::util::to_json_compact(&findings_of(&results)[1].to_json()).split("\"message\"").next().unwrap(),
-            format!("{{\"level\":\"warn\",\"rule\":\"variant-cosmetic\",\"file\":\"{}\",\"line\":1,", rel::screen("home/b.html"))
+            format!("{{\"level\":\"warn\",\"rule\":\"variant-cosmetic\",\"file\":\"{}\",\"line\":1,", rel::screen(SCREEN_PAGE_B))
         );
     }
 

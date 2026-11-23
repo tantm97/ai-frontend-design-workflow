@@ -12,12 +12,16 @@ use serde_json::{json, Value};
 use super::layout::{parse_layout_css, render_layout};
 use super::style::parse_style;
 use super::*;
-use crate::core::paths::rel;
+use crate::core::fixture::{
+    index_page, variant_page, APP_PAGE, APP_SHELL_MASTER, BUTTON_MASTER, COMPOSED_PAGE, INDEX_PAGE,
+    INDEX_PAGE_C, MANY_EDITS_PAGE, OUTSIDE_DIR_PAGE, SCREEN, SCREEN_PAGE,
+};
+use crate::core::paths::{file, rel};
 use crate::core::util::test_dir;
 use crate::design::compose::{compose_html, ComposeOptions};
 use crate::design::html::open_tag_at;
 
-const SCREEN: &str = r#"<!doctype html><html><head><style>.x[data-dfw-id="home.title"] { color: red }</style></head><body>
+const SCREEN_HTML: &str = r#"<!doctype html><html><head><style>.x[data-dfw-id="home.title"] { color: red }</style></head><body>
 <!-- <h1 data-dfw-id="home.title">commented out</h1> -->
 <main data-dfw-id="home.main" class="m" style="color: var(--color-ink); padding: 4px">
   <h1 data-dfw-id="home.title">
@@ -74,17 +78,17 @@ fn read(root: &Path, rel: &str) -> String {
 
 fn project() -> PathBuf {
     let root = test_dir("edit");
-    write(&root, &rel::screen("home/a.html"), SCREEN);
-    write(&root, &rel::component("button.html"), BUTTON);
+    write(&root, &rel::screen(SCREEN_PAGE), SCREEN_HTML);
+    write(&root, &rel::component(BUTTON_MASTER), BUTTON);
     write(&root, rel::TOKENS_JSON, TOKENS);
-    write(&root, &rel::approved("v1/screens/home/a.html"), SCREEN);
-    write(&root, "src/app.html", SCREEN);
+    write(&root, &rel::approved("v1/screens/home/a.html"), SCREEN_HTML);
+    write(&root, APP_PAGE, SCREEN_HTML);
     root
 }
 
 fn grid_project() -> PathBuf {
     let root = project();
-    write(&root, &rel::screen("home/grid.html"), GRID);
+    write(&root, &rel::screen(&variant_page(SCREEN, "grid")), GRID);
     let mut tokens: Value = serde_json::from_str(TOKENS).unwrap();
     tokens["size"] =
         json!({ "$type": "dimension", "sidebar": { "$value": { "value": 240, "unit": "px" } } });
@@ -126,14 +130,14 @@ fn text_replaces_only_the_element_text() {
         json!({ "file": HOME, "op": "text", "id": "home.title", "value": "Hi <you> & co" }),
     );
     assert!(r.changed);
-    assert_eq!(r.file, rel::screen("home/a.html"));
-    let after = read(&root, &rel::screen("home/a.html"));
+    assert_eq!(r.file, rel::screen(SCREEN_PAGE));
+    let after = read(&root, &rel::screen(SCREEN_PAGE));
     assert!(after.contains("<h1 data-dfw-id=\"home.title\">\n    Hi &lt;you&gt; &amp; co\n  </h1>"));
     assert!(after.contains("commented out"), "comment untouched");
     assert!(after.contains("color: red"), "style block untouched");
     assert_eq!(
         after.replace("Hi &lt;you&gt; &amp; co", "Welcome back"),
-        SCREEN,
+        SCREEN_HTML,
         "nothing else changed"
     );
 }
@@ -144,9 +148,9 @@ fn text_of_a_component_instance() {
     let root = project();
     apply(
         &root,
-        json!({ "file": &rel::screen("home/a.html"), "op": "text", "id": "home.cta", "value": "Create order" }),
+        json!({ "file": &rel::screen(SCREEN_PAGE), "op": "text", "id": "home.cta", "value": "Create order" }),
     );
-    assert!(read(&root, &rel::screen("home/a.html")).contains(
+    assert!(read(&root, &rel::screen(SCREEN_PAGE)).contains(
         r#"<dfw-use c="button" variant="primary" id="home.cta" kbd="Enter">Create order</dfw-use>"#
     ));
 }
@@ -164,8 +168,8 @@ fn text_refusals() {
     refused(&root, op("dup", "x"), "2 times");
     refused(&root, op("home.title", "   "), "empty");
     assert_eq!(
-        read(&root, &rel::screen("home/a.html")),
-        SCREEN,
+        read(&root, &rel::screen(SCREEN_PAGE)),
+        SCREEN_HTML,
         "file unchanged after refusals"
     );
 }
@@ -185,9 +189,13 @@ fn boundary() {
         op(&rel::approved("v1/screens/home/a.html"), "home.title"),
         "approved",
     );
-    refused(&root, op("../src/app.html", "home.title"), "under design");
+    refused(
+        &root,
+        op(&format!("../{APP_PAGE}"), "home.title"),
+        "under design",
+    );
     refused(&root, op("tokens/tokens.json", "x"), "HTML");
-    assert_eq!(read(&root, "src/app.html"), SCREEN);
+    assert_eq!(read(&root, APP_PAGE), SCREEN_HTML);
 }
 
 /// edit variant / size / prop on a component instance
@@ -206,14 +214,14 @@ fn variant_size_prop() {
         &root,
         json!({ "file": HOME, "op": "prop", "id": "home.cta", "prop": "kbd", "value": "F2" }),
     );
-    assert!(read(&root, &rel::screen("home/a.html")).contains(
+    assert!(read(&root, &rel::screen(SCREEN_PAGE)).contains(
         r#"<dfw-use c="button" variant="secondary" id="home.cta" kbd="F2" size="lg">New order</dfw-use>"#
     ));
     apply(
         &root,
         json!({ "file": HOME, "op": "prop", "id": "home.cta", "prop": "kbd", "value": "" }),
     );
-    assert!(read(&root, &rel::screen("home/a.html")).contains(
+    assert!(read(&root, &rel::screen(SCREEN_PAGE)).contains(
         r#"<dfw-use c="button" variant="secondary" id="home.cta" size="lg">New order</dfw-use>"#
     ));
     refused(
@@ -239,14 +247,14 @@ fn spacing() {
     let root = project();
     let op = |id: &str, prop: &str, value: &str| json!({ "file": HOME, "op": "spacing", "id": id, "prop": prop, "value": value });
     apply(&root, op("home.main", "padding", "space.4"));
-    assert!(read(&root, &rel::screen("home/a.html"))
+    assert!(read(&root, &rel::screen(SCREEN_PAGE))
         .contains(r#"style="color: var(--color-ink); padding: var(--space-4)""#));
     apply(&root, op("home.main", "gap", "--space-1"));
-    assert!(read(&root, &rel::screen("home/a.html")).contains(
+    assert!(read(&root, &rel::screen(SCREEN_PAGE)).contains(
         r#"style="color: var(--color-ink); padding: var(--space-4); gap: var(--space-1)""#
     ));
     apply(&root, op("home.title", "margin-top", "space.1"));
-    assert!(read(&root, &rel::screen("home/a.html"))
+    assert!(read(&root, &rel::screen(SCREEN_PAGE))
         .contains(r#"<h1 data-dfw-id="home.title" style="margin-top: var(--space-1)">"#));
     refused(
         &root,
@@ -279,14 +287,14 @@ fn undo_restores_in_reverse_order() {
     let keys: Vec<&String> = rec.as_object().unwrap().keys().collect();
     assert_eq!(keys, ["at", "file", "op", "before", "after"]);
     assert_eq!(undo_edit(&root).unwrap().remaining, 1);
-    assert!(read(&root, &rel::screen("home/a.html")).contains(">\n    One\n  <"));
+    assert!(read(&root, &rel::screen(SCREEN_PAGE)).contains(">\n    One\n  <"));
     undo_edit(&root).unwrap();
-    assert_eq!(read(&root, &rel::screen("home/a.html")), SCREEN);
+    assert_eq!(read(&root, &rel::screen(SCREEN_PAGE)), SCREEN_HTML);
     assert_eq!(undo_edit(&root).unwrap_err().message(), "Nothing to undo.");
 
     apply(&root, text("Three"));
-    let changed = read(&root, &rel::screen("home/a.html")) + "\n<!-- edited by Claude -->";
-    write(&root, &rel::screen("home/a.html"), &changed);
+    let changed = read(&root, &rel::screen(SCREEN_PAGE)) + "\n<!-- edited by Claude -->";
+    write(&root, &rel::screen(SCREEN_PAGE), &changed);
     assert!(undo_edit(&root)
         .unwrap_err()
         .message()
@@ -329,10 +337,10 @@ fn helpers() {
     assert_eq!(set_style_prop("gap: 1px", "gap", None), "");
     let same = transform(
         &project(),
-        SCREEN,
+        SCREEN_HTML,
         &json!({ "op": "text", "id": "home.title", "value": "Welcome back" }),
     );
-    assert_eq!(same.unwrap(), SCREEN);
+    assert_eq!(same.unwrap(), SCREEN_HTML);
 }
 
 /// move: reorders whole-line siblings by id and re-indents multi-line elements
@@ -646,7 +654,7 @@ const SLOTTED: &str = r#"<!doctype html>
 #[test]
 fn slot_content_and_master_ids() {
     let root = grid_project();
-    write(&root, &rel::component("app-shell.html"), SHELL);
+    write(&root, &rel::component(APP_SHELL_MASTER), SHELL);
     let s = "screens/home/slotted.html";
     let file = rel::design(s);
     write(&root, &file, SLOTTED);
@@ -686,7 +694,7 @@ fn slot_content_and_master_ids() {
             op,
             &format!(
                 r#"part of the component master "app-shell" \({}\).*Edit the master"#,
-                regex::escape(&rel::component("app-shell.html"))
+                regex::escape(&rel::component(APP_SHELL_MASTER))
             ),
         );
     }
@@ -707,29 +715,31 @@ fn audit_1_tag_in_a_comment() {
     let b = "<div data-dfw-id=\"b\">B</div>";
     let page = |x: &str, y: &str| format!("<html><head></head><body>\n{x}\n{y}\n</body></html>\n");
     let root = test_dir("edit-audit");
-    write(&root, &rel::screen("a/index.html"), &page(a, b));
+    write(&root, &rel::screen(INDEX_PAGE), &page(a, b));
     apply(
         &root,
         json!({ "file": "screens/a/index.html", "op": "move", "id": "a", "ref": "b", "position": "after" }),
     );
-    assert_eq!(read(&root, &rel::screen("a/index.html")), page(b, a));
+    assert_eq!(read(&root, &rel::screen(INDEX_PAGE)), page(b, a));
 }
 
 /// 7: undo skips the edit of a deleted file, and the journal is capped
 #[test]
 fn audit_7_deleted_file_and_cap() {
+    /// The screen whose folder is deleted.
+    const GONE: &str = "d";
     let screen =
         |t: &str| format!("<html><head></head><body><p data-dfw-id=\"t\">{t}</p></body></html>");
     let root = test_dir("edit-audit");
-    write(&root, &rel::screen("c/index.html"), &screen("c"));
-    write(&root, &rel::screen("d/index.html"), &screen("d"));
+    write(&root, &rel::screen(INDEX_PAGE_C), &screen("c"));
+    write(&root, &rel::screen(&index_page(GONE)), &screen(GONE));
     let text =
         |file: &str, value: &str| json!({ "file": file, "op": "text", "id": "t", "value": value });
     apply(&root, text("screens/c/index.html", "c2"));
     apply(&root, text("screens/d/index.html", "d2"));
-    fs::remove_dir_all(root.join(rel::screen("d"))).unwrap();
-    assert_eq!(undo_edit(&root).unwrap().file, rel::screen("c/index.html"));
-    assert_eq!(read(&root, &rel::screen("c/index.html")), screen("c"));
+    fs::remove_dir_all(root.join(rel::screen(GONE))).unwrap();
+    assert_eq!(undo_edit(&root).unwrap().file, rel::screen(INDEX_PAGE_C));
+    assert_eq!(read(&root, &rel::screen(INDEX_PAGE_C)), screen("c"));
     assert_eq!(undo_edit(&root).unwrap_err().message(), "Nothing to undo.");
 
     for i in 0..MAX_JOURNAL + 5 {
@@ -741,7 +751,7 @@ fn audit_7_deleted_file_and_cap() {
     );
     undo_edit(&root).unwrap(); // the newest records are the ones kept
     assert_eq!(
-        read(&root, &rel::screen("c/index.html")),
+        read(&root, &rel::screen(INDEX_PAGE_C)),
         screen(&format!("v{}", MAX_JOURNAL + 3))
     );
 }
@@ -757,14 +767,14 @@ fn audit_9_custom_property_case() {
     );
     write(
         &root,
-        &rel::screen("c/index.html"),
+        &rel::screen(INDEX_PAGE_C),
         r#"<html><head></head><body><div data-dfw-id="g" style="--colW: 3; GAP: 4px">x</div></body></html>"#,
     );
     apply(
         &root,
         json!({ "file": "screens/c/index.html", "op": "spacing", "id": "g", "prop": "gap", "value": "space.4" }),
     );
-    assert!(read(&root, &rel::screen("c/index.html"))
+    assert!(read(&root, &rel::screen(INDEX_PAGE_C))
         .contains(r#"style="--colW: 3; gap: var(--space-4)""#));
 }
 
@@ -774,35 +784,55 @@ fn audit_10_boundary_on_real_paths() {
     let frozen = r#"<html><body><p data-dfw-id="t">frozen</p></body></html>"#;
     let root = test_dir("edit-audit");
     write(&root, &rel::approved("v1/index.html"), frozen);
-    write(&root, &rel::screen("a/index.html"), frozen);
-    write(&root, "outside/x.html", frozen);
+    write(&root, &rel::screen(INDEX_PAGE), frozen);
+    write(&root, OUTSIDE_DIR_PAGE, frozen);
     let resolve_file = |file: &str| resolve_design_file(&root, Some(&json!(file)));
     assert!(resolve_file("screens/nope/index.html")
         .unwrap_err()
         .message()
         .contains(&format!(
             "{} does not exist",
-            rel::screen("nope/index.html")
+            rel::screen(&index_page("nope"))
         )));
     assert_eq!(
-        resolve_file(&rel::screen("a/index.html")).unwrap().rel,
-        rel::screen("a/index.html")
+        resolve_file(&rel::screen(INDEX_PAGE)).unwrap().rel,
+        rel::screen(INDEX_PAGE)
     );
     let op = |file: &str| json!({ "file": file, "op": "text", "id": "t", "value": "X" });
     #[cfg(unix)]
     {
+        use crate::core::fixture::{OTHER_HTML_FILE, OUTSIDE_DIR};
         use std::os::unix::fs::symlink;
-        symlink(root.join("outside"), root.join(rel::design("link"))).unwrap();
-        refused(&root, op("link/x.html"), "limited to files under design");
-        symlink(root.join(rel::APPROVED), root.join(rel::design("alias"))).unwrap();
-        refused(&root, op("alias/v1/index.html"), "frozen");
+        /// A link in `design/` to the folder outside.
+        const OUT_LINK: &str = "link";
+        /// A link in `design/` to the snapshots.
+        const SNAPSHOT_LINK: &str = "alias";
+        symlink(root.join(OUTSIDE_DIR), root.join(rel::design(OUT_LINK))).unwrap();
+        refused(
+            &root,
+            op(&rel::join(OUT_LINK, OTHER_HTML_FILE)),
+            "limited to files under design",
+        );
+        symlink(
+            root.join(rel::APPROVED),
+            root.join(rel::design(SNAPSHOT_LINK)),
+        )
+        .unwrap();
+        refused(
+            &root,
+            op(&rel::join(SNAPSHOT_LINK, &index_page("v1"))),
+            "frozen",
+        );
     }
-    if root.join(rel::design("APPROVED")).exists() {
+    if root
+        .join(rel::design(&file::APPROVED.to_uppercase()))
+        .exists()
+    {
         // Case-insensitive file system (macOS, Windows): "Approved/..." is the frozen file.
         refused(&root, op("Approved/v1/index.html"), "frozen");
     }
     assert_eq!(read(&root, &rel::approved("v1/index.html")), frozen);
-    assert_eq!(read(&root, "outside/x.html"), frozen);
+    assert_eq!(read(&root, OUTSIDE_DIR_PAGE), frozen);
 }
 
 // ---------------------------------------------------------------- beyond the JS tests
@@ -814,13 +844,13 @@ fn bytes_outside_the_edit_are_kept() {
     write(&root, rel::TOKENS_JSON, TOKENS);
     let body = "<main data-dfw-id='m' class='a > b'>\r\n\t<!-- </main> <p data-dfw-id=\"t\"> -->\r\n\t<p data-dfw-id=\"t\" title='it\"s'>Text \u{1F600}</p>\r\n</main>";
     let source = format!("\u{feff}<html><head></head><body>\r\n{body}\r\n</body></html>");
-    write(&root, &rel::design("s/a.html"), &source);
+    write(&root, &rel::design(COMPOSED_PAGE), &source);
     apply(
         &root,
         json!({ "file": "s/a.html", "op": "text", "id": "t", "value": "New" }),
     );
     assert_eq!(
-        read(&root, &rel::design("s/a.html")),
+        read(&root, &rel::design(COMPOSED_PAGE)),
         source.replace("Text \u{1F600}", "New")
     );
     apply(
@@ -828,7 +858,7 @@ fn bytes_outside_the_edit_are_kept() {
         json!({ "file": "s/a.html", "op": "spacing", "id": "t", "prop": "gap", "value": "space.4" }),
     );
     assert_eq!(
-        read(&root, &rel::design("s/a.html")),
+        read(&root, &rel::design(COMPOSED_PAGE)),
         source.replace("Text \u{1F600}", "New").replace(
             " title='it\"s'",
             " title='it\"s' style=\"gap: var(--space-4)\""
@@ -837,7 +867,7 @@ fn bytes_outside_the_edit_are_kept() {
     undo_edit(&root).unwrap();
     undo_edit(&root).unwrap();
     assert_eq!(
-        fs::read(root.join(rel::design("s/a.html"))).unwrap(),
+        fs::read(root.join(rel::design(COMPOSED_PAGE))).unwrap(),
         source.as_bytes()
     );
 }
@@ -902,7 +932,7 @@ fn concurrent_edits_are_all_kept_and_journaled() {
         .map(|i| format!("<p data-dfw-id=\"p.{i}\">old {i}</p>\n"))
         .collect();
     let source = format!("<!doctype html><html><body>\n{paras}</body></html>\n");
-    write(&root, &rel::screen("many/a.html"), &source);
+    write(&root, &rel::screen(MANY_EDITS_PAGE), &source);
     std::thread::scope(|s| {
         for i in 0..40 {
             let root = &root;
@@ -912,7 +942,7 @@ fn concurrent_edits_are_all_kept_and_journaled() {
             });
         }
     });
-    let text = read(&root, &rel::screen("many/a.html"));
+    let text = read(&root, &rel::screen(MANY_EDITS_PAGE));
     for i in 0..40 {
         assert!(text.contains(&format!(">new {i}<")), "edit {i} lost");
     }
@@ -920,7 +950,7 @@ fn concurrent_edits_are_all_kept_and_journaled() {
     for left in (0..40).rev() {
         assert_eq!(undo_edit(&root).unwrap().remaining, left);
     }
-    assert_eq!(read(&root, &rel::screen("many/a.html")), source);
+    assert_eq!(read(&root, &rel::screen(MANY_EDITS_PAGE)), source);
     let names: Vec<String> = dir_names(&root.join(rel::EDITS)).unwrap();
     assert!(names.is_empty(), "no lock or record is left: {names:?}");
 }
@@ -930,14 +960,10 @@ fn concurrent_edits_are_all_kept_and_journaled() {
 fn a_journal_name_in_use_is_never_overwritten() {
     let root = test_dir("edit-journal-name");
     let taken = next_stamp(&[], None);
-    write(
-        &root,
-        &rel::join(rel::EDITS, &format!("{taken}.json")),
-        "{}",
-    );
+    write(&root, &rel::join(rel::EDITS, &record_file(&taken)), "{}");
     write_record(&root, &json!({ "a": 1 })).unwrap();
     assert_eq!(
-        read(&root, &rel::join(rel::EDITS, &format!("{taken}.json"))),
+        read(&root, &rel::join(rel::EDITS, &record_file(&taken))),
         "{}"
     );
     assert_eq!(journal(&root).unwrap().len(), 2);

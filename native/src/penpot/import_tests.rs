@@ -2,6 +2,7 @@
 //! penpot-hardening.test.mjs.
 
 use super::*;
+use crate::core::fixture::{BUTTON_MASTER, ITEMS_PAGE, OUTSIDE_JSON};
 use crate::core::js;
 use crate::design::tokens::dir_names;
 use crate::penpot::export::tests::{
@@ -50,12 +51,12 @@ fn writes_feedback_comments_and_a_token_diff() {
         .all(|c| c["provider"] == "penpot" && c["status"] == "open"));
     let add = by_id(&list, "items.add");
     assert!(text(add).contains("Text changed: \"Add item\" -> \"Add stock\""));
-    assert_eq!(add["file"], rel::screen("items/a.html"));
+    assert_eq!(add["file"], rel::screen(ITEMS_PAGE));
     assert_eq!(add["breakpoint"], "desktop");
     assert_eq!(add["target"]["selector"], "[data-dfw-id=\"items.add\"]");
     let source = add["target"]["source"].as_str().unwrap();
     let line = source
-        .strip_prefix(&format!("{}:", rel::screen("items/a.html")))
+        .strip_prefix(&format!("{}:", rel::screen(ITEMS_PAGE)))
         .unwrap();
     assert!(line.parse::<u32>().is_ok(), "{source}");
     let panel = text(by_id(&list, "items.panel"));
@@ -79,7 +80,7 @@ fn writes_feedback_comments_and_a_token_diff() {
     assert!(text(tok).contains("base color.blue.600"));
     assert_eq!(r.token_diff.unwrap().diff[0].1.changed.len(), 1);
     assert!(root
-        .join(rel::join(rel::PENPOT, "tokens.from-penpot.json"))
+        .join(rel::join(rel::PENPOT, file::PENPOT_TOKENS_IMPORTED))
         .exists());
     // Importing the same file again adds nothing.
     let again = run(&root, &changes, None, false);
@@ -98,9 +99,11 @@ fn frozen_design_comments_only_and_a_dry_run_writes_nothing() {
     assert!(dry.comments.iter().all(|c| c["id"] == "(dry run)"));
     assert_eq!(all_comments(&root).unwrap().len(), 0);
     assert!(!root
-        .join(rel::join(rel::PENPOT, "tokens.from-penpot.json"))
+        .join(rel::join(rel::PENPOT, file::PENPOT_TOKENS_IMPORTED))
         .exists());
-    assert!(!root.join(rel::join(rel::PENPOT, "imported.json")).exists());
+    assert!(!root
+        .join(rel::join(rel::PENPOT, file::PENPOT_IMPORTED))
+        .exists());
     let leftovers: Vec<String> = dir_names(&root.join(rel::PENPOT))
         .unwrap()
         .into_iter()
@@ -212,10 +215,10 @@ fn import_writes_master_comments() {
     // primary root, primary text, ghost root, ghost label, Penpot comment
     assert_eq!(list.len(), 5);
     assert!(list.iter().all(|c| c["provider"] == "penpot"
-        && c["file"] == rel::component("button.html")
+        && c["file"] == rel::component(BUTTON_MASTER)
         && c["screen"].is_null()));
     for c in &list {
-        let primary = format!("Change the master {} (component \"button\", variant \"primary\"): it affects every screen using it", rel::component("button.html"));
+        let primary = format!("Change the master {} (component \"button\", variant \"primary\"): it affects every screen using it", rel::component(BUTTON_MASTER));
         assert!(
             text(c).contains(&primary) || text(c).contains(&primary.replace("primary", "ghost")),
             "{}",
@@ -228,7 +231,7 @@ fn import_writes_master_comments() {
         to_json_compact(&root1["target"]["component"]),
         r#"{"name":"button","variant":"primary","size":null}"#
     );
-    let button = rel::component("button.html");
+    let button = rel::component(BUTTON_MASTER);
     assert_eq!(root1["target"]["source"], format!("{button}:4"));
     let body = text(root1);
     assert!(body.starts_with("[Penpot master] button / primary:"));
@@ -347,9 +350,9 @@ fn export_id_cannot_name_a_file_outside_the_exports() {
     let mut changes = with_export(&root, &doc, "changes.json");
     let mut evil = doc.clone();
     evil["id"] = "evil".into();
-    fs::write(root.join("outside.json"), to_json_compact(&evil)).unwrap();
+    fs::write(root.join(OUTSIDE_JSON), to_json_compact(&evil)).unwrap();
     // From .dfw/penpot/exports up to the project.
-    changes["exportId"] = "../../../outside".into();
+    changes["exportId"] = format!("../../../{}", OUTSIDE_JSON.trim_end_matches(".json")).into();
     let r = run(&root, &changes, None, true);
     assert_eq!(
         r.baseline,
@@ -374,7 +377,7 @@ fn a_non_string_pushed_at_does_not_fail() {
     changes["pushedAt"] = json!(1731750000000u64);
     let r = run(&root, &changes, None, false);
     assert!(r.comments.len() >= 5);
-    let archive = root.join(rel::join(rel::PENPOT, "changes"));
+    let archive = root.join(rel::join(rel::PENPOT, file::PENPOT_CHANGES));
     assert_eq!(dir_names(&archive).unwrap(), ["1731750000000.json"]);
     changes["pushedAt"] = "../../x".into();
     let r2 = run(&root, &changes, None, false);

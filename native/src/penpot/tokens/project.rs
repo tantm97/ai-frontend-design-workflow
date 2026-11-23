@@ -152,7 +152,7 @@ pub fn import_penpot_tokens(
     for (set, kind) in &map {
         let (current, target) = match kind {
             SetKind::Base => (Some(&cur.base), p.tokens_json.clone()),
-            SetKind::Theme(name) => (cur.themes.get(name), p.themes.join(format!("{name}.json"))),
+            SetKind::Theme(name) => (cur.themes.get(name), p.themes.join(file::theme(name))),
         };
         if let (SetKind::Theme(name), None) = (kind, current) {
             // Node bug kept: a new theme with an inherited name read the built-in function as

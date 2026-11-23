@@ -23,6 +23,14 @@ use serde_json::{json, Value};
 mod layout;
 use layout::rel;
 
+#[path = "../src/core/fixture.rs"]
+#[allow(
+    dead_code,
+    reason = "each test binary uses a part of the fixture names"
+)]
+mod fixture;
+use fixture::{APP_COMPONENT, HTML_FILE};
+
 const DFW: &str = env!("CARGO_BIN_EXE_dfw");
 
 fn repo() -> PathBuf {
@@ -147,7 +155,7 @@ fn mcp_server_initialize_guide_cli_tool_write_gate() {
             tool("dfw", json!({ "args": ["install"] })),
             tool(
                 "dfw_can_write",
-                json!({ "files": ["src/App.tsx", &rel::screen("a.html")], "cwd": cwd }),
+                json!({ "files": [APP_COMPONENT, &rel::screen(HTML_FILE)], "cwd": cwd }),
             ),
             ("nope/method", json!({})),
         ],
@@ -189,8 +197,8 @@ fn mcp_server_initialize_guide_cli_tool_write_gate() {
     assert!(is_error(6));
 
     assert!(is_error(7));
-    assert!(text(7).contains("DENIED  src/App.tsx"));
-    assert!(text(7).contains(&format!("ALLOWED {}", rel::screen("a.html"))));
+    assert!(text(7).contains(&format!("DENIED  {APP_COMPONENT}")));
+    assert!(text(7).contains(&format!("ALLOWED {}", rel::screen(HTML_FILE))));
 
     assert_eq!(replies[8]["error"]["code"], -32601);
 }

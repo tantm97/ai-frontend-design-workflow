@@ -439,6 +439,11 @@ fn edit_lock(root: &Path) -> Result<lock::Lock, DfwError> {
     lock::acquire(&edits_dir(root).join(".lock"), &lock::STANDARD)
 }
 
+/// The file name of the journal record `stamp`.
+fn record_file(stamp: &str) -> String {
+    format!("{stamp}.json")
+}
+
 /// Write a journal record under a new name; never replaces a record.
 fn write_record(root: &Path, record: &Value) -> Result<(), DfwError> {
     use std::io::Write;
@@ -447,7 +452,7 @@ fn write_record(root: &Path, record: &Value) -> Result<(), DfwError> {
     let mut seq_after = None;
     for _ in 0..10000 {
         let stamp = next_stamp(&journal(root)?, seq_after);
-        let file = dir.join(format!("{stamp}.json"));
+        let file = dir.join(record_file(&stamp));
         ensure_inside(root, &file)?;
         match fs::OpenOptions::new()
             .write(true)

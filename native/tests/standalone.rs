@@ -179,15 +179,20 @@ fn the_binary_alone_runs_every_command_that_reads_embedded_files() {
     // Assets: the icon library.
     assert!(s.ok(&["icons", "search", "arrow"]).contains("arrow"));
     s.ok(&["icons", "add", "check"]);
-    assert!(s.project.join(rel::join(rel::ICONS, "check.svg")).is_file());
+    assert!(s
+        .project
+        .join(rel::join(rel::ICONS, &file::icon("check")))
+        .is_file());
 
     s.ok(&["build"]);
     assert!(s
         .project
         .join(rel::join(rel::TOKENS, file::TOKENS_CSS))
         .is_file());
+    /// A page straight in `design/screens`.
+    const LOOSE_PAGE: &str = "home.html";
     fs::write(
-        s.project.join(rel::screen("home.html")),
+        s.project.join(rel::screen(LOOSE_PAGE)),
         "<!doctype html>\n<html lang=\"en\"><head><title>Home</title></head><body><main><h1>Home</h1></main></body></html>\n",
     )
     .unwrap();
