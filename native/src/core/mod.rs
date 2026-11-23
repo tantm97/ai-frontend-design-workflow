@@ -3,6 +3,8 @@
 pub mod config;
 pub mod encoding;
 pub mod error;
+#[cfg(test)]
+pub mod fixture;
 pub mod host;
 pub mod http;
 pub mod js;

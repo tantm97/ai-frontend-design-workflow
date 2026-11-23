@@ -707,8 +707,7 @@ fn spawn_shots(root: PathBuf, origin: String) -> Option<Sender<Shot>> {
     let started = std::thread::Builder::new().spawn(move || {
         for (id, route, vw, vh) in rx {
             let out = project_paths(&root)
-                .dfw
-                .join("shots")
+                .shots
                 .join("live")
                 .join(format!("{id}.png"));
             let job = Job {

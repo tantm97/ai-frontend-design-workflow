@@ -3,6 +3,7 @@
 
 use super::*;
 use crate::core::level::Level as FindingLevel;
+use crate::core::paths::file;
 
 struct RawInstance {
     component: Option<String>,
@@ -111,9 +112,10 @@ pub fn expand_head(root: &Path, html: &str, design_base: &str) -> Result<String,
         "<link rel=\"stylesheet\" href=\"{design_base}{}\">",
         in_design::TOKENS_CSS
     ));
-    if d.join("styles").join("base.css").exists() {
+    if d.join(file::STYLES).join(file::BASE_CSS).exists() {
         parts.push(format!(
-            "<link rel=\"stylesheet\" href=\"{design_base}styles/base.css\">"
+            "<link rel=\"stylesheet\" href=\"{design_base}{}\">",
+            in_design::BASE_CSS
         ));
     }
     parts.push(format!(
@@ -137,7 +139,7 @@ pub fn expand_head(root: &Path, html: &str, design_base: &str) -> Result<String,
 /// `design/`, with a trailing slash.
 pub fn design_base_for(rel: &str) -> String {
     let posix = to_posix(rel);
-    let inside = posix.strip_prefix("design/").unwrap_or(&posix);
+    let inside = rel::inside(rel::DESIGN, &posix).unwrap_or(&posix);
     let depth = inside.split('/').count() - 1;
     if depth > 0 {
         "../".repeat(depth)

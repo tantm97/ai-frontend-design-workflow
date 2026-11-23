@@ -31,7 +31,7 @@ use super::tokens::{
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::js::regex::fixed_regex;
-use crate::core::paths::rel;
+use crate::core::paths::{file, rel};
 use crate::core::util::{now_iso, read_json, sha256, to_json_compact, write_json_inside};
 use crate::design::compose::{load_components, Library};
 use crate::design::tokens::relative_path;
@@ -212,7 +212,7 @@ fn source_line(root: &Path, file: Option<&Value>, id: Option<&Value>) -> Value {
 
 /// `value.replace(/^design\//, '')`.
 fn design_relative(file: &str) -> &str {
-    file.strip_prefix("design/").unwrap_or(file)
+    rel::inside(rel::DESIGN, file).unwrap_or(file)
 }
 
 /// `bbox` of a comment target: only a box of four numbers, rounded.
@@ -359,7 +359,7 @@ fn component_comment(root: &Path, cs: &[Value], lib: Option<&Library>, gate_note
     let part = |key: &str| js::to_string(comp.get(key));
     let location = |c: &Value| {
         master_source(root, c, lib).unwrap_or_else(|| MasterSource {
-            file: rel::component(&format!("{}.html", part("name"))),
+            file: rel::master(&part("name")),
             source: None,
         })
     };
@@ -453,7 +453,7 @@ fn component_comment(root: &Path, cs: &[Value], lib: Option<&Library>, gate_note
 fn load_baseline(dir: &Path, export_id: Option<&str>) -> Result<Value, DfwError> {
     let named = match export_id {
         Some(id) => read_json(
-            &dir.join("exports").join(format!("{id}.json")),
+            &dir.join(file::PENPOT_EXPORTS).join(format!("{id}.json")),
             Some(Value::Null),
         )?,
         None => Value::Null,
@@ -461,11 +461,11 @@ fn load_baseline(dir: &Path, export_id: Option<&str>) -> Result<Value, DfwError>
     if js::truthy(Some(&named)) {
         return Ok(named);
     }
-    let latest = read_json(&dir.join("export.json"), Some(Value::Null))?;
+    let latest = read_json(&dir.join(file::PENPOT_EXPORT), Some(Value::Null))?;
     if js::truthy(Some(&latest)) {
         return Ok(latest);
     }
-    Err(DfwError::new("No Penpot export found (.dfw/penpot/export.json). Run \"dfw penpot export\" first; the change file must come from boards built from it."))
+    Err(DfwError::new(format!("No Penpot export found ({}). Run \"dfw penpot export\" first; the change file must come from boards built from it.", rel::PENPOT_EXPORT)))
 }
 
 /// The token diff of a change file: the plugin's sets written as a Penpot token file and
@@ -476,7 +476,7 @@ fn token_diff(
     doc: &Value,
     dry_run: bool,
 ) -> Result<(TokenImport, String), DfwError> {
-    let file = dir.join("tokens.from-penpot.json");
+    let file = dir.join(file::PENPOT_TOKENS_IMPORTED);
     if !dry_run {
         write_json_inside(root, &file, doc)?;
     }
@@ -548,7 +548,7 @@ pub fn import_changes(
     let mut result = compare_with_export(root, &dir, changes, &opts)?;
     add_token_diff(root, &dir, changes, &opts, &mut result)?;
     let groups = group_changes(&result.changes);
-    let ledger_file = dir.join("imported.json");
+    let ledger_file = dir.join(file::PENPOT_IMPORTED);
     let mut ledger = read_ledger(&ledger_file)?;
     let gate_note = gate_note(&opts, result.frozen);
     let mut threads = read_json(&threads_file(root), Some(json!({})))?;
@@ -834,7 +834,7 @@ fn archive_changes(root: &Path, dir: &Path, changes: &Value) -> Result<(), DfwEr
     let name = if stamp.is_empty() { "changes" } else { &stamp };
     write_json_inside(
         root,
-        &dir.join("changes").join(format!("{name}.json")),
+        &dir.join(file::PENPOT_CHANGES).join(format!("{name}.json")),
         changes,
     )
 }
@@ -939,16 +939,16 @@ pub fn format_import_changes(r: &ChangeImport, dry_run: bool) -> String {
             "The design is frozen (G2): the changes are recorded as comments only.".to_string(),
         );
     }
-    lines.push(
-        if dry_run {
-            "Dry run: no comments written."
-        } else if r.comments.is_empty() {
-            "No new comments."
-        } else {
-            "Comments are in the review loop (dfw comments list); nothing in design/ was changed."
-        }
-        .to_string(),
-    );
+    lines.push(if dry_run {
+        "Dry run: no comments written.".to_string()
+    } else if r.comments.is_empty() {
+        "No new comments.".to_string()
+    } else {
+        format!(
+            "Comments are in the review loop (dfw comments list); nothing in {}/ was changed.",
+            rel::DESIGN
+        )
+    });
     lines.join("\n")
 }
 

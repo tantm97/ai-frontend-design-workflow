@@ -32,6 +32,7 @@ use super::tokens::relative_path;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::js::regex::{blank_css_comments, js_re, js_regex};
+use crate::core::level::Level;
 use crate::core::paths::{self, project_paths, resolve, to_posix};
 use crate::core::util::{list_files, read_json};
 use crate::design::manifest::Manifest;
@@ -158,7 +159,7 @@ pub fn lint_html(rel: &str, text: &str) -> Vec<Value> {
 
     if let Some(html) = HTML_OPEN.find(text).filter(|_| !HTML_LANG.is_match(text)) {
         add(
-            "warn",
+            Level::Warn.as_str(),
             "html-lang",
             Some(html.start()),
             "<html> has no lang attribute.".into(),
@@ -166,11 +167,14 @@ pub fn lint_html(rel: &str, text: &str) -> Vec<Value> {
     }
     if !TOKENS_LINK.is_match(text) {
         add(
-            "warn",
+            Level::Warn.as_str(),
             "tokens-link",
             None,
-            "Screen does not load design/tokens/tokens.css; values may not come from tokens."
-                .into(),
+            format!(
+                "Screen does not load {}/{}; values may not come from tokens.",
+                paths::file::DESIGN,
+                paths::in_design::TOKENS_CSS
+            ),
         );
     }
 
@@ -183,17 +187,17 @@ pub fn lint_html(rel: &str, text: &str) -> Vec<Value> {
         let (at, id) = (whole.start(), id.as_str());
         if js::trim(id).is_empty() {
             add(
-                "error",
+                Level::Error.as_str(),
                 "dfw-id-empty",
                 Some(at),
                 "Empty data-dfw-id.".into(),
             );
         } else if !DFW_ID_FORMAT.is_match(id) {
-            add("warn", "dfw-id-format", Some(at), format!("data-dfw-id \"{id}\" should be lowercase dot.separated (e.g. \"filter-bar.search\")."));
+            add(Level::Warn.as_str(), "dfw-id-format", Some(at), format!("data-dfw-id \"{id}\" should be lowercase dot.separated (e.g. \"filter-bar.search\")."));
         }
         match ids.iter().find(|(seen, _)| *seen == id) {
             Some((_, first)) => add(
-                "error",
+                Level::Error.as_str(),
                 "dfw-id-duplicate",
                 Some(at),
                 format!(
@@ -221,7 +225,7 @@ pub fn lint_html(rel: &str, text: &str) -> Vec<Value> {
         }
         if name.eq_ignore_ascii_case("img") && !HAS_ALT.is_match(attrs) {
             add(
-                "error",
+                Level::Error.as_str(),
                 "img-alt",
                 Some(whole.start()),
                 "<img> without alt (WCAG 1.1.1). Use alt=\"\" for decorative images.".into(),
@@ -229,7 +233,7 @@ pub fn lint_html(rel: &str, text: &str) -> Vec<Value> {
         }
         if name.eq_ignore_ascii_case("button") && HAS_STYLE.is_match(attrs) {
             add(
-                "warn",
+                Level::Warn.as_str(),
                 "inline-style",
                 Some(whole.start()),
                 "Inline style on a button; use classes and tokens.".into(),
@@ -237,14 +241,14 @@ pub fn lint_html(rel: &str, text: &str) -> Vec<Value> {
         }
     }
     if missing > 0 {
-        add("warn", "dfw-id-missing", first_missing, format!("{missing} structural/interactive element(s) have no data-dfw-id; click-to-comment cannot target them reliably."));
+        add(Level::Warn.as_str(), "dfw-id-missing", first_missing, format!("{missing} structural/interactive element(s) have no data-dfw-id; click-to-comment cannot target them reliably."));
     }
 
     // Inline <style> colors outside tokens.
     for block in style_blocks(text) {
         for (at, color) in hardcoded_colors(&block) {
             add(
-                "warn",
+                Level::Warn.as_str(),
                 "hardcoded-color",
                 Some(at),
                 format!("Hard-coded color \"{color}\" in <style>; use a token (var(--...))."),
@@ -253,6 +257,14 @@ pub fn lint_html(rel: &str, text: &str) -> Vec<Value> {
     }
     slop_html(text, &mut add);
     out
+}
+
+/// The message of `no-components`.
+fn no_components() -> String {
+    format!(
+        "Screen uses no design-system components; build screens from {}.",
+        paths::rel::COMPONENTS
+    )
 }
 
 /// `lintScreen(root, rel, text, lib)`: screen-only rules: compose issues, visual styling
@@ -266,6 +278,7 @@ pub fn lint_screen(
     lib: &Library,
 ) -> Result<Vec<Value>, DfwError> {
     let mut out = Vec::new();
+    let (warn, error) = (Level::Warn.as_str(), Level::Error.as_str());
     let mut add = |level: &'static str, rule: &'static str, line: usize, message: String| {
         out.push(finding(level, rule, rel, line.max(1), message));
     };
@@ -297,7 +310,7 @@ pub fn lint_screen(
                 if prop.starts_with("--") || !VISUAL_PROPS.is_match(prop) {
                     continue;
                 }
-                add("error", "screen-visual-style", line_of(text, block.offset + whole.start()), format!("\"{prop}\" set in a screen. Visual styling lives in the design system: use or extend a component variant (design/system/components/) or a token; screens only handle layout."));
+                add(error, "screen-visual-style", line_of(text, block.offset + whole.start()), format!("\"{prop}\" set in a screen. Visual styling lives in the design system: use or extend a component variant ({}/) or a token; screens only handle layout.", paths::rel::COMPONENTS));
             }
         }
         for c in INLINE_STYLE.captures_iter(text) {
@@ -308,7 +321,7 @@ pub fn lint_screen(
                 let name = declaration.split(':').next().unwrap_or_default();
                 let prop = js::trim(name).to_lowercase();
                 if !prop.is_empty() && !prop.starts_with("--") && VISUAL_PROPS.is_match(&prop) {
-                    add("error", "screen-visual-style", line_of(text, whole.start()), format!("Inline \"{prop}\" in a screen; visual styling belongs to the design system."));
+                    add(error, "screen-visual-style", line_of(text, whole.start()), format!("Inline \"{prop}\" in a screen; visual styling belongs to the design system."));
                 }
             }
         }
@@ -357,16 +370,16 @@ pub fn lint_screen(
                 count += 1;
             }
             if count > 0 {
-                add("warn", "use-component", first, format!("{count} raw <{tag}> element(s); the design system has component \"{component}\" for this. Use <dfw-use c=\"{component}\">."));
+                add(warn, "use-component", first, format!("{count} raw <{tag}> element(s); the design system has component \"{component}\" for this. Use <dfw-use c=\"{component}\">."));
             }
         }
         let primaries = text.matches("variant=\"primary\"").count();
         if primaries > 2 {
-            add("warn", "primary-overuse", 1, format!("{primaries} primary-variant instances on one screen: the accent loses its meaning. Keep one primary action per area (two at most per screen)."));
+            add(warn, "primary-overuse", 1, format!("{primaries} primary-variant instances on one screen: the accent loses its meaning. Keep one primary action per area (two at most per screen)."));
         }
         let instances = &composed.instances;
         if instances.is_empty() && BODY.is_match(text) {
-            add("warn", "no-components", line_of(text, body), "Screen uses no design-system components; build screens from design/system/components.".into());
+            add(warn, "no-components", line_of(text, body), no_components());
         }
         let shared = |name: &str| {
             lib.get(Some(name)).is_some()
@@ -377,10 +390,10 @@ pub fn lint_screen(
                 && !rel.contains("/_")
         };
         if shared("page") {
-            add("warn", "page-layout", 1, "Screen does not use the page layout master (<dfw-use c=\"page\" variant=\"task|flow|split\">): paddings, widths and overflow behaviour will drift from other screens.".into());
+            add(warn, "page-layout", 1, "Screen does not use the page layout master (<dfw-use c=\"page\" variant=\"task|flow|split\">): paddings, widths and overflow behaviour will drift from other screens.".into());
         }
         if shared("app-shell") {
-            add("warn", "app-shell", 1, "Screen does not use the shared app-shell: every screen should be framed by the same navigation and layout (<dfw-use c=\"app-shell\" current=\"...\">).".into());
+            add(warn, "app-shell", 1, "Screen does not use the shared app-shell: every screen should be framed by the same navigation and layout (<dfw-use c=\"app-shell\" current=\"...\">).".into());
         }
     }
     out.extend(state_coverage(root, rel, text)?);
@@ -390,7 +403,7 @@ pub fn lint_screen(
 /// A design.json value of the wrong type: the lint stops (a manifest of the wrong shape never
 /// passes a gate).
 fn malformed(what: &str) -> DfwError {
-    super::malformed("design/design.json", what)
+    super::malformed(paths::rel::MANIFEST, what)
 }
 
 js_re!(STATE_NAME, r"^[a-z][a-z0-9-]*$");
@@ -412,7 +425,9 @@ pub fn designed_states(
             continue;
         }
         // A master is read only inside the project (rule 5); a missing one is the compose check's job.
-        if let Ok(file) = crate::core::paths::resolve_inside(&components, &format!("{name}.html")) {
+        if let Ok(file) =
+            crate::core::paths::resolve_inside(&components, &paths::file::master(&name))
+        {
             if file.is_file() {
                 sources.push(js::read_text(&file)?);
             }
@@ -446,7 +461,7 @@ pub fn state_coverage(root: &Path, rel: &str, text: &str) -> Result<Vec<Value>, 
     let Ok(manifest) = read_json(&project_paths(root).manifest, Some(Value::Null)) else {
         return Ok(Vec::new());
     };
-    let file = rel.strip_prefix("design/").unwrap_or(rel);
+    let file = paths::rel::inside(paths::rel::DESIGN, rel).unwrap_or(rel);
     let m = Manifest(&manifest);
     let Some(screen) = m.screen_of_file_checked(file)?.filter(|s| !s.is_private()) else {
         return Ok(Vec::new());
@@ -471,7 +486,7 @@ pub fn state_coverage(root: &Path, rel: &str, text: &str) -> Result<Vec<Value>, 
         (!undesigned.is_empty()).then(|| {
             let list: Vec<&str> = undesigned.iter().map(|s| s.as_str()).collect();
             let message = format!("Screen \"{}\" shows state {} but nothing in it changes for {}: the Studio does not draw those frames (they would repeat the default screen). Design each one (a .when-<state> block, e.g. a skeleton for loading, a message with an action for empty, what went wrong and how to recover for error), or remove it from the screen's \"states\" (a screen without its own \"states\" inherits the ones at the top of design.json).", js::to_string(screen.get("id")), list.join("/"), if list.len() > 1 { "them" } else { "it" });
-            json!({ "level": "warn", "rule": "state-undesigned", "file": rel, "line": 1, "source": "dfw", "message": message })
+            json!({ "level": Level::Warn.as_str(), "rule": "state-undesigned", "file": rel, "line": 1, "source": "dfw", "message": message })
         })
     };
     let (data, form) = (DATA_SURFACE.is_match(text), FORM.is_match(text));
@@ -491,7 +506,7 @@ pub fn state_coverage(root: &Path, rel: &str, text: &str) -> Result<Vec<Value>, 
     let what = if data { "a data surface" } else { "a form" };
     let message = format!("Screen \"{}\" has {what} but no {} state. Add them to its \"states\" in design.json and design each (.when-<state> blocks): empty needs a headline, explanation and primary action; error says what happened and how to recover, keeping user input. Also check edge content (very long text, missing optional fields, large counts).", js::to_string(screen.get("id")), missing.join("/"));
     let mut out = vec![
-        json!({ "level": "warn", "rule": "state-coverage", "file": rel, "line": 1, "source": "dfw", "message": message }),
+        json!({ "level": Level::Warn.as_str(), "rule": "state-coverage", "file": rel, "line": 1, "source": "dfw", "message": message }),
     ];
     out.extend(undesigned_finding);
     Ok(out)
@@ -507,7 +522,7 @@ pub fn lint_component_file(rel: &str, text: &str) -> Vec<Value> {
         };
     if !COMPONENT_TAG.is_match(text) {
         add(
-            "error",
+            Level::Error.as_str(),
             "component-missing",
             None,
             "Component file has no <dfw-component name=\"...\"> element.".into(),
@@ -516,7 +531,7 @@ pub fn lint_component_file(rel: &str, text: &str) -> Vec<Value> {
     for c in COMPONENT_OPEN.captures_iter(text) {
         if !COMPONENT_NAME.is_match(&c[1]) {
             add(
-                "error",
+                Level::Error.as_str(),
                 "component-name",
                 c.get(0).map(|m| m.start()),
                 "Component needs name=\"kebab-case\".".into(),
@@ -525,7 +540,7 @@ pub fn lint_component_file(rel: &str, text: &str) -> Vec<Value> {
     }
     if !TEMPLATE_TAG.is_match(text) {
         add(
-            "error",
+            Level::Error.as_str(),
             "component-template",
             None,
             "Component has no <template>.".into(),
@@ -535,7 +550,7 @@ pub fn lint_component_file(rel: &str, text: &str) -> Vec<Value> {
     for block in &blocks {
         for (at, color) in hardcoded_colors(block) {
             add(
-                "error",
+                Level::Error.as_str(),
                 "hardcoded-color",
                 Some(at),
                 format!("Hard-coded color \"{color}\" in a component; use a color token."),
@@ -551,7 +566,7 @@ pub fn lint_component_file(rel: &str, text: &str) -> Vec<Value> {
                 .any(|px| px[1].parse::<f64>().is_ok_and(|n| n > 2.0));
             if raw {
                 add(
-                    "warn",
+                    Level::Warn.as_str(),
                     "raw-dimension",
                     Some(block.offset + whole.start()),
                     format!(
@@ -592,7 +607,7 @@ pub fn lint_component_file(rel: &str, text: &str) -> Vec<Value> {
         .map(|(name, _)| name)
         .collect();
     if !missing.is_empty() {
-        add("warn", "component-states", None, format!("Interactive component has no {} style. Design its state matrix (default, hover, focus-visible, active, disabled, plus loading/selected where they apply).", missing.join(" / ")));
+        add(Level::Warn.as_str(), "component-states", None, format!("Interactive component has no {} style. Design its state matrix (default, hover, focus-visible, active, disabled, plus loading/selected where they apply).", missing.join(" / ")));
     }
     out
 }
@@ -617,7 +632,7 @@ pub fn lint_css(rel: &str, text: &str) -> Vec<Value> {
             continue;
         }
         add(
-            "warn",
+            Level::Warn.as_str(),
             "hardcoded-color",
             Some(m.start()),
             format!(
@@ -628,7 +643,7 @@ pub fn lint_css(rel: &str, text: &str) -> Vec<Value> {
     }
     if let Some(m) = TRANSITION_ALL.find(&clean) {
         add(
-            "warn",
+            Level::Warn.as_str(),
             "transition-all",
             Some(m.start()),
             "\"transition: all\" animates unintended properties; list the properties.".into(),
@@ -640,7 +655,7 @@ pub fn lint_css(rel: &str, text: &str) -> Vec<Value> {
         .filter(|_| !clean.contains(":focus-visible"))
     {
         add(
-            "error",
+            Level::Error.as_str(),
             "focus-removed",
             Some(m.start()),
             "Focus outline removed without a :focus-visible replacement (WCAG 2.4.7).".into(),
@@ -662,8 +677,8 @@ fn is_token_file(rel: &str) -> bool {
 /// path itself otherwise.
 fn lint_targets(root: &Path, files: Option<&[String]>) -> Result<Vec<String>, DfwError> {
     let Some(files) = files else {
-        let all = list_files(&project_paths(root).design, &["approved"])?;
-        return Ok(all.into_iter().map(|r| format!("design/{r}")).collect());
+        let all = list_files(&project_paths(root).design, &[paths::file::APPROVED])?;
+        return Ok(all.into_iter().map(|r| paths::rel::design(&r)).collect());
     };
     let mut targets = Vec::new();
     for f in files {
@@ -686,12 +701,12 @@ pub fn lint_design(root: &Path, files: Option<&[String]>) -> Result<Vec<Value>, 
     let p = project_paths(root);
     let mut out = Vec::new();
     let targets = lint_targets(root, files)?;
-    if files.is_none() || targets.iter().any(|t| t == "design/design.json") {
+    if files.is_none() || targets.iter().any(|t| t == paths::rel::MANIFEST) {
         out.extend(lint_manifest(root)?);
     }
     let lib = load_components(root)?;
     for rel in &targets {
-        if rel.starts_with("design/approved/") {
+        if paths::rel::under(paths::rel::APPROVED, rel) {
             continue;
         }
         let abs = root.join(rel);
@@ -707,7 +722,7 @@ pub fn lint_design(root: &Path, files: Option<&[String]>) -> Result<Vec<Value>, 
             out.extend(lint_component_file(rel, &text));
         } else if rel.ends_with(".html") {
             out.extend(lint_html(rel, &text));
-            if rel.starts_with("design/screens/") {
+            if paths::rel::under(paths::rel::SCREENS, rel) {
                 out.extend(lint_screen(root, rel, &text, &lib)?);
             }
         } else if rel == paths::rel::COMPONENTS_CSS {
@@ -726,7 +741,13 @@ pub fn lint_design(root: &Path, files: Option<&[String]>) -> Result<Vec<Value>, 
                     };
                     out.extend(lint_tokens(rel, &json, base.as_ref()));
                 }
-                Err(err) => out.push(finding("error", "token-json", rel, 1, err.to_string())),
+                Err(err) => out.push(finding(
+                    Level::Error.as_str(),
+                    "token-json",
+                    rel,
+                    1,
+                    err.to_string(),
+                )),
             }
         }
     }

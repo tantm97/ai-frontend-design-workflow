@@ -15,6 +15,33 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 use serde_json::{json, Value};
 
+#[path = "../src/core/paths/layout.rs"]
+#[allow(
+    dead_code,
+    reason = "each test binary uses a part of the project layout"
+)]
+mod layout;
+use layout::{file, rel};
+
+#[path = "../src/core/host/wire.rs"]
+#[allow(
+    dead_code,
+    reason = "each test binary uses a part of what a host sends"
+)]
+mod wire;
+use wire::{patch, tool};
+
+#[path = "../src/core/fixture.rs"]
+#[allow(
+    dead_code,
+    reason = "each test binary uses a part of the fixture names"
+)]
+mod fixture;
+use fixture::{
+    APP_ENTRY, APP_FILE, APP_MODULE, BUTTON_MASTER, DEMO_PAGE, HANDOFF_NOTE, HTML_FILE,
+    OTHER_HTML_FILE, SCREEN, SCREEN_PAGE,
+};
+
 const DFW: &str = env!("CARGO_BIN_EXE_dfw");
 
 fn repo() -> PathBuf {
@@ -154,10 +181,10 @@ fn hooks_pre_tool_use_denies_code_before_gates_fails_open_on_bad_input() {
             &json!({ "tool_name": tool, "tool_input": { "file_path": root.join(file) }, "cwd": root }),
         )
     };
-    let deny: Value = serde_json::from_str(&run_hook("Write", "src/main.ts")).unwrap();
+    let deny: Value = serde_json::from_str(&run_hook(tool::WRITE, APP_ENTRY)).unwrap();
     assert_eq!(deny["hookSpecificOutput"]["permissionDecision"], "deny");
-    assert_eq!(run_hook("Write", "design/x.html"), "");
-    assert_eq!(run_hook("Read", "src/main.ts"), "");
+    assert_eq!(run_hook(tool::WRITE, &rel::design(OTHER_HTML_FILE)), "");
+    assert_eq!(run_hook("Read", APP_ENTRY), "");
     let mut bad = dfw_command(&root, &["hook", "pre-tool-use"]);
     bad.env("CLAUDE_PROJECT_DIR", &root);
     let bad = run(bad, "not json");
@@ -177,12 +204,15 @@ fn hook_cli_host_copilot_denies_in_copilot_format() {
         }
         run(dfw_command(&root, &args), &input.to_string()).ok()
     };
-    let create = |path: &str| json!({ "cwd": root, "toolName": "create", "toolArgs": json!({ "path": path }).to_string() });
-    let out: Value = serde_json::from_str(&run_hook(create("src/a.ts"), Some("copilot"))).unwrap();
+    let create = |path: &str| json!({ "cwd": root, "toolName": tool::alias::CREATE, "toolArgs": json!({ "path": path }).to_string() });
+    let out: Value = serde_json::from_str(&run_hook(create(APP_FILE), Some("copilot"))).unwrap();
     assert_eq!(out["permissionDecision"], "deny");
-    assert_eq!(run_hook(create("design/a.html"), Some("copilot")), "");
+    assert_eq!(
+        run_hook(create(&rel::design(HTML_FILE)), Some("copilot")),
+        ""
+    );
     let claude: Value = serde_json::from_str(&run_hook(
-        json!({ "cwd": root, "tool_name": "Write", "tool_input": { "file_path": root.join("src/a.ts") } }),
+        json!({ "cwd": root, "tool_name": tool::WRITE, "tool_input": { "file_path": root.join(APP_FILE) } }),
         None,
     ))
     .unwrap();
@@ -190,11 +220,11 @@ fn hook_cli_host_copilot_denies_in_copilot_format() {
     // Relative patch paths resolve against the session cwd (here design/), not the project root.
     let patch = |cwd: &Path, file: &str| {
         run_hook(
-            json!({ "cwd": cwd, "toolName": "apply_patch", "toolArgs": format!("*** Begin Patch\n*** Add File: {file}\n*** End Patch") }),
+            json!({ "cwd": cwd, "toolName": tool::alias::APPLY_PATCH, "toolArgs": patch::body(&[(patch::ADD, file)]) }),
             Some("copilot"),
         )
     };
-    assert_eq!(patch(&root.join("design"), "screens/a.html"), "");
+    assert_eq!(patch(&root.join(rel::DESIGN), "screens/a.html"), "");
     let denied: Value = serde_json::from_str(&patch(&root, "screens/a.html")).unwrap();
     assert_eq!(denied["permissionDecision"], "deny");
 }
@@ -231,24 +261,24 @@ fn hooks_user_prompt_submit_and_stop_inject_undelivered_comments_once() {
 #[test]
 fn presence_written_only_for_an_edit_the_gate_allows() {
     let root = fixture_project("presence");
-    fs::create_dir_all(root.join(".dfw/reviews")).unwrap();
+    fs::create_dir_all(root.join(rel::REVIEWS)).unwrap();
     fs::write(
-        root.join(".dfw/state.json"),
+        root.join(rel::STATE),
         json!({ "mode": "new-product", "phase": "concepts", "active": true, "design": { "version": 1, "status": "draft", "locked": false, "approved": [] }, "gates": {} }).to_string(),
     )
     .unwrap();
-    let file = root.join("design/screens/demo/a.html");
+    let file = root.join(rel::screen(DEMO_PAGE));
     fs::create_dir_all(file.parent().unwrap()).unwrap();
     fs::write(&file, "<main data-dfw-id=\"demo.main\">\n  <h1 data-dfw-id=\"demo.title\">Hello</h1>\n  <p>Plain line</p>\n  <dfw-use c=\"button\" id=\"demo.cta\">Go</dfw-use>\n  <span>After</span>\n</main>\n").unwrap();
-    let note = root.join(".dfw/presence.json");
+    let note = root.join(rel::join(rel::DFW, file::PRESENCE));
     let edit = |f: &Path| {
         let mut cmd = dfw_command(&root, &["hook", "pre-tool-use"]);
         cmd.env("DFW_PROJECT_DIR", &root);
-        let input = json!({ "cwd": root, "tool_name": "Edit", "tool_input": { "file_path": f, "old_string": "Hello", "new_string": "Hi" } });
+        let input = json!({ "cwd": root, "tool_name": tool::EDIT, "tool_input": { "file_path": f, "old_string": "Hello", "new_string": "Hi" } });
         run(cmd, &input.to_string()).ok()
     };
     assert!(
-        edit(&root.join("src/app.ts")).contains("\"permissionDecision\":\"deny\""),
+        edit(&root.join(APP_MODULE)).contains("\"permissionDecision\":\"deny\""),
         "implementation is gated"
     );
     assert!(!note.exists());
@@ -261,9 +291,9 @@ fn presence_written_only_for_an_edit_the_gate_allows() {
 #[test]
 fn comments_from_concurrent_processes_are_all_stored_with_unique_ids() {
     let root = fixture_project("lock");
-    fs::create_dir_all(root.join(".dfw/reviews")).unwrap();
+    fs::create_dir_all(root.join(rel::REVIEWS)).unwrap();
     fs::write(
-        root.join(".dfw/state.json"),
+        root.join(rel::STATE),
         r#"{"design":{"version":1,"status":"draft","locked":false}}"#,
     )
     .unwrap();
@@ -300,7 +330,9 @@ fn comments_from_concurrent_processes_are_all_stored_with_unique_ids() {
     let ids: std::collections::HashSet<&str> =
         all.iter().map(|c| c["id"].as_str().unwrap()).collect();
     assert_eq!(ids.len(), 121);
-    assert!(!root.join(".dfw/reviews/.lock").exists());
+    assert!(!root
+        .join(rel::join(rel::REVIEWS, file::REVIEWS_LOCK))
+        .exists());
 }
 
 /// language: asked once per session, last used remembered (tests/unit/dfw.test.mjs)
@@ -340,7 +372,7 @@ fn cli_init_gates_approve_g2_blocked_by_must_findings() {
     };
     ok(&["init", "--product", "Test"]);
     assert!(root.join("PRODUCT.md").exists());
-    assert!(root.join("design/tokens/tokens.css").exists());
+    assert!(root.join(rel::join(rel::TOKENS, file::TOKENS_CSS)).exists());
     fails(&["phase", "concepts"], "G1");
     ok(&["phase", "direction"]);
     ok(&["approve", "G1", "--note", "Direction A"]);
@@ -353,10 +385,10 @@ fn cli_init_gates_approve_g2_blocked_by_must_findings() {
     );
     assert!(ok(&["system", "init", "--preset", "industrial"]).contains("No components were copied"));
     assert!(ok(&["system", "ref"]).contains("button"));
-    fs::write(root.join("design/system/components/button.html"), "<dfw-component name=\"button\" variants=\"primary\"><style>.b { min-height: var(--size-control); color: var(--color-on-accent); background: var(--color-accent); }\n.b:focus-visible { outline: var(--focus-width) solid var(--color-focus); }</style><template><button class=\"b\" type=\"button\"><dfw-slot>Go</dfw-slot></button></template><dfw-examples><dfw-use c=\"button\">Issue tool</dfw-use></dfw-examples></dfw-component>").unwrap();
+    fs::write(root.join(rel::component(BUTTON_MASTER)), "<dfw-component name=\"button\" variants=\"primary\"><style>.b { min-height: var(--size-control); color: var(--color-on-accent); background: var(--color-accent); }\n.b:focus-visible { outline: var(--focus-width) solid var(--color-focus); }</style><template><button class=\"b\" type=\"button\"><dfw-slot>Go</dfw-slot></button></template><dfw-examples><dfw-use c=\"button\">Issue tool</dfw-use></dfw-examples></dfw-component>").unwrap();
     fails(&["approve", "DS", "--note", "x"], "inventory");
     fs::write(
-        root.join("design/system/inventory.json"),
+        root.join(rel::INVENTORY),
         json!({ "components": [{ "name": "button", "purpose": "Confirm the issue at the counter", "usedBy": ["counter"] }] }).to_string(),
     )
     .unwrap();
@@ -383,20 +415,20 @@ fn cli_init_gates_approve_g2_blocked_by_must_findings() {
     let screen = |img: &str| {
         format!("<!doctype html><html lang=\"en\"><head><link rel=\"stylesheet\" href=\"../../tokens/tokens.css\"></head><body>{img}</body></html>")
     };
-    fs::create_dir_all(root.join("design/screens/home")).unwrap();
+    fs::create_dir_all(root.join(rel::screen(SCREEN))).unwrap();
     fs::write(
-        root.join("design/screens/home/a.html"),
+        root.join(rel::screen(SCREEN_PAGE)),
         screen("<img src=\"x.png\" data-dfw-id=\"hero.img\">"),
     )
     .unwrap();
-    let manifest = root.join("design/design.json");
+    let manifest = root.join(rel::MANIFEST);
     let mut m: Value = serde_json::from_str(&fs::read_to_string(&manifest).unwrap()).unwrap();
     m["screens"] =
         json!([{ "id": "home", "variants": [{ "id": "a", "file": "screens/home/a.html" }] }]);
     fs::write(&manifest, m.to_string()).unwrap();
     fails(&["approve", "G2", "--note", "v1"], "MUST finding");
     fs::write(
-        root.join("design/screens/home/a.html"),
+        root.join(rel::screen(SCREEN_PAGE)),
         screen("<img src=\"x.png\" alt=\"\" data-dfw-id=\"hero.img\">"),
     )
     .unwrap();
@@ -415,7 +447,7 @@ fn cli_init_gates_approve_g2_blocked_by_must_findings() {
     ok(&["approve", "G3", "--note", "Vue 3 + plain CSS"]);
     ok(&["phase", "implement"]);
     assert!(ok(&["status"]).contains("phase=implement"));
-    assert!(ok(&["handoff"]).contains("design/handoff/v1.md"));
+    assert!(ok(&["handoff"]).contains(&rel::join(rel::HANDOFF, HANDOFF_NOTE)));
     let decisions = ok(&["decisions"]);
     assert!(decisions.contains("gate:G1"));
     assert!(decisions.contains("gate:G3"));

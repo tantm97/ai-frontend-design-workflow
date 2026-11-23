@@ -15,7 +15,7 @@ use crate::assets::{self, Folder};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::level::Level;
-use crate::core::paths::{project_paths, rel};
+use crate::core::paths::{file, project_paths, rel};
 use crate::core::util::write_json_inside;
 
 /// Rules that block the DS gate (escalated from SHOULD).
@@ -225,7 +225,7 @@ pub fn kit_refs() -> Result<Vec<KitRef>, DfwError> {
 
 /// `kitRef`: full source of one kit master, for reading as a reference.
 pub fn kit_ref(name: &str) -> Result<String, DfwError> {
-    if let Some(text) = kit_text(&format!("{name}.html")) {
+    if let Some(text) = kit_text(&file::master(name)) {
         return Ok(text);
     }
     let names: Vec<String> = kit_refs()?.into_iter().map(|r| r.name).collect();
@@ -300,7 +300,7 @@ fn usages(root: &Path) -> Result<BTreeSet<String>, DfwError> {
     }
     let p = project_paths(root);
     let mut used = BTreeSet::new();
-    scan(&p.design.join("screens"), &mut used)?;
+    scan(&p.screens, &mut used)?;
     scan(&p.components, &mut used)?;
     Ok(used)
 }

@@ -6,6 +6,10 @@ use std::path::{Component, Path, PathBuf, MAIN_SEPARATOR};
 
 use super::error::DfwError;
 
+mod layout;
+
+pub use self::layout::{file, in_design, rel};
+
 /// Manifest files a dfw plugin may carry: Claude Code format, a root `plugin.json` (Copilot and
 /// others), or `manifest.json` (`core/` in the development repository).
 pub const MANIFESTS: [&str; 3] = [".claude-plugin/plugin.json", "plugin.json", "manifest.json"];
@@ -114,7 +118,7 @@ pub fn find_project_root(start: Option<&Path>) -> PathBuf {
     };
     let mut git_root: Option<PathBuf> = None;
     for dir in start.ancestors() {
-        if dir.join(".dfw").join("state.json").exists() {
+        if dir.join(file::DFW).join(file::STATE).exists() {
             return dir.to_path_buf();
         }
         if git_root.is_none() && dir.join(".git").exists() {
@@ -122,65 +126,6 @@ pub fn find_project_root(start: Option<&Path>) -> PathBuf {
         }
     }
     git_root.unwrap_or(start)
-}
-
-/// Names of the folders and files of a project's design system, one level each: what a
-/// `join` takes. A tokens folder (`design/tokens`, or an approved copy of it) holds
-/// [`file::TOKENS_JSON`], [`file::TOKENS_CSS`] and [`file::THEMES`].
-pub mod file {
-    pub const DESIGN: &str = "design";
-    pub const SYSTEM: &str = "system";
-    pub const TOKENS: &str = "tokens";
-    pub const COMPONENTS: &str = "components";
-    pub const ICONS: &str = "icons";
-    pub const THEMES: &str = "themes";
-    pub const HEAD: &str = "head.html";
-    pub const STYLE: &str = "style.json";
-    pub const INVENTORY: &str = "inventory.json";
-    pub const COMPONENTS_CSS: &str = "components.css";
-    pub const TOKENS_JSON: &str = "tokens.json";
-    pub const TOKENS_CSS: &str = "tokens.css";
-}
-
-/// Design system files relative to `design/`, as pages link them (`{base}tokens/tokens.css`).
-pub mod in_design {
-    pub const HEAD: &str = "system/head.html";
-    pub const COMPONENTS_CSS: &str = "system/components.css";
-    pub const TOKENS_CSS: &str = "tokens/tokens.css";
-    pub const TOKENS_JSON: &str = "tokens/tokens.json";
-}
-
-/// Design system paths relative to the project root, with `/` as messages, output and
-/// project-relative targets write them. [`super::ProjectPaths`] has the same places as paths.
-pub mod rel {
-    pub const SYSTEM: &str = "design/system";
-    pub const TOKENS: &str = "design/tokens";
-    pub const COMPONENTS: &str = "design/system/components";
-    pub const ICONS: &str = "design/system/icons";
-    pub const THEMES: &str = "design/tokens/themes";
-    pub const HEAD: &str = "design/system/head.html";
-    pub const STYLE: &str = "design/system/style.json";
-    pub const INVENTORY: &str = "design/system/inventory.json";
-    pub const COMPONENTS_CSS: &str = "design/system/components.css";
-    pub const TOKENS_JSON: &str = "design/tokens/tokens.json";
-    /// The brief `dfw init` creates and `dfw style match` reads.
-    pub const BRIEF: &str = "design/system/brief.json";
-    /// A project's own style guide file (core/workflow/references/phase-direction.md).
-    pub const STYLE_SOURCE: &str = "design/system/style-source.json";
-    /// Where `dfw tokens extract` writes its seed by default.
-    pub const EXTRACTED_TOKENS: &str = "design/system/extracted.tokens.json";
-    /// The built Design System page.
-    pub const SYSTEM_PAGE: &str = "design/system/index.html";
-
-    /// A master file (`button.html`) of `design/system/components/`.
-    pub fn component(file: &str) -> String {
-        format!("{COMPONENTS}/{file}")
-    }
-
-    /// `rel` is inside the folder `dir` (a `/`-separated project-relative path).
-    pub fn under(dir: &str, rel: &str) -> bool {
-        rel.strip_prefix(dir).is_some_and(|r| r.starts_with('/'))
-    }
 }
 
 /// Well-known files and folders of a project (`projectPaths`).
@@ -221,27 +166,55 @@ pub struct ProjectPaths {
     pub tokens_css: PathBuf,
     /// `design/tokens/themes`.
     pub themes: PathBuf,
+    /// `design/screens`.
+    pub screens: PathBuf,
+    /// `design/styles`.
+    pub styles: PathBuf,
+    /// `design/styles/base.css`: the shared page styles.
+    pub base_css: PathBuf,
+    /// `.dfw/build`: composed pages.
+    pub build: PathBuf,
+    /// `.dfw/shots`: screenshots.
+    pub shots: PathBuf,
+    /// `.dfw/edits`: the undo journal of direct edits.
+    pub edits: PathBuf,
+    /// `.dfw/penpot`: exports, imports and threads of the Penpot bridge.
+    pub penpot: PathBuf,
+    /// `.dfw/presence.json`: what the agent is editing now.
+    pub presence: PathBuf,
+    /// `.dfw/layout-cache.json`.
+    pub layout_cache: PathBuf,
 }
 
 /// `projectPaths(root)`.
 pub fn project_paths(root: &Path) -> ProjectPaths {
-    let dfw = root.join(".dfw");
+    let dfw = root.join(file::DFW);
     let design = root.join(file::DESIGN);
     let system = design.join(file::SYSTEM);
     let tokens = design.join(file::TOKENS);
+    let styles = design.join(file::STYLES);
     ProjectPaths {
         root: root.to_path_buf(),
-        state: dfw.join("state.json"),
-        config: dfw.join("config.json"),
-        config_local: dfw.join("config.local.json"),
-        decisions: dfw.join("decisions.jsonl"),
-        reviews: dfw.join("reviews"),
-        stack: dfw.join("stack.json"),
-        studio: dfw.join("studio.json"),
-        checks: dfw.join("checks"),
-        manifest: design.join("design.json"),
-        approved: design.join("approved"),
-        handoff: design.join("handoff"),
+        state: dfw.join(file::STATE),
+        config: dfw.join(file::CONFIG),
+        config_local: dfw.join(file::CONFIG_LOCAL),
+        decisions: dfw.join(file::DECISIONS),
+        reviews: dfw.join(file::REVIEWS),
+        stack: dfw.join(file::STACK),
+        studio: dfw.join(file::STUDIO),
+        checks: dfw.join(file::CHECKS),
+        build: dfw.join(file::BUILD),
+        shots: dfw.join(file::SHOTS),
+        edits: dfw.join(file::EDITS),
+        penpot: dfw.join(file::PENPOT),
+        presence: dfw.join(file::PRESENCE),
+        layout_cache: dfw.join(file::LAYOUT_CACHE),
+        manifest: design.join(file::MANIFEST),
+        approved: design.join(file::APPROVED),
+        handoff: design.join(file::HANDOFF),
+        screens: design.join(file::SCREENS),
+        base_css: styles.join(file::BASE_CSS),
+        styles,
         components: system.join(file::COMPONENTS),
         icons: system.join(file::ICONS),
         head: system.join(file::HEAD),
@@ -400,6 +373,7 @@ pub fn resolve_inside(root: &Path, rel: &str) -> Result<PathBuf, DfwError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::fixture::{HTML_FILE, NESTED_PAGE, OTHER_CSS_FILE};
     use crate::core::util::test_dir;
     use std::fs;
 
@@ -520,10 +494,58 @@ mod tests {
         ] {
             assert!(rel::under(rel::SYSTEM, name), "{name}");
         }
-        assert_eq!(rel::component("a.html"), "design/system/components/a.html");
-        assert!(rel::under(rel::COMPONENTS, &rel::component("a.html")));
+        assert_eq!(rel::component(HTML_FILE), "design/system/components/a.html");
+        assert!(rel::under(rel::COMPONENTS, &rel::component(HTML_FILE)));
         assert!(!rel::under(rel::SYSTEM, "design/systemx/a"));
         assert!(!rel::under(rel::SYSTEM, rel::SYSTEM));
+    }
+
+    #[test]
+    fn project_paths_match_their_relative_names() {
+        let root = Path::new("r");
+        let p = project_paths(root);
+        let pairs = [
+            (&p.manifest, rel::MANIFEST),
+            (&p.screens, rel::SCREENS),
+            (&p.styles, rel::STYLES),
+            (&p.base_css, rel::BASE_CSS),
+            (&p.approved, rel::APPROVED),
+            (&p.handoff, rel::HANDOFF),
+            (&p.dfw, rel::DFW),
+            (&p.state, rel::STATE),
+            (&p.config, rel::CONFIG),
+            (&p.config_local, rel::CONFIG_LOCAL),
+            (&p.decisions, rel::DECISIONS),
+            (&p.stack, rel::STACK),
+            (&p.reviews, rel::REVIEWS),
+            (&p.build, rel::BUILD),
+            (&p.shots, rel::SHOTS),
+            (&p.edits, rel::EDITS),
+            (&p.penpot, rel::PENPOT),
+        ];
+        for (path, name) in pairs {
+            assert_eq!(*path, root.join(name), "{name}");
+        }
+        assert_eq!(p.design, root.join(rel::DESIGN));
+        assert_eq!(p.presence, root.join(".dfw/presence.json"));
+        assert_eq!(p.layout_cache, root.join(".dfw/layout-cache.json"));
+        assert_eq!(p.studio, root.join(".dfw/studio.json"));
+        assert_eq!(p.checks, root.join(".dfw/checks"));
+        assert_eq!(
+            p.penpot.join(file::PENPOT_EXPORT),
+            root.join(rel::PENPOT_EXPORT)
+        );
+        assert_eq!(
+            p.penpot.join(file::PENPOT_TOKENS),
+            root.join(rel::PENPOT_TOKENS)
+        );
+        assert_eq!(
+            format!("{}/{}", file::DESIGN, in_design::BASE_CSS),
+            rel::BASE_CSS
+        );
+        assert_eq!(rel::screen(NESTED_PAGE), "design/screens/a/b.html");
+        assert_eq!(rel::design(OTHER_CSS_FILE), "design/x.css");
+        assert_eq!(rel::approved("v1"), "design/approved/v1");
     }
 
     #[test]

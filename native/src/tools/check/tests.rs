@@ -12,6 +12,12 @@ use serde_json::{json, Value};
 use super::report::{flatten, locale_compare};
 use super::*;
 use crate::core::config::load_config;
+use crate::core::fixture::{
+    APP_COMPONENT_TEST, APP_DIR, BUTTON_MASTER, DESIGN_VUE, HTML_FILE, INDEX_PAGE, INDEX_PAGE_B,
+    INDEX_SCREEN, MISSING_HTML_FILE, NOTES_FILE,
+};
+#[cfg(unix)]
+use crate::core::fixture::{APP_MODULE, CHIP_MASTER, DESIGN_PAGE};
 use crate::core::util::test_dir;
 
 fn write(root: &Path, rel: &str, text: &str) -> PathBuf {
@@ -100,10 +106,10 @@ fn statuses(results: &[Value]) -> Vec<String> {
 #[test]
 fn lint_targets_in_every_form_are_linted() {
     let root = test_dir("check-targets");
-    write(&root, "design/design.json", r#"{"screens":[]}"#);
+    write(&root, rel::MANIFEST, r#"{"screens":[]}"#);
     write(
         &root,
-        "design/screens/a/index.html",
+        &rel::screen(INDEX_PAGE),
         "<html><head></head><body><img src=\"x.png\"><h1>Lorem ipsum</h1></body></html>",
     );
     let config = load_config(Some(&root)).unwrap();
@@ -119,10 +125,10 @@ fn lint_targets_in_every_form_are_linted() {
             .map(|f| f["rule"].as_str().unwrap().to_string())
             .collect()
     };
-    let want = rules("design/screens/a/index.html");
+    let want = rules(&rel::screen(INDEX_PAGE));
     assert!(want.iter().any(|r| r == "img-alt"));
     assert_eq!(rules("./design/screens/a/index.html"), want);
-    let abs = root.join("design/screens/a/index.html");
+    let abs = root.join(rel::screen(INDEX_PAGE));
     assert_eq!(rules(abs.to_str().unwrap()), want);
 }
 
@@ -355,7 +361,7 @@ fn file_names_sort_as_locale_compare_sorts_them() {
         ("a1", "a10", Less),
         ("a2", "a10", Greater),
         ("a.html", "a/x", Less),
-        ("design/a", "DESIGN.md", Greater),
+        (&rel::design(HTML_FILE), "DESIGN.md", Greater),
         ("", "a", Less),
         ("a_b", "a b", Greater),
         ("ab", "a\u{1}c", Less),
@@ -373,9 +379,11 @@ fn file_names_sort_as_locale_compare_sorts_them() {
 
 #[test]
 fn extname_is_the_node_extname() {
-    assert_eq!(extname("design/screens/a/index.html"), ".html");
-    assert_eq!(extname("src/App.test.tsx"), ".tsx");
-    assert_eq!(extname("src/.env"), "");
+    assert_eq!(extname(&rel::screen(INDEX_PAGE)), ".html");
+    assert_eq!(extname(APP_COMPONENT_TEST), ".tsx");
+    /// A file whose name starts with its only dot.
+    const DOTFILE: &str = ".env";
+    assert_eq!(extname(&rel::join(APP_DIR, DOTFILE)), "");
     assert_eq!(extname("a.b/readme"), "");
     assert_eq!(extname("notes."), ".");
     assert_eq!(extname(".."), "");
@@ -401,19 +409,22 @@ fn loose_json_starts_at_the_first_bracket() {
 #[test]
 fn targets_are_made_project_relative() {
     let root = test_dir("check-rel");
-    write(&root, "design/a.html", "x");
-    assert_eq!(project_rel(&root, "design/a.html"), "design/a.html");
+    write(&root, &rel::design(HTML_FILE), "x");
+    assert_eq!(
+        project_rel(&root, &rel::design(HTML_FILE)),
+        rel::design(HTML_FILE)
+    );
     assert_eq!(
         project_rel(&root, "./design/../design/a.html"),
-        "design/a.html"
+        rel::design(HTML_FILE)
     );
     assert_eq!(
-        project_rel(&root, root.join("design/a.html").to_str().unwrap()),
-        "design/a.html"
+        project_rel(&root, root.join(rel::design(HTML_FILE)).to_str().unwrap()),
+        rel::design(HTML_FILE)
     );
     assert_eq!(
-        project_rel(&root, "design/missing.html"),
-        "design/missing.html"
+        project_rel(&root, &rel::design(MISSING_HTML_FILE)),
+        rel::design(MISSING_HTML_FILE)
     );
     assert_eq!(project_rel(&root, "../outside.html"), "../outside.html");
     // The same file reached through a symlinked directory.
@@ -422,39 +433,41 @@ fn targets_are_made_project_relative() {
         let link = test_dir("check-rel-link").join("alias");
         std::os::unix::fs::symlink(&root, &link).unwrap();
         assert_eq!(
-            project_rel(&root, link.join("design/a.html").to_str().unwrap()),
-            "design/a.html"
+            project_rel(&root, link.join(rel::design(HTML_FILE)).to_str().unwrap()),
+            rel::design(HTML_FILE)
         );
     }
 }
 
 #[test]
 fn the_design_walk_skips_snapshots_handoff_and_masters() {
+    /// A page of the handoff.
+    const HANDOFF_PAGE: &str = "v1.html";
     let root = test_dir("check-walk");
     for rel in [
-        "design/screens/b/index.html",
-        "design/screens/a/index.html",
-        "design/screens/a/notes.md",
-        "design/approved/v1/screens/a/index.html",
-        "design/handoff/v1.html",
-        "design/system/components/button.html",
-        "design/system/components.css",
-        "design/system/index.html",
-        "design/pages/components/x.vue",
-        "design/tokens/tokens.css",
-        "design/tokens/tokens.json",
+        &rel::screen(INDEX_PAGE_B),
+        &rel::screen(INDEX_PAGE),
+        &rel::screen(&rel::join(INDEX_SCREEN, NOTES_FILE)),
+        &rel::approved("v1/screens/a/index.html"),
+        &rel::join(rel::HANDOFF, HANDOFF_PAGE),
+        &rel::component(BUTTON_MASTER),
+        rel::COMPONENTS_CSS,
+        rel::SYSTEM_PAGE,
+        &rel::design(DESIGN_VUE),
+        &rel::join(rel::TOKENS, file::TOKENS_CSS),
+        rel::TOKENS_JSON,
     ] {
         write(&root, rel, "x");
     }
     assert_eq!(
         list_design_ui(&root).unwrap(),
         [
-            "design/pages/components/x.vue",
-            "design/screens/a/index.html",
-            "design/screens/b/index.html",
-            "design/system/components.css",
-            "design/system/index.html",
-            "design/tokens/tokens.css",
+            &rel::design(DESIGN_VUE),
+            &rel::screen(INDEX_PAGE),
+            &rel::screen(INDEX_PAGE_B),
+            rel::COMPONENTS_CSS,
+            rel::SYSTEM_PAGE,
+            &rel::join(rel::TOKENS, file::TOKENS_CSS),
         ]
     );
     assert!(list_design_ui(&test_dir("check-walk-empty"))
@@ -466,12 +479,12 @@ fn the_design_walk_skips_snapshots_handoff_and_masters() {
 #[cfg(unix)]
 fn project(label: &str) -> PathBuf {
     let root = test_dir(label);
-    write(&root, ".dfw/state.json", "{}");
-    write(&root, "design/design.json", r#"{"screens":[]}"#);
-    write(&root, "design/system/components/chip.html", "<dfw-component name=\"chip\">\n<style>.chip { display: inline-flex; }</style>\n<template>\n<span class=\"chip\"><dfw-slot></dfw-slot></span>\n</template>\n</dfw-component>\n");
-    write(&root, "design/screens/a/index.html", "<!doctype html><html lang=\"en\"><head><dfw-head></dfw-head></head><body><main data-dfw-id=\"m\"><dfw-use c=\"chip\" id=\"m.c\">New</dfw-use></main></body></html>");
-    write(&root, "design/pages/plain.html", "<!doctype html><html lang=\"en\"><head><link rel=\"stylesheet\" href=\"../tokens/tokens.css\"></head><body><main data-dfw-id=\"m\">x</main></body></html>");
-    write(&root, "design/notes.md", "# notes");
+    write(&root, rel::STATE, "{}");
+    write(&root, rel::MANIFEST, r#"{"screens":[]}"#);
+    write(&root, &rel::component(CHIP_MASTER), "<dfw-component name=\"chip\">\n<style>.chip { display: inline-flex; }</style>\n<template>\n<span class=\"chip\"><dfw-slot></dfw-slot></span>\n</template>\n</dfw-component>\n");
+    write(&root, &rel::screen(INDEX_PAGE), "<!doctype html><html lang=\"en\"><head><dfw-head></dfw-head></head><body><main data-dfw-id=\"m\"><dfw-use c=\"chip\" id=\"m.c\">New</dfw-use></main></body></html>");
+    write(&root, &rel::design(DESIGN_PAGE), "<!doctype html><html lang=\"en\"><head><link rel=\"stylesheet\" href=\"../tokens/tokens.css\"></head><body><main data-dfw-id=\"m\">x</main></body></html>");
+    write(&root, &rel::design(NOTES_FILE), "# notes");
     root
 }
 
@@ -527,61 +540,60 @@ printf '{"files":[{"findings":[{"id":"T1","sev":"FAIL","msg":"vague headline","f
     // The screen is handed over as its composed copy, the plain page and the stylesheet as
     // they are; masters and the notes are not UI files of the design. (sh does not list the
     // script itself in "$@".)
+    let page = rel::design(DESIGN_PAGE);
+    let built = rel::join(rel::BUILD, &rel::screen(INDEX_PAGE));
     assert_eq!(
         args(&engine_stub).trim(),
-        "detect --json design/pages/plain.html .dfw/build/design/screens/a/index.html design/system/components.css"
+        format!("detect --json {page} {built} {}", rel::COMPONENTS_CSS)
     );
     assert_eq!(
         args(&sloplint).trim(),
-        "design/pages/plain.html .dfw/build/design/screens/a/index.html design/system/components.css --json --scope app"
+        format!("{page} {built} {} --json --scope app", rel::COMPONENTS_CSS)
     );
-    assert_eq!(
-        args(&taste).trim(),
-        "design/pages/plain.html .dfw/build/design/screens/a/index.html --json"
-    );
+    assert_eq!(args(&taste).trim(), format!("{page} {built} --json"));
     assert_eq!(
         fs::read_to_string(format!("{}.env", engine_stub.display()))
             .unwrap()
             .trim(),
         "/skill/scripts/impeccable 1"
     );
-    assert!(root.join(".dfw/build/design/screens/a/index.html").exists());
-    assert!(root.join("design/system/components.css").exists());
+    assert!(root.join(&built).exists());
+    assert!(root.join(rel::COMPONENTS_CSS).exists());
     assert_eq!(
         results[2]["findings"],
         json!([
-            { "level": "error", "rule": "impeccable-flat", "file": "design/pages/plain.html", "line": 7, "message": "Flat: no depth [<main>]", "source": "impeccable" },
+            { "level": "error", "rule": "impeccable-flat", "file": &rel::design(DESIGN_PAGE), "line": 7, "message": "Flat: no depth [<main>]", "source": "impeccable" },
             // Reported on the composed copy (here by its absolute path): mapped to the screen.
-            { "level": "info", "rule": "impeccable-adv", "file": "design/screens/a/index.html", "line": 1, "message": "N: d", "source": "impeccable" },
+            { "level": "info", "rule": "impeccable-adv", "file": &rel::screen(INDEX_PAGE), "line": 1, "message": "N: d", "source": "impeccable" },
         ])
     );
     assert_eq!(
         results[3]["findings"],
         json!([
-            { "level": "warn", "rule": "hallmark-3", "file": "design/pages/plain.html", "line": 4, "message": "generic hero | fix: rewrite", "source": "sloplint" },
+            { "level": "warn", "rule": "hallmark-3", "file": &rel::design(DESIGN_PAGE), "line": 4, "message": "generic hero | fix: rewrite", "source": "sloplint" },
             { "level": "warn", "rule": "hallmark-6", "file": "", "line": 1, "message": "reflex", "source": "sloplint" },
         ])
     );
     assert_eq!(
         results[4]["findings"],
         json!([
-            { "level": "warn", "rule": "taste-T1", "file": "design/pages/plain.html", "line": 1, "message": "vague headline | fix: be specific", "source": "taste-copy-lint" },
-            { "level": "info", "rule": "taste-T3", "file": "design/pages/plain.html", "line": 1, "message": "T3", "source": "taste-copy-lint" },
-            { "level": "warn", "rule": "taste-T4", "file": "design/screens/a/index.html", "line": 1, "message": "T4", "source": "taste-copy-lint" },
+            { "level": "warn", "rule": "taste-T1", "file": &rel::design(DESIGN_PAGE), "line": 1, "message": "vague headline | fix: be specific", "source": "taste-copy-lint" },
+            { "level": "info", "rule": "taste-T3", "file": &rel::design(DESIGN_PAGE), "line": 1, "message": "T3", "source": "taste-copy-lint" },
+            { "level": "warn", "rule": "taste-T4", "file": &rel::screen(INDEX_PAGE), "line": 1, "message": "T4", "source": "taste-copy-lint" },
         ])
     );
 
     // A marketing surface: Hallmark's FAIL blocks, and sloplint is told so.
     write(
         &root,
-        "design/design.json",
+        rel::MANIFEST,
         r#"{"screens":[],"surface":"marketing"}"#,
     );
     let only = CheckOptions {
         timeout_ms: None,
         tools: Some(&["sloplint"]),
     };
-    let page = strings(&["design/pages/plain.html"]);
+    let page = strings(&[&rel::design(DESIGN_PAGE)]);
     let results = run_checks_with(&root, Some(&page), &config, only, &lookup).unwrap();
     assert_eq!(statuses(&results), ["sloplint=ran"]);
     assert_eq!(results[0]["findings"][0]["level"], "error");
@@ -621,7 +633,7 @@ fn tool_selection_and_what_each_tool_skips() {
         ["dfw-lint=ran", "dfw-ds-audit=ran"]
     );
     assert_eq!(asked.get(), 0);
-    assert!(!root.join(".dfw/build").exists());
+    assert!(!root.join(rel::BUILD).exists());
     // Taste is opt-in, the other two opt-out.
     assert_eq!(
         run(None, json!({}), None),
@@ -652,7 +664,7 @@ fn tool_selection_and_what_each_tool_skips() {
     // skips what it cannot read.
     assert_eq!(
         run(
-            Some(&["src/app.ts"]),
+            Some(&[APP_MODULE]),
             json!({ "checks": { "tasteCopyLint": true } }),
             None
         ),
@@ -665,7 +677,7 @@ fn tool_selection_and_what_each_tool_skips() {
     );
     assert_eq!(
         run(
-            Some(&["design/notes.md", "https://example.com/"]),
+            Some(&[&rel::design(NOTES_FILE), "https://example.com/"]),
             json!({ "checks": { "tasteCopyLint": true } }),
             None
         ),
@@ -679,11 +691,7 @@ fn tool_selection_and_what_each_tool_skips() {
     // A token file or a master asks for the design-system audit; a master is not handed to
     // the external tools.
     assert_eq!(
-        run(
-            Some(&["design/system/components/chip.html"]),
-            json!({}),
-            None
-        ),
+        run(Some(&[&rel::component(CHIP_MASTER)]), json!({}), None),
         [
             "dfw-lint=ran",
             "dfw-ds-audit=ran",
@@ -712,7 +720,7 @@ fn tool_selection_and_what_each_tool_skips() {
 fn tools_that_do_not_run_are_reported() {
     let root = project("check-broken");
     let tools = test_dir("check-broken-tools");
-    let page = strings(&["design/pages/plain.html"]);
+    let page = strings(&[&rel::design(DESIGN_PAGE)]);
     let config = json!({ "checks": { "tasteCopyLint": true } });
     let run = |lookup: &Lookup, timeout_ms: u64| {
         let opts = CheckOptions {
@@ -820,10 +828,11 @@ fn tools_that_do_not_run_are_reported() {
 #[test]
 fn a_null_design_manifest_is_a_user_error_that_names_the_file() {
     let root = test_dir("check-null-manifest");
-    write(&root, "design/design.json", "null");
+    write(&root, rel::MANIFEST, "null");
     let err = sloplint_scope(&root).unwrap_err();
     assert!(
-        err.message().starts_with("design/design.json holds null"),
+        err.message()
+            .starts_with(&format!("{} holds null", rel::MANIFEST)),
         "{err}"
     );
     assert!(!err.report().starts_with("Error:"));

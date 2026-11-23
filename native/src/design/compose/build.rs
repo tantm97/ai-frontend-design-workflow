@@ -99,7 +99,7 @@ fn stylesheet_href<'a>(html: &'a str, tag: &Tag) -> Option<&'a str> {
 /// plain HTML. Local stylesheets are inlined so static checkers see the real styles, and a
 /// `<base>` keeps other relative links (images, fonts) working from the copy.
 pub fn build_composed(root: &Path, rels: &[String]) -> Result<Vec<BuiltFile>, DfwError> {
-    let out_dir = project_paths(root).dfw.join("build");
+    let out_dir = project_paths(root).build;
     let lib = load_components(root)?;
     let mut res = Vec::new();
     for rel in rels {

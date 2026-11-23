@@ -313,9 +313,9 @@ mod tests {
     fn the_default_seed_file_is_not_written_through_a_link_out() {
         let base = crate::core::util::test_dir("extract-link-out");
         let root = base.join("app");
-        fs::create_dir_all(root.join("design")).unwrap();
+        fs::create_dir_all(root.join(rel::DESIGN)).unwrap();
         fs::create_dir_all(base.join("victim")).unwrap();
-        std::os::unix::fs::symlink("../../victim", root.join("design/system")).unwrap();
+        std::os::unix::fs::symlink("../../victim", root.join(rel::SYSTEM)).unwrap();
         let err = extract_tokens_to_file(&root, "http://127.0.0.1:9/", None).unwrap_err();
         assert!(
             err.message().contains("outside the project"),

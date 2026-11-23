@@ -33,7 +33,7 @@ pub use style::{layout_value, load_token_names, set_style_prop, token_var};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::lock;
-use crate::core::paths::{project_paths, real_path, resolve, to_posix};
+use crate::core::paths::{self, project_paths, real_path, resolve, to_posix};
 use crate::core::util::{ensure_inside, now_iso, read_json, to_json_compact, write_atomic_inside};
 use crate::design::compose::{load_components, ComponentDef};
 use crate::design::html::{escape_text, set_attr, Splice};
@@ -90,19 +90,23 @@ pub fn resolve_design_file(root: &Path, file: Option<&Value>) -> Result<DesignFi
     };
     let p = project_paths(root);
     let rel = file.trim_start_matches('/');
-    let rel = rel.strip_prefix("design/").unwrap_or(rel);
+    let rel = paths::rel::inside(paths::rel::DESIGN, rel).unwrap_or(rel);
     // Canonical paths: on a case-insensitive file system "Approved/x.html" IS the frozen file,
     // and a symlink may leave design/.
     let design = real_path(&p.design);
     let approved = real_path(&p.approved);
     let abs = real_path(&p.design.join(rel));
     if abs == design || !abs.starts_with(&design) {
-        return Err(DfwError::new("Edits are limited to files under design/."));
+        return Err(DfwError::new(format!(
+            "Edits are limited to files under {}/.",
+            paths::rel::DESIGN
+        )));
     }
     if abs.starts_with(&approved) {
-        return Err(DfwError::new(
-            "design/approved/ is frozen; edits there are refused.",
-        ));
+        return Err(DfwError::new(format!(
+            "{}/ is frozen; edits there are refused.",
+            paths::rel::APPROVED
+        )));
     }
     if !abs.to_string_lossy().ends_with(".html") {
         return Err(DfwError::new(
@@ -111,11 +115,11 @@ pub fn resolve_design_file(root: &Path, file: Option<&Value>) -> Result<DesignFi
     }
     if !abs.exists() {
         return Err(DfwError::new(format!(
-            "design/{} does not exist.",
-            to_posix(rel)
+            "{} does not exist.",
+            paths::rel::design(&to_posix(rel))
         )));
     }
-    let rel = format!("design/{}", to_posix(&relative_path(&design, &abs)));
+    let rel = paths::rel::design(&to_posix(&relative_path(&design, &abs)));
     Ok(DesignFile { abs, rel })
 }
 
@@ -397,7 +401,7 @@ fn edit_layout(root: &Path, text: &str, id: &str, op: &Value) -> Result<String, 
 }
 
 fn edits_dir(root: &Path) -> PathBuf {
-    project_paths(root).dfw.join("edits")
+    project_paths(root).edits
 }
 
 /// The journal records, oldest first (`readdirSync(...).filter(.json).sort()`).
@@ -435,6 +439,11 @@ fn edit_lock(root: &Path) -> Result<lock::Lock, DfwError> {
     lock::acquire(&edits_dir(root).join(".lock"), &lock::STANDARD)
 }
 
+/// The file name of the journal record `stamp`.
+fn record_file(stamp: &str) -> String {
+    format!("{stamp}.json")
+}
+
 /// Write a journal record under a new name; never replaces a record.
 fn write_record(root: &Path, record: &Value) -> Result<(), DfwError> {
     use std::io::Write;
@@ -443,7 +452,7 @@ fn write_record(root: &Path, record: &Value) -> Result<(), DfwError> {
     let mut seq_after = None;
     for _ in 0..10000 {
         let stamp = next_stamp(&journal(root)?, seq_after);
-        let file = dir.join(format!("{stamp}.json"));
+        let file = dir.join(record_file(&stamp));
         ensure_inside(root, &file)?;
         match fs::OpenOptions::new()
             .write(true)

@@ -9,14 +9,59 @@ use serde_json::Value;
 
 use crate::core::config::{gate_allow, gate_design_paths, gate_immutable};
 use crate::core::error::DfwError;
+use crate::core::host::{patch, tool};
 use crate::core::js;
-use crate::core::paths::resolve;
+use crate::core::paths::{self, resolve};
 use crate::core::util::matches_any;
 
 use super::state::{current_approval, gate_passed};
 
-/// Canonical (normalized by `core::host`) names of tools that write files.
-const WRITE_TOOLS: [&str; 5] = ["Edit", "Write", "MultiEdit", "NotebookEdit", "ApplyPatch"];
+/// The text of the gate's refusals and errors, named once (the golden tests record it).
+pub mod message {
+    use crate::core::paths::rel;
+
+    /// A write to the gate's own state in `.dfw/`.
+    pub fn gate_state(file: &str) -> String {
+        format!("dfw gate: \"{file}\" holds dfw's gates, approvals, decisions, settings or review comments; only dfw commands change it. Run the dfw command for the change (dfw approve, dfw reopen, dfw decide, dfw config set, dfw stack set, dfw comments ...); approvals, re-opening and gate settings need the user's word first.")
+    }
+
+    /// A write to a frozen snapshot (or another immutable path).
+    pub fn frozen(file: &str) -> String {
+        format!("dfw gate: \"{file}\" is part of a frozen, approved design snapshot and is immutable. To change the approved design, ask the user, then run \"dfw reopen --reason <why>\" and edit the working copy in {}/.", rel::DESIGN)
+    }
+
+    /// Any write outside `.dfw/` in a review-only project.
+    pub fn review_only() -> String {
+        format!("dfw gate: this project is in review-only mode; no files may be modified except under {}/. Report findings instead.", rel::DFW)
+    }
+
+    /// A write to the design while design `v{version}` is locked.
+    pub fn locked(version: &str) -> String {
+        format!("dfw gate: design v{version} is approved and locked. Visual changes to an approved design need user approval: ask the user, then run \"dfw reopen --reason <why>\".")
+    }
+
+    /// A write to implementation code before the gates; `missing` lists them, comma separated.
+    pub fn not_yet(file: &str, missing: &str) -> String {
+        format!("dfw gate: implementation files cannot be modified yet (\"{file}\"). Missing: {missing}. Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).")
+    }
+
+    /// The parts of [`not_yet`]'s list.
+    pub const MISSING_G2: &str = "G2 (approved, frozen design)";
+    pub const MISSING_G3: &str = "G3 (approved technology stack)";
+    pub fn missing_phase(current: &str) -> String {
+        format!("phase \"implement\" (current: \"{current}\")")
+    }
+
+    /// A write tool call without its input.
+    pub fn no_tool_input(tool: &str) -> String {
+        format!("the host sent no tool input for {tool}; the write gate could not check this call. Update the host CLI or report it to the dfw maintainers.")
+    }
+
+    /// A write tool call whose path field holds something else.
+    pub fn not_a_path(tool: &str, key: &str, value: &str) -> String {
+        format!("the {tool} call has a \"{key}\" that is not a path ({value}); the write gate could not check it. Update the host CLI or report it to the dfw maintainers.")
+    }
+}
 
 /// Whether a write is allowed, and why not.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -145,16 +190,16 @@ fn decide_rel(
         return Ok(Decision::allow());
     }
     if matches(rel, &gate_immutable(config), fold) {
-        if rel.to_lowercase().starts_with(".dfw/") {
-            return Ok(Decision::deny(format!("dfw gate: \"{rel}\" holds dfw's gates, approvals, decisions, settings or review comments; only dfw commands change it. Run the dfw command for the change (dfw approve, dfw reopen, dfw decide, dfw config set, dfw stack set, dfw comments ...); approvals, re-opening and gate settings need the user's word first.")));
+        if paths::rel::under(paths::rel::DFW, &rel.to_lowercase()) {
+            return Ok(Decision::deny(message::gate_state(rel)));
         }
-        return Ok(Decision::deny(format!("dfw gate: \"{rel}\" is part of a frozen, approved design snapshot and is immutable. To change the approved design, ask the user, then run \"dfw reopen --reason <why>\" and edit the working copy in design/.")));
+        return Ok(Decision::deny(message::frozen(rel)));
     }
     if matches_any(rel, &gate_allow(config)) {
         return Ok(Decision::allow());
     }
     if state.get("mode").and_then(Value::as_str) == Some("review-only") {
-        return Ok(Decision::deny("dfw gate: this project is in review-only mode; no files may be modified except under .dfw/. Report findings instead.".into()));
+        return Ok(Decision::deny(message::review_only()));
     }
     let design_paths = gate_design_paths(config);
     let design = state.get("design");
@@ -162,7 +207,9 @@ fn decide_rel(
     if js::truthy_value(design.and_then(|d| d.get("locked"))).is_some()
         && matches(rel, &design_paths, fold)
     {
-        return Ok(Decision::deny(format!("dfw gate: design v{} is approved and locked. Visual changes to an approved design need user approval: ask the user, then run \"dfw reopen --reason <why>\".", js::to_string(design.and_then(|d| d.get("version"))))));
+        return Ok(Decision::deny(message::locked(&js::to_string(
+            design.and_then(|d| d.get("version")),
+        ))));
     }
     if matches_any(rel, &design_paths) {
         return Ok(Decision::allow());
@@ -171,23 +218,20 @@ fn decide_rel(
     // Everything else is implementation code.
     let mut missing: Vec<String> = Vec::new();
     if current_approval(state)?.is_none() {
-        missing.push("G2 (approved, frozen design)".into());
+        missing.push(message::MISSING_G2.into());
     }
     if !gate_passed(state, "G3") {
-        missing.push("G3 (approved technology stack)".into());
+        missing.push(message::MISSING_G3.into());
     }
     let phase = state.get("phase");
     if !matches!(
         phase.and_then(Value::as_str),
         Some("implement" | "verify" | "done")
     ) {
-        missing.push(format!(
-            "phase \"implement\" (current: \"{}\")",
-            js::to_string(phase)
-        ));
+        missing.push(message::missing_phase(&js::to_string(phase)));
     }
     if !missing.is_empty() {
-        return Ok(Decision::deny(format!("dfw gate: implementation files cannot be modified yet (\"{rel}\"). Missing: {}. Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).", missing.join(", "))));
+        return Ok(Decision::deny(message::not_yet(rel, &missing.join(", "))));
     }
     Ok(Decision::allow())
 }
@@ -195,15 +239,9 @@ fn decide_rel(
 /// `filesFromPatch(text)`: paths touched by an apply_patch body ("*** Update File: a/b.ts",
 /// "*** Move to: ...").
 pub fn files_from_patch(text: &str) -> Vec<String> {
-    const HEADERS: [&str; 4] = [
-        "*** Add File: ",
-        "*** Update File: ",
-        "*** Delete File: ",
-        "*** Move to: ",
-    ];
     // The line ends of a JavaScript expression with the `m` flag.
     text.split(['\n', '\r', '\u{2028}', '\u{2029}'])
-        .filter_map(|line| HEADERS.iter().find_map(|h| line.strip_prefix(h)))
+        .filter_map(|line| patch::HEADERS.iter().find_map(|h| line.strip_prefix(h)))
         .filter(|path| !path.is_empty())
         .map(|path| js::trim(path).to_string())
         .collect()
@@ -215,24 +253,28 @@ pub fn files_from_tool_input(
     tool_name: Option<&str>,
     input: &Value,
 ) -> Result<Vec<String>, DfwError> {
-    let Some(tool) = tool_name.filter(|t| WRITE_TOOLS.contains(t)) else {
+    let Some(tool) = tool_name.filter(|t| tool::WRITES.contains(t)) else {
         return Ok(Vec::new());
     };
     if input.is_null() {
-        return Err(DfwError::new(format!("the host sent no tool input for {tool}; the write gate could not check this call. Update the host CLI or report it to the dfw maintainers.")));
+        return Err(DfwError::new(message::no_tool_input(tool)));
     }
     let first = |keys: &[&str]| keys.iter().find_map(|k| js::truthy_value(input.get(k)));
-    if tool == "ApplyPatch" {
+    if tool == tool::APPLY_PATCH {
         let body = first(&["input", "patch", "content"]);
         return Ok(body.map_or(Vec::new(), |b| files_from_patch(&js::to_string(Some(b)))));
     }
     const KEYS: [&str; 4] = ["file_path", "notebook_path", "path", "filePath"];
-    match KEYS.iter().find_map(|k| js::truthy_value(input.get(k)).map(|v| (k, v))) {
+    match KEYS
+        .iter()
+        .find_map(|k| js::truthy_value(input.get(k)).map(|v| (k, v)))
+    {
         None => Ok(Vec::new()),
         Some((_, Value::String(f))) => Ok(vec![f.clone()]),
-        Some((key, other)) => Err(DfwError::new(format!(
-            "the {tool} call has a \"{key}\" that is not a path ({}); the write gate could not check it. Update the host CLI or report it to the dfw maintainers.",
-            js::to_string(Some(other))
+        Some((key, other)) => Err(DfwError::new(message::not_a_path(
+            tool,
+            key,
+            &js::to_string(Some(other)),
         ))),
     }
 }
@@ -241,84 +283,110 @@ pub fn files_from_tool_input(
 mod tests {
     use super::*;
     use crate::core::config::defaults;
+    use crate::core::fixture::{
+        ADDED_APP_FILE, APP_COMPONENT, APP_FILE, APP_MODULE, ELSEWHERE_FILE, HANDOFF_NOTE,
+        HTML_FILE, NOTES_FILE, OTHER_HTML_FILE, SIBLING_FILE,
+    };
     use crate::core::host::normalize_hook_input;
+    use crate::core::paths::rel;
     use crate::workflow::state::new_state;
     use serde_json::json;
+
+    /// The project root of the tests that need no folder on disk.
+    const PROJ: &str = "/proj";
+    const NEW_PRODUCT: &str = "new-product";
+    const OUTSIDE: &str = "outside the project";
 
     /// write gate decisions (tests/unit/dfw.test.mjs)
     #[test]
     fn write_gate_decisions() {
-        let root = PathBuf::from("/proj");
+        const SCREEN: &str = "a/a.html";
+        const PHASE: &str = "phase";
+        let root = PathBuf::from(PROJ);
         let config = defaults();
-        let mut s = new_state("new-product", "".into()).unwrap();
+        let mut s = new_state(NEW_PRODUCT, "".into()).unwrap();
         let w = |s: &Value, f: &str| {
             decide_write(&root, Some(s), &config, &root.join(f))
                 .unwrap()
                 .allow
         };
-        assert!(w(&s, "design/screens/a/a.html"));
+        assert!(w(&s, &rel::screen(SCREEN)));
         assert!(w(&s, "PRODUCT.md"));
-        assert!(w(&s, ".dfw/notes.md"));
-        assert!(!w(&s, "src/App.tsx"));
+        assert!(w(&s, &rel::join(rel::DFW, NOTES_FILE)));
+        assert!(!w(&s, APP_COMPONENT));
         assert!(
-            decide_write(&root, Some(&s), &config, Path::new("/elsewhere/x.js"))
-                .unwrap()
-                .allow,
-            "outside project"
+            decide_write(
+                &root,
+                Some(&s),
+                &config,
+                &Path::new("/").join(ELSEWHERE_FILE)
+            )
+            .unwrap()
+            .allow,
+            "{OUTSIDE}"
         );
         assert!(
-            !w(&s, "design/approved/v1/screens/a.html"),
+            !w(&s, &rel::approved("v1/screens/a.html")),
             "snapshots immutable"
         );
         // After freeze: design locked, handoff allowed, code still blocked until G3 + implement phase.
         s["design"] = json!({ "version": 1, "status": "approved", "locked": true, "approved": [{ "version": "v1" }] });
-        assert!(!w(&s, "design/screens/a/a.html"));
+        assert!(!w(&s, &rel::screen(SCREEN)));
         assert!(!w(&s, "DESIGN.md"));
-        assert!(w(&s, "design/handoff/v1.md"));
-        assert!(!w(&s, "src/App.tsx"));
+        assert!(w(&s, &rel::join(rel::HANDOFF, HANDOFF_NOTE)));
+        assert!(!w(&s, APP_COMPONENT));
         s["gates"]["G3"] = json!({ "approvedAt": "x" });
-        s["phase"] = "implement".into();
-        assert!(w(&s, "src/App.tsx"));
+        s[PHASE] = "implement".into();
+        assert!(w(&s, APP_COMPONENT));
         // Paused workflow lets everything through.
         s["active"] = false.into();
-        s["phase"] = "discovery".into();
-        assert!(w(&s, "src/App.tsx"));
+        s[PHASE] = "discovery".into();
+        assert!(w(&s, APP_COMPONENT));
         // Review-only blocks everything except .dfw.
         let r = new_state("review-only", "".into()).unwrap();
-        assert!(!w(&r, "design/x.html"));
-        assert!(w(&r, ".dfw/report.md"));
+        assert!(!w(&r, &rel::design(OTHER_HTML_FILE)));
+        assert!(w(&r, &rel::join(rel::DFW, NOTES_FILE)));
     }
 
     #[test]
     fn refusals_say_what_is_missing() {
-        let root = PathBuf::from("/proj");
+        let root = PathBuf::from(PROJ);
         let config = defaults();
-        let mut s = new_state("new-product", "".into()).unwrap();
+        let mut s = new_state(NEW_PRODUCT, "".into()).unwrap();
         let reason = |s: &Value, f: &str| {
             decide_write(&root, Some(s), &config, &root.join(f))
                 .unwrap()
                 .reason
                 .unwrap()
         };
-        assert_eq!(reason(&s, "src/a.ts"), "dfw gate: implementation files cannot be modified yet (\"src/a.ts\"). Missing: G2 (approved, frozen design), G3 (approved technology stack), phase \"implement\" (current: \"discovery\"). Continue the design workflow (/dfw status) or, if the user explicitly wants this edit outside the workflow, ask them to add the path to gate.allow (dfw config set gate.allow ...).");
-        assert!(reason(&s, "design/approved/v1/a.html").contains("is immutable"));
-        s["design"]["locked"] = true.into();
-        assert!(
-            reason(&s, "design/a.html").starts_with("dfw gate: design v1 is approved and locked.")
+        assert_eq!(
+            reason(&s, APP_FILE),
+            message::not_yet(APP_FILE, &missing_in_draft())
         );
+        let frozen = rel::approved("v1/a.html");
+        assert_eq!(reason(&s, &frozen), message::frozen(&frozen));
+        s["design"]["locked"] = true.into();
+        assert_eq!(reason(&s, &rel::design(HTML_FILE)), message::locked("1"));
         assert!(
-            decide_write(&root, None, &config, &root.join("src/a.ts"))
+            decide_write(&root, None, &config, &root.join(APP_FILE))
                 .unwrap()
                 .allow
         );
         // A relative path is taken from the project root; `..` is resolved before the check.
         assert!(
-            !decide_write(&root, Some(&s), &config, Path::new("design/../src/a.ts"))
-                .unwrap()
-                .allow
+            !decide_write(
+                &root,
+                Some(&s),
+                &config,
+                &Path::new(rel::DESIGN)
+                    .join(Component::ParentDir)
+                    .join(APP_FILE)
+            )
+            .unwrap()
+            .allow
         );
         assert!(
-            decide_write(&root, Some(&s), &config, Path::new("../other/a.ts"))
+            decide_write(&root, Some(&s), &config, Path::new(SIBLING_FILE))
                 .unwrap()
                 .allow
         );
@@ -329,19 +397,29 @@ mod tests {
     #[test]
     fn the_write_gate_applies_to_a_file_whose_name_starts_with_two_dots() {
         let root = crate::core::util::test_dir("gate-dots");
-        let s = new_state("new-product", Value::Null).unwrap();
+        let s = new_state(NEW_PRODUCT, Value::Null).unwrap();
         let config = defaults();
         let allow = |f: &Path| decide_write(&root, Some(&s), &config, f).unwrap().allow;
         assert!(!allow(Path::new("..x.ts")));
         assert!(!allow(&root.join("..x").join("y.ts")));
         assert!(!allow(Path::new("...")));
-        assert!(allow(Path::new("../x.ts")), "outside the project");
-        assert!(allow(Path::new("..")), "outside the project");
+        assert!(allow(Path::new("../x.ts")), "{OUTSIDE}");
+        assert!(allow(Path::new("..")), "{OUTSIDE}");
+    }
+
+    /// What a new project lacks before implementation code: the list of [`message::not_yet`].
+    fn missing_in_draft() -> String {
+        [
+            message::MISSING_G2,
+            message::MISSING_G3,
+            &message::missing_phase("discovery"),
+        ]
+        .join(", ")
     }
 
     /// A frozen state: v1 approved and locked, G3 approved, phase implement.
     fn implementing() -> Value {
-        let mut s = new_state("new-product", "".into()).unwrap();
+        let mut s = new_state(NEW_PRODUCT, "".into()).unwrap();
         s["design"] = json!({ "version": 1, "status": "approved", "locked": true, "approved": [{ "version": "v1" }] });
         s["gates"]["G3"] = json!({ "approvedAt": "x" });
         s["phase"] = "implement".into();
@@ -351,39 +429,37 @@ mod tests {
     /// CO-4: a case variant of a frozen or locked path is refused where the volume ignores case.
     #[test]
     fn case_variants_of_frozen_and_locked_paths() {
+        /// `design/approved/v1/a.html` with another case.
+        const FROZEN_VARIANT: &str = "Approved/v1/a.html";
+        /// `design/screens/a.html` with another case.
+        const LOCKED_VARIANT: &str = "Design/screens/a.html";
         let config = defaults();
-        let draft = new_state("new-product", "".into()).unwrap();
+        let draft = new_state(NEW_PRODUCT, "".into()).unwrap();
         let allow = |s: &Value, rel: &str, fold: bool| {
             decide_rel(s, &config, rel, true, fold).unwrap().allow
         };
-        assert!(!allow(&draft, "design/Approved/v1/a.html", true));
+        assert!(!allow(&draft, &rel::design(FROZEN_VARIANT), true));
         assert!(!allow(&draft, "DESIGN/APPROVED/v1/a.html", true));
         assert!(
-            allow(&draft, "design/Approved/v1/a.html", false),
+            allow(&draft, &rel::design(FROZEN_VARIANT), false),
             "case-sensitive: another folder"
         );
         let s = implementing();
-        assert!(
-            !allow(&s, "Design/screens/a.html", true),
-            "locked under any case"
-        );
+        assert!(!allow(&s, LOCKED_VARIANT, true), "locked under any case");
         assert!(!allow(&s, "design.MD", true));
-        assert!(
-            allow(&s, "Design/screens/a.html", false),
-            "case-sensitive: app code"
-        );
-        assert!(allow(&s, "design/handoff/v1.md", true));
+        assert!(allow(&s, LOCKED_VARIANT, false), "case-sensitive: app code");
+        assert!(allow(&s, &rel::join(rel::HANDOFF, HANDOFF_NOTE), true));
         // On the file system of this machine: a reopened project, the frozen file by another case.
         let root = crate::core::util::test_dir("gate-case");
-        fs::create_dir_all(root.join("design/approved/v1")).unwrap();
-        fs::write(root.join("design/approved/v1/a.html"), "x").unwrap();
+        fs::create_dir_all(root.join(rel::approved("v1"))).unwrap();
+        fs::write(root.join(rel::approved("v1/a.html")), "x").unwrap();
         let mut reopened = draft.clone();
         reopened["design"]["version"] = 2.into();
         let written = decide_write(
             &root,
             Some(&reopened),
             &config,
-            &root.join("design/Approved/v1/a.html"),
+            &root.join(rel::design(FROZEN_VARIANT)),
         )
         .unwrap();
         assert_eq!(written.allow, !FOLD_CASE);
@@ -393,28 +469,37 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn symlinks_are_decided_by_their_target() {
+        use crate::core::fixture::{APP_DIR, LINKED_APP_FILE};
         use std::os::unix::fs::symlink;
+        const DANGLING: &str = "dangling.html";
+        /// A link in `design/` to the snapshots, and a frozen file through it.
+        const SNAP: &str = "snap";
+        const THROUGH_SNAP: &str = "snap/v1/a.html";
+        /// A link in `design/` to the app's folder, and an app file through it.
+        const CODE_LINK: &str = "code";
+        const THROUGH_CODE: &str = "code/a.ts";
         let config = defaults();
         let root = crate::core::util::test_dir("gate-link");
-        fs::create_dir_all(root.join("design/approved/v1")).unwrap();
-        fs::create_dir_all(root.join("src")).unwrap();
-        symlink(root.join("design/approved"), root.join("design/snap")).unwrap();
-        symlink("../src/new.ts", root.join("design/dangling.html")).unwrap();
-        symlink(root.join("src"), root.join("design/code")).unwrap();
-        let s = new_state("new-product", "".into()).unwrap();
+        fs::create_dir_all(root.join(rel::approved("v1"))).unwrap();
+        fs::create_dir_all(root.join(APP_DIR)).unwrap();
+        symlink(root.join(rel::APPROVED), root.join(rel::design(SNAP))).unwrap();
+        let target = format!("../{LINKED_APP_FILE}");
+        symlink(target, root.join(rel::design(DANGLING))).unwrap();
+        symlink(root.join(APP_DIR), root.join(rel::design(CODE_LINK))).unwrap();
+        let s = new_state(NEW_PRODUCT, "".into()).unwrap();
         let decide = |f: &str| decide_write(&root, Some(&s), &config, &root.join(f)).unwrap();
-        let snap = decide("design/snap/v1/a.html");
+        let snap = decide(&rel::design(THROUGH_SNAP));
         assert!(!snap.allow);
-        assert!(snap
-            .reason
-            .unwrap()
-            .contains("\"design/approved/v1/a.html\" is part of a frozen"));
-        assert!(
-            !decide("design/dangling.html").allow,
-            "a write through a dangling link creates src/new.ts"
+        assert_eq!(
+            snap.reason.unwrap(),
+            message::frozen(&rel::approved("v1/a.html"))
         );
-        assert!(!decide("design/code/a.ts").allow);
-        assert!(decide("design/screens/a.html").allow);
+        assert!(
+            !decide(&rel::design(DANGLING)).allow,
+            "a write through a dangling link creates {LINKED_APP_FILE}"
+        );
+        assert!(!decide(&rel::design(THROUGH_CODE)).allow);
+        assert!(decide(&rel::screen(HTML_FILE)).allow);
     }
 
     /// CO-4: an alias of the project folder (`/tmp` and `/private/tmp` on macOS, a symlinked
@@ -422,41 +507,45 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn an_alias_of_the_root_is_the_project() {
+        use crate::core::fixture::{APP_DIR, IN_LOOP_FILE, LOOP_LINK, NEW_APP_FILE};
         use std::os::unix::fs::symlink;
         let config = defaults();
         let base = crate::core::util::test_dir("gate-alias");
         let root = base.join("project");
-        fs::create_dir_all(root.join("src")).unwrap();
-        symlink(&root, base.join("alias")).unwrap();
+        fs::create_dir_all(root.join(APP_DIR)).unwrap();
         let alias = base.join("alias");
-        let s = new_state("new-product", "".into()).unwrap();
+        symlink(&root, &alias).unwrap();
+        let s = new_state(NEW_PRODUCT, "".into()).unwrap();
         let reason = |r: &Path, f: PathBuf| decide_write(r, Some(&s), &config, &f).unwrap();
-        for (r, f) in [
-            (&root, alias.join("src/a.ts")),
-            (&alias, root.join("src/a.ts")),
-            (&alias, alias.join("src/new/b.ts")),
+        let missing = missing_in_draft();
+        for (r, f, file) in [
+            (&root, alias.join(APP_FILE), APP_FILE),
+            (&alias, root.join(APP_FILE), APP_FILE),
+            (&alias, alias.join(NEW_APP_FILE), NEW_APP_FILE),
         ] {
             let d = reason(r, f.clone());
             assert!(!d.allow, "{} in {}", f.display(), r.display());
-            assert!(d.reason.unwrap().contains("cannot be modified yet (\"src/"));
+            assert_eq!(d.reason.unwrap(), message::not_yet(file, &missing));
         }
-        assert!(
-            reason(&alias, base.join("elsewhere/x.ts")).allow,
-            "outside the project"
-        );
+        assert!(reason(&alias, base.join(ELSEWHERE_FILE)).allow, "{OUTSIDE}");
         // A path that cannot be resolved (a symlink loop) is never "outside".
-        symlink("loop", base.join("loop")).unwrap();
-        assert_eq!(real_path(&base.join("loop/x.ts")), None);
-        assert!(!reason(&root, base.join("loop/x.ts")).allow);
+        let looped = base.join(LOOP_LINK);
+        symlink(LOOP_LINK, &looped).unwrap();
+        assert_eq!(real_path(&looped.join(IN_LOOP_FILE)), None);
+        assert!(!reason(&root, looped.join(IN_LOOP_FILE)).allow);
     }
 
     #[test]
     fn relative_matches_node_path_relative() {
+        let code = format!("{PROJ}/{APP_FILE}");
         let rel = |a: &str, b: &str| relative(Path::new(a), Path::new(b));
-        assert_eq!(rel("/proj", "/proj/src/a.ts"), "src/a.ts");
-        assert_eq!(rel("/proj", "/proj"), "");
-        assert_eq!(rel("/proj/design", "/proj/src/a.ts"), "../src/a.ts");
-        assert_eq!(rel("/proj", "/elsewhere/x.js"), "../elsewhere/x.js");
+        assert_eq!(rel(PROJ, &code), APP_FILE);
+        assert_eq!(rel(PROJ, PROJ), "");
+        assert_eq!(rel("/proj/design", &code), format!("../{APP_FILE}"));
+        assert_eq!(
+            rel(PROJ, &format!("/{ELSEWHERE_FILE}")),
+            format!("../{ELSEWHERE_FILE}")
+        );
         assert_eq!(rel("/a/b/c", "/a"), "../..");
     }
 
@@ -464,49 +553,65 @@ mod tests {
     /// (tests/unit/host.test.mjs: the two assertions on filesFromToolInput and filesFromPatch)
     #[test]
     fn host_normalizes_payloads_files_of_a_patch() {
-        let patch = normalize_hook_input(&json!({ "toolName": "apply_patch", "toolArgs": "*** Begin Patch\n*** Add File: src/x.ts\n*** Update File: design/a.html\n*** End Patch" })).unwrap();
+        let page = rel::design(HTML_FILE);
+        let body = patch::body(&[(patch::ADD, ADDED_APP_FILE), (patch::UPDATE, &page)]);
+        let input = json!({ "toolName": tool::alias::APPLY_PATCH, "toolArgs": body });
+        let patch = normalize_hook_input(&input).unwrap();
         assert_eq!(
             files_from_tool_input(patch.tool_name.as_deref(), &patch.tool_input).unwrap(),
-            ["src/x.ts", "design/a.html"]
+            [ADDED_APP_FILE, &page]
         );
         assert_eq!(
-            files_from_patch("*** Update File: a\n*** Move to: b"),
-            ["a", "b"]
+            files_from_patch(&patch::lines(&[
+                (patch::UPDATE, APP_FILE),
+                (patch::MOVE_TO, APP_MODULE)
+            ])),
+            [APP_FILE, APP_MODULE]
         );
     }
 
     #[test]
     fn files_of_other_tool_inputs() {
+        const A: &str = "a.ts";
+        const B: &str = "b.ts";
+        const C: &str = "c.ts";
+        const NOTEBOOK: &str = "n.ipynb";
         let files = |tool: &str, input: Value| files_from_tool_input(Some(tool), &input).unwrap();
-        assert_eq!(files("Write", json!({ "file_path": "a.ts" })), ["a.ts"]);
+        assert_eq!(files(tool::WRITE, json!({ "file_path": A })), [A]);
         assert_eq!(
-            files("NotebookEdit", json!({ "notebook_path": "n.ipynb" })),
-            ["n.ipynb"]
+            files(tool::NOTEBOOK_EDIT, json!({ "notebook_path": NOTEBOOK })),
+            [NOTEBOOK]
         );
         assert_eq!(
-            files("Edit", json!({ "file_path": "", "path": "b.ts" })),
-            ["b.ts"]
+            files(tool::EDIT, json!({ "file_path": "", "path": B })),
+            [B]
         );
-        assert_eq!(files("MultiEdit", json!({ "filePath": "c.ts" })), ["c.ts"]);
-        assert!(files("Read", json!({ "file_path": "a.ts" })).is_empty());
-        assert!(files("Write", json!({})).is_empty());
-        assert!(files_from_tool_input(None, &json!({ "file_path": "a.ts" }))
+        assert_eq!(files(tool::MULTI_EDIT, json!({ "filePath": C })), [C]);
+        assert!(files("Read", json!({ "file_path": A })).is_empty());
+        assert!(files(tool::WRITE, json!({})).is_empty());
+        assert!(files_from_tool_input(None, &json!({ "file_path": A }))
             .unwrap()
             .is_empty());
         // E2: the field and what happened, not a JavaScript TypeError.
         assert_eq!(
-            files_from_tool_input(Some("Write"), &json!({ "file_path": 5 })).unwrap_err().message(),
-            "the Write call has a \"file_path\" that is not a path (5); the write gate could not check it. Update the host CLI or report it to the dfw maintainers."
+            files_from_tool_input(Some(tool::WRITE), &json!({ "file_path": 5 }))
+                .unwrap_err()
+                .message(),
+            message::not_a_path(tool::WRITE, "file_path", "5")
         );
-        assert!(files_from_tool_input(Some("Write"), &Value::Null)
-            .unwrap_err()
-            .message()
-            .starts_with("the host sent no tool input for Write;"));
         assert_eq!(
-            files(
-                "ApplyPatch",
-                json!({ "patch": "*** Delete File:  old.css \r\n*** Add File: \n*** Add File:x" })
-            ),
+            files_from_tool_input(Some(tool::WRITE), &Value::Null)
+                .unwrap_err()
+                .message(),
+            message::no_tool_input(tool::WRITE)
+        );
+        let body = patch::lines(&[
+            (patch::DELETE, " old.css \r"),
+            (patch::ADD, ""),
+            (patch::ADD.trim_end(), "x"),
+        ]);
+        assert_eq!(
+            files(tool::APPLY_PATCH, json!({ "patch": body })),
             ["old.css"]
         );
     }

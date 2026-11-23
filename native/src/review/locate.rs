@@ -11,7 +11,7 @@ use crate::core::config::{allow_unverified_engine, global_config_path};
 use crate::core::error::DfwError;
 use crate::core::host::HOSTS;
 use crate::core::js;
-use crate::core::paths::{claude_dir, global_dir, manifest_path, plugin_root, resolve};
+use crate::core::paths::{claude_dir, file, global_dir, manifest_path, plugin_root, resolve};
 use crate::core::platform::{node_arch, node_platform};
 use crate::core::process::{plan_for, Spawn};
 use crate::core::util::{read_json, sha256, write_json, MARKETPLACE_NAME};
@@ -82,7 +82,7 @@ fn plugin_root_in(
         return Ok(Some(p));
     }
     // 3. Marketplace repo recorded in global config.
-    let config = read_json(&global.join("config.json"), Some(json!({})))?;
+    let config = read_json(&global.join(file::CONFIG), Some(json!({})))?;
     if let Some(repo) = config
         .get("marketplaceRepo")
         .and_then(Value::as_str)
@@ -477,7 +477,7 @@ mod tests {
         plugin(&repo.join("plugins/impeccable"));
         fs::create_dir_all(&global).unwrap();
         fs::write(
-            global.join("config.json"),
+            global.join(file::CONFIG),
             json!({ "marketplaceRepo": repo }).to_string(),
         )
         .unwrap();

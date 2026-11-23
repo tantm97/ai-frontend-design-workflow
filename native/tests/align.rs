@@ -16,6 +16,14 @@ use std::time::Instant;
 
 use serde_json::Value;
 
+#[path = "../src/core/paths/layout.rs"]
+#[allow(
+    dead_code,
+    reason = "each test binary uses a part of the project layout"
+)]
+mod layout;
+use layout::{file, rel};
+
 const DFW: &str = env!("CARGO_BIN_EXE_dfw");
 
 fn repo() -> PathBuf {
@@ -33,7 +41,7 @@ fn project(label: &str) -> PathBuf {
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));
-    fs::create_dir_all(dir.join("design")).unwrap();
+    fs::create_dir_all(dir.join(rel::DESIGN)).unwrap();
     let root = dir.canonicalize().unwrap();
     assert_eq!(dfw(&root, &["init"], "").code, 0);
     root
@@ -90,20 +98,20 @@ fn user_error(r: &Ran, line: &str) {
 }
 
 fn state(root: &Path) -> Value {
-    serde_json::from_str(&fs::read_to_string(root.join(".dfw/state.json")).unwrap()).unwrap()
+    serde_json::from_str(&fs::read_to_string(root.join(rel::STATE)).unwrap()).unwrap()
 }
 
 /// b: --level and --timeout without a value are refused
 #[test]
 fn level_and_timeout_without_a_value_are_refused() {
     let root = project("b");
-    let before = fs::read_to_string(root.join(".dfw/decisions.jsonl")).unwrap();
+    let before = fs::read_to_string(root.join(rel::DECISIONS)).unwrap();
     user_error(
         &dfw(&root, &["decide", "use", "tabs", "--level"], ""),
         "--level needs a value.",
     );
     assert_eq!(
-        fs::read_to_string(root.join(".dfw/decisions.jsonl")).unwrap(),
+        fs::read_to_string(root.join(rel::DECISIONS)).unwrap(),
         before,
         "no level 1 decision was recorded"
     );
@@ -147,29 +155,26 @@ fn a_snapshot_version_from_the_command_line_never_leaves_design() {
 #[test]
 fn config_set_without_a_value_is_a_usage_error() {
     let root = project("g");
-    let before = fs::read_to_string(root.join(".dfw/config.json")).unwrap();
+    let before = fs::read_to_string(root.join(rel::CONFIG)).unwrap();
     for args in [&["config", "set", "a.b"][..], &["config", "set"]] {
         user_error(
             &dfw(&root, args, ""),
             "Usage: dfw config set <key> <value> [--global|--project|--local]",
         );
     }
-    assert_eq!(
-        fs::read_to_string(root.join(".dfw/config.json")).unwrap(),
-        before
-    );
+    assert_eq!(fs::read_to_string(root.join(rel::CONFIG)).unwrap(), before);
 }
 
 /// h: approve G3 refuses a stack.json that is not an object
 #[test]
 fn approve_g3_refuses_a_stack_json_that_is_not_an_object() {
     let root = project("h");
-    let file = root.join(".dfw/stack.json");
+    let file = root.join(rel::STACK);
     for content in ["[1,2]", "\"next\"", "5", "null"] {
         fs::write(&file, content).unwrap();
         user_error(
             &dfw(&root, &["approve", "G3", "--note", "ok"], ""),
-            "G3 needs a stack proposal: .dfw/stack.json must hold a JSON object (run: dfw stack set ... or dfw stack detect --write).",
+            &format!("G3 needs a stack proposal: {} must hold a JSON object (run: dfw stack set ... or dfw stack detect --write).", rel::STACK),
         );
         assert_eq!(
             fs::read_to_string(&file).unwrap(),
@@ -193,7 +198,7 @@ fn prototype_names_are_not_ids_on_the_command_line() {
     assert!(r
         .stderr
         .starts_with("Unknown mode \"constructor\". Modes: "));
-    let before = fs::read_to_string(root.join(".dfw/config.json")).unwrap();
+    let before = fs::read_to_string(root.join(rel::CONFIG)).unwrap();
     for (key, reserved) in [
         ("__proto__.x", "__proto__"),
         ("a.constructor", "constructor"),
@@ -204,10 +209,7 @@ fn prototype_names_are_not_ids_on_the_command_line() {
             &format!("Invalid key \"{key}\": \"{reserved}\" is a reserved name."),
         );
     }
-    assert_eq!(
-        fs::read_to_string(root.join(".dfw/config.json")).unwrap(),
-        before
-    );
+    assert_eq!(fs::read_to_string(root.join(rel::CONFIG)).unwrap(), before);
     let r = dfw(&root, &["hook", "constructor"], r#"{"block":"x"}"#);
     assert!(
         r.stderr.contains("Unknown hook \"constructor\""),
@@ -227,7 +229,7 @@ fn prototype_names_are_not_ids_on_the_command_line() {
 #[test]
 fn a_config_file_that_is_not_a_json_object_is_a_clear_error() {
     let root = project("k");
-    let file = root.join(".dfw/config.json");
+    let file = root.join(rel::CONFIG);
     for content in ["[1,2]", "\"text\"", "5", "null", "true"] {
         fs::write(&file, content).unwrap();
         user_error(
@@ -309,7 +311,7 @@ fn a_flag_that_takes_a_value_is_refused_without_one() {
 #[test]
 fn config_set_refuses_a_key_that_goes_through_a_list() {
     let root = project("n");
-    fs::remove_file(root.join(".dfw/config.json")).unwrap();
+    fs::remove_file(root.join(rel::CONFIG)).unwrap();
     assert_eq!(
         dfw(&root, &["config", "set", "gate.allow", "[\"src/**\"]"], "").code,
         0
@@ -321,7 +323,7 @@ fn config_set_refuses_a_key_that_goes_through_a_list() {
     let r = dfw(&root, &["config", "set", "gate.allow.extra", "5"], "");
     assert!(r.stderr.contains("\"gate.allow\" is a list"));
     let config: Value =
-        serde_json::from_str(&fs::read_to_string(root.join(".dfw/config.json")).unwrap()).unwrap();
+        serde_json::from_str(&fs::read_to_string(root.join(rel::CONFIG)).unwrap()).unwrap();
     assert_eq!(
         config,
         serde_json::json!({ "gate": { "allow": ["src/**"] } })
@@ -334,7 +336,7 @@ fn a_studio_pid_that_is_not_a_positive_integer_is_never_signalled() {
     let root = project("p");
     for pid in ["-1", "0", "-5", "1.5", "\"12\"", "true", "null"] {
         fs::write(
-            root.join(".dfw/studio.json"),
+            root.join(rel::join(rel::DFW, file::STUDIO)),
             format!(r#"{{"pid":{pid},"url":"http://127.0.0.1:4600/"}}"#),
         )
         .unwrap();
@@ -344,7 +346,7 @@ fn a_studio_pid_that_is_not_a_positive_integer_is_never_signalled() {
     }
     let me = std::process::id();
     fs::write(
-        root.join(".dfw/studio.json"),
+        root.join(rel::join(rel::DFW, file::STUDIO)),
         format!(r#"{{"pid":{me},"url":"http://127.0.0.1:4600/"}}"#),
     )
     .unwrap();
@@ -356,7 +358,7 @@ fn a_studio_pid_that_is_not_a_positive_integer_is_never_signalled() {
 #[test]
 fn presence_json_is_ignored_by_git_in_a_new_project() {
     let root = project("presence");
-    let ignore = fs::read_to_string(root.join(".dfw/.gitignore")).unwrap();
+    let ignore = fs::read_to_string(root.join(rel::join(rel::DFW, file::GITIGNORE))).unwrap();
     assert!(ignore.lines().any(|l| l == "presence.json"), "{ignore}");
 }
 

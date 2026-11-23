@@ -222,6 +222,7 @@ pub fn manifest() -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::paths::{file, in_design};
 
     #[test]
     fn the_browser_files_are_embedded() {
@@ -244,8 +245,8 @@ mod tests {
         assert!(template_text("PRODUCT.md").unwrap().len() > 10);
         let dest = crate::core::util::test_dir("templates");
         copy_templates(&dest, "design", &dest).unwrap();
-        assert!(dest.join("design.json").is_file());
-        assert!(dest.join("tokens/tokens.json").is_file());
+        assert!(dest.join(file::MANIFEST).is_file());
+        assert!(dest.join(in_design::TOKENS_JSON).is_file());
         assert!(dest.join("screens/.gitkeep").is_file());
     }
 

@@ -26,7 +26,7 @@ use super::html::escape_html as esc;
 use super::tokens::{dir_names, TokenEntry};
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::project_paths;
+use crate::core::paths::{file, in_design, project_paths, rel};
 use crate::design::dsaudit::audit_design_system;
 
 /// The page's own styles (the literal of system-page.mjs, kept as a file).
@@ -36,7 +36,7 @@ const CSS: &str = include_str!("../system_page.css");
 /// under which `design/` is served (`../` from `design/system/`).
 pub fn render_system_page(root: &Path, design_base: &str) -> Result<String, DfwError> {
     let p = project_paths(root);
-    let manifest = js::read_json(&p.design.join("design.json"), Some(json!({})))?;
+    let manifest = js::read_json(&p.manifest, Some(json!({})))?;
     let all = load_tokens(root)?;
     let tokens = Tokens::new(&all);
     let lib = load_components(root)?;
@@ -56,7 +56,7 @@ pub fn render_system_page(root: &Path, design_base: &str) -> Result<String, DfwE
         Value::Null
     };
     let style = Some(&style).filter(|s| js::truthy(Some(s)));
-    let assets_dir = p.design.join("assets");
+    let assets_dir = p.design.join(file::ASSETS);
     let mut assets: Vec<String> = dir_names(&assets_dir)?
         .into_iter()
         .filter(|f| !f.starts_with('.'))
@@ -123,8 +123,8 @@ fn page_head(manifest: &Value, style: Option<&Value>, head: &str, design_base: &
 <title>Design System - {title}</title>
 <meta name=\"description\" content=\"Foundations and components of the {product} design system.\">
 {head}
-<link rel=\"stylesheet\" href=\"{design_base}tokens/tokens.css\">
-<link rel=\"stylesheet\" href=\"{design_base}system/components.css\">
+<link rel=\"stylesheet\" href=\"{design_base}{tokens_css}\">
+<link rel=\"stylesheet\" href=\"{design_base}{components_css}\">
 <style>
 {CSS}</style>
 </head>
@@ -133,6 +133,8 @@ fn page_head(manifest: &Value, style: Option<&Value>, head: &str, design_base: &
 
   ",
         lang = esc(&manifest_text(manifest, "lang", "en")),
+        tokens_css = in_design::TOKENS_CSS,
+        components_css = in_design::COMPONENTS_CSS,
         title = esc(&manifest_text(manifest, "product", "Product")),
         product = esc(&manifest_text(manifest, "product", "")),
         style_name = style.map_or(String::new(), |s| format!(
@@ -248,7 +250,7 @@ fn icons_html(icons: &[String]) -> String {
 /// The brand assets (images shown), or what belongs in design/assets/.
 fn assets_html(assets: &[String], design_base: &str) -> String {
     if assets.is_empty() {
-        "<p class=\"ds-empty\">No assets in design/assets/ yet (logos, ornaments, photography). Placeholders must be labelled as placeholders.</p>".to_string()
+        format!("<p class=\"ds-empty\">No assets in {}/ yet (logos, ornaments, photography). Placeholders must be labelled as placeholders.</p>", rel::ASSETS)
     } else {
         let figures: String = assets
             .iter()
@@ -290,7 +292,7 @@ fn components_html(
         components.push_str("</div>");
     }
     if components.is_empty() {
-        components.push_str("<p class=\"ds-empty\">No components yet. Create design/system/components/&lt;name&gt;.html (see the design-format reference).</p>");
+        components.push_str(&format!("<p class=\"ds-empty\">No components yet. Create {}/&lt;name&gt;.html (see the design-format reference).</p>", rel::COMPONENTS));
     }
     Ok(components)
 }

@@ -1,6 +1,7 @@
 //! The diff cases of tests/unit/penpot-screens.test.mjs and penpot-components.test.mjs.
 
 use super::*;
+use crate::core::fixture::BUTTON_MASTER;
 use crate::core::js;
 use crate::penpot::export::tests::{draft, fixture_export, project, read};
 
@@ -238,7 +239,7 @@ fn source_line_of_a_master_change() {
         change["component"] = comp("button", variant);
         master_source(&root, &change, None).unwrap().source.unwrap()
     };
-    let at = |line: u32| format!("design/system/components/button.html:{line}");
+    let at = |line: u32| format!("{}:{line}", rel::component(BUTTON_MASTER));
     // .btn--primary background
     assert_eq!(
         src(

@@ -2,6 +2,8 @@
 //! fake of Penpot's API stay JavaScript.
 
 use super::*;
+use crate::core::fixture::ITEMS_PAGE;
+use crate::core::paths::rel;
 use crate::core::util::{iso_from_millis, to_json_compact};
 use crate::penpot::export::tests::{draft, fixture_export_at, project, with_export};
 use crate::review::comments::{update_comment, Update};
@@ -297,7 +299,7 @@ fn seen_working_on_it_is_posted_once_also_after_a_later_reply() {
 fn boards_are_behind_once_a_design_file_changes_after_the_export() {
     let (root, export) = live_project("penpot-live-stale");
     assert!(!export_stale(&root).unwrap());
-    let screen = root.join("design/screens/items/a.html");
+    let screen = root.join(rel::screen(ITEMS_PAGE));
     let future = SystemTime::now() + Duration::from_secs(60);
     fs::File::options()
         .write(true)

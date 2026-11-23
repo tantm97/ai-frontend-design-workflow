@@ -15,8 +15,13 @@ use std::path::{Path, PathBuf};
 use serde_json::{json, Map, Value};
 
 use super::error::DfwError;
-use super::paths::{global_dir, project_paths};
+use super::paths::{file, global_dir, project_paths, rel};
 use super::util::{deep_merge, get_path, read_json, set_path, write_json, write_json_inside};
+
+/// The glob of everything under a project-relative folder.
+fn all_under(dir: &str) -> String {
+    format!("{dir}/**")
+}
 
 /// `DEFAULTS`: the plugin's own layer.
 pub fn defaults() -> Value {
@@ -29,20 +34,20 @@ pub fn defaults() -> Value {
         },
         "gate": {
             // Paths (globs, relative to project root) always writable regardless of gates.
-            "allow": [".dfw/**", "design/handoff/**"],
+            "allow": [all_under(rel::DFW), all_under(rel::HANDOFF)],
             // Paths that belong to the design workspace (writable before G2, locked after).
-            "designPaths": ["design/**", "PRODUCT.md", "DESIGN.md"],
+            "designPaths": [all_under(rel::DESIGN), "PRODUCT.md", "DESIGN.md"],
             // Frozen snapshots are never writable, nor (by the agent's own tools) the files that
             // hold the gates, approvals, decisions, settings and review comments: dfw commands
             // write those directly. A union across layers: a project cannot drop one.
             "immutable": [
-                "design/approved/**",
-                ".dfw/state.json",
-                ".dfw/config.json",
-                ".dfw/config.local.json",
-                ".dfw/decisions.jsonl",
-                ".dfw/stack.json",
-                ".dfw/reviews/**",
+                all_under(rel::APPROVED),
+                rel::STATE,
+                rel::CONFIG,
+                rel::CONFIG_LOCAL,
+                rel::DECISIONS,
+                rel::STACK,
+                all_under(rel::REVIEWS),
             ],
         },
         "checks": {
@@ -84,7 +89,7 @@ pub fn defaults() -> Value {
 
 /// `globalConfigPath()`: `config.json` in the global dfw directory.
 pub fn global_config_path() -> PathBuf {
-    global_dir().join("config.json")
+    global_dir().join(file::CONFIG)
 }
 
 /// `PROJECT_ENV_ALLOW`: the `env` names a project layer may set. Project layers come from the
@@ -420,16 +425,17 @@ pub fn env_map(config: &Value) -> Vec<(String, String)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::fixture::{NOTES_FILE, REVIEW_SESSION};
     use crate::core::util::{test_dir, to_json_compact};
     use std::fs;
 
     /// A project folder with the given `.dfw/config.json` and `.dfw/config.local.json`.
     fn project(label: &str, config: Option<&str>, local: Option<&str>) -> PathBuf {
         let root = test_dir(label);
-        fs::create_dir_all(root.join(".dfw")).unwrap();
-        for (name, text) in [("config.json", config), ("config.local.json", local)] {
+        fs::create_dir_all(root.join(rel::DFW)).unwrap();
+        for (name, text) in [(file::CONFIG, config), (file::CONFIG_LOCAL, local)] {
             if let Some(text) = text {
-                fs::write(root.join(".dfw").join(name), text).unwrap();
+                fs::write(root.join(rel::DFW).join(name), text).unwrap();
             }
         }
         root
@@ -460,7 +466,7 @@ mod tests {
         let c = load(&root).unwrap();
         assert!(gate_allow(&c).contains(&"docs/**".to_string()));
         assert!(
-            gate_allow(&c).contains(&".dfw/**".to_string()),
+            gate_allow(&c).contains(&all_under(rel::DFW)),
             "defaults kept"
         );
         assert_eq!(c["checks"]["onEdit"], false);
@@ -482,12 +488,12 @@ mod tests {
         let c = load(&root).unwrap();
         let state = new_state("new-product", "".into()).unwrap();
         for file in [
-            ".dfw/state.json",
-            ".dfw/config.json",
-            ".dfw/config.local.json",
-            ".dfw/decisions.jsonl",
-            ".dfw/stack.json",
-            ".dfw/reviews/rv_1.json",
+            rel::STATE,
+            rel::CONFIG,
+            rel::CONFIG_LOCAL,
+            rel::DECISIONS,
+            rel::STACK,
+            &rel::join(rel::REVIEWS, REVIEW_SESSION),
         ] {
             let d = decide_write(&root, Some(&state), &c, &root.join(file)).unwrap();
             assert!(!d.allow, "{file}");
@@ -496,8 +502,14 @@ mod tests {
                 "{file}"
             );
         }
-        let notes = decide_write(&root, Some(&state), &c, &root.join(".dfw/notes.md")).unwrap();
-        assert!(notes.allow, "the rest of .dfw/ stays writable");
+        let notes = decide_write(
+            &root,
+            Some(&state),
+            &c,
+            &root.join(rel::join(rel::DFW, NOTES_FILE)),
+        )
+        .unwrap();
+        assert!(notes.allow, "the rest of {}/ stays writable", rel::DFW);
         fs::remove_dir_all(&root).unwrap();
     }
 
@@ -540,8 +552,8 @@ mod tests {
         assert_eq!(
             gate_allow(&c),
             [
-                ".dfw/**",
-                "design/handoff/**",
+                &all_under(rel::DFW),
+                &all_under(rel::HANDOFF),
                 "global/**",
                 "docs/**",
                 "notes/**"
@@ -550,7 +562,7 @@ mod tests {
         let immutable = gate_immutable(&c);
         assert_eq!(
             immutable.first().map(String::as_str),
-            Some("design/approved/**")
+            Some(all_under(rel::APPROVED).as_str())
         );
         assert_eq!(immutable.last().map(String::as_str), Some("vendor/**"));
         assert_eq!(gate_design_paths(&c), ["ui/**"], "other lists replace");
@@ -594,7 +606,7 @@ mod tests {
         let c = load(&root).unwrap();
         assert_eq!(
             c["gate"]["allow"],
-            json!([".dfw/**", "design/handoff/**", "docs/**"])
+            json!([all_under(rel::DFW), all_under(rel::HANDOFF), "docs/**"])
         );
         assert_eq!(
             to_json_compact(&c["gate"]["immutable"]),
@@ -623,7 +635,8 @@ mod tests {
     #[test]
     fn a_config_file_that_is_not_a_json_object_is_a_clear_error() {
         let root = project("config-not-object", None, None);
-        let file = root.join(".dfw").join("config.json");
+        // The path the loader names (`\\` on Windows), not `rel::CONFIG` joined (`/`).
+        let file = project_paths(&root).config;
         for content in ["[1,2]", "\"text\"", "5", "null", "true"] {
             fs::write(&file, content).unwrap();
             let err = load(&root).unwrap_err();
@@ -686,7 +699,7 @@ mod tests {
             );
             assert!(err.message().ends_with("\" is a reserved name."));
         }
-        assert!(!root.join(".dfw").join("config.json").exists());
+        assert!(!root.join(rel::CONFIG).exists());
         fs::remove_dir_all(&root).unwrap();
     }
 
@@ -704,7 +717,7 @@ mod tests {
             set_config_value(Scope::Project, &root, "gate.allow.extra", json!(5)).unwrap_err();
         assert!(err.message().contains("\"gate.allow\" is a list"));
         assert_eq!(
-            fs::read_to_string(root.join(".dfw").join("config.json")).unwrap(),
+            fs::read_to_string(root.join(rel::CONFIG)).unwrap(),
             "{\n  \"gate\": {\n    \"allow\": [\n      \"src/**\"\n    ]\n  }\n}\n"
         );
         fs::remove_dir_all(&root).unwrap();
@@ -729,12 +742,8 @@ mod tests {
             to_json_compact(&c["env"]),
             r#"{"DO_NOT_TRACK":"1","IMPECCABLE_NO_UPDATE_CHECK":"1","IMPECCABLE_HOOK_DISABLED":"1","NO_COLOR":"1","IMPECCABLE_NO_TELEMETRY":"1"}"#
         );
-        let project_file = root.join(".dfw").join("config.json").display().to_string();
-        let local_file = root
-            .join(".dfw")
-            .join("config.local.json")
-            .display()
-            .to_string();
+        let project_file = project_paths(&root).config.display().to_string();
+        let local_file = project_paths(&root).config_local.display().to_string();
         let dropped = [
             "IMPECCABLE_BIN",
             "IMPECCABLE_API_URL",
@@ -794,7 +803,7 @@ mod tests {
             warnings,
             [format!(
                 "dfw: ignored env in {} (it must be an object of strings)",
-                root.join(".dfw").join("config.json").display()
+                project_paths(&root).config.display()
             )]
         );
         fs::remove_dir_all(&root).unwrap();
@@ -910,10 +919,10 @@ mod tests {
         let root = project("config-set", Some(r#"{"schema":1}"#), None);
         assert_eq!(
             config_file_for(Scope::Local, &root),
-            root.join(".dfw").join("config.local.json")
+            root.join(rel::CONFIG_LOCAL)
         );
         let file = set_config_value(Scope::Project, &root, "studio.port", json!(4777)).unwrap();
-        assert_eq!(file, root.join(".dfw").join("config.json"));
+        assert_eq!(file, root.join(rel::CONFIG));
         assert_eq!(
             fs::read_to_string(&file).unwrap(),
             "{\n  \"schema\": 1,\n  \"studio\": {\n    \"port\": 4777\n  }\n}\n"
@@ -934,13 +943,13 @@ mod tests {
         let base = test_dir("config-link-out");
         let root = base.join("work").join("app");
         let victim = base.join("victim");
-        fs::create_dir_all(root.join(".dfw")).unwrap();
+        fs::create_dir_all(root.join(rel::DFW)).unwrap();
         fs::create_dir_all(&victim).unwrap();
         fs::write(victim.join("settings.json"), "{}").unwrap();
-        for name in ["config.local.json", "config.json"] {
+        for name in [file::CONFIG_LOCAL, file::CONFIG] {
             std::os::unix::fs::symlink(
                 "../../../victim/settings.json",
-                root.join(".dfw").join(name),
+                root.join(rel::DFW).join(name),
             )
             .unwrap();
         }

@@ -19,9 +19,9 @@ pub(in crate::penpot) fn read(name: &str) -> Value {
 pub(in crate::penpot) fn project(label: &str, design: Value) -> PathBuf {
     let root = test_dir(label);
     copy_dir(&fix().join("project"), &root, &[]).unwrap();
-    fs::create_dir_all(root.join(".dfw")).unwrap();
+    fs::create_dir_all(root.join(rel::DFW)).unwrap();
     fs::write(
-        root.join(".dfw/state.json"),
+        root.join(rel::STATE),
         to_json_compact(&json!({ "design": design })),
     )
     .unwrap();
@@ -73,7 +73,7 @@ pub(in crate::penpot) fn with_export(root: &Path, doc: &Value, changes: &str) ->
 
 /// Every file of `design/` with its hash: nothing there may change in an import.
 pub(in crate::penpot) fn design_hash(root: &Path) -> String {
-    let design = root.join("design");
+    let design = root.join(rel::DESIGN);
     list_files(&design, &[])
         .unwrap()
         .iter()
@@ -159,9 +159,13 @@ fn real_render_of_the_fixture_project_matches_the_snapshot() {
     .unwrap();
     assert_eq!(doc["errors"], json!([]));
     let id = doc["id"].as_str().unwrap();
-    assert!(root.join(format!(".dfw/penpot/exports/{id}.json")).exists());
-    assert!(root.join(".dfw/penpot/tokens.penpot.json").exists());
-    assert_eq!(file, root.join(".dfw/penpot/export.json"));
+    assert!(root
+        .join(rel::PENPOT)
+        .join(file::PENPOT_EXPORTS)
+        .join(format!("{id}.json"))
+        .exists());
+    assert!(root.join(rel::PENPOT_TOKENS).exists());
+    assert_eq!(file, root.join(rel::PENPOT_EXPORT));
     assert_eq!(export_structure(&doc), structure_fixture());
     let (_, both) = export_penpot(&root, &ExportOptions::default()).unwrap();
     let boards: Vec<Value> = both["pages"][0]["boards"]

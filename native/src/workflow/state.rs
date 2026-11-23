@@ -10,7 +10,7 @@ use serde_json::{json, Map, Value};
 
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::project_paths;
+use crate::core::paths::{project_paths, rel};
 use crate::core::util::{
     append_jsonl_inside, now_iso, read_json, write_json_inside, ArgValue, Args,
 };
@@ -139,7 +139,7 @@ pub fn type_error(property: &str) -> DfwError {
 /// A field of `.dfw/state.json` that is missing or not of the `kind` the workflow needs ("an
 /// object", "a list"): the user's file to fix.
 pub fn state_field_error(field: &str, kind: &str) -> DfwError {
-    DfwError::new(format!(".dfw/state.json: \"{field}\" is missing or is not {kind}. Restore the file from version control, or fix that field by hand."))
+    DfwError::new(format!("{}: \"{field}\" is missing or is not {kind}. Restore the file from version control, or fix that field by hand.", rel::STATE))
 }
 
 /// `state.key` of something that must be there.
@@ -171,9 +171,10 @@ pub fn push_history(state: &mut Value, entry: Value) -> Result<(), DfwError> {
 /// `state[key] = value`, or the key removed for `undefined`.
 pub fn set_field(state: &mut Value, key: &str, value: Option<Value>) -> Result<(), DfwError> {
     let Value::Object(map) = state else {
-        return Err(DfwError::new(
-            ".dfw/state.json does not hold an object. Restore the file from version control.",
-        ));
+        return Err(DfwError::new(format!(
+            "{} does not hold an object. Restore the file from version control.",
+            rel::STATE
+        )));
     };
     match value {
         Some(value) => {
@@ -412,9 +413,10 @@ pub fn approve_gate(
         return Err(DfwError::new("G1 is normally approved during the direction phase. Pass --note to record what was approved."));
     }
     if gate == "G3" && !p.stack.exists() {
-        return Err(DfwError::new(
-            "G3 needs .dfw/stack.json (run: dfw stack set ... or dfw stack detect --write).",
-        ));
+        return Err(DfwError::new(format!(
+            "G3 needs {} (run: dfw stack set ... or dfw stack detect --write).",
+            rel::STACK
+        )));
     }
     if gate == "G4" && phase != Some("verify") {
         return Err(DfwError::new(
@@ -537,7 +539,7 @@ mod tests {
         s.as_object_mut().unwrap().shift_remove("gates");
         assert_eq!(
             summarize(Some(&s)).unwrap_err().report(),
-            ".dfw/state.json: \"gates\" is missing or is not an object. Restore the file from version control, or fix that field by hand."
+            format!("{}: \"gates\" is missing or is not an object. Restore the file from version control, or fix that field by hand.", rel::STATE)
         );
         let mut s = fresh("new-product");
         s["design"]["approved"] = json!("v1");
@@ -637,7 +639,7 @@ mod tests {
         assert!(approve_gate(&root, &mut s, "G3", None, Map::new())
             .unwrap_err()
             .message()
-            .starts_with("G3 needs .dfw/stack.json"));
+            .starts_with(&format!("G3 needs {}", rel::STACK)));
         assert!(approve_gate(&root, &mut s, "G4", None, Map::new())
             .unwrap_err()
             .message()
@@ -662,7 +664,7 @@ mod tests {
         assert_eq!(s["waived"]["DS"], "waived by mode quick-change");
         let saved = load_state(&root).unwrap().unwrap();
         assert_eq!(saved, s);
-        let log = std::fs::read_to_string(root.join(".dfw/decisions.jsonl")).unwrap();
+        let log = std::fs::read_to_string(root.join(rel::DECISIONS)).unwrap();
         assert!(log.contains("\"topic\":\"gate:G1\",\"decision\":\"Design direction approved - Direction A\",\"by\":\"user\""));
         assert_eq!(
             summarize(Some(&s)).unwrap(),

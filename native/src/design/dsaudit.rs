@@ -417,7 +417,7 @@ fn audit_type(
     if manifest.is_null() {
         // A design.json that holds `null` (lint reports it as manifest-missing).
         return Err(DfwError::new(
-            "design/design.json holds null instead of the design manifest. Write the manifest there (\"dfw lint\" says what it needs) and run the command again.",
+            format!("{} holds null instead of the design manifest. Write the manifest there (\"dfw lint\" says what it needs) and run the command again.", rel::MANIFEST),
         ));
     }
     let body = r
@@ -575,7 +575,7 @@ mod tests {
         let count = |ink: &str, bg: &str, accent: &str, muted: &str| {
             let root = test_dir("dsaudit-hex");
             let tokens = json!({ "color": { "$type": "color", "ink": { "$value": ink }, "surface": { "$value": bg }, "canvas": { "$value": bg }, "accent": { "$value": accent }, "muted": { "$value": muted } } });
-            write(&root, "design/tokens/tokens.json", &tokens.to_string());
+            write(&root, rel::TOKENS_JSON, &tokens.to_string());
             let findings = audit_design_system(&root).unwrap();
             rules(&findings)
                 .iter()
@@ -592,10 +592,10 @@ mod tests {
     #[test]
     fn a_malformed_manifest_does_not_stop_the_audit() {
         let root = test_dir("dsaudit-manifest");
-        write(&root, "design/design.json", "{\"screens\": [");
+        write(&root, rel::MANIFEST, "{\"screens\": [");
         write(
             &root,
-            "design/tokens/tokens.json",
+            rel::TOKENS_JSON,
             r##"{"color":{"$type":"color","ink":{"$value":"#111111"}}}"##,
         );
         assert!(audit_design_system(&root).is_ok());
@@ -651,7 +651,7 @@ mod tests {
             "font": { "$type": "fontFamily", "a": { "$value": ["A", "x"] }, "b": { "$value": "B" }, "c": { "$value": "C" }, "d": { "$value": "D" }, "e": { "$value": "A" } },
             "shadow": { "$type": "shadow", "sm": { "$value": { "color": { "components": [0, 0, 0] } } } }
         });
-        write(&root, "design/tokens/tokens.json", &tokens.to_string());
+        write(&root, rel::TOKENS_JSON, &tokens.to_string());
         let findings = audit_design_system(&root).unwrap();
         let message = |rule: &str| {
             findings
@@ -680,7 +680,7 @@ mod tests {
     fn token_values_of_the_wrong_type_are_an_error_where_node_dies() {
         let audit = |tree: Value| {
             let root = test_dir("dsaudit-shapes");
-            write(&root, "design/tokens/tokens.json", &tree.to_string());
+            write(&root, rel::TOKENS_JSON, &tree.to_string());
             audit_design_system(&root)
         };
         let shadow = |value: Value| json!({ "color": { "$type": "color", "canvas": { "$value": "#f4ede0" } }, "shadow": { "$type": "shadow", "a": { "$value": value } } });
@@ -715,11 +715,11 @@ mod tests {
         assert!(canvas(json!(5)).is_ok());
         // design.json that holds null.
         let root = test_dir("dsaudit-null-manifest");
-        write(&root, "design/tokens/tokens.json", "{}");
-        write(&root, "design/design.json", "null");
+        write(&root, rel::TOKENS_JSON, "{}");
+        write(&root, rel::MANIFEST, "null");
         assert_eq!(
             audit_design_system(&root).unwrap_err().message(),
-            "design/design.json holds null instead of the design manifest. Write the manifest there (\"dfw lint\" says what it needs) and run the command again."
+            format!("{} holds null instead of the design manifest. Write the manifest there (\"dfw lint\" says what it needs) and run the command again.", rel::MANIFEST)
         );
     }
 }

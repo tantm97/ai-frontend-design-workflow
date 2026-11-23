@@ -20,6 +20,30 @@ use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
 
+#[path = "../src/core/paths/layout.rs"]
+#[allow(
+    dead_code,
+    reason = "each test binary uses a part of the project layout"
+)]
+mod layout;
+use layout::rel;
+
+#[path = "../src/core/host/wire.rs"]
+#[allow(
+    dead_code,
+    reason = "each test binary uses a part of what a host sends"
+)]
+mod wire;
+use wire::{event, tool};
+
+#[path = "../src/core/fixture.rs"]
+#[allow(
+    dead_code,
+    reason = "each test binary uses a part of the fixture names"
+)]
+mod fixture;
+use fixture::{APP_MODULE, SCREEN_PAGE, SECRET_COMPONENT};
+
 const DFW: &str = env!("CARGO_BIN_EXE_dfw");
 /// What the build script passed on when these tests were compiled (the same build as the binary).
 const BUILT_WITH_ENDPOINT: Option<&str> = option_env!("DFW_OTLP_ENDPOINT");
@@ -337,13 +361,12 @@ fn events_arrive_as_otlp_json_and_carry_no_content() {
     ]);
     assert_eq!(m.run(&["phase", "nowhere-phase"]).code, 1);
     assert_eq!(
-        m.run(&["no-such-command", "design/screens/home/a.html"])
-            .code,
+        m.run(&["no-such-command", &rel::screen(SCREEN_PAGE)]).code,
         1
     );
     let hook_input = json!({
-        "hook_event_name": "PreToolUse", "session_id": "session-secret-1", "cwd": project,
-        "tool_name": "Write", "tool_input": { "file_path": format!("{project}/src/SecretComponent.tsx"), "content": "secret file content" },
+        "hook_event_name": event::PRE_TOOL_USE, "session_id": "session-secret-1", "cwd": project,
+        "tool_name": tool::WRITE, "tool_input": { "file_path": format!("{project}/{SECRET_COMPONENT}"), "content": "secret file content" },
     });
     let hook = m.run_with(
         &["hook", "pre-tool-use"],
@@ -494,6 +517,7 @@ fn events_arrive_as_otlp_json_and_carry_no_content() {
         .to_string_lossy()
         .into_owned();
     let home = m.home.to_string_lossy().into_owned();
+    let design_folder = format!("{}/", rel::DESIGN);
     let secrets = [
         // the folder and its name, a file name, argument values, anything that looks like a path or a URL
         project.as_str(),
@@ -508,7 +532,7 @@ fn events_arrive_as_otlp_json_and_carry_no_content() {
         "framework",
         "nowhere-phase",
         "no-such-command",
-        "design/",
+        design_folder.as_str(),
         "screens",
         "a.html",
         ".html",
@@ -693,7 +717,7 @@ fn output_and_exit_code_are_the_same_with_telemetry_on() {
     broken.turn_on(NOWHERE);
     fs::write(broken.telemetry_dir(), "a file where the folder should be").unwrap();
     let hook_input =
-        json!({ "tool_name": "Write", "tool_input": { "file_path": "src/app.ts" } }).to_string();
+        json!({ "tool_name": tool::WRITE, "tool_input": { "file_path": APP_MODULE } }).to_string();
     let commands = [
         (vec!["init", "--product", "Fixture"], ""),
         (vec!["status", "--json"], ""),
@@ -762,7 +786,7 @@ fn a_build_without_an_address_writes_nothing_and_connects_nowhere() {
         .with_env("HTTP_PROXY", &trap.url);
     let project = m.project.to_string_lossy().into_owned();
     let hook_input =
-        json!({ "tool_name": "Write", "tool_input": { "file_path": "src/app.ts" } }).to_string();
+        json!({ "tool_name": tool::WRITE, "tool_input": { "file_path": APP_MODULE } }).to_string();
     for (args, stdin) in [
         (vec!["version"], ""),
         (vec!["help"], ""),

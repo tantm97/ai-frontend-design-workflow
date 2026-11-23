@@ -217,7 +217,7 @@ impl Studio {
         if p == paths::OVERLAY_JS {
             return Ok(asset("overlay.js", JS).unwrap_or_else(Response::not_found));
         }
-        if let Some(rel) = p.strip_prefix("/design/") {
+        if let Some(rel) = p.strip_prefix(api::DESIGN_BASE) {
             return Ok(match api::design_file(root, rel)? {
                 DesignFile::Found(body, ty) => Response::send(status::OK, body, ty),
                 DesignFile::Missing => Response::not_found(),
@@ -243,7 +243,7 @@ impl Studio {
         }
         if let Some(rel) = p.strip_prefix(paths::SHOTS) {
             // Through `resolve_inside`: a symlink out of .dfw/shots is not served.
-            let Some(f) = api::safe_join(&project_paths(root).dfw.join("shots"), rel)
+            let Some(f) = api::safe_join(&project_paths(root).shots, rel)
                 .filter(|f| f.to_string_lossy().ends_with(".png") && f.is_file())
             else {
                 return Ok(Response::not_found());
@@ -435,6 +435,9 @@ pub fn serve(root: &Path, port: Option<u16>) -> Result<i32, DfwError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::fixture::{ITEMS_PAGE, REVIEW_SESSION};
+    use crate::core::paths::file;
+    use crate::core::paths::rel;
     use crate::core::util::test_dir;
     use std::io::{Read, Write};
 
@@ -528,9 +531,9 @@ mod tests {
         let dir = test_dir("studio-server");
         let fix = Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/penpot/project");
         crate::core::util::copy_dir(&fix, &dir, &[]).unwrap();
-        std::fs::create_dir_all(dir.join(".dfw/reviews")).unwrap();
+        std::fs::create_dir_all(dir.join(rel::REVIEWS)).unwrap();
         std::fs::write(
-            dir.join(".dfw/state.json"),
+            dir.join(rel::STATE),
             r#"{"design":{"version":1,"status":"draft","locked":false}}"#,
         )
         .unwrap();
@@ -580,12 +583,18 @@ mod tests {
         assert_eq!(post(&host), 201, "curl and the CLI send no Origin");
         assert_eq!(all_comments(&root).unwrap().len(), 3);
         let (code, body) = call(port, &format!("GET /__dfw/nothing HTTP/1.1\r\n{host}\r\n"));
-        assert_eq!((code, body.as_str()), (404, r#"{"error":"not found"}"#));
+        assert_eq!(
+            (code, body),
+            (404, error_body(message::NOT_FOUND).to_string())
+        );
         let (code, body) = call(
             port,
             &format!("GET /design/%E0%A4%A HTTP/1.1\r\n{host}\r\n"),
         );
-        assert_eq!((code, body.as_str()), (500, r#"{"error":"URI malformed"}"#));
+        assert_eq!(
+            (code, body),
+            (500, error_body(message::URI_MALFORMED).to_string())
+        );
         let (code, _) = call(
             port,
             &format!("GET /design/../../../etc/passwd HTTP/1.1\r\n{host}\r\n"),
@@ -659,7 +668,8 @@ mod tests {
             .as_bytes(),
         );
         assert!(
-            r.starts_with("HTTP/1.1 413") && r.ends_with(r#"{"error":"Request too large."}"#),
+            r.starts_with("HTTP/1.1 413")
+                && r.ends_with(&error_body(message::TOO_LARGE).to_string()),
             "{r}"
         );
         let r = call_bytes(
@@ -668,7 +678,8 @@ mod tests {
                 .as_bytes(),
         );
         assert!(
-            r.starts_with("HTTP/1.1 400") && r.ends_with(r#"{"error":"Malformed request."}"#),
+            r.starts_with("HTTP/1.1 400")
+                && r.ends_with(&error_body(message::MALFORMED).to_string()),
             "{r}"
         );
         let (code, body) = call(
@@ -688,18 +699,20 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn shots_do_not_follow_symlinks_out() {
+        /// A link to a file outside the project, in the shots and in `design/`.
+        const LEAK: &str = "leak.png";
         let root = fixture();
         let (port, _studio) = start(&root);
         let host = format!("Host: 127.0.0.1:{port}\r\n");
-        let shots = root.join(".dfw/shots/studio");
+        let shots = root.join(rel::join(rel::SHOTS, file::SHOTS_STUDIO));
         std::fs::create_dir_all(&shots).unwrap();
         std::fs::write(shots.join("ok.png"), "png").unwrap();
         let outside = root.with_extension("outside");
         std::fs::create_dir_all(&outside).unwrap();
         std::fs::write(outside.join("secret.png"), "secret").unwrap();
-        std::os::unix::fs::symlink(outside.join("secret.png"), shots.join("leak.png")).unwrap();
+        std::os::unix::fs::symlink(outside.join("secret.png"), shots.join(LEAK)).unwrap();
         std::os::unix::fs::symlink(&outside, shots.join("dir")).unwrap();
-        std::os::unix::fs::symlink(outside.join("secret.png"), root.join("design/leak.png"))
+        std::os::unix::fs::symlink(outside.join("secret.png"), root.join(rel::design(LEAK)))
             .unwrap();
         let get = |p: &str| call(port, &format!("GET {p} HTTP/1.1\r\n{host}\r\n"));
         assert_eq!(get("/__dfw/shots/studio/ok.png"), (200, "png".to_string()));
@@ -823,7 +836,7 @@ mod tests {
         assert!(!ok.starts_with("HTTP/1.1 403"), "{ok}");
 
         // A GET only reads: with no export on disk it is a 404 and nothing is written.
-        let export = root.join(".dfw/penpot/export.json");
+        let export = root.join(rel::PENPOT_EXPORT);
         let _ = std::fs::remove_file(&export);
         let r = raw("GET", "/__dfw/penpot/export.json?refresh=1", "", "");
         assert!(
@@ -868,7 +881,7 @@ mod tests {
         let s = Arc::clone(&studio);
         std::thread::spawn(move || watch::run(s.root.clone(), &s.clients));
         std::thread::sleep(std::time::Duration::from_millis(300));
-        let note = root.join(".dfw/presence.json");
+        let note = root.join(rel::join(rel::DFW, file::PRESENCE));
         let at = crate::core::util::iso_from_millis(watch::now_ms());
         let got = read_events(
             port,
@@ -878,14 +891,14 @@ mod tests {
             "event: presence\ndata: {\"file\":\"screens/demo/a.html\",\"dfwId\":\"demo.title\"}\n\n",
         );
         assert!(got.contains("event: presence"), "{got}");
-        let review = root.join(".dfw/reviews/rv_test.json");
+        let review = root.join(rel::join(rel::REVIEWS, REVIEW_SESSION));
         let got = read_events(
             port,
             || std::fs::write(&review, r#"{"comments":[]}"#).unwrap(),
             "event: comments\n",
         );
         assert!(got.contains("event: comments\ndata: {}"), "{got}");
-        let screen = root.join("design/screens/items/a.html");
+        let screen = root.join(rel::screen(ITEMS_PAGE));
         let got = read_events(
             port,
             || {

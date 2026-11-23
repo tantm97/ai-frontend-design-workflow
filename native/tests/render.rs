@@ -17,6 +17,30 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 use serde_json::{json, Value};
 
+#[path = "../src/core/paths/layout.rs"]
+#[allow(
+    dead_code,
+    reason = "each test binary uses a part of the project layout"
+)]
+mod layout;
+use layout::{file, rel};
+
+#[path = "../src/core/fixture.rs"]
+#[allow(
+    dead_code,
+    reason = "each test binary uses a part of the fixture names"
+)]
+mod fixture;
+use fixture::screen_page;
+
+#[path = "../src/core/host/wire.rs"]
+#[allow(
+    dead_code,
+    reason = "each test binary uses a part of what a host sends"
+)]
+mod wire;
+use wire::event;
+
 const DFW: &str = env!("CARGO_BIN_EXE_dfw");
 
 fn repo() -> PathBuf {
@@ -110,9 +134,9 @@ fn design(root: &Path, screens: &[(&str, &str)]) {
         .map(|(id, _)| json!({ "id": id, "variants": [{ "id": "a", "file": format!("screens/{id}/a.html") }] }))
         .collect();
     let manifest = json!({ "schema": 1, "product": "T", "breakpoints": [{ "id": "mobile", "width": 390, "height": 844 }, { "id": "desktop", "width": 1440, "height": 900 }], "screens": list });
-    write(root, "design/design.json", &manifest.to_string());
+    write(root, rel::MANIFEST, &manifest.to_string());
     for (id, html) in screens {
-        write(root, &format!("design/screens/{id}/a.html"), html);
+        write(root, &rel::screen(&screen_page(id)), html);
     }
 }
 
@@ -147,7 +171,16 @@ fn usage_errors_need_no_browser() {
     let (code, _, stderr) = dfw(&sb, &["layout", "measure"], "");
     assert_eq!((code, stderr.as_str()), (1, "Usage: dfw layout check [--screen a,b] [--bp ids] [--states] [--no-stress] [--changed] [--no-system] [--json]\n"));
     let (code, _, stderr) = dfw(&sb, &["tokens", "extract"], "");
-    assert_eq!((code, stderr.as_str()), (1, "Usage: dfw tokens extract --url <reference site or running app> [--out design/system/extracted.tokens.json]\n"));
+    assert_eq!(
+        (code, stderr),
+        (
+            1,
+            format!(
+                "Usage: dfw tokens extract --url <reference site or running app> [--out {}]\n",
+                rel::EXTRACTED_TOKENS
+            )
+        )
+    );
 }
 
 /// Without axe-core the check is unverifiable, never a pass; no page is opened.
@@ -174,11 +207,11 @@ fn a11y_without_axe_is_unverifiable() {
 fn layout_small_tappable_controls_on_touch_breakpoints_are_a_touch_target_finding() {
     let sb = sandbox("touch");
     let root = sb.join("project");
-    write(&root, ".dfw/state.json", "{}");
-    fs::create_dir_all(root.join("design/tokens")).unwrap();
+    write(&root, rel::STATE, "{}");
+    fs::create_dir_all(root.join(rel::TOKENS)).unwrap();
     write(
         &root,
-        "design/design.json",
+        rel::MANIFEST,
         r#"{"schema":1,"product":"T","screens":[]}"#,
     );
     let (code, _, stderr) = dfw(&sb, &["system", "init", "--preset", "crisp"], "");
@@ -247,7 +280,7 @@ fn layout_check_finds_overlap_overflow_anchor_and_void() {
             "{expected}: {found:#?}"
         );
     }
-    assert!(!root.join(".dfw/layout-cache.json").exists());
+    assert!(!root.join(rel::join(rel::DFW, file::LAYOUT_CACHE)).exists());
     let (code, stdout, _) = dfw(&sb, &["layout", "check", "--screen", "void"], "");
     assert_eq!(code, 0);
     assert!(
@@ -255,7 +288,7 @@ fn layout_check_finds_overlap_overflow_anchor_and_void() {
         "{stdout}"
     );
     assert!(stdout.contains("- [SHOULD] (void) void/a @ mobile: content ends early: 784px empty at the bottom of the first screen"), "{stdout}");
-    assert!(root.join(".dfw/layout-cache.json").exists());
+    assert!(root.join(rel::join(rel::DFW, file::LAYOUT_CACHE)).exists());
     assert_eq!(
         dfw(&sb, &["layout", "check", "--changed"], "").1,
         "Layout: nothing changed since the last check.\n"
@@ -272,11 +305,11 @@ fn stop_hook_blocks_once_on_a_layout_must_finding() {
     let root = sb.join("project");
     write(
         &root,
-        ".dfw/state.json",
+        rel::STATE,
         r#"{"schema":1,"phase":"concepts","active":true}"#,
     );
     design(&root, &[("wide", &page("<main><div data-dfw-id=\"wide\" style=\"width:2000px;height:880px;background:#ccd\">Wider than any screen</div></main>"))]);
-    let payload = json!({ "hook_event_name": "Stop", "cwd": root }).to_string();
+    let payload = json!({ "hook_event_name": event::STOP, "cwd": root }).to_string();
     let (code, stdout, stderr) = dfw(&sb, &["hook", "stop"], &payload);
     assert_eq!(code, 0, "{stderr}");
     let out: Value =
@@ -297,13 +330,9 @@ fn stop_hook_blocks_once_on_a_layout_must_finding() {
         (0, String::new(), String::new())
     );
     // Switched off: an edit is not checked, and stays unchecked.
-    write(
-        &root,
-        ".dfw/config.json",
-        r#"{"checks":{"layoutOnStop":false}}"#,
-    );
+    write(&root, rel::CONFIG, r#"{"checks":{"layoutOnStop":false}}"#);
     fs::write(
-        root.join("design/screens/wide/a.html"),
+        root.join(rel::screen(&screen_page("wide"))),
         page("<main>changed</main>"),
     )
     .unwrap();
@@ -329,13 +358,13 @@ fn tokens_extract_writes_a_seed_from_a_local_page() {
     let (code, stdout, stderr) = dfw(&sb, &["tokens", "extract", "--url", &url], "");
     assert_eq!(code, 0, "{stderr}");
     assert!(
-        stdout.starts_with("Wrote design/system/extracted.tokens.json: "),
+        stdout.starts_with(&format!("Wrote {}: ", rel::EXTRACTED_TOKENS)),
         "{stdout}"
     );
     assert!(stdout.ends_with(
         " spacing values. It is a seed: review it with the user before using any of it.\n"
     ));
-    let text = fs::read_to_string(root.join("design/system/extracted.tokens.json")).unwrap();
+    let text = fs::read_to_string(root.join(rel::EXTRACTED_TOKENS)).unwrap();
     assert!(text.ends_with("}\n"));
     let seed: Value = serde_json::from_str(&text).unwrap();
     assert!(seed["$description"].as_str().unwrap().starts_with(&format!(

@@ -14,6 +14,14 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 use serde_json::Value;
 
+#[path = "../src/core/paths/layout.rs"]
+#[allow(
+    dead_code,
+    reason = "each test binary uses a part of the project layout"
+)]
+mod layout;
+use layout::{file, rel};
+
 const DFW: &str = env!("CARGO_BIN_EXE_dfw");
 
 fn repo() -> PathBuf {
@@ -86,7 +94,7 @@ fn ok(root: &Path, args: &[&str]) -> String {
 }
 
 fn set_locked(root: &Path, locked: bool) {
-    let file = root.join(".dfw/state.json");
+    let file = root.join(rel::STATE);
     let mut state: Value = serde_json::from_str(&fs::read_to_string(&file).unwrap()).unwrap();
     state["design"]["locked"] = locked.into();
     state["design"]["status"] = if locked { "approved" } else { "draft" }.into();
@@ -97,11 +105,7 @@ fn set_locked(root: &Path, locked: bool) {
 #[test]
 fn tokens_export_and_import_refused_while_frozen_dry_run_allowed() {
     let root = project("tokens-cli");
-    fs::copy(
-        fix().join("dfw-tokens.json"),
-        root.join("design/tokens/tokens.json"),
-    )
-    .unwrap();
+    fs::copy(fix().join("dfw-tokens.json"), root.join(rel::TOKENS_JSON)).unwrap();
     let out = ok(
         &root,
         &["tokens", "export", "--format", "penpot", "--out", "pp.json"],
@@ -122,7 +126,7 @@ fn tokens_export_and_import_refused_while_frozen_dry_run_allowed() {
     assert!(ok(&root, &["tokens", "import", edited, "--dry-run"]).contains("Dry run"));
     set_locked(&root, false);
     assert!(ok(&root, &["tokens", "import", edited]).contains("tokens.css rebuilt"));
-    let css = fs::read_to_string(root.join("design/tokens/tokens.css")).unwrap();
+    let css = fs::read_to_string(root.join(rel::join(rel::TOKENS, file::TOKENS_CSS))).unwrap();
     assert!(css.contains("--color-blue-600: #0055dd;"));
     // Usage errors of the two branches.
     let (code, _, stderr) = cli(&root, &["tokens", "export", "--format", "figma"]);
@@ -141,7 +145,7 @@ fn penpot_import_and_plugin_instructions() {
     let root = project("penpot-cli");
     // The fixture export, as "dfw penpot export" would have written it.
     let renders = fix().join("renders.json");
-    let tokens = root.join("design/tokens/tokens.json");
+    let tokens = root.join(rel::TOKENS_JSON);
     let doc = ok(
         &root,
         &[
@@ -155,9 +159,10 @@ fn penpot_import_and_plugin_instructions() {
         .as_str()
         .unwrap()
         .to_string();
-    fs::create_dir_all(root.join(".dfw/penpot/exports")).unwrap();
-    fs::write(root.join(format!(".dfw/penpot/exports/{id}.json")), &doc).unwrap();
-    fs::write(root.join(".dfw/penpot/export.json"), &doc).unwrap();
+    let exports = root.join(rel::PENPOT).join(file::PENPOT_EXPORTS);
+    fs::create_dir_all(&exports).unwrap();
+    fs::write(exports.join(format!("{id}.json")), &doc).unwrap();
+    fs::write(root.join(rel::PENPOT_EXPORT), &doc).unwrap();
     let mut changes: Value =
         serde_json::from_str(&fs::read_to_string(fix().join("changes.json")).unwrap()).unwrap();
     changes["exportId"] = id.into();
@@ -166,7 +171,7 @@ fn penpot_import_and_plugin_instructions() {
     let dry = ok(&root, &["penpot", "import", "changes.json", "--dry-run"]);
     let text = dry.find("1 text").unwrap();
     assert!(dry[text..].contains("Dry run"));
-    assert!(!root.join(".dfw/reviews").exists() || !dry.contains("fb_001"));
+    assert!(!root.join(rel::REVIEWS).exists() || !dry.contains("fb_001"));
     let real = ok(&root, &["penpot", "import", "changes.json"]);
     assert!(real.contains("Comments are in the review loop"));
     assert!(real.contains("fb_001 items/a/desktop -> items.add"));

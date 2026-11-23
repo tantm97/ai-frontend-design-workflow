@@ -15,6 +15,22 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 use serde_json::{json, Value};
 
+#[path = "../src/core/paths/layout.rs"]
+#[allow(
+    dead_code,
+    reason = "each test binary uses a part of the project layout"
+)]
+mod layout;
+use layout::rel;
+
+#[path = "../src/core/fixture.rs"]
+#[allow(
+    dead_code,
+    reason = "each test binary uses a part of the fixture names"
+)]
+mod fixture;
+use fixture::{APP_COMPONENT, HTML_FILE};
+
 const DFW: &str = env!("CARGO_BIN_EXE_dfw");
 
 fn repo() -> PathBuf {
@@ -111,9 +127,9 @@ fn tool(name: &str, arguments: Value) -> (&'static str, Value) {
 fn mcp_server_initialize_guide_cli_tool_write_gate() {
     let root = tmp_dir("server");
     // `dfw init` builds tokens through Node when there is no design/: the state is written here.
-    fs::create_dir_all(root.join(".dfw")).unwrap();
+    fs::create_dir_all(root.join(rel::DFW)).unwrap();
     fs::write(
-        root.join(".dfw/state.json"),
+        root.join(rel::STATE),
         json!({ "schema": 1, "product": "", "mode": "new-product", "phase": "discovery", "active": true,
             "design": { "version": 1, "status": "draft", "locked": false, "approved": [] },
             "gates": { "G1": null, "DS": null, "G2": null, "G3": null, "G4": null }, "waived": {}, "history": [] })
@@ -139,7 +155,7 @@ fn mcp_server_initialize_guide_cli_tool_write_gate() {
             tool("dfw", json!({ "args": ["install"] })),
             tool(
                 "dfw_can_write",
-                json!({ "files": ["src/App.tsx", "design/screens/a.html"], "cwd": cwd }),
+                json!({ "files": [APP_COMPONENT, &rel::screen(HTML_FILE)], "cwd": cwd }),
             ),
             ("nope/method", json!({})),
         ],
@@ -181,8 +197,8 @@ fn mcp_server_initialize_guide_cli_tool_write_gate() {
     assert!(is_error(6));
 
     assert!(is_error(7));
-    assert!(text(7).contains("DENIED  src/App.tsx"));
-    assert!(text(7).contains("ALLOWED design/screens/a.html"));
+    assert!(text(7).contains(&format!("DENIED  {APP_COMPONENT}")));
+    assert!(text(7).contains(&format!("ALLOWED {}", rel::screen(HTML_FILE))));
 
     assert_eq!(replies[8]["error"]["code"], -32601);
 }

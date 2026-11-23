@@ -1,6 +1,11 @@
 //! The cases of tests/unit/compose.test.mjs (through `compose_html` and the build outputs).
 
 use super::*;
+use crate::core::fixture::{
+    APP_SHELL_MASTER, COMPOSED_PAGE, DIVIDER_MASTER, HTML_FILE_B, INDEX_FILE, LOGO_MASTER,
+    MISSING_HTML_FILE, NESTED_PAGE, PLAIN_PAGE,
+};
+use crate::core::paths::file;
 use crate::core::util::test_dir;
 
 fn project(files: &[(&str, &str)]) -> PathBuf {
@@ -35,7 +40,7 @@ fn unknown_component_and_icon_and_bounded_recursion() {
     );
     assert_eq!(rules(&r), ["component-unknown", "icon-unknown"]);
     assert_eq!(r.html, "<div data-dfw-missing-component=\"ghost\">x</div><span data-dfw-missing-icon=\"nope\"></span>");
-    let root = project(&[("design/system/components/loop.html", "<dfw-component name=\"loop\"><template><div><dfw-use c=\"loop\"></dfw-use></div></template></dfw-component>")]);
+    let root = project(&[(&rel::master("loop"), "<dfw-component name=\"loop\"><template><div><dfw-use c=\"loop\"></dfw-use></div></template></dfw-component>")]);
     let r2 = compose(&root, "<dfw-use c=\"loop\"></dfw-use>");
     assert!(rules(&r2).contains(&"compose-depth"));
     assert_eq!(r2.instances.len(), 13);
@@ -45,8 +50,8 @@ fn unknown_component_and_icon_and_bounded_recursion() {
 #[test]
 fn nested_instance_keeps_its_own_slot_fills() {
     let root = project(&[
-        ("design/system/components/box.html", "<dfw-component name=\"box\"><template><section><dfw-slot></dfw-slot><footer><dfw-slot name=\"legend\"></dfw-slot></footer></section></template></dfw-component>"),
-        ("design/system/components/bar.html", "<dfw-component name=\"bar\"><template><div class=\"bar\"><dfw-slot></dfw-slot><ul><dfw-slot name=\"legend\"></dfw-slot></ul></div></template></dfw-component>"),
+        (&rel::master("box"), "<dfw-component name=\"box\"><template><section><dfw-slot></dfw-slot><footer><dfw-slot name=\"legend\"></dfw-slot></footer></section></template></dfw-component>"),
+        (&rel::master("bar"), "<dfw-component name=\"bar\"><template><div class=\"bar\"><dfw-slot></dfw-slot><ul><dfw-slot name=\"legend\"></dfw-slot></ul></div></template></dfw-component>"),
     ]);
     let r = compose(&root, "<dfw-use c=\"box\"><dfw-use c=\"bar\"><i>seg</i><dfw-fill slot=\"legend\"><li>inner</li></dfw-fill></dfw-use><dfw-fill slot=\"legend\">outer</dfw-fill></dfw-use>");
     assert!(r.html.contains("<ul><li>inner</li></ul>"), "{}", r.html);
@@ -56,7 +61,7 @@ fn nested_instance_keeps_its_own_slot_fills() {
 /// compose: {{prop==value?text}} marks the current item of a shared shell
 #[test]
 fn conditional_text_marks_the_current_item() {
-    let root = project(&[("design/system/components/shell.html", "<dfw-component name=\"shell\" props=\"current\"><template><nav><a aria-current=\"{{current==home?page}}\">H</a><a aria-current=\"{{current==list?page}}\">L</a></nav><main><dfw-slot></dfw-slot></main></template></dfw-component>")]);
+    let root = project(&[(&rel::master("shell"), "<dfw-component name=\"shell\" props=\"current\"><template><nav><a aria-current=\"{{current==home?page}}\">H</a><a aria-current=\"{{current==list?page}}\">L</a></nav><main><dfw-slot></dfw-slot></main></template></dfw-component>")]);
     let r = compose(&root, "<dfw-use c=\"shell\" current=\"list\">x</dfw-use>");
     assert!(
         r.html
@@ -90,8 +95,8 @@ fn prop_lists_with_spaces_commas_and_spaced_defaults() {
 #[test]
 fn base_placeholder_resolves_to_the_page_path() {
     let root = project(&[
-        ("design/system/components/logo.html", "<dfw-component name=\"logo\" props=\"img={{base}}assets/logo.png\"><template><a href=\"{{base}}screens/home/a.html\"><img src=\"{{img}}\" alt=\"\"></a></template><dfw-examples><dfw-use c=\"logo\"></dfw-use></dfw-examples></dfw-component>"),
-        ("design/system/components/tile.html", "<dfw-component name=\"tile\" props=\"base\"><template><i data-b=\"{{base}}\"></i></template></dfw-component>"),
+        (&rel::component(LOGO_MASTER), "<dfw-component name=\"logo\" props=\"img={{base}}assets/logo.png\"><template><a href=\"{{base}}screens/home/a.html\"><img src=\"{{img}}\" alt=\"\"></a></template><dfw-examples><dfw-use c=\"logo\"></dfw-use></dfw-examples></dfw-component>"),
+        (&rel::master("tile"), "<dfw-component name=\"tile\" props=\"base\"><template><i data-b=\"{{base}}\"></i></template></dfw-component>"),
     ]);
     let with_base = |html: &str, base: &str| {
         compose_html(
@@ -127,7 +132,7 @@ fn base_placeholder_resolves_to_the_page_path() {
 #[test]
 fn unclosed_instance_is_reported_and_comments_are_not_expanded() {
     let root = project(&[(
-        "design/system/components/divider.html",
+        &rel::component(DIVIDER_MASTER),
         &master("divider", "<hr class=\"divider\">", ""),
     )]);
     let unclosed = "<body>\n<dfw-use c=\"divider\">\n<main data-dfw-id=\"main\"><h1>Title</h1></main>\n</body>";
@@ -152,8 +157,8 @@ fn unclosed_instance_is_reported_and_comments_are_not_expanded() {
 #[test]
 fn single_quoted_condition_and_leading_comment() {
     let root = project(&[
-        ("design/system/components/c1.html", &master("c1", "<div class=\"c1\"><span data-dfw-if='a'>A</span><b data-dfw-if=\"b\">B</b><i data-dfw-if=a>I</i></div>", " props=\"a b\"")),
-        ("design/system/components/c2.html", &master("c2", "<!-- root -->\n<div class=\"c2\"><dfw-slot></dfw-slot></div>", "")),
+        (&rel::master("c1"), &master("c1", "<div class=\"c1\"><span data-dfw-if='a'>A</span><b data-dfw-if=\"b\">B</b><i data-dfw-if=a>I</i></div>", " props=\"a b\"")),
+        (&rel::master("c2"), &master("c2", "<!-- root -->\n<div class=\"c2\"><dfw-slot></dfw-slot></div>", "")),
     ]);
     assert_eq!(
         compose(&root, "<dfw-use c=\"c1\" a=\"1\"></dfw-use>").html,
@@ -173,7 +178,7 @@ fn single_quoted_condition_and_leading_comment() {
 /// assertion of tests/unit/edit.test.mjs)
 #[test]
 fn slot_children_render_inside_the_master_container() {
-    let root = project(&[("design/system/components/app-shell.html", "<dfw-component name=\"app-shell\">\n<template>\n<div class=\"shell\"><nav data-dfw-id=\"shell.nav\">Nav</nav><main class=\"shell-main\" data-dfw-id=\"shell.main\"><dfw-slot name=\"main\"></dfw-slot></main></div>\n</template>\n</dfw-component>")]);
+    let root = project(&[(&rel::component(APP_SHELL_MASTER), "<dfw-component name=\"app-shell\">\n<template>\n<div class=\"shell\"><nav data-dfw-id=\"shell.nav\">Nav</nav><main class=\"shell-main\" data-dfw-id=\"shell.main\"><dfw-slot name=\"main\"></dfw-slot></main></div>\n</template>\n</dfw-component>")]);
     let r = compose(&root, "<dfw-use c=\"app-shell\">\n  <dfw-fill slot=\"main\">\n      <section data-dfw-id=\"orders.summary\">S</section>\n  </dfw-fill>\n</dfw-use>");
     assert!(r.html.contains("<main class=\"shell-main\" data-dfw-id=\"shell.main\">\n      <section data-dfw-id=\"orders.summary\">"), "{}", r.html);
 }
@@ -181,7 +186,7 @@ fn slot_children_render_inside_the_master_container() {
 #[test]
 fn conditions_slots_and_root_attributes_follow_the_node_rules() {
     let root = project(&[
-        ("design/system/components/f.html", &master("f", "<p class=\"f f--{{ variant }}\" data-x='1'\n   data-dfw-if=\"variant!=hidden\"><em data-dfw-if=\"!note\">none</em><em data-dfw-if=\"note\">{{note}}</em><dfw-slot>fallback</dfw-slot><dfw-slot name=\"end\"/><dfw-slot name='odd'></dfw-slot>{{missing}}{{ tone==warn ? a < b }}</p>", " variants=\"plain hidden\" sizes=\"md\" props=\"note, tone=warn\"")),
+        (&rel::master("f"), &master("f", "<p class=\"f f--{{ variant }}\" data-x='1'\n   data-dfw-if=\"variant!=hidden\"><em data-dfw-if=\"!note\">none</em><em data-dfw-if=\"note\">{{note}}</em><dfw-slot>fallback</dfw-slot><dfw-slot name=\"end\"/><dfw-slot name='odd'></dfw-slot>{{missing}}{{ tone==warn ? a < b }}</p>", " variants=\"plain hidden\" sizes=\"md\" props=\"note, tone=warn\"")),
     ]);
     let r = compose(&root, "<dfw-use c=\"f\" note=\"a &amp; &lt;b&gt;\" hidden data-k=\"\" title=\"\" aria-label=\"\" data-dfw-id=\"lost\">  <dfw-fill slot=\"end\">E</dfw-fill></dfw-use>");
     assert_eq!(
@@ -209,15 +214,15 @@ fn conditions_slots_and_root_attributes_follow_the_node_rules() {
 #[test]
 fn icons_head_and_build_outputs() {
     let root = project(&[
-        ("design/system/icons/x.svg", "<?xml version=\"1.0\"?>\n<!-- lucide -->\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" class=\"lucide\"><path d=\"M1 1\"/></svg>\n"),
-        ("design/system/head.html", "<!-- fonts -->\n<link rel=\"stylesheet\" href=\"{{base}}fonts.css\">\n"),
-        ("design/system/components/b.html", "<dfw-component name=\"b\"><style>\n.b { color: red; }\n</style><template><b class=\"b\"><dfw-slot></dfw-slot></b></template></dfw-component>"),
-        ("design/styles/base.css", "body{margin:0}"),
-        ("design/tokens/tokens.css", ":root{}"),
-        ("design/screens/s/a.html", "<html>\n<head>\n<dfw-head>\n</dfw-head>\n</head>\n<body>\n<dfw-use c=\"b\" id=\"go\">Go</dfw-use><dfw-icon name=\"x\" size=\"16\" label=\"Close\" id=\"i\" class=\"big\"></dfw-icon><dfw-icon name=\"../x\"></dfw-icon></body></html>"),
-        ("design/screens/s/plain.html", "<html><body>plain</body></html>"),
+        (&rel::join(rel::ICONS, &file::icon("x")), "<?xml version=\"1.0\"?>\n<!-- lucide -->\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" class=\"lucide\"><path d=\"M1 1\"/></svg>\n"),
+        (rel::HEAD, "<!-- fonts -->\n<link rel=\"stylesheet\" href=\"{{base}}fonts.css\">\n"),
+        (&rel::component(HTML_FILE_B), "<dfw-component name=\"b\"><style>\n.b { color: red; }\n</style><template><b class=\"b\"><dfw-slot></dfw-slot></b></template></dfw-component>"),
+        (rel::BASE_CSS, "body{margin:0}"),
+        (&rel::join(rel::TOKENS, file::TOKENS_CSS), ":root{}"),
+        (&rel::screen(COMPOSED_PAGE), "<html>\n<head>\n<dfw-head>\n</dfw-head>\n</head>\n<body>\n<dfw-use c=\"b\" id=\"go\">Go</dfw-use><dfw-icon name=\"x\" size=\"16\" label=\"Close\" id=\"i\" class=\"big\"></dfw-icon><dfw-icon name=\"../x\"></dfw-icon></body></html>"),
+        (&rel::screen(PLAIN_PAGE), "<html><body>plain</body></html>"),
     ]);
-    let file = compose_file(&root, "design/screens/s/a.html").unwrap();
+    let file = compose_file(&root, &rel::screen(COMPOSED_PAGE)).unwrap();
     assert!(file.needs_components_css);
     let c = &file.composed;
     assert!(c.html.starts_with("<html>\n<head>\n<link rel=\"stylesheet\" href=\"../../fonts.css\">\n<link rel=\"stylesheet\" href=\"../../tokens/tokens.css\">\n<link rel=\"stylesheet\" href=\"../../styles/base.css\">\n<link rel=\"stylesheet\" href=\"../../system/components.css\">\n</head>"), "{}", c.html);
@@ -232,26 +237,26 @@ fn icons_head_and_build_outputs() {
     let built = build_system(&root).unwrap();
     assert_eq!(
         (built.components, built.written.as_slice()),
-        (1, &["design/system/components.css".to_string()][..])
+        (1, &[rel::COMPONENTS_CSS.to_string()][..])
     );
-    assert_eq!(fs::read_to_string(root.join("design/system/components.css")).unwrap(), "/* Generated by dfw from design/system/components/*.html. Do not edit by hand. */\n\n/* b (design/system/components/b.html) */\n.b { color: red; }\n");
+    assert_eq!(fs::read_to_string(root.join(rel::COMPONENTS_CSS)).unwrap(), format!("/* Generated by dfw from {}/*.html. Do not edit by hand. */\n\n/* b ({}) */\n.b {{ color: red; }}\n", rel::COMPONENTS, rel::component(HTML_FILE_B)));
     assert!(
         build_system(&root).unwrap().written.is_empty(),
         "unchanged text is not rewritten"
     );
 
     let rels = [
-        "design/screens/s/a.html".to_string(),
-        "design/screens/s/plain.html".to_string(),
-        "design/nope.html".to_string(),
+        rel::screen(COMPOSED_PAGE),
+        rel::screen(PLAIN_PAGE),
+        rel::design(MISSING_HTML_FILE),
     ];
     let out = build_composed(&root, &rels).unwrap();
     assert_eq!(out.len(), 2);
     assert!(out[0].composed && !out[1].composed);
-    assert_eq!(out[1].out, root.join("design/screens/s/plain.html"));
+    assert_eq!(out[1].out, root.join(rel::screen(PLAIN_PAGE)));
     let html = fs::read_to_string(&out[0].out).unwrap();
     assert!(html.starts_with("<html>\n<head>\n<base href=\"../../../../../design/screens/s/\">\n<link rel=\"stylesheet\" href=\"../../fonts.css\">\n<style data-dfw-inlined=\"../../tokens/tokens.css\">\n:root{}\n</style>\n<style data-dfw-inlined=\"../../styles/base.css\">\nbody{margin:0}\n</style>"), "{html}");
     assert_eq!(list_icons(&root).unwrap(), ["x"]);
-    assert_eq!(design_base_for("design/screens/a/b.html"), "../../");
-    assert_eq!(design_base_for("design/index.html"), "./");
+    assert_eq!(design_base_for(&rel::screen(NESTED_PAGE)), "../../");
+    assert_eq!(design_base_for(&rel::design(INDEX_FILE)), "./");
 }

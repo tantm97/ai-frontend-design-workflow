@@ -15,7 +15,7 @@ use serde_json::{json, Map, Value};
 
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::{project_paths, resolve};
+use crate::core::paths::{project_paths, rel, resolve};
 use crate::core::util::{ensure_inside, read_json, to_json_pretty, write_atomic_inside};
 use crate::workflow::stack::detect_stack;
 use crate::workflow::state::{gate_passed, load_state};
@@ -638,7 +638,7 @@ pub fn format_plan(plan: &Value) -> String {
         format!("1. devDependency: \"{PACKAGE}\": \"{VERSION}\"  then {install}"),
         step,
         String::new(),
-        "Needs the user's approval at G3: list it in .dfw/stack.json dependencies, e.g.".to_string(),
+        format!("Needs the user's approval at G3: list it in {} dependencies, e.g.", rel::STACK),
         format!("  {{\"name\":\"{PACKAGE}\",\"version\":\"{VERSION}\",\"dev\":true,\"license\":\"{LICENSE}\",\"purpose\":\"live review source mapping\"}}"),
         "then \"dfw approve G3 ...\" and \"dfw inspector setup --write\".".to_string(),
     ]
@@ -690,7 +690,8 @@ pub fn inspector_setup(root: &Path, write: bool) -> Result<(Value, Vec<String>),
     }
     if !stack_approves(&stack) {
         missing.push(format!(
-            ".dfw/stack.json does not list \"{PACKAGE}\" in its dependencies"
+            "{} does not list \"{PACKAGE}\" in its dependencies",
+            rel::STACK
         ));
     }
     if !missing.is_empty() {
@@ -748,6 +749,9 @@ mod tests {
     //! tests/unit/inspector.test.mjs (the inspector cases; the review proxy cases belong to
     //! studio/live_proxy) and tests/unit/inspector-shapes.test.mjs.
     use super::*;
+    use crate::core::fixture::{
+        APP_COMPONENT, APP_JSX, APP_VUE, ELSEWHERE_FILE, NESTED_COMPONENT, TOP_COMPONENT,
+    };
     use crate::core::util::{copy_dir, test_dir, write_json};
     use std::path::PathBuf;
 
@@ -794,75 +798,91 @@ mod tests {
     /// G3 approved and the given stack, as `saveState` + `approveGate` + `writeJson` leave them.
     fn approve_g3(root: &Path, stack: Value) {
         write_json(
-            &root.join(".dfw/state.json"),
+            &root.join(rel::STATE),
             &json!({ "schema": 1, "mode": "existing-project", "phase": "implement", "gates": { "G1": null, "DS": null, "G2": null, "G3": { "at": "2026-01-02T03:04:05.678Z", "note": "ok" }, "G4": null }, "waived": {} }),
         )
         .unwrap();
-        write_json(&root.join(".dfw/stack.json"), &stack).unwrap();
+        write_json(&root.join(rel::STACK), &stack).unwrap();
     }
 
     /// parseInspPath: file:line:col:tag, Windows paths, absolute paths, missing attribute
     #[test]
     fn parse_insp_path_cases() {
-        let p = parse_insp_path("src/components/Foo.tsx:42:7:div", None).unwrap();
+        const WIN_ROOT: &str = "C:\\work\\shop";
+        const POSIX_ROOT: &str = "/home/me/shop";
+        let nested = format!("{NESTED_COMPONENT}:42:7");
+        let p = parse_insp_path(&format!("{nested}:div"), None).unwrap();
         assert_eq!(
             p,
             InspPath {
-                file: "src/components/Foo.tsx".into(),
+                file: NESTED_COMPONENT.into(),
                 line: 42.0,
                 column: Some(7.0),
                 tag: Some("div".into()),
-                source: "src/components/Foo.tsx:42:7".into()
+                source: nested.clone()
             }
         );
         let source = |v: &str, root: Option<&str>| parse_insp_path(v, root).unwrap().source;
-        assert_eq!(source("src/App.vue:3:5:el-button", None), "src/App.vue:3:5");
-        assert_eq!(source("src/App.tsx:3:5", None), "src/App.tsx:3:5", "no tag");
+        let vue = format!("{APP_VUE}:3:5");
+        assert_eq!(source(&format!("{vue}:el-button"), None), vue);
+        let tsx = format!("{APP_COMPONENT}:3:5");
+        assert_eq!(source(&tsx, None), tsx, "no tag");
         assert_eq!(
-            source("src/App.tsx:3:Header", None),
-            "src/App.tsx:3",
+            source(&format!("{APP_COMPONENT}:3:Header"), None),
+            format!("{APP_COMPONENT}:3"),
             "no column"
         );
         assert_eq!(
-            parse_insp_path("./src/a.jsx:1:1:p", None).unwrap().file,
-            "src/a.jsx"
+            parse_insp_path(&format!("./{APP_JSX}:1:1:p"), None)
+                .unwrap()
+                .file,
+            APP_JSX
         );
-        let win =
-            parse_insp_path("C:\\work\\shop\\src\\components\\Foo.tsx:42:7:div", None).unwrap();
-        assert_eq!(win.file, "C:/work/shop/src/components/Foo.tsx");
+        let win_input = format!(
+            "{WIN_ROOT}\\{}:42:7:div",
+            NESTED_COMPONENT.replace('/', "\\")
+        );
+        let win = parse_insp_path(&win_input, None).unwrap();
+        assert_eq!(
+            win.file,
+            format!("{}/{NESTED_COMPONENT}", WIN_ROOT.replace('\\', "/"))
+        );
         assert_eq!(win.line, 42.0);
         assert_eq!(
-            source(
-                "C:\\work\\shop\\src\\components\\Foo.tsx:42:7:div",
-                Some("C:\\work\\shop")
-            ),
-            "src/components/Foo.tsx:42:7",
+            source(&win_input, Some(WIN_ROOT)),
+            nested,
             "Windows absolute -> project-relative"
         );
+        let top = format!("{TOP_COMPONENT}:9:1");
         assert_eq!(
-            source("C:/work/shop/src/Foo.tsx:9:1:span", Some("C:\\work\\shop")),
-            "src/Foo.tsx:9:1"
+            source(&format!("C:/work/shop/{top}:span"), Some(WIN_ROOT)),
+            top
         );
         assert_eq!(
-            source("c:/WORK/shop/src/Foo.tsx:9:1:span", Some("C:\\work\\shop")),
-            "src/Foo.tsx:9:1"
+            source(&format!("c:/WORK/shop/{top}:span"), Some(WIN_ROOT)),
+            top
+        );
+        let other_drive = format!("D:/work/shop/{top}");
+        assert_eq!(
+            source(&format!("{other_drive}:span"), Some(WIN_ROOT)),
+            other_drive
         );
         assert_eq!(
-            source("D:/work/shop/src/Foo.tsx:9:1:span", Some("C:\\work\\shop")),
-            "D:/work/shop/src/Foo.tsx:9:1"
-        );
-        assert_eq!(
-            source("/home/me/shop/src/Foo.tsx:42:7:div", Some("/home/me/shop")),
-            "src/Foo.tsx:42:7",
+            source(
+                &format!("{POSIX_ROOT}/{TOP_COMPONENT}:42:7:div"),
+                Some(POSIX_ROOT)
+            ),
+            format!("{TOP_COMPONENT}:42:7"),
             "POSIX absolute -> relative"
         );
+        let elsewhere = format!("/{ELSEWHERE_FILE}:1:2");
         assert_eq!(
-            source("/elsewhere/lib/x.tsx:1:2:a", Some("/home/me/shop")),
-            "/elsewhere/lib/x.tsx:1:2",
+            source(&format!("{elsewhere}:a"), Some(POSIX_ROOT)),
+            elsewhere,
             "outside the project stays absolute"
         );
         // null, undefined and 42 of the JS test have no counterpart: the argument is text here.
-        for bad in ["", "   ", "src/Foo.tsx", "div", ":1:2"] {
+        for bad in ["", "   ", TOP_COMPONENT, "div", ":1:2"] {
             assert_eq!(parse_insp_path(bad, None), None, "{bad:?}");
         }
     }

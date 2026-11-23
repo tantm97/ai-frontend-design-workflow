@@ -11,7 +11,7 @@ use serde_json::Value;
 use crate::assets::{self, Folder};
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::project_paths;
+use crate::core::paths::{file, project_paths};
 use crate::core::util::write_atomic_inside;
 
 /// `iconBundle`: the parsed icon library `{ svgRoot, icons: { name: [paths, ...tags] } }`.
@@ -113,7 +113,7 @@ pub fn add_icons(root: &Path, names: &[String]) -> Result<AddedIcons, DfwError> 
     for n in names {
         match icon_svg(&bundle, n) {
             Some(svg) => {
-                write_atomic_inside(root, &dir.join(format!("{n}.svg")), svg)?;
+                write_atomic_inside(root, &dir.join(file::icon(n)), svg)?;
                 added.push(n.clone());
             }
             None => missing.push(n.clone()),
@@ -140,6 +140,7 @@ pub fn add_icons(root: &Path, names: &[String]) -> Result<AddedIcons, DfwError> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::paths::rel;
     use crate::core::util::test_dir;
 
     /// icons: search ranks exact names, add copies svg and suggests on miss
@@ -155,7 +156,8 @@ mod tests {
         assert_eq!(r.added, ["search"]);
         assert_eq!(r.missing, ["serch"]);
         assert_eq!(r.suggestions[0].0, "serch");
-        let svg = fs::read_to_string(root.join("design/system/icons/search.svg")).unwrap();
+        let svg =
+            fs::read_to_string(root.join(rel::join(rel::ICONS, &file::icon("search")))).unwrap();
         assert!(
             svg.starts_with("<svg")
                 && svg[..svg.find('>').unwrap()].contains("viewBox=\"0 0 24 24\""),
@@ -171,7 +173,9 @@ mod tests {
         assert_eq!(icon_svg(&bundle, "constructor"), None);
         let r = add_icons(&root, &["constructor".to_string(), "toString".to_string()]).unwrap();
         assert!(r.added.is_empty(), "not icons");
-        assert!(!root.join("design/system/icons/constructor.svg").exists());
+        assert!(!root
+            .join(rel::join(rel::ICONS, &file::icon("constructor")))
+            .exists());
     }
 
     #[test]

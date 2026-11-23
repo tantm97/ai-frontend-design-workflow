@@ -8,7 +8,9 @@ use serde_json::{json, Value};
 
 use super::{Ctx, Handler};
 use crate::core::error::DfwError;
-use crate::core::host::{current_host, format_hook_output, normalize_hook_input, HookResult};
+use crate::core::host::{
+    current_host, event, format_hook_output, normalize_hook_input, HookResult,
+};
 use crate::core::util::{require_flag_values, to_json_compact};
 use crate::hooks::post_tool_use::post_tool_use;
 use crate::hooks::pre_tool_use::pre_tool_use;
@@ -24,11 +26,11 @@ pub fn commands() -> Vec<(&'static str, Handler)> {
 
 /// Handler name and the host event its output is formatted for (`HANDLERS`, `HOOK_EVENTS`).
 const HOOKS: [(&str, &str); 5] = [
-    ("session-start", "SessionStart"),
-    ("pre-tool-use", "PreToolUse"),
-    ("post-tool-use", "PostToolUse"),
-    ("user-prompt-submit", "UserPromptSubmit"),
-    ("stop", "Stop"),
+    ("session-start", event::SESSION_START),
+    ("pre-tool-use", event::PRE_TOOL_USE),
+    ("post-tool-use", event::POST_TOOL_USE),
+    ("user-prompt-submit", event::USER_PROMPT_SUBMIT),
+    ("stop", event::STOP),
 ];
 
 /// All of stdin as it arrived; nothing when stdin is a terminal.

@@ -26,7 +26,7 @@ use crate::core::config::load_config;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::js::regex::fixed_regex;
-use crate::core::paths::{file_url, file_url_to_path, project_paths, rel, resolve, to_posix};
+use crate::core::paths::{file, file_url, file_url_to_path, project_paths, rel, resolve, to_posix};
 use crate::core::util::{
     get_path, now_iso, read_json, sha256, to_json_compact, write_json, write_json_inside,
 };
@@ -48,7 +48,7 @@ const SNAPSHOT_PAGE: &str = include_str!("snapshot_page.js");
 
 /// `.dfw/penpot` of a project.
 pub(super) fn penpot_dir(root: &Path) -> PathBuf {
-    project_paths(root).dfw.join("penpot")
+    project_paths(root).penpot
 }
 
 /* ------------------------------------------------------------------ normalising snapshots */
@@ -771,7 +771,7 @@ fn select_renders(
     let p = project_paths(root);
     let m = read_json(&p.manifest, Some(Value::Null))?;
     if !js::truthy(Some(&m)) {
-        return Err(DfwError::new("design/design.json not found."));
+        return Err(DfwError::new(format!("{} not found.", rel::MANIFEST)));
     }
     let list = |v: Option<&Value>| -> Vec<Value> {
         v.and_then(Value::as_array).cloned().unwrap_or_default()
@@ -813,7 +813,8 @@ fn select_renders(
         .collect();
     if let (Some(page), true) = (page, pages.is_empty()) {
         return Err(DfwError::new(format!(
-            "No page \"{page}\" in design/design.json."
+            "No page \"{page}\" in {}.",
+            rel::MANIFEST
         )));
     }
     let screens = list(m.get(key::SCREENS));
@@ -834,7 +835,7 @@ fn select_renders(
                         ("breakpoint", Some(b.clone())),
                         (
                             "file",
-                            Some(format!("design/{}", js::to_string(v.get("file"))).into()),
+                            Some(rel::design(&js::to_string(v.get("file"))).into()),
                         ),
                     ]));
                 }
@@ -868,8 +869,10 @@ fn snapshot(renderer: &Renderer, job: &Value, file: Option<&PathBuf>) -> Result<
     let result = (|| {
         let file = file.ok_or_else(|| {
             DfwError::new(format!(
-                "Could not prepare {} for rendering. Check that the variant's \"file\" in design/design.json names an HTML file under design/.",
-                js::to_string(job.get("file"))
+                "Could not prepare {} for rendering. Check that the variant's \"file\" in {} names an HTML file under {}/.",
+                js::to_string(job.get("file")),
+                rel::MANIFEST,
+                rel::DESIGN
             ))
         })?;
         page.goto(&file_url(file), 30_000)?;
@@ -892,9 +895,10 @@ pub fn export_penpot(root: &Path, opts: &ExportOptions) -> Result<(PathBuf, Valu
     }
     let (manifest, jobs) = select_renders(root, opts.page.as_deref(), opts.bp.as_deref())?;
     if jobs.is_empty() {
-        return Err(DfwError::new(
-            "No screens to export (check --page/--bp and design/design.json).",
-        ));
+        return Err(DfwError::new(format!(
+            "No screens to export (check --page/--bp and {}).",
+            rel::MANIFEST
+        )));
     }
     build_system(root)?;
     let mut rels: Vec<String> = Vec::new();
@@ -971,7 +975,7 @@ pub fn export_penpot(root: &Path, opts: &ExportOptions) -> Result<(PathBuf, Valu
     let dir = penpot_dir(root);
     write_json_inside(
         root,
-        &dir.join("exports")
+        &dir.join(file::PENPOT_EXPORTS)
             .join(format!("{}.json", js::to_string(doc.get("id")))),
         &doc,
     )?;
@@ -984,13 +988,13 @@ pub fn export_penpot(root: &Path, opts: &ExportOptions) -> Result<(PathBuf, Valu
             file
         }
         None => {
-            let file = resolve(dir.join("export.json"));
+            let file = resolve(dir.join(file::PENPOT_EXPORT));
             write_json_inside(root, &file, &doc)?;
             file
         }
     };
     if let Some(tokens) = js::truthy_value(doc.get("tokens")) {
-        write_json_inside(root, &dir.join("tokens.penpot.json"), tokens)?;
+        write_json_inside(root, &dir.join(file::PENPOT_TOKENS), tokens)?;
     }
     Ok((file, doc))
 }
@@ -999,7 +1003,7 @@ pub fn export_penpot(root: &Path, opts: &ExportOptions) -> Result<(PathBuf, Valu
 /// full copy). Ids start with the render time, so name order is age order. Returns the file
 /// names removed.
 pub fn prune_exports(dir: &Path, keep: usize) -> Result<Vec<String>, DfwError> {
-    let d = dir.join("exports");
+    let d = dir.join(file::PENPOT_EXPORTS);
     if !d.exists() {
         return Ok(Vec::new());
     }
@@ -1144,7 +1148,7 @@ pub fn export_summary(doc: &Value, file: &Path, root: &Path) -> String {
             list(doc.get("components")).len()
         ),
         if js::truthy(doc.get("tokens")) {
-            "Tokens for Penpot: .dfw/penpot/tokens.penpot.json (Tokens panel > Tools > Import, before building the boards, so colours link to tokens).".to_string()
+            format!("Tokens for Penpot: {} (Tokens panel > Tools > Import, before building the boards, so colours link to tokens).", rel::PENPOT_TOKENS)
         } else {
             format!("No {}: colours are not linked to tokens.", rel::TOKENS_JSON)
         },

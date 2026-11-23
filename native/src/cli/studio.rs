@@ -13,7 +13,7 @@ use super::{Ctx, Handler};
 use crate::core::config::{load_config, studio_port};
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::{project_paths, resolve};
+use crate::core::paths::{file, project_paths, resolve};
 use crate::core::process::{is_alive, kill, spawn_detached};
 use crate::core::util::{ensure_inside, now_iso, out, read_json, write_json_inside, Args};
 use crate::studio::live_proxy::{
@@ -135,7 +135,7 @@ fn studio(ctx: &Ctx) -> Result<i32, DfwError> {
     let config = load_config(Some(&root))?;
     let port = free_from(port_arg(a, studio_port(&config))?);
     fs::create_dir_all(&p.dfw)?;
-    let log = p.dfw.join("studio.log");
+    let log = p.dfw.join(file::STUDIO_LOG);
     // Both files are the project's: refuse a link out before a server runs that no file names.
     ensure_inside(&root, &log)?;
     ensure_inside(&root, &p.studio)?;
@@ -177,7 +177,7 @@ fn review(ctx: &Ctx) -> Result<i32, DfwError> {
     let a = &ctx.args;
     let root = ctx.root();
     let p = project_paths(&root);
-    let file = p.dfw.join("review.json");
+    let file = p.dfw.join(file::REVIEW);
     let sub = a.pos(1).filter(|s| !s.is_empty()).unwrap_or("status");
     let info = read_json(&file, Some(Value::Null))?;
     let running = js::truthy(&info) && is_alive(info.get("pid"));
@@ -231,7 +231,7 @@ fn review(ctx: &Ctx) -> Result<i32, DfwError> {
     }
     let port = free_from(port_arg(a, 4700)?);
     fs::create_dir_all(&p.dfw)?;
-    let log = p.dfw.join("review.log");
+    let log = p.dfw.join(file::REVIEW_LOG);
     ensure_inside(&root, &log)?;
     ensure_inside(&root, &file)?;
     let mut args: Vec<String> = [

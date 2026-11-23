@@ -1,6 +1,7 @@
 //! The system page cases of `tests/unit/system.test.mjs`, `studio-presence.test.mjs` and
 //! `audit-fixes.test.mjs`; each test's doc comment is the title of the JS test it ports.
 
+use crate::core::fixture::LOGO_MASTER;
 use crate::core::js;
 use std::fs;
 use std::path::PathBuf;
@@ -27,11 +28,11 @@ fn write(root: &Path, rel: &str, text: &str) {
 /// `project()` of system.test.mjs.
 fn project() -> PathBuf {
     let root = test_dir("system-page");
-    write(&root, ".dfw/state.json", "{}");
-    fs::create_dir_all(root.join("design/tokens")).unwrap();
+    write(&root, rel::STATE, "{}");
+    fs::create_dir_all(root.join(rel::TOKENS)).unwrap();
     write(
         &root,
-        "design/design.json",
+        rel::MANIFEST,
         r#"{"schema":1,"product":"T","screens":[]}"#,
     );
     root
@@ -39,7 +40,7 @@ fn project() -> PathBuf {
 
 /// Test fixture only: put starter-kit masters into a project (the CLI never copies them).
 fn use_kit(root: &Path, names: Option<&[&str]>) {
-    let dir = root.join("design/system/components");
+    let dir = root.join(rel::COMPONENTS);
     fs::create_dir_all(&dir).unwrap();
     let kit = kit_components().unwrap();
     for f in dir_names(&kit).unwrap() {
@@ -185,7 +186,7 @@ fn short_hex_tokens() {
     let root = test_dir("system-page");
     write(
         &root,
-        "design/tokens/tokens.json",
+        rel::TOKENS_JSON,
         r##"{"color":{"$type":"color","ink":{"$value":"#ccc"},"surface":{"$value":"#fff"},"canvas":{"$value":"#fff"},"accent":{"$value":"#ddd"},"muted":{"$value":"#eee"}}}"##,
     );
     let page = render_system_page(&root, "../").unwrap();
@@ -195,7 +196,7 @@ fn short_hex_tokens() {
     let root_long = test_dir("system-page");
     write(
         &root_long,
-        "design/tokens/tokens.json",
+        rel::TOKENS_JSON,
         r##"{"color":{"$type":"color","ink":{"$value":"#cccccc"},"surface":{"$value":"#ffffff"},"canvas":{"$value":"#ffffff"},"accent":{"$value":"#dddddd"},"muted":{"$value":"#eeeeee"}}}"##,
     );
     let long = render_system_page(&root_long, "../").unwrap();
@@ -247,7 +248,7 @@ fn base_in_examples() {
     let root = project();
     write(
         &root,
-        "design/system/components/logo.html",
+        &rel::component(LOGO_MASTER),
         r#"<dfw-component name="logo" props="img={{base}}assets/logo.png"><template><a href="{{base}}screens/home/a.html"><img src="{{img}}" alt=""></a></template><dfw-examples><dfw-use c="logo"></dfw-use></dfw-examples></dfw-component>"#,
     );
     let page = composed(&root, "/design/", Some("/design/")).html;
@@ -296,7 +297,7 @@ fn type_table_follows_the_text_master() {
     const MASTER: &str = r#"<dfw-component name="text" variants="h1 lead body" description="Text styles. h1 = page titles; lead = the intro paragraph; body = default text."><template><p class="t t--{variant}"><dfw-slot>Text</dfw-slot></p></template></dfw-component>"#;
     let root = project();
     system_init(&root, &InitOptions::default()).unwrap();
-    write(&root, &rel::component("text.html"), MASTER);
+    write(&root, &rel::master("text"), MASTER);
     let page = render_system_page(&root, "../").unwrap();
     let shown: Vec<&str> = Regex::new(r#"<code>text ([a-z0-9-]+)"#)
         .unwrap()
