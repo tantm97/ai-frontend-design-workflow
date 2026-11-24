@@ -342,6 +342,41 @@ fn layout_check_ignores_decorative_layers_but_not_visible_overlaps() {
     assert_no_browser_left(&sb);
 }
 
+/// The content of a closed `<details>` is not painted, so it overlaps nothing; the content of an
+/// open one is still measured (needs Chrome).
+#[test]
+#[ignore = "needs Chrome"]
+fn layout_check_ignores_closed_details_content_but_not_open() {
+    /// The screen and the sandbox label.
+    const ACCORDION: &str = "accordion";
+    let sb = sandbox(ACCORDION);
+    let root = sb.join("project");
+    design(&root, &[(
+        ACCORDION,
+        &page("<main style=\"height:880px\"><details data-dfw-id=\"item-one\"><summary>First question</summary><p data-dfw-id=\"answer-one\" style=\"margin:0;position:relative;top:-10px\">Hidden answer one</p></details><details data-dfw-id=\"item-two\"><summary>Second question</summary><p data-dfw-id=\"answer-two\" style=\"margin:0;position:relative;top:-10px\">Hidden answer two</p></details><details open data-dfw-id=\"item-open\"><summary>Open question</summary><p data-dfw-id=\"answer-open\" style=\"margin:0;position:relative;top:24px\">Shown answer</p></details><p data-dfw-id=\"after\" style=\"margin:0\">Text after the list</p></main>"),
+    )]);
+    let (code, stdout, stderr) = dfw(&sb, &[command::LAYOUT, sub::CHECK, flag::JSON], "");
+    assert_eq!(code, 2, "{stderr}");
+    let overlaps: Vec<String> = findings(&stdout)
+        .iter()
+        .filter(|f| f["rule"] == "overlap")
+        .map(|f| f["message"].as_str().unwrap().to_string())
+        .collect();
+    assert!(
+        overlaps
+            .iter()
+            .any(|m| m.contains("\"answer-open\" overlaps \"after\"")),
+        "{overlaps:#?}"
+    );
+    assert!(
+        overlaps
+            .iter()
+            .all(|m| !m.contains("answer-one") && !m.contains("answer-two")),
+        "{overlaps:#?}"
+    );
+    assert_no_browser_left(&sb);
+}
+
 /// hooks: stop re-renders what changed, blocks once on a MUST finding and reports each state of
 /// the design once (no JavaScript unit test covers this part of `stop`).
 #[test]
