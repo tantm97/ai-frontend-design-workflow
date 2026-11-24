@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use serde_json::Value;
 
-use super::binary::RELEASE_REPO;
+use super::binary::{self, remove_node_binaries, RELEASE_REPO};
 use crate::browser::a11y::{axe_status, install_axe, AxeStatus};
 use crate::browser::download::install_browser;
 use crate::browser::launch::{browser_status, BrowserStatus};
@@ -543,6 +543,10 @@ pub fn install(opts: &InstallOptions) -> Result<(), DfwError> {
         );
         let _ = fs::remove_dir_all(&tmp);
         ran?;
+    }
+    let removed = remove_node_binaries();
+    if !removed.is_empty() {
+        step(&binary::message::removed_node_binaries(&removed));
     }
     step("Doctor");
     let d = run.run(&me, &["doctor"], true)?;
