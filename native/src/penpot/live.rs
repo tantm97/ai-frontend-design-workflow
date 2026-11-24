@@ -17,6 +17,7 @@ use super::diff::list;
 use super::export::{penpot_dir, CHANGES_SCHEMA};
 use super::import::{import_changes, ImportOptions};
 use super::threads::{thread_key, threads_file};
+use super::wire;
 
 use crate::core::error::DfwError;
 use crate::core::js;
@@ -103,7 +104,8 @@ pub fn mark_posted(root: &Path, file_id: &str, posted: Option<&Value>) -> Result
         let Some(link) = threads.get_mut(&tk).filter(|l| js::truthy(Some(l))) else {
             continue;
         };
-        let (Some(key), Value::Object(link)) = (p.get("key").and_then(Value::as_str), link) else {
+        let (Some(key), Value::Object(link)) = (p.get(wire::KEY).and_then(Value::as_str), link)
+        else {
             continue;
         };
         let slot = link.entry("posted").or_insert(Value::Null);
@@ -227,7 +229,7 @@ pub fn sync_threads(
     state: Option<&Value>,
 ) -> Result<Value, DfwError> {
     let file_id = payload
-        .get("fileId")
+        .get(wire::FILE_ID)
         .and_then(Value::as_str)
         .map_or(String::new(), |id| js::slice16(id, 0, 80));
     mark_posted(root, &file_id, payload.get("posted"))?;
@@ -238,11 +240,11 @@ pub fn sync_threads(
         .collect();
     let mut changes = js::object(vec![
         ("schema", Some(CHANGES_SCHEMA.into())),
-        ("exportId", payload.get("exportId").cloned()),
-        ("fileId", Some(file_id.as_str().into())),
-        ("comments", Some(Value::Array(threads))),
-        ("boards", Some(json!([]))),
-        ("components", Some(json!([]))),
+        (wire::EXPORT_ID, payload.get(wire::EXPORT_ID).cloned()),
+        (wire::FILE_ID, Some(file_id.as_str().into())),
+        (wire::COMMENTS, Some(Value::Array(threads))),
+        (wire::BOARDS, Some(json!([]))),
+        (wire::COMPONENTS, Some(json!([]))),
     ]);
     let r = import_changes(
         root,
@@ -259,9 +261,9 @@ pub fn sync_threads(
         .map(|c| c.get("id").cloned().unwrap_or(Value::Null))
         .collect();
     Ok(json!({
-        "comments": ids,
-        "updated": r.updated,
-        "replies": thread_replies(root, &file_id)?,
+        wire::COMMENTS: ids,
+        wire::UPDATED: r.updated,
+        wire::REPLIES: thread_replies(root, &file_id)?,
         "stale": export_stale(root)?,
         "warnings": r.warnings,
     }))

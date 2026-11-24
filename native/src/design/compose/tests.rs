@@ -75,10 +75,12 @@ fn conditional_text_marks_the_current_item() {
 #[test]
 fn prop_lists_with_spaces_commas_and_spaced_defaults() {
     let a = &parse_component_file("<dfw-component name=\"x\" props=\"asset name location site=Asset Tracking, printed\"><template><i></i></template></dfw-component>", "x.html")[0];
-    assert_eq!(a.props, ["asset", "name", "location", "site", "printed"]);
+    /// The prop with a default of two words.
+    const SITE: &str = "site";
+    assert_eq!(a.props, ["asset", "name", "location", SITE, "printed"]);
     assert_eq!(
         a.prop_defaults,
-        [("site".to_string(), "Asset Tracking".to_string())]
+        [(SITE.to_string(), "Asset Tracking".to_string())]
     );
     let b = &parse_component_file("<dfw-component name=\"y\" props=\"as=p tone=default\"><template><i></i></template></dfw-component>", "y.html")[0];
     assert_eq!(

@@ -12,6 +12,7 @@ mod penpot;
 mod studio;
 mod telemetry;
 mod tools;
+pub use crate::core::word;
 mod workflow;
 
 use std::path::PathBuf;
@@ -20,6 +21,7 @@ use crate::core::error::DfwError;
 use crate::core::paths::find_project_root;
 use crate::core::platform::dfw_version;
 use crate::core::util::{out, Args};
+use word::{command, sub};
 
 /// What a command handler receives.
 pub struct Ctx {
@@ -47,12 +49,14 @@ pub type Handler = fn(&Ctx) -> Result<i32, DfwError>;
 
 /// Internal commands, recognised only as the first argument ("dfw studio start" and
 /// "dfw review start" spawn them).
-pub const INTERNAL: [&str; 2] = ["__studio-server", "__review-server"];
+pub const INTERNAL: [&str; 2] = [command::STUDIO_SERVER, command::REVIEW_SERVER];
 
 /// Every command of the CLI.
 pub fn commands() -> Vec<(&'static str, Handler)> {
-    let mut all: Vec<(&'static str, Handler)> =
-        vec![("version", version as Handler), ("help", help as Handler)];
+    let mut all: Vec<(&'static str, Handler)> = vec![
+        (command::VERSION, version as Handler),
+        (command::HELP, help as Handler),
+    ];
     all.extend(workflow::commands());
     all.extend(hook::commands());
     all.extend(comments::commands());
@@ -78,7 +82,10 @@ const HELP: &str = include_str!("help.txt");
 /// `dfw help`, `dfw` alone, or `--help`, `-h` or a lone `help` after a command: that command's
 /// lines of the help, or all of it for a word the help does not name.
 fn help(ctx: &Ctx) -> Result<i32, DfwError> {
-    let cmd = ctx.args.pos(0).filter(|c| !["", "help", "-h"].contains(c));
+    let cmd = ctx
+        .args
+        .pos(0)
+        .filter(|c| !["", command::HELP, "-h"].contains(c));
     match cmd.and_then(command_help) {
         Some(text) => out(&text),
         None => out(HELP),
@@ -117,14 +124,14 @@ pub fn command_help(cmd: &str) -> Option<String> {
 /// `help` as the only word after the command.
 pub fn wants_help(argv: &[String], args: &Args) -> bool {
     let words = args.positionals.get(1..).unwrap_or_default();
-    args.truthy("help") || argv.iter().any(|w| w == "-h") || words == ["help"]
+    args.truthy("help") || argv.iter().any(|w| w == "-h") || words == [command::HELP]
 }
 
 /// The flags and the number of words after the command name that a command with effects outside
 /// the project takes; `None` for every other command.
 fn strict_form(args: &Args) -> Option<(&'static [&'static str], usize)> {
     let form: (&[&str], usize) = match (args.pos(0)?, args.pos(1)) {
-        ("install", _) => (
+        (command::INSTALL, _) => (
             &[
                 "host",
                 "scope",
@@ -135,8 +142,8 @@ fn strict_form(args: &Args) -> Option<(&'static [&'static str], usize)> {
             ],
             0,
         ),
-        ("uninstall", _) => (&["host", "scope", "quiet"], 0),
-        ("setup", _) => (
+        (command::UNINSTALL, _) => (&["host", "scope", "quiet"], 0),
+        (command::SETUP, _) => (
             &[
                 "browser",
                 "playwright",
@@ -146,12 +153,12 @@ fn strict_form(args: &Args) -> Option<(&'static [&'static str], usize)> {
             ],
             0,
         ),
-        ("mcp", Some("install" | "uninstall")) => (&["print"], 2),
-        ("telemetry", None) => (&[], 0),
-        ("telemetry", Some("endpoint")) => (&[], 2),
-        ("telemetry", Some("show")) => (&["raw"], 1),
-        ("telemetry", Some(_)) => (&[], 1),
-        ("config", _) if args.get("global").is_some() => {
+        (command::MCP, Some(sub::INSTALL | sub::UNINSTALL)) => (&["print"], 2),
+        (command::TELEMETRY, None) => (&[], 0),
+        (command::TELEMETRY, Some(sub::ENDPOINT)) => (&[], 2),
+        (command::TELEMETRY, Some(sub::SHOW)) => (&["raw"], 1),
+        (command::TELEMETRY, Some(_)) => (&[], 1),
+        (command::CONFIG, _) if args.get("global").is_some() => {
             (&["global", "project", "local", "root"], 3)
         }
         _ => return None,
@@ -210,7 +217,9 @@ pub fn check_strict(ctx: &Ctx) -> Result<(), DfwError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::host::id;
     use std::collections::HashSet;
+    use word::flag;
 
     #[test]
     fn every_command_is_listed_once() {
@@ -218,51 +227,52 @@ mod tests {
         let unique: HashSet<&str> = names.iter().copied().collect();
         assert_eq!(names.len(), unique.len(), "{names:?}");
         // Every public command.
+        use command::*;
         for cmd in [
-            "version",
-            "help",
-            "hook",
-            "mcp",
-            "install",
-            "uninstall",
-            "__studio-server",
-            "__review-server",
-            "init",
-            "status",
-            "mode",
-            "phase",
-            "approve",
-            "reopen",
-            "pause",
-            "resume",
-            "decide",
-            "decisions",
-            "build",
-            "tokens",
-            "system",
-            "style",
-            "type",
-            "palette",
-            "blueprint",
-            "layout",
-            "icons",
-            "fonts",
-            "lint",
-            "check",
-            "studio",
-            "shoot",
-            "review",
-            "inspector",
-            "diff",
-            "verify-snapshot",
-            "penpot",
-            "handoff",
-            "comments",
-            "stack",
-            "lang",
-            "config",
-            "doctor",
-            "setup",
+            VERSION,
+            HELP,
+            HOOK,
+            MCP,
+            INSTALL,
+            UNINSTALL,
+            STUDIO_SERVER,
+            REVIEW_SERVER,
+            INIT,
+            STATUS,
+            MODE,
+            PHASE,
+            APPROVE,
+            REOPEN,
+            PAUSE,
+            RESUME,
+            DECIDE,
+            DECISIONS,
+            BUILD,
+            TOKENS,
+            SYSTEM,
+            STYLE,
+            TYPE,
+            PALETTE,
+            BLUEPRINT,
+            LAYOUT,
+            ICONS,
+            FONTS,
+            LINT,
+            CHECK,
+            STUDIO,
+            SHOOT,
+            REVIEW,
+            INSPECTOR,
+            DIFF,
+            VERIFY_SNAPSHOT,
+            PENPOT,
+            HANDOFF,
+            COMMENTS,
+            STACK,
+            LANG,
+            CONFIG,
+            DOCTOR,
+            SETUP,
         ] {
             assert!(
                 unique.contains(cmd),
@@ -270,13 +280,10 @@ mod tests {
             );
         }
         // Besides those: `__debug` (hidden; see cli/debug.rs) and `telemetry`.
-        assert!(unique.contains("__debug") && !include_str!("help.txt").contains("__debug"));
-        assert!(unique.contains("telemetry"));
+        assert!(unique.contains(DEBUG) && !include_str!("help.txt").contains(DEBUG));
+        assert!(unique.contains(TELEMETRY));
         assert_eq!(names.len(), 46, "a command missing from the list above");
-        for name in INTERNAL
-            .iter()
-            .chain(["mcp", "install", "uninstall"].iter())
-        {
+        for name in INTERNAL.iter().chain([MCP, INSTALL, UNINSTALL].iter()) {
             assert!(unique.contains(name));
         }
     }
@@ -289,12 +296,12 @@ mod tests {
 
     #[test]
     fn command_help_is_the_lines_of_that_command() {
-        let install = command_help("install").unwrap();
+        let install = command_help(command::INSTALL).unwrap();
         assert!(install.starts_with("  dfw install [--host auto|claude|copilot|all]"));
         assert!(install.contains("\n                                                Register dfw"));
         assert!(install.ends_with("\n\nRun \"dfw help\" for every command."));
-        assert!(!install.contains("uninstall"));
-        let approve = command_help("approve").unwrap();
+        assert!(!install.contains(command::UNINSTALL));
+        let approve = command_help(command::APPROVE).unwrap();
         assert!(
             approve.contains("[--accept-findings]") && approve.contains("[--accept-unverified]")
         );
@@ -311,7 +318,7 @@ mod tests {
         assert_eq!(command_help("nope"), None);
         // Every command of the table has help lines, except the hidden ones.
         for (name, _) in commands() {
-            if !name.starts_with("__") && name != "help" {
+            if !name.starts_with("__") && name != command::HELP {
                 assert!(command_help(name).is_some(), "{name}");
             }
         }
@@ -320,50 +327,59 @@ mod tests {
     /// TR-3: commands with effects outside the project refuse unknown flags and stray words.
     #[test]
     fn commands_outside_the_project_refuse_unknown_flags_and_words() {
+        use command::{CONFIG, INSTALL, MCP, SETUP, TELEMETRY, UNINSTALL};
+        use flag::{GLOBAL, HOST, RAW};
+        use sub::{ENDPOINT, SET};
+        /// A stray word after a command.
+        const NOW: &str = "now";
+        /// A collector address.
+        const ENDPOINT_URL: &str = "https://a.example";
+        /// A misspelt flag of `config set --global`.
+        const TYPO: &str = "--forse";
         let refused = |argv: &[&str]| check_strict(&ctx(argv)).unwrap_err().message().to_string();
         let ok = |argv: &[&str]| check_strict(&ctx(argv)).is_ok();
-        assert!(refused(&["install", "--hots", "claude"])
+        assert!(refused(&[INSTALL, "--hots", id::CLAUDE])
             .starts_with("Unknown option --hots for \"dfw install\".\n  dfw install ["));
-        assert!(refused(&["install", "now"])
-            .starts_with("Unexpected word \"now\" for \"dfw install\"."));
-        assert!(refused(&["uninstall", "--source", "x"]).starts_with("Unknown option --source"));
-        assert!(refused(&["setup", "--a11y", "--force"]).starts_with("Unknown option --force"));
-        assert!(refused(&["setup", "browser"]).starts_with("Unexpected word \"browser\""));
-        assert!(refused(&["mcp", "install", "codex", "cursor"])
-            .starts_with("Unexpected word \"cursor\""));
-        assert!(refused(&["mcp", "uninstall", "codex", "--dry-run"])
-            .starts_with("Unknown option --dry-run"));
-        assert!(refused(&["telemetry", "on", "now"]).starts_with("Unexpected word \"now\""));
         assert!(
-            refused(&["telemetry", "endpoint", "https://a.example", "x"])
-                .starts_with("Unexpected word \"x\"")
+            refused(&[INSTALL, NOW]).starts_with("Unexpected word \"now\" for \"dfw install\".")
         );
-        assert!(refused(&["telemetry", "off", "--raw"]).starts_with("Unknown option --raw"));
-        assert!(refused(&["config", "set", "a", "1", "2", "--global"])
-            .starts_with("Unexpected word \"2\""));
-        assert!(refused(&["config", "set", "a", "1", "--global", "--forse"])
-            .starts_with("Unknown option --forse"));
+        assert!(refused(&[UNINSTALL, "--source", "x"]).starts_with("Unknown option --source"));
+        assert!(refused(&[SETUP, "--a11y", flag::FORCE]).starts_with("Unknown option --force"));
+        assert!(refused(&[SETUP, "browser"]).starts_with("Unexpected word \"browser\""));
+        assert!(refused(&[MCP, sub::INSTALL, id::CODEX, id::CURSOR])
+            .starts_with("Unexpected word \"cursor\""));
+        assert!(refused(&[MCP, sub::UNINSTALL, id::CODEX, flag::DRY_RUN])
+            .starts_with("Unknown option --dry-run"));
+        assert!(refused(&[TELEMETRY, sub::ON, NOW]).starts_with("Unexpected word \"now\""));
+        assert!(
+            refused(&[TELEMETRY, ENDPOINT, ENDPOINT_URL, "x"]).starts_with("Unexpected word \"x\"")
+        );
+        assert!(refused(&[TELEMETRY, sub::OFF, RAW]).starts_with("Unknown option --raw"));
+        assert!(refused(&[CONFIG, SET, "a", "1", "2", GLOBAL]).starts_with("Unexpected word \"2\""));
+        assert!(
+            refused(&[CONFIG, SET, "a", "1", GLOBAL, TYPO]).starts_with("Unknown option --forse")
+        );
         for good in [
             &[
-                "install",
-                "--host",
-                "claude",
+                INSTALL,
+                HOST,
+                id::CLAUDE,
                 "--scope=project",
                 "--no-runtime",
                 "--quiet",
             ][..],
-            &["install", "--no-binary"],
-            &["uninstall", "--host", "all", "--scope", "user"],
-            &["setup", "--marketplace-repo", "/x"],
-            &["mcp", "install", "codex", "--print"],
-            &["mcp"],
-            &["telemetry"],
-            &["telemetry", "endpoint", "https://a.example"],
-            &["telemetry", "show", "--raw"],
-            &["config", "set", "a", "1", "--global"],
+            &[INSTALL, "--no-binary"],
+            &[UNINSTALL, HOST, "all", "--scope", "user"],
+            &[SETUP, "--marketplace-repo", "/x"],
+            &[MCP, sub::INSTALL, id::CODEX, flag::PRINT],
+            &[MCP],
+            &[TELEMETRY],
+            &[TELEMETRY, ENDPOINT, ENDPOINT_URL],
+            &[TELEMETRY, sub::SHOW, RAW],
+            &[CONFIG, SET, "a", "1", GLOBAL],
             // Inside the project: not checked here.
-            &["config", "set", "a", "1", "2", "--forse"],
-            &["status", "--whatever", "x", "y"],
+            &[CONFIG, SET, "a", "1", "2", TYPO],
+            &[command::STATUS, "--whatever", "x", "y"],
         ] {
             assert!(ok(good), "{good:?}");
         }

@@ -9,7 +9,7 @@ use std::path::Path;
 
 use serde_json::{json, Map, Value};
 
-use super::color::{audit_colors, audit_type_scale, hex_to_oklch};
+use super::color::{audit_colors, audit_type_scale, hex_to_oklch, PRODUCT_SURFACE};
 
 use super::inventory::inventory_findings;
 
@@ -427,7 +427,7 @@ fn audit_type(
     let surface = manifest
         .get("surface")
         .filter(|s| js::truthy(Some(s)))
-        .map_or("product".to_string(), |s| js::to_string(Some(s)));
+        .map_or(PRODUCT_SURFACE.to_string(), |s| js::to_string(Some(s)));
     add_all(
         findings,
         audit_type_scale(&json!({ "ui": ui, "display": display }), body, &surface),
@@ -555,6 +555,9 @@ mod tests {
     use crate::core::util::test_dir;
     use std::fs;
 
+    /// The DTCG `$type` of colour tokens and of dimension tokens.
+    use crate::design::tokens::dtcg::{COLOR as COLOR_TYPE, DIMENSION as DIMENSION_TYPE};
+
     fn write(root: &Path, rel: &str, text: &str) {
         let file = root.join(rel);
         fs::create_dir_all(file.parent().unwrap()).unwrap();
@@ -609,12 +612,14 @@ mod tests {
 
     #[test]
     fn aliases_resolve_and_loops_end() {
-        let tree = json!({ "color": { "$type": "color", "a": { "$value": "{color.b}" }, "b": { "$value": "#1234567890" }, "x": { "$value": "{color.y}" }, "y": { "$value": "{color.x}" }, "o": { "$value": { "hex": "#abcdef" } } } });
+        /// The colour of a token whose value is an object with a hex.
+        const OBJECT_HEX: &str = "#abcdef";
+        let tree = json!({ "color": { "$type": COLOR_TYPE, "a": { "$value": "{color.b}" }, "b": { "$value": "#1234567890" }, "x": { "$value": "{color.y}" }, "y": { "$value": "{color.x}" }, "o": { "$value": { "hex": OBJECT_HEX } } } });
         let tokens = collect(&tree);
         let r = Resolver { tokens: &tokens };
         assert_eq!(r.hex("color.a"), Some(json!("#123456")));
         assert_eq!(r.hex("color.x"), None);
-        assert_eq!(r.hex("color.o"), Some(json!("#abcdef")));
+        assert_eq!(r.hex("color.o"), Some(json!(OBJECT_HEX)));
         assert_eq!(r.hex("color.nope"), None);
         assert_eq!(alias("{a}"), Some("a"));
         assert_eq!(alias("{}"), None);
@@ -646,8 +651,8 @@ mod tests {
         let dim = |v: f64| json!({ "$value": { "value": v, "unit": "px" } });
         let tokens = json!({
             "color": { "$type": "color", "canvas": { "$value": "#f4ede0" }, "a": { "$value": "#111111" }, "b": { "$value": "#222222", "$description": "ink" } },
-            "space": { "$type": "dimension", "1": dim(4.0), "2": dim(6.0), "3": dim(10.0), "4": dim(2.0) },
-            "radius": { "$type": "dimension", "a": dim(1.0), "b": dim(2.0), "c": dim(3.0), "d": dim(4.0), "e": dim(5.0), "f": dim(6.0), "pill": dim(999.0) },
+            "space": { "$type": DIMENSION_TYPE, "1": dim(4.0), "2": dim(6.0), "3": dim(10.0), "4": dim(2.0) },
+            "radius": { "$type": DIMENSION_TYPE, "a": dim(1.0), "b": dim(2.0), "c": dim(3.0), "d": dim(4.0), "e": dim(5.0), "f": dim(6.0), "pill": dim(999.0) },
             "font": { "$type": "fontFamily", "a": { "$value": ["A", "x"] }, "b": { "$value": "B" }, "c": { "$value": "C" }, "d": { "$value": "D" }, "e": { "$value": "A" } },
             "shadow": { "$type": "shadow", "sm": { "$value": { "color": { "components": [0, 0, 0] } } } }
         });
@@ -683,7 +688,7 @@ mod tests {
             write(&root, rel::TOKENS_JSON, &tree.to_string());
             audit_design_system(&root)
         };
-        let shadow = |value: Value| json!({ "color": { "$type": "color", "canvas": { "$value": "#f4ede0" } }, "shadow": { "$type": "shadow", "a": { "$value": value } } });
+        let shadow = |value: Value| json!({ "color": { "$type": COLOR_TYPE, "canvas": { "$value": "#f4ede0" } }, "shadow": { "$type": "shadow", "a": { "$value": value } } });
         let tinted = |value: Value| rules(&audit(shadow(value)).unwrap()).contains(&"shadow-tint");
         assert!(tinted(json!([])));
         assert!(tinted(json!({ "color": { "components": [] } })));
@@ -708,7 +713,7 @@ mod tests {
             assert!(audit(shadow(dies.clone())).is_err(), "{dies}");
         }
         let canvas = |value: Value| {
-            audit(json!({ "color": { "$type": "color", "canvas": { "$value": value } } }))
+            audit(json!({ "color": { "$type": COLOR_TYPE, "canvas": { "$value": value } } }))
         };
         assert!(canvas(json!({ "hex": 5 })).is_err());
         assert!(canvas(json!({ "hex": "" })).is_ok());

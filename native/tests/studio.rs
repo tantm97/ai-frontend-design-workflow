@@ -28,7 +28,14 @@ use layout::{file, rel};
 mod fixture;
 use fixture::{SCREEN, SCREEN_PAGE};
 
+#[path = "../src/core/word.rs"]
+#[allow(dead_code, reason = "each test binary uses a part of the command line")]
+mod word;
+use word::{command, sub};
+
 const DFW: &str = env!("CARGO_BIN_EXE_dfw");
+/// The route the Studio answers once it runs (`studio::paths::PING`).
+const PING: &str = "/__dfw/api/ping";
 
 fn repo() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -131,26 +138,25 @@ fn studio_start_with_a_broken_design_json_can_be_stopped() {
     fs::write(root.join(rel::screen(SCREEN_PAGE)), "<p>a</p>").unwrap();
     fs::write(root.join(rel::MANIFEST), "{ broken").unwrap();
     let port = free_port();
-    let (code, stdout, stderr) = cli(&root, &["studio", "start", "--port", &port.to_string()]);
+    let (code, stdout, stderr) = cli(
+        &root,
+        &[command::STUDIO, sub::START, "--port", &port.to_string()],
+    );
     assert_eq!(code, 0, "{stdout}{stderr}");
     assert!(stdout.contains(&format!("studio running: http://127.0.0.1:{port}/")));
     assert!(root.join(rel::join(rel::DFW, file::STUDIO)).exists());
-    assert_eq!(status_of(port, "/__dfw/api/ping"), Some(200));
+    assert_eq!(status_of(port, PING), Some(200));
     assert_eq!(
         status_of(port, "/__dfw/api/manifest"),
         Some(500),
         "the broken file is reported by its route"
     );
-    let (code, stdout, _) = cli(&root, &["studio", "stop"]);
+    let (code, stdout, _) = cli(&root, &[command::STUDIO, "stop"]);
     assert_eq!((code, stdout.trim()), (0, "studio stopped"));
     let end = Instant::now() + Duration::from_secs(5);
-    while status_of(port, "/__dfw/api/ping").is_some() && Instant::now() < end {
+    while status_of(port, PING).is_some() && Instant::now() < end {
         std::thread::sleep(Duration::from_millis(50));
     }
-    assert_eq!(
-        status_of(port, "/__dfw/api/ping"),
-        None,
-        "the server is gone"
-    );
+    assert_eq!(status_of(port, PING), None, "the server is gone");
     let _ = fs::remove_dir_all(&root);
 }

@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
-use super::{finding, malformed};
+use super::{finding, malformed, rule};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::level::Level;
@@ -61,7 +61,7 @@ pub fn lint_manifest(root: &Path) -> Result<Vec<Value>, DfwError> {
         add(
             &mut out,
             Level::Error,
-            "manifest-missing",
+            rule::MANIFEST_MISSING,
             format!("{REL} is missing."),
         );
         return Ok(out);
@@ -74,7 +74,7 @@ pub fn lint_manifest(root: &Path) -> Result<Vec<Value>, DfwError> {
         add(
             &mut out,
             Level::Warn,
-            "manifest-screens",
+            rule::MANIFEST_SCREENS,
             "Manifest has no screens yet (fine during the system phase).".into(),
         );
     }

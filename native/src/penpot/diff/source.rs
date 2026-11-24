@@ -7,13 +7,13 @@ use crate::design::compose::ComponentDef;
 
 /// The CSS properties a change type is made with.
 fn css_property(change: &Value) -> Option<&'static str> {
-    Some(match change.get("type").and_then(Value::as_str)? {
-        "fill" if kind(change) == Some("text") => "color",
-        "fill" => "background(-color)?",
-        "stroke" => "border(-color|-width|-style)?|outline",
-        "radius" => "border-radius|border-(top|bottom)-(left|right)-radius",
-        "spacing" => "padding(-top|-right|-bottom|-left|-inline|-block)?|gap",
-        "size" => "height|width|min-height|min-width|block-size|inline-size",
+    Some(match change.get(field::TYPE).and_then(Value::as_str)? {
+        change_type::FILL if kind(change) == Some(wire::kind::TEXT) => "color",
+        change_type::FILL => "background(-color)?",
+        change_type::STROKE => "border(-color|-width|-style)?|outline",
+        change_type::RADIUS => "border-radius|border-(top|bottom)-(left|right)-radius",
+        change_type::SPACING => "padding(-top|-right|-bottom|-left|-inline|-block)?|gap",
+        change_type::SIZE => "height|width|min-height|min-width|block-size|inline-size",
         _ => return None,
     })
 }
@@ -59,7 +59,7 @@ fn first_element(text: &str) -> Option<usize> {
 /// that sets the property (variant/size rules first), else the element in the template (by
 /// tag/class), else the component tag. `None` when the change is not on a component.
 pub fn master_source(root: &Path, change: &Value, lib: Option<&Library>) -> Option<MasterSource> {
-    let comp = js::truthy_value(change.get("component"))?;
+    let comp = js::truthy_value(change.get(field::COMPONENT))?;
     let comp_name = comp.get("name").and_then(Value::as_str);
     let loaded;
     let lib = match lib {
@@ -134,7 +134,7 @@ fn css_rule_offset(
     let (Some(style_at), Some(style_end)) = (style_at, style_end.filter(|e| *e > 0)) else {
         return Some(None);
     };
-    let is_text_change = kind(change) == Some("text");
+    let is_text_change = kind(change) == Some(wire::kind::TEXT);
     let css = &block[style_at..style_end];
     let decl = Regex::new(&format!(r"(^|[;{{{s}])({prop})[{s}]*:", s = js::SPACE)).ok()?;
     let named = |value: Option<&Value>| {
@@ -186,7 +186,7 @@ fn template_offset(block: &str, start: usize, change: &Value, cls: Option<&str>)
         .filter(|e| *e > 0)
         .unwrap_or(block.len());
     let tpl = &block[tpl_at..tpl_end];
-    if change.get("type").and_then(Value::as_str) == Some("text") {
+    if change.get(field::TYPE).and_then(Value::as_str) == Some(change_type::TEXT) {
         if let Some(slot) = tpl.find("<dfw-slot") {
             return Some(tpl_at + slot);
         }

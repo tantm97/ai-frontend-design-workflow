@@ -36,6 +36,36 @@ use crate::core::util::to_json_compact;
 /// hang dfw for ever.
 pub const COMMAND_TIMEOUT_MS: u64 = 120_000;
 
+/// The protocol methods and events dfw uses, as the DevTools protocol names them.
+pub mod method {
+    pub const BROWSER_CLOSE: &str = "Browser.close";
+    pub const EMULATION_SET_DEVICE_METRICS_OVERRIDE: &str = "Emulation.setDeviceMetricsOverride";
+    pub const FETCH_ENABLE: &str = "Fetch.enable";
+    pub const FETCH_FAIL_REQUEST: &str = "Fetch.failRequest";
+    pub const FETCH_FULFILL_REQUEST: &str = "Fetch.fulfillRequest";
+    pub const FETCH_REQUEST_PAUSED: &str = "Fetch.requestPaused";
+    pub const PAGE_CAPTURE_SCREENSHOT: &str = "Page.captureScreenshot";
+    pub const PAGE_ENABLE: &str = "Page.enable";
+    pub const PAGE_GET_LAYOUT_METRICS: &str = "Page.getLayoutMetrics";
+    pub const PAGE_LOAD_EVENT_FIRED: &str = "Page.loadEventFired";
+    pub const PAGE_NAVIGATE: &str = "Page.navigate";
+    pub const RUNTIME_EVALUATE: &str = "Runtime.evaluate";
+    pub const TARGET_ATTACH_TO_TARGET: &str = "Target.attachToTarget";
+    pub const TARGET_CLOSE_TARGET: &str = "Target.closeTarget";
+    pub const TARGET_CREATE_BROWSER_CONTEXT: &str = "Target.createBrowserContext";
+    pub const TARGET_CREATE_TARGET: &str = "Target.createTarget";
+}
+
+/// The field of a protocol message that names its method or event.
+pub const METHOD: &str = "method";
+/// The parameters of `Fetch.fulfillRequest` dfw reads back in tests and sets on every answer.
+mod fulfill {
+    pub const RESPONSE_CODE: &str = "responseCode";
+    pub const BODY: &str = "body";
+}
+/// The response header that says what a fulfilled font is.
+const CONTENT_TYPE: &str = "Content-Type";
+
 const CLOSED: &str = "browser connection closed";
 
 /// A poisoned lock only means another thread panicked; the data is still what we want.
@@ -98,7 +128,7 @@ impl Shared {
             return;
         }
         let session = m.get("sessionId").and_then(Value::as_str).unwrap_or("");
-        let method = m.get("method").and_then(Value::as_str).unwrap_or("");
+        let method = m.get(METHOD).and_then(Value::as_str).unwrap_or("");
         let params = object_or_empty(m.get("params"));
         // A listener whose receiver is gone is removed on the way.
         lock(&self.listeners).retain(|l| {
@@ -308,7 +338,7 @@ impl Connection {
         let id = self.seq.fetch_add(1, Ordering::SeqCst) + 1;
         let mut message = Map::new();
         message.insert("id".into(), json!(id));
-        message.insert("method".into(), json!(method));
+        message.insert(METHOD.into(), json!(method));
         message.insert("params".into(), params);
         if let Some(session) = session.filter(|s| !s.is_empty()) {
             message.insert("sessionId".into(), json!(session));
@@ -432,7 +462,7 @@ fn serve_font(conn: &Connection, session: &str, dir: &Path, params: &Value) {
     if cached_or_fetched(conn, session, dir, &request_id, params.get("request")).is_err() {
         // Offline or blocked: the page falls back to its system font stack.
         let _ = conn.send(
-            "Fetch.failRequest",
+            method::FETCH_FAIL_REQUEST,
             json!({ "requestId": request_id, "errorReason": "InternetDisconnected" }),
             Some(session),
         );
@@ -455,16 +485,16 @@ fn cached_or_fetched(
     let meta = dir.join(format!("{key}.json"));
     let fulfill = |buf: &[u8], content_type: &str| {
         conn.send(
-            "Fetch.fulfillRequest",
+            method::FETCH_FULFILL_REQUEST,
             json!({
                 "requestId": request_id,
-                "responseCode": 200,
+                (fulfill::RESPONSE_CODE): 200,
                 "responseHeaders": [
-                    { "name": "Content-Type", "value": content_type },
+                    { "name": CONTENT_TYPE, "value": content_type },
                     { "name": "Access-Control-Allow-Origin", "value": "*" },
                     { "name": "Cache-Control", "value": "public, max-age=31536000" },
                 ],
-                "body": base64_encode(buf),
+                (fulfill::BODY): base64_encode(buf),
             }),
             Some(session),
         )
@@ -524,7 +554,7 @@ fn serve_fonts(
         .name("dfw-cdp-fonts".into())
         .spawn(move || {
             while let Some((method, params)) = events.next() {
-                if method != "Fetch.requestPaused" {
+                if method != method::FETCH_REQUEST_PAUSED {
                     continue;
                 }
                 let (conn, session) = (Arc::clone(&conn), session.clone());
@@ -582,7 +612,7 @@ impl Page {
         self.width = width;
         self.height = height;
         self.send(
-            "Emulation.setDeviceMetricsOverride",
+            method::EMULATION_SET_DEVICE_METRICS_OVERRIDE,
             json!({ "width": width, "height": height, "deviceScaleFactor": self.scale, "mobile": false }),
         )?;
         Ok(())
@@ -596,7 +626,7 @@ impl Page {
         let (tx, rx) = mpsc::channel();
         let _events = self.conn.listen(&self.session_id, tx.clone());
         let id = self.conn.post(
-            "Page.navigate",
+            method::PAGE_NAVIGATE,
             json!({ "url": url }),
             Some(&self.session_id),
             tx,
@@ -611,7 +641,7 @@ impl Page {
                 load_by.min(reply_by)
             };
             match rx.recv_timeout(until.saturating_duration_since(Instant::now())) {
-                Ok(Incoming::Event { method, .. }) if method == "Page.loadEventFired" => {
+                Ok(Incoming::Event { method, .. }) if method == method::PAGE_LOAD_EVENT_FIRED => {
                     self.conn.forget(id);
                     return Ok(());
                 }
@@ -645,7 +675,7 @@ impl Page {
     pub fn evaluate(&self, function: &str, arg: Option<&Value>) -> Result<Value, DfwError> {
         let arg = arg.map(to_json_compact).unwrap_or_default();
         let r = self.send(
-            "Runtime.evaluate",
+            method::RUNTIME_EVALUATE,
             json!({ "expression": format!("({function})({arg})"), "awaitPromise": true, "returnByValue": true, "userGesture": true }),
         )?;
         if let Some(details) = r.get("exceptionDetails").filter(|d| !d.is_null()) {
@@ -685,7 +715,7 @@ impl Page {
             c.insert("scale".into(), json!(1));
             clip = Some(Value::Object(c));
         } else if opts.full_page {
-            let m = self.send("Page.getLayoutMetrics", json!({}))?;
+            let m = self.send(method::PAGE_GET_LAYOUT_METRICS, json!({}))?;
             let height = ["cssContentSize", "contentSize"]
                 .iter()
                 .find_map(|k| m.get(k).filter(|v| !v.is_null()))
@@ -697,7 +727,7 @@ impl Page {
                 Some(json!({ "x": 0, "y": 0, "width": self.width, "height": height, "scale": 1 }));
         }
         let shot = self.send(
-            "Page.captureScreenshot",
+            method::PAGE_CAPTURE_SCREENSHOT,
             match clip {
                 Some(clip) => {
                     json!({ "format": "png", "clip": clip, "captureBeyondViewport": true })
@@ -726,7 +756,7 @@ impl Page {
     pub fn close(&self) {
         self.stop_fonts();
         let _ = self.conn.send(
-            "Target.closeTarget",
+            method::TARGET_CLOSE_TARGET,
             json!({ "targetId": self.target_id }),
             None,
         );
@@ -777,7 +807,7 @@ impl Context {
     /// `browser.newContext(opts)`.
     pub fn create(conn: &Arc<Connection>, opts: ContextOptions) -> Result<Context, DfwError> {
         let r = conn.send(
-            "Target.createBrowserContext",
+            method::TARGET_CREATE_BROWSER_CONTEXT,
             json!({ "disposeOnDetach": true }),
             None,
         )?;
@@ -791,13 +821,13 @@ impl Context {
     /// `newPage()`: a blank tab, 1280x800 until `set_viewport_size`.
     pub fn new_page(&self) -> Result<Page, DfwError> {
         let target = self.conn.send(
-            "Target.createTarget",
+            method::TARGET_CREATE_TARGET,
             json!({ "url": "about:blank", "browserContextId": self.id }),
             None,
         )?;
         let target_id = text(&target, "targetId");
         let attached = self.conn.send(
-            "Target.attachToTarget",
+            method::TARGET_ATTACH_TO_TARGET,
             json!({ "targetId": target_id, "flatten": true }),
             None,
         )?;
@@ -814,11 +844,11 @@ impl Context {
             let cache = self.opts.font_cache_dir.clone();
             page.font_listener = Some(serve_fonts(&self.conn, &page.session_id, cache)?);
             page.send(
-                "Fetch.enable",
+                method::FETCH_ENABLE,
                 json!({ "patterns": FONT_PATTERNS.map(|p| json!({ "urlPattern": p })) }),
             )?;
         }
-        page.send("Page.enable", json!({}))?;
+        page.send(method::PAGE_ENABLE, json!({}))?;
         Ok(page)
     }
 }
@@ -844,6 +874,11 @@ mod tests {
     use std::net::TcpListener;
 
     const FONT: &[u8] = b"wOF2 bytes \x00\xff";
+    /// Where the test font host serves [`FONT`], and as what.
+    const FONT_PATH: &str = "/font.woff2";
+    const FONT_TYPE: &str = "font/woff2";
+    /// What the test font host answers for any other path.
+    const NO_FONT: &[u8] = b"no such font";
 
     /// A scripted DevTools endpoint: answers every command with `{}` (and the ids a new page
     /// needs), pauses one "font request" per URL once Fetch is enabled, and reports how the
@@ -859,26 +894,26 @@ mod tests {
                 if let Some(url) = urls.next() {
                     let headers = json!({ "User-Agent": "TestBrowser/1", "Accept-Encoding": "gzip", "Host": "fonts.example" });
                     let params = json!({ "requestId": format!("r-{url}"), "request": { "url": url, "headers": headers } });
-                    let event = json!({ "method": "Fetch.requestPaused", "sessionId": "s1", "params": params });
+                    let event = json!({ (METHOD): method::FETCH_REQUEST_PAUSED, "sessionId": "s1", "params": params });
                     ws.send(Message::text(event.to_string())).unwrap();
                 }
             };
             while let Ok(Message::Text(text)) = ws.read() {
                 let m: Value = serde_json::from_str(text.as_str()).unwrap();
-                let method = m["method"].as_str().unwrap();
+                let method = m[METHOD].as_str().unwrap();
                 let result = match method {
-                    "Target.createBrowserContext" => json!({ "browserContextId": "c1" }),
-                    "Target.createTarget" => json!({ "targetId": "t1" }),
-                    "Target.attachToTarget" => json!({ "sessionId": "s1" }),
+                    method::TARGET_CREATE_BROWSER_CONTEXT => json!({ "browserContextId": "c1" }),
+                    method::TARGET_CREATE_TARGET => json!({ "targetId": "t1" }),
+                    method::TARGET_ATTACH_TO_TARGET => json!({ "sessionId": "s1" }),
                     _ => json!({}),
                 };
                 let reply = json!({ "id": m["id"], "result": result });
                 ws.send(Message::text(reply.to_string())).unwrap();
                 match method {
-                    "Fetch.enable" => pause(&mut ws),
-                    "Fetch.fulfillRequest" | "Fetch.failRequest" => {
+                    method::FETCH_ENABLE => pause(&mut ws),
+                    method::FETCH_FULFILL_REQUEST | method::FETCH_FAIL_REQUEST => {
                         let mut seen = m["params"].clone();
-                        seen["method"] = json!(method);
+                        seen[METHOD] = json!(method);
                         tx.send(seen).unwrap();
                         pause(&mut ws);
                     }
@@ -912,17 +947,17 @@ mod tests {
                 );
                 seen_tx.send(seen).unwrap();
                 let (status, body, kind) = match request.url() {
-                    "/font.woff2" => (200, FONT.to_vec(), "font/woff2"),
-                    _ => (404, b"no such font".to_vec(), "text/plain"),
+                    FONT_PATH => (200, FONT.to_vec(), FONT_TYPE),
+                    _ => (404, NO_FONT.to_vec(), "text/plain"),
                 };
-                let kind = tiny_http::Header::from_bytes("Content-Type", kind).unwrap();
+                let kind = tiny_http::Header::from_bytes(CONTENT_TYPE, kind).unwrap();
                 let response = tiny_http::Response::from_data(body)
                     .with_status_code(status)
                     .with_header(kind);
                 let _ = request.respond(response);
             }
         });
-        let font = format!("{host}/font.woff2");
+        let font = format!("{host}{FONT_PATH}");
         let missing = format!("{host}/missing.woff2");
         let unreachable = "http://127.0.0.1:1/unreachable.woff2".to_string();
         let (ws_url, resolved) = font_endpoint(vec![
@@ -940,14 +975,14 @@ mod tests {
         let next = || resolved.recv_timeout(Duration::from_secs(10)).unwrap();
 
         let first = next();
-        assert_eq!(first["method"], "Fetch.fulfillRequest");
+        assert_eq!(first[METHOD], method::FETCH_FULFILL_REQUEST);
         assert_eq!(first["requestId"], json!(format!("r-{font}")));
-        assert_eq!(first["responseCode"], 200);
-        assert_eq!(first["body"], json!(base64_encode(FONT)));
+        assert_eq!(first[fulfill::RESPONSE_CODE], 200);
+        assert_eq!(first[fulfill::BODY], json!(base64_encode(FONT)));
         assert_eq!(
             first["responseHeaders"],
             json!([
-                { "name": "Content-Type", "value": "font/woff2" },
+                { "name": CONTENT_TYPE, "value": FONT_TYPE },
                 { "name": "Access-Control-Allow-Origin", "value": "*" },
                 { "name": "Cache-Control", "value": "public, max-age=31536000" },
             ])
@@ -956,7 +991,7 @@ mod tests {
         let (path, agent, encoding, host_header) = seen_rx.recv().unwrap();
         assert_eq!(
             (path.as_str(), agent.as_deref(), encoding),
-            ("/font.woff2", Some("TestBrowser/1"), None)
+            (FONT_PATH, Some("TestBrowser/1"), None)
         );
         assert_eq!(
             host_header.as_deref(),
@@ -966,20 +1001,20 @@ mod tests {
         assert_eq!(fs::read(cache.join(&key)).unwrap(), FONT);
         assert_eq!(
             fs::read_to_string(cache.join(format!("{key}.json"))).unwrap(),
-            json!({ "url": font, "contentType": "font/woff2" }).to_string()
+            json!({ "url": font, "contentType": FONT_TYPE }).to_string()
         );
 
         // Second request for the same URL: from disk, the server is not asked again.
         let second = next();
         assert_eq!(
-            (&second["method"], &second["body"]),
-            (&json!("Fetch.fulfillRequest"), &first["body"])
+            (&second[METHOD], &second[fulfill::BODY]),
+            (&json!(method::FETCH_FULFILL_REQUEST), &first[fulfill::BODY])
         );
         // A 404 is passed on (as in Node, with code 200) but never cached.
         let third = next();
         assert_eq!(
-            (&third["responseCode"], &third["body"]),
-            (&json!(200), &json!(base64_encode(b"no such font")))
+            (&third[fulfill::RESPONSE_CODE], &third[fulfill::BODY]),
+            (&json!(200), &json!(base64_encode(NO_FONT)))
         );
         assert_eq!(seen_rx.recv().unwrap().0, "/missing.woff2");
         assert!(seen_rx.try_recv().is_err(), "one upstream request per URL");
@@ -987,8 +1022,11 @@ mod tests {
         // Nothing answers: the request fails and the page falls back to its system fonts.
         let fourth = next();
         assert_eq!(
-            (&fourth["method"], &fourth["errorReason"]),
-            (&json!("Fetch.failRequest"), &json!("InternetDisconnected"))
+            (&fourth[METHOD], &fourth["errorReason"]),
+            (
+                &json!(method::FETCH_FAIL_REQUEST),
+                &json!("InternetDisconnected")
+            )
         );
         page.close();
         conn.close();
@@ -996,17 +1034,19 @@ mod tests {
 
     #[test]
     fn base64_round_trip_matches_node() {
+        /// Six bytes: two full groups, no padding.
+        const SIX: &str = "foobar";
         for (plain, encoded) in [
             ("", ""),
             ("f", "Zg=="),
             ("fo", "Zm8="),
             ("foo", "Zm9v"),
-            ("foobar", "Zm9vYmFy"),
+            (SIX, "Zm9vYmFy"),
         ] {
             assert_eq!(base64_encode(plain.as_bytes()), encoded);
             assert_eq!(base64_decode(encoded).unwrap(), plain.as_bytes());
         }
-        assert_eq!(base64_decode("Zm9v\nYmFy").unwrap(), b"foobar");
+        assert_eq!(base64_decode("Zm9v\nYmFy").unwrap(), SIX.as_bytes());
         assert_eq!(base64_decode("_-8=").unwrap(), [0xff, 0xef]);
         assert_eq!(base64_decode("Zm9v!"), None);
         let bytes: Vec<u8> = (0..=255).collect();

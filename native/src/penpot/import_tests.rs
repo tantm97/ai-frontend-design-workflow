@@ -8,6 +8,8 @@ use crate::design::tokens::dir_names;
 use crate::penpot::export::tests::{
     design_hash, draft, fixture_export, project, read, with_export,
 };
+use crate::penpot::tokens::{key, penpot_type, BASE_SET, ENABLED};
+use crate::penpot::wire;
 use crate::review::comments::all_comments;
 
 fn frozen() -> Value {
@@ -32,7 +34,9 @@ fn text(c: &Value) -> &str {
 }
 
 fn by_id<'a>(list: &'a [Value], id: &str) -> &'a Value {
-    list.iter().find(|c| c["target"]["dfwId"] == id).unwrap()
+    list.iter()
+        .find(|c| c[comment::TARGET]["dfwId"] == id)
+        .unwrap()
 }
 
 /// penpot import: writes feedback comments (provider penpot) and a token diff, never touches design/
@@ -53,8 +57,11 @@ fn writes_feedback_comments_and_a_token_diff() {
     assert!(text(add).contains("Text changed: \"Add item\" -> \"Add stock\""));
     assert_eq!(add["file"], rel::screen(ITEMS_PAGE));
     assert_eq!(add["breakpoint"], "desktop");
-    assert_eq!(add["target"]["selector"], "[data-dfw-id=\"items.add\"]");
-    let source = add["target"]["source"].as_str().unwrap();
+    assert_eq!(
+        add[comment::TARGET]["selector"],
+        "[data-dfw-id=\"items.add\"]"
+    );
+    let source = add[comment::TARGET][comment::SOURCE].as_str().unwrap();
     let line = source
         .strip_prefix(&format!("{}:", rel::screen(ITEMS_PAGE)))
         .unwrap();
@@ -66,7 +73,7 @@ fn writes_feedback_comments_and_a_token_diff() {
     assert!(text(by_id(&list, "items.note")).contains("Removed in Penpot"));
     let thread = list
         .iter()
-        .find(|c| text(c).starts_with("[Penpot comment]"))
+        .find(|c| text(c).starts_with(comment::THREAD_HEADER))
         .unwrap();
     assert!(text(thread).contains("Designer: Can low stock be more visible?\nLead: Maybe a badge."));
     assert!(
@@ -151,22 +158,24 @@ fn plugin_token_sets_become_a_penpot_token_file() {
         .unwrap()
         .unwrap();
     assert_eq!(
-        to_json_compact(&doc["base"]["color"]["accent"]),
+        to_json_compact(&doc[BASE_SET]["color"]["accent"]),
         r#"{"$value":"{color.blue.600}","$type":"color"}"#
     );
-    assert_eq!(doc["$metadata"]["tokenSetOrder"], json!(["base"]));
+    assert_eq!(doc[key::METADATA]["tokenSetOrder"], json!([BASE_SET]));
     assert_eq!(
-        doc["$themes"][0]["selectedTokenSets"],
-        json!({ "base": "enabled" })
+        doc[key::THEMES][0]["selectedTokenSets"],
+        json!({ BASE_SET: ENABLED })
     );
     assert_eq!(tokens_from_plugin(Some(&Value::Null)).unwrap(), None);
     assert_eq!(tokens_from_plugin(None).unwrap(), None);
     // Lists the Node code could not walk are refused, as there.
+    /// Sets given as text, not as a list.
+    const TEXT_SETS: &str = "abc";
     for hostile in [
         json!({ "sets": [null] }),
-        json!({ "sets": "abc" }),
-        json!({ "sets": [{ "name": "base", "tokens": 5 }] }),
-        json!({ "sets": [{ "name": "base" }], "themes": [null] }),
+        json!({ "sets": TEXT_SETS }),
+        json!({ "sets": [{ "name": BASE_SET, "tokens": 5 }] }),
+        json!({ "sets": [{ "name": BASE_SET }], "themes": [null] }),
     ] {
         let err = tokens_from_plugin(Some(&hostile)).unwrap_err();
         // A message that says what is wrong and what to do, not a JavaScript TypeError.
@@ -177,7 +186,7 @@ fn plugin_token_sets_become_a_penpot_token_file() {
         );
     }
     assert_eq!(
-        tokens_from_plugin(Some(&json!({ "sets": "abc" }))).unwrap_err().message(),
+        tokens_from_plugin(Some(&json!({ "sets": TEXT_SETS }))).unwrap_err().message(),
         "The change file's \"tokens.sets\" is text, not a list of token sets. Send the changes again from the dfw bridge plugin (\"Send changes to dfw\"), or fix the file."
     );
 }
@@ -187,19 +196,19 @@ fn plugin_token_sets_become_a_penpot_token_file() {
 #[test]
 fn reserved_set_and_token_names_from_the_plugin_are_left_out() {
     let doc = tokens_from_plugin(Some(&json!({ "sets": [
-        { "name": "base", "tokens": [{ "name": "__proto__.polluted", "type": "color", "value": "#fff" }, { "name": "color.ok", "type": "color", "value": "#000" }] },
+        { "name": BASE_SET, "tokens": [{ "name": "__proto__.polluted", "type": penpot_type::COLOR, "value": "#fff" }, { "name": "color.ok", "type": penpot_type::COLOR, "value": "#000" }] },
         { "name": "__proto__", "tokens": [] },
         { "name": "constructor", "tokens": [] },
     ] })))
     .unwrap()
     .unwrap();
     assert_eq!(
-        to_json_compact(&doc["base"]),
+        to_json_compact(&doc[BASE_SET]),
         r##"{"color":{"ok":{"$value":"#000","$type":"color"}}}"##
     );
-    assert_eq!(doc["$metadata"]["tokenSetOrder"], json!(["base"]));
+    assert_eq!(doc[key::METADATA]["tokenSetOrder"], json!([BASE_SET]));
     let keys: Vec<&String> = doc.as_object().unwrap().keys().collect();
-    assert_eq!(keys, ["base", "$themes", "$metadata"]);
+    assert_eq!(keys, [BASE_SET, key::THEMES, key::METADATA]);
 }
 
 /// penpot components: import writes master comments (target.component, source, note), never touches design/, idempotent
@@ -225,14 +234,21 @@ fn import_writes_master_comments() {
             text(c)
         );
     }
-    let layer = |path: &str| list.iter().find(|c| c["target"]["layer"] == path).unwrap();
+    let layer = |path: &str| {
+        list.iter()
+            .find(|c| c[comment::TARGET]["layer"] == path)
+            .unwrap()
+    };
     let root1 = layer("0.1");
     assert_eq!(
-        to_json_compact(&root1["target"]["component"]),
+        to_json_compact(&root1[comment::TARGET]["component"]),
         r#"{"name":"button","variant":"primary","size":null}"#
     );
     let button = rel::component(BUTTON_MASTER);
-    assert_eq!(root1["target"]["source"], format!("{button}:4"));
+    assert_eq!(
+        root1[comment::TARGET][comment::SOURCE],
+        format!("{button}:4")
+    );
     let body = text(root1);
     assert!(body.starts_with("[Penpot master] button / primary:"));
     assert!(body.contains("Fill changed: #0066ff (color.accent) -> #1c1b1a (color.ink)"));
@@ -244,8 +260,11 @@ fn import_writes_master_comments() {
     assert!(body.contains(&format!("[{button}:3]")));
     let label = layer("0.1.0");
     assert!(text(label).contains("Example text changed: \"Add item\" -> \"Add to stock\""));
-    assert_eq!(label["target"]["source"], format!("{button}:9"));
-    assert_eq!(label["target"]["text"], "Add item");
+    assert_eq!(
+        label[comment::TARGET][comment::SOURCE],
+        format!("{button}:9")
+    );
+    assert_eq!(label[comment::TARGET]["text"], "Add item");
     let ghost = text(layer("0.2"));
     assert!(ghost.contains("Component renamed \"button / ghost\" -> \"button / outline\""));
     assert!(ghost.contains("Border changed: 1px #e4e4e7 (color.border) -> 1px #1c1b1a (color.ink)"));
@@ -264,7 +283,7 @@ fn import_writes_master_comments() {
     assert_eq!(run(&root, &changes, None, false).comments.len(), 0);
     assert_eq!(all_comments(&root).unwrap().len(), 5);
     let mut more = changes.clone();
-    more["components"][0]["layers"][1]["characters"] = "Add".into();
+    more[wire::COMPONENTS][0][wire::LAYERS][1]["characters"] = "Add".into();
     let again = run(&root, &more, None, false);
     assert_eq!(again.comments.len(), 1);
     assert!(text(&again.comments[0]).contains("\"Add item\" -> \"Add\""));
@@ -292,6 +311,8 @@ fn frozen_design_master_comments_say_reopen_is_needed() {
 /// penpot import: a comment thread is imported once, even after the layer under it moved
 #[test]
 fn a_comment_thread_is_imported_once() {
+    /// A reply the designer adds to the thread.
+    const AGREED: &str = "Agreed.";
     let root = project("penpot-thread-once", draft());
     let changes = with_export(&root, &fixture_export(), "changes.json");
     run(&root, &changes, None, false);
@@ -299,20 +320,20 @@ fn a_comment_thread_is_imported_once() {
         all_comments(&root)
             .unwrap()
             .iter()
-            .filter(|c| text(c).starts_with("[Penpot comment]"))
+            .filter(|c| text(c).starts_with(comment::THREAD_HEADER))
             .count()
     };
     assert_eq!(threads(), 1);
     let mut again = changes.clone();
     let nudge = |v: &mut Value| v["x"] = json!(v["x"].as_f64().unwrap() + 3.0);
-    for b in again["boards"].as_array_mut().unwrap() {
-        b["layers"]
+    for b in again[wire::BOARDS].as_array_mut().unwrap() {
+        b[wire::LAYERS]
             .as_array_mut()
             .unwrap()
             .iter_mut()
             .for_each(nudge);
     }
-    again["comments"]
+    again[wire::COMMENTS]
         .as_array_mut()
         .unwrap()
         .iter_mut()
@@ -324,21 +345,21 @@ fn a_comment_thread_is_imported_once() {
         "same thread, same messages: not a new comment"
     );
     // A reply in the thread continues the same dfw comment.
-    again["comments"][0]["comments"]
+    again[wire::COMMENTS][0][wire::COMMENTS]
         .as_array_mut()
         .unwrap()
-        .push(json!({ "content": "Agreed.", "user": "Designer" }));
+        .push(json!({ "content": AGREED, "user": "Designer" }));
     run(&root, &again, None, false);
     assert_eq!(threads(), 1);
     let list = all_comments(&root).unwrap();
     let c = list
         .iter()
-        .find(|c| text(c).starts_with("[Penpot comment]"))
+        .find(|c| text(c).starts_with(comment::THREAD_HEADER))
         .unwrap();
     let last = c["thread"].as_array().unwrap().last().unwrap();
     assert_eq!(
         (&last["by"], &last["message"]),
-        (&json!("user"), &json!("Agreed."))
+        (&json!("user"), &json!(AGREED))
     );
 }
 
@@ -352,7 +373,8 @@ fn export_id_cannot_name_a_file_outside_the_exports() {
     evil["id"] = "evil".into();
     fs::write(root.join(OUTSIDE_JSON), to_json_compact(&evil)).unwrap();
     // From .dfw/penpot/exports up to the project.
-    changes["exportId"] = format!("../../../{}", OUTSIDE_JSON.trim_end_matches(".json")).into();
+    changes[wire::EXPORT_ID] =
+        format!("../../../{}", OUTSIDE_JSON.trim_end_matches(".json")).into();
     let r = run(&root, &changes, None, true);
     assert_eq!(
         r.baseline,
@@ -360,7 +382,7 @@ fn export_id_cannot_name_a_file_outside_the_exports() {
         "falls back to the latest export"
     );
     for id in ["px_", "px_a/b", "px_a.b", "PX_1", "px_1\n", " px_1"] {
-        changes["exportId"] = id.into();
+        changes[wire::EXPORT_ID] = id.into();
         assert_eq!(
             run(&root, &changes, None, true).baseline,
             Some(doc["id"].clone()),
@@ -374,17 +396,19 @@ fn export_id_cannot_name_a_file_outside_the_exports() {
 fn a_non_string_pushed_at_does_not_fail() {
     let root = project("penpot-pushed-at", draft());
     let mut changes = with_export(&root, &fixture_export(), "changes.json");
-    changes["pushedAt"] = json!(1731750000000u64);
+    /// A push time given as a number (milliseconds), and its archive.
+    const STAMP: &str = "1731750000000";
+    changes[wire::PUSHED_AT] = json!(1731750000000u64);
     let r = run(&root, &changes, None, false);
     assert!(r.comments.len() >= 5);
     let archive = root.join(rel::join(rel::PENPOT, file::PENPOT_CHANGES));
-    assert_eq!(dir_names(&archive).unwrap(), ["1731750000000.json"]);
-    changes["pushedAt"] = "../../x".into();
+    assert_eq!(dir_names(&archive).unwrap(), [archive_file(STAMP)]);
+    changes[wire::PUSHED_AT] = "../../x".into();
     let r2 = run(&root, &changes, None, false);
     assert_eq!(r2.comments.len(), 0);
     // Archive names stay inside changes/.
     assert_eq!(
         dir_names(&archive).unwrap(),
-        ["1731750000000.json", "changes.json"]
+        [archive_file(STAMP), archive_file(UNSTAMPED)]
     );
 }

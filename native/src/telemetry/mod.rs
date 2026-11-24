@@ -11,6 +11,7 @@ pub mod events;
 pub mod flush;
 pub mod otlp;
 pub mod spool;
+pub mod wire;
 
 use std::env;
 use std::io::Write;
@@ -360,6 +361,8 @@ mod tests {
     /// The decision, row by row, in the order of the design (telemetry task 2.2).
     #[test]
     fn the_decision_follows_the_order_of_the_design() {
+        /// An environment value that turns a switch on.
+        const TRUE: &str = "true";
         let on_by_all_else = || Inputs {
             enabled: Some(true),
             address: Some(somewhere()),
@@ -379,7 +382,7 @@ mod tests {
             State::Off(OffReason::DoNotTrack)
         );
         assert_eq!(
-            with(|i| i.do_not_track = Some("true".into())),
+            with(|i| i.do_not_track = Some(TRUE.into())),
             State::Off(OffReason::DoNotTrack)
         );
         assert_eq!(
@@ -403,7 +406,7 @@ mod tests {
             State::On(somewhere())
         );
         assert_eq!(
-            with(|i| i.ci = Some("true".into())),
+            with(|i| i.ci = Some(TRUE.into())),
             State::Off(OffReason::Ci)
         );
         assert_eq!(with(|i| i.ci = Some("1".into())), State::Off(OffReason::Ci));
@@ -480,10 +483,9 @@ mod tests {
             logs_url(" http://127.0.0.1:4318/ ").as_deref(),
             Some("http://127.0.0.1:4318/v1/logs")
         );
-        assert_eq!(
-            logs_url("https://h/otlp/v1/logs").as_deref(),
-            Some("https://h/otlp/v1/logs")
-        );
+        /// An address that already ends at the logs path is kept as it is.
+        const LOGS_URL: &str = "https://h/otlp/v1/logs";
+        assert_eq!(logs_url(LOGS_URL).as_deref(), Some(LOGS_URL));
         for bad in [
             "",
             "otel.example.org",

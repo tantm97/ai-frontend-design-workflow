@@ -145,9 +145,12 @@ pub fn mark_checked(root: &Path) -> Result<(), DfwError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::fixture::{BUTTON_MASTER, HTML_FILE_B, SCREEN_INDEX, SCREEN_PAGE};
+    use crate::core::fixture::{BUTTON_MASTER, HTML_FILE_B, SCREEN, SCREEN_INDEX, SCREEN_PAGE};
     use crate::core::paths::{file, rel};
     use crate::core::util::test_dir;
+
+    /// The component of [`BUTTON_MASTER`].
+    const BUTTON: &str = "button";
 
     fn write(root: &Path, rel: &str, text: &str) {
         let file = root.join(rel);
@@ -185,11 +188,11 @@ mod tests {
         mark_checked(&root).unwrap();
         assert_eq!(screens(), none);
         write(&root, &rel::component(BUTTON_MASTER), &button(400));
-        assert_eq!(screens(), ["home"], "home uses button through card");
+        assert_eq!(screens(), [SCREEN], "home uses button through card");
         mark_checked(&root).unwrap();
         assert_eq!(screens(), none);
         write(&root, rel::BASE_CSS, "body{margin:0;width:3000px}");
-        assert_eq!(screens(), ["home"], "base.css is loaded by every screen");
+        assert_eq!(screens(), [SCREEN], "base.css is loaded by every screen");
     }
 
     /// The cache file: one hash per master, the tokens, the shared files and each screen file;
@@ -202,14 +205,15 @@ mod tests {
             rel::MANIFEST,
             r#"{"screens":[{"id":"home","variants":[{"id":"a","file":"screens/home/index.html"},{"id":"b","file":"screens/home/missing.html"}]}]}"#,
         );
-        write(&root, &rel::screen(SCREEN_INDEX), "abc");
-        write(&root, &rel::component(HTML_FILE_B), "abc");
+        /// The content of both files: its sha256 starts with ba7816bf8f01cfea.
+        const CONTENT: &str = "abc";
+        write(&root, &rel::screen(SCREEN_INDEX), CONTENT);
+        write(&root, &rel::component(HTML_FILE_B), CONTENT);
         let first = changed_screens(&root).unwrap();
         assert_eq!(first.changed_comps, ["b"]);
         assert!(first.tokens_changed);
         mark_checked(&root).unwrap();
         let text = fs::read_to_string(root.join(rel::join(rel::DFW, file::LAYOUT_CACHE))).unwrap();
-        // sha256("abc") starts with ba7816bf8f01cfea.
         assert_eq!(
             text,
             "{\n  \"c:b.html\": \"ba7816bf8f01cfea\",\n  \"t:tokens\": null,\n  \"f:styles/base.css\": null,\n  \"f:system/head.html\": null,\n  \"s:screens/home/index.html\": \"ba7816bf8f01cfea\",\n  \"s:screens/home/missing.html\": null\n}\n"
@@ -233,7 +237,7 @@ mod tests {
         write(&rel::component(BUTTON_MASTER), "<b></b>");
         write(rel::TOKENS_JSON, "{}");
         let first = changed_screens(&root).unwrap();
-        assert_eq!(first, Changed { screens: vec!["home".into()], changed_comps: vec!["button".into()], tokens_changed: true });
+        assert_eq!(first, Changed { screens: vec![SCREEN.into()], changed_comps: vec![BUTTON.into()], tokens_changed: true });
         mark_checked(&root).unwrap();
         assert!(changed_screens(&root).unwrap().is_empty());
         let cache = fs::read_to_string(root.join(rel::join(rel::DFW, file::LAYOUT_CACHE))).unwrap();
@@ -241,9 +245,9 @@ mod tests {
         assert_eq!(keys, ["c:button.html", "t:tokens", "f:styles/base.css", "f:system/head.html", "s:screens/home/a.html", "s:screens/home/gone.html"]);
         assert!(cache.contains("\"f:styles/base.css\": null") && cache.ends_with("}\n"));
         write(rel::BASE_CSS, "body{}");
-        assert_eq!(changed_screens(&root).unwrap(), Changed { screens: vec!["home".into()], changed_comps: vec![], tokens_changed: true });
+        assert_eq!(changed_screens(&root).unwrap(), Changed { screens: vec![SCREEN.into()], changed_comps: vec![], tokens_changed: true });
         mark_checked(&root).unwrap();
         write(&rel::component(BUTTON_MASTER), "<i></i>");
-        assert_eq!(changed_screens(&root).unwrap(), Changed { screens: vec!["home".into()], changed_comps: vec!["button".into()], tokens_changed: false });
+        assert_eq!(changed_screens(&root).unwrap(), Changed { screens: vec![SCREEN.into()], changed_comps: vec![BUTTON.into()], tokens_changed: false });
     }
 }

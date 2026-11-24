@@ -97,6 +97,9 @@ fn is_placeholder_tokens(file: &Path) -> Result<bool, DfwError> {
 }
 
 /// Options of [`system_init`].
+/// The token preset `system init` starts from when none is named.
+pub const DEFAULT_PRESET: &str = "crisp";
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InitOptions {
     pub preset: String,
@@ -109,7 +112,7 @@ pub struct InitOptions {
 impl Default for InitOptions {
     fn default() -> Self {
         InitOptions {
-            preset: "crisp".into(),
+            preset: DEFAULT_PRESET.into(),
             style: None,
             fonts: "vi".into(),
             force: false,
@@ -350,14 +353,25 @@ pub fn system_summary(root: &Path) -> Result<Value, DfwError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::fixture::{screen_page, COMPOSED_PAGE};
+    use crate::core::fixture::{
+        screen_page, COMPOSED_PAGE, INDUSTRIAL_PRESET, INDUSTRIAL_STYLE, PLAYFUL_STYLE,
+        SOFT_PRESET, SWISS_GRID_STYLE,
+    };
+    use crate::core::level::Level;
     use crate::core::paths::in_design;
     use crate::core::util::test_dir;
     use crate::design::compose::{compose_file, compose_html, ComposeOptions};
     use crate::design::icons::add_icons;
-    use crate::design::inventory::{inventory_findings, kit_components, kit_ref, kit_refs};
+    use crate::design::inventory::{
+        inventory_findings, kit_components, kit_ref, kit_refs, KIT_COPY,
+    };
     use crate::design::style::MOTIF_FILE;
     use std::path::PathBuf;
+
+    /// A component of the starter kit the tests put into a project.
+    const BUTTON: &str = "button";
+    /// The master a style guide brings with it ([`MOTIF_FILE`]).
+    const MOTIF: &str = "motif";
 
     const KIT_ICONS: [&str; 20] = [
         "chevron-down",
@@ -480,8 +494,8 @@ mod tests {
     #[test]
     fn compose_instances_slots_props_passthrough_nested_icons_head() {
         let root = project();
-        init(&root, "crisp");
-        use_kit(&root, Some(&["button", "card", "badge"]));
+        init(&root, DEFAULT_PRESET);
+        use_kit(&root, Some(&[BUTTON, "card", "badge"]));
         let html = "<html><head><dfw-head></dfw-head></head><body>\n<dfw-use c=\"card\" title=\"A &quot;x&quot;\" id=\"c1\"><p>Body</p><dfw-fill slot=\"actions\"><dfw-use c=\"button\" variant=\"ghost\" size=\"sm\" id=\"c1.more\" aria-label=\"More\">More</dfw-use></dfw-fill></dfw-use>\n<dfw-use c=\"badge\" variant=\"err\" icon=\"triangle-alert\">Overdue</dfw-use>\n<dfw-use c=\"button\" variant=\"nope\">X</dfw-use>\n</body></html>";
         let r = compose(&root, html, Some("../../"));
         let has = |needle: &str| assert!(r.html.contains(needle), "missing {needle} in {}", r.html);
@@ -518,7 +532,7 @@ mod tests {
         assert_eq!(
             r.instances
                 .iter()
-                .filter(|i| i.component.as_deref() == Some("button"))
+                .filter(|i| i.component.as_deref() == Some(BUTTON))
                 .count(),
             2
         );
@@ -531,7 +545,7 @@ mod tests {
         let p = project_paths(&root);
         let placeholder = json!({ "$description": format!("{PLACEHOLDER}.") });
         write(&root, &p.tokens_json, &placeholder.to_string());
-        let r = init(&root, "soft");
+        let r = init(&root, SOFT_PRESET);
         assert!(r.tokens_written);
         assert!(r.inventory_created);
         let css = read(&root, &p.tokens_css);
@@ -544,23 +558,24 @@ mod tests {
         );
         assert_eq!(json_of(&root, &p.inventory)["components"], json!([]));
         assert!(
-            !init(&root, "soft").inventory_created,
+            !init(&root, SOFT_PRESET).inventory_created,
             "an existing inventory is kept"
         );
         let mut presets: Vec<String> = list_presets().unwrap().into_iter().map(|p| p.0).collect();
         presets.sort();
-        assert_eq!(presets, ["crisp", "industrial", "soft"]);
+        assert_eq!(presets, [DEFAULT_PRESET, INDUSTRIAL_PRESET, SOFT_PRESET]);
 
-        let o = system_options(&root, &names(&["crisp", "industrial"]), "vi").unwrap();
-        assert_eq!(o, themes_of(&["crisp", "industrial"]));
-        let industrial = format!("[data-theme=\"{}\"]", option::theme("industrial"));
+        let compared = [DEFAULT_PRESET, INDUSTRIAL_PRESET];
+        let o = system_options(&root, &names(&compared), "vi").unwrap();
+        assert_eq!(o, themes_of(&compared));
+        let industrial = format!("[data-theme=\"{}\"]", option::theme(INDUSTRIAL_PRESET));
         assert!(read(&root, &p.tokens_css).contains(&industrial));
         assert!(read(&root, &p.head).contains("IBM+Plex+Sans"));
         assert_eq!(
             json_of(&root, &p.manifest)["themes"],
-            json!(themes_of(&["crisp", "industrial"]))
+            json!(themes_of(&compared))
         );
-        system_choose(&root, "industrial", "vi").unwrap();
+        system_choose(&root, INDUSTRIAL_PRESET, "vi").unwrap();
         assert!(read(&root, &p.tokens_css).contains("--color-accent: #0b5cad"));
         assert!(!read(&root, &p.tokens_css).contains(option::PREFIX));
     }
@@ -570,7 +585,7 @@ mod tests {
     #[test]
     fn every_kit_master_composes_its_examples_without_issues() {
         let root = project();
-        init(&root, "crisp");
+        init(&root, DEFAULT_PRESET);
         use_kit(&root, None);
         let lib = load_components(&root).unwrap();
         assert!(lib.len() > 20);
@@ -593,8 +608,8 @@ mod tests {
     #[test]
     fn compose_file_and_build_system_for_a_screen() {
         let root = project();
-        init(&root, "crisp");
-        use_kit(&root, Some(&["button"]));
+        init(&root, DEFAULT_PRESET);
+        use_kit(&root, Some(&[BUTTON]));
         write(&root, rel::screen(COMPOSED_PAGE), "<html><head><dfw-head></dfw-head></head><body><dfw-use c=\"button\" id=\"go\">Go</dfw-use></body></html>");
         let r = compose_file(&root, &rel::screen(COMPOSED_PAGE)).unwrap();
         let link = format!("href=\"../../{}\"", in_design::COMPONENTS_CSS);
@@ -612,8 +627,8 @@ mod tests {
         init_style(&root, "heritage-signboard", false).unwrap();
         let lib = load_components(&root).unwrap();
         let masters: Vec<&str> = lib.iter().map(|d| d.display_name()).collect();
-        assert_eq!(masters, ["motif"], "a style brings only its motif master");
-        use_kit(&root, Some(&["button", "text"]));
+        assert_eq!(masters, [MOTIF], "a style brings only its motif master");
+        use_kit(&root, Some(&[BUTTON, "text"]));
         let css = read(&root, &p.tokens_css);
         assert!(
             css.contains("--color-accent: var(--color-palette-giay-900)"),
@@ -630,20 +645,21 @@ mod tests {
         assert!(p.components.join(MOTIF_FILE).exists());
         let lib = load_components(&root).unwrap();
         assert!(lib
-            .get(Some("motif"))
+            .get(Some(MOTIF))
             .unwrap()
             .variants
             .iter()
             .any(|v| v == "signboard-frame"));
         assert!(read(&root, &p.head).contains("Noto+Serif+Display"));
         // options with styles
-        let o = system_options(&root, &names(&["industrial-utility", "swiss-grid"]), "vi").unwrap();
-        assert_eq!(o, themes_of(&["industrial-utility", "swiss-grid"]));
-        system_choose(&root, "swiss-grid", "vi").unwrap();
+        let compared = [INDUSTRIAL_STYLE, SWISS_GRID_STYLE];
+        let o = system_options(&root, &names(&compared), "vi").unwrap();
+        assert_eq!(o, themes_of(&compared));
+        system_choose(&root, SWISS_GRID_STYLE, "vi").unwrap();
         assert!(
             read(&root, &p.tokens_css).contains("--color-accent: var(--color-palette-coban-600)")
         );
-        assert_eq!(json_of(&root, &p.style)["id"], "swiss-grid");
+        assert_eq!(json_of(&root, &p.style)["id"], SWISS_GRID_STYLE);
         // text component with prop defaults
         let t = compose(&root, "<dfw-use c=\"text\" variant=\"display-lg\" as=\"h1\">Hi</dfw-use><dfw-use c=\"text\">p</dfw-use>", None);
         assert!(
@@ -666,7 +682,8 @@ mod tests {
         let root = project();
         let p = project_paths(&root);
         let master = |name: &str| p.components.join(crate::core::paths::file::master(name));
-        init(&root, "crisp");
+        init(&root, DEFAULT_PRESET);
+        let kit_copy = format!("{KIT_COPY}:{}", Level::Error.as_str());
         let rules = || {
             let mut r: Vec<String> = inventory_findings(&root)
                 .unwrap()
@@ -683,13 +700,16 @@ mod tests {
             r
         };
         assert!(rules().is_empty(), "empty system: nothing to report");
-        use_kit(&root, Some(&["button"]));
-        assert_eq!(rules(), ["inventory-missing:warn", "kit-copy:error"]);
-        write(&root, master("button"), "<dfw-component name=\"button\" variants=\"primary\"><style>.b { color: var(--color-ink); }</style><template><button class=\"b\" type=\"button\"><dfw-slot>Go</dfw-slot></button></template><dfw-examples><dfw-use c=\"button\">Thêm vào giỏ</dfw-use></dfw-examples></dfw-component>");
+        use_kit(&root, Some(&[BUTTON]));
+        assert_eq!(rules(), ["inventory-missing:warn", kit_copy.as_str()]);
+        write(&root, master(BUTTON), "<dfw-component name=\"button\" variants=\"primary\"><style>.b { color: var(--color-ink); }</style><template><button class=\"b\" type=\"button\"><dfw-slot>Go</dfw-slot></button></template><dfw-examples><dfw-use c=\"button\">Thêm vào giỏ</dfw-use></dfw-examples></dfw-component>");
         let badge = kit_ref("badge").unwrap();
+        const EXAMPLES_END: &str = "</dfw-examples>";
+        /// A master whose examples are the kit's.
+        const TAG: &str = "tag";
         let kit_examples = &badge[badge.find("<dfw-examples>").unwrap()
-            ..badge.find("</dfw-examples>").unwrap() + "</dfw-examples>".len()];
-        write(&root, master("tag"), &format!("<dfw-component name=\"tag\"><style>.t {{ color: var(--color-muted); }}</style><template><span class=\"t\"><dfw-slot></dfw-slot></span></template>{kit_examples}</dfw-component>"));
+            ..badge.find(EXAMPLES_END).unwrap() + EXAMPLES_END.len()];
+        write(&root, master(TAG), &format!("<dfw-component name=\"tag\"><style>.t {{ color: var(--color-muted); }}</style><template><span class=\"t\"><dfw-slot></dfw-slot></span></template>{kit_examples}</dfw-component>"));
         write(
             &root,
             &p.inventory,
@@ -700,10 +720,10 @@ mod tests {
             [
                 "inventory-orphan:warn",
                 "inventory-unbuilt:warn",
-                "kit-copy:error"
+                kit_copy.as_str()
             ]
         );
-        fs::remove_file(master("tag")).unwrap();
+        fs::remove_file(master(TAG)).unwrap();
         write(&root, master("price"), "<dfw-component name=\"price\"><template><span><dfw-slot></dfw-slot></span></template></dfw-component>");
         assert!(rules().is_empty());
         write(
@@ -724,22 +744,28 @@ mod tests {
         assert!(kit_refs()
             .unwrap()
             .iter()
-            .any(|r| r.name == "button" && r.states.iter().any(|s| s == "focus-visible")));
-        assert!(kit_ref("button")
+            .any(|r| r.name == BUTTON && r.states.iter().any(|s| s == "focus-visible")));
+        assert!(kit_ref(BUTTON)
             .unwrap()
-            .contains("<dfw-component name=\"button\""));
+            .contains(&format!("<dfw-component name=\"{BUTTON}\"")));
     }
 
     /// tokens: presets ship target-wcag (24, floor) and target-touch (44); no ambiguous target-min
     #[test]
     fn presets_ship_both_target_sizes() {
-        for name in ["crisp", "soft", "industrial"] {
+        /// The DTCG group of sizes.
+        const SIZE: &str = "size";
+        /// A token's value.
+        const VALUE: &str = "$value";
+        /// The number of a dimension value.
+        const NUMBER: &str = "value";
+        for name in [DEFAULT_PRESET, SOFT_PRESET, INDUSTRIAL_PRESET] {
             let t = assets::json(Folder::Kits, &format!("{PRESETS_DIR}/{name}.tokens.json"))
                 .unwrap()
                 .unwrap();
-            assert_eq!(t["size"]["target-wcag"]["$value"]["value"], 24);
-            assert_eq!(t["size"]["target-touch"]["$value"]["value"], 44);
-            assert!(t["size"].get("target-min").is_none());
+            assert_eq!(t[SIZE]["target-wcag"][VALUE][NUMBER], 24);
+            assert_eq!(t[SIZE]["target-touch"][VALUE][NUMBER], 44);
+            assert!(t[SIZE].get("target-min").is_none());
         }
     }
 
@@ -748,23 +774,28 @@ mod tests {
     fn choose_keeps_edits_made_to_the_option_theme() {
         let root = project();
         let p = project_paths(&root);
-        init_style(&root, "playful-bold", false).unwrap();
-        system_options(&root, &names(&["playful-bold", "warm-craft"]), "vi").unwrap();
-        let opt = &p.themes.join(option::file("playful-bold"));
+        /// The accent picked by hand in the option theme.
+        const EDITED: &str = "#0d6b78";
+        /// Where the accent lives in the tokens.
+        const COLOR: &str = "color";
+        const ACCENT: &str = "accent";
+        init_style(&root, PLAYFUL_STYLE, false).unwrap();
+        system_options(&root, &names(&[PLAYFUL_STYLE, "warm-craft"]), "vi").unwrap();
+        let opt = &p.themes.join(option::file(PLAYFUL_STYLE));
         let mut t = json_of(&root, opt);
-        t["color"]["accent"] = json!({ "$value": { "colorSpace": "srgb", "components": [0.051, 0.4196, 0.4706], "hex": "#0d6b78" }, "$description": "Edited during the comparison" });
+        t[COLOR][ACCENT] = json!({ "$value": { "colorSpace": "srgb", "components": [0.051, 0.4196, 0.4706], "hex": EDITED }, "$description": "Edited during the comparison" });
         write(&root, opt, &t.to_string());
-        system_choose(&root, "playful-bold", "vi").unwrap();
+        system_choose(&root, PLAYFUL_STYLE, "vi").unwrap();
         assert_eq!(
-            json_of(&root, &p.tokens_json)["color"]["accent"]["$value"]["hex"],
-            "#0d6b78"
+            json_of(&root, &p.tokens_json)[COLOR][ACCENT]["$value"]["hex"],
+            EDITED
         );
-        assert!(read(&root, &p.tokens_css).contains("--color-accent: #0d6b78"));
+        assert!(read(&root, &p.tokens_css).contains(&format!("--color-accent: {EDITED}")));
         assert!(
             p.components.join(MOTIF_FILE).exists(),
             "motif still comes from the guide"
         );
-        assert_eq!(json_of(&root, &p.style)["id"], "playful-bold");
+        assert_eq!(json_of(&root, &p.style)["id"], PLAYFUL_STYLE);
         assert!(!opt.exists(), "option themes are removed");
     }
 
@@ -779,11 +810,13 @@ mod tests {
         let root = test_dir("system-force");
         let p = project_paths(&root);
         write(&root, &p.tokens_json, mine);
-        write(&root, &p.head, "<!-- my fonts -->");
+        /// The user's own head, kept unless forced.
+        const MY_HEAD: &str = "<!-- my fonts -->";
+        write(&root, &p.head, MY_HEAD);
         let err = init_style(&root, &style, false).unwrap_err();
         assert_eq!(err.message(), message::tokens_exist());
         assert_eq!(read(&root, &p.tokens_json), mine);
-        assert_eq!(read(&root, &p.head), "<!-- my fonts -->");
+        assert_eq!(read(&root, &p.head), MY_HEAD);
         assert!(init_style(&root, &style, true).unwrap().tokens_written);
         assert_ne!(read(&root, &p.tokens_json), mine);
         // No tokens yet (or the dfw init placeholder): the style applies without --force.
@@ -800,14 +833,17 @@ mod tests {
         let root = test_dir("system-typo");
         let p = project_paths(&root);
         write(&root, &p.manifest, r#"{"screens":[]}"#);
-        init(&root, "crisp");
-        system_options(&root, &names(&["crisp", "soft"]), "vi").unwrap();
+        /// A misspelt preset name.
+        const TYPO: &str = "sotf";
+        init(&root, DEFAULT_PRESET);
+        let current = [DEFAULT_PRESET, SOFT_PRESET];
+        system_options(&root, &names(&current), "vi").unwrap();
         let themes = || dir_names(&p.themes).unwrap();
-        assert_eq!(themes(), files_of(&["crisp", "soft"]));
-        let err = system_options(&root, &names(&["industrial", "sotf"]), "vi").unwrap_err();
+        assert_eq!(themes(), files_of(&current));
+        let err = system_options(&root, &names(&[INDUSTRIAL_PRESET, TYPO]), "vi").unwrap_err();
         let presets: Vec<String> = list_presets().unwrap().into_iter().map(|p| p.0).collect();
-        assert_eq!(err.message(), message::unknown_preset("sotf", &presets));
-        assert_eq!(themes(), files_of(&["crisp", "soft"]));
+        assert_eq!(err.message(), message::unknown_preset(TYPO, &presets));
+        assert_eq!(themes(), files_of(&current));
     }
 
     /// `system init --force` with `design/system/head.html` linked to a file outside the project
@@ -820,7 +856,9 @@ mod tests {
         let root = dir.join("project");
         let p = project_paths(&root);
         fs::create_dir_all(&p.system).unwrap();
-        fs::write(dir.join(file::HEAD), "theirs").unwrap();
+        /// The text of the file outside the project.
+        const THEIRS: &str = "theirs";
+        fs::write(dir.join(file::HEAD), THEIRS).unwrap();
         std::os::unix::fs::symlink(Path::new("../../..").join(file::HEAD), &p.head).unwrap();
         let opts = InitOptions {
             force: true,
@@ -829,7 +867,7 @@ mod tests {
         let err = system_init(&root, &opts).unwrap_err();
         let refused = format!("{} leads outside the project", rel::HEAD);
         assert!(err.message().starts_with(&refused), "{err}");
-        assert_eq!(fs::read_to_string(dir.join(file::HEAD)).unwrap(), "theirs");
+        assert_eq!(fs::read_to_string(dir.join(file::HEAD)).unwrap(), THEIRS);
         fs::remove_dir_all(&dir).unwrap();
     }
 
@@ -845,7 +883,7 @@ mod tests {
         let root = test_dir("system-guide-file");
         let p = project_paths(&root);
         write(&root, &p.manifest, r#"{"screens":[]}"#);
-        init(&root, "crisp");
+        init(&root, DEFAULT_PRESET);
         let guide = |id: &str| {
             let mut g = get_style("civic-public").unwrap();
             g["id"] = json!(id);
@@ -857,12 +895,13 @@ mod tests {
         let twin = path(&p.system.join(TWIN));
         write(&root, rel::STYLE_SOURCE, &guide(ID));
         write(&root, &unfit, &guide("Not An Id"));
-        let options = system_options(&root, &[source.clone(), "crisp".into()], "vi").unwrap();
-        assert_eq!(options, themes_of(&["crisp", ID]));
+        let options =
+            system_options(&root, &[source.clone(), DEFAULT_PRESET.into()], "vi").unwrap();
+        assert_eq!(options, themes_of(&[DEFAULT_PRESET, ID]));
         let themes = || dir_names(&p.themes).unwrap();
-        assert_eq!(themes(), files_of(&["crisp", ID]));
+        assert_eq!(themes(), files_of(&[DEFAULT_PRESET, ID]));
         // No plain id and no plain file name: refused before anything is replaced.
-        let err = system_options(&root, &[unfit.clone(), "soft".into()], "vi").unwrap_err();
+        let err = system_options(&root, &[unfit.clone(), SOFT_PRESET.into()], "vi").unwrap_err();
         assert_eq!(
             err.message(),
             crate::design::style::message::guide_id_not_plain(&unfit)
@@ -871,7 +910,7 @@ mod tests {
         write(&root, &twin, &guide(ID));
         let err = system_options(&root, &[source.clone(), twin], "vi").unwrap_err();
         assert_eq!(err.message(), message::duplicate_option(&option::theme(ID)));
-        assert_eq!(themes(), files_of(&["crisp", ID]));
+        assert_eq!(themes(), files_of(&[DEFAULT_PRESET, ID]));
         // The short name points at the file; the file is chosen.
         let err = system_choose(&root, ID, "vi").unwrap_err();
         assert_eq!(err.message(), message::choose_by_file(ID));

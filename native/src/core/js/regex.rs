@@ -254,10 +254,14 @@ mod tests {
         // "é" is not a word character in JavaScript, so there is a boundary after "a".
         assert!(is_match(r"a\b", "", "aé"));
         assert!(is_match(r"^\s$", "", "\u{feff}"));
-        assert!(!is_match(r"^\s$", "", "\u{85}"));
-        assert!(is_match(r"^\S$", "", "\u{85}"));
-        assert!(!is_match(r"^a.b$", "", "a\rb"));
-        assert!(is_match(r"^a[\s\S]b$", "", "a\rb"));
+        /// NEXT LINE: white space in Rust, not in JavaScript.
+        const NEL: &str = "\u{85}";
+        /// A carriage return, which `.` does not match.
+        const CR: &str = "a\rb";
+        assert!(!is_match(r"^\s$", "", NEL));
+        assert!(is_match(r"^\S$", "", NEL));
+        assert!(!is_match(r"^a.b$", "", CR));
+        assert!(is_match(r"^a[\s\S]b$", "", CR));
     }
 
     #[test]
@@ -266,17 +270,19 @@ mod tests {
         assert!(!is_match("oops", "i", "oop\u{17f}"));
         assert!(!is_match("k", "i", "\u{212a}"));
         assert!(is_match("^[0-9a-f]+$", "i", "AbC09"));
-        assert!(is_match("^[x×]$", "i", "X"));
-        assert!(is_match("^[x×]$", "i", "×"));
+        const X_OR_TIMES: &str = "^[x×]$";
+        assert!(is_match(X_OR_TIMES, "i", "X"));
+        assert!(is_match(X_OR_TIMES, "i", "×"));
         assert!(!is_match("^[^a]$", "i", "A"));
         assert!(is_match(r"\p{Extended_Pictographic}", "iu", "🚀"));
     }
 
     #[test]
     fn a_bracket_in_a_class_is_a_literal() {
-        assert!(is_match("[[{]", "", "x[y"));
-        assert!(is_match("[[{]", "", "x{y"));
-        assert!(!is_match("[[{]", "", "xy"));
+        const CLASS: &str = "[[{]";
+        assert!(is_match(CLASS, "", "x[y"));
+        assert!(is_match(CLASS, "", "x{y"));
+        assert!(!is_match(CLASS, "", "xy"));
     }
 
     #[test]

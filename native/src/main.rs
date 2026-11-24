@@ -27,6 +27,7 @@ mod telemetry;
 mod tools;
 mod workflow;
 
+use crate::cli::word::command;
 use crate::cli::Ctx;
 use crate::core::error::DfwError;
 use crate::core::util::{parse_args, require_flag_values, Args};
@@ -56,10 +57,10 @@ fn run(ctx: &Ctx, name: &str) -> Result<i32, DfwError> {
     let misplaced = cli::INTERNAL.contains(&name) && argv.first().map(String::as_str) != Some(name);
     let internal = cli::INTERNAL.contains(&name) && !misplaced;
     // A hook checks its flags inside the handler: it fails open.
-    if !internal && ctx.args.pos(0) != Some("hook") {
+    if !internal && ctx.args.pos(0) != Some(command::HOOK) {
         require_flag_values(&ctx.args)?;
     }
-    if !internal && name != "help" && name != "version" {
+    if !internal && name != command::HELP && name != command::VERSION {
         cli::check_strict(ctx)?;
     }
     let table = cli::commands();
@@ -85,10 +86,10 @@ fn command_name(argv: &[String], args: &Args) -> String {
         return first.into();
     }
     let cmd = args.pos(0).unwrap_or_default();
-    if cmd == "version" || args.truthy("version") {
-        "version".into()
-    } else if cmd.is_empty() || cmd == "help" || cmd == "-h" || cli::wants_help(argv, args) {
-        "help".into()
+    if cmd == command::VERSION || args.truthy("version") {
+        command::VERSION.into()
+    } else if cmd.is_empty() || cmd == command::HELP || cmd == "-h" || cli::wants_help(argv, args) {
+        command::HELP.into()
     } else {
         cmd.into()
     }
@@ -97,6 +98,11 @@ fn command_name(argv: &[String], args: &Args) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cli::word::{command, flag, hook_name, sub};
+    use crate::core::host::id;
+
+    /// A word that is no command.
+    const NOPE: &str = "nope";
 
     fn name(argv: &[&str]) -> String {
         let argv: Vec<String> = argv.iter().map(|s| s.to_string()).collect();
@@ -105,47 +111,54 @@ mod tests {
 
     #[test]
     fn command_selection() {
-        assert_eq!(name(&[]), "help");
-        assert_eq!(name(&[""]), "help");
-        assert_eq!(name(&["help"]), "help");
-        assert_eq!(name(&["status", "--help"]), "help");
-        assert_eq!(name(&["status", "--json"]), "status");
+        use command::{HELP, STATUS, VERSION};
+        assert_eq!(name(&[]), HELP);
+        assert_eq!(name(&[""]), HELP);
+        assert_eq!(name(&[HELP]), HELP);
+        assert_eq!(name(&[STATUS, flag::HELP]), HELP);
+        assert_eq!(name(&[STATUS, flag::JSON]), STATUS);
         assert_eq!(
-            name(&["--root", "/p", "status"]),
-            "status",
+            name(&[flag::ROOT, "/p", STATUS]),
+            STATUS,
             "a flag's value is not the command"
         );
-        assert_eq!(name(&["status", "--version"]), "version");
-        assert_eq!(name(&["--version"]), "version");
-        assert_eq!(name(&["--version="]), "help", "an empty value is falsy");
+        assert_eq!(name(&[STATUS, flag::VERSION]), VERSION);
+        assert_eq!(name(&[flag::VERSION]), VERSION);
+        assert_eq!(name(&["--version="]), HELP, "an empty value is falsy");
         // `dfw install --help` must never install (the Node CLI did), nor -h or a lone help.
         for cmd in [
-            "mcp",
-            "install",
-            "uninstall",
-            "setup",
-            "telemetry",
-            "status",
+            command::MCP,
+            command::INSTALL,
+            command::UNINSTALL,
+            command::SETUP,
+            command::TELEMETRY,
+            STATUS,
         ] {
-            for asked in ["--help", "-h", "help"] {
-                assert_eq!(name(&[cmd, asked]), "help", "{cmd} {asked}");
+            for asked in [flag::HELP, "-h", HELP] {
+                assert_eq!(name(&[cmd, asked]), HELP, "{cmd} {asked}");
             }
         }
-        assert_eq!(name(&["mcp", "install", "codex", "-h"]), "help");
-        assert_eq!(name(&["-h"]), "help");
+        assert_eq!(name(&[command::MCP, sub::INSTALL, id::CODEX, "-h"]), HELP);
+        assert_eq!(name(&["-h"]), HELP);
         assert_eq!(
-            name(&["setup", "--browser", "-h"]),
-            "help",
+            name(&[command::SETUP, "--browser", "-h"]),
+            HELP,
             "-h as a flag's value"
         );
         assert_eq!(
-            name(&["comments", "show", "help"]),
-            "comments",
+            name(&[command::COMMENTS, sub::SHOW, HELP]),
+            command::COMMENTS,
             "help is a word there"
         );
-        assert_eq!(name(&["install", "--host", "claude"]), "install");
-        assert_eq!(name(&["hook", "stop", "--help"]), "help");
-        assert_eq!(name(&["__studio-server", "--help"]), "__studio-server");
-        assert_eq!(name(&["nope"]), "nope");
+        assert_eq!(
+            name(&[command::INSTALL, flag::HOST, id::CLAUDE]),
+            command::INSTALL
+        );
+        assert_eq!(name(&[command::HOOK, hook_name::STOP, flag::HELP]), HELP);
+        assert_eq!(
+            name(&[command::STUDIO_SERVER, flag::HELP]),
+            command::STUDIO_SERVER
+        );
+        assert_eq!(name(&[NOPE]), NOPE);
     }
 }

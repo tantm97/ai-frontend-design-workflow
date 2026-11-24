@@ -57,8 +57,9 @@ mod tests {
     fn parallel_prompt_hooks_deliver_each_comment_once() {
         let root = test_dir("prompt-hook-parallel");
         save_state(&root, &mut new_state("new-product", "".into()).unwrap()).unwrap();
+        let marker = |i: usize| format!("marker-{i}-end");
         for i in 0..5 {
-            add_comment(&root, &json!({ "comment": format!("marker-{i}-end") })).unwrap();
+            add_comment(&root, &json!({ "comment": marker(i) })).unwrap();
         }
         let input = normalize_hook_input(&json!({
             "hook_event_name": event::USER_PROMPT_SUBMIT,
@@ -81,7 +82,7 @@ mod tests {
         }
         let all = told.join("\n");
         for i in 0..5 {
-            assert_eq!(all.matches(&format!("marker-{i}-end")).count(), 1, "{all}");
+            assert_eq!(all.matches(&marker(i)).count(), 1, "{all}");
         }
         std::fs::remove_dir_all(&root).unwrap();
     }

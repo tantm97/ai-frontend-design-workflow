@@ -5,6 +5,7 @@
 use serde_json::{json, Value};
 
 use super::events::{Event, Spooled};
+use super::wire::{attr, event, otlp};
 
 /// Who sends: the resource attributes of every request.
 pub struct Resource {
@@ -15,11 +16,11 @@ pub struct Resource {
 }
 
 fn text(key: &str, value: &str) -> Value {
-    json!({ "key": key, "value": { "stringValue": value } })
+    json!({ (otlp::KEY): key, (otlp::VALUE): { (otlp::STRING_VALUE): value } })
 }
 
 fn int(key: &str, value: i64) -> Value {
-    json!({ "key": key, "value": { "intValue": value.to_string() } })
+    json!({ (otlp::KEY): key, (otlp::VALUE): { (otlp::INT_VALUE): value.to_string() } })
 }
 
 /// `os.type` in OpenTelemetry's words.
@@ -47,11 +48,11 @@ fn describe(event: &Event) -> (&'static str, Vec<Value>) {
             duration,
             exit,
         } => (
-            "dfw.command",
+            event::COMMAND,
             vec![
-                text("dfw.command", name.as_str()),
-                text("dfw.duration_bucket", duration.as_str()),
-                int("dfw.exit_code", i64::from(*exit)),
+                text(attr::COMMAND, name.as_str()),
+                text(attr::DURATION_BUCKET, duration.as_str()),
+                int(attr::EXIT_CODE, i64::from(*exit)),
             ],
         ),
         Event::Hook {
@@ -60,17 +61,17 @@ fn describe(event: &Event) -> (&'static str, Vec<Value>) {
             duration,
             outcome,
         } => (
-            "dfw.hook",
+            event::HOOK,
             vec![
-                text("dfw.hook", name.as_str()),
-                text("dfw.host", host.as_str()),
-                text("dfw.duration_bucket", duration.as_str()),
-                text("dfw.hook_outcome", outcome.as_str()),
+                text(attr::HOOK, name.as_str()),
+                text(attr::HOST, host.as_str()),
+                text(attr::DURATION_BUCKET, duration.as_str()),
+                text(attr::HOOK_OUTCOME, outcome.as_str()),
             ],
         ),
-        Event::Gate { gate } => ("dfw.gate_approved", vec![text("dfw.gate", gate.as_str())]),
+        Event::Gate { gate } => (event::GATE_APPROVED, vec![text(attr::GATE, gate.as_str())]),
         Event::Checks { tools } => (
-            "dfw.checks",
+            event::CHECKS,
             tools
                 .iter()
                 .map(|c| {
@@ -82,10 +83,10 @@ fn describe(event: &Event) -> (&'static str, Vec<Value>) {
                 .collect(),
         ),
         Event::Workflow { mode, phase } => (
-            "dfw.workflow",
+            event::WORKFLOW,
             vec![
-                text("dfw.mode", mode.as_str()),
-                text("dfw.phase", phase.as_str()),
+                text(attr::MODE, mode.as_str()),
+                text(attr::PHASE, phase.as_str()),
             ],
         ),
     }
@@ -94,12 +95,12 @@ fn describe(event: &Event) -> (&'static str, Vec<Value>) {
 fn log_record(spooled: &Spooled) -> Value {
     let (name, attributes) = describe(&spooled.event);
     json!({
-        "timeUnixNano": format!("{}000000000", spooled.at),
-        "severityNumber": 9,
-        "severityText": "INFO",
-        "eventName": name,
-        "body": { "stringValue": name },
-        "attributes": attributes,
+        (otlp::TIME_UNIX_NANO): format!("{}000000000", spooled.at),
+        (otlp::SEVERITY_NUMBER): 9,
+        (otlp::SEVERITY_TEXT): "INFO",
+        (otlp::EVENT_NAME): name,
+        (otlp::BODY): { (otlp::STRING_VALUE): name },
+        (otlp::ATTRIBUTES): attributes,
     })
 }
 
@@ -107,17 +108,17 @@ fn log_record(spooled: &Spooled) -> Value {
 pub fn request_body(resource: &Resource, events: &[Spooled]) -> Value {
     let records: Vec<Value> = events.iter().map(log_record).collect();
     json!({
-        "resourceLogs": [{
-            "resource": { "attributes": [
-                text("service.name", "dfw"),
-                text("service.version", &resource.version),
-                text("os.type", os_type()),
-                text("host.arch", host_arch()),
-                text("dfw.install_id", &resource.install_id),
+        (otlp::RESOURCE_LOGS): [{
+            (otlp::RESOURCE): { (otlp::ATTRIBUTES): [
+                text(attr::SERVICE_NAME, "dfw"),
+                text(attr::SERVICE_VERSION, &resource.version),
+                text(attr::OS_TYPE, os_type()),
+                text(attr::HOST_ARCH, host_arch()),
+                text(attr::INSTALL_ID, &resource.install_id),
             ] },
-            "scopeLogs": [{
-                "scope": { "name": "dfw.telemetry" },
-                "logRecords": records,
+            (otlp::SCOPE_LOGS): [{
+                (otlp::SCOPE): { (otlp::NAME): "dfw.telemetry" },
+                (otlp::LOG_RECORDS): records,
             }],
         }],
     })
@@ -127,6 +128,9 @@ pub fn request_body(resource: &Resource, events: &[Spooled]) -> Value {
 mod tests {
     use super::*;
     use crate::telemetry::events::*;
+    use crate::telemetry::wire::otlp::{
+        ATTRIBUTES, KEY, RESOURCE, RESOURCE_LOGS, STRING_VALUE, VALUE,
+    };
 
     fn at(event: Event) -> Spooled {
         Spooled {
@@ -137,8 +141,9 @@ mod tests {
 
     #[test]
     fn a_request_is_one_resource_with_one_log_record_per_event() {
+        const VERSION: &str = "9.9.9";
         let resource = Resource {
-            version: "9.9.9".into(),
+            version: VERSION.into(),
             install_id: "0123456789abcdef0123456789abcdef".into(),
         };
         let events = [
@@ -174,14 +179,12 @@ mod tests {
             }),
         ];
         let body = request_body(&resource, &events);
-        let resource_logs = body["resourceLogs"].as_array().unwrap();
+        let resource_logs = body[RESOURCE_LOGS].as_array().unwrap();
         assert_eq!(resource_logs.len(), 1);
-        let attributes = resource_logs[0]["resource"]["attributes"]
-            .as_array()
-            .unwrap();
+        let attributes = resource_logs[0][RESOURCE][ATTRIBUTES].as_array().unwrap();
         let keys: Vec<&str> = attributes
             .iter()
-            .map(|a| a["key"].as_str().unwrap())
+            .map(|a| a[KEY].as_str().unwrap())
             .collect();
         assert_eq!(
             keys,
@@ -193,8 +196,8 @@ mod tests {
                 "dfw.install_id"
             ]
         );
-        assert_eq!(attributes[0]["value"]["stringValue"], "dfw");
-        assert_eq!(attributes[1]["value"]["stringValue"], "9.9.9");
+        assert_eq!(attributes[0][VALUE][STRING_VALUE], "dfw");
+        assert_eq!(attributes[1][VALUE][STRING_VALUE], VERSION);
         let records = resource_logs[0]["scopeLogs"][0]["logRecords"]
             .as_array()
             .unwrap();
@@ -218,9 +221,9 @@ mod tests {
             ]
         );
         assert_eq!(
-            records[3]["attributes"][0]["key"],
+            records[3][ATTRIBUTES][0][KEY],
             "dfw.check.dfw-lint.findings"
         );
-        assert_eq!(records[3]["attributes"][0]["value"]["intValue"], "3");
+        assert_eq!(records[3][ATTRIBUTES][0][VALUE]["intValue"], "3");
     }
 }

@@ -281,6 +281,7 @@ pub struct Spooled {
 mod tests {
     use super::*;
     use crate::core::fixture::SCREEN_PAGE;
+    use crate::core::host;
     use crate::core::paths::rel;
 
     /// No string field accepts a path or free text (telemetry task 2.1).
@@ -304,14 +305,20 @@ mod tests {
             assert!(PhaseName::new(text).is_none(), "{text}");
             assert!(CheckTool::new(text).is_none(), "{text}");
         }
-        assert_eq!(CommandName::or_unknown("/etc/passwd").as_str(), "unknown");
-        assert_eq!(HostId::or_unknown(Some("/etc/passwd")).as_str(), "unknown");
+        /// Text that is no name on any list: a path.
+        const PATH: &str = "/etc/passwd";
+        const STATUS: &str = "status";
+        assert_eq!(CommandName::or_unknown(PATH).as_str(), UNKNOWN);
+        assert_eq!(HostId::or_unknown(Some(PATH)).as_str(), UNKNOWN);
         assert_eq!(
-            CommandName::new("status").map(CommandName::as_str),
-            Some("status")
+            CommandName::new(STATUS).map(CommandName::as_str),
+            Some(STATUS)
         );
         assert_eq!(GateId::new("G2").map(GateId::as_str), Some("G2"));
-        assert_eq!(HostId::new("copilot").map(HostId::as_str), Some("copilot"));
+        assert_eq!(
+            HostId::new(host::id::COPILOT).map(HostId::as_str),
+            Some(host::id::COPILOT)
+        );
     }
 
     /// A spool line that names something off the lists, or carries an extra field, is not an event.
@@ -338,8 +345,9 @@ mod tests {
     #[test]
     fn durations_fall_into_buckets() {
         let bucket = |ms: u64| DurationBucket::of(Duration::from_millis(ms)).as_str();
-        assert_eq!(bucket(0), "lt_10ms");
-        assert_eq!(bucket(9), "lt_10ms");
+        let under_10ms = DurationBucket::Lt10ms.as_str();
+        assert_eq!(bucket(0), under_10ms);
+        assert_eq!(bucket(9), under_10ms);
         assert_eq!(bucket(10), "lt_100ms");
         assert_eq!(bucket(999), "lt_1s");
         assert_eq!(bucket(9_999), "lt_10s");

@@ -135,26 +135,32 @@ mod tests {
         let dir = test_dir("shots");
         let tmp = dir.join("tmp");
         std::fs::create_dir(&tmp).unwrap();
+        // The shot of each job, by what it shows.
+        const FULL: &str = "full.png";
+        const VIEWPORT: &str = "deep/er/viewport.png";
+        const BOX: &str = "box.png";
+        const MISSING: &str = "missing.png";
+        const RETINA: &str = "retina.png";
         let page = "data:text/html,<body style='margin:0;background:%23fff'><div id='box' style='width:100px;height:50px;background:%23d03030'></div><div style='height:900px'></div></body>";
         let jobs = vec![
-            job(page, dir.join("full.png")),
+            job(page, dir.join(FULL)),
             Job {
                 full_page: false,
-                ..job(page, dir.join("deep/er/viewport.png"))
+                ..job(page, dir.join(VIEWPORT))
             },
             Job {
                 selector: Some("#box".into()),
-                ..job(page, dir.join("box.png"))
+                ..job(page, dir.join(BOX))
             },
             Job {
                 selector: Some("#missing".into()),
-                ..job(page, dir.join("missing.png"))
+                ..job(page, dir.join(MISSING))
             },
             Job {
                 full_page: false,
                 scale: 2.0,
                 inside: None,
-                ..job(page, dir.join("retina.png"))
+                ..job(page, dir.join(RETINA))
             },
             job("http://127.0.0.1:9/refused", dir.join("refused.png")),
         ];
@@ -181,13 +187,13 @@ mod tests {
             let image = decode_rgba(&dir.join(name)).unwrap();
             (image.w, image.h)
         };
-        assert_eq!(size("full.png"), (320, 950));
-        assert_eq!(size("deep/er/viewport.png"), (320, 200));
-        assert_eq!(size("box.png"), (100, 50));
-        assert_eq!(size("retina.png"), (640, 400));
-        let red = decode_rgba(&dir.join("box.png")).unwrap();
+        assert_eq!(size(FULL), (320, 950));
+        assert_eq!(size(VIEWPORT), (320, 200));
+        assert_eq!(size(BOX), (100, 50));
+        assert_eq!(size(RETINA), (640, 400));
+        let red = decode_rgba(&dir.join(BOX)).unwrap();
         assert_eq!(&red.rgba[..4], [0xd0, 0x30, 0x30, 0xff]);
-        assert!(!dir.join("missing.png").exists());
+        assert!(!dir.join(MISSING).exists());
         assert_eq!(
             std::fs::read_dir(&tmp).unwrap().count(),
             0,

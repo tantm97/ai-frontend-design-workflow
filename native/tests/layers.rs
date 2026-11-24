@@ -396,6 +396,10 @@ fn no_two_modules_depend_on_each_other() {
 
 #[test]
 fn the_cycle_checker_finds_a_cycle() {
+    /// Three modules: `core::js` with its child `number`, and `core::util`.
+    const JS: &str = "core::js";
+    const JS_NUMBER: &str = "core::js::number";
+    const UTIL: &str = "core::util";
     let mut g: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     g.entry("a".into()).or_default().insert("b".into());
     g.entry("b".into()).or_default().insert("a".into());
@@ -404,20 +408,13 @@ fn the_cycle_checker_finds_a_cycle() {
         module_cycles(&g),
         vec![vec!["a".to_string(), "b".to_string()]]
     );
-    let modules: BTreeSet<String> = ["core::js", "core::js::number", "core::util"]
+    let modules: BTreeSet<String> = [JS, JS_NUMBER, UTIL]
         .iter()
         .map(|s| s.to_string())
         .collect();
     assert_eq!(
-        module_edges(
-            "use crate::core::js::number::number;",
-            "core::util",
-            &modules
-        ),
-        ["core::js::number"]
+        module_edges("use crate::core::js::number::number;", UTIL, &modules),
+        [JS_NUMBER]
     );
-    assert_eq!(
-        module_edges("use super::util::x;", "core::js", &modules),
-        ["core::util"]
-    );
+    assert_eq!(module_edges("use super::util::x;", JS, &modules), [UTIL]);
 }

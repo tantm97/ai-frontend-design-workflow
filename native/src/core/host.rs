@@ -23,17 +23,9 @@ use super::paths::env_nonempty;
 use super::util::{ArgValue, MARKETPLACE_NAME};
 
 mod wire;
-pub use self::wire::{event, patch, tool};
+pub use self::wire::{event, patch, reply, tool};
 
-/// The ids of the hosts, as `--host` and `DFW_HOST` name them.
-pub mod id {
-    pub const CLAUDE: &str = "claude";
-    pub const COPILOT: &str = "copilot";
-    pub const MCP: &str = "mcp";
-    pub const OPENCODE: &str = "opencode";
-    pub const CODEX: &str = "codex";
-    pub const CURSOR: &str = "cursor";
-}
+pub mod id;
 
 /// How far the support for a host goes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -422,13 +414,15 @@ pub fn format_hook_output(
     let host = get_host(Some(host_id))?;
     let field = |key: &str| result.get(key).filter(|v| js::truthy(v));
     if let Some(block) = field("block") {
-        return Ok(Some(json!({ "decision": "block", "reason": block })));
+        return Ok(Some(
+            json!({ (reply::DECISION): reply::BLOCK, (reply::REASON): block }),
+        ));
     }
     if let Some(deny) = field("deny") {
         return Ok(Some(if host.id == id::CLAUDE {
-            json!({ "hookSpecificOutput": { "hookEventName": event, "permissionDecision": "deny", "permissionDecisionReason": deny } })
+            json!({ (reply::HOOK_SPECIFIC_OUTPUT): { (reply::HOOK_EVENT_NAME): event, (reply::PERMISSION_DECISION): reply::DENY, (reply::PERMISSION_DECISION_REASON): deny } })
         } else {
-            json!({ "permissionDecision": "deny", "permissionDecisionReason": deny })
+            json!({ (reply::PERMISSION_DECISION): reply::DENY, (reply::PERMISSION_DECISION_REASON): deny })
         }));
     }
     if let Some(context) = field("context") {
@@ -437,9 +431,9 @@ pub fn format_hook_output(
             return Ok(None);
         }
         return Ok(Some(if host.id == id::CLAUDE {
-            json!({ "hookSpecificOutput": { "hookEventName": event, "additionalContext": context } })
+            json!({ (reply::HOOK_SPECIFIC_OUTPUT): { (reply::HOOK_EVENT_NAME): event, (reply::ADDITIONAL_CONTEXT): context } })
         } else {
-            json!({ "additionalContext": context })
+            json!({ (reply::ADDITIONAL_CONTEXT): context })
         }));
     }
     Ok(None)

@@ -5,6 +5,7 @@ use std::path::Path;
 
 use serde_json::Value;
 
+use super::layout_prop;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::project_paths;
@@ -133,7 +134,7 @@ pub fn layout_value(
     if v.is_empty() || v == "auto" {
         return Ok(None);
     }
-    if prop == "grid-column" {
+    if prop == layout_prop::GRID_COLUMN {
         let span = crate::core::js::regex::with_js_classes(r"^(?:span\s+)?(\d+)$")?;
         let n = span
             .captures(v)
@@ -146,7 +147,7 @@ pub fn layout_value(
             ))),
         };
     }
-    if prop == "width" && v.ends_with('%') {
+    if prop == layout_prop::WIDTH && v.ends_with('%') {
         if !WIDTH_PERCENTS.contains(&v) {
             return Err(DfwError::new(format!(
                 "Width percentages snap to {}.",

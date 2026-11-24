@@ -36,6 +36,30 @@ use layout::rel;
 mod wire;
 use wire::{event, tool};
 
+#[path = "../src/core/word.rs"]
+#[allow(dead_code, reason = "each test binary uses a part of the command line")]
+mod word;
+use word::{command, flag, hook_name, sub};
+
+#[path = "../src/core/host/id.rs"]
+#[allow(dead_code, reason = "each test binary uses a part of the host ids")]
+mod host_id;
+
+#[path = "../src/workflow/names.rs"]
+#[allow(
+    dead_code,
+    reason = "each test binary uses a part of the workflow names"
+)]
+mod names;
+
+#[path = "../src/telemetry/wire.rs"]
+#[allow(
+    dead_code,
+    reason = "each test binary uses a part of what the telemetry sends"
+)]
+mod telemetry_wire;
+use telemetry_wire::{attr, event as recorded, file as telemetry_file, otlp};
+
 #[path = "../src/core/fixture.rs"]
 #[allow(
     dead_code,
@@ -49,6 +73,18 @@ const DFW: &str = env!("CARGO_BIN_EXE_dfw");
 const BUILT_WITH_ENDPOINT: Option<&str> = option_env!("DFW_OTLP_ENDPOINT");
 /// A local address nothing listens on: a flush to it fails at once and the spool stays.
 const NOWHERE: &str = "http://127.0.0.1:1";
+/// A phase no workflow has.
+const NO_PHASE: &str = "nowhere-phase";
+/// A first argument that is no command.
+const NO_COMMAND: &str = "no-such-command";
+/// A session id that must never leave the machine.
+const SECRET_SESSION: &str = "session-secret-1";
+/// File content that must never leave the machine.
+const SECRET_CONTENT: &str = "secret file content";
+/// What stands for the project's path in the output compared.
+const PROJECT_MASK: &str = "<project>";
+/// The value of `DFW_TELEMETRY` that turns telemetry off.
+const SWITCHED_OFF: &str = "off";
 
 fn address_compiled_in() -> bool {
     BUILT_WITH_ENDPOINT.is_some_and(|e| !e.trim().is_empty())
@@ -123,7 +159,7 @@ impl Machine {
     }
 
     fn spool(&self) -> PathBuf {
-        self.telemetry_dir().join("spool.jsonl")
+        self.telemetry_dir().join(telemetry_file::SPOOL)
     }
 
     /// `dfw <args>` in the project. Nothing of the session that runs the tests reaches the
@@ -191,14 +227,14 @@ impl Machine {
 
     /// Point telemetry at `endpoint` and turn it on (no notice needed after the user's own "on").
     fn turn_on(&self, endpoint: &str) {
-        self.ok(&["telemetry", "endpoint", endpoint]);
-        let said = self.ok(&["telemetry", "on"]);
+        self.ok(&[command::TELEMETRY, sub::ENDPOINT, endpoint]);
+        let said = self.ok(&[command::TELEMETRY, sub::ON]);
         assert!(said.starts_with("on: sending to "), "{said}");
     }
 
     /// The log records `dfw telemetry show` prints.
     fn shown(&self) -> Vec<Value> {
-        let text = self.ok(&["telemetry", "show"]);
+        let text = self.ok(&[command::TELEMETRY, sub::SHOW]);
         if text.starts_with("No events") {
             return Vec::new();
         }
@@ -207,18 +243,18 @@ impl Machine {
 }
 
 fn records(body: &Value) -> Vec<Value> {
-    body["resourceLogs"][0]["scopeLogs"][0]["logRecords"]
+    body[otlp::RESOURCE_LOGS][0][otlp::SCOPE_LOGS][0][otlp::LOG_RECORDS]
         .as_array()
         .unwrap()
         .clone()
 }
 
 fn attribute<'a>(record: &'a Value, key: &str) -> Option<&'a Value> {
-    record["attributes"]
+    record[otlp::ATTRIBUTES]
         .as_array()?
         .iter()
-        .find(|a| a["key"] == key)
-        .map(|a| &a["value"])
+        .find(|a| a[otlp::KEY] == key)
+        .map(|a| &a[otlp::VALUE])
 }
 
 /// `(event name, the value of its first attribute)` of each record.
@@ -226,12 +262,15 @@ fn summary(records: &[Value]) -> Vec<(String, String)> {
     records
         .iter()
         .map(|r| {
-            let first = &r["attributes"][0]["value"];
-            let value = first["stringValue"]
+            let first = &r[otlp::ATTRIBUTES][0][otlp::VALUE];
+            let value = first[otlp::STRING_VALUE]
                 .as_str()
-                .or(first["intValue"].as_str())
+                .or(first[otlp::INT_VALUE].as_str())
                 .unwrap();
-            (r["eventName"].as_str().unwrap().to_string(), value.into())
+            (
+                r[otlp::EVENT_NAME].as_str().unwrap().to_string(),
+                value.into(),
+            )
         })
         .collect()
 }
@@ -340,43 +379,45 @@ fn events_arrive_as_otlp_json_and_carry_no_content() {
 
     // The first recorded command starts the detached flush: wait for it, so the rest of the
     // events leave in one request of this test's own flush.
-    m.ok(&["init", "--product", "Acme Secret Shop"]);
+    m.ok(&[command::INIT, flag::PRODUCT, "Acme Secret Shop"]);
     let first = sink
         .next(Duration::from_secs(10))
         .expect("the detached flush");
     wait_until("the first batch leaves the spool", || !m.spool().exists());
 
-    m.ok(&["status", "--root", &project]);
+    m.ok(&[command::STATUS, flag::ROOT, &project]);
     m.ok(&[
-        "approve",
+        command::APPROVE,
         "G1",
-        "--note",
+        flag::NOTE,
         "warm palette as the client asked",
     ]);
     m.ok(&[
-        "stack",
-        "set",
-        "--json",
+        command::STACK,
+        sub::SET,
+        flag::JSON,
         "{\"framework\":{\"name\":\"SecretFramework\"}}",
     ]);
-    assert_eq!(m.run(&["phase", "nowhere-phase"]).code, 1);
-    assert_eq!(
-        m.run(&["no-such-command", &rel::screen(SCREEN_PAGE)]).code,
-        1
-    );
+    assert_eq!(m.run(&[command::PHASE, NO_PHASE]).code, 1);
+    assert_eq!(m.run(&[NO_COMMAND, &rel::screen(SCREEN_PAGE)]).code, 1);
     let hook_input = json!({
-        "hook_event_name": event::PRE_TOOL_USE, "session_id": "session-secret-1", "cwd": project,
-        "tool_name": tool::WRITE, "tool_input": { "file_path": format!("{project}/{SECRET_COMPONENT}"), "content": "secret file content" },
+        "hook_event_name": event::PRE_TOOL_USE, "session_id": SECRET_SESSION, "cwd": project,
+        "tool_name": tool::WRITE, "tool_input": { "file_path": format!("{project}/{SECRET_COMPONENT}"), "content": SECRET_CONTENT },
     });
     let hook = m.run_with(
-        &["hook", "pre-tool-use"],
+        &[command::HOOK, hook_name::PRE_TOOL_USE],
         &hook_input.to_string(),
         &[("CLAUDE_PROJECT_DIR", &project)],
     );
     assert_eq!(hook.code, 0);
-    assert!(hook.stdout.contains("deny"), "{}", hook.stdout);
+    assert!(hook.stdout.contains(wire::reply::DENY), "{}", hook.stdout);
     m.run_with(
-        &["hook", "session-start", "--host", "copilot"],
+        &[
+            command::HOOK,
+            hook_name::SESSION_START,
+            flag::HOST,
+            host_id::COPILOT,
+        ],
         &json!({ "cwd": project }).to_string(),
         &[],
     );
@@ -384,7 +425,7 @@ fn events_arrive_as_otlp_json_and_carry_no_content() {
     // `show` prints what the flush then sends.
     let shown = m.shown();
     assert_eq!(
-        m.ok(&["telemetry", "flush"]),
+        m.ok(&[command::TELEMETRY, sub::FLUSH]),
         format!("Sent {} events.\n", shown.len())
     );
     let second = sink
@@ -406,26 +447,26 @@ fn events_arrive_as_otlp_json_and_carry_no_content() {
 
     // Valid OTLP logs: one resource with the five attributes, typed values only.
     let first_body: Value = serde_json::from_str(&first.body).unwrap();
-    let id = fs::read_to_string(m.telemetry_dir().join("id")).unwrap();
+    let id = fs::read_to_string(m.telemetry_dir().join(telemetry_file::ID)).unwrap();
     for body in [&first_body, &sent] {
-        assert_eq!(body["resourceLogs"].as_array().unwrap().len(), 1);
-        let resource = body["resourceLogs"][0]["resource"]["attributes"]
+        assert_eq!(body[otlp::RESOURCE_LOGS].as_array().unwrap().len(), 1);
+        let resource = body[otlp::RESOURCE_LOGS][0][otlp::RESOURCE][otlp::ATTRIBUTES]
             .as_array()
             .unwrap();
         let pairs: Vec<(&str, &str)> = resource
             .iter()
             .map(|a| {
                 (
-                    a["key"].as_str().unwrap(),
-                    a["value"]["stringValue"].as_str().unwrap(),
+                    a[otlp::KEY].as_str().unwrap(),
+                    a[otlp::VALUE][otlp::STRING_VALUE].as_str().unwrap(),
                 )
             })
             .collect();
-        assert_eq!(pairs[0], ("service.name", "dfw"));
-        assert_eq!(pairs[1].0, "service.version");
-        assert_eq!(pairs[2].0, "os.type");
-        assert_eq!(pairs[3].0, "host.arch");
-        assert_eq!(pairs[4], ("dfw.install_id", id.trim()));
+        assert_eq!(pairs[0], (attr::SERVICE_NAME, "dfw"));
+        assert_eq!(pairs[1].0, attr::SERVICE_VERSION);
+        assert_eq!(pairs[2].0, attr::OS_TYPE);
+        assert_eq!(pairs[3].0, attr::HOST_ARCH);
+        assert_eq!(pairs[4], (attr::INSTALL_ID, id.trim()));
         assert_eq!(pairs.len(), 5);
         for record in records(body) {
             let keys: Vec<&str> = record
@@ -437,26 +478,32 @@ fn events_arrive_as_otlp_json_and_carry_no_content() {
             assert_eq!(
                 keys,
                 [
-                    "timeUnixNano",
-                    "severityNumber",
-                    "severityText",
-                    "eventName",
-                    "body",
-                    "attributes"
+                    otlp::TIME_UNIX_NANO,
+                    otlp::SEVERITY_NUMBER,
+                    otlp::SEVERITY_TEXT,
+                    otlp::EVENT_NAME,
+                    otlp::BODY,
+                    otlp::ATTRIBUTES
                 ]
             );
-            let nanos = record["timeUnixNano"].as_str().unwrap();
+            let nanos = record[otlp::TIME_UNIX_NANO].as_str().unwrap();
             assert!(
                 nanos.len() == 19 && nanos.bytes().all(|b| b.is_ascii_digit()),
                 "{nanos}"
             );
-            assert_eq!(record["body"]["stringValue"], record["eventName"]);
-            for a in record["attributes"].as_array().unwrap() {
-                assert!(a["key"].as_str().unwrap().starts_with("dfw."));
-                let value = a["value"].as_object().unwrap();
+            assert_eq!(
+                record[otlp::BODY][otlp::STRING_VALUE],
+                record[otlp::EVENT_NAME]
+            );
+            for a in record[otlp::ATTRIBUTES].as_array().unwrap() {
+                assert!(a[otlp::KEY].as_str().unwrap().starts_with("dfw."));
+                let value = a[otlp::VALUE].as_object().unwrap();
                 assert_eq!(value.len(), 1);
                 let (kind, v) = value.iter().next().unwrap();
-                assert!(kind == "stringValue" || kind == "intValue", "{kind}");
+                assert!(
+                    kind == otlp::STRING_VALUE || kind == otlp::INT_VALUE,
+                    "{kind}"
+                );
                 assert!(v.is_string());
             }
         }
@@ -471,41 +518,44 @@ fn events_arrive_as_otlp_json_and_carry_no_content() {
     };
     assert_eq!(
         summary(&records(&first_body)),
-        said(&[("dfw.command", "init"), ("dfw.workflow", "new-product")])
+        said(&[
+            (recorded::COMMAND, "init"),
+            (recorded::WORKFLOW, names::mode::NEW_PRODUCT)
+        ])
     );
     assert_eq!(
         summary(&shown),
         said(&[
-            ("dfw.command", "status"),
-            ("dfw.command", "approve"),
-            ("dfw.gate_approved", "G1"),
-            ("dfw.workflow", "new-product"),
-            ("dfw.command", "stack"),
-            ("dfw.command", "phase"),
-            ("dfw.command", "unknown"),
-            ("dfw.hook", "pre-tool-use"),
-            ("dfw.hook", "session-start"),
+            (recorded::COMMAND, "status"),
+            (recorded::COMMAND, "approve"),
+            (recorded::GATE_APPROVED, "G1"),
+            (recorded::WORKFLOW, names::mode::NEW_PRODUCT),
+            (recorded::COMMAND, "stack"),
+            (recorded::COMMAND, "phase"),
+            (recorded::COMMAND, "unknown"),
+            (recorded::HOOK, "pre-tool-use"),
+            (recorded::HOOK, "session-start"),
         ])
     );
     let string = |r: &Value, key: &str| {
-        attribute(r, key).unwrap()["stringValue"]
+        attribute(r, key).unwrap()[otlp::STRING_VALUE]
             .as_str()
             .unwrap()
             .to_string()
     };
     let int = |r: &Value, key: &str| {
-        attribute(r, key).unwrap()["intValue"]
+        attribute(r, key).unwrap()[otlp::INT_VALUE]
             .as_str()
             .unwrap()
             .to_string()
     };
-    assert_eq!(int(&shown[0], "dfw.exit_code"), "0");
-    assert!(string(&shown[0], "dfw.duration_bucket").starts_with("lt_"));
-    assert_eq!(string(&shown[3], "dfw.phase"), "discovery");
-    assert_eq!(int(&shown[5], "dfw.exit_code"), "1");
-    assert_eq!(string(&shown[7], "dfw.host"), "claude");
-    assert_eq!(string(&shown[7], "dfw.hook_outcome"), "deny");
-    assert_eq!(string(&shown[8], "dfw.host"), "copilot");
+    assert_eq!(int(&shown[0], attr::EXIT_CODE), "0");
+    assert!(string(&shown[0], attr::DURATION_BUCKET).starts_with("lt_"));
+    assert_eq!(string(&shown[3], attr::PHASE), "discovery");
+    assert_eq!(int(&shown[5], attr::EXIT_CODE), "1");
+    assert_eq!(string(&shown[7], attr::HOST), host_id::CLAUDE);
+    assert_eq!(string(&shown[7], attr::HOOK_OUTCOME), wire::reply::DENY);
+    assert_eq!(string(&shown[8], attr::HOST), host_id::COPILOT);
 
     // Nothing of the project: not its path or folder name, no file name, no argument value.
     let base_name = m
@@ -530,18 +580,18 @@ fn events_arrive_as_otlp_json_and_carry_no_content() {
         "client",
         "SecretFramework",
         "framework",
-        "nowhere-phase",
-        "no-such-command",
+        NO_PHASE,
+        NO_COMMAND,
         design_folder.as_str(),
         "screens",
         "a.html",
         ".html",
         ".tsx",
         "SecretComponent",
-        "secret file content",
-        "session-secret-1",
-        "--note",
-        "--root",
+        SECRET_CONTENT,
+        SECRET_SESSION,
+        flag::NOTE,
+        flag::ROOT,
         "/Users/",
         "/home/",
         "/tmp",
@@ -564,56 +614,56 @@ fn each_switch_stops_recording() {
     let sink = Sink::start(Duration::ZERO);
     for (name, value) in [
         ("DO_NOT_TRACK", "1"),
-        ("DFW_TELEMETRY", "off"),
+        ("DFW_TELEMETRY", SWITCHED_OFF),
         ("CI", "true"),
     ] {
         let m = Machine::new("switch");
         m.turn_on(&sink.url);
         let m = m.with_env(name, value);
-        m.ok(&["init"]);
-        m.ok(&["status"]);
-        m.run_with(&["hook", "session-start"], "{}", &[]);
+        m.ok(&[command::INIT]);
+        m.ok(&[command::STATUS]);
+        m.run_with(&[command::HOOK, hook_name::SESSION_START], "{}", &[]);
         assert!(
             !m.telemetry_dir().exists(),
             "{name}={value}: no spool, no install id, no flush"
         );
-        let status = m.ok(&["telemetry", "status"]);
+        let status = m.ok(&[command::TELEMETRY, sub::STATUS]);
         assert!(status.starts_with("off: "), "{status}");
         assert!(status.contains(name), "{status}");
         assert!(m
-            .ok(&["telemetry", "flush"])
+            .ok(&[command::TELEMETRY, sub::FLUSH])
             .starts_with("Nothing sent: telemetry is off"));
     }
 
     // `dfw telemetry off` after events were recorded: the install id and the spool go.
     let m = Machine::new("off");
     m.turn_on(NOWHERE);
-    m.ok(&["init"]);
-    m.ok(&["status"]);
+    m.ok(&[command::INIT]);
+    m.ok(&[command::STATUS]);
     assert_eq!(
         m.shown().len(),
         3,
         "recorded while on (the collector is unreachable)"
     );
-    assert!(m.telemetry_dir().join("id").exists());
-    m.ok(&["telemetry", "off"]);
+    assert!(m.telemetry_dir().join(telemetry_file::ID).exists());
+    m.ok(&[command::TELEMETRY, sub::OFF]);
     assert!(
         !m.telemetry_dir().exists(),
         "the install id and the spool are deleted"
     );
-    m.ok(&["status"]);
-    m.run_with(&["hook", "session-start"], "{}", &[]);
+    m.ok(&[command::STATUS]);
+    m.run_with(&[command::HOOK, hook_name::SESSION_START], "{}", &[]);
     assert!(
         !m.telemetry_dir().exists(),
         "no later command records anything"
     );
     assert_eq!(
-        m.ok(&["telemetry", "status"]),
+        m.ok(&[command::TELEMETRY, sub::STATUS]),
         "off: turned off with \"dfw telemetry off\"\n"
     );
     // The address is still set: only the switch keeps it off.
     assert!(m
-        .ok(&["telemetry", "on"])
+        .ok(&[command::TELEMETRY, sub::ON])
         .starts_with("on: sending to http://127.0.0.1:1/v1/logs"));
     sink.assert_silent();
 }
@@ -627,19 +677,19 @@ fn nothing_is_recorded_before_the_notice() {
     }
     let m = Machine::new("notice");
     let quiet = Machine::new("quiet")
-        .with_env("DFW_TELEMETRY", "off")
-        .run(&["version"]);
-    m.ok(&["telemetry", "endpoint", NOWHERE]);
+        .with_env("DFW_TELEMETRY", SWITCHED_OFF)
+        .run(&[command::VERSION]);
+    m.ok(&[command::TELEMETRY, sub::ENDPOINT, NOWHERE]);
     assert!(m
-        .ok(&["telemetry", "status"])
+        .ok(&[command::TELEMETRY, sub::STATUS])
         .starts_with("off until the next command has printed the notice"));
 
     // A hook's stderr is not shown to the user: no notice, nothing recorded, nothing marked.
-    let hook = m.run_with(&["hook", "session-start"], "{}", &[]);
+    let hook = m.run_with(&[command::HOOK, hook_name::SESSION_START], "{}", &[]);
     assert_eq!(hook.stderr, "");
     assert!(!m.telemetry_dir().exists());
 
-    let first = m.run(&["version"]);
+    let first = m.run(&[command::VERSION]);
     assert_eq!(first.code, 0);
     assert_eq!(first.stdout, quiet.stdout, "stdout is the command's own");
     assert!(first
@@ -649,19 +699,19 @@ fn nothing_is_recorded_before_the_notice() {
     assert!(first
         .stderr
         .contains("Nothing was recorded before this notice."));
-    assert!(m.telemetry_dir().join("notice").exists());
+    assert!(m.telemetry_dir().join(telemetry_file::NOTICE).exists());
     assert!(
         !m.spool().exists(),
         "the run that prints the notice records nothing"
     );
-    assert!(!m.telemetry_dir().join("id").exists());
+    assert!(!m.telemetry_dir().join(telemetry_file::ID).exists());
 
-    let second = m.run(&["version"]);
+    let second = m.run(&[command::VERSION]);
     assert_eq!(second.stderr, "", "the notice is printed once");
     assert_eq!(second.stdout, quiet.stdout);
     assert_eq!(
         summary(&m.shown()),
-        [("dfw.command".to_string(), "version".to_string())]
+        [(recorded::COMMAND.to_string(), "version".to_string())]
     );
 }
 
@@ -669,8 +719,9 @@ fn nothing_is_recorded_before_the_notice() {
 /// no choice, the state waits for the notice instead of asking for `dfw telemetry on`.
 fn dfw_default_is_on() -> bool {
     let m = Machine::new("default");
-    m.ok(&["telemetry", "endpoint", NOWHERE]);
-    !m.ok(&["telemetry", "status"]).contains("not turned on")
+    m.ok(&[command::TELEMETRY, sub::ENDPOINT, NOWHERE]);
+    !m.ok(&[command::TELEMETRY, sub::STATUS])
+        .contains("not turned on")
 }
 
 /// The command returns before the POST completes: the collector answers after two seconds.
@@ -679,7 +730,7 @@ fn a_command_does_not_wait_for_the_collector() {
     let sink = Sink::start(Duration::from_secs(2));
     let m = Machine::new("slow");
     m.turn_on(&sink.url);
-    let ran = m.run(&["version"]);
+    let ran = m.run(&[command::VERSION]);
     assert_eq!(ran.code, 0);
     assert!(
         ran.took < Duration::from_millis(1500),
@@ -690,26 +741,26 @@ fn a_command_does_not_wait_for_the_collector() {
     let request = sink
         .next(Duration::from_secs(10))
         .expect("the detached flush");
-    assert!(request.body.contains("\"dfw.command\""));
+    assert!(request.body.contains(&format!("\"{}\"", recorded::COMMAND)));
     assert!(
         m.spool().exists(),
         "not accepted yet: the event is still in the spool"
     );
-    let hook = m.run_with(&["hook", "session-start"], "{}", &[]);
+    let hook = m.run_with(&[command::HOOK, hook_name::SESSION_START], "{}", &[]);
     assert!(hook.took < Duration::from_millis(1500), "{:?}", hook.took);
     wait_until("the accepted event leaves the spool", || {
         fs::read_to_string(m.spool()).is_ok_and(|left| !left.contains("\"version\""))
     });
     assert_eq!(
         summary(&m.shown()),
-        [("dfw.hook".to_string(), "session-start".to_string())]
+        [(recorded::HOOK.to_string(), "session-start".to_string())]
     );
 }
 
 /// Telemetry changes neither stdout nor the exit code of a command, on or failing to send.
 #[test]
 fn output_and_exit_code_are_the_same_with_telemetry_on() {
-    let off = Machine::new("same-off").with_env("DFW_TELEMETRY", "off");
+    let off = Machine::new("same-off").with_env("DFW_TELEMETRY", SWITCHED_OFF);
     let on = Machine::new("same-on");
     on.turn_on(NOWHERE);
     // A telemetry folder that cannot be written: recording fails, the command does not.
@@ -719,15 +770,18 @@ fn output_and_exit_code_are_the_same_with_telemetry_on() {
     let hook_input =
         json!({ "tool_name": tool::WRITE, "tool_input": { "file_path": APP_MODULE } }).to_string();
     let commands = [
-        (vec!["init", "--product", "Fixture"], ""),
-        (vec!["status", "--json"], ""),
-        (vec!["status"], ""),
-        (vec!["phase", "nowhere"], ""),
-        (vec!["approve", "G1"], ""),
-        (vec!["approve", "G1", "--note", "ok"], ""),
-        (vec!["decisions"], ""),
+        (vec![command::INIT, flag::PRODUCT, "Fixture"], ""),
+        (vec![command::STATUS, flag::JSON], ""),
+        (vec![command::STATUS], ""),
+        (vec![command::PHASE, "nowhere"], ""),
+        (vec![command::APPROVE, "G1"], ""),
+        (vec![command::APPROVE, "G1", flag::NOTE, "ok"], ""),
+        (vec![command::DECISIONS], ""),
         (vec!["nope"], ""),
-        (vec!["hook", "pre-tool-use"], hook_input.as_str()),
+        (
+            vec![command::HOOK, hook_name::PRE_TOOL_USE],
+            hook_input.as_str(),
+        ),
     ];
     let all = |m: &Machine| -> Vec<(i32, String, String)> {
         // The project as dfw prints it: without the Windows `\\?\` prefix of the test's real
@@ -737,8 +791,8 @@ fn output_and_exit_code_are_the_same_with_telemetry_on() {
         let escaped = serde_json::to_string(&shown).unwrap();
         let escaped = escaped.trim_matches('"').to_string();
         let mask = |text: String| {
-            text.replace(&escaped, "<project>")
-                .replace(&shown, "<project>")
+            text.replace(&escaped, PROJECT_MASK)
+                .replace(&shown, PROJECT_MASK)
         };
         commands
             .iter()
@@ -758,13 +812,13 @@ fn output_and_exit_code_are_the_same_with_telemetry_on() {
 #[test]
 fn the_binary_knows_whether_an_address_was_compiled_in() {
     let m = Machine::new("build");
-    let built: Value = serde_json::from_str(&m.ok(&["__debug", "telemetry-build"])).unwrap();
+    let built: Value = serde_json::from_str(&m.ok(&[command::DEBUG, "telemetry-build"])).unwrap();
     assert_eq!(built["endpoint"], json!(address_compiled_in()));
     if !address_compiled_in() {
         // An unset variable yields "no address" (telemetry task 1.1).
         assert_eq!(built, json!({ "endpoint": false, "headers": false }));
         assert_eq!(
-            m.ok(&["telemetry", "status"]),
+            m.ok(&[command::TELEMETRY, sub::STATUS]),
             "off: no collector address in this build\n"
         );
     }
@@ -788,25 +842,28 @@ fn a_build_without_an_address_writes_nothing_and_connects_nowhere() {
     let hook_input =
         json!({ "tool_name": tool::WRITE, "tool_input": { "file_path": APP_MODULE } }).to_string();
     for (args, stdin) in [
-        (vec!["version"], ""),
-        (vec!["help"], ""),
-        (vec!["init", "--product", "Fixture"], ""),
-        (vec!["status"], ""),
-        (vec!["approve", "G1", "--note", "ok"], ""),
-        (vec!["phase", "direction"], ""),
-        (vec!["stack", "detect", "--write"], ""),
-        (vec!["doctor"], ""),
+        (vec![command::VERSION], ""),
+        (vec![command::HELP], ""),
+        (vec![command::INIT, flag::PRODUCT, "Fixture"], ""),
+        (vec![command::STATUS], ""),
+        (vec![command::APPROVE, "G1", flag::NOTE, "ok"], ""),
+        (vec![command::PHASE, "direction"], ""),
+        (vec![command::STACK, "detect", "--write"], ""),
+        (vec![command::DOCTOR], ""),
         (vec!["nope"], ""),
-        (vec!["hook", "session-start"], "{}"),
-        (vec!["hook", "pre-tool-use"], hook_input.as_str()),
-        (vec!["hook", "stop"], "{}"),
-        (vec!["telemetry"], ""),
-        (vec!["telemetry", "status"], ""),
-        (vec!["telemetry", "show"], ""),
-        (vec!["telemetry", "flush"], ""),
-        (vec!["telemetry", "on"], ""),
-        (vec!["status", "--root", project.as_str()], ""),
-        (vec!["telemetry", "flush"], ""),
+        (vec![command::HOOK, hook_name::SESSION_START], "{}"),
+        (
+            vec![command::HOOK, hook_name::PRE_TOOL_USE],
+            hook_input.as_str(),
+        ),
+        (vec![command::HOOK, hook_name::STOP], "{}"),
+        (vec![command::TELEMETRY], ""),
+        (vec![command::TELEMETRY, sub::STATUS], ""),
+        (vec![command::TELEMETRY, sub::SHOW], ""),
+        (vec![command::TELEMETRY, sub::FLUSH], ""),
+        (vec![command::TELEMETRY, sub::ON], ""),
+        (vec![command::STATUS, flag::ROOT, project.as_str()], ""),
+        (vec![command::TELEMETRY, sub::FLUSH], ""),
     ] {
         m.run_with(&args, stdin, &[]);
         assert!(
@@ -817,14 +874,18 @@ fn a_build_without_an_address_writes_nothing_and_connects_nowhere() {
         );
     }
     assert_eq!(
-        m.ok(&["telemetry", "status"]),
+        m.ok(&[command::TELEMETRY, sub::STATUS]),
         "off: no collector address in this build\n"
     );
     trap.assert_silent();
 
     // The trap does catch the HTTP client: with a collector set, the flush lands in it.
-    m.ok(&["telemetry", "endpoint", "http://collector.invalid:4318"]);
-    m.ok(&["status"]);
+    m.ok(&[
+        command::TELEMETRY,
+        sub::ENDPOINT,
+        "http://collector.invalid:4318",
+    ]);
+    m.ok(&[command::STATUS]);
     let caught = trap
         .next(Duration::from_secs(10))
         .expect("the flush goes through the proxy");

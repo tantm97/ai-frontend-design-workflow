@@ -79,7 +79,29 @@ pub fn names(statuses: &[Status]) -> String {
 
 /// Field names of a comment record.
 pub mod field {
+    pub const ID: &str = "id";
+    pub const DESIGN_VERSION: &str = "designVersion";
+    /// The design file the comment is on, relative to the project.
+    pub const FILE: &str = "file";
+    /// What the comment points at: `dfwId`, `selector`, `source`.
+    pub const TARGET: &str = "target";
+    /// `file:line` (or `file:line:col`) of the target, inside [`TARGET`].
+    pub const SOURCE: &str = "source";
+    /// The comment's text.
+    pub const COMMENT: &str = "comment";
     pub const STATUS: &str = "status";
+    /// The replies and status changes, oldest first.
+    pub const THREAD: &str = "thread";
+    /// Who posted the comment (`dfw-studio`, `dfw-live`, a Penpot bridge).
+    pub const PROVIDER: &str = "provider";
+    pub const UPDATED_AT: &str = "updatedAt";
+}
+
+/// Who changes a comment (`by` of a thread line). Only [`by::USER`] resolves.
+pub mod by {
+    pub const USER: &str = "user";
+    /// The agent, when the change names no one.
+    pub const CLAUDE: &str = "claude";
 }
 
 #[cfg(test)]
@@ -102,13 +124,14 @@ mod tests {
     /// The moves of the table this replaced (review/comments.rs `NEXT`), in its order.
     #[test]
     fn transitions_and_groups() {
-        let next = |s: &str| names(Status::parse(s).unwrap().next());
-        assert_eq!(next("open"), "acknowledged, fixed, dismissed");
-        assert_eq!(next("acknowledged"), "fixed, dismissed");
-        assert_eq!(next("fixed"), "resolved, reopened");
-        assert_eq!(next("reopened"), "acknowledged, fixed, dismissed");
-        assert_eq!(next("resolved"), "reopened");
-        assert_eq!(next("dismissed"), "reopened");
+        use Status::*;
+        let from_open = [Acknowledged, Fixed, Dismissed];
+        assert_eq!(Open.next(), from_open);
+        assert_eq!(Acknowledged.next(), [Fixed, Dismissed]);
+        assert_eq!(Fixed.next(), [Resolved, Reopened]);
+        assert_eq!(Reopened.next(), from_open);
+        assert_eq!(Resolved.next(), [Reopened]);
+        assert_eq!(Dismissed.next(), [Reopened]);
         let active: Vec<_> = Status::ALL.into_iter().filter(|s| s.is_active()).collect();
         assert_eq!(names(&active), "open, acknowledged, reopened");
         assert_eq!(

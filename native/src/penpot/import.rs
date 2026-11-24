@@ -19,14 +19,15 @@ use regex::Regex;
 use serde_json::{json, Map, Value};
 
 use super::diff::{
-    describe_change, describe_component_change, diff_changes, dimension_token_index, list,
-    master_source, walkable, MasterSource,
+    change_type, describe_change, describe_component_change, diff_changes, dimension_token_index,
+    field, list, master_source, walkable, MasterSource,
 };
-use super::export::penpot_dir;
+use super::export::{export_file, penpot_dir};
 use super::threads::{continue_thread, thread_key, threads_file};
 use super::tokens::{
     import_penpot_tokens, nest, read_dfw_tokens, short_value, NestEntry, TokenImport, RESERVED,
 };
+use super::wire;
 
 use crate::core::error::DfwError;
 use crate::core::js;
@@ -38,6 +39,16 @@ use crate::design::tokens::relative_path;
 use crate::review::comments::add_comment;
 
 static EXPORT_ID: LazyLock<Regex> = LazyLock::new(|| fixed_regex(r"^px_[0-9A-Za-z_]+$"));
+
+/// The feedback comments an import writes.
+pub(super) mod comment {
+    /// The provider of every comment from Penpot.
+    pub(in crate::penpot) const PROVIDER: &str = "penpot";
+    /// The field of the element a comment is on, and its `file:line` in there.
+    pub(in crate::penpot) use crate::review::status::field::{SOURCE, TARGET};
+    /// The first line of a comment that carries a Penpot comment thread.
+    pub(in crate::penpot) const THREAD_HEADER: &str = "[Penpot comment]";
+}
 
 fn fingerprint(x: &Value) -> String {
     sha256(to_json_compact(x))[..16].to_string()
@@ -65,10 +76,10 @@ pub fn tokens_from_plugin(t: Option<&Value>) -> Result<Option<Value>, DfwError> 
         }
         _ => return Ok(None),
     };
-    walkable(Some(&Value::Array(all.clone())), Some("name"), true)?;
-    walkable(t.get("themes"), Some("name"), true)?;
+    walkable(Some(&Value::Array(all.clone())), Some(wire::NAME), true)?;
+    walkable(t.get("themes"), Some(wire::NAME), true)?;
     for s in all {
-        walkable(s.get("tokens"), Some("name"), true)?;
+        walkable(s.get("tokens"), Some(wire::NAME), true)?;
     }
     for th in list(js::truthy_value(t.get("themes"))) {
         walkable(th.get("sets"), None, true)?;
@@ -77,20 +88,20 @@ pub fn tokens_from_plugin(t: Option<&Value>) -> Result<Option<Value>, DfwError> 
     // token paths.
     let sets: Vec<&Value> = all
         .iter()
-        .filter(|s| !RESERVED.contains(&js::to_string(s.get("name")).as_str()))
+        .filter(|s| !RESERVED.contains(&js::to_string(s.get(wire::NAME)).as_str()))
         .collect();
     let mut doc = Map::new();
     for s in &sets {
         let entries: Vec<NestEntry> = list(js::truthy_value(s.get("tokens")))
             .iter()
             .map(|tok| NestEntry {
-                name: js::to_string(tok.get("name")),
+                name: js::to_string(tok.get(wire::NAME)),
                 value: tok.get("value").cloned(),
                 ty: tok.get("type").cloned(),
                 description: tok.get("description").cloned(),
             })
             .collect();
-        doc.insert(js::to_string(s.get("name")), nest(&entries));
+        doc.insert(js::to_string(s.get(wire::NAME)), nest(&entries));
     }
     let or_empty = |v: Option<&Value>| js::truthy_value(v).cloned().unwrap_or_else(|| "".into());
     let themes: Vec<Value> = list(js::truthy_value(t.get("themes")))
@@ -101,7 +112,7 @@ pub fn tokens_from_plugin(t: Option<&Value>) -> Result<Option<Value>, DfwError> 
                 .map(|s| (js::to_string(Some(s)), Value::from("enabled")))
                 .collect();
             js::object(vec![
-                ("name", th.get("name").cloned()),
+                (wire::NAME, th.get(wire::NAME).cloned()),
                 ("group", Some(or_empty(th.get("group")))),
                 ("description", Some(or_empty(th.get("description")))),
                 ("isSource", Some(Value::Bool(false))),
@@ -113,7 +124,7 @@ pub fn tokens_from_plugin(t: Option<&Value>) -> Result<Option<Value>, DfwError> 
     let names = |active_only: bool| -> Vec<Value> {
         sets.iter()
             .filter(|s| !active_only || js::truthy(s.get("active")))
-            .map(|s| s.get("name").cloned().unwrap_or(Value::Null))
+            .map(|s| s.get(wire::NAME).cloned().unwrap_or(Value::Null))
             .collect()
     };
     doc.insert(
@@ -157,8 +168,8 @@ impl ChangeImport {
         js::object(vec![
             ("baseline", self.baseline.clone()),
             ("changes", Some(Value::Array(self.changes.clone()))),
-            ("comments", Some(Value::Array(self.comments.clone()))),
-            ("updated", Some(Value::Array(self.updated.clone()))),
+            (wire::COMMENTS, Some(Value::Array(self.comments.clone()))),
+            (wire::UPDATED, Some(Value::Array(self.updated.clone()))),
             ("skipped", Some(self.skipped.into())),
             ("warnings", Some(json!(self.warnings))),
             (
@@ -228,7 +239,7 @@ fn rounded_bbox(c: &Value) -> Option<Value> {
 }
 
 fn is_comment(c: &Value) -> bool {
-    c.get("type").and_then(Value::as_str) == Some("comment")
+    c.get(field::TYPE).and_then(Value::as_str) == Some(change_type::COMMENT)
 }
 
 fn message_count(c: &Value) -> usize {
@@ -239,10 +250,14 @@ fn message_count(c: &Value) -> usize {
 /// wherever the layer under its pin sits now: no bbox or anchor in its fingerprint.
 fn group_fingerprint(cs: &[Value]) -> String {
     let c0 = &cs[0];
-    let comp_key = |c: &Value| c.get("component").and_then(|comp| comp.get("key")).cloned();
+    let comp_key = |c: &Value| {
+        c.get(field::COMPONENT)
+            .and_then(|comp| comp.get(wire::KEY))
+            .cloned()
+    };
     if is_comment(c0) {
         return fingerprint(&js::object(vec![
-            ("type", Some("comment".into())),
+            (field::TYPE, Some(change_type::COMMENT.into())),
             ("board", c0.get("board").cloned()),
             ("comp", comp_key(c0)),
             ("thread", c0.get("thread").cloned()),
@@ -253,17 +268,17 @@ fn group_fingerprint(cs: &[Value]) -> String {
         .iter()
         .map(|c| {
             js::object(vec![
-                ("type", c.get("type").cloned()),
+                (field::TYPE, c.get(field::TYPE).cloned()),
                 ("board", c.get("board").cloned()),
                 ("p", c.get("path").cloned()),
                 ("anchor", c.get("anchor").cloned()),
-                ("from", c.get("from").cloned()),
-                ("to", c.get("to").cloned()),
+                (field::FROM, c.get(field::FROM).cloned()),
+                (field::TO, c.get(field::TO).cloned()),
                 ("messages", c.get("messages").cloned()),
                 ("characters", c.get("characters").cloned()),
                 ("bbox", c.get("bbox").cloned()),
                 ("comp", comp_key(c)),
-                ("sides", c.get("sides").cloned()),
+                (field::SIDES, c.get(field::SIDES).cloned()),
                 ("layer", c.get("layer").cloned()),
             ])
         })
@@ -283,8 +298,12 @@ fn group_key(c: &Value) -> String {
             message_count(c)
         );
     }
-    if let Some(comp) = js::truthy_value(c.get("component")) {
-        return format!("component|{}|{}", js::to_string(comp.get("key")), s("path"));
+    if let Some(comp) = js::truthy_value(c.get(field::COMPONENT)) {
+        return format!(
+            "component|{}|{}",
+            js::to_string(comp.get(wire::KEY)),
+            s("path")
+        );
     }
     let element = js::truthy_value(c.get("anchor"))
         .or(js::truthy_value(c.get("path")))
@@ -297,9 +316,9 @@ fn screen_comment(root: &Path, cs: &[Value], gate_note: &str) -> Value {
     let c0 = &cs[0];
     let anchor = js::truthy_value(c0.get("anchor"));
     let header = if is_comment(c0) {
-        "[Penpot comment]".to_string()
+        comment::THREAD_HEADER.to_string()
     } else {
-        let what = match (anchor, js::truthy_value(c0.get("name"))) {
+        let what = match (anchor, js::truthy_value(c0.get(wire::NAME))) {
             (Some(anchor), _) => format!("\"{}\"", js::to_string(Some(anchor))),
             (None, Some(name)) => format!("layer \"{}\"", js::to_string(Some(name))),
             (None, None) => "board".to_string(),
@@ -317,7 +336,7 @@ fn screen_comment(root: &Path, cs: &[Value], gate_note: &str) -> Value {
     let file = js::truthy_value(c0.get("file"));
     let exact =
         anchor.is_some() && js::truthy(c0.get("dfwId")) && js::strict_eq(anchor, c0.get("dfwId"));
-    let is_text = c0.get("type").and_then(Value::as_str) == Some("text");
+    let is_text = c0.get(field::TYPE).and_then(Value::as_str) == Some(change_type::TEXT);
     js::object(vec![
         (
             "comment",
@@ -332,19 +351,25 @@ fn screen_comment(root: &Path, cs: &[Value], gate_note: &str) -> Value {
                 design_relative(&js::to_string(Some(f))).into()
             })),
         ),
-        ("provider", Some("penpot".into())),
+        ("provider", Some(comment::PROVIDER.into())),
         (
-            "target",
+            comment::TARGET,
             Some(js::object(vec![
                 ("dfwId", Some(js::or_null(anchor))),
-                ("source", Some(source_line(root, c0.get("file"), anchor))),
+                (
+                    comment::SOURCE,
+                    Some(source_line(root, c0.get("file"), anchor)),
+                ),
                 ("exact", Some(exact.into())),
                 (
                     "selector",
                     anchor.map(|a| format!("[data-dfw-id=\"{}\"]", js::to_string(Some(a))).into()),
                 ),
                 ("bbox", rounded_bbox(c0)),
-                ("text", is_text.then(|| js::norm(c0.get("from")).into())),
+                (
+                    wire::TEXT,
+                    is_text.then(|| js::norm(c0.get(field::FROM)).into()),
+                ),
             ])),
         ),
     ])
@@ -355,11 +380,11 @@ fn screen_comment(root: &Path, cs: &[Value], gate_note: &str) -> Value {
 fn component_comment(root: &Path, cs: &[Value], lib: Option<&Library>, gate_note: &str) -> Value {
     let c0 = &cs[0];
     let null = Value::Null;
-    let comp = c0.get("component").unwrap_or(&null);
+    let comp = c0.get(field::COMPONENT).unwrap_or(&null);
     let part = |key: &str| js::to_string(comp.get(key));
     let location = |c: &Value| {
         master_source(root, c, lib).unwrap_or_else(|| MasterSource {
-            file: rel::master(&part("name")),
+            file: rel::master(&part(wire::NAME)),
             source: None,
         })
     };
@@ -373,7 +398,7 @@ fn component_comment(root: &Path, cs: &[Value], lib: Option<&Library>, gate_note
         format!(
             "[Penpot master] {} > {}:",
             part("title"),
-            js::to_string(c0.get("name"))
+            js::to_string(c0.get(wire::NAME))
         )
     };
     let body = if comment {
@@ -398,11 +423,11 @@ fn component_comment(root: &Path, cs: &[Value], lib: Option<&Library>, gate_note
     let master_note = format!(
         "Change the master {} (component \"{}\"{}{}): it affects every screen using it. Do not patch single screens.",
         loc.file,
-        part("name"),
+        part(wire::NAME),
         named("variant", "variant"),
         named("size", "size")
     );
-    let is_text = c0.get("type").and_then(Value::as_str) == Some("text");
+    let is_text = c0.get(field::TYPE).and_then(Value::as_str) == Some(change_type::TEXT);
     js::object(vec![
         (
             "comment",
@@ -412,21 +437,21 @@ fn component_comment(root: &Path, cs: &[Value], lib: Option<&Library>, gate_note
         ("variant", Some(Value::Null)),
         ("breakpoint", Some(Value::Null)),
         ("file", Some(design_relative(&loc.file).into())),
-        ("provider", Some("penpot".into())),
+        ("provider", Some(comment::PROVIDER.into())),
         (
-            "target",
+            comment::TARGET,
             Some(js::object(vec![
                 ("dfwId", Some(Value::Null)),
                 (
-                    "component",
+                    field::COMPONENT,
                     Some(js::object(vec![
-                        ("name", comp.get("name").cloned()),
+                        (wire::NAME, comp.get(wire::NAME).cloned()),
                         ("variant", comp.get("variant").cloned()),
                         ("size", comp.get("size").cloned()),
                     ])),
                 ),
                 (
-                    "source",
+                    comment::SOURCE,
                     Some(
                         loc.source
                             .clone()
@@ -442,7 +467,10 @@ fn component_comment(root: &Path, cs: &[Value], lib: Option<&Library>, gate_note
                         .cloned(),
                 ),
                 ("bbox", rounded_bbox(c0)),
-                ("text", is_text.then(|| js::norm(c0.get("from")).into())),
+                (
+                    wire::TEXT,
+                    is_text.then(|| js::norm(c0.get(field::FROM)).into()),
+                ),
             ])),
         ),
     ])
@@ -453,7 +481,7 @@ fn component_comment(root: &Path, cs: &[Value], lib: Option<&Library>, gate_note
 fn load_baseline(dir: &Path, export_id: Option<&str>) -> Result<Value, DfwError> {
     let named = match export_id {
         Some(id) => read_json(
-            &dir.join(file::PENPOT_EXPORTS).join(format!("{id}.json")),
+            &dir.join(file::PENPOT_EXPORTS).join(export_file(id)),
             Some(Value::Null),
         )?,
         None => Value::Null,
@@ -613,7 +641,7 @@ fn compare_with_export(
     // The id names a file under exports/: only the shape dfw generates (never a path from the
     // change file).
     let export_id = changes
-        .get("exportId")
+        .get(wire::EXPORT_ID)
         .and_then(Value::as_str)
         .filter(|id| EXPORT_ID.is_match(id))
         .map(str::to_string);
@@ -737,7 +765,7 @@ fn plan_comments(
         // resolve, reopen).
         let thread = js::present(c0.get("thread"))
             .filter(|_| is_comment(c0))
-            .map(|seq| thread_key(changes.get("fileId"), Some(seq)));
+            .map(|seq| thread_key(changes.get(wire::FILE_ID), Some(seq)));
         if let Some(tk) = &thread {
             if js::truthy(threads.get(tk)) {
                 linked.push((tk.clone(), c0.clone()));
@@ -748,7 +776,7 @@ fn plan_comments(
             *skipped += 1;
             continue;
         }
-        let input = if js::truthy(c0.get("component")) {
+        let input = if js::truthy(c0.get(field::COMPONENT)) {
             component_comment(root, cs, lib.as_ref(), gate_note)
         } else {
             screen_comment(root, cs, gate_note)
@@ -785,7 +813,7 @@ fn token_comment(result: &ChangeImport, gate_note: &str) -> Option<Pending> {
                 "[Penpot] Token values changed in Penpot:\n{}{more}\nReview with \"dfw tokens import {file} --dry-run\"; apply only with the user's agreement (the import is refused while the design is frozen).{gate_note}",
                 shown.join("\n")
             ),
-            "provider": "penpot",
+            "provider": comment::PROVIDER,
             "target": {},
         }),
         thread: None,
@@ -822,19 +850,27 @@ fn write_comments(
     Ok(())
 }
 
+/// The archive name of a change file whose push time has no digits.
+pub(super) const UNSTAMPED: &str = "changes";
+
+/// The file of the change file archived as `name`, in `changes/`.
+pub(super) fn archive_file(name: &str) -> String {
+    format!("{name}.json")
+}
+
 /// Keep the change file under `changes/`, named after its push time.
 fn archive_changes(root: &Path, dir: &Path, changes: &Value) -> Result<(), DfwError> {
     // The archive name comes from the change file: digits, T and Z only.
-    let pushed_at =
-        js::truthy_value(changes.get("pushedAt")).map_or_else(now_iso, |p| js::to_string(Some(p)));
+    let pushed_at = js::truthy_value(changes.get(wire::PUSHED_AT))
+        .map_or_else(now_iso, |p| js::to_string(Some(p)));
     let stamp: String = pushed_at
         .chars()
         .filter(|c| c.is_ascii_digit() || *c == 'T' || *c == 'Z')
         .collect();
-    let name = if stamp.is_empty() { "changes" } else { &stamp };
+    let name = if stamp.is_empty() { UNSTAMPED } else { &stamp };
     write_json_inside(
         root,
-        &dir.join(file::PENPOT_CHANGES).join(format!("{name}.json")),
+        &dir.join(file::PENPOT_CHANGES).join(archive_file(name)),
         changes,
     )
 }
@@ -843,8 +879,8 @@ fn archive_changes(root: &Path, dir: &Path, changes: &Value) -> Result<(), DfwEr
 pub fn format_import_changes(r: &ChangeImport, dry_run: bool) -> String {
     let mut by: Vec<(String, usize)> = Vec::new();
     for c in &r.changes {
-        let ty = js::to_string(c.get("type"));
-        let key = if js::truthy(c.get("component")) && !is_comment(c) {
+        let ty = js::to_string(c.get(field::TYPE));
+        let key = if js::truthy(c.get(field::COMPONENT)) && !is_comment(c) {
             format!("component {ty}")
         } else {
             ty
@@ -876,8 +912,8 @@ pub fn format_import_changes(r: &ChangeImport, dry_run: bool) -> String {
             .join("/")
     };
     for c in &r.comments {
-        let target = c.get("target");
-        let component = js::truthy_value(target.and_then(|t| t.get("component")));
+        let target = c.get(comment::TARGET);
+        let component = js::truthy_value(target.and_then(|t| t.get(field::COMPONENT)));
         let mut place = joined(vec![c.get("screen"), c.get("variant"), c.get("breakpoint")]);
         if place.is_empty() {
             place = if component.is_some() {
@@ -893,7 +929,7 @@ pub fn format_import_changes(r: &ChangeImport, dry_run: bool) -> String {
         ) {
             (Some(id), _) => js::to_string(Some(id)),
             (None, Some(comp)) => joined(vec![
-                comp.get("name"),
+                comp.get(wire::NAME),
                 comp.get("variant"),
                 comp.get("size"),
             ]),

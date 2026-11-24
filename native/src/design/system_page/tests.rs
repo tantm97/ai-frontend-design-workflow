@@ -96,15 +96,18 @@ fn composed(
 #[test]
 fn description_parts() {
     let description = "Text button (renders a link when href is set). primary = the one main action per view (Save, Send); ghost = low emphasis; sm = dense tables. href turns it into a link. Never two primaries in one view.";
-    let names = ["primary", "secondary", "ghost", "md", "sm", "icon", "href"];
+    /// Two variants the description gives a meaning.
+    const PRIMARY: &str = "primary";
+    const GHOST: &str = "ghost";
+    let names = [PRIMARY, "secondary", GHOST, "md", "sm", "icon", "href"];
     let p = describe_text(description, &names).unwrap();
     assert_eq!(p.summary, "Text button (renders a link when href is set).");
     let pair = |k: &str, v: &str| (k.to_string(), v.to_string());
     assert_eq!(
         p.meaning,
         [
-            pair("primary", "the one main action per view (Save, Send)"),
-            pair("ghost", "low emphasis"),
+            pair(PRIMARY, "the one main action per view (Save, Send)"),
+            pair(GHOST, "low emphasis"),
             pair("sm", "dense tables")
         ]
     );
@@ -183,23 +186,26 @@ fn components_in_rows() {
 // The audit counts of the JS test belong to design::dsaudit; the page assertion is here.
 #[test]
 fn short_hex_tokens() {
-    let root = test_dir("system-page");
+    /// The test folder of both projects, and the page's path to `design/`.
+    const DIR: &str = "system-page";
+    const BASE: &str = "../";
+    let root = test_dir(DIR);
     write(
         &root,
         rel::TOKENS_JSON,
         r##"{"color":{"$type":"color","ink":{"$value":"#ccc"},"surface":{"$value":"#fff"},"canvas":{"$value":"#fff"},"accent":{"$value":"#ddd"},"muted":{"$value":"#eee"}}}"##,
     );
-    let page = render_system_page(&root, "../").unwrap();
+    let page = render_system_page(&root, BASE).unwrap();
     assert!(page.contains("1.6:1"));
     // Short and long hex give the same findings in the "Senior review" section.
     let count = |page: &str| page.matches("<li class=\"lv-").count();
-    let root_long = test_dir("system-page");
+    let root_long = test_dir(DIR);
     write(
         &root_long,
         rel::TOKENS_JSON,
         r##"{"color":{"$type":"color","ink":{"$value":"#cccccc"},"surface":{"$value":"#ffffff"},"canvas":{"$value":"#ffffff"},"accent":{"$value":"#dddddd"},"muted":{"$value":"#eeeeee"}}}"##,
     );
-    let long = render_system_page(&root_long, "../").unwrap();
+    let long = render_system_page(&root_long, BASE).unwrap();
     assert!(count(&long) > 0);
     assert_eq!(count(&page), count(&long));
 }
@@ -251,7 +257,9 @@ fn base_in_examples() {
         &rel::component(LOGO_MASTER),
         r#"<dfw-component name="logo" props="img={{base}}assets/logo.png"><template><a href="{{base}}screens/home/a.html"><img src="{{img}}" alt=""></a></template><dfw-examples><dfw-use c="logo"></dfw-use></dfw-examples></dfw-component>"#,
     );
-    let page = composed(&root, "/design/", Some("/design/")).html;
+    /// The page's absolute path to `design/`, for the page and for the examples.
+    const BASE: &str = "/design/";
+    let page = composed(&root, BASE, Some(BASE)).html;
     assert!(
         page.contains("src=\"/design/assets/logo.png\""),
         "Design System page examples resolve too"
@@ -278,11 +286,15 @@ fn javascript_text_rules() {
     let parts = md_parts(md);
     assert_eq!(parts.len(), 4);
     assert!(has_heading(parts[1], &["Direction"]));
-    assert!(!has_heading(parts[2], &["Rationale"]));
-    assert!(has_heading(parts[3], &["Rationale"]));
+    /// The heading a part is looked up by.
+    const RATIONALE: &str = "Rationale";
+    assert!(!has_heading(parts[2], &[RATIONALE]));
+    assert!(has_heading(parts[3], &[RATIONALE]));
     assert_eq!(part_body(parts[3]), "- y");
-    assert_eq!(js::slice16("ab\u{1F600}c", 0, 3), "ab\u{fffd}");
-    assert_eq!(js::slice16("ab\u{1F600}c", 0, 4), "ab\u{1F600}");
+    /// A text with a character of two UTF-16 units.
+    const WIDE: &str = "ab\u{1F600}c";
+    assert_eq!(js::slice16(WIDE, 0, 3), "ab\u{fffd}");
+    assert_eq!(js::slice16(WIDE, 0, 4), "ab\u{1F600}");
     assert_eq!(encode_uri("a b/ảnh(1)#.png"), "a%20b/%E1%BA%A3nh(1)#.png");
     assert_eq!(alias(&json!("{color.ink}")), Some("color.ink"));
     assert_eq!(alias(&json!("{a}b}")), None);

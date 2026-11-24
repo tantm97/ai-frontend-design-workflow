@@ -13,11 +13,15 @@ use crate::browser::launch::find_browser;
 use crate::core::js;
 use crate::core::level::Level;
 use crate::core::process::{node_executable, run_timed, Spawn};
+use crate::tools::check::outcome;
 
 const LIGHTHOUSE_VERSION: &str = "13.6.0";
 
+/// The tool and the source its results and findings name.
+const TOOL: &str = "lighthouse";
+
 fn unverifiable(detail: &str) -> Value {
-    json!({ "tool": "lighthouse", "status": "unverifiable", "detail": detail, "findings": [] })
+    json!({ "tool": TOOL, "status": outcome::UNVERIFIABLE, "detail": detail, "findings": [] })
 }
 
 /// `runLighthouse(url, { timeoutMs })`: a dfw check result (`{ tool, status, detail, findings }`).
@@ -123,7 +127,7 @@ pub fn lighthouse_report(stdout: Option<&str>, url: &str, error_detail: &str) ->
             error_detail
         };
         let detail: String = detail.chars().take(300).collect();
-        return json!({ "tool": "lighthouse", "status": "error", "detail": detail, "findings": [] });
+        return json!({ "tool": TOOL, "status": outcome::ERROR, "detail": detail, "findings": [] });
     };
     let categories = values(lhr.get("categories"));
     // A category Lighthouse could not score has score null: that is not a 0.
@@ -173,7 +177,7 @@ pub fn lighthouse_report(stdout: Option<&str>, url: &str, error_detail: &str) ->
                 "rule": format!("lighthouse-{}", js::to_string(a.get("id"))),
                 "file": url,
                 "line": 1,
-                "source": "lighthouse",
+                "source": TOOL,
                 "message": format!(
                     "{}: {}{}",
                     js::to_string(cat.get("title")),
@@ -183,31 +187,34 @@ pub fn lighthouse_report(stdout: Option<&str>, url: &str, error_detail: &str) ->
             }));
         }
     }
-    json!({ "tool": "lighthouse", "status": "ran", "detail": format!("scores: {}", scores.join(", ")), "findings": findings })
+    json!({ "tool": TOOL, "status": outcome::RAN, "detail": format!("scores: {}", scores.join(", ")), "findings": findings })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tools::check::field::{DETAIL, FINDINGS, STATUS};
+
+    /// The app Lighthouse is run against.
+    const URL: &str = "http://localhost:3000";
 
     /// lighthouse: no stdout (spawn failed) or "null" is an error result, not a crash
     #[test]
     fn no_usable_report_is_an_error_result() {
+        /// Why npx did not start.
+        const NOT_STARTED: &str = "spawnSync npx ENOENT";
         for stdout in [None, Some(""), Some("null"), Some("42"), Some("not json")] {
-            let r = lighthouse_report(stdout, "http://localhost:3000", "spawnSync npx ENOENT");
+            let r = lighthouse_report(stdout, URL, NOT_STARTED);
             assert_eq!(
-                (&r["status"], &r["detail"], &r["findings"]),
-                (&json!("error"), &json!("spawnSync npx ENOENT"), &json!([])),
+                (&r[STATUS], &r[DETAIL], &r[FINDINGS]),
+                (&json!(outcome::ERROR), &json!(NOT_STARTED), &json!([])),
                 "{stdout:?}"
             );
         }
-        assert_eq!(
-            lighthouse_report(None, "http://localhost:3000", "")["detail"],
-            json!("no output")
-        );
+        assert_eq!(lighthouse_report(None, URL, "")[DETAIL], json!("no output"));
         let long = "x".repeat(400);
         assert_eq!(
-            lighthouse_report(None, "u", &long)["detail"]
+            lighthouse_report(None, "u", &long)[DETAIL]
                 .as_str()
                 .unwrap()
                 .len(),
@@ -218,87 +225,93 @@ mod tests {
     /// lighthouse: a category without a score reads "n/a", not 0; low audits become findings
     #[test]
     fn scores_and_findings() {
+        /// A low audit, and one that passes.
+        const LCP: &str = "lcp";
+        const META: &str = "meta";
         let lhr = json!({
             "categories": {
-                "performance": { "title": "Performance", "score": null, "auditRefs": [{ "id": "lcp", "weight": 25 }] },
-                "seo": { "title": "SEO", "score": 0.92, "auditRefs": [{ "id": "meta", "weight": 1 }, { "id": "gone", "weight": 1 }] },
+                "performance": { "title": "Performance", "score": null, "auditRefs": [{ "id": LCP, "weight": 25 }] },
+                "seo": { "title": "SEO", "score": 0.92, "auditRefs": [{ "id": META, "weight": 1 }, { "id": "gone", "weight": 1 }] },
             },
             "audits": {
-                "lcp": { "id": "lcp", "title": "Largest Contentful Paint", "score": 0.3, "scoreDisplayMode": "numeric", "displayValue": "6.1 s" },
-                "meta": { "id": "meta", "title": "Has a meta description", "score": 1, "scoreDisplayMode": "binary" },
+                "lcp": { "id": LCP, "title": "Largest Contentful Paint", "score": 0.3, "scoreDisplayMode": "numeric", "displayValue": "6.1 s" },
+                "meta": { "id": META, "title": "Has a meta description", "score": 1, "scoreDisplayMode": "binary" },
             },
         });
-        let r = lighthouse_report(Some(&lhr.to_string()), "http://localhost:3000", "");
-        assert_eq!(r["status"], json!("ran"));
-        assert_eq!(r["detail"], json!("scores: Performance n/a, SEO 92"));
+        let r = lighthouse_report(Some(&lhr.to_string()), URL, "");
+        assert_eq!(r[STATUS], json!(outcome::RAN));
+        assert_eq!(r[DETAIL], json!("scores: Performance n/a, SEO 92"));
         assert_eq!(
-            r["findings"],
-            json!([{ "level": "warn", "rule": "lighthouse-lcp", "file": "http://localhost:3000", "line": 1, "source": "lighthouse", "message": "Performance: Largest Contentful Paint (6.1 s)" }])
+            r[FINDINGS],
+            json!([{ "level": "warn", "rule": "lighthouse-lcp", "file": URL, "line": 1, "source": TOOL, "message": "Performance: Largest Contentful Paint (6.1 s)" }])
         );
         let no_audits = r#"{"categories":{"seo":{"title":"SEO","score":1,"auditRefs":[{"id":"x","weight":1}]}}}"#;
         assert_eq!(
-            lighthouse_report(Some(no_audits), "u", "")["status"],
-            json!("ran"),
+            lighthouse_report(Some(no_audits), "u", "")[STATUS],
+            json!(outcome::RAN),
             "no audits map"
         );
     }
 
     #[test]
     fn audits_that_do_not_count() {
+        /// A display mode that has no score to judge.
+        const INFORMATIVE: &str = "informative";
+        /// A display mode with a score.
+        const NUMERIC: &str = "numeric";
+        // (id, weight, title, score, display mode): only the last one counts; the informative
+        // one is named after its mode.
+        let audits = [
+            ("unweighted", 0, "U", json!(0), "binary"),
+            (INFORMATIVE, 1, "I", json!(0), INFORMATIVE),
+            ("fine", 1, "F", json!(0.9), NUMERIC),
+            ("unscored", 1, "N", Value::Null, NUMERIC),
+            ("mid", 1, "M", json!(0.5), "metricSavings"),
+        ];
+        let refs: Vec<Value> = audits
+            .iter()
+            .map(|(id, weight, ..)| json!({ "id": id, "weight": weight }))
+            .collect();
+        let by_id: serde_json::Map<String, Value> = audits
+            .iter()
+            .map(|(id, _, title, score, mode)| {
+                let audit =
+                    json!({ "id": id, "title": title, "score": score, "scoreDisplayMode": mode });
+                (id.to_string(), audit)
+            })
+            .collect();
         let lhr = json!({
-            "categories": { "p": { "title": "P", "score": 0.555, "auditRefs": [
-                { "id": "unweighted", "weight": 0 }, { "id": "informative", "weight": 1 }, { "id": "fine", "weight": 1 },
-                { "id": "unscored", "weight": 1 }, { "id": "mid", "weight": 1 },
-            ] } },
-            "audits": {
-                "unweighted": { "id": "unweighted", "title": "U", "score": 0, "scoreDisplayMode": "binary" },
-                "informative": { "id": "informative", "title": "I", "score": 0, "scoreDisplayMode": "informative" },
-                "fine": { "id": "fine", "title": "F", "score": 0.9, "scoreDisplayMode": "numeric" },
-                "unscored": { "id": "unscored", "title": "N", "score": null, "scoreDisplayMode": "numeric" },
-                "mid": { "id": "mid", "title": "M", "score": 0.5, "scoreDisplayMode": "metricSavings" },
-            },
+            "categories": { "p": { "title": "P", "score": 0.555, "auditRefs": refs } },
+            "audits": by_id,
         });
         let r = lighthouse_report(Some(&lhr.to_string()), "u", "");
-        assert_eq!(r["detail"], json!("scores: P 56"));
-        assert_eq!(r["findings"].as_array().unwrap().len(), 1);
-        assert_eq!(r["findings"][0]["level"], json!("info"));
-        assert_eq!(r["findings"][0]["message"], json!("P: M"));
+        assert_eq!(r[DETAIL], json!("scores: P 56"));
+        assert_eq!(r[FINDINGS].as_array().unwrap().len(), 1);
+        assert_eq!(r[FINDINGS][0]["level"], json!("info"));
+        assert_eq!(r[FINDINGS][0]["message"], json!("P: M"));
     }
 
     /// lighthouse: npx is the one next to the Node.js found on PATH (it was looked up in the
     /// current folder, so --lighthouse never ran), started through Node, never through cmd.exe
     #[test]
     fn npx_comes_from_the_node_on_path() {
-        let files = [
-            "/opt/node/bin/npx",
-            "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npx-cli.js",
-        ];
+        /// A Node.js and its npx, elsewhere and on Windows.
+        const NODE: &str = "/opt/node/bin/node";
+        const NPX: &str = "/opt/node/bin/npx";
+        const WIN_NODE: &str = "C:\\Program Files\\nodejs\\node.exe";
+        const WIN_NPX: &str = "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npx-cli.js";
+        let files = [NPX, WIN_NPX];
         let exists = |p: &str| files.contains(&p);
         let url = vec!["http://localhost:3000/?a=1&calc".to_string()];
         assert_eq!(
-            npx_plan("/opt/node/bin/node", url.clone(), false, &exists),
-            Some(Spawn::direct(
-                "/opt/node/bin/node",
-                vec!["/opt/node/bin/npx".into(), url[0].clone()]
-            ))
+            npx_plan(NODE, url.clone(), false, &exists),
+            Some(Spawn::direct(NODE, vec![NPX.into(), url[0].clone()]))
         );
         assert_eq!(npx_plan("/usr/bin/node", url.clone(), false, &exists), None);
-        let win = npx_plan(
-            "C:\\Program Files\\nodejs\\node.exe",
-            url.clone(),
-            true,
-            &exists,
-        )
-        .unwrap();
+        let win = npx_plan(WIN_NODE, url.clone(), true, &exists).unwrap();
         assert_eq!(
             win,
-            Spawn::direct(
-                "C:\\Program Files\\nodejs\\node.exe",
-                vec![
-                    "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npx-cli.js".into(),
-                    url[0].clone()
-                ]
-            ),
+            Spawn::direct(WIN_NODE, vec![WIN_NPX.into(), url[0].clone()]),
             "the URL is an argument of node.exe, not text for cmd.exe"
         );
         assert_eq!(
@@ -322,19 +335,21 @@ mod tests {
             ),
         )
         .unwrap();
-        std::fs::write(dir.join("npx"), "// npx-cli.js\n").unwrap();
+        let npx = dir.join("npx");
+        let chrome = Path::new("/x/chrome");
+        std::fs::write(&npx, "// npx-cli.js\n").unwrap();
         std::fs::set_permissions(&node, std::fs::Permissions::from_mode(0o755)).unwrap();
-        let r = lighthouse_with(&node, Path::new("/x/chrome"), "http://localhost:3000", 5000);
+        let r = lighthouse_with(&node, chrome, URL, 5000);
         assert_eq!(
-            (&r["status"], &r["detail"]),
-            (&json!("ran"), &json!("scores: SEO 100")),
+            (&r[STATUS], &r[DETAIL]),
+            (&json!(outcome::RAN), &json!("scores: SEO 100")),
             "{r}"
         );
-        std::fs::remove_file(dir.join("npx")).unwrap();
-        let r = lighthouse_with(&node, Path::new("/x/chrome"), "http://localhost:3000", 5000);
-        assert_eq!(r["status"], json!("unverifiable"));
+        std::fs::remove_file(&npx).unwrap();
+        let r = lighthouse_with(&node, chrome, URL, 5000);
+        assert_eq!(r[STATUS], json!(outcome::UNVERIFIABLE));
         assert_eq!(
-            r["detail"],
+            r[DETAIL],
             json!(format!("npx not found next to {}", node.display()))
         );
     }

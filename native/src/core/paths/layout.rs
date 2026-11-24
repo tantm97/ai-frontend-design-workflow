@@ -34,6 +34,8 @@ pub mod file {
 
     /// The workflow folder.
     pub const DFW: &str = ".dfw";
+    /// The manifest of a JavaScript project: its dependencies and scripts.
+    pub const PACKAGE_JSON: &str = "package.json";
     pub const STATE: &str = "state.json";
     /// The project config in `.dfw`, and the global config in the dfw home.
     pub const CONFIG: &str = "config.json";
@@ -148,6 +150,15 @@ pub mod rel {
     pub const EXTRACTED_TOKENS: &str = "design/system/extracted.tokens.json";
     /// The built Design System page.
     pub const SYSTEM_PAGE: &str = "design/system/index.html";
+    /// The product brief at the project root.
+    pub const PRODUCT_DOC: &str = "PRODUCT.md";
+    /// The design notes at the project root.
+    pub const DESIGN_DOC: &str = "DESIGN.md";
+
+    /// The glob of everything under the folder `dir` (`design/**`).
+    pub fn all_under(dir: &str) -> String {
+        format!("{dir}/**")
+    }
 
     /// `rest` (one or more `/`-separated parts) inside the folder `dir`.
     pub fn join(dir: &str, rest: &str) -> String {

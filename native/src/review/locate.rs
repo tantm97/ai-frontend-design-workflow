@@ -12,9 +12,12 @@ use crate::core::error::DfwError;
 use crate::core::host::HOSTS;
 use crate::core::js;
 use crate::core::paths::{claude_dir, file, global_dir, manifest_path, plugin_root, resolve};
-use crate::core::platform::{node_arch, node_platform};
-use crate::core::process::{plan_for, Spawn};
+use crate::core::platform::{arch, node_arch, node_platform, os};
+use crate::core::process::{plan_for, Spawn, PATH_VAR};
 use crate::core::util::{read_json, sha256, write_json, MARKETPLACE_NAME};
+
+/// The Impeccable plugin, its skill, its launcher and its engine binary share this name.
+pub(crate) const IMPECCABLE: &str = "impeccable";
 
 /// The most recently changed folder directly under `dir`.
 fn newest_dir(dir: &Path) -> Option<PathBuf> {
@@ -161,15 +164,15 @@ impl EngineLookup {
 /// the x64 build, as the upstream launcher does.
 pub fn engine_assets(platform: &str, arch: &str) -> Vec<String> {
     let os = match platform {
-        "darwin" => "darwin",
-        "linux" => "linux",
-        "win32" => "windows",
+        os::DARWIN => os::DARWIN,
+        os::LINUX => os::LINUX,
+        os::WIN32 => "windows",
         _ => return Vec::new(),
     };
-    if !matches!(arch, "arm64" | "x64") {
+    if !matches!(arch, arch::ARM64 | arch::X64) {
         return Vec::new();
     }
-    if os == "windows" && arch == "arm64" {
+    if os == "windows" && arch == arch::ARM64 {
         return vec![
             "impeccable-windows-arm64.exe".into(),
             "impeccable-windows-x64.exe".into(),
@@ -249,9 +252,13 @@ pub fn verify_engine(file: &Path, digests: &[String], stamp_file: &Path) -> bool
 /// never hashed, so they are used only with the global opt-in.
 pub fn resolve_engine(o: &EngineLookup) -> Engine {
     let scripts = o.skill_dir.join("scripts");
-    let win = o.platform == "win32";
+    let win = o.platform == os::WIN32;
     let exe = if win { ".exe" } else { "" };
-    let launcher = scripts.join(if win { "impeccable.cmd" } else { "impeccable" });
+    let launcher = scripts.join(if win {
+        format!("{IMPECCABLE}.cmd")
+    } else {
+        IMPECCABLE.to_string()
+    });
     let read = |name: &str| fs::read_to_string(scripts.join(name)).unwrap_or_default();
     let version = js_words(&read("VERSION"))
         .into_iter()
@@ -338,7 +345,7 @@ fn version_cache(o: &EngineLookup, version: &str, exe: &str) -> PathBuf {
         } else {
             version
         })
-        .join(format!("impeccable{exe}"))
+        .join(format!("{IMPECCABLE}{exe}"))
 }
 
 /// The launcher's candidates tried before the version cache, those that exist: `IMPECCABLE_BIN`,
@@ -354,7 +361,7 @@ fn unverified_before_cache(
         scripts
             .join("bin")
             .join(platform)
-            .join(format!("impeccable{exe}"))
+            .join(format!("{IMPECCABLE}{exe}"))
     });
     [
         o.var("IMPECCABLE_BIN").map(PathBuf::from),
@@ -363,7 +370,7 @@ fn unverified_before_cache(
             o.home
                 .join(".impeccable")
                 .join("bin")
-                .join(format!("impeccable{exe}")),
+                .join(format!("{IMPECCABLE}{exe}")),
         ),
     ]
     .into_iter()
@@ -374,7 +381,10 @@ fn unverified_before_cache(
 
 /// The first `impeccable` on the lookup's `PATH` (with the Windows extensions), if any.
 fn first_on_path(o: &EngineLookup, win: bool) -> Vec<PathBuf> {
-    let search = o.var("PATH").or_else(|| o.var("Path")).unwrap_or_default();
+    let search = o
+        .var(PATH_VAR)
+        .or_else(|| o.var("Path"))
+        .unwrap_or_default();
     let exts: &[&str] = if win {
         &[".exe", ".com", ".cmd", ".bat"]
     } else {
@@ -385,7 +395,7 @@ fn first_on_path(o: &EngineLookup, win: bool) -> Vec<PathBuf> {
         .filter(|d| !d.is_empty())
         .flat_map(|d| {
             exts.iter()
-                .map(move |x| Path::new(d).join(format!("impeccable{x}")))
+                .map(move |x| Path::new(d).join(format!("{IMPECCABLE}{x}")))
         })
         .filter(|f| is_file(f))
         .take(1)
@@ -412,16 +422,16 @@ fn missing_engine_detail(o: &EngineLookup, digests: &[String], cached: &Path) ->
 /// download the engine). No sh on Windows: the `.cmd` launcher goes through cmd.exe with the
 /// quoting of [`plan_for`], the one home of Windows spawning (`process-and-io.md` P2).
 pub fn launcher_command(launcher: &str, args: &[String], platform: &str) -> Spawn {
-    plan_for(launcher, args.to_vec(), platform == "win32")
+    plan_for(launcher, args.to_vec(), platform == os::WIN32)
 }
 
 /// `impeccableEngine()`: the engine for the installed Impeccable plugin, or `None` when the
 /// plugin (its launcher) is not installed.
 pub fn impeccable_engine() -> Result<Option<Engine>, DfwError> {
-    let Some(root) = plugin_root_of("impeccable")? else {
+    let Some(root) = plugin_root_of(IMPECCABLE)? else {
         return Ok(None);
     };
-    let skill_dir = root.join("skills").join("impeccable");
+    let skill_dir = root.join("skills").join(IMPECCABLE);
     let e = resolve_engine(&EngineLookup::current(skill_dir)?);
     Ok(e.launcher.exists().then_some(e))
 }
@@ -464,41 +474,45 @@ mod tests {
         let (claude, global) = (tmp.join("claude"), tmp.join("global"));
         let hosts = [tmp.join("copilot/installed-plugins")];
         let find =
-            |own: &Path| plugin_root_in("impeccable", Some(own), &claude, &hosts, &global).unwrap();
+            |own: &Path| plugin_root_in(IMPECCABLE, Some(own), &claude, &hosts, &global).unwrap();
+        // The plugin in the `plugins/` folder of a marketplace checkout.
+        let installed = |base: &Path| base.join("plugins").join(IMPECCABLE);
+        let market = tmp.join("market");
         // Nothing installed.
-        let own = tmp.join("market/plugins/dfw");
+        let own = market.join("plugins/dfw");
         assert_eq!(find(&own), None);
         assert_eq!(
-            plugin_root_in("impeccable", None, &claude, &hosts, &global).unwrap(),
+            plugin_root_in(IMPECCABLE, None, &claude, &hosts, &global).unwrap(),
             None
         );
         // 3. The marketplace repo recorded in the global config.
         let repo = tmp.join("repo");
-        plugin(&repo.join("plugins/impeccable"));
+        plugin(&installed(&repo));
         fs::create_dir_all(&global).unwrap();
         fs::write(
             global.join(file::CONFIG),
             json!({ "marketplaceRepo": repo }).to_string(),
         )
         .unwrap();
-        assert_eq!(find(&own), Some(repo.join("plugins/impeccable")));
+        assert_eq!(find(&own), Some(installed(&repo)));
         // 2b. Another host's install folder wins over it.
-        plugin(&hosts[0].join("impeccable"));
-        assert_eq!(find(&own), Some(hosts[0].join("impeccable")));
+        plugin(&hosts[0].join(IMPECCABLE));
+        assert_eq!(find(&own), Some(hosts[0].join(IMPECCABLE)));
         // 2. The plugin cache wins over both: the newest version folder.
         let cache = claude
             .join("plugins/cache")
             .join(MARKETPLACE_NAME)
-            .join("impeccable");
-        plugin(&cache.join("1.0.0"));
-        assert_eq!(find(&own), Some(cache.join("1.0.0")));
+            .join(IMPECCABLE);
+        let version = cache.join("1.0.0");
+        plugin(&version);
+        assert_eq!(find(&own), Some(version));
         // 1b. A dev checkout (core/ next to plugins/) wins over the cache.
-        let core = tmp.join("checkout/core");
-        plugin(&tmp.join("checkout/plugins/impeccable"));
-        assert_eq!(find(&core), Some(tmp.join("checkout/plugins/impeccable")));
+        let checkout = tmp.join("checkout");
+        plugin(&installed(&checkout));
+        assert_eq!(find(&checkout.join("core")), Some(installed(&checkout)));
         // 1. A sibling wins over everything.
-        plugin(&tmp.join("market/plugins/impeccable"));
-        assert_eq!(find(&own), Some(tmp.join("market/plugins/impeccable")));
+        plugin(&installed(&market));
+        assert_eq!(find(&own), Some(installed(&market)));
     }
 
     const ENGINE: &str = "fake engine bytes";
@@ -640,9 +654,9 @@ mod tests {
         // The lookup of this machine's platform: a Windows path has a drive letter, so a PATH
         // of real folders is split on ";" there, never on ":".
         let (platform, exe, sep, build) = if cfg!(windows) {
-            ("win32", ".exe", ';', "windows-x64")
+            (os::WIN32, ".exe", ';', "windows-x64")
         } else {
-            ("linux", "", ':', "linux-x64")
+            (os::LINUX, "", ':', "linux-x64")
         };
         let o = EngineLookup {
             platform: platform.into(),
@@ -655,11 +669,12 @@ mod tests {
             "sibling",
         );
         let home_bin = put(&o.home.join(".impeccable/bin").join(&name), "home");
-        let path_bin = put(&root.join("pathdir").join(&name), "path");
+        let path_dir = root.join("pathdir");
+        let path_bin = put(&path_dir.join(&name), "path");
         let path = format!(
             "{}{sep}{}",
             root.join("empty").display(),
-            root.join("pathdir").display()
+            path_dir.display()
         );
         let with = |env: Vec<(&str, String)>, allow: bool| EngineLookup {
             env: env.into_iter().map(|(k, v)| (k.to_string(), v)).collect(),
@@ -669,7 +684,7 @@ mod tests {
         let both = || {
             vec![
                 ("IMPECCABLE_BIN", env_bin.display().to_string()),
-                ("PATH", path.clone()),
+                (PATH_VAR, path.clone()),
             ]
         };
         let e = resolve_engine(&with(both(), false));
@@ -696,7 +711,7 @@ mod tests {
             (e.cmd.as_deref(), e.ready, e.verified),
             (Some(env_bin.as_path()), true, false)
         );
-        let only_path = || vec![("PATH", path.clone())];
+        let only_path = || vec![(PATH_VAR, path.clone())];
         assert_eq!(
             resolve_engine(&with(only_path(), true)).cmd,
             Some(sibling.clone()),
@@ -717,22 +732,24 @@ mod tests {
     /// launcherCommand belongs to the check runner)
     #[test]
     fn engine_on_windows_exe_in_the_cache_and_the_cmd_launcher() {
+        /// The engine's file name on Windows.
+        const WIN_ENGINE: &str = "impeccable.exe";
         let o = EngineLookup {
-            platform: "win32".into(),
+            platform: os::WIN32.into(),
             ..skill(&test_dir("engine-win"))
         };
         let dir = o.home.join(".impeccable/bin/9.9.9");
-        put(&dir.join("impeccable"), ENGINE);
+        put(&dir.join(IMPECCABLE), ENGINE);
         let e = resolve_engine(&o);
         assert!(!e.ready, "the POSIX file name is not the Windows engine");
-        assert_eq!(e.cached.file_name().unwrap(), "impeccable.exe");
+        assert_eq!(e.cached.file_name().unwrap(), WIN_ENGINE);
         assert_eq!(e.launcher.file_name().unwrap(), "impeccable.cmd");
-        put(&dir.join("impeccable.exe"), ENGINE);
+        put(&dir.join(WIN_ENGINE), ENGINE);
         let e = resolve_engine(&o);
         assert_eq!((e.ready, e.verified), (true, true), "{:?}", e.detail);
-        assert_eq!(e.cmd.unwrap().file_name().unwrap(), "impeccable.exe");
+        assert_eq!(e.cmd.unwrap().file_name().unwrap(), WIN_ENGINE);
         let arm = EngineLookup {
-            arch: "arm64".into(),
+            arch: arch::ARM64.into(),
             ..o.clone()
         };
         assert!(
@@ -740,14 +757,14 @@ mod tests {
             "Windows on ARM accepts the x64 build, as the upstream launcher does"
         );
         let shim = put(&o.home.join("b/impeccable.cmd"), "");
-        fs::remove_file(dir.join("impeccable.exe")).unwrap();
+        fs::remove_file(dir.join(WIN_ENGINE)).unwrap();
         let path = format!(
             "{};{}",
             o.home.join("a").display(),
             o.home.join("b").display()
         );
         let e = resolve_engine(&EngineLookup {
-            env: vec![("PATH".into(), path)],
+            env: vec![(PATH_VAR.into(), path)],
             ..o.clone()
         });
         assert_eq!(
@@ -756,21 +773,21 @@ mod tests {
             "PATH is split on \";\" and runnable extensions are tried"
         );
         assert_eq!(
-            engine_assets("win32", "x64"),
+            engine_assets(os::WIN32, arch::X64),
             ["impeccable-windows-x64.exe"]
         );
         assert_eq!(
-            engine_assets("darwin", "arm64"),
+            engine_assets(os::DARWIN, arch::ARM64),
             ["impeccable-darwin-arm64"]
         );
-        assert!(engine_assets("freebsd", "x64").is_empty());
-        assert!(engine_assets("linux", "riscv64").is_empty());
+        assert!(engine_assets("freebsd", arch::X64).is_empty());
+        assert!(engine_assets(os::LINUX, "riscv64").is_empty());
 
         let launcher = e.launcher.to_string_lossy().into_owned();
         let args: Vec<String> = ["detect", "--json", "C:\\p\\setup.html"]
             .map(String::from)
             .to_vec();
-        let c = launcher_command(&launcher, &args, "win32");
+        let c = launcher_command(&launcher, &args, os::WIN32);
         assert!(c.shell, "through cmd.exe, the line as written");
         assert_eq!(
             format!("{} {}", c.cmd, c.args.join(" ")),
@@ -779,9 +796,10 @@ mod tests {
         assert!(!std::iter::once(&c.cmd)
             .chain(&c.args)
             .any(|x| x == "sh" || x.ends_with("/sh") || x.ends_with("\\sh.exe")));
+        const POSIX_LAUNCHER: &str = "/x/impeccable";
         assert_eq!(
-            launcher_command("/x/impeccable", &["a".to_string()], "linux"),
-            Spawn::direct("/x/impeccable", vec!["a".into()])
+            launcher_command(POSIX_LAUNCHER, &["a".to_string()], os::LINUX),
+            Spawn::direct(POSIX_LAUNCHER, vec!["a".into()])
         );
     }
 
@@ -789,8 +807,9 @@ mod tests {
     fn newest_folder_wins() {
         let dir = test_dir("doctor-newest");
         assert_eq!(newest_dir(&dir.join("none")), None);
-        fs::create_dir(dir.join("0.4.0")).unwrap();
+        let version = dir.join("0.4.0");
+        fs::create_dir(&version).unwrap();
         fs::write(dir.join("file"), "").unwrap();
-        assert_eq!(newest_dir(&dir), Some(dir.join("0.4.0")));
+        assert_eq!(newest_dir(&dir), Some(version));
     }
 }

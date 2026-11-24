@@ -170,9 +170,39 @@ fn relative(from: &str, to: &str, win: bool) -> String {
 
 /* ---------------------------------------------------------------- bundler detection */
 
+/// The bundlers [`detect_bundler`] names that the setup or its manual steps single out.
+pub mod bundler {
+    pub const VITE: &str = "vite";
+    pub const WEBPACK: &str = "webpack";
+    pub const NEXT: &str = "next";
+    pub const NUXT: &str = "nuxt";
+    pub const RSPACK: &str = "rspack";
+}
+
+/// How Next.js serves in development ([`Bundler::next_mode`]).
+pub mod next_mode {
+    pub const WEBPACK: &str = super::bundler::WEBPACK;
+    pub const TURBOPACK: &str = "turbopack";
+    pub const TURBO_EXPERIMENTAL: &str = "turbo-experimental";
+}
+
+/// The keys of the plan ([`inspector_plan`]) that its callers read.
+pub mod plan_key {
+    pub const SUPPORTED: &str = "supported";
+    pub const DEPENDENCY: &str = "dependency";
+    pub const DEV_DEPENDENCY: &str = "devDependency";
+    pub const FRAMEWORK: &str = "framework";
+}
+
+/// The file of the app's dependencies.
+pub use crate::core::paths::file::PACKAGE_JSON;
+
+/// What the setup adds to a config file's name for the copy of the user's original.
+pub const BACKUP_SUFFIX: &str = ".dfw-backup";
+
 const CONFIGS: [(&str, &[&str]); 9] = [
     (
-        "vite",
+        bundler::VITE,
         &[
             "vite.config.ts",
             "vite.config.mts",
@@ -183,7 +213,7 @@ const CONFIGS: [(&str, &[&str]); 9] = [
         ],
     ),
     (
-        "webpack",
+        bundler::WEBPACK,
         &[
             "webpack.config.js",
             "webpack.config.cjs",
@@ -194,7 +224,7 @@ const CONFIGS: [(&str, &[&str]); 9] = [
         ],
     ),
     (
-        "next",
+        bundler::NEXT,
         &[
             "next.config.ts",
             "next.config.mjs",
@@ -202,7 +232,7 @@ const CONFIGS: [(&str, &[&str]); 9] = [
             "next.config.cjs",
         ],
     ),
-    ("nuxt", &["nuxt.config.ts", "nuxt.config.js"]),
+    (bundler::NUXT, &["nuxt.config.ts", "nuxt.config.js"]),
     (
         "astro",
         &["astro.config.mjs", "astro.config.ts", "astro.config.js"],
@@ -216,7 +246,7 @@ const CONFIGS: [(&str, &[&str]); 9] = [
         ],
     ),
     (
-        "rspack",
+        bundler::RSPACK,
         &["rspack.config.js", "rspack.config.ts", "rspack.config.mjs"],
     ),
     (
@@ -252,20 +282,23 @@ pub struct Bundler {
 
 /// `detectBundler(root)`: which bundler serves the app in development, and its config file.
 pub fn detect_bundler(root: &Path) -> Result<Bundler, DfwError> {
-    let pkg = read_json(&root.join("package.json"), Some(json!({})))?;
+    let pkg = read_json(&root.join(PACKAGE_JSON), Some(json!({})))?;
     let mut deps = js::spread(pkg.get("dependencies"));
     deps.extend(js::spread(pkg.get("devDependencies")));
     let has = |d: &str| deps.get(d).is_some_and(js::truthy);
     let order = [
-        ("next", has("next")),
-        ("nuxt", has("nuxt")),
+        (bundler::NEXT, has(bundler::NEXT)),
+        (bundler::NUXT, has(bundler::NUXT)),
         ("astro", has("astro")),
         ("umi", has("umi") || has("@umijs/max")),
         ("rsbuild", has("@rsbuild/core")),
-        ("rspack", has("@rspack/cli") || has("@rspack/core")),
+        (bundler::RSPACK, has("@rspack/cli") || has("@rspack/core")),
         ("vue-cli", has("@vue/cli-service")),
-        ("vite", has("vite") || has("@sveltejs/kit")),
-        ("webpack", has("webpack") || has("webpack-cli")),
+        (bundler::VITE, has(bundler::VITE) || has("@sveltejs/kit")),
+        (
+            bundler::WEBPACK,
+            has(bundler::WEBPACK) || has("webpack-cli"),
+        ),
         ("esbuild", has("esbuild")),
     ];
     let exists = |f: &str| root.join(f).exists();
@@ -287,26 +320,26 @@ pub fn detect_bundler(root: &Path) -> Result<Bundler, DfwError> {
     let mut out = Bundler {
         bundler,
         config_file,
-        package_json: root.join("package.json").exists(),
+        package_json: root.join(PACKAGE_JSON).exists(),
         next_version: None,
         next_mode: None,
     };
-    if bundler == Some("next") {
-        let v = major(&js::or_empty(deps.get("next")));
+    if bundler == Some(bundler::NEXT) {
+        let v = major(&js::or_empty(deps.get(bundler::NEXT)));
         let dev = js::or_empty(pkg.get("scripts").and_then(|s| s.get("dev")));
         let turbo = is_match(r"--turbo(pack)?(?-u:\b)", &dev);
-        out.next_version = deps.get("next").cloned();
+        out.next_version = deps.get(bundler::NEXT).cloned();
         // Next 16 develops with Turbopack by default; 15.3+ with --turbopack; otherwise webpack.
         out.next_mode = Some(if is_match(r"--webpack(?-u:\b)", &dev) {
-            "webpack"
+            next_mode::WEBPACK
         } else if v
             .is_some_and(|(maj, min)| maj >= 16 || (turbo && (maj > 15 || (maj == 15 && min >= 3))))
         {
-            "turbopack"
+            next_mode::TURBOPACK
         } else if turbo {
-            "turbo-experimental"
+            next_mode::TURBO_EXPERIMENTAL
         } else {
-            "webpack"
+            next_mode::WEBPACK
         });
     }
     Ok(out)
@@ -449,15 +482,15 @@ pub fn patch_config(
         add_to_plugins(text, &call(b))
             .or_else(|| add_property(text, &format!("plugins: [{}]", call(b))))
     };
-    let body = match (bundler, next_mode.unwrap_or("webpack")) {
-        (Some(b @ ("vite" | "webpack")), _) => list(b),
-        (Some("next"), "turbopack") => {
+    let body = match (bundler, next_mode.unwrap_or(next_mode::WEBPACK)) {
+        (Some(b @ (bundler::VITE | bundler::WEBPACK)), _) => list(b),
+        (Some(bundler::NEXT), next_mode::TURBOPACK) => {
             if is_match(r"(?-u:\b)turbopack\s*:", text) {
                 return manual("next.config already has a \"turbopack\" key: add rules: codeInspectorPlugin(...) to it by hand.");
             }
             add_property(text, &format!("turbopack: {{ rules: {} }}", call("turbopack")))
         }
-        (Some("next"), "webpack") => {
+        (Some(bundler::NEXT), next_mode::WEBPACK) => {
             if is_match(r"(?-u:\b)webpack\s*[:(]", text) {
                 return manual("next.config already has a \"webpack\" function: push the plugin inside it, only when dev is true.");
             }
@@ -469,7 +502,7 @@ pub fn patch_config(
                 ),
             )
         }
-        (Some("next"), _) => {
+        (Some(bundler::NEXT), _) => {
             return manual("Next.js 15.0-15.2 with Turbopack: use experimental.turbo.rules = codeInspectorPlugin({ bundler: \"turbopack\", ... }).")
         }
         (other, _) => {
@@ -493,10 +526,10 @@ pub fn patch_config(
 
 fn manual_for(bundler: Option<&str>) -> String {
     match bundler {
-        Some("nuxt") => format!("nuxt.config: vite: {{ plugins: [{}] }}", call("vite")),
+        Some(bundler::NUXT) => format!("nuxt.config: vite: {{ plugins: [{}] }}", call(bundler::VITE)),
         Some("astro") => format!("astro.config: vite: {{ plugins: [{}] }}", call("vite")),
         Some("rsbuild") => format!("rsbuild.config: tools: {{ rspack: {{ plugins: [{}] }} }}", call("rspack")),
-        Some("rspack") => format!("rspack.config: plugins: [{}]", call("rspack")),
+        Some(bundler::RSPACK) => format!("rspack.config: plugins: [{}]", call(bundler::RSPACK)),
         Some("umi") => format!(
             ".umirc / config: chainWebpack(memo) {{ memo.plugin('code-inspector-plugin').use({}) }} (or mako: {{ plugins: [{}] }})",
             call("webpack"),
@@ -526,17 +559,17 @@ pub fn inspector_plan(root: &Path) -> Result<Value, DfwError> {
     plan.insert("bundler".into(), json!(b.bundler));
     plan.insert("configFile".into(), json!(b.config_file));
     plan.insert("packageJson".into(), json!(b.package_json));
-    if b.bundler == Some("next") {
+    if b.bundler == Some(bundler::NEXT) {
         if let Some(v) = &b.next_version {
             plan.insert("nextVersion".into(), v.clone());
         }
         plan.insert("nextMode".into(), json!(b.next_mode));
     }
     plan.insert(
-        "dependency".into(),
+        plan_key::DEPENDENCY.into(),
         json!({ "name": PACKAGE, "version": VERSION, "dev": true, "license": LICENSE, "purpose": PURPOSE }),
     );
-    plan.insert("framework".into(), framework);
+    plan.insert(plan_key::FRAMEWORK.into(), framework);
     let manager = if manager.is_empty() {
         "npm".into()
     } else {
@@ -555,21 +588,24 @@ pub fn inspector_plan(root: &Path) -> Result<Value, DfwError> {
         )),
     );
     let unsupported = |plan: &mut Map<String, Value>, why: String| {
-        plan.insert("supported".into(), json!(false));
+        plan.insert(plan_key::SUPPORTED.into(), json!(false));
         plan.insert("manual".into(), json!(why));
     };
     if !b.package_json {
         unsupported(&mut plan, "No package.json: code-inspector-plugin needs a JavaScript bundler (Vite, webpack, Rspack, esbuild, Turbopack...). Live review still works without it (comments carry selector + text, no file:line).".into());
         return Ok(Value::Object(plan));
     }
-    let edited = matches!(b.bundler, Some("vite" | "webpack" | "next"));
+    let edited = matches!(
+        b.bundler,
+        Some(bundler::VITE | bundler::WEBPACK | bundler::NEXT)
+    );
     match (edited, b.config_file) {
         (true, Some(file)) => {
             let text = fs::read_to_string(root.join(file))?;
             match patch_config(&text, b.bundler, file, b.next_mode) {
                 Patch::Manual(why) => unsupported(&mut plan, why),
                 Patch::Text { text, changed } => {
-                    plan.insert("supported".into(), json!(true));
+                    plan.insert(plan_key::SUPPORTED.into(), json!(true));
                     plan.insert("patched".into(), json!(text));
                     plan.insert("alreadyConfigured".into(), json!(!changed));
                 }
@@ -577,7 +613,7 @@ pub fn inspector_plan(root: &Path) -> Result<Value, DfwError> {
         }
         (true, None) => {
             let name = b.bundler.unwrap_or_default();
-            let (what, with) = if name == "next" {
+            let (what, with) = if name == bundler::NEXT {
                 ("webpack/turbopack", "webpack")
             } else {
                 ("plugins", name)
@@ -593,7 +629,7 @@ pub fn inspector_plan(root: &Path) -> Result<Value, DfwError> {
         (false, _) => unsupported(&mut plan, manual_for(b.bundler)),
     }
     plan.insert(
-        "devDependency".into(),
+        plan_key::DEV_DEPENDENCY.into(),
         json!(format!("{PACKAGE}@{VERSION}")),
     );
     Ok(Value::Object(plan))
@@ -622,7 +658,7 @@ pub fn format_plan(plan: &Value) -> String {
         .split(" (")
         .next()
         .unwrap_or_default();
-    let step = if plan.get("supported") == Some(&json!(true)) {
+    let step = if plan.get(plan_key::SUPPORTED) == Some(&json!(true)) {
         if plan.get("alreadyConfigured") == Some(&json!(true)) {
             format!("2. {config} already loads the plugin.")
         } else {
@@ -700,7 +736,7 @@ pub fn inspector_setup(root: &Path, write: bool) -> Result<(Value, Vec<String>),
             missing.join("; ")
         )));
     }
-    if plan.get("supported") != Some(&json!(true)) {
+    if plan.get(plan_key::SUPPORTED) != Some(&json!(true)) {
         return Err(DfwError::new(format!(
             "dfw cannot edit this project's bundler config automatically: {}",
             text_of(&plan, "manual")
@@ -711,7 +747,7 @@ pub fn inspector_setup(root: &Path, write: bool) -> Result<(Value, Vec<String>),
         let config = text_of(&plan, "configFile");
         let file = root.join(config);
         let mut backup = file.clone().into_os_string();
-        backup.push(".dfw-backup");
+        backup.push(BACKUP_SUFFIX);
         ensure_inside(root, Path::new(&backup))?;
         ensure_inside(root, &file)?;
         if !Path::new(&backup).exists() {
@@ -720,7 +756,7 @@ pub fn inspector_setup(root: &Path, write: bool) -> Result<(Value, Vec<String>),
         write_atomic_inside(root, &file, text_of(&plan, "patched"))?;
         written.push(config.to_string());
     }
-    let pkg_file = root.join("package.json");
+    let pkg_file = root.join(PACKAGE_JSON);
     let raw = fs::read_to_string(&pkg_file)?;
     let mut pkg: Value = serde_json::from_str(&raw)?;
     let pinned = pkg
@@ -739,7 +775,7 @@ pub fn inspector_setup(root: &Path, write: bool) -> Result<(Value, Vec<String>),
             .map_or("  ", |m| m.as_str());
         let newline = if raw.ends_with('\n') { "\n" } else { "" };
         write_atomic_inside(root, &pkg_file, to_json_indented(&pkg, indent) + newline)?;
-        written.push("package.json".to_string());
+        written.push(PACKAGE_JSON.to_string());
     }
     Ok((plan, written))
 }
@@ -756,6 +792,14 @@ mod tests {
     use std::path::PathBuf;
 
     const IMPORT: &str = "import { codeInspectorPlugin } from 'code-inspector-plugin';\n";
+    /// The config files of the fixtures.
+    const VITE_CONFIG: &str = "vite.config.ts";
+    const VITE_JS_CONFIG: &str = "vite.config.js";
+    const WEBPACK_CONFIG: &str = "webpack.config.js";
+    const NEXT_JS_CONFIG: &str = "next.config.js";
+    const NEXT_TS_CONFIG: &str = "next.config.ts";
+    /// The kind of stack the approved stacks name.
+    const JS_STACK: &str = "javascript";
 
     fn fixture(name: &str) -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -811,14 +855,16 @@ mod tests {
         const WIN_ROOT: &str = "C:\\work\\shop";
         const POSIX_ROOT: &str = "/home/me/shop";
         let nested = format!("{NESTED_COMPONENT}:42:7");
-        let p = parse_insp_path(&format!("{nested}:div"), None).unwrap();
+        /// The tag of the element in the attribute.
+        const TAG: &str = "div";
+        let p = parse_insp_path(&format!("{nested}:{TAG}"), None).unwrap();
         assert_eq!(
             p,
             InspPath {
                 file: NESTED_COMPONENT.into(),
                 line: 42.0,
                 column: Some(7.0),
-                tag: Some("div".into()),
+                tag: Some(TAG.into()),
                 source: nested.clone()
             }
         );
@@ -882,7 +928,7 @@ mod tests {
             "outside the project stays absolute"
         );
         // null, undefined and 42 of the JS test have no counterpart: the argument is text here.
-        for bad in ["", "   ", TOP_COMPONENT, "div", ":1:2"] {
+        for bad in ["", "   ", TOP_COMPONENT, TAG, ":1:2"] {
             assert_eq!(parse_insp_path(bad, None), None, "{bad:?}");
         }
     }
@@ -890,28 +936,32 @@ mod tests {
     /// detectBundler: vite, webpack, next (webpack vs turbopack), nuxt
     #[test]
     fn detect_bundler_cases() {
-        let b = detect_bundler(&fixture("vite")).unwrap();
+        let b = detect_bundler(&fixture(bundler::VITE)).unwrap();
         assert_eq!(
             (b.bundler, b.config_file),
-            (Some("vite"), Some("vite.config.ts"))
+            (Some(bundler::VITE), Some(VITE_CONFIG))
         );
         assert_eq!(
-            detect_bundler(&fixture("webpack")).unwrap().bundler,
-            Some("webpack")
+            detect_bundler(&fixture(bundler::WEBPACK)).unwrap().bundler,
+            Some(bundler::WEBPACK)
         );
         let n14 = detect_bundler(&fixture("next-webpack")).unwrap();
         assert_eq!(
             (n14.bundler, n14.next_mode, n14.config_file),
-            (Some("next"), Some("webpack"), Some("next.config.js"))
+            (
+                Some(bundler::NEXT),
+                Some(next_mode::WEBPACK),
+                Some(NEXT_JS_CONFIG)
+            )
         );
         assert_eq!(
             detect_bundler(&fixture("next16")).unwrap().next_mode,
-            Some("turbopack"),
+            Some(next_mode::TURBOPACK),
             "Next 16 dev uses Turbopack"
         );
         assert_eq!(
-            detect_bundler(&fixture("nuxt")).unwrap().bundler,
-            Some("nuxt")
+            detect_bundler(&fixture(bundler::NUXT)).unwrap().bundler,
+            Some(bundler::NUXT)
         );
     }
 
@@ -920,32 +970,39 @@ mod tests {
         let mode = |next: &str, dev: &str| {
             let dir = test_dir("insp-next");
             write_json(
-                &dir.join("package.json"),
+                &dir.join(PACKAGE_JSON),
                 &json!({ "scripts": { "dev": dev }, "dependencies": { "next": next } }),
             )
             .unwrap();
             detect_bundler(&dir).unwrap().next_mode.unwrap()
         };
-        assert_eq!(mode("^15.3.0", "next dev --turbopack"), "turbopack");
-        assert_eq!(mode("15.2.4", "next dev --turbo"), "turbo-experimental");
-        assert_eq!(mode("15.4.0", "next dev"), "webpack");
-        assert_eq!(mode("16.0.0", "next dev --webpack"), "webpack");
-        assert_eq!(mode("latest", "next dev --turbopack"), "turbo-experimental");
+        /// The dev script that asks for Turbopack.
+        const TURBOPACK_DEV: &str = "next dev --turbopack";
+        /// A config file found with no dependency to go by.
+        const RSPACK_CONFIG: &str = "rspack.config.ts";
+        assert_eq!(mode("^15.3.0", TURBOPACK_DEV), next_mode::TURBOPACK);
+        assert_eq!(
+            mode("15.2.4", "next dev --turbo"),
+            next_mode::TURBO_EXPERIMENTAL
+        );
+        assert_eq!(mode("15.4.0", "next dev"), next_mode::WEBPACK);
+        assert_eq!(mode("16.0.0", "next dev --webpack"), next_mode::WEBPACK);
+        assert_eq!(mode("latest", TURBOPACK_DEV), next_mode::TURBO_EXPERIMENTAL);
         // No dependency hint: the config file present decides.
         let dir = test_dir("insp-files");
-        fs::write(dir.join("rspack.config.ts"), "").unwrap();
+        fs::write(dir.join(RSPACK_CONFIG), "").unwrap();
         let b = detect_bundler(&dir).unwrap();
         assert_eq!(
             (b.bundler, b.config_file, b.package_json),
-            (Some("rspack"), Some("rspack.config.ts"), false)
+            (Some(bundler::RSPACK), Some(RSPACK_CONFIG), false)
         );
     }
 
     /// patchConfig: vite adds the import and the plugin to the top-level plugins list only
     #[test]
     fn patch_vite() {
-        let src = read(&fixture("vite"), "vite.config.ts");
-        let (text, changed) = patched(&src, "vite", "vite.config.ts", None);
+        let src = read(&fixture(bundler::VITE), VITE_CONFIG);
+        let (text, changed) = patched(&src, bundler::VITE, VITE_CONFIG, None);
         assert!(changed);
         assert!(text.contains("import react from '@vitejs/plugin-react';\nimport { codeInspectorPlugin } from 'code-inspector-plugin';"));
         assert!(text.contains("\n  plugins: [codeInspectorPlugin({ bundler: 'vite', pathType: 'relative', hotKeys: false, showSwitch: false, hideConsole: true, server: 'close' }), react()],\n"));
@@ -954,7 +1011,7 @@ mod tests {
             "nested plugin lists untouched"
         );
         assert_eq!(
-            patch_config(&text, Some("vite"), "vite.config.ts", None),
+            patch_config(&text, Some(bundler::VITE), VITE_CONFIG, None),
             Patch::Text {
                 text: text.clone(),
                 changed: false
@@ -962,9 +1019,9 @@ mod tests {
             "idempotent"
         );
         let (func, _) = patched(
-            &read(&fixture("vite-noplugins"), "vite.config.js"),
-            "vite",
-            "vite.config.js",
+            &read(&fixture("vite-noplugins"), VITE_JS_CONFIG),
+            bundler::VITE,
+            VITE_JS_CONFIG,
             None,
         );
         assert!(
@@ -979,9 +1036,9 @@ mod tests {
     #[test]
     fn patch_webpack_and_next() {
         let (wp, _) = patched(
-            &read(&fixture("webpack"), "webpack.config.js"),
-            "webpack",
-            "webpack.config.js",
+            &read(&fixture(bundler::WEBPACK), WEBPACK_CONFIG),
+            bundler::WEBPACK,
+            WEBPACK_CONFIG,
             None,
         );
         assert!(wp.starts_with(
@@ -993,10 +1050,10 @@ mod tests {
         ));
 
         let (n14, _) = patched(
-            &read(&fixture("next-webpack"), "next.config.js"),
-            "next",
-            "next.config.js",
-            Some("webpack"),
+            &read(&fixture("next-webpack"), NEXT_JS_CONFIG),
+            bundler::NEXT,
+            NEXT_JS_CONFIG,
+            Some(next_mode::WEBPACK),
         );
         assert!(n14.contains("require('code-inspector-plugin')"));
         assert!(
@@ -1006,10 +1063,10 @@ mod tests {
         assert!(n14.contains("reactStrictMode: true"));
 
         let (n16, _) = patched(
-            &read(&fixture("next16"), "next.config.ts"),
-            "next",
-            "next.config.ts",
-            Some("turbopack"),
+            &read(&fixture("next16"), NEXT_TS_CONFIG),
+            bundler::NEXT,
+            NEXT_TS_CONFIG,
+            Some(next_mode::TURBOPACK),
         );
         assert!(n16.contains("import type { NextConfig } from 'next';\nimport { codeInspectorPlugin } from 'code-inspector-plugin';"));
         assert!(n16.contains("const nextConfig: NextConfig = {\n  turbopack: { rules: codeInspectorPlugin({ bundler: 'turbopack'"));
@@ -1017,33 +1074,33 @@ mod tests {
         assert!(
             is_manual(
                 "module.exports = { webpack: (c) => c };",
-                "next",
+                bundler::NEXT,
                 "",
-                Some("webpack")
+                Some(next_mode::WEBPACK)
             ),
             "existing webpack hook: manual"
         );
         assert!(is_manual(
             "export default defineNuxtConfig({})",
-            "nuxt",
+            bundler::NUXT,
             "",
             None
         ));
         assert!(
-            is_manual("const x = 1;", "vite", "vite.config.js", None),
+            is_manual("const x = 1;", bundler::VITE, VITE_JS_CONFIG, None),
             "unknown shape: manual, no guess"
         );
         assert!(is_manual(
             "export default { turbopack: {} }",
-            "next",
+            bundler::NEXT,
             "",
-            Some("turbopack")
+            Some(next_mode::TURBOPACK)
         ));
         assert!(is_manual(
             "export default {}",
-            "next",
+            bundler::NEXT,
             "",
-            Some("turbo-experimental")
+            Some(next_mode::TURBO_EXPERIMENTAL)
         ));
         assert_eq!(
             patch_config("x", None, "", None),
@@ -1054,12 +1111,13 @@ mod tests {
     /// inspectorPlan: pinned dev dependency; unsupported bundlers get manual instructions
     #[test]
     fn plan_cases() {
-        let p = inspector_plan(&fixture("vite")).unwrap();
-        assert_eq!(p["supported"], json!(true));
-        assert_eq!(p["dependency"]["name"], json!("code-inspector-plugin"));
+        use plan_key::{DEPENDENCY, DEV_DEPENDENCY, FRAMEWORK, SUPPORTED};
+        let p = inspector_plan(&fixture(bundler::VITE)).unwrap();
+        assert_eq!(p[SUPPORTED], json!(true));
+        assert_eq!(p[DEPENDENCY]["name"], json!(PACKAGE));
         assert!(matches(r"^\d+\.\d+\.\d+$", VERSION), "exact version");
-        assert_eq!(p["dependency"]["dev"], json!(true));
-        assert_eq!(p["framework"], json!("React"));
+        assert_eq!(p[DEPENDENCY]["dev"], json!(true));
+        assert_eq!(p[FRAMEWORK], json!("React"));
         let keys: Vec<&String> = p.as_object().unwrap().keys().collect();
         assert_eq!(
             keys,
@@ -1067,22 +1125,22 @@ mod tests {
                 "bundler",
                 "configFile",
                 "packageJson",
-                "dependency",
-                "framework",
+                DEPENDENCY,
+                FRAMEWORK,
                 "packageManager",
                 "install",
-                "supported",
+                SUPPORTED,
                 "patched",
                 "alreadyConfigured",
-                "devDependency"
+                DEV_DEPENDENCY
             ]
         );
-        let nuxt = inspector_plan(&fixture("nuxt")).unwrap();
-        assert_eq!(nuxt["supported"], json!(false));
+        let nuxt = inspector_plan(&fixture(bundler::NUXT)).unwrap();
+        assert_eq!(nuxt[SUPPORTED], json!(false));
         assert!(text_of(&nuxt, "manual").contains("vite: { plugins: [codeInspectorPlugin"));
         let empty = inspector_plan(&test_dir("insp-empty")).unwrap();
-        assert_eq!(empty["supported"], json!(false));
-        assert_eq!(empty.get("devDependency"), None);
+        assert_eq!(empty[SUPPORTED], json!(false));
+        assert_eq!(empty.get(DEV_DEPENDENCY), None);
         assert!(format_plan(&empty).contains("bundler: unknown\n1. devDependency: \"code-inspector-plugin\": \"2.0.9\"  then npm install\n2. by hand: No package.json"));
         let next = inspector_plan(&fixture("next16")).unwrap();
         assert_eq!(
@@ -1095,8 +1153,8 @@ mod tests {
     /// inspector setup --write: refused without G3 or without the dependency in the stack, applied after approval
     #[test]
     fn setup_write_needs_g3_and_the_dependency() {
-        let root = copy_fixture("vite");
-        let before = read(&root, "vite.config.ts");
+        let root = copy_fixture(bundler::VITE);
+        let before = read(&root, VITE_CONFIG);
         let err = inspector_setup(&root, true).unwrap_err();
         assert!(
             matches(r"refused: G3 .*not approved", err.message()),
@@ -1104,17 +1162,17 @@ mod tests {
         );
         approve_g3(
             &root,
-            json!({ "kind": "javascript", "framework": { "name": "React" }, "dependencies": [] }),
+            json!({ "kind": JS_STACK, "framework": { "name": "React" }, "dependencies": [] }),
         );
         let err = inspector_setup(&root, true).unwrap_err();
         assert!(
             err.message()
-                .contains("does not list \"code-inspector-plugin\"")
+                .contains(&format!("does not list \"{PACKAGE}\""))
                 && !err.message().contains("G3 (technology"),
             "G3 approved but the dependency was not: {err}"
         );
         assert_eq!(
-            read(&root, "vite.config.ts"),
+            read(&root, VITE_CONFIG),
             before,
             "nothing written when refused"
         );
@@ -1126,21 +1184,21 @@ mod tests {
 
         approve_g3(
             &root,
-            json!({ "kind": "javascript", "dependencies": [{ "name": "code-inspector-plugin", "version": VERSION, "dev": true }] }),
+            json!({ "kind": JS_STACK, "dependencies": [{ "name": PACKAGE, "version": VERSION, "dev": true }] }),
         );
         let (_, mut written) = inspector_setup(&root, true).unwrap();
         written.sort();
-        assert_eq!(written, ["package.json", "vite.config.ts"]);
-        assert!(read(&root, "vite.config.ts").contains("codeInspectorPlugin({ bundler: 'vite'"));
-        let raw = read(&root, "package.json");
+        assert_eq!(written, [PACKAGE_JSON, VITE_CONFIG]);
+        assert!(read(&root, VITE_CONFIG).contains("codeInspectorPlugin({ bundler: 'vite'"));
+        let raw = read(&root, PACKAGE_JSON);
         let pkg: Value = serde_json::from_str(&raw).unwrap();
         assert_eq!(
-            pkg["devDependencies"]["code-inspector-plugin"],
+            pkg["devDependencies"][PACKAGE],
             json!(VERSION),
             "pinned, devDependencies"
         );
         assert_eq!(
-            pkg["dependencies"].get("code-inspector-plugin"),
+            pkg["dependencies"].get(PACKAGE),
             None,
             "never a runtime dependency"
         );
@@ -1168,9 +1226,9 @@ mod tests {
 
     #[test]
     fn package_json_keeps_its_indentation_and_final_newline() {
-        let root = copy_fixture("vite");
+        let root = copy_fixture(bundler::VITE);
         fs::write(
-            root.join("package.json"),
+            root.join(PACKAGE_JSON),
             "{\n\t\"name\": \"x\",\n\t\"devDependencies\": {\n\t\t\"vite\": \"7.1.0\"\n\t}\n}",
         )
         .unwrap();
@@ -1180,7 +1238,7 @@ mod tests {
         );
         inspector_setup(&root, true).unwrap();
         assert_eq!(
-            read(&root, "package.json"),
+            read(&root, PACKAGE_JSON),
             "{\n\t\"name\": \"x\",\n\t\"devDependencies\": {\n\t\t\"vite\": \"7.1.0\",\n\t\t\"code-inspector-plugin\": \"2.0.9\"\n\t}\n}"
         );
     }
@@ -1241,7 +1299,7 @@ mod tests {
     fn config_function_with_a_body_is_manual() {
         let src = "import { defineConfig, loadEnv } from 'vite';\nexport default defineConfig(({ mode }) => {\n  const env = loadEnv(mode, process.cwd());\n  return { server: { port: Number(env.PORT) } };\n});\n";
         assert!(
-            is_manual(src, "vite", "vite.config.ts", None),
+            is_manual(src, bundler::VITE, VITE_CONFIG, None),
             "manual instructions"
         );
     }
@@ -1249,22 +1307,23 @@ mod tests {
     /// inspector setup --write keeps the original config as <file>.dfw-backup, once
     #[test]
     fn backup_is_kept_once() {
-        let root = copy_fixture("vite");
-        let original = read(&root, "vite.config.ts");
+        let root = copy_fixture(bundler::VITE);
+        let original = read(&root, VITE_CONFIG);
+        let backup = format!("{VITE_CONFIG}{BACKUP_SUFFIX}");
         approve_g3(
             &root,
-            json!({ "kind": "javascript", "dependencies": [{ "name": PACKAGE, "version": VERSION, "dev": true }] }),
+            json!({ "kind": JS_STACK, "dependencies": [{ "name": PACKAGE, "version": VERSION, "dev": true }] }),
         );
         inspector_setup(&root, true).unwrap();
-        assert_eq!(read(&root, "vite.config.ts.dfw-backup"), original);
+        assert_eq!(read(&root, &backup), original);
         // The user reverts by hand and runs setup again: the first backup is not replaced.
         fs::write(
-            root.join("vite.config.ts"),
+            root.join(VITE_CONFIG),
             original.replace("react()", "react(), other()"),
         )
         .unwrap();
         inspector_setup(&root, true).unwrap();
-        assert_eq!(read(&root, "vite.config.ts.dfw-backup"), original);
+        assert_eq!(read(&root, &backup), original);
     }
 
     #[test]

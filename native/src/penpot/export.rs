@@ -21,6 +21,7 @@ use super::tokens::{
     dfw_to_penpot, flatten_tokens, parse_color, read_dfw_tokens, token_to_penpot_quiet, DfwTokens,
     Flat, Token,
 };
+use super::wire;
 use crate::browser::launch::{browser_status, fonts_ready, open_renderer, Renderer};
 use crate::core::config::load_config;
 use crate::core::error::DfwError;
@@ -64,7 +65,7 @@ fn painted(n: &Value) -> bool {
 }
 
 fn is_wrapper(n: &Value) -> bool {
-    n.get("kind").and_then(Value::as_str) == Some("frame")
+    n.get(wire::KIND).and_then(Value::as_str) == Some(wire::kind::FRAME)
         && !js::truthy(n.get("dfwId"))
         && !js::truthy(n.get("component"))
         && !painted(n)
@@ -95,7 +96,7 @@ pub fn simplify(nodes: Vec<Value>) -> Vec<Value> {
             if let Some(Value::Array(kids)) = n.get_mut("children").map(Value::take) {
                 out.extend(kids);
             }
-        } else if n.get("kind").and_then(Value::as_str) == Some("frame")
+        } else if n.get(wire::KIND).and_then(Value::as_str) == Some(wire::kind::FRAME)
             && !has_children(&n)
             && !js::truthy(n.get("dfwId"))
             && !js::truthy(n.get("component"))
@@ -115,6 +116,11 @@ static RADIUS_NAME: LazyLock<Regex> = LazyLock::new(|| fixed_regex(r"(^|\.)radiu
 static TEXTISH: LazyLock<Regex> =
     LazyLock::new(|| fixed_regex(r"(^|[.-])(ink|text|on|fg|foreground|muted|subtle)([.-]|$)"));
 static EXPORT_FILE: LazyLock<Regex> = LazyLock::new(|| fixed_regex(r"^px_[0-9A-Za-z_]+\.json$"));
+
+/// The file of the export `id` (`px_<time>_<hex>.json`), in `exports/`.
+pub(super) fn export_file(id: &str) -> String {
+    format!("{id}.json")
+}
 
 /// `resolveAlias`: the token a name ends at, aliases followed (`"{a.b}"` to `a.b` and on);
 /// `None` when it is missing or circular.
@@ -231,10 +237,10 @@ impl Linker<'_> {
     /// One export layer of a snapshot node, its keys in the order of the export file: place,
     /// paint, content, children, then the structure signature.
     fn layer(&self, n: &Value, path: &str) -> Value {
-        let kind = n.get("kind").and_then(Value::as_str);
+        let kind = n.get(wire::KIND).and_then(Value::as_str);
         let mut l = Map::new();
-        put(&mut l, "kind", n.get("kind").cloned());
-        put(&mut l, "name", n.get("name").cloned());
+        put(&mut l, wire::KIND, n.get(wire::KIND).cloned());
+        put(&mut l, wire::NAME, n.get(wire::NAME).cloned());
         put(&mut l, "path", Some(path.into()));
         put(&mut l, "dfwId", Some(js::or_null(n.get("dfwId"))));
         put(&mut l, "anchor", Some(js::or_null(n.get("anchor"))));
@@ -255,8 +261,8 @@ impl Linker<'_> {
             }
         }
         let mut l = Value::Object(l);
-        if l.get("children").is_some() || kind == Some("frame") {
-            l["sig"] = signature(&l).into();
+        if l.get("children").is_some() || kind == Some(wire::kind::FRAME) {
+            l[wire::SIG] = signature(&l).into();
         }
         l
     }
@@ -376,7 +382,7 @@ impl Linker<'_> {
 
     /// What a node holds by kind (text, svg, image) and the component it is an instance of.
     fn put_content(&self, l: &mut Map<String, Value>, n: &Value, kind: Option<&str>) {
-        if kind == Some("text") {
+        if kind == Some(wire::kind::TEXT) {
             put(l, "characters", n.get("characters").cloned());
             let text = n.get("text");
             let color = text.and_then(|t| t.get("color"));
@@ -410,7 +416,7 @@ impl Linker<'_> {
         }
         if let Some(component) = js::truthy_value(n.get("component")) {
             let mut c = js::spread(Some(component));
-            c.insert("key".into(), component_key(component).into());
+            c.insert(wire::KEY.into(), component_key(component).into());
             put(l, "component", Some(Value::Object(c)));
         }
     }
@@ -448,7 +454,7 @@ fn put(l: &mut Map<String, Value>, key: &str, value: Option<Value>) {
 fn component_key(c: &Value) -> String {
     let part = |key: &str| js::truthy_value(c.get(key)).map(|v| js::to_string(Some(v)));
     // The name is joined as it is (a missing one is empty), variant and size only when set.
-    let name = match c.get("name") {
+    let name = match c.get(wire::NAME) {
         None | Some(Value::Null) => String::new(),
         name => js::to_string(name),
     };
@@ -464,27 +470,27 @@ fn component_key(c: &Value) -> String {
 /// or colours).
 pub fn signature(l: &Value) -> String {
     let own = match js::truthy_value(l.get("component")) {
-        Some(c) => js::to_string(c.get("key")),
-        None => js::to_string(l.get("name")),
+        Some(c) => js::to_string(c.get(wire::KEY)),
+        None => js::to_string(l.get(wire::NAME)),
     };
     let children: Vec<String> = l
         .get("children")
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
-        .map(|c| match c.get("sig") {
+        .map(|c| match c.get(wire::SIG) {
             Some(Value::Null) => String::new(),
             Some(sig) => js::to_string(Some(sig)),
             None => format!(
                 "{}:{}",
-                js::to_string(c.get("kind")),
-                js::to_string(c.get("name"))
+                js::to_string(c.get(wire::KIND)),
+                js::to_string(c.get(wire::NAME))
             ),
         })
         .collect();
     format!(
         "{}:{own}[{}]",
-        js::to_string(l.get("kind")),
+        js::to_string(l.get(wire::KIND)),
         children.join(",")
     )
 }
@@ -585,7 +591,7 @@ fn pages_of_renders(
         .into_iter()
         .map(|(_, mut head, mut boards)| {
             lay_out(&mut boards);
-            head.insert("boards".into(), Value::Array(boards));
+            head.insert(wire::BOARDS.into(), Value::Array(boards));
             Value::Object(head)
         })
         .collect()
@@ -617,9 +623,9 @@ fn board_of_render(linker: &Linker, r: &Value, components: &mut Vec<(String, Val
         visit_components(l, &key, components);
     }
     js::object(vec![
-        ("key", Some(key.as_str().into())),
+        (wire::KEY, Some(key.as_str().into())),
         (
-            "name",
+            wire::NAME,
             Some(
                 format!(
                     "{} / {} @ {}",
@@ -651,7 +657,7 @@ fn board_of_render(linker: &Linker, r: &Value, components: &mut Vec<(String, Val
                 ),
             ])),
         ),
-        ("layers", Some(Value::Array(layers))),
+        (wire::LAYERS, Some(Value::Array(layers))),
     ])
 }
 
@@ -671,20 +677,20 @@ fn export_id(generated_at: &str, pages: &Value) -> String {
 /// The first instance of every component becomes its main, rebased to its own origin.
 fn visit_components(l: &Value, board_key: &str, components: &mut Vec<(String, Value)>) {
     if let Some(component) = js::truthy_value(l.get("component")) {
-        let key = js::stringify(component.get("key"));
+        let key = js::stringify(component.get(wire::KEY));
         if !components.iter().any(|(k, _)| *k == key) {
-            let name: Vec<String> = ["name", "variant", "size"]
+            let name: Vec<String> = [wire::NAME, "variant", "size"]
                 .iter()
                 .filter_map(|k| js::truthy_value(component.get(*k)))
                 .map(|v| js::to_string(Some(v)))
                 .collect();
             let main = js::object(vec![
-                ("key", component.get("key").cloned()),
-                ("name", Some(name.join(" / ").into())),
-                ("component", component.get("name").cloned()),
+                (wire::KEY, component.get(wire::KEY).cloned()),
+                (wire::NAME, Some(name.join(" / ").into())),
+                ("component", component.get(wire::NAME).cloned()),
                 ("variant", component.get("variant").cloned()),
                 ("size", component.get("size").cloned()),
-                ("sig", l.get("sig").cloned()),
+                (wire::SIG, l.get(wire::SIG).cloned()),
                 (
                     "from",
                     Some(format!("{board_key}#{}", js::to_string(l.get("path"))).into()),
@@ -976,7 +982,7 @@ pub fn export_penpot(root: &Path, opts: &ExportOptions) -> Result<(PathBuf, Valu
     write_json_inside(
         root,
         &dir.join(file::PENPOT_EXPORTS)
-            .join(format!("{}.json", js::to_string(doc.get("id")))),
+            .join(export_file(&js::to_string(doc.get("id")))),
         &doc,
     )?;
     prune_exports(&dir, KEEP_EXPORTS)?;

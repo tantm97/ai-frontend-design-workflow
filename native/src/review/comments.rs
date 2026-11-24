@@ -16,7 +16,7 @@ use crate::core::js;
 use crate::core::lock::{self, LockTimes};
 use crate::core::paths::{file, project_paths, rel};
 use crate::core::util::{iso_from_millis, now_iso, read_json, write_json_inside};
-use crate::review::status::{self, field, Status};
+use crate::review::status::{self, by, field, Status};
 
 /// `locked(root, fn)`: run `f` holding the reviews lock (`.dfw/reviews/.lock`, see
 /// `core::lock`). The Studio server and the CLI (hooks, `dfw comments ...`) change the same
@@ -273,7 +273,7 @@ pub fn add_comment(root: &Path, input: &Value) -> Result<Value, DfwError> {
 }
 
 fn add_comment_unlocked(root: &Path, input: &Value) -> Result<Value, DfwError> {
-    let text = match input.get("comment") {
+    let text = match input.get(field::COMMENT) {
         None | Some(Value::Null) => "",
         Some(Value::String(text)) => js::trim(text),
         Some(_) => {
@@ -289,14 +289,17 @@ fn add_comment_unlocked(root: &Path, input: &Value) -> Result<Value, DfwError> {
         return Err(DfwError::internal("No review session."));
     };
     let design_file = input
-        .get("file")
+        .get(field::FILE)
         .and_then(Value::as_str)
         .filter(|f| safe_design_file(f));
-    let mut target = js::spread(js::truthy_value(input.get("target")));
-    if js::truthy_value(target.get("source")).is_none() {
+    let mut target = js::spread(js::truthy_value(input.get(field::TARGET)));
+    if js::truthy_value(target.get(field::SOURCE)).is_none() {
         let dfw_id = js::truthy_value(target.get("dfwId")).map(|id| js::to_string(Some(id)));
         let source = locate_source(root, design_file, dfw_id.as_deref())?;
-        target.insert("source".into(), source.map_or(Value::Null, Value::String));
+        target.insert(
+            field::SOURCE.into(),
+            source.map_or(Value::Null, Value::String),
+        );
     }
     let or_null = |key: &str| {
         js::truthy_value(input.get(key))
@@ -304,28 +307,31 @@ fn add_comment_unlocked(root: &Path, input: &Value) -> Result<Value, DfwError> {
             .unwrap_or(Value::Null)
     };
     let mut c = js::object(vec![
-        ("id", Some(next_id(root)?.into())),
+        (field::ID, Some(next_id(root)?.into())),
         ("createdAt", Some(now_iso().into())),
-        ("designVersion", session.get("designVersion").cloned()),
+        (
+            field::DESIGN_VERSION,
+            session.get(field::DESIGN_VERSION).cloned(),
+        ),
         ("screen", Some(or_null("screen"))),
         ("variant", Some(or_null("variant"))),
         ("breakpoint", Some(or_null("breakpoint"))),
         ("state", Some(or_null("state"))),
         ("theme", Some(or_null("theme"))),
         (
-            "file",
+            field::FILE,
             Some(design_file.map_or(Value::Null, |f| rel::design(f).into())),
         ),
-        ("target", Some(Value::Object(target))),
-        ("comment", Some(text.into())),
+        (field::TARGET, Some(Value::Object(target))),
+        (field::COMMENT, Some(text.into())),
         ("screenshot", Some(or_null("screenshot"))),
         (field::STATUS, Some(Status::Open.as_str().into())),
-        ("thread", Some(json!([]))),
+        (field::THREAD, Some(json!([]))),
         ("resolution", Some(Value::Null)),
         (
-            "provider",
+            field::PROVIDER,
             Some(
-                js::truthy_value(input.get("provider"))
+                js::truthy_value(input.get(field::PROVIDER))
                     .cloned()
                     .unwrap_or_else(|| "dfw-studio".into()),
             ),
@@ -480,7 +486,7 @@ fn update_comment_unlocked(
     let at = now_iso();
     let status = update.status.as_deref().filter(|s| !s.is_empty());
     let message = update.message.clone().filter(|v| js::truthy(v));
-    let by = update.by.clone().unwrap_or_else(|| "claude".into());
+    let by = update.by.clone().unwrap_or_else(|| by::CLAUDE.into());
     let current = comment.get(field::STATUS).cloned();
     // The status the comment already has is not a transition: it is refused like any other one
     // not in `Status::next`.
@@ -508,7 +514,7 @@ fn update_comment_unlocked(
                 status::names(allowed)
             )));
         }
-        if status == Status::Resolved && by.as_str() != Some("user") {
+        if status == Status::Resolved && by.as_str() != Some(by::USER) {
             return Err(DfwError::new("Only the user resolves a comment (from the studio, or \"dfw comments resolve --by user\" when they say so)."));
         }
         if status == Status::Fixed && message.is_none() {
@@ -532,12 +538,17 @@ fn update_comment_unlocked(
             ("message", Some(message)),
             ("status", status.map(Value::from)),
         ]);
-        match comment.get_mut("thread") {
+        match comment.get_mut(field::THREAD) {
             Some(Value::Array(thread)) => thread.push(line),
-            _ => return Err(not_a_list(&file, &format!("\"thread\" of comment {id}"))),
+            _ => {
+                return Err(not_a_list(
+                    &file,
+                    &format!("\"{}\" of comment {id}", field::THREAD),
+                ))
+            }
         }
     }
-    comment.insert("updatedAt".into(), at.into());
+    comment.insert(field::UPDATED_AT.into(), at.into());
     found.save()
 }
 
@@ -549,6 +560,10 @@ mod tests {
     };
     use crate::core::util::test_dir;
     use crate::workflow::state::{new_state, save_state};
+    use Status::{Acknowledged, Dismissed, Fixed, Open, Reopened, Resolved};
+
+    /// The id of the first comment of a project.
+    const FIRST_ID: &str = "fb_001";
 
     fn project(label: &str) -> PathBuf {
         let root = test_dir(label);
@@ -556,9 +571,10 @@ mod tests {
         root
     }
 
-    fn update(status: &str, message: Option<&str>, by: Option<&str>) -> Update {
+    /// An update to `status` (`None`: a reply only).
+    fn update(status: Option<Status>, message: Option<&str>, by: Option<&str>) -> Update {
         Update {
-            status: Some(status.into()).filter(|s: &String| !s.is_empty()),
+            status: status.map(|s| s.as_str().into()),
             message: message.map(Value::from),
             by: by.map(Value::from),
             evidence: None,
@@ -576,25 +592,30 @@ mod tests {
         )
         .unwrap();
         let c = add_comment(&root, &json!({ "screen": "home", "variant": "a", "file": "screens/home/a.html", "target": { "dfwId": "home.cta" }, "comment": "Bigger" })).unwrap();
-        assert_eq!(c["id"], "fb_001");
+        assert_eq!(c[field::ID], FIRST_ID);
         assert_eq!(
-            c["target"]["source"],
+            c[field::TARGET][field::SOURCE],
             format!("{}:3", rel::screen(SCREEN_PAGE))
         );
-        let id = Some("fb_001");
+        let id = Some(FIRST_ID);
         let fails = |u: Update| {
             update_comment(&root, id, &u)
                 .unwrap_err()
                 .message()
                 .to_string()
         };
-        assert!(fails(update("resolved", None, Some("user"))).contains("cannot go from \"open\""));
-        assert!(fails(update("fixed", None, None)).contains("needs a short note"));
-        update_comment(&root, id, &update("fixed", Some("done"), None)).unwrap();
-        assert!(fails(update("resolved", None, None)).contains("Only the user"));
-        assert!(fails(update("dismissed", None, None)).contains("cannot go from"));
-        update_comment(&root, id, &update("resolved", None, Some("user"))).unwrap();
-        assert_eq!(all_comments(&root).unwrap()[0]["status"], "resolved");
+        assert!(
+            fails(update(Some(Resolved), None, Some(by::USER))).contains("cannot go from \"open\"")
+        );
+        assert!(fails(update(Some(Fixed), None, None)).contains("needs a short note"));
+        update_comment(&root, id, &update(Some(Fixed), Some("done"), None)).unwrap();
+        assert!(fails(update(Some(Resolved), None, None)).contains("Only the user"));
+        assert!(fails(update(Some(Dismissed), None, None)).contains("cannot go from"));
+        update_comment(&root, id, &update(Some(Resolved), None, Some(by::USER))).unwrap();
+        assert_eq!(
+            all_comments(&root).unwrap()[0][field::STATUS],
+            Resolved.as_str()
+        );
         assert_eq!(
             add_comment(&root, &json!({ "comment": "second" })).unwrap()["id"],
             "fb_002"
@@ -632,37 +653,38 @@ mod tests {
     #[test]
     fn a_comment_has_the_node_shape() {
         let root = project("comments-shape");
-        let c = add_comment(&root, &json!({ "comment": "  Too wide \n", "url": "http://localhost:3000/a", "provider": "dfw-live", "target": { "selector": "main > p", "source": format!("{APP_COMPONENT}:3:5") } })).unwrap();
+        let source = format!("{APP_COMPONENT}:3:5");
+        let c = add_comment(&root, &json!({ "comment": "  Too wide \n", "url": "http://localhost:3000/a", "provider": "dfw-live", "target": { "selector": "main > p", "source": source } })).unwrap();
         let keys: Vec<&str> = c.as_object().unwrap().keys().map(String::as_str).collect();
         assert_eq!(
             keys,
             [
-                "id",
+                field::ID,
                 "createdAt",
-                "designVersion",
+                field::DESIGN_VERSION,
                 "screen",
                 "variant",
                 "breakpoint",
                 "state",
                 "theme",
-                "file",
-                "target",
-                "comment",
+                field::FILE,
+                field::TARGET,
+                field::COMMENT,
                 "screenshot",
-                "status",
-                "thread",
+                field::STATUS,
+                field::THREAD,
                 "resolution",
-                "provider",
+                field::PROVIDER,
                 "url"
             ]
         );
-        assert_eq!(c["comment"], "Too wide");
-        assert_eq!(c["designVersion"], "v1");
-        assert_eq!(c["target"]["source"], format!("{APP_COMPONENT}:3:5"));
-        assert_eq!(c["file"], Value::Null);
+        assert_eq!(c[field::COMMENT], "Too wide");
+        assert_eq!(c[field::DESIGN_VERSION], "v1");
+        assert_eq!(c[field::TARGET][field::SOURCE], source);
+        assert_eq!(c[field::FILE], Value::Null);
         let plain = add_comment(&root, &json!({ "comment": "x" })).unwrap();
-        assert_eq!(plain["target"], json!({ "source": null }));
-        assert_eq!(plain["provider"], "dfw-studio");
+        assert_eq!(plain[field::TARGET], json!({ "source": null }));
+        assert_eq!(plain[field::PROVIDER], "dfw-studio");
         for input in [
             json!({}),
             json!({ "comment": "  " }),
@@ -683,21 +705,22 @@ mod tests {
     fn every_status_rule() {
         let root = project("comments-status");
         add_comment(&root, &json!({ "comment": "x" })).unwrap();
-        let id = Some("fb_001");
-        let go = |status: &str, message: Option<&str>, by: Option<&str>| {
+        let id = Some(FIRST_ID);
+        let go = |status: Option<Status>, message: Option<&str>, by: Option<&str>| {
             update_comment(&root, id, &update(status, message, by))
         };
-        let status = || all_comments(&root).unwrap()[0]["status"].clone();
+        let status = || all_comments(&root).unwrap()[0][field::STATUS].clone();
         // A reply keeps the status and adds a thread line without one.
-        let c = go("", Some("Which one?"), None).unwrap();
+        const QUESTION: &str = "Which one?";
+        let c = go(None, Some(QUESTION), None).unwrap();
         assert_eq!(
-            c["thread"][0],
-            json!({ "at": c["updatedAt"], "by": "claude", "message": "Which one?" })
+            c[field::THREAD][0],
+            json!({ "at": c[field::UPDATED_AT], "by": by::CLAUDE, "message": QUESTION })
         );
-        assert_eq!(status(), "open");
+        assert_eq!(status(), Open.as_str());
         // The same status again is refused like any move not in `Status::next`.
         assert_eq!(
-            go("open", None, None).unwrap_err().message(),
+            go(Some(Open), None, None).unwrap_err().message(),
             "Comment fb_001: cannot go from \"open\" to \"open\" (allowed: acknowledged, fixed, dismissed)."
         );
         for from_status in Status::ALL {
@@ -705,21 +728,26 @@ mod tests {
             for to_status in Status::ALL {
                 let to = to_status.as_str();
                 // Bring the comment to `from` by a legal path, then try `to`.
-                let path: &[&str] = match from {
-                    "open" => &[],
-                    "acknowledged" => &["acknowledged"],
-                    "fixed" => &["fixed"],
-                    "reopened" => &["fixed", "reopened"],
-                    "resolved" => &["fixed", "resolved"],
-                    _ => &["dismissed"],
+                let path: &[Status] = match from_status {
+                    Open => &[],
+                    Acknowledged => &[Acknowledged],
+                    Fixed => &[Fixed],
+                    Reopened => &[Fixed, Reopened],
+                    Resolved => &[Fixed, Resolved],
+                    Dismissed => &[Dismissed],
                 };
                 let fresh =
                     add_comment(&root, &json!({ "comment": format!("{from}>{to}") })).unwrap();
-                let cid = fresh["id"].as_str();
+                let cid = fresh[field::ID].as_str();
                 for step in path {
-                    update_comment(&root, cid, &update(step, Some("m"), Some("user"))).unwrap();
+                    update_comment(&root, cid, &update(Some(*step), Some("m"), Some(by::USER)))
+                        .unwrap();
                 }
-                let result = update_comment(&root, cid, &update(to, Some("m"), Some("user")));
+                let result = update_comment(
+                    &root,
+                    cid,
+                    &update(Some(to_status), Some("m"), Some(by::USER)),
+                );
                 assert_eq!(
                     result.is_ok(),
                     allowed.contains(&to_status),
@@ -727,12 +755,13 @@ mod tests {
                 );
             }
         }
-        let fixed = go("fixed", Some("lg size"), None).unwrap();
+        const NOTE: &str = "lg size";
+        let fixed = go(Some(Fixed), Some(NOTE), None).unwrap();
         assert_eq!(
             fixed["resolution"],
-            json!({ "at": fixed["updatedAt"], "by": "claude", "note": "lg size", "evidence": null })
+            json!({ "at": fixed[field::UPDATED_AT], "by": by::CLAUDE, "note": NOTE, "evidence": null })
         );
-        assert_eq!(fixed["thread"][1]["status"], "fixed");
+        assert_eq!(fixed[field::THREAD][1][field::STATUS], Fixed.as_str());
         assert_eq!(
             update_comment(&root, Some("fb_999"), &Update::default())
                 .unwrap_err()
@@ -747,7 +776,7 @@ mod tests {
         );
         const SHOT: &str = "fb_001.png";
         let file = rel::join(rel::SHOTS, SHOT);
-        let shot = set_comment_screenshot(&root, "fb_001", &file).unwrap();
+        let shot = set_comment_screenshot(&root, FIRST_ID, &file).unwrap();
         assert_eq!(shot["screenshot"], file);
     }
 
@@ -757,7 +786,8 @@ mod tests {
     fn review_rounds_started_in_the_same_second_get_different_session_files() {
         let root = project("comments-same-second");
         let first = new_session(&root, None).unwrap();
-        add_comment(&root, &json!({ "comment": "kept" })).unwrap();
+        const KEPT: &str = "kept";
+        add_comment(&root, &json!({ "comment": KEPT })).unwrap();
         let ids: Vec<String> = [
             first,
             new_session(&root, None).unwrap(),
@@ -779,11 +809,11 @@ mod tests {
         let comments: Vec<Value> = all_comments(&root)
             .unwrap()
             .iter()
-            .map(|c| c["comment"].clone())
+            .map(|c| c[field::COMMENT].clone())
             .collect();
         assert_eq!(
             comments,
-            [json!("kept")],
+            [json!(KEPT)],
             "the first round and its comment survive"
         );
         assert_eq!(session_files(&root).unwrap().len(), 3);
@@ -823,17 +853,17 @@ mod tests {
                 &json!({ "comment": "x", "file": file, "target": { "dfwId": "a" } }),
             )
             .unwrap();
-            assert_eq!(c["file"], Value::Null, "{file}");
-            assert_eq!(c["target"]["source"], Value::Null, "{file}");
+            assert_eq!(c[field::FILE], Value::Null, "{file}");
+            assert_eq!(c[field::TARGET][field::SOURCE], Value::Null, "{file}");
         }
         let ok = add_comment(
             &root,
             &json!({ "comment": "x", "file": "screens/home/a.html", "target": { "dfwId": "a" } }),
         )
         .unwrap();
-        assert_eq!(ok["file"], rel::screen(SCREEN_PAGE));
+        assert_eq!(ok[field::FILE], rel::screen(SCREEN_PAGE));
         assert_eq!(
-            ok["target"]["source"],
+            ok[field::TARGET][field::SOURCE],
             format!("{}:2", rel::screen(SCREEN_PAGE))
         );
         assert!(!safe_design_file("a\0b") && !safe_design_file("") && safe_design_file("..x.html"));
@@ -844,24 +874,25 @@ mod tests {
     fn setting_the_status_a_comment_already_has_is_refused() {
         let root = project("comments-same-status");
         add_comment(&root, &json!({ "comment": "x" })).unwrap();
-        let id = Some("fb_001");
-        update_comment(&root, id, &update("fixed", Some("done"), None)).unwrap();
-        update_comment(&root, id, &update("resolved", None, Some("user"))).unwrap();
+        let id = Some(FIRST_ID);
+        update_comment(&root, id, &update(Some(Fixed), Some("done"), None)).unwrap();
+        update_comment(&root, id, &update(Some(Resolved), None, Some(by::USER))).unwrap();
         let err = update_comment(
             &root,
             id,
-            &update("resolved", Some("again"), Some("claude")),
+            &update(Some(Resolved), Some("again"), Some(by::CLAUDE)),
         )
         .unwrap_err();
         assert!(err
             .message()
             .contains("cannot go from \"resolved\" to \"resolved\" (allowed: reopened)"));
-        let err = update_comment(&root, id, &update("resolved", None, Some("user"))).unwrap_err();
+        let err =
+            update_comment(&root, id, &update(Some(Resolved), None, Some(by::USER))).unwrap_err();
         assert!(err
             .message()
             .contains("cannot go from \"resolved\" to \"resolved\""));
         assert_eq!(
-            all_comments(&root).unwrap()[0]["thread"]
+            all_comments(&root).unwrap()[0][field::THREAD]
                 .as_array()
                 .unwrap()
                 .len(),
@@ -871,11 +902,11 @@ mod tests {
         update_comment(
             &root,
             id,
-            &update("", Some("a reply without a status still works"), None),
+            &update(None, Some("a reply without a status still works"), None),
         )
         .unwrap();
         assert_eq!(
-            all_comments(&root).unwrap()[0]["thread"]
+            all_comments(&root).unwrap()[0][field::THREAD]
                 .as_array()
                 .unwrap()
                 .len(),
@@ -996,8 +1027,8 @@ mod tests {
             r#"{"id":"rv_20200101T000000","comments":[{"id":"fb_001","status":"odd","thread":[]}]}"#,
         )
         .unwrap();
-        let err =
-            update_comment(&root, Some("fb_001"), &update("fixed", Some("x"), None)).unwrap_err();
+        let err = update_comment(&root, Some(FIRST_ID), &update(Some(Fixed), Some("x"), None))
+            .unwrap_err();
         assert!(
             err.report().starts_with(&format!(
                 "Comment fb_001 in {} has the status \"odd\"",

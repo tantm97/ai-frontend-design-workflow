@@ -2,12 +2,15 @@
 
 use serde_json::{Map, Value};
 
-use super::finding;
 use super::slop::ai_default_color;
+use super::{finding, rule};
 use crate::core::js;
 use crate::core::js::regex::js_re;
 use crate::core::level::Level;
 use crate::design::color::{hex_to_oklch, Oklch};
+
+/// The `$type` of a colour token.
+pub(crate) use crate::design::tokens::dtcg::COLOR as COLOR_TYPE;
 
 js_re!(ALIAS, r"\{([^{}]+)\}");
 js_re!(HEX6, "^#[0-9a-f]{6}$", "i");
@@ -95,7 +98,7 @@ fn walk<'a>(
             let leaf = Leaf {
                 name: name.clone(),
                 node: map,
-                is_color: kind.and_then(Value::as_str) == Some("color"),
+                is_color: kind.and_then(Value::as_str) == Some(COLOR_TYPE),
             };
             // A Map: a name seen again keeps its place and takes the new token.
             match leaves.iter_mut().find(|l| l.name == name) {
@@ -222,7 +225,7 @@ pub fn lint_tokens(rel: &str, json: &Value, base: Option<&Value>) -> Vec<Value> 
     if leaves.is_empty() {
         out.push(finding(
             Level::Error.as_str(),
-            "token-empty",
+            rule::TOKEN_EMPTY,
             rel,
             1,
             "Token file has no tokens.".into(),

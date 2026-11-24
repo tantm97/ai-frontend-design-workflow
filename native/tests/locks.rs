@@ -31,6 +31,11 @@ use layout::{file, rel};
 mod fixture;
 use fixture::MANY_EDITS_PAGE;
 
+#[path = "../src/core/word.rs"]
+#[allow(dead_code, reason = "each test binary uses a part of the command line")]
+mod word;
+use word::{command, flag, sub};
+
 const DFW: &str = env!("CARGO_BIN_EXE_dfw");
 
 /// A fresh, empty folder (its real path: macOS reaches the temporary directory through a symlink).
@@ -108,7 +113,7 @@ fn edits_from_concurrent_processes_are_all_kept_and_journaled() {
     let editors: Vec<Child> = (0..12)
         .map(|i| {
             let op = json!({ "file": "screens/many/a.html", "op": "text", "id": format!("p.{i}"), "value": format!("new {i}") });
-            spawn_with(&root, &["__debug", "edit", &root_arg], &op.to_string())
+            spawn_with(&root, &[command::DEBUG, "edit", &root_arg], &op.to_string())
         })
         .collect();
     for editor in editors {
@@ -123,7 +128,7 @@ fn edits_from_concurrent_processes_are_all_kept_and_journaled() {
     assert_eq!(records, 12, "one record per edit, no lock left");
     for left in (0..12).rev() {
         let undone: Value = serde_json::from_str(
-            finish(spawn_with(&root, &["__debug", "undo", &root_arg], "")).trim(),
+            finish(spawn_with(&root, &[command::DEBUG, "undo", &root_arg], "")).trim(),
         )
         .unwrap();
         assert_eq!(undone["remaining"], left);
@@ -148,13 +153,21 @@ fn writers_behind_a_dead_holder_keep_every_comment() {
     let writers: Vec<Child> = (0..10)
         .map(|i| {
             let input = json!({ "comment": format!("w{i}") }).to_string();
-            spawn_with(&root, &["comments", "add", "--json", &input], "")
+            spawn_with(
+                &root,
+                &[command::COMMENTS, sub::ADD, flag::JSON, &input],
+                "",
+            )
         })
         .collect();
     for writer in writers {
         finish(writer);
     }
-    let list = finish(spawn_with(&root, &["comments", "list", "--json"], ""));
+    let list = finish(spawn_with(
+        &root,
+        &[command::COMMENTS, sub::LIST, flag::JSON],
+        "",
+    ));
     let all: Value = serde_json::from_str(&list).unwrap();
     let ids: std::collections::HashSet<&str> = all
         .as_array()

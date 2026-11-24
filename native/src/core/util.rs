@@ -299,7 +299,9 @@ impl<F: Formatter> Formatter for JsFormatter<F> {
 
 /// `RESERVED_KEYS`: names that reach an object's prototype in JavaScript; never accepted as a key
 /// or a flag from input.
-pub const RESERVED_KEYS: [&str; 3] = ["__proto__", "constructor", "prototype"];
+pub const RESERVED_KEYS: [&str; 3] = [PROTO, "constructor", "prototype"];
+/// The key that is an object's prototype in JavaScript.
+pub const PROTO: &str = "__proto__";
 
 /// `deepMerge(base, over)` for config layering: objects merge, arrays and scalars replace.
 /// Reserved keys are dropped. (The JavaScript `undefined` case, "no override", is the caller not
@@ -725,7 +727,7 @@ pub fn serve_routes(
 ) -> (String, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
-    let server = tiny_http::Server::http("127.0.0.1:0").unwrap();
+    let server = tiny_http::Server::http((crate::core::http::LOOPBACK, 0)).unwrap();
     let base = format!("http://{}", server.server_addr());
     let hits = Arc::new(AtomicUsize::new(0));
     let counter = Arc::clone(&hits);
@@ -761,49 +763,57 @@ pub fn test_dir(label: &str) -> std::path::PathBuf {
 mod tests {
     use super::*;
     use crate::core::fixture::{APP_DIR, HTML_FILE, OTHER_HTML_FILE};
-    use crate::core::paths::{file, rel};
+    use crate::core::paths::rel::all_under;
+    use crate::core::paths::{file, rel, CLAUDE_MANIFEST, HOST_MANIFEST, MANIFEST_VERSION};
     use serde_json::json;
 
     /// glob matching (tests/unit/dfw.test.mjs)
     #[test]
     fn glob_matching() {
-        let design = format!("{}/**", rel::DESIGN);
+        let design = all_under(rel::DESIGN);
         assert!(glob_to_regex(&design)
             .unwrap()
             .is_match(&rel::screen(HTML_FILE)));
-        assert!(glob_to_regex(&format!("{}/**", rel::APPROVED))
+        assert!(glob_to_regex(&all_under(rel::APPROVED))
             .unwrap()
             .is_match(&rel::approved("v1/x.html")));
         assert!(!glob_to_regex(&design)
             .unwrap()
             .is_match(&rel::join(APP_DIR, &rel::design(OTHER_HTML_FILE))));
-        assert!(glob_to_regex("PRODUCT.md").unwrap().is_match("PRODUCT.md"));
+        assert!(glob_to_regex(rel::PRODUCT_DOC)
+            .unwrap()
+            .is_match(rel::PRODUCT_DOC));
     }
 
     #[test]
     fn glob_translation_matches_the_node_function() {
         // Expected sources printed by globToRegExp(...).source, with `.` spelled out.
         let dot = r"[^\n\r\u{2028}\u{2029}]";
+        // `?` stands for one character, never a `/`.
+        const ONE_CHAR: &str = "a?c";
+        let app = all_under(APP_DIR);
         assert_eq!(
             glob_to_regex("**/*.test.?s").unwrap().as_str(),
             format!(r"^(?:{dot}*/)?[^/]*\.test\.[^/]s$")
         );
         assert_eq!(
-            glob_to_regex("src/**").unwrap().as_str(),
-            format!(r"^src/{dot}*$")
+            glob_to_regex(&app).unwrap().as_str(),
+            format!(r"^{APP_DIR}/{dot}*$")
         );
         assert_eq!(
             glob_to_regex("a+(b)[c]{d}|^$\\").unwrap().as_str(),
             r"^a\+\(b\)\[c\]\{d\}\|\^\$\\$"
         );
-        assert!(!glob_to_regex("PRODUCT.md").unwrap().is_match("PRODUCTxmd"));
+        assert!(!glob_to_regex(rel::PRODUCT_DOC)
+            .unwrap()
+            .is_match("PRODUCTxmd"));
         assert!(!glob_to_regex("*.html").unwrap().is_match("a/b.html"));
         assert!(glob_to_regex("**/b.html").unwrap().is_match("b.html"));
-        assert!(glob_to_regex("a?c").unwrap().is_match("abc"));
-        assert!(!glob_to_regex("a?c").unwrap().is_match("a/c"));
+        assert!(glob_to_regex(ONE_CHAR).unwrap().is_match("abc"));
+        assert!(!glob_to_regex(ONE_CHAR).unwrap().is_match("a/c"));
         assert!(matches_any(
             &rel::design(OTHER_HTML_FILE),
-            &["src/**", &format!("{}/**", rel::DESIGN)]
+            &[&app, &all_under(rel::DESIGN)]
         ));
         assert!(!matches_any(&rel::design(OTHER_HTML_FILE), &[] as &[&str]));
     }
@@ -847,14 +857,15 @@ mod tests {
             to_json_compact(&merged),
             r#"{"studio":{"port":4600},"new":{"k":2}}"#
         );
-        let d = json!({"studio": {"breakpoints": [{"id": "desktop"}]}, "s": "text"});
+        const BREAKPOINT: &str = "desktop";
+        let d = json!({"studio": {"breakpoints": [{"id": BREAKPOINT}]}, "s": "text"});
         for name in ["constructor", "toString", "__proto__", "hasOwnProperty"] {
             assert_eq!(get_path(&d, name), None);
             assert_eq!(get_path(&d, &format!("studio.{name}")), None);
         }
         assert_eq!(
             get_path(&d, "studio.breakpoints.0.id"),
-            Some(&json!("desktop"))
+            Some(&json!(BREAKPOINT))
         );
         for key in [
             "studio.breakpoints.length",
@@ -876,6 +887,7 @@ mod tests {
     /// b, m: a flag that takes a value is refused without one (tests/unit/node-stable.test.mjs)
     #[test]
     fn a_flag_that_takes_a_value_is_refused_without_one() {
+        const ROOT: &str = "--root";
         for flag in [
             "level",
             "timeout",
@@ -896,40 +908,47 @@ mod tests {
                 format!("--{flag} needs a value.")
             );
         }
-        assert!(require_flag_values(&parse_args(&["status", "--json", "--root", "/p"])).is_ok());
+        assert!(require_flag_values(&parse_args(&["x", "--json", ROOT, "/p"])).is_ok());
         assert!(require_flag_values(&parse_args(&["comments", "list", "--status=open"])).is_ok());
         // The first one in the Node list wins, whatever the order typed.
-        let a = parse_args(&["x", "--level", "--root"]);
+        let a = parse_args(&["x", "--level", ROOT]);
         assert_eq!(
             require_flag_values(&a).unwrap_err().message(),
-            "--root needs a value."
+            format!("{ROOT} needs a value.")
         );
     }
 
     #[test]
     fn parse_args_follows_the_node_rules() {
+        const COMMAND: &str = "comments";
+        const SUBCOMMAND: &str = "show";
+        const STATUS: &str = "open";
+        /// A flag given an empty value (`--empty=`).
+        const EMPTY: &str = "empty";
+        /// A flag given twice.
+        const TWICE: &str = "--k";
         let a = parse_args(&[
-            "comments",
+            COMMAND,
             "--status",
-            "open",
+            STATUS,
             "--json",
             "--message=a=b",
-            "show",
+            SUBCOMMAND,
             "--empty=",
             "--force",
             "--x",
             "-y",
         ]);
-        assert_eq!(a.positionals, ["comments", "show"]);
-        assert_eq!(a.text("status"), Some("open"));
+        assert_eq!(a.positionals, [COMMAND, SUBCOMMAND]);
+        assert_eq!(a.text("status"), Some(STATUS));
         assert_eq!(a.get("json"), Some(&ArgValue::Flag));
         assert_eq!(a.text("message"), Some("a=b"));
-        assert_eq!(a.get("empty"), Some(&ArgValue::Text(String::new())));
-        assert!(!a.truthy("empty"));
+        assert_eq!(a.get(EMPTY), Some(&ArgValue::Text(String::new())));
+        assert!(!a.truthy(EMPTY));
         assert!(a.truthy("force"), "a flag followed by another flag is true");
         assert_eq!(a.text("x"), Some("-y"), "a single dash is a value");
         assert_eq!(a.get("missing"), None);
-        assert_eq!(parse_args(&["--k", "1", "--k", "2"]).text("k"), Some("2"));
+        assert_eq!(parse_args(&[TWICE, "1", TWICE, "2"]).text("k"), Some("2"));
         assert_eq!(parse_args(&["--help"]).get("help"), Some(&ArgValue::Flag));
     }
 
@@ -946,6 +965,8 @@ mod tests {
 
     #[test]
     fn numbers_print_like_javascript() {
+        /// 2^53 + 1 rounds to 2^53.
+        const ROUNDED: &str = "9007199254740992";
         for (v, s) in [
             (0.0, "0"),
             (1.0, "1"),
@@ -959,14 +980,11 @@ mod tests {
             (1.25e-9, "1.25e-9"),
             (0.1 + 0.2, "0.30000000000000004"),
             (123456.789, "123456.789"),
-            (9007199254740993.0, "9007199254740992"),
+            (9007199254740993.0, ROUNDED),
         ] {
             assert_eq!(js_number(v), s);
         }
-        assert_eq!(
-            to_json_compact(&json!(9007199254740993u64)),
-            "9007199254740992"
-        );
+        assert_eq!(to_json_compact(&json!(9007199254740993u64)), ROUNDED);
     }
 
     /// A user's file replaced through a rename keeps its mode, and a link stays a link.
@@ -978,8 +996,9 @@ mod tests {
         let file = dir.join(file::CONFIG);
         fs::write(&file, "{}").unwrap();
         fs::set_permissions(&file, fs::Permissions::from_mode(0o600)).unwrap();
-        write_atomic(&file, "{\"a\":1}").unwrap();
-        assert_eq!(fs::read_to_string(&file).unwrap(), "{\"a\":1}");
+        const CONTENT: &str = "{\"a\":1}";
+        write_atomic(&file, CONTENT).unwrap();
+        assert_eq!(fs::read_to_string(&file).unwrap(), CONTENT);
         let mode = fs::metadata(&file).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o600);
         let link = dir.join("link.json");
@@ -997,14 +1016,26 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn write_atomic_inside_refuses_a_link_out_of_the_project() {
+        /// The folder next to the project a link must not write into.
+        const VICTIM: &str = "victim";
+        const KEPT: &str = "{\"keep\":1}";
+        /// A file of [`VICTIM`] that must not be created.
+        const NEW: &str = "new.json";
+        /// A file at the project root, the target of [`NEAR`].
+        const REAL: &str = "real.json";
+        /// A link in `.dfw` to [`REAL`].
+        const NEAR: &str = "near.json";
         let dir = test_dir("atomic-inside");
         let root = dir.join("project");
         fs::create_dir_all(root.join(rel::DFW)).unwrap();
-        fs::create_dir_all(dir.join("victim")).unwrap();
-        let victim = dir.join("victim").join("settings.json");
-        fs::write(&victim, "{\"keep\":1}").unwrap();
+        let outside = dir.join(VICTIM);
+        fs::create_dir_all(&outside).unwrap();
+        /// The user-global file the link points at.
+        const SETTINGS: &str = "settings.json";
+        let victim = outside.join(SETTINGS);
+        fs::write(&victim, KEPT).unwrap();
         let link = root.join(rel::CONFIG_LOCAL);
-        std::os::unix::fs::symlink("../../victim/settings.json", &link).unwrap();
+        std::os::unix::fs::symlink(Path::new("../..").join(VICTIM).join(SETTINGS), &link).unwrap();
         let err = write_json_inside(&root, &link, &json!({})).unwrap_err();
         assert!(
             err.message()
@@ -1012,19 +1043,20 @@ mod tests {
             "{err}"
         );
         assert!(matches!(err, DfwError::User { .. }));
-        assert_eq!(fs::read_to_string(&victim).unwrap(), "{\"keep\":1}");
+        assert_eq!(fs::read_to_string(&victim).unwrap(), KEPT);
         // A dangling link out of the project and a linked folder are refused too.
         let gone = root.join(rel::DFW).join("gone.json");
-        std::os::unix::fs::symlink(dir.join("victim").join("new.json"), &gone).unwrap();
+        std::os::unix::fs::symlink(outside.join(NEW), &gone).unwrap();
         assert!(write_atomic_inside(&root, &gone, "x").is_err());
-        assert!(!dir.join("victim").join("new.json").exists());
-        std::os::unix::fs::symlink(dir.join("victim"), root.join(rel::DESIGN)).unwrap();
+        assert!(!outside.join(NEW).exists());
+        std::os::unix::fs::symlink(&outside, root.join(rel::DESIGN)).unwrap();
         assert!(write_atomic_inside(&root, &root.join(rel::design(file::HEAD)), "x").is_err());
         // Inside the project: written through the link, a new file is created.
-        fs::write(root.join("real.json"), "1").unwrap();
-        std::os::unix::fs::symlink("../real.json", root.join(rel::DFW).join("near.json")).unwrap();
-        write_atomic_inside(&root, &root.join(rel::DFW).join("near.json"), "2").unwrap();
-        assert_eq!(fs::read_to_string(root.join("real.json")).unwrap(), "2");
+        fs::write(root.join(REAL), "1").unwrap();
+        let near = root.join(rel::DFW).join(NEAR);
+        std::os::unix::fs::symlink(Path::new("..").join(REAL), &near).unwrap();
+        write_atomic_inside(&root, &near, "2").unwrap();
+        assert_eq!(fs::read_to_string(root.join(REAL)).unwrap(), "2");
         write_atomic_inside(&root, &root.join(rel::DFW).join("new").join("a.json"), "3").unwrap();
         fs::remove_dir_all(&dir).unwrap();
     }
@@ -1057,17 +1089,12 @@ mod tests {
 
     #[test]
     fn make_temp_dir_makes_a_new_private_directory_each_call() {
+        const PREFIX: &str = "dfw-x-";
         let base = test_dir("tempdir");
-        let a = make_temp_dir(&base, "dfw-x-").unwrap();
-        let b = make_temp_dir(&base, "dfw-x-").unwrap();
+        let a = make_temp_dir(&base, PREFIX).unwrap();
+        let b = make_temp_dir(&base, PREFIX).unwrap();
         assert_ne!(a, b);
-        assert!(
-            a.is_dir()
-                && a.file_name()
-                    .unwrap()
-                    .to_string_lossy()
-                    .starts_with("dfw-x-")
-        );
+        assert!(a.is_dir() && a.file_name().unwrap().to_string_lossy().starts_with(PREFIX));
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -1082,7 +1109,8 @@ mod tests {
     #[test]
     fn write_json_is_atomic_and_read_json_falls_back() {
         let dir = test_dir("json");
-        let file = dir.join("deep").join(file::STATE);
+        let deep = dir.join("deep");
+        let file = deep.join(file::STATE);
         assert_eq!(read_json(&file, Some(Value::Null)).unwrap(), Value::Null);
         assert!(
             read_json(&file, None).is_err(),
@@ -1094,7 +1122,7 @@ mod tests {
             "{\n  \"schema\": 1,\n  \"product\": \"\"\n}\n"
         );
         assert_eq!(
-            fs::read_dir(dir.join("deep")).unwrap().count(),
+            fs::read_dir(&deep).unwrap().count(),
             1,
             "no temporary file is left"
         );
@@ -1207,44 +1235,43 @@ mod tests {
 
     #[test]
     fn list_files_sorts_excludes_and_copy_dir_copies() {
+        const B: &str = "b.txt";
+        const A_Z: &str = "a/z.txt";
+        /// A file of `a/b`, the folder left out.
+        const A_B_C: &str = "a/b/c.txt";
+        /// The folder left out.
+        const LEFT_OUT: &str = "approved";
+        /// A file of [`LEFT_OUT`].
+        const IN_LEFT_OUT: &str = "approved/v1/x.html";
+        /// A file whose name starts like [`LEFT_OUT`]: it stays.
+        const LIKE_LEFT_OUT: &str = "approved.txt";
+        /// Upper case sorts first.
+        const UPPER: &str = "Z.txt";
         let dir = test_dir("list");
         let src = dir.join("src");
-        for f in [
-            "b.txt",
-            "a/z.txt",
-            "a/b/c.txt",
-            "approved/v1/x.html",
-            "approved.txt",
-            "Z.txt",
-        ] {
+        let dest = dir.join("dest");
+        for f in [B, A_Z, A_B_C, IN_LEFT_OUT, LIKE_LEFT_OUT, UPPER] {
             let p = src.join(f);
             fs::create_dir_all(p.parent().unwrap()).unwrap();
             fs::write(p, f).unwrap();
         }
         assert_eq!(
             list_files(&src, &[]).unwrap(),
-            [
-                "Z.txt",
-                "a/b/c.txt",
-                "a/z.txt",
-                "approved.txt",
-                "approved/v1/x.html",
-                "b.txt"
-            ]
+            [UPPER, A_B_C, A_Z, LIKE_LEFT_OUT, IN_LEFT_OUT, B]
         );
         assert_eq!(
-            list_files(&src, &["approved", "a/b"]).unwrap(),
-            ["Z.txt", "a/z.txt", "approved.txt", "b.txt"]
+            list_files(&src, &[LEFT_OUT, "a/b"]).unwrap(),
+            [UPPER, A_Z, LIKE_LEFT_OUT, B]
         );
         assert!(list_files(&dir.join("missing"), &[]).unwrap().is_empty());
-        copy_dir(&src, &dir.join("dest"), &["approved"]).unwrap();
+        copy_dir(&src, &dest, &[LEFT_OUT]).unwrap();
         assert_eq!(
-            list_files(&dir.join("dest"), &[]).unwrap(),
-            ["Z.txt", "a/b/c.txt", "a/z.txt", "approved.txt", "b.txt"]
+            list_files(&dest, &[]).unwrap(),
+            [UPPER, A_B_C, A_Z, LIKE_LEFT_OUT, B]
         );
         assert_eq!(
-            fs::read_to_string(dir.join("dest").join("a").join("z.txt")).unwrap(),
-            "a/z.txt"
+            fs::read_to_string(dest.join("a").join("z.txt")).unwrap(),
+            A_Z
         );
         fs::remove_dir_all(&dir).unwrap();
     }
@@ -1254,19 +1281,19 @@ mod tests {
         let dir = test_dir("manifest");
         assert_eq!(plugin_manifest(Some(&dir)).unwrap(), json!({}));
         fs::write(
-            dir.join("plugin.json"),
+            dir.join(HOST_MANIFEST),
             r#"{"name":"dfw","version":"9.9.9"}"#,
         )
         .unwrap();
-        assert_eq!(plugin_manifest(Some(&dir)).unwrap()["version"], "9.9.9");
-        fs::create_dir_all(dir.join(".claude-plugin")).unwrap();
-        fs::write(
-            dir.join(".claude-plugin").join("plugin.json"),
-            r#"{"version":"1.0.0"}"#,
-        )
-        .unwrap();
         assert_eq!(
-            plugin_manifest(Some(&dir)).unwrap()["version"],
+            plugin_manifest(Some(&dir)).unwrap()[MANIFEST_VERSION],
+            "9.9.9"
+        );
+        let claude = dir.join(CLAUDE_MANIFEST);
+        fs::create_dir_all(claude.parent().unwrap()).unwrap();
+        fs::write(&claude, r#"{"version":"1.0.0"}"#).unwrap();
+        assert_eq!(
+            plugin_manifest(Some(&dir)).unwrap()[MANIFEST_VERSION],
             "1.0.0",
             "the Claude Code manifest wins"
         );

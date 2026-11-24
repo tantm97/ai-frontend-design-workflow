@@ -12,7 +12,15 @@ pub use self::layout::{file, in_design, rel};
 
 /// Manifest files a dfw plugin may carry: Claude Code format, a root `plugin.json` (Copilot and
 /// others), or `manifest.json` (`core/` in the development repository).
-pub const MANIFESTS: [&str; 3] = [".claude-plugin/plugin.json", "plugin.json", "manifest.json"];
+pub const MANIFESTS: [&str; 3] = [CLAUDE_MANIFEST, HOST_MANIFEST, DEV_MANIFEST];
+/// The Claude Code manifest of a plugin folder.
+pub const CLAUDE_MANIFEST: &str = ".claude-plugin/plugin.json";
+/// The manifest at the root of a plugin folder (Copilot and others).
+pub const HOST_MANIFEST: &str = "plugin.json";
+/// The manifest of `core/` in the development repository.
+pub const DEV_MANIFEST: &str = "manifest.json";
+/// The key of a manifest that holds the plugin's version.
+pub const MANIFEST_VERSION: &str = "version";
 
 /// An environment variable that is set and not empty (what JavaScript treats as truthy).
 pub fn env_nonempty(name: &str) -> Option<String> {
@@ -92,7 +100,7 @@ pub fn plugin_root_from(exe: &Path) -> Option<PathBuf> {
         if is_plugin_dir(dir) {
             return Some(dir.to_path_buf());
         }
-        let core = dir.join("core");
+        let core = dir.join(DEV_CORE);
         if is_plugin_dir(&core) {
             return Some(core);
         }
@@ -100,8 +108,15 @@ pub fn plugin_root_from(exe: &Path) -> Option<PathBuf> {
     None
 }
 
+/// The folder of a plugin that holds its launchers.
+pub const PLUGIN_BIN: &str = "bin";
+/// The launcher of a plugin folder, in [`PLUGIN_BIN`].
+pub const LAUNCHER: &str = "dfw";
+/// The plugin folder inside the development repository.
+pub const DEV_CORE: &str = "core";
+
 fn is_plugin_dir(dir: &Path) -> bool {
-    dir.join("bin").join("dfw").is_file() && manifest_path(dir).is_some()
+    dir.join(PLUGIN_BIN).join(LAUNCHER).is_file() && manifest_path(dir).is_some()
 }
 
 /// Find the project root: the nearest ancestor containing `.dfw/state.json`, else the nearest
@@ -417,7 +432,8 @@ mod tests {
             assert_eq!(strip_verbatim(p(r"\\?\UNC\h\s\x")), p(r"\\h\s\x"));
             assert_eq!(strip_verbatim(p(r"\\?\Volume{1}\x")), p(r"\\?\Volume{1}\x"));
         }
-        assert_eq!(strip_verbatim(p("/a/b")), p("/a/b"));
+        let unix = p("/a/b");
+        assert_eq!(strip_verbatim(unix.clone()), unix);
         let dir = test_dir("canonical");
         assert!(!canonicalize(&dir)
             .unwrap()
@@ -441,21 +457,14 @@ mod tests {
     #[test]
     fn project_paths_has_the_node_fields() {
         let p = project_paths(Path::new("r"));
-        assert_eq!(p.state, Path::new("r").join(".dfw").join("state.json"));
-        assert_eq!(
-            p.config_local,
-            Path::new("r").join(".dfw").join("config.local.json")
-        );
-        assert_eq!(
-            p.decisions,
-            Path::new("r").join(".dfw").join("decisions.jsonl")
-        );
-        assert_eq!(
-            p.manifest,
-            Path::new("r").join("design").join("design.json")
-        );
-        assert_eq!(p.approved, Path::new("r").join("design").join("approved"));
-        assert_eq!(p.handoff, Path::new("r").join("design").join("handoff"));
+        let dfw = Path::new("r").join(file::DFW);
+        let design = Path::new("r").join(file::DESIGN);
+        assert_eq!(p.state, dfw.join("state.json"));
+        assert_eq!(p.config_local, dfw.join("config.local.json"));
+        assert_eq!(p.decisions, dfw.join("decisions.jsonl"));
+        assert_eq!(p.manifest, design.join("design.json"));
+        assert_eq!(p.approved, design.join("approved"));
+        assert_eq!(p.handoff, design.join("handoff"));
     }
 
     /// The paths of the design system and their project-relative spellings name one place.
@@ -551,87 +560,91 @@ mod tests {
     #[test]
     fn project_root_prefers_dfw_state_then_git_then_start() {
         let tmp = test_dir("root");
-        let deep = tmp.join("repo").join("app").join("src");
+        let repo = tmp.join("repo");
+        let app = repo.join("app");
+        let deep = app.join("src");
         fs::create_dir_all(&deep).unwrap();
         assert_eq!(
             find_project_root(Some(&deep)),
             deep,
             "nothing found: the start directory"
         );
-        fs::create_dir_all(tmp.join("repo").join(".git")).unwrap();
-        assert_eq!(find_project_root(Some(&deep)), tmp.join("repo"));
-        fs::create_dir_all(tmp.join("repo").join("app").join(".dfw")).unwrap();
+        fs::create_dir_all(repo.join(".git")).unwrap();
+        assert_eq!(find_project_root(Some(&deep)), repo);
+        fs::create_dir_all(app.join(file::DFW)).unwrap();
         assert_eq!(
             find_project_root(Some(&deep)),
-            tmp.join("repo"),
+            repo,
             ".dfw without state.json does not count"
         );
-        fs::write(
-            tmp.join("repo").join("app").join(".dfw").join("state.json"),
-            "{}",
-        )
-        .unwrap();
-        assert_eq!(find_project_root(Some(&deep)), tmp.join("repo").join("app"));
+        fs::write(app.join(rel::STATE), "{}").unwrap();
+        assert_eq!(find_project_root(Some(&deep)), app);
         fs::remove_dir_all(&tmp).unwrap();
     }
 
     #[test]
     fn plugin_root_is_found_from_the_executable() {
         let tmp = test_dir("plugin");
-        let exe = tmp.join("native").join("target").join("debug").join("dfw");
+        let exe = tmp
+            .join("native")
+            .join("target")
+            .join("debug")
+            .join(LAUNCHER);
         assert_eq!(plugin_root_from(&exe), None);
-        fs::create_dir_all(tmp.join("core").join("bin")).unwrap();
-        fs::write(tmp.join("core").join("bin").join("dfw"), "").unwrap();
+        let core = tmp.join(DEV_CORE);
+        let bin = core.join(PLUGIN_BIN);
+        fs::create_dir_all(&bin).unwrap();
+        fs::write(bin.join(LAUNCHER), "").unwrap();
         assert_eq!(
             plugin_root_from(&exe),
             None,
             "a launcher without a manifest is not a plugin"
         );
-        fs::write(tmp.join("core").join("manifest.json"), "{}").unwrap();
-        assert_eq!(plugin_root_from(&exe), Some(tmp.join("core")));
-        assert_eq!(
-            plugin_root_from(&tmp.join("core").join("bin").join("dfw-native")),
-            Some(tmp.join("core"))
-        );
+        fs::write(core.join(DEV_MANIFEST), "{}").unwrap();
+        assert_eq!(plugin_root_from(&exe), Some(core.clone()));
+        assert_eq!(plugin_root_from(&bin.join("dfw-native")), Some(core));
         fs::remove_dir_all(&tmp).unwrap();
     }
 
     #[test]
     fn resolve_inside_refuses_what_leaves_the_root() {
         let tmp = test_dir("inside");
-        fs::create_dir_all(tmp.join("project").join("design")).unwrap();
-        fs::create_dir_all(tmp.join("elsewhere")).unwrap();
         let root = tmp.join("project");
+        let design = root.join(file::DESIGN);
+        let elsewhere = tmp.join("elsewhere");
+        fs::create_dir_all(&design).unwrap();
+        fs::create_dir_all(&elsewhere).unwrap();
+        let new_page = rel::design(NESTED_PAGE);
         assert_eq!(
-            resolve_inside(&root, "design/new/a.html").unwrap(),
-            root.join("design/new/a.html")
+            resolve_inside(&root, &new_page).unwrap(),
+            root.join(&new_page)
         );
         for bad in ["", "../elsewhere/x", "design/../../x", "/etc/passwd"] {
             assert!(resolve_inside(&root, bad).is_err(), "{bad}");
         }
         #[cfg(unix)]
         {
-            std::os::unix::fs::symlink(tmp.join("elsewhere"), root.join("design").join("link"))
-                .unwrap();
+            use crate::core::fixture::{HTML_FILE_B, LOOP_LINK};
+            std::os::unix::fs::symlink(&elsewhere, design.join("link")).unwrap();
             assert!(resolve_inside(&root, "design/link/x.html").is_err());
             // A link whose target is missing is judged by where it points.
-            std::os::unix::fs::symlink(
-                tmp.join("elsewhere").join("gone.html"),
-                root.join("design").join("dangling.html"),
-            )
-            .unwrap();
-            assert!(resolve_inside(&root, "design/dangling.html").is_err());
-            std::os::unix::fs::symlink("../../elsewhere/no/dir", root.join("design").join("up"))
+            std::os::unix::fs::symlink(elsewhere.join("gone.html"), design.join("dangling.html"))
                 .unwrap();
+            assert!(resolve_inside(&root, "design/dangling.html").is_err());
+            std::os::unix::fs::symlink("../../elsewhere/no/dir", design.join("up")).unwrap();
             assert!(resolve_inside(&root, "design/up/x.html").is_err());
-            std::os::unix::fs::symlink("a.html", root.join("design").join("near.html")).unwrap();
+            let near = rel::design(HTML_FILE_B);
+            std::os::unix::fs::symlink(HTML_FILE, root.join(&near)).unwrap();
             assert_eq!(
-                resolve_inside(&root, "design/near.html").unwrap(),
-                root.join("design/near.html"),
+                resolve_inside(&root, &near).unwrap(),
+                root.join(&near),
                 "a dangling link that stays inside is fine"
             );
-            std::os::unix::fs::symlink("loop", root.join("design").join("loop")).unwrap();
-            assert!(resolve_inside(&root, "design/loop").is_ok(), "a cycle ends");
+            std::os::unix::fs::symlink(LOOP_LINK, design.join(LOOP_LINK)).unwrap();
+            assert!(
+                resolve_inside(&root, &rel::design(LOOP_LINK)).is_ok(),
+                "a cycle ends"
+            );
         }
         fs::remove_dir_all(&tmp).unwrap();
     }

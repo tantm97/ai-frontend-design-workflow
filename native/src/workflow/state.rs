@@ -17,18 +17,28 @@ use crate::core::util::{
 
 use super::decisions::gate_entry;
 
+/// The names of the phases and of the modes (their home is `workflow::names`, which the binary
+/// tests include).
+pub use super::names::{mode as mode_name, phase};
+
+/// The fields of the state that code reads by name.
+pub mod field {
+    pub const PHASE: &str = "phase";
+    pub const DESIGN: &str = "design";
+    pub const GATES: &str = "gates";
+    pub const WAIVED: &str = "waived";
+    pub const HISTORY: &str = "history";
+    /// `design.version`: the design version being worked on.
+    pub const VERSION: &str = "version";
+    /// `design.approved`: the list of approved versions.
+    pub const APPROVED: &str = "approved";
+}
+
+use self::mode_name::*;
+use self::phase::*;
+
 /// Phases in workflow order.
-pub const PHASES: [&str; 9] = [
-    "discovery",
-    "direction",
-    "system",
-    "concepts",
-    "stack",
-    "implement",
-    "verify",
-    "audit",
-    "done",
-];
+pub const PHASES: [&str; 9] = phase::ALL;
 
 /// Approval gates and what each one records.
 pub const GATES: [(&str, &str); 5] = [
@@ -66,31 +76,31 @@ const fn mode(
 
 /// `MODES`, in the order of the Node table.
 pub const MODES: [Mode; 7] = [
-    mode("new-product", "discovery", &[], true),
-    mode("existing-project", "discovery", &[], true),
-    mode("design-only", "discovery", &[], false),
+    mode(NEW_PRODUCT, DISCOVERY, &[], true),
+    mode(EXISTING_PROJECT, DISCOVERY, &[], true),
+    mode(DESIGN_ONLY, DISCOVERY, &[], false),
     Mode {
-        name: "implement-approved",
-        entry: "stack",
+        name: IMPLEMENT_APPROVED,
+        entry: STACK,
         waive: &[],
         writes_code: true,
         requires_approved_design: true,
     },
-    mode("ui-refinement", "concepts", &["G1", "DS"], true),
-    mode("quick-change", "concepts", &["G1", "DS"], true),
-    mode("review-only", "audit", &[], false),
+    mode(UI_REFINEMENT, CONCEPTS, &["G1", "DS"], true),
+    mode(QUICK_CHANGE, CONCEPTS, &["G1", "DS"], true),
+    mode(REVIEW_ONLY, AUDIT, &[], false),
 ];
 
 /// Short names of the modes.
 pub const MODE_ALIASES: [(&str, &str); 8] = [
-    ("new", "new-product"),
-    ("existing", "existing-project"),
-    ("design", "design-only"),
-    ("implement", "implement-approved"),
-    ("refine", "ui-refinement"),
-    ("refinement", "ui-refinement"),
-    ("quick", "quick-change"),
-    ("review", "review-only"),
+    ("new", NEW_PRODUCT),
+    ("existing", EXISTING_PROJECT),
+    ("design", DESIGN_ONLY),
+    ("implement", IMPLEMENT_APPROVED),
+    ("refine", UI_REFINEMENT),
+    ("refinement", UI_REFINEMENT),
+    ("quick", QUICK_CHANGE),
+    ("review", REVIEW_ONLY),
 ];
 
 /// `normalizeMode(mode)`: an alias becomes the full name.
@@ -159,12 +169,12 @@ fn object_mut<'a>(state: &'a mut Value, key: &str) -> Result<&'a mut Map<String,
 
 /// `state.history.push(entry)`.
 pub fn push_history(state: &mut Value, entry: Value) -> Result<(), DfwError> {
-    match state.get_mut("history") {
+    match state.get_mut(field::HISTORY) {
         Some(Value::Array(history)) => {
             history.push(entry);
             Ok(())
         }
-        _ => Err(state_field_error("history", "a list")),
+        _ => Err(state_field_error(field::HISTORY, "a list")),
     }
 }
 
@@ -221,16 +231,16 @@ fn unknown_mode(mode: &str) -> DfwError {
     ))
 }
 
+/// What the state records for a gate the mode `name` waives.
+pub fn waived_note(name: &str) -> String {
+    format!("waived by mode {name}")
+}
+
 fn waived_by(mode: &Mode) -> Value {
     let map: Map<String, Value> = mode
         .waive
         .iter()
-        .map(|g| {
-            (
-                g.to_string(),
-                Value::String(format!("waived by mode {}", mode.name)),
-            )
-        })
+        .map(|g| (g.to_string(), Value::String(waived_note(mode.name))))
         .collect();
     Value::Object(map)
 }
@@ -258,18 +268,18 @@ pub fn new_state(mode: &str, product: Value) -> Result<Value, DfwError> {
 /// `gatePassed(state, gate)`: approved or waived.
 pub fn gate_passed(state: &Value, gate: &str) -> bool {
     let has = |key: &str| js::truthy_value(state.get(key).and_then(|g| g.get(gate))).is_some();
-    has("gates") || has("waived")
+    has(field::GATES) || has(field::WAIVED)
 }
 
 /// `currentApproval(state)`: the current approved design (`None` while the latest version is
 /// still a draft).
 pub fn current_approval(state: &Value) -> Result<Option<Value>, DfwError> {
-    let design = required(state, "design")?;
+    let design = required(state, field::DESIGN)?;
     if design.get("status").and_then(Value::as_str) != Some("approved") {
         return Ok(None);
     }
     let approved = design
-        .get("approved")
+        .get(field::APPROVED)
         .and_then(Value::as_array)
         .ok_or_else(|| state_field_error("design.approved", "a list"))?;
     Ok(js::truthy_value(approved.last()).cloned())
@@ -295,11 +305,8 @@ pub fn transition_blockers(state: &Value, to: Option<&str>) -> Result<Vec<String
     };
     let mut reasons = Vec::new();
     let mode = state_mode(state)?;
-    let phase = state.get("phase").and_then(Value::as_str);
-    if ["stack", "implement", "verify"].contains(&to)
-        && !mode.writes_code
-        && mode.name != "review-only"
-    {
+    let phase = state.get(field::PHASE).and_then(Value::as_str);
+    if [STACK, IMPLEMENT, VERIFY].contains(&to) && !mode.writes_code && mode.name != REVIEW_ONLY {
         reasons.push(format!(
             "Mode \"{}\" does not include implementation; switch mode first (dfw mode <mode>).",
             mode.name
@@ -307,12 +314,12 @@ pub fn transition_blockers(state: &Value, to: Option<&str>) -> Result<Vec<String
     }
     const NO_G1: &str = "G1 (design direction) is not approved yet.";
     match to {
-        "system" => {
+        SYSTEM => {
             if !gate_passed(state, "G1") {
                 reasons.push(NO_G1.into());
             }
         }
-        "concepts" => {
+        CONCEPTS => {
             if !gate_passed(state, "G1") {
                 reasons.push(NO_G1.into());
             }
@@ -320,7 +327,7 @@ pub fn transition_blockers(state: &Value, to: Option<&str>) -> Result<Vec<String
                 reasons.push("DS (design system) is not approved yet: build foundations and components first (phase \"system\").".into());
             }
         }
-        "implement" => {
+        IMPLEMENT => {
             if current_approval(state)?.is_none() {
                 reasons.push(
                     "G2: there is no approved, frozen design for the current version.".into(),
@@ -330,21 +337,20 @@ pub fn transition_blockers(state: &Value, to: Option<&str>) -> Result<Vec<String
                 reasons.push("G3: the technology stack is not approved yet.".into());
             }
         }
-        "verify" => {
-            let after_implement = matches!(phase, Some("implement" | "verify"));
-            if !after_implement && mode.name != "implement-approved" {
+        VERIFY => {
+            let after_implement = matches!(phase, Some(IMPLEMENT | VERIFY));
+            if !after_implement && mode.name != IMPLEMENT_APPROVED {
                 reasons.push(format!(
                     "Verification follows implementation (current phase is {}).",
-                    js::to_string(state.get("phase"))
+                    js::to_string(state.get(field::PHASE))
                 ));
             }
         }
-        "done" => {
+        DONE => {
             if mode.writes_code && !gate_passed(state, "G4") {
                 reasons.push("G4 (verification accepted) is not approved yet.".into());
             }
-            if !mode.writes_code && mode.name == "design-only" && current_approval(state)?.is_none()
-            {
+            if !mode.writes_code && mode.name == DESIGN_ONLY && current_approval(state)?.is_none() {
                 reasons.push("Design-only work finishes with an approved design (G2).".into());
             }
         }
@@ -372,15 +378,15 @@ pub fn set_phase(
             blockers.join("\n- ")
         )));
     }
-    let from = state.get("phase").cloned();
+    let from = state.get(field::PHASE).cloned();
     let to = to.map(|t| Value::String(t.to_string()));
-    set_field(state, "phase", to.clone())?;
+    set_field(state, field::PHASE, to.clone())?;
     let forced = (!blockers.is_empty()).then(|| Value::from(blockers));
     push_history(
         state,
         js::object(vec![
             ("at", Some(Value::String(now_iso()))),
-            ("event", Some("phase".into())),
+            ("event", Some(field::PHASE.into())),
             ("from", from),
             ("to", to),
             ("forced", forced),
@@ -408,8 +414,8 @@ pub fn approve_gate(
     };
     let note = note.filter(|v| js::truthy(v));
     let p = project_paths(root);
-    let phase = state.get("phase").and_then(Value::as_str);
-    if gate == "G1" && phase == Some("discovery") && note.is_none() {
+    let phase = state.get(field::PHASE).and_then(Value::as_str);
+    if gate == "G1" && phase == Some(DISCOVERY) && note.is_none() {
         return Err(DfwError::new("G1 is normally approved during the direction phase. Pass --note to record what was approved."));
     }
     if gate == "G3" && !p.stack.exists() {
@@ -418,7 +424,7 @@ pub fn approve_gate(
             rel::STACK
         )));
     }
-    if gate == "G4" && phase != Some("verify") {
+    if gate == "G4" && phase != Some(VERIFY) {
         return Err(DfwError::new(
             "G4 is approved at the end of the verify phase.",
         ));
@@ -436,7 +442,7 @@ pub fn approve_gate(
         }
         target.extend(extra.clone());
     }
-    object_mut(state, "gates")?.insert(gate.to_string(), Value::Object(record));
+    object_mut(state, field::GATES)?.insert(gate.to_string(), Value::Object(record));
     push_history(state, Value::Object(event))?;
     append_jsonl_inside(
         root,
@@ -457,7 +463,7 @@ pub fn set_mode(root: &Path, state: &mut Value, mode: Option<&str>) -> Result<()
     }
     let from = state.get("mode").cloned();
     set_field(state, "mode", Some(mode.into()))?;
-    set_field(state, "waived", Some(waived_by(info)))?;
+    set_field(state, field::WAIVED, Some(waived_by(info)))?;
     push_history(
         state,
         js::object(vec![
@@ -475,17 +481,17 @@ pub fn summarize(state: Option<&Value>) -> Result<String, DfwError> {
     let Some(state) = state else {
         return Ok("dfw: no workflow in this project (run /dfw to start).".into());
     };
-    let gates = required(state, "gates")?;
+    let gates = required(state, field::GATES)?;
     let g = |k: &str| {
         if js::truthy_value(gates.get(k)).is_some() {
             "approved"
-        } else if js::truthy_value(state.get("waived").and_then(|w| w.get(k))).is_some() {
+        } else if js::truthy_value(state.get(field::WAIVED).and_then(|w| w.get(k))).is_some() {
             "waived"
         } else {
             "open"
         }
     };
-    let design = required(state, "design")?;
+    let design = required(state, field::DESIGN)?;
     let appr = current_approval(state)?;
     let product = js::truthy_value(state.get("product"))
         .map_or("(unnamed)".to_string(), |p| js::to_string(Some(p)));
@@ -493,11 +499,11 @@ pub fn summarize(state: Option<&Value>) -> Result<String, DfwError> {
         format!(
             "dfw: product=\"{product}\" mode={} phase={}",
             js::to_string(state.get("mode")),
-            js::to_string(state.get("phase"))
+            js::to_string(state.get(field::PHASE))
         ),
         format!(
             "design: v{} {}{}{}",
-            js::to_string(design.get("version")),
+            js::to_string(design.get(field::VERSION)),
             js::to_string(design.get("status")),
             if js::truthy_value(design.get("locked")).is_some() {
                 " (locked)"
@@ -535,27 +541,27 @@ mod tests {
     /// E2: a broken state names the field and the fix, never a JavaScript TypeError.
     #[test]
     fn a_broken_state_names_the_field() {
-        let mut s = fresh("new-product");
-        s.as_object_mut().unwrap().shift_remove("gates");
+        let mut s = fresh(NEW_PRODUCT);
+        s.as_object_mut().unwrap().shift_remove(field::GATES);
         assert_eq!(
             summarize(Some(&s)).unwrap_err().report(),
             format!("{}: \"gates\" is missing or is not an object. Restore the file from version control, or fix that field by hand.", rel::STATE)
         );
-        let mut s = fresh("new-product");
-        s["design"]["approved"] = json!("v1");
-        s["design"]["status"] = "approved".into();
+        let mut s = fresh(NEW_PRODUCT);
+        s[field::DESIGN][field::APPROVED] = json!("v1");
+        s[field::DESIGN]["status"] = "approved".into();
         assert!(current_approval(&s)
             .unwrap_err()
             .message()
             .contains("\"design.approved\" is missing or is not a list"));
-        let mut s = fresh("new-product");
+        let mut s = fresh(NEW_PRODUCT);
         s["mode"] = "nope".into();
         assert!(transition_blockers(&s, Some("stack"))
             .unwrap_err()
             .message()
             .contains("\"mode\" is missing or is not a known mode"));
-        let mut s = fresh("new-product");
-        s["history"] = json!({});
+        let mut s = fresh(NEW_PRODUCT);
+        s[field::HISTORY] = json!({});
         assert!(push_history(&mut s, json!({}))
             .unwrap_err()
             .message()
@@ -564,29 +570,25 @@ mod tests {
 
     #[test]
     fn state_machine_system_needs_g1_concepts_needs_g1_ds_implement_needs_g2_g3() {
-        let mut s = fresh("new-product");
+        let mut s = fresh(NEW_PRODUCT);
         assert_eq!(
             transition_blockers(&s, Some("system")).unwrap(),
             ["G1 (design direction) is not approved yet."]
         );
-        assert_eq!(transition_blockers(&s, Some("concepts")).unwrap().len(), 2);
-        assert_eq!(transition_blockers(&s, Some("implement")).unwrap().len(), 2);
-        s["gates"]["G1"] = json!({ "approvedAt": "x" });
-        assert!(transition_blockers(&s, Some("concepts")).unwrap()[0].starts_with("DS"));
-        s["gates"]["DS"] = json!({ "approvedAt": "x" });
-        assert!(transition_blockers(&s, Some("concepts"))
-            .unwrap()
-            .is_empty());
-        assert_eq!(fresh("quick")["mode"], "quick-change", "mode aliases");
-        let q = fresh("quick-change");
+        assert_eq!(transition_blockers(&s, Some(CONCEPTS)).unwrap().len(), 2);
+        assert_eq!(transition_blockers(&s, Some(IMPLEMENT)).unwrap().len(), 2);
+        s[field::GATES]["G1"] = json!({ "approvedAt": "x" });
+        assert!(transition_blockers(&s, Some(CONCEPTS)).unwrap()[0].starts_with("DS"));
+        s[field::GATES]["DS"] = json!({ "approvedAt": "x" });
+        assert!(transition_blockers(&s, Some(CONCEPTS)).unwrap().is_empty());
+        assert_eq!(fresh("quick")["mode"], QUICK_CHANGE, "mode aliases");
+        let q = fresh(QUICK_CHANGE);
         assert!(
-            transition_blockers(&q, Some("concepts"))
-                .unwrap()
-                .is_empty(),
+            transition_blockers(&q, Some(CONCEPTS)).unwrap().is_empty(),
             "quick-change waives G1 and DS"
         );
-        let d = fresh("design-only");
-        assert!(transition_blockers(&d, Some("implement"))
+        let d = fresh(DESIGN_ONLY);
+        assert!(transition_blockers(&d, Some(IMPLEMENT))
             .unwrap()
             .iter()
             .any(|r| r.contains("does not include implementation")));
@@ -602,21 +604,20 @@ mod tests {
                 "schema",
                 "product",
                 "mode",
-                "phase",
+                field::PHASE,
                 "active",
                 "createdAt",
                 "updatedAt",
-                "design",
-                "gates",
-                "waived",
-                "history"
+                field::DESIGN,
+                field::GATES,
+                field::WAIVED,
+                field::HISTORY
             ]
         );
-        assert_eq!(s["phase"], "concepts");
-        assert_eq!(
-            s["waived"],
-            json!({ "G1": "waived by mode ui-refinement", "DS": "waived by mode ui-refinement" })
-        );
+        assert_eq!(s[field::PHASE], CONCEPTS);
+        let note = waived_note(UI_REFINEMENT);
+        assert_eq!(s[field::WAIVED], json!({ "G1": note, "DS": note }));
+        assert_eq!(note, "waived by mode ui-refinement");
         let err = new_state("nope", Value::Null).unwrap_err();
         assert_eq!(err.message(), "Unknown mode \"nope\". Modes: new-product, existing-project, design-only, implement-approved, ui-refinement, quick-change, review-only");
     }
@@ -624,14 +625,15 @@ mod tests {
     #[test]
     fn phase_mode_and_gate_changes_are_recorded() {
         let root = test_dir("state");
-        let mut s = fresh("new-product");
-        let err = set_phase(&root, &mut s, Some("concepts"), false, None).unwrap_err();
+        let mut s = fresh(NEW_PRODUCT);
+        let err = set_phase(&root, &mut s, Some(CONCEPTS), false, None).unwrap_err();
         assert!(err
             .message()
             .starts_with("Cannot move to \"concepts\":\n- G1"));
         set_phase(&root, &mut s, Some("direction"), false, None).unwrap();
-        approve_gate(&root, &mut s, "G1", Some("Direction A".into()), Map::new()).unwrap();
-        assert_eq!(s["gates"]["G1"]["note"], "Direction A");
+        const NOTE: &str = "Direction A";
+        approve_gate(&root, &mut s, "G1", Some(NOTE.into()), Map::new()).unwrap();
+        assert_eq!(s[field::GATES]["G1"]["note"], NOTE);
         assert!(approve_gate(&root, &mut s, "G9", None, Map::new())
             .unwrap_err()
             .message()
@@ -645,23 +647,22 @@ mod tests {
             .message()
             .starts_with("G4 is approved at the end"));
         // A forced move records what it skipped.
-        set_phase(
-            &root,
-            &mut s,
-            Some("implement"),
-            true,
-            Some("user said so".into()),
-        )
-        .unwrap();
-        let last = s["history"].as_array().unwrap().last().unwrap().clone();
+        const REASON: &str = "user said so";
+        set_phase(&root, &mut s, Some(IMPLEMENT), true, Some(REASON.into())).unwrap();
+        let last = s[field::HISTORY]
+            .as_array()
+            .unwrap()
+            .last()
+            .unwrap()
+            .clone();
         assert_eq!(last["forced"].as_array().unwrap().len(), 2);
-        assert_eq!(last["reason"], "user said so");
+        assert_eq!(last["reason"], REASON);
         assert!(set_mode(&root, &mut s, Some("implement"))
             .unwrap_err()
             .message()
             .contains("needs an approved design"));
         set_mode(&root, &mut s, Some("quick")).unwrap();
-        assert_eq!(s["waived"]["DS"], "waived by mode quick-change");
+        assert_eq!(s[field::WAIVED]["DS"], "waived by mode quick-change");
         let saved = load_state(&root).unwrap().unwrap();
         assert_eq!(saved, s);
         let log = std::fs::read_to_string(root.join(rel::DECISIONS)).unwrap();
@@ -680,7 +681,7 @@ mod tests {
     #[test]
     fn phase_force_never_writes_a_missing_or_unknown_phase() {
         let root = test_dir("state-force");
-        let mut s = fresh("new-product");
+        let mut s = fresh(NEW_PRODUCT);
         for to in [None, Some("bogus")] {
             let err = set_phase(&root, &mut s, to, true, None).unwrap_err();
             assert!(
@@ -689,10 +690,11 @@ mod tests {
                 "{err}"
             );
         }
-        assert_eq!(s["phase"], "discovery");
-        set_phase(&root, &mut s, Some("concepts"), true, Some("test".into())).unwrap();
+        assert_eq!(s[field::PHASE], DISCOVERY);
+        set_phase(&root, &mut s, Some(CONCEPTS), true, Some("test".into())).unwrap();
         assert_eq!(
-            s["phase"], "concepts",
+            s[field::PHASE],
+            CONCEPTS,
             "--force still overrides gate blockers"
         );
     }
@@ -701,7 +703,7 @@ mod tests {
     #[test]
     fn prototype_names_are_not_modes_or_gates() {
         let root = test_dir("state-proto");
-        let mut s = fresh("new-product");
+        let mut s = fresh(NEW_PRODUCT);
         for name in ["constructor", "toString", "__proto__", "hasOwnProperty"] {
             let unknown = format!("Unknown mode \"{name}\".");
             assert!(set_mode(&root, &mut s, Some(name))

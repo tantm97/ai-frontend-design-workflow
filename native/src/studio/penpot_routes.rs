@@ -13,7 +13,7 @@
 use serde_json::{json, Value};
 
 use super::api::mime;
-use super::http::{method, query_param, status};
+use super::http::{method, query_param, status, LOOPBACK};
 use super::server::{Request, Response, Studio, JSON};
 use crate::assets::{studio_file, studio_text};
 use crate::core::config::global_config_path;
@@ -40,6 +40,14 @@ pub const DEFAULT_PENPOT_ORIGIN: &str = "https://design.penpot.app";
 /// The answer to a GET of the export before one exists.
 const NO_EXPORT: &str =
     "No Penpot export yet: run \"dfw penpot export\", or tick \"Render now\" in the dfw bridge panel.";
+
+/// The routes under [`paths::PENPOT`] the panel reads and writes.
+pub mod route {
+    pub const SESSION: &str = "session.json";
+    pub const EXPORT: &str = "export.json";
+    pub const CHANGES: &str = "changes";
+    pub const SYNC: &str = "sync";
+}
 
 /// The header that carries the panel's token.
 pub const TOKEN_HEADER: &str = "x-dfw-bridge";
@@ -151,7 +159,7 @@ pub fn route(studio: &Studio, req: &Request) -> Result<Response, DfwError> {
         "manifest.json" => cors(status::OK, to_json_pretty(&manifest()), json_type),
         "plugin.js" => match studio_text("penpot/plugin.js") {
             Some(code) => {
-                let origin = format!("http://127.0.0.1:{}", studio.port);
+                let origin = format!("http://{LOOPBACK}:{}", studio.port);
                 cors(
                     status::OK,
                     code.replace("__DFW_STUDIO_ORIGIN__", &origin),
@@ -174,7 +182,7 @@ pub fn route(studio: &Studio, req: &Request) -> Result<Response, DfwError> {
             None => Response::not_found(),
         },
         // What the panel needs before it talks to Penpot or writes: the token and the origins.
-        "session.json" if method == method::GET => {
+        route::SESSION if method == method::GET => {
             if let Some(refused) = bridge_refusal(studio, req, false) {
                 return Ok(refused);
             }
@@ -185,14 +193,14 @@ pub fn route(studio: &Studio, req: &Request) -> Result<Response, DfwError> {
         }
         // A GET only reads the last export: rendering (files written, a browser started) is a
         // POST, so a page elsewhere cannot start it with an <img>.
-        "export.json" if method == method::GET => {
+        route::EXPORT if method == method::GET => {
             let file = project_paths(&studio.root).penpot.join(file::PENPOT_EXPORT);
             if !file.exists() {
                 return Ok(Response::error(status::NOT_FOUND, NO_EXPORT));
             }
             Response::send(status::OK, std::fs::read(&file)?, json_type)
         }
-        "export.json" if method == method::POST => {
+        route::EXPORT if method == method::POST => {
             if let Some(refused) = bridge_refusal(studio, req, true) {
                 return Ok(refused);
             }
@@ -205,7 +213,7 @@ pub fn route(studio: &Studio, req: &Request) -> Result<Response, DfwError> {
             };
             Response::json(status::OK, &export_penpot(&studio.root, &opts)?.1)
         }
-        "changes" if method == method::POST => {
+        route::CHANGES if method == method::POST => {
             if let Some(refused) = bridge_refusal(studio, req, true) {
                 return Ok(refused);
             }
@@ -229,7 +237,7 @@ pub fn route(studio: &Studio, req: &Request) -> Result<Response, DfwError> {
         }
         // Live comments: the plugin panel sends the file's threads every few seconds and posts
         // dfw's replies back; a sync that adds or updates comments broadcasts `comments`.
-        "sync" if method == method::POST => {
+        route::SYNC if method == method::POST => {
             if let Some(refused) = bridge_refusal(studio, req, true) {
                 return Ok(refused);
             }
@@ -249,6 +257,9 @@ pub fn route(studio: &Studio, req: &Request) -> Result<Response, DfwError> {
 mod tests {
     use super::*;
 
+    /// A self-hosted Penpot.
+    const SELF_HOSTED: &str = "http://localhost:9001";
+
     /// penpot.origins: a list or one origin, normalised; anything else is left out with a line
     #[test]
     fn penpot_origins_are_origins_only() {
@@ -260,18 +271,15 @@ mod tests {
             ["https://penpot.example.com"]
         );
         let list = json!([
-            "http://localhost:9001",
+            SELF_HOSTED,
             "*",
             "https://a.example/path",
             "https://x y",
             7,
             "javascript:alert(1)",
-            "http://localhost:9001"
+            SELF_HOSTED
         ]);
-        assert_eq!(
-            origins_from(Some(&list), &mut warn),
-            ["http://localhost:9001"]
-        );
+        assert_eq!(origins_from(Some(&list), &mut warn), [SELF_HOSTED]);
         assert_eq!(lines.len(), 5, "{lines:?}");
         assert!(lines[0].contains("dfw config set penpot.origins"));
         assert_eq!(
@@ -280,7 +288,7 @@ mod tests {
         );
         assert_eq!(frame_ancestors(&[]).1, "frame-ancestors 'none'");
         assert_eq!(
-            frame_ancestors(&["https://a.example".into(), "http://localhost:9001".into()]).1,
+            frame_ancestors(&["https://a.example".into(), SELF_HOSTED.into()]).1,
             "frame-ancestors https://a.example http://localhost:9001"
         );
     }

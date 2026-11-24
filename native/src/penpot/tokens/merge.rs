@@ -10,7 +10,7 @@ fn inherited_type_at<'a>(tree: &'a Value, parts: &[&str]) -> Option<&'a Value> {
         let Some(n) = node.filter(|n| n.is_object() || n.is_array()) else {
             return ty;
         };
-        if let Some(t) = js::truthy_value(n.get("$type")) {
+        if let Some(t) = js::truthy_value(n.get(key::TYPE)) {
             ty = Some(t);
         }
         node = n.get(*part);
@@ -19,7 +19,7 @@ fn inherited_type_at<'a>(tree: &'a Value, parts: &[&str]) -> Option<&'a Value> {
 }
 
 fn is_token(node: &Value) -> bool {
-    node.as_object().is_some_and(|m| m.contains_key("$value"))
+    node.as_object().is_some_and(|m| m.contains_key(key::VALUE))
 }
 
 /// Write one token into a dfw tree: the `$type` only when it differs from the group's, the
@@ -72,24 +72,24 @@ fn set_token(
         .unwrap_or_default();
     match ty {
         Some(ty) if !js::strict_eq(Some(ty), inherited.as_ref()) => {
-            next.insert("$type".into(), ty.clone());
+            next.insert(key::TYPE.into(), ty.clone());
         }
         _ => {
-            next.shift_remove("$type");
+            next.shift_remove(key::TYPE);
         }
     }
-    next.insert("$value".into(), value.clone());
+    next.insert(key::VALUE.into(), value.clone());
     match js::truthy_value(description) {
         Some(d) => {
-            next.insert("$description".into(), d.clone());
+            next.insert(key::DESCRIPTION.into(), d.clone());
         }
         None => {
-            next.shift_remove("$description");
+            next.shift_remove(key::DESCRIPTION);
         }
     }
     // Key order: $type, $value, $description, then anything else ($extensions...).
     let mut ordered = Map::new();
-    for key in ["$type", "$value", "$description"] {
+    for key in [key::TYPE, key::VALUE, key::DESCRIPTION] {
         if let Some(v) = next.get(key) {
             ordered.insert(key.to_string(), v.clone());
         }

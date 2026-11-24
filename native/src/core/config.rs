@@ -15,12 +15,20 @@ use std::path::{Path, PathBuf};
 use serde_json::{json, Map, Value};
 
 use super::error::DfwError;
+use super::paths::rel::all_under;
 use super::paths::{file, global_dir, project_paths, rel};
 use super::util::{deep_merge, get_path, read_json, set_path, write_json, write_json_inside};
 
-/// The glob of everything under a project-relative folder.
-fn all_under(dir: &str) -> String {
-    format!("{dir}/**")
+/// The sections of the config the code reads by name, and the dotted keys of single values.
+pub mod key {
+    pub const LANGUAGE: &str = "language";
+    pub const GATE: &str = "gate";
+    #[cfg(test)]
+    pub const CHECKS: &str = "checks";
+    pub const SKILLS: &str = "skills";
+    pub const ENV: &str = "env";
+    pub const STUDIO_PORT: &str = "studio.port";
+    pub const REVIEW_SHORTCUT: &str = "review.shortcut";
 }
 
 /// `DEFAULTS`: the plugin's own layer.
@@ -36,7 +44,7 @@ pub fn defaults() -> Value {
             // Paths (globs, relative to project root) always writable regardless of gates.
             "allow": [all_under(rel::DFW), all_under(rel::HANDOFF)],
             // Paths that belong to the design workspace (writable before G2, locked after).
-            "designPaths": [all_under(rel::DESIGN), "PRODUCT.md", "DESIGN.md"],
+            "designPaths": [all_under(rel::DESIGN), rel::PRODUCT_DOC, rel::DESIGN_DOC],
             // Frozen snapshots are never writable, nor (by the agent's own tools) the files that
             // hold the gates, approvals, decisions, settings and review comments: dfw commands
             // write those directly. A union across layers: a project cannot drop one.
@@ -112,7 +120,7 @@ pub fn filter_project_env(mut layer: Value, file: &Path, warn: &mut dyn FnMut(St
     let Some(map) = layer.as_object_mut() else {
         return layer;
     };
-    let Some(env) = map.get_mut("env") else {
+    let Some(env) = map.get_mut(key::ENV) else {
         return layer;
     };
     let file = file.display();
@@ -187,13 +195,13 @@ fn load_config_from(
     // Some lists are unions across layers rather than replacements, so a project can add to the
     // defaults without accidentally dropping them.
     let union = |group: &str, key: &str| union_of(layers.iter(), group, key);
-    let mut skills = js::spread(merged.get("skills"));
-    skills.insert("disabled".into(), union("skills", "disabled"));
-    merged.insert("skills".into(), Value::Object(skills));
-    let mut gate = js::spread(merged.get("gate"));
-    gate.insert("allow".into(), union("gate", "allow"));
-    gate.insert("immutable".into(), union("gate", "immutable"));
-    merged.insert("gate".into(), Value::Object(gate));
+    let mut skills = js::spread(merged.get(key::SKILLS));
+    skills.insert("disabled".into(), union(key::SKILLS, "disabled"));
+    merged.insert(key::SKILLS.into(), Value::Object(skills));
+    let mut gate = js::spread(merged.get(key::GATE));
+    gate.insert("allow".into(), union(key::GATE, "allow"));
+    gate.insert("immutable".into(), union(key::GATE, "immutable"));
+    merged.insert(key::GATE.into(), Value::Object(gate));
     Ok(Value::Object(merged))
 }
 
@@ -319,7 +327,7 @@ pub fn gate_immutable(config: &Value) -> Vec<String> {
 
 /// `studio.port`, or 4600 when it is missing or not a port (`config.studio.port || 4600`).
 pub fn studio_port(config: &Value) -> u16 {
-    let port = match get_path(config, "studio.port") {
+    let port = match get_path(config, key::STUDIO_PORT) {
         Some(Value::String(s)) => s.trim().parse::<f64>().ok(),
         Some(other) => other.as_f64(),
         None => None,
@@ -406,14 +414,14 @@ pub fn checks_layout_on_stop(config: &Value) -> bool {
 
 /// `review.shortcut` as text; `None` when it is missing or null (the caller then uses its default).
 pub fn review_shortcut(config: &Value) -> Option<String> {
-    get_path(config, "review.shortcut")
+    get_path(config, key::REVIEW_SHORTCUT)
         .filter(|v| !v.is_null())
         .map(js::to_string)
 }
 
 /// `env`: variables applied to every external tool dfw launches, in file order.
 pub fn env_map(config: &Value) -> Vec<(String, String)> {
-    let Some(Value::Object(env)) = config.get("env") else {
+    let Some(Value::Object(env)) = config.get(key::ENV) else {
         return Vec::new();
     };
     env.iter()
@@ -426,7 +434,10 @@ pub fn env_map(config: &Value) -> Vec<(String, String)> {
 mod tests {
     use super::*;
     use crate::core::fixture::{NOTES_FILE, REVIEW_SESSION};
-    use crate::core::util::{test_dir, to_json_compact};
+    use crate::core::util::{test_dir, to_json_compact, PROTO};
+
+    /// A global config file a test never writes.
+    const NO_GLOBAL: &str = "none.json";
     use std::fs;
 
     /// A project folder with the given `.dfw/config.json` and `.dfw/config.local.json`.
@@ -450,9 +461,10 @@ mod tests {
     #[test]
     fn external_tools_run_with_telemetry_and_update_checks_off() {
         let d = defaults();
-        assert_eq!(d["env"]["DO_NOT_TRACK"], "1");
-        assert_eq!(d["env"]["IMPECCABLE_NO_UPDATE_CHECK"], "1");
-        assert_eq!(d["env"]["IMPECCABLE_HOOK_DISABLED"], "1");
+        let env = &d[key::ENV];
+        assert_eq!(env["DO_NOT_TRACK"], "1");
+        assert_eq!(env["IMPECCABLE_NO_UPDATE_CHECK"], "1");
+        assert_eq!(env["IMPECCABLE_HOOK_DISABLED"], "1");
     }
 
     /// config: gate.allow is a union across layers (tests/unit/dfw.test.mjs)
@@ -469,8 +481,10 @@ mod tests {
             gate_allow(&c).contains(&all_under(rel::DFW)),
             "defaults kept"
         );
-        assert_eq!(c["checks"]["onEdit"], false);
-        assert_eq!(c["checks"]["sloplint"], defaults()["checks"]["sloplint"]);
+        let checks = &c[key::CHECKS];
+        assert_eq!(checks["onEdit"], false);
+        const SLOPLINT: &str = "sloplint";
+        assert_eq!(checks[SLOPLINT], defaults()[key::CHECKS][SLOPLINT]);
         fs::remove_dir_all(&root).unwrap();
     }
 
@@ -518,13 +532,12 @@ mod tests {
         let tmp = test_dir("config-none");
         let expected = to_json_compact(&defaults());
         assert_eq!(
-            to_json_compact(&load_config_from(&tmp.join("none.json"), None, &mut |_| {}).unwrap()),
+            to_json_compact(&load_config_from(&tmp.join(NO_GLOBAL), None, &mut |_| {}).unwrap()),
             expected
         );
         assert_eq!(
             to_json_compact(
-                &load_config_from(&tmp.join("none.json"), Some(Path::new("")), &mut |_| {})
-                    .unwrap()
+                &load_config_from(&tmp.join(NO_GLOBAL), Some(Path::new("")), &mut |_| {}).unwrap()
             ),
             expected,
             "an empty root is no root"
@@ -537,6 +550,8 @@ mod tests {
 
     #[test]
     fn layers_merge_in_order_and_lists_are_unions() {
+        /// A section only the project layers write.
+        const EXTRA: &str = "extra";
         let root = project(
             "config-layers",
             Some(
@@ -568,25 +583,25 @@ mod tests {
         assert_eq!(gate_design_paths(&c), ["ui/**"], "other lists replace");
         assert_eq!(studio_port(&c), 4800, "local wins");
         assert_eq!(
-            c["language"],
+            c[key::LANGUAGE],
             json!({"askPolicy": "session", "default": "vi"})
         );
-        assert_eq!(c["skills"]["disabled"], json!(["hallmark"]));
-        assert_eq!(to_json_compact(&c["extra"]), r#"{"a":1,"b":2}"#);
+        assert_eq!(c[key::SKILLS]["disabled"], json!(["hallmark"]));
+        assert_eq!(to_json_compact(&c[EXTRA]), r#"{"a":1,"b":2}"#);
         let keys: Vec<&String> = c.as_object().unwrap().keys().collect();
         assert_eq!(
             keys,
             [
                 "schema",
-                "language",
-                "gate",
-                "checks",
+                key::LANGUAGE,
+                key::GATE,
+                key::CHECKS,
                 "studio",
                 "review",
                 "accessibility",
-                "skills",
-                "env",
-                "extra"
+                key::SKILLS,
+                key::ENV,
+                EXTRA
             ]
         );
         fs::remove_dir_all(&root).unwrap();
@@ -604,12 +619,13 @@ mod tests {
             Some(r#"{"gate":{"allow":0,"immutable":[1.0,{"a":1},null]},"studio":null}"#),
         );
         let c = load(&root).unwrap();
+        let gate = &c[key::GATE];
         assert_eq!(
-            c["gate"]["allow"],
+            gate["allow"],
             json!([all_under(rel::DFW), all_under(rel::HANDOFF), "docs/**"])
         );
         assert_eq!(
-            to_json_compact(&c["gate"]["immutable"]),
+            to_json_compact(&gate["immutable"]),
             r#"["design/approved/**",".dfw/state.json",".dfw/config.json",".dfw/config.local.json",".dfw/decisions.jsonl",".dfw/stack.json",".dfw/reviews/**",1,{"a":1},null,{"a":1}]"#
         );
         assert_eq!(
@@ -617,7 +633,7 @@ mod tests {
             r#"{"0":"a","1":"b","disabled":[]}"#
         );
         assert_eq!(c["studio"], Value::Null);
-        assert!(c.get("__proto__").is_none() && c["checks"].get("__proto__").is_none());
+        assert!(c.get(PROTO).is_none() && c[key::CHECKS].get(PROTO).is_none());
         assert_eq!(studio_port(&c), 4600);
         assert!(studio_breakpoints(&c).is_empty());
         fs::remove_dir_all(&root).unwrap();
@@ -626,7 +642,7 @@ mod tests {
     #[test]
     fn a_broken_file_is_an_error() {
         let root = project("config-broken", Some("{ nope"), None);
-        let err = load_config_from(&root.join("none.json"), Some(&root), &mut |_| {}).unwrap_err();
+        let err = load_config_from(&root.join(NO_GLOBAL), Some(&root), &mut |_| {}).unwrap_err();
         assert!(err.message().starts_with("Invalid JSON in "), "{err}");
         fs::remove_dir_all(&root).unwrap();
     }
@@ -793,12 +809,13 @@ mod tests {
         .unwrap();
         let mut warnings = Vec::new();
         let c = load_config_from(&global, Some(&root), &mut |m| warnings.push(m)).unwrap();
-        assert_eq!(c["env"]["IMPECCABLE_NO_UPDATE_CHECK"], "1");
+        let env = &c[key::ENV];
+        assert_eq!(env["IMPECCABLE_NO_UPDATE_CHECK"], "1");
         assert_eq!(
-            c["env"]["DO_NOT_TRACK"], "0",
+            env["DO_NOT_TRACK"], "0",
             "the user may change a default in the global config"
         );
-        assert_eq!(c["env"]["IMPECCABLE_API_URL"], "http://mirror.internal");
+        assert_eq!(env["IMPECCABLE_API_URL"], "http://mirror.internal");
         assert_eq!(
             warnings,
             [format!(
@@ -864,9 +881,11 @@ mod tests {
             ]
         );
 
+        /// The one breakpoint with a size.
+        const WIDE: &str = "wide";
         let c = json!({
             "checks": { "onEdit": true, "timeoutMs": 0, "maxFindings": "many", "layoutOnStop": false },
-            "studio": { "port": "4700", "breakpoints": [{ "id": "wide", "width": 1920, "height": 1080 }, "junk", { "id": "no-size" }] },
+            "studio": { "port": "4700", "breakpoints": [{ "id": WIDE, "width": 1920, "height": 1080 }, "junk", { "id": "no-size" }] },
             "review": { "shortcut": false },
             "env": { "A": 1, "B": true, "C": null, "D": {} },
         });
@@ -891,7 +910,7 @@ mod tests {
         assert_eq!(
             studio_breakpoints(&c),
             [Breakpoint {
-                id: "wide".into(),
+                id: WIDE.into(),
                 label: None,
                 width: 1920,
                 height: 1080
@@ -921,16 +940,17 @@ mod tests {
             config_file_for(Scope::Local, &root),
             root.join(rel::CONFIG_LOCAL)
         );
-        let file = set_config_value(Scope::Project, &root, "studio.port", json!(4777)).unwrap();
+        let file = set_config_value(Scope::Project, &root, key::STUDIO_PORT, json!(4777)).unwrap();
         assert_eq!(file, root.join(rel::CONFIG));
         assert_eq!(
             fs::read_to_string(&file).unwrap(),
             "{\n  \"schema\": 1,\n  \"studio\": {\n    \"port\": 4777\n  }\n}\n"
         );
-        set_config_value(Scope::Local, &root, "review.shortcut", json!("off")).unwrap();
+        const OFF: &str = "off";
+        set_config_value(Scope::Local, &root, key::REVIEW_SHORTCUT, json!(OFF)).unwrap();
         let c = load(&root).unwrap();
-        assert_eq!(get_path(&c, "studio.port"), Some(&json!(4777)));
-        assert_eq!(get_path(&c, "review.shortcut"), Some(&json!("off")));
+        assert_eq!(get_path(&c, key::STUDIO_PORT), Some(&json!(4777)));
+        assert_eq!(get_path(&c, key::REVIEW_SHORTCUT), Some(&json!(OFF)));
         assert_eq!(get_path(&c, "studio.nope"), None);
         fs::remove_dir_all(&root).unwrap();
     }
@@ -945,7 +965,9 @@ mod tests {
         let victim = base.join("victim");
         fs::create_dir_all(root.join(rel::DFW)).unwrap();
         fs::create_dir_all(&victim).unwrap();
-        fs::write(victim.join("settings.json"), "{}").unwrap();
+        /// The user-global file a link points at.
+        const SETTINGS: &str = "settings.json";
+        fs::write(victim.join(SETTINGS), "{}").unwrap();
         for name in [file::CONFIG_LOCAL, file::CONFIG] {
             std::os::unix::fs::symlink(
                 "../../../victim/settings.json",
@@ -954,17 +976,14 @@ mod tests {
             .unwrap();
         }
         for scope in [Scope::Local, Scope::Project] {
-            let err = set_config_value(scope, &root, "studio.port", json!(1)).unwrap_err();
+            let err = set_config_value(scope, &root, key::STUDIO_PORT, json!(1)).unwrap_err();
             assert!(
                 err.message().contains("outside the project"),
                 "{}",
                 err.message()
             );
         }
-        assert_eq!(
-            fs::read_to_string(victim.join("settings.json")).unwrap(),
-            "{}"
-        );
+        assert_eq!(fs::read_to_string(victim.join(SETTINGS)).unwrap(), "{}");
         fs::remove_dir_all(&base).unwrap();
     }
 }

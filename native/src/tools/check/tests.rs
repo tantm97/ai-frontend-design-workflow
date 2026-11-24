@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{json, Value};
 
-use super::report::{flatten, locale_compare};
+use super::report::{flatten, locale_compare, tool_status};
 use super::*;
 use crate::core::config::load_config;
 use crate::core::fixture::{
@@ -18,7 +18,22 @@ use crate::core::fixture::{
 };
 #[cfg(unix)]
 use crate::core::fixture::{APP_MODULE, CHIP_MASTER, DESIGN_PAGE};
+use crate::core::fixture::{HTML_FILE_B, OUTSIDE_PAGE};
 use crate::core::util::test_dir;
+use field::STATUS;
+#[cfg(unix)]
+use field::{DETAIL, FINDINGS};
+#[cfg(unix)]
+use outcome::UNAVAILABLE;
+use outcome::{ERROR, NOT_INSTALLED, RAN, SKIPPED, TIMEOUT};
+use tool::{DFW_LINT, IMPECCABLE, SLOPLINT};
+#[cfg(unix)]
+use tool::{DS_AUDIT, TASTE_COPY_LINT};
+
+/// The levels of findings, by the label the report gives them.
+const MUST: &str = Level::Error.as_str();
+const SHOULD: &str = Level::Warn.as_str();
+const NICE: &str = Level::Info.as_str();
 
 fn write(root: &Path, rel: &str, text: &str) -> PathBuf {
     let file = root.join(rel);
@@ -92,13 +107,18 @@ fn statuses(results: &[Value]) -> Vec<String> {
     results
         .iter()
         .map(|r| {
-            format!(
-                "{}={}",
-                r["tool"].as_str().unwrap(),
-                r["status"].as_str().unwrap()
+            tool_status(
+                r[field::TOOL].as_str().unwrap(),
+                r[STATUS].as_str().unwrap(),
             )
         })
         .collect()
+}
+
+/// [`statuses`] of results with these tools and statuses.
+#[cfg(unix)]
+fn want(pairs: &[(&str, &str)]) -> Vec<String> {
+    pairs.iter().map(|(t, o)| tool_status(t, o)).collect()
 }
 
 /// 2: lint targets written as ./design/..., or absolute, are linted (no false pass)
@@ -138,17 +158,14 @@ fn lint_targets_in_every_form_are_linted() {
 #[test]
 fn an_unverified_engine_is_not_installed_and_a_verified_one_runs_directly() {
     let root = test_dir("check-impeccable");
-    let targets = strings(&["a.html"]);
+    let targets = strings(&[HTML_FILE]);
     let none = run_impeccable(&root, &targets, no_env(), Some(&not_ready(&[])));
-    assert_eq!(none["status"], "not-installed");
-    assert_eq!(none["findings"], json!([]));
-    assert!(none["detail"]
-        .as_str()
-        .unwrap()
-        .contains("dfw check --setup"));
+    assert_eq!(none[STATUS], NOT_INSTALLED);
+    assert_eq!(none[FINDINGS], json!([]));
+    assert!(none[DETAIL].as_str().unwrap().contains("dfw check --setup"));
     assert_eq!(
-        run_impeccable(&root, &targets, no_env(), None)["status"],
-        "unavailable"
+        run_impeccable(&root, &targets, no_env(), None)[STATUS],
+        UNAVAILABLE
     );
 
     // A stand-in script, not the Impeccable engine: it reports the environment it was started with.
@@ -164,10 +181,10 @@ fn an_unverified_engine_is_not_installed_and_a_verified_one_runs_directly() {
     };
     let engine = ready(&stub, &[("IMPECCABLE_SKILL_DIR", "/skill")]);
     let ran = run_impeccable(&root, &targets, opts, Some(&engine));
-    assert_eq!(ran["status"], "ran");
+    assert_eq!(ran[STATUS], RAN);
     assert_eq!(
-        ran["findings"][0],
-        json!({ "level": "warn", "rule": "impeccable-env", "file": "a.html", "line": 1, "message": "/skill: 1", "source": "impeccable" })
+        ran[FINDINGS][0],
+        json!({ "level": SHOULD, "rule": "impeccable-env", "file": HTML_FILE, "line": 1, "message": "/skill: 1", "source": IMPECCABLE })
     );
 }
 
@@ -175,6 +192,8 @@ fn an_unverified_engine_is_not_installed_and_a_verified_one_runs_directly() {
 /// (tests/unit/impeccable-hardening.test.mjs on fix/impeccable-hardening)
 #[test]
 fn setup_only_downloads_and_the_result_must_verify() {
+    /// The page the launcher is pointed at to download the engine.
+    const PAGE: &str = "/p/setup.html";
     type Call = (Spawn, Vec<(String, String)>);
     let calls: RefCell<Vec<Call>> = RefCell::new(Vec::new());
     let launch = |command: &Spawn, env: &[(String, String)]| {
@@ -228,20 +247,16 @@ fn setup_only_downloads_and_the_result_must_verify() {
         }))
     };
     let env = [("DO_NOT_TRACK".to_string(), "1".to_string())];
-    assert!(
-        setup_engine(&env, "/p/setup.html", &download, &launch)
-            .unwrap()
-            .ok
-    );
+    assert!(setup_engine(&env, PAGE, &download, &launch).unwrap().ok);
     assert_eq!(calls.borrow().len(), 1);
     let (command, given) = calls.borrow()[0].clone();
     if !cfg!(windows) {
         assert_eq!(command.cmd, "/s/impeccable");
-        assert_eq!(command.args, ["detect", "--json", "/p/setup.html"]);
+        assert_eq!(command.args, ["detect", "--json", PAGE]);
     }
     assert_eq!(given, env);
 
-    let failed = setup_engine(&[], "/p/setup.html", &|| Ok(Some(not_ready(&[]))), &launch).unwrap();
+    let failed = setup_engine(&[], PAGE, &|| Ok(Some(not_ready(&[]))), &launch).unwrap();
     assert_eq!(
         failed,
         Setup {
@@ -283,12 +298,12 @@ fn setup_only_downloads_and_the_result_must_verify() {
 #[test]
 fn unverified_tools_are_listed_and_strict_exits_3() {
     let results = vec![
-        json!({ "tool": "dfw-lint", "status": "ran", "findings": [] }),
-        json!({ "tool": "impeccable", "status": "not-installed", "detail": "run \"dfw check --setup\" once", "findings": [] }),
-        json!({ "tool": "sloplint", "status": "skipped", "findings": [] }),
+        json!({ "tool": DFW_LINT, "status": RAN, "findings": [] }),
+        json!({ "tool": IMPECCABLE, "status": NOT_INSTALLED, "detail": "run \"dfw check --setup\" once", "findings": [] }),
+        json!({ "tool": SLOPLINT, "status": SKIPPED, "findings": [] }),
     ];
     let report = format_report(&results, 50);
-    assert_eq!(report.unverified, ["impeccable"]);
+    assert_eq!(report.unverified, [IMPECCABLE]);
     assert_eq!(
         check_exit_code(&report, false),
         0,
@@ -296,7 +311,7 @@ fn unverified_tools_are_listed_and_strict_exits_3() {
     );
     assert_eq!(check_exit_code(&report, true), 3);
     let mut with_must = results.clone();
-    with_must.push(json!({ "tool": "x", "status": "ran", "findings": [{ "level": "error", "file": "a", "line": 1, "rule": "r", "source": "x", "message": "m" }] }));
+    with_must.push(json!({ "tool": "x", "status": RAN, "findings": [{ "level": MUST, "file": "a", "line": 1, "rule": "r", "source": "x", "message": "m" }] }));
     let must = format_report(&with_must, 50);
     assert_eq!(check_exit_code(&must, false), 2);
     assert_eq!(check_exit_code(&must, true), 2, "MUST findings keep exit 2");
@@ -312,10 +327,10 @@ fn unverified_tools_are_listed_and_strict_exits_3() {
 fn the_report_sorts_caps_and_names_what_did_not_run() {
     let finding = |level: &str, file: &str, line: u64| json!({ "level": level, "rule": "r", "file": file, "line": line, "message": format!("{level} {file}:{line}"), "source": "s" });
     let results = vec![
-        json!({ "tool": "a", "status": "ran", "detail": "pinned 1.2", "findings": [finding("info", "b.html", 1), finding("warn", "b.html", 9), finding("error", "z.html", 2), finding("warn", "B.html", 3), finding("warn", "a-b.html", 1)] }),
-        json!({ "tool": "b", "status": "timeout", "findings": [finding("error", "a.html", 12), finding("error", "a.html", 3), finding("warn", "b.html", 10)] }),
-        json!({ "tool": "c", "status": "error", "detail": "boom", "findings": [] }),
-        json!({ "tool": "d", "status": "skipped", "findings": [] }),
+        json!({ "tool": "a", "status": RAN, "detail": "pinned 1.2", "findings": [finding(NICE, HTML_FILE_B, 1), finding(SHOULD, HTML_FILE_B, 9), finding(MUST, "z.html", 2), finding(SHOULD, "B.html", 3), finding(SHOULD, "a-b.html", 1)] }),
+        json!({ "tool": "b", "status": TIMEOUT, "findings": [finding(MUST, HTML_FILE, 12), finding(MUST, HTML_FILE, 3), finding(SHOULD, HTML_FILE_B, 10)] }),
+        json!({ "tool": "c", "status": ERROR, "detail": "boom", "findings": [] }),
+        json!({ "tool": "d", "status": SKIPPED, "findings": [] }),
     ];
     let report = format_report(&results, 50);
     assert_eq!(
@@ -349,21 +364,25 @@ NOT VERIFIED: b (timeout); c (boom). Say so in any report; do not claim these as
 #[test]
 fn file_names_sort_as_locale_compare_sorts_them() {
     use std::cmp::Ordering::{Equal, Greater, Less};
+    /// Names that come in two pairs each: with a space, a dash, a two-digit number.
+    const SPACED: &str = "a b";
+    const DASHED: &str = "a-b";
+    const TEN: &str = "a10";
     for (a, b, want) in [
         ("a", "A", Less),
         ("ab", "Aa", Greater),
-        ("a b", "ab", Less),
-        ("a-b", "ab", Less),
-        ("a/b", "a-b", Greater),
+        (SPACED, "ab", Less),
+        (DASHED, "ab", Less),
+        ("a/b", DASHED, Greater),
         ("a\tb", "ab", Less),
         ("a\u{1}b", "ab", Equal),
         ("Ab", "aB", Greater),
-        ("a1", "a10", Less),
-        ("a2", "a10", Greater),
+        ("a1", TEN, Less),
+        ("a2", TEN, Greater),
         ("a.html", "a/x", Less),
         (&rel::design(HTML_FILE), "DESIGN.md", Greater),
         ("", "a", Less),
-        ("a_b", "a b", Greater),
+        ("a_b", SPACED, Greater),
         ("ab", "a\u{1}c", Less),
         ("é", "f", Greater), // Node: before "f"; letters outside ASCII sort last here.
     ] {
@@ -379,7 +398,9 @@ fn file_names_sort_as_locale_compare_sorts_them() {
 
 #[test]
 fn extname_is_the_node_extname() {
-    assert_eq!(extname(&rel::screen(INDEX_PAGE)), ".html");
+    /// The extension of a page.
+    const HTML: &str = ".html";
+    assert_eq!(extname(&rel::screen(INDEX_PAGE)), HTML);
     assert_eq!(extname(APP_COMPONENT_TEST), ".tsx");
     /// A file whose name starts with its only dot.
     const DOTFILE: &str = ".env";
@@ -388,7 +409,7 @@ fn extname_is_the_node_extname() {
     assert_eq!(extname("notes."), ".");
     assert_eq!(extname(".."), "");
     assert_eq!(extname(""), "");
-    assert_eq!(extname("https://example.com/a.html"), ".html");
+    assert_eq!(extname("https://example.com/a.html"), HTML);
 }
 
 #[test]
@@ -426,7 +447,8 @@ fn targets_are_made_project_relative() {
         project_rel(&root, &rel::design(MISSING_HTML_FILE)),
         rel::design(MISSING_HTML_FILE)
     );
-    assert_eq!(project_rel(&root, "../outside.html"), "../outside.html");
+    let above = format!("../{OUTSIDE_PAGE}");
+    assert_eq!(project_rel(&root, &above), above);
     // The same file reached through a symlinked directory.
     #[cfg(unix)]
     {
@@ -528,13 +550,13 @@ printf '{"files":[{"findings":[{"id":"T1","sev":"FAIL","msg":"vague headline","f
     let results = run_checks_with(&root, None, &config, CheckOptions::default(), &lookup).unwrap();
     assert_eq!(
         statuses(&results),
-        [
-            "dfw-lint=ran",
-            "dfw-ds-audit=ran",
-            "impeccable=ran",
-            "sloplint=ran",
-            "taste-copy-lint=ran"
-        ]
+        want(&[
+            (DFW_LINT, RAN),
+            (DS_AUDIT, RAN),
+            (IMPECCABLE, RAN),
+            (SLOPLINT, RAN),
+            (TASTE_COPY_LINT, RAN)
+        ])
     );
     let args = |tool: &Path| fs::read_to_string(format!("{}.args", tool.display())).unwrap();
     // The screen is handed over as its composed copy, the plain page and the stylesheet as
@@ -560,26 +582,26 @@ printf '{"files":[{"findings":[{"id":"T1","sev":"FAIL","msg":"vague headline","f
     assert!(root.join(&built).exists());
     assert!(root.join(rel::COMPONENTS_CSS).exists());
     assert_eq!(
-        results[2]["findings"],
+        results[2][FINDINGS],
         json!([
-            { "level": "error", "rule": "impeccable-flat", "file": &rel::design(DESIGN_PAGE), "line": 7, "message": "Flat: no depth [<main>]", "source": "impeccable" },
+            { "level": MUST, "rule": "impeccable-flat", "file": &rel::design(DESIGN_PAGE), "line": 7, "message": "Flat: no depth [<main>]", "source": IMPECCABLE },
             // Reported on the composed copy (here by its absolute path): mapped to the screen.
-            { "level": "info", "rule": "impeccable-adv", "file": &rel::screen(INDEX_PAGE), "line": 1, "message": "N: d", "source": "impeccable" },
+            { "level": NICE, "rule": "impeccable-adv", "file": &rel::screen(INDEX_PAGE), "line": 1, "message": "N: d", "source": IMPECCABLE },
         ])
     );
     assert_eq!(
-        results[3]["findings"],
+        results[3][FINDINGS],
         json!([
-            { "level": "warn", "rule": "hallmark-3", "file": &rel::design(DESIGN_PAGE), "line": 4, "message": "generic hero | fix: rewrite", "source": "sloplint" },
-            { "level": "warn", "rule": "hallmark-6", "file": "", "line": 1, "message": "reflex", "source": "sloplint" },
+            { "level": SHOULD, "rule": "hallmark-3", "file": &rel::design(DESIGN_PAGE), "line": 4, "message": "generic hero | fix: rewrite", "source": SLOPLINT },
+            { "level": SHOULD, "rule": "hallmark-6", "file": "", "line": 1, "message": "reflex", "source": SLOPLINT },
         ])
     );
     assert_eq!(
-        results[4]["findings"],
+        results[4][FINDINGS],
         json!([
-            { "level": "warn", "rule": "taste-T1", "file": &rel::design(DESIGN_PAGE), "line": 1, "message": "vague headline | fix: be specific", "source": "taste-copy-lint" },
-            { "level": "info", "rule": "taste-T3", "file": &rel::design(DESIGN_PAGE), "line": 1, "message": "T3", "source": "taste-copy-lint" },
-            { "level": "warn", "rule": "taste-T4", "file": &rel::screen(INDEX_PAGE), "line": 1, "message": "T4", "source": "taste-copy-lint" },
+            { "level": SHOULD, "rule": "taste-T1", "file": &rel::design(DESIGN_PAGE), "line": 1, "message": "vague headline | fix: be specific", "source": TASTE_COPY_LINT },
+            { "level": NICE, "rule": "taste-T3", "file": &rel::design(DESIGN_PAGE), "line": 1, "message": "T3", "source": TASTE_COPY_LINT },
+            { "level": SHOULD, "rule": "taste-T4", "file": &rel::screen(INDEX_PAGE), "line": 1, "message": "T4", "source": TASTE_COPY_LINT },
         ])
     );
 
@@ -591,12 +613,12 @@ printf '{"files":[{"findings":[{"id":"T1","sev":"FAIL","msg":"vague headline","f
     );
     let only = CheckOptions {
         timeout_ms: None,
-        tools: Some(&["sloplint"]),
+        tools: Some(&[SLOPLINT]),
     };
     let page = strings(&[&rel::design(DESIGN_PAGE)]);
     let results = run_checks_with(&root, Some(&page), &config, only, &lookup).unwrap();
-    assert_eq!(statuses(&results), ["sloplint=ran"]);
-    assert_eq!(results[0]["findings"][0]["level"], "error");
+    assert_eq!(statuses(&results), want(&[(SLOPLINT, RAN)]));
+    assert_eq!(results[0][FINDINGS][0]["level"], MUST);
     assert!(args(&sloplint).trim().ends_with("--json --scope page"));
 }
 
@@ -630,19 +652,19 @@ fn tool_selection_and_what_each_tool_skips() {
     // dfw only: nothing external is even looked up, nothing is composed.
     assert_eq!(
         run(None, json!({}), Some(&["dfw"])),
-        ["dfw-lint=ran", "dfw-ds-audit=ran"]
+        want(&[(DFW_LINT, RAN), (DS_AUDIT, RAN)])
     );
     assert_eq!(asked.get(), 0);
     assert!(!root.join(rel::BUILD).exists());
     // Taste is opt-in, the other two opt-out.
     assert_eq!(
         run(None, json!({}), None),
-        [
-            "dfw-lint=ran",
-            "dfw-ds-audit=ran",
-            "impeccable=ran",
-            "sloplint=ran"
-        ]
+        want(&[
+            (DFW_LINT, RAN),
+            (DS_AUDIT, RAN),
+            (IMPECCABLE, RAN),
+            (SLOPLINT, RAN)
+        ])
     );
     assert_eq!(
         run(
@@ -650,15 +672,15 @@ fn tool_selection_and_what_each_tool_skips() {
             json!({ "checks": { "impeccable": false, "sloplint": false, "tasteCopyLint": 1 } }),
             None
         ),
-        ["dfw-lint=ran", "dfw-ds-audit=ran", "taste-copy-lint=ran"]
+        want(&[(DFW_LINT, RAN), (DS_AUDIT, RAN), (TASTE_COPY_LINT, RAN)])
     );
     assert_eq!(
         run(
             None,
             json!({ "checks": { "tasteCopyLint": true } }),
-            Some(&["impeccable", "taste"])
+            Some(&[IMPECCABLE, "taste"])
         ),
-        ["impeccable=ran", "taste-copy-lint=ran"]
+        want(&[(IMPECCABLE, RAN), (TASTE_COPY_LINT, RAN)])
     );
     // A file that is not design UI: lint has nothing to do, the audit is not run, each tool
     // skips what it cannot read.
@@ -668,12 +690,12 @@ fn tool_selection_and_what_each_tool_skips() {
             json!({ "checks": { "tasteCopyLint": true } }),
             None
         ),
-        [
-            "dfw-lint=ran",
-            "impeccable=skipped",
-            "sloplint=skipped",
-            "taste-copy-lint=skipped"
-        ]
+        want(&[
+            (DFW_LINT, RAN),
+            (IMPECCABLE, SKIPPED),
+            (SLOPLINT, SKIPPED),
+            (TASTE_COPY_LINT, SKIPPED)
+        ])
     );
     assert_eq!(
         run(
@@ -681,23 +703,23 @@ fn tool_selection_and_what_each_tool_skips() {
             json!({ "checks": { "tasteCopyLint": true } }),
             None
         ),
-        [
-            "dfw-lint=ran",
-            "impeccable=ran",
-            "sloplint=skipped",
-            "taste-copy-lint=ran"
-        ]
+        want(&[
+            (DFW_LINT, RAN),
+            (IMPECCABLE, RAN),
+            (SLOPLINT, SKIPPED),
+            (TASTE_COPY_LINT, RAN)
+        ])
     );
     // A token file or a master asks for the design-system audit; a master is not handed to
     // the external tools.
     assert_eq!(
         run(Some(&[&rel::component(CHIP_MASTER)]), json!({}), None),
-        [
-            "dfw-lint=ran",
-            "dfw-ds-audit=ran",
-            "impeccable=skipped",
-            "sloplint=skipped"
-        ]
+        want(&[
+            (DFW_LINT, RAN),
+            (DS_AUDIT, RAN),
+            (IMPECCABLE, SKIPPED),
+            (SLOPLINT, SKIPPED)
+        ])
     );
     // No design folder at all.
     let empty = test_dir("check-selection-empty");
@@ -705,12 +727,12 @@ fn tool_selection_and_what_each_tool_skips() {
         run_checks_with(&empty, None, &json!({}), CheckOptions::default(), &lookup).unwrap();
     assert_eq!(
         statuses(&results),
-        [
-            "dfw-lint=ran",
-            "dfw-ds-audit=ran",
-            "impeccable=skipped",
-            "sloplint=skipped"
-        ]
+        want(&[
+            (DFW_LINT, RAN),
+            (DS_AUDIT, RAN),
+            (IMPECCABLE, SKIPPED),
+            (SLOPLINT, SKIPPED)
+        ])
     );
 }
 
@@ -725,7 +747,7 @@ fn tools_that_do_not_run_are_reported() {
     let run = |lookup: &Lookup, timeout_ms: u64| {
         let opts = CheckOptions {
             timeout_ms: Some(timeout_ms),
-            tools: Some(&["impeccable", "sloplint", "taste"]),
+            tools: Some(&[IMPECCABLE, SLOPLINT, "taste"]),
         };
         run_checks_with(&root, Some(&page), &config, opts, lookup).unwrap()
     };
@@ -733,13 +755,13 @@ fn tools_that_do_not_run_are_reported() {
     let results = run(&nothing(), 5000);
     assert_eq!(
         statuses(&results),
-        [
-            "impeccable=unavailable",
-            "sloplint=unavailable",
-            "taste-copy-lint=unavailable"
-        ]
+        want(&[
+            (IMPECCABLE, UNAVAILABLE),
+            (SLOPLINT, UNAVAILABLE),
+            (TASTE_COPY_LINT, UNAVAILABLE)
+        ])
     );
-    assert!(results.iter().all(|r| r.get("detail").is_none()));
+    assert!(results.iter().all(|r| r.get(DETAIL).is_none()));
     // Installed, but no Node.js for the scripts and no verified engine.
     let some = tools.join("x.mjs");
     let unverified = not_ready(&[]);
@@ -752,18 +774,15 @@ fn tools_that_do_not_run_are_reported() {
     let results = run(&no_node, 5000);
     assert_eq!(
         statuses(&results),
-        [
-            "impeccable=not-installed",
-            "sloplint=unavailable",
-            "taste-copy-lint=unavailable"
-        ]
+        want(&[
+            (IMPECCABLE, NOT_INSTALLED),
+            (SLOPLINT, UNAVAILABLE),
+            (TASTE_COPY_LINT, UNAVAILABLE)
+        ])
     );
-    assert_eq!(results[1]["detail"], "needs Node.js on PATH");
+    assert_eq!(results[1][DETAIL], "needs Node.js on PATH");
     let report = format_report(&results, 50);
-    assert_eq!(
-        report.unverified,
-        ["impeccable", "sloplint", "taste-copy-lint"]
-    );
+    assert_eq!(report.unverified, [IMPECCABLE, SLOPLINT, TASTE_COPY_LINT]);
     assert!(report.text.ends_with("NOT VERIFIED: impeccable (Engine not downloaded yet; run \"dfw check --setup\" once.); sloplint (needs Node.js on PATH); taste-copy-lint (needs Node.js on PATH). Say so in any report; do not claim these aspects pass."));
     // Too slow: killed at the budget.
     let slow = script(&tools, "slow", "exec sleep 20");
@@ -780,11 +799,11 @@ fn tools_that_do_not_run_are_reported() {
     // Copy-lint has no timeout status in the Node code: no output is an error.
     assert_eq!(
         statuses(&results),
-        [
-            "impeccable=timeout",
-            "sloplint=timeout",
-            "taste-copy-lint=error"
-        ]
+        want(&[
+            (IMPECCABLE, TIMEOUT),
+            (SLOPLINT, TIMEOUT),
+            (TASTE_COPY_LINT, ERROR)
+        ])
     );
     // Not JSON, or JSON of the wrong shape; stderr is preferred for the detail, cut at 400.
     let noisy = script(
@@ -804,23 +823,23 @@ fn tools_that_do_not_run_are_reported() {
     let results = run(&lookup, 5000);
     assert_eq!(
         statuses(&results),
-        [
-            "impeccable=error",
-            "sloplint=error",
-            "taste-copy-lint=error"
-        ]
+        want(&[
+            (IMPECCABLE, ERROR),
+            (SLOPLINT, ERROR),
+            (TASTE_COPY_LINT, ERROR)
+        ])
     );
-    assert_eq!(results[0]["detail"], "{\"an\":\"object\"}");
-    assert_eq!(results[1]["detail"], "e".repeat(400));
-    assert_eq!(results[2]["detail"], "plain words\n");
+    assert_eq!(results[0][DETAIL], "{\"an\":\"object\"}");
+    assert_eq!(results[1][DETAIL], "e".repeat(400));
+    assert_eq!(results[2][DETAIL], "plain words\n");
     // The executable is gone.
     let gone = ready(&tools.join("missing"), &[]);
     let lookup = Lookup {
         engine: &|| Ok(Some(gone.clone())),
         ..nothing()
     };
-    assert_eq!(run(&lookup, 5000)[0]["status"], "error");
-    assert_eq!(run(&lookup, 5000)[0]["detail"], "");
+    assert_eq!(run(&lookup, 5000)[0][STATUS], ERROR);
+    assert_eq!(run(&lookup, 5000)[0][DETAIL], "");
 }
 
 /// A design.json that holds `null` names the file and the fix, as a user error (review E2:

@@ -51,11 +51,11 @@ fn color_out(v: Option<&Value>, note: Note) -> Result<Value, String> {
     let opaque = alpha.is_none_or(|a| a.as_f64() == Some(1.0));
     let space = v.get("colorSpace").and_then(Value::as_str);
     let components = v.get("components");
-    let hex = js::truthy_value(v.get("hex"));
+    let hex = js::truthy_value(v.get(key::HEX));
     let numbers = |list: &Vec<Value>| list.iter().all(Value::is_number);
     let rgb: Vec<f64> = if let Some(list) = components
         .and_then(Value::as_array)
-        .filter(|list| space == Some("srgb") && numbers(list))
+        .filter(|list| space == Some(color_space::SRGB) && numbers(list))
     {
         match hex {
             Some(Value::String(h)) if opaque => return Ok(Value::String(h.to_lowercase())),
@@ -65,7 +65,7 @@ fn color_out(v: Option<&Value>, note: Note) -> Result<Value, String> {
         list.iter()
             .map(|x| js::round(js::min(1.0, js::max(0.0, js::to_number(Some(x)))) * 255.0))
             .collect()
-    } else if space == Some("oklch") && js::present(components).is_some() {
+    } else if space == Some(color_space::OKLCH) && js::present(components).is_some() {
         let Some(list) = components.and_then(Value::as_array) else {
             return Err("oklch \"components\" must be a list of three numbers".to_string());
         };
@@ -143,7 +143,7 @@ fn dim_out(v: Option<&Value>, note: Note, bare: bool) -> Result<String, String> 
         Some(Value::String(_) | Value::Number(_)) => Ok(uncalc(&js::to_string(v))),
         Some(Value::Object(map)) if map.get("value").is_some_and(Value::is_number) => {
             let value = fmt(js::to_number(map.get("value")));
-            if map.get("unit").and_then(Value::as_str) == Some("px") {
+            if map.get("unit").and_then(Value::as_str) == Some(unit::PX) {
                 return Ok(if bare { value } else { format!("{value}px") });
             }
             let unit = js::to_string(map.get("unit"));
@@ -208,26 +208,34 @@ const TEXT_DECORATIONS: [&str; 3] = ["underline", "strike-through", "line-throug
 pub fn penpot_dimension_type(name: &str, value: &Value) -> &'static str {
     let n = name.to_lowercase();
     let px = match value {
-        Value::Object(map) => map.get("unit").and_then(Value::as_str) == Some("px"),
+        Value::Object(map) => map.get("unit").and_then(Value::as_str) == Some(unit::PX),
         Value::Array(_) => false,
         _ => true,
     };
     if FONT_SIZE.is_match(&n) {
-        return if px { "fontSizes" } else { "dimension" };
+        return if px {
+            penpot_type::FONT_SIZES
+        } else {
+            penpot_type::DIMENSION
+        };
     }
     if TRACKING.is_match(&n) {
-        return if px { "letterSpacing" } else { "dimension" };
+        return if px {
+            penpot_type::LETTER_SPACING
+        } else {
+            penpot_type::DIMENSION
+        };
     }
     if RADIUS.is_match(&n) {
-        "borderRadius"
+        penpot_type::BORDER_RADIUS
     } else if BORDER_WIDTH.is_match(&n) {
-        "borderWidth"
+        penpot_type::BORDER_WIDTH
     } else if SPACING.is_match(&n) {
-        "spacing"
+        penpot_type::SPACING
     } else if SIZING.is_match(&n) {
-        "sizing"
+        penpot_type::SIZING
     } else {
-        "dimension"
+        penpot_type::DIMENSION
     }
 }
 
@@ -324,14 +332,14 @@ fn to_penpot(name: &str, token: &Token, note: Note) -> Result<Converted, String>
     let description = token.description.as_ref();
     let done = |ty: &str, value: Value| Ok(res(ty, value, description));
     match token.type_name() {
-        Some("color") => {
+        Some(dtcg::COLOR) => {
             if is_alias(Some(value)) {
-                done("color", value.clone())
+                done(penpot_type::COLOR, value.clone())
             } else {
-                done("color", color_out(Some(value), note)?)
+                done(penpot_type::COLOR, color_out(Some(value), note)?)
             }
         }
-        Some("dimension") => {
+        Some(dtcg::DIMENSION) => {
             let ty = penpot_dimension_type(name, value);
             let text = match value {
                 Value::String(s) => uncalc(s),
@@ -339,10 +347,15 @@ fn to_penpot(name: &str, token: &Token, note: Note) -> Result<Converted, String>
             };
             done(ty, text.into())
         }
-        Some("fontFamily") => done("fontFamilies", families_out(value).into()),
-        Some("fontWeight") => done("fontWeights", js::to_string(Some(value)).into()),
-        Some("number") => done("number", uncalc(&js::to_string(Some(value))).into()),
-        Some("duration") => {
+        Some(dtcg::FONT_FAMILY) => done(penpot_type::FONT_FAMILIES, families_out(value).into()),
+        Some(dtcg::FONT_WEIGHT) => {
+            done(penpot_type::FONT_WEIGHTS, js::to_string(Some(value)).into())
+        }
+        Some(dtcg::NUMBER) => done(
+            penpot_type::NUMBER,
+            uncalc(&js::to_string(Some(value))).into(),
+        ),
+        Some(dtcg::DURATION) => {
             note(
                 "duration exported as a Penpot \"number\" token in ms (Penpot has no duration type)"
                     .to_string(),
@@ -354,25 +367,33 @@ fn to_penpot(name: &str, token: &Token, note: Note) -> Result<Converted, String>
                 ),
                 Value::Object(_) | Value::Array(_) => {
                     let n = js::to_number(value.get("value"));
-                    let seconds = value.get("unit").and_then(Value::as_str) == Some("s");
-                    done("number", fmt(if seconds { n * 1000.0 } else { n }).into())
+                    let seconds = value.get("unit").and_then(Value::as_str) == Some(unit::S);
+                    done(
+                        penpot_type::NUMBER,
+                        fmt(if seconds { n * 1000.0 } else { n }).into(),
+                    )
                 }
-                other => done("number", uncalc(&js::to_string(Some(other))).into()),
+                other => done(
+                    penpot_type::NUMBER,
+                    uncalc(&js::to_string(Some(other))).into(),
+                ),
             }
         }
-        Some("string") => match value.as_str() {
-            Some(v) if TEXT_CASES.contains(&v) => done("textCase", v.into()),
-            Some("line-through") => done("textDecoration", "strike-through".into()),
-            Some(v) if TEXT_DECORATIONS.contains(&v) => done("textDecoration", v.into()),
+        Some(dtcg::STRING) => match value.as_str() {
+            Some(v) if TEXT_CASES.contains(&v) => done(penpot_type::TEXT_CASE, v.into()),
+            Some("line-through") => done(penpot_type::TEXT_DECORATION, "strike-through".into()),
+            Some(v) if TEXT_DECORATIONS.contains(&v) => {
+                done(penpot_type::TEXT_DECORATION, v.into())
+            }
             _ => Ok(Converted::Unsupported(
                 "Penpot has no free-text token type (only textCase/textDecoration values map)"
                     .to_string(),
             )),
         },
-        Some("shadow") => done("shadow", shadow_out(value, note)?),
-        Some("typography") => {
+        Some(dtcg::SHADOW) => done(penpot_type::SHADOW, shadow_out(value, note)?),
+        Some(dtcg::TYPOGRAPHY) => {
             if is_alias(Some(value)) {
-                return done("typography", value.clone());
+                return done(penpot_type::TYPOGRAPHY, value.clone());
             }
             if value.is_null() {
                 return Err(
@@ -396,7 +417,7 @@ fn to_penpot(name: &str, token: &Token, note: Note) -> Result<Converted, String>
                 };
                 v.insert(penpot_key.to_string(), out);
             }
-            done("typography", Value::Object(v))
+            done(penpot_type::TYPOGRAPHY, Value::Object(v))
         }
         _ => Ok(Converted::Unsupported(format!(
             "Penpot has no \"{}\" token type",
@@ -451,10 +472,10 @@ pub fn nest(entries: &[NestEntry]) -> Value {
             map.insert(
                 (*leaf).to_string(),
                 js::object(vec![
-                    ("$value", entry.value.clone()),
-                    ("$type", entry.ty.clone()),
+                    (key::VALUE, entry.value.clone()),
+                    (key::TYPE, entry.ty.clone()),
                     (
-                        "$description",
+                        key::DESCRIPTION,
                         js::truthy_value(entry.description.as_ref()).cloned(),
                     ),
                 ]),
@@ -544,7 +565,7 @@ pub fn dfw_to_penpot(base: Option<&Value>, themes: &Map<String, Value>) -> (Valu
         "group": THEME_GROUP,
         "description": format!("dfw base tokens ({})", rel::TOKENS_JSON),
         "isSource": false,
-        "selectedTokenSets": { BASE_SET: "enabled" },
+        "selectedTokenSets": { BASE_SET: ENABLED },
     })];
     for name in &theme_names {
         penpot_themes.push(json!({
@@ -552,12 +573,12 @@ pub fn dfw_to_penpot(base: Option<&Value>, themes: &Map<String, Value>) -> (Valu
             "group": THEME_GROUP,
             "description": format!("dfw theme {}/{name}.json over the base", rel::THEMES),
             "isSource": false,
-            "selectedTokenSets": { BASE_SET: "enabled", format!("{THEME_PREFIX}{name}"): "enabled" },
+            "selectedTokenSets": { BASE_SET: ENABLED, format!("{THEME_PREFIX}{name}"): ENABLED },
         }));
     }
-    doc.insert("$themes".into(), Value::Array(penpot_themes));
+    doc.insert(key::THEMES.into(), Value::Array(penpot_themes));
     doc.insert(
-        "$metadata".into(),
+        key::METADATA.into(),
         json!({
             "tokenSetOrder": report.sets,
             "activeThemes": [format!("{THEME_GROUP}/default")],

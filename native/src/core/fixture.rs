@@ -219,6 +219,22 @@ pub const DESIGN_FILES: [&str; 36] = [
     REVIEW_SESSION,
 ];
 
+// design area: the starter kit's token presets and style guides, by id (design/system and
+// design/style tests).
+
+// The default preset is `design::system::DEFAULT_PRESET`.
+
+/// A second token preset.
+pub const SOFT_PRESET: &str = "soft";
+/// A third token preset.
+pub const INDUSTRIAL_PRESET: &str = "industrial";
+/// A style guide of the kit.
+pub const SWISS_GRID_STYLE: &str = "swiss-grid";
+/// A second style guide of the kit.
+pub const INDUSTRIAL_STYLE: &str = "industrial-utility";
+/// A style guide that brings a motif and ranks first for a playful product.
+pub const PLAYFUL_STYLE: &str = "playful-bold";
+
 #[cfg(test)]
 mod tests {
     use super::*;

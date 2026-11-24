@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
 
+use super::word::{command, sub};
 use super::{Ctx, Handler};
 use crate::core::config::{load_config, studio_port};
 use crate::core::error::DfwError;
@@ -25,10 +26,10 @@ use crate::studio::server;
 /// The commands of this group.
 pub fn commands() -> Vec<(&'static str, Handler)> {
     vec![
-        ("studio", studio as Handler),
-        ("review", review as Handler),
-        ("__studio-server", studio_server as Handler),
-        ("__review-server", review_server as Handler),
+        (command::STUDIO, studio as Handler),
+        (command::REVIEW, review as Handler),
+        (command::STUDIO_SERVER, studio_server as Handler),
+        (command::REVIEW_SERVER, review_server as Handler),
     ]
 }
 
@@ -102,12 +103,12 @@ fn studio(ctx: &Ctx) -> Result<i32, DfwError> {
     let a = &ctx.args;
     let root = ctx.root();
     let p = project_paths(&root);
-    let sub = a.pos(1).filter(|s| !s.is_empty()).unwrap_or("status");
+    let sub = a.pos(1).filter(|s| !s.is_empty()).unwrap_or(sub::STATUS);
     let info = read_json(&p.studio, Some(Value::Null))?;
     let alive = js::truthy(&info) && is_alive(info.get("pid"));
     let text = |k: &str| crate::core::js::to_string(info.get(k));
     match sub {
-        "status" => {
+        sub::STATUS => {
             out(&if alive {
                 format!("studio running: {} (pid {})", text("url"), text("pid"))
             } else {
@@ -125,7 +126,7 @@ fn studio(ctx: &Ctx) -> Result<i32, DfwError> {
             out("studio stopped");
             return Ok(0);
         }
-        "start" => {}
+        sub::START => {}
         _ => return Err(DfwError::new("Usage: dfw studio start|stop|status")),
     }
     if alive {
@@ -178,12 +179,12 @@ fn review(ctx: &Ctx) -> Result<i32, DfwError> {
     let root = ctx.root();
     let p = project_paths(&root);
     let file = p.dfw.join(file::REVIEW);
-    let sub = a.pos(1).filter(|s| !s.is_empty()).unwrap_or("status");
+    let sub = a.pos(1).filter(|s| !s.is_empty()).unwrap_or(sub::STATUS);
     let info = read_json(&file, Some(Value::Null))?;
     let running = js::truthy(&info) && is_alive(info.get("pid"));
     let text = |k: &str| crate::core::js::to_string(info.get(k));
     match sub {
-        "status" => {
+        sub::STATUS => {
             out(&if running {
                 format!(
                     "review running: {} -> {} (pid {})",
@@ -206,7 +207,7 @@ fn review(ctx: &Ctx) -> Result<i32, DfwError> {
             out("review stopped");
             return Ok(0);
         }
-        "start" => {}
+        sub::START => {}
         _ => return Err(DfwError::new("Usage: dfw review start --url <dev server url> [--port <n>] [--shortcut <combo>] [--no-shots] | stop | status")),
     }
     let Some(raw_url) = a.text("url").filter(|u| !u.is_empty()) else {

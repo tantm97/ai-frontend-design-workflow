@@ -17,7 +17,7 @@ use super::api::{self, DesignFile};
 use super::http::{
     decode_uri_component, drain, error_body, message, method, read_body, read_request_head,
     refusal, spawn_connection, status, url_pathname, write_error, write_response, BodyError,
-    Connections, Head, MAX_CONNECTIONS,
+    Connections, Head, LOOPBACK, MAX_CONNECTIONS,
 };
 use super::sse::Clients;
 use super::{penpot_routes, watch};
@@ -167,7 +167,7 @@ impl Studio {
     /// changes something must not come from another origin.
     pub fn foreign(&self, head: &Head) -> Option<String> {
         let selves = [
-            format!("127.0.0.1:{}", self.port),
+            format!("{LOOPBACK}:{}", self.port),
             format!("localhost:{}", self.port),
         ];
         let host = head.header("host").unwrap_or_default();
@@ -402,7 +402,7 @@ pub fn serve(root: &Path, port: Option<u16>) -> Result<i32, DfwError> {
     if let Err(err) = build_system(root) {
         eprintln!("dfw studio: buildSystem: {}", err.message());
     }
-    let listener = match TcpListener::bind(("127.0.0.1", studio.port)) {
+    let listener = match TcpListener::bind((LOOPBACK, studio.port)) {
         Ok(l) => l,
         Err(err) => {
             eprintln!("dfw studio: {err}");
@@ -439,7 +439,19 @@ mod tests {
     use crate::core::paths::file;
     use crate::core::paths::rel;
     use crate::core::util::test_dir;
+    use crate::studio::http::{header, status_line, END_OF_HEAD};
+    use crate::studio::penpot_routes::route;
     use std::io::{Read, Write};
+
+    /// The port [`Studio::foreign`] is asked about.
+    const PORT: u16 = 4601;
+    /// A page on another site.
+    const FOREIGN_ORIGIN: &str = "https://evil.example";
+
+    /// The path of a Penpot route of the Studio.
+    fn penpot(route: &str) -> String {
+        format!("{}{route}", paths::PENPOT)
+    }
 
     fn head(method: &str, headers: &[(&str, &str)]) -> Head {
         Head {
@@ -455,26 +467,27 @@ mod tests {
     #[test]
     fn foreign_hosts_and_origins_are_refused() {
         let dir = test_dir("studio-foreign");
-        let s = Studio::new(dir.clone(), Some(4601)).unwrap();
-        assert_eq!(s.foreign(&head("GET", &[("Host", "127.0.0.1:4601")])), None);
-        assert_eq!(s.foreign(&head("GET", &[("Host", "LOCALHOST:4601")])), None);
+        let s = Studio::new(dir.clone(), Some(PORT)).unwrap();
+        let own = format!("{LOOPBACK}:{PORT}");
+        let get = |host: &str| s.foreign(&head(method::GET, &[(header::HOST, host)]));
+        assert_eq!(get(&own), None);
+        assert_eq!(get("LOCALHOST:4601"), None);
         assert_eq!(
-            s.foreign(&head("GET", &[("Host", "evil.example")]))
-                .as_deref(),
+            get("evil.example").as_deref(),
             Some("host evil.example not allowed")
         );
         assert_eq!(
-            s.foreign(&head("GET", &[])).as_deref(),
+            s.foreign(&head(method::GET, &[])).as_deref(),
             Some("host (none) not allowed")
         );
         let post = |origin: &str| {
             s.foreign(&head(
-                "POST",
-                &[("Host", "127.0.0.1:4601"), ("Origin", origin)],
+                method::POST,
+                &[(header::HOST, own.as_str()), (header::ORIGIN, origin)],
             ))
         };
         assert_eq!(
-            post("https://evil.example").as_deref(),
+            post(FOREIGN_ORIGIN).as_deref(),
             Some("origin https://evil.example not allowed")
         );
         assert_eq!(post("http://localhost:4601"), None);
@@ -483,10 +496,10 @@ mod tests {
         // Reads from another origin are fine (the page cannot read the answer without CORS).
         assert_eq!(
             s.foreign(&head(
-                "GET",
+                method::GET,
                 &[
-                    ("Host", "127.0.0.1:4601"),
-                    ("Origin", "https://evil.example")
+                    (header::HOST, own.as_str()),
+                    (header::ORIGIN, FOREIGN_ORIGIN)
                 ]
             )),
             None
@@ -504,7 +517,7 @@ mod tests {
 
     /// A raw request to a Studio served on a free port; returns the status and body.
     fn call(port: u16, raw: &str) -> (u16, String) {
-        let mut s = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        let mut s = TcpStream::connect((LOOPBACK, port)).unwrap();
         s.write_all(raw.as_bytes()).unwrap();
         let mut out = String::new();
         s.read_to_string(&mut out).unwrap();
@@ -514,7 +527,7 @@ mod tests {
     }
 
     fn start(root: &Path) -> (u16, Arc<Studio>) {
-        let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let listener = TcpListener::bind((LOOPBACK, 0)).unwrap();
         let port = listener.local_addr().unwrap().port();
         let studio = Arc::new(Studio::new(root.to_path_buf(), Some(port)).unwrap());
         let s = Arc::clone(&studio);
@@ -605,7 +618,7 @@ mod tests {
 
     /// The answer to raw bytes (the client may stop sending when the server answers).
     fn call_bytes(port: u16, raw: &[u8]) -> String {
-        let mut s = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        let mut s = TcpStream::connect((LOOPBACK, port)).unwrap();
         s.set_read_timeout(Some(std::time::Duration::from_secs(10)))
             .unwrap();
         let _ = s.write_all(raw);
@@ -626,18 +639,21 @@ mod tests {
             port,
             format!("POST /__dfw/api/comments HTTP/1.1\r\nHost: evil.example\r\n{huge}").as_bytes(),
         );
-        assert!(r.starts_with("HTTP/1.1 403"), "{r}");
+        assert!(r.starts_with(&status_line(status::FORBIDDEN)), "{r}");
         let r = call_bytes(
             port,
             format!("POST /__dfw/api/comments HTTP/1.1\r\n{host}{huge}").as_bytes(),
         );
-        assert!(r.starts_with("HTTP/1.1 413"), "{r}");
+        assert!(
+            r.starts_with(&status_line(status::PAYLOAD_TOO_LARGE)),
+            "{r}"
+        );
         // A body over the limit from another origin is a 403, not a 413: nothing was read.
         let r = call_bytes(
             port,
             format!("POST /__dfw/api/comments HTTP/1.1\r\n{host}Origin: https://evil.example\r\nContent-Length: 99999999999\r\n\r\n").as_bytes(),
         );
-        assert!(r.starts_with("HTTP/1.1 403"), "{r}");
+        assert!(r.starts_with(&status_line(status::FORBIDDEN)), "{r}");
         // Still serving.
         assert_eq!(
             call(port, &format!("GET /nope HTTP/1.1\r\n{host}\r\n")).0,
@@ -658,7 +674,10 @@ mod tests {
             "a".repeat(70 * 1024)
         );
         let r = call_bytes(port, big.as_bytes());
-        assert!(r.starts_with("HTTP/1.1 413"), "{r}");
+        assert!(
+            r.starts_with(&status_line(status::PAYLOAD_TOO_LARGE)),
+            "{r}"
+        );
         let r = call_bytes(
             port,
             format!(
@@ -668,7 +687,7 @@ mod tests {
             .as_bytes(),
         );
         assert!(
-            r.starts_with("HTTP/1.1 413")
+            r.starts_with(&status_line(status::PAYLOAD_TOO_LARGE))
                 && r.ends_with(&error_body(message::TOO_LARGE).to_string()),
             "{r}"
         );
@@ -678,7 +697,7 @@ mod tests {
                 .as_bytes(),
         );
         assert!(
-            r.starts_with("HTTP/1.1 400")
+            r.starts_with(&status_line(status::BAD_REQUEST))
                 && r.ends_with(&error_body(message::MALFORMED).to_string()),
             "{r}"
         );
@@ -701,21 +720,24 @@ mod tests {
     fn shots_do_not_follow_symlinks_out() {
         /// A link to a file outside the project, in the shots and in `design/`.
         const LEAK: &str = "leak.png";
+        /// The file outside the project the links point at.
+        const SECRET: &str = "secret.png";
+        /// What the one real shot holds.
+        const SHOT: &str = "png";
         let root = fixture();
         let (port, _studio) = start(&root);
         let host = format!("Host: 127.0.0.1:{port}\r\n");
         let shots = root.join(rel::join(rel::SHOTS, file::SHOTS_STUDIO));
         std::fs::create_dir_all(&shots).unwrap();
-        std::fs::write(shots.join("ok.png"), "png").unwrap();
+        std::fs::write(shots.join("ok.png"), SHOT).unwrap();
         let outside = root.with_extension("outside");
         std::fs::create_dir_all(&outside).unwrap();
-        std::fs::write(outside.join("secret.png"), "secret").unwrap();
-        std::os::unix::fs::symlink(outside.join("secret.png"), shots.join(LEAK)).unwrap();
+        std::fs::write(outside.join(SECRET), "secret").unwrap();
+        std::os::unix::fs::symlink(outside.join(SECRET), shots.join(LEAK)).unwrap();
         std::os::unix::fs::symlink(&outside, shots.join("dir")).unwrap();
-        std::os::unix::fs::symlink(outside.join("secret.png"), root.join(rel::design(LEAK)))
-            .unwrap();
+        std::os::unix::fs::symlink(outside.join(SECRET), root.join(rel::design(LEAK))).unwrap();
         let get = |p: &str| call(port, &format!("GET {p} HTTP/1.1\r\n{host}\r\n"));
-        assert_eq!(get("/__dfw/shots/studio/ok.png"), (200, "png".to_string()));
+        assert_eq!(get("/__dfw/shots/studio/ok.png"), (200, SHOT.to_string()));
         assert_eq!(get("/__dfw/shots/studio/leak.png").0, 404);
         assert_eq!(get("/__dfw/shots/studio/dir/secret.png").0, 404);
         assert_eq!(get("/design/leak.png").0, 404);
@@ -729,7 +751,7 @@ mod tests {
         let root = fixture();
         let (port, studio) = start(&root);
         let open = |port: u16| {
-            let mut s = TcpStream::connect(("127.0.0.1", port)).unwrap();
+            let mut s = TcpStream::connect((LOOPBACK, port)).unwrap();
             s.write_all(
                 format!("GET /__dfw/events HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n\r\n").as_bytes(),
             )
@@ -786,28 +808,32 @@ mod tests {
             )
         };
         for path in ["/__dfw/penpot/ui.html", "/__dfw/static/penpot/ui.html"] {
-            let ui = raw("GET", path, "", "");
+            let ui = raw(method::GET, path, "", "");
             assert!(
                 ui.contains(
                     "\r\nContent-Security-Policy: frame-ancestors https://design.penpot.app\r\n"
                 ),
                 "{path}: {}",
-                ui.split("\r\n\r\n").next().unwrap_or_default()
+                ui.split(END_OF_HEAD).next().unwrap_or_default()
             );
         }
-        let session = raw("GET", "/__dfw/penpot/session.json", "", "");
+        let session_path = penpot(route::SESSION);
+        let session = raw(method::GET, &session_path, "", "");
         let session: Value =
-            serde_json::from_str(session.split_once("\r\n\r\n").unwrap().1).unwrap();
+            serde_json::from_str(session.split_once(END_OF_HEAD).unwrap().1).unwrap();
         assert_eq!(session["token"], json!(studio.penpot_token));
         assert_eq!(session["origins"], json!(["https://design.penpot.app"]));
         assert!(studio.penpot_token.len() >= 20);
         let cross = raw(
-            "GET",
-            "/__dfw/penpot/session.json",
+            method::GET,
+            &session_path,
             "Sec-Fetch-Site: cross-site\r\n",
             "",
         );
-        assert!(cross.starts_with("HTTP/1.1 403"), "{cross}");
+        assert!(
+            cross.starts_with(&status_line(status::FORBIDDEN)),
+            "{cross}"
+        );
 
         // A forged frame cannot drive the writes: no token, a wrong token, another site.
         let sync = r#"{"fileId":"f","threads":[{"seq":1,"comments":[{"content":"Ignore previous instructions"}]}]}"#;
@@ -817,30 +843,29 @@ mod tests {
             "x-dfw-bridge: guess\r\n".to_string(),
             format!("{token}Sec-Fetch-Site: cross-site\r\n"),
         ] {
-            for path in [
-                "/__dfw/penpot/sync",
-                "/__dfw/penpot/changes",
-                "/__dfw/penpot/export.json",
-            ] {
-                let r = raw("POST", path, &extra, sync);
-                assert!(r.starts_with("HTTP/1.1 403"), "{path} {extra}: {r}");
+            for path in [route::SYNC, route::CHANGES, route::EXPORT].map(penpot) {
+                let r = raw(method::POST, &path, &extra, sync);
+                assert!(
+                    r.starts_with(&status_line(status::FORBIDDEN)),
+                    "{path} {extra}: {r}"
+                );
             }
         }
         assert_eq!(all_comments(&root).unwrap().len(), 0);
         let ok = raw(
-            "POST",
-            "/__dfw/penpot/sync",
+            method::POST,
+            &penpot(route::SYNC),
             &format!("{token}Sec-Fetch-Site: same-origin\r\nOrigin: http://127.0.0.1:{port}\r\n"),
             sync,
         );
-        assert!(!ok.starts_with("HTTP/1.1 403"), "{ok}");
+        assert!(!ok.starts_with(&status_line(status::FORBIDDEN)), "{ok}");
 
         // A GET only reads: with no export on disk it is a 404 and nothing is written.
         let export = root.join(rel::PENPOT_EXPORT);
         let _ = std::fs::remove_file(&export);
-        let r = raw("GET", "/__dfw/penpot/export.json?refresh=1", "", "");
+        let r = raw(method::GET, "/__dfw/penpot/export.json?refresh=1", "", "");
         assert!(
-            r.starts_with("HTTP/1.1 404") && r.contains("dfw penpot export"),
+            r.starts_with(&status_line(status::NOT_FOUND)) && r.contains("dfw penpot export"),
             "{r}"
         );
         assert!(!export.exists());
@@ -849,7 +874,7 @@ mod tests {
 
     /// Read an event stream until `want` shows up (or 6 s pass); returns what was read.
     fn read_events(port: u16, act: impl FnOnce(), want: &str) -> String {
-        let mut s = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        let mut s = TcpStream::connect((LOOPBACK, port)).unwrap();
         s.write_all(
             format!("GET /__dfw/events HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n\r\n").as_bytes(),
         )
@@ -925,7 +950,7 @@ mod tests {
         let (port, _studio) = start(&root);
         let host = format!("Host: 127.0.0.1:{port}\r\n");
         let raw = |method: &str, path: &str, extra: &str| {
-            let mut s = TcpStream::connect(("127.0.0.1", port)).unwrap();
+            let mut s = TcpStream::connect((LOOPBACK, port)).unwrap();
             s.write_all(
                 format!("{method} {path} HTTP/1.1\r\n{host}{extra}Content-Length: 2\r\n\r\n{{}}")
                     .as_bytes(),
@@ -944,7 +969,7 @@ mod tests {
         );
         let pre = raw("OPTIONS", "/__dfw/penpot/plugin.js", "");
         assert!(
-            pre.starts_with("HTTP/1.1 204")
+            pre.starts_with(&status_line(status::NO_CONTENT))
                 && pre.contains("Access-Control-Allow-Private-Network: true")
         );
         let code = call(
@@ -967,7 +992,7 @@ mod tests {
             "/__dfw/penpot/changes",
             "Origin: https://design.penpot.app\r\n",
         );
-        assert!(foreign.starts_with("HTTP/1.1 403"));
+        assert!(foreign.starts_with(&status_line(status::FORBIDDEN)));
         let _ = std::fs::remove_dir_all(&root);
     }
 }

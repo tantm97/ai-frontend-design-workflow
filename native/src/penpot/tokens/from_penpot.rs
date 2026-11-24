@@ -36,9 +36,9 @@ fn srgb(r: f64, g: f64, b: f64, a: f64) -> Value {
             .collect::<String>()
     );
     if a == 1.0 {
-        json!({ "colorSpace": "srgb", "components": components, "hex": hex })
+        json!({ "colorSpace": color_space::SRGB, "components": components, "hex": hex })
     } else {
-        json!({ "colorSpace": "srgb", "components": components, "alpha": js::num(round4(a)), "hex": hex })
+        json!({ "colorSpace": color_space::SRGB, "components": components, "alpha": js::num(round4(a)), "hex": hex })
     }
 }
 
@@ -90,13 +90,13 @@ pub fn parse_color(text: &str) -> Option<Value> {
 /// px); `None` when it is an expression.
 pub fn parse_dimension(value: Option<&Value>) -> Option<Value> {
     if let Some(n @ Value::Number(_)) = value {
-        return Some(json!({ "value": n, "unit": "px" }));
+        return Some(json!({ "value": n, "unit": unit::PX }));
     }
     let text = js::to_string(value);
     let m = DIMENSION.captures(&text)?;
     let unit = m
         .get(2)
-        .map_or("px".to_string(), |u| u.as_str().to_lowercase());
+        .map_or(unit::PX.to_string(), |u| u.as_str().to_lowercase());
     Some(json!({ "value": js::num(js::str_to_number(&m[1])), "unit": unit }))
 }
 
@@ -168,28 +168,28 @@ fn split_families(value: &Value) -> Value {
 }
 
 const PENPOT_DIMENSION_TYPES: [&str; 9] = [
-    "dimension",
-    "spacing",
-    "sizing",
-    "borderRadius",
-    "borderWidth",
+    penpot_type::DIMENSION,
+    penpot_type::SPACING,
+    penpot_type::SIZING,
+    penpot_type::BORDER_RADIUS,
+    penpot_type::BORDER_WIDTH,
     "strokeWidth",
-    "fontSizes",
+    penpot_type::FONT_SIZES,
     "fontSize",
-    "letterSpacing",
+    penpot_type::LETTER_SPACING,
 ];
 
 /// The dfw type of a plain alias, from the Penpot type.
 fn alias_type(ty: Option<&str>) -> Option<&'static str> {
     Some(match ty? {
-        "color" => "color",
-        "fontFamilies" | "fontFamily" => "fontFamily",
-        "fontWeights" | "fontWeight" => "fontWeight",
-        "number" | "opacity" | "rotation" => "number",
-        "shadow" | "boxShadow" => "shadow",
-        "typography" => "typography",
-        "textCase" | "textDecoration" => "string",
-        other if PENPOT_DIMENSION_TYPES.contains(&other) => "dimension",
+        penpot_type::COLOR => dtcg::COLOR,
+        penpot_type::FONT_FAMILIES | dtcg::FONT_FAMILY => dtcg::FONT_FAMILY,
+        penpot_type::FONT_WEIGHTS | dtcg::FONT_WEIGHT => dtcg::FONT_WEIGHT,
+        penpot_type::NUMBER | "opacity" | "rotation" => dtcg::NUMBER,
+        penpot_type::SHADOW | "boxShadow" => dtcg::SHADOW,
+        penpot_type::TYPOGRAPHY => dtcg::TYPOGRAPHY,
+        penpot_type::TEXT_CASE | penpot_type::TEXT_DECORATION => dtcg::STRING,
+        other if PENPOT_DIMENSION_TYPES.contains(&other) => dtcg::DIMENSION,
         _ => return None,
     })
 }
@@ -207,9 +207,9 @@ pub fn token_from_penpot(
     let description = token.description.as_ref();
     let ty = token.type_name();
     // A number token named like a duration is a dfw duration (Penpot has no duration type).
-    let duration = json!("duration");
+    let duration = json!(dtcg::DURATION);
     let mut prefer = js::truthy_value(prefer);
-    if prefer.is_none() && ty == Some("number") && DURATION_NAME.is_match(name) {
+    if prefer.is_none() && ty == Some(penpot_type::NUMBER) && DURATION_NAME.is_match(name) {
         prefer = Some(&duration);
     }
     let unsupported = || {
@@ -219,7 +219,7 @@ pub fn token_from_penpot(
         ))
     };
     let raw = |t: &str, why: &str, warn: Note| {
-        if matches!(t, "dimension" | "number" | "duration") && is_expression(value) {
+        if matches!(t, dtcg::DIMENSION | dtcg::NUMBER | dtcg::DURATION) && is_expression(value) {
             let text = js::to_string(Some(value));
             warn(format!(
                 "math expression kept as calc({text}) (check that the CSS is what you expect)"
@@ -247,59 +247,68 @@ pub fn token_from_penpot(
             return Ok(res(t, trimmed, description));
         }
     }
-    let wants_duration = prefer.and_then(Value::as_str) == Some("duration");
+    let wants_duration = prefer.and_then(Value::as_str) == Some(dtcg::DURATION);
     Ok(match ty {
-        Some("color") => match parse_color(&js::to_string(Some(value))) {
-            Some(c) => res("color", c, description),
+        Some(penpot_type::COLOR) => match parse_color(&js::to_string(Some(value))) {
+            Some(c) => res(dtcg::COLOR, c, description),
             None => raw(
-                "color",
+                dtcg::COLOR,
                 "not a plain hex/rgb/hsl colour (expression?)",
                 warn,
             ),
         },
-        Some("fontFamilies" | "fontFamily") => {
-            res("fontFamily", split_families(value), description)
+        Some(penpot_type::FONT_FAMILIES | dtcg::FONT_FAMILY) => {
+            res(dtcg::FONT_FAMILY, split_families(value), description)
         }
-        Some("fontWeights" | "fontWeight") => match parse_weight(Some(value), warn) {
-            Some(w) => res("fontWeight", w, description),
-            None => raw("fontWeight", "not a numeric or named weight", warn),
-        },
-        Some(t @ ("number" | "opacity" | "rotation")) => match parse_number(Some(value)) {
+        Some(penpot_type::FONT_WEIGHTS | dtcg::FONT_WEIGHT) => {
+            match parse_weight(Some(value), warn) {
+                Some(w) => res(dtcg::FONT_WEIGHT, w, description),
+                None => raw(dtcg::FONT_WEIGHT, "not a numeric or named weight", warn),
+            }
+        }
+        Some(t @ (penpot_type::NUMBER | "opacity" | "rotation")) => match parse_number(Some(value))
+        {
             None => raw(
-                if wants_duration { "duration" } else { "number" },
+                if wants_duration {
+                    dtcg::DURATION
+                } else {
+                    dtcg::NUMBER
+                },
                 "not a plain number",
                 warn,
             ),
-            Some(n) if wants_duration => {
-                res("duration", json!({ "value": n, "unit": "ms" }), description)
-            }
+            Some(n) if wants_duration => res(
+                dtcg::DURATION,
+                json!({ "value": n, "unit": unit::MS }),
+                description,
+            ),
             Some(n) => {
-                if t != "number" {
+                if t != penpot_type::NUMBER {
                     warn(format!("Penpot {t} token stored as a dfw number"));
                 }
-                res("number", n, description)
+                res(dtcg::NUMBER, n, description)
             }
         },
-        Some("textCase" | "textDecoration") => {
-            res("string", js::to_string(Some(value)), description)
+        Some(penpot_type::TEXT_CASE | penpot_type::TEXT_DECORATION) => {
+            res(dtcg::STRING, js::to_string(Some(value)), description)
         }
-        Some("shadow" | "boxShadow") => match value {
-            Value::String(_) => raw("shadow", "shadow given as a string", warn),
+        Some(penpot_type::SHADOW | "boxShadow") => match value {
+            Value::String(_) => raw(dtcg::SHADOW, "shadow given as a string", warn),
             Value::Array(items) => {
                 let list: Result<Vec<Value>, DfwError> = items.iter().map(shadow_in).collect();
-                res("shadow", Value::Array(list?), description)
+                res(dtcg::SHADOW, Value::Array(list?), description)
             }
-            other => res("shadow", shadow_in(other)?, description),
+            other => res(dtcg::SHADOW, shadow_in(other)?, description),
         },
-        Some("typography") => match value {
+        Some(penpot_type::TYPOGRAPHY) => match value {
             Value::Object(_) | Value::Array(_) => {
-                res("typography", typography_in(value, warn), description)
+                res(dtcg::TYPOGRAPHY, typography_in(value, warn), description)
             }
-            _ => raw("typography", "typography given as a string", warn),
+            _ => raw(dtcg::TYPOGRAPHY, "typography given as a string", warn),
         },
         Some(t) if PENPOT_DIMENSION_TYPES.contains(&t) => match parse_dimension(Some(value)) {
-            Some(d) => res("dimension", d, description),
-            None => raw("dimension", "not a plain number with px/rem/em", warn),
+            Some(d) => res(dtcg::DIMENSION, d, description),
+            None => raw(dtcg::DIMENSION, "not a plain number with px/rem/em", warn),
         },
         _ => unsupported(),
     })

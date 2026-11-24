@@ -1,10 +1,16 @@
+use super::audit::ACCENT_VS_STATUS;
 use super::*;
+use crate::core::level::Level;
 use serde_json::json;
+
+/// The keys of a palette: its role colours and its status colours.
+const ROLES: &str = "roles";
+const STATUS: &str = "status";
 
 /// `resolve` of tests/unit/color.test.mjs: role references to hex.
 fn resolve(pal: &Value) -> Value {
     let mut out = Map::new();
-    for (k, v) in pal["roles"].as_object().unwrap() {
+    for (k, v) in pal[ROLES].as_object().unwrap() {
         let v = v.as_str().unwrap();
         let hex = if v.starts_with('#') {
             v.to_string()
@@ -55,18 +61,20 @@ fn palette_roles_by_contrast_and_clean_audit() {
     );
     let roles = resolve(&pal);
     let c = |a: &str, b: &str| contrast(roles[a].as_str().unwrap(), roles[b].as_str().unwrap());
-    assert!(c("ink", "surface") >= 13.0);
-    assert!(c("border", "surface") >= 3.0);
+    /// The background text and borders are read on.
+    const SURFACE: &str = "surface";
+    assert!(c("ink", SURFACE) >= 13.0);
+    assert!(c("border", SURFACE) >= 3.0);
     assert!(c("on-accent", "accent") >= 4.5);
     assert!(pal["notes"]
         .as_array()
         .unwrap()
         .iter()
         .any(|n| n.as_str().unwrap().contains("info uses the accent")));
-    let findings = audit_colors(&json!({ "roles": roles, "status": pal["status"] }), &[]);
+    let findings = audit_colors(&json!({ "roles": roles, "status": pal[STATUS] }), &[]);
+    let error = Level::Error.as_str();
     assert!(
-        !has(&findings, Some("error"), "contrast")
-            && !findings.iter().any(|f| f["level"] == "error"),
+        !has(&findings, Some(error), "contrast") && !findings.iter().any(|f| f["level"] == error),
         "{findings:?}"
     );
 }
@@ -81,10 +89,10 @@ fn red_accent_next_to_error_red() {
         &Names::default(),
     );
     let f = audit_colors(
-        &json!({ "roles": resolve(&red), "status": red["status"] }),
+        &json!({ "roles": resolve(&red), "status": red[STATUS] }),
         &[],
     );
-    assert!(has(&f, Some("error"), "accent-vs-status"));
+    assert!(has(&f, Some(Level::Error.as_str()), ACCENT_VS_STATUS));
     let ink = build_palette(
         &seeds(
             json!({ "brand": { "hue": 28, "chroma": 0.16 }, "neutral": { "hue": 80, "tint": 0.012 }, "accentFrom": "neutral" }),
@@ -92,20 +100,20 @@ fn red_accent_next_to_error_red() {
         &Names::default(),
     );
     let g = audit_colors(
-        &json!({ "roles": resolve(&ink), "status": ink["status"] }),
+        &json!({ "roles": resolve(&ink), "status": ink[STATUS] }),
         &[],
     );
-    assert!(!has(&g, None, "accent-vs-status"));
+    assert!(!has(&g, None, ACCENT_VS_STATUS));
     // status red stays red (not bent to orange to dodge the accent)
-    assert!(hue_distance(hex_to_oklch(ink["status"]["err"].as_str().unwrap()).h, 27.0) <= 8.0);
+    assert!(hue_distance(hex_to_oklch(ink[STATUS]["err"].as_str().unwrap()).h, 27.0) <= 8.0);
     // A recorded exception turns the MUST into a note.
     let excepted = audit_colors(
-        &json!({ "roles": resolve(&red), "status": red["status"] }),
-        &["accent-vs-status".to_string()],
+        &json!({ "roles": resolve(&red), "status": red[STATUS] }),
+        &[ACCENT_VS_STATUS.to_string()],
     );
     let finding = excepted
         .iter()
-        .find(|x| x["rule"] == "accent-vs-status")
+        .find(|x| x["rule"] == ACCENT_VS_STATUS)
         .unwrap();
     assert_eq!(finding["level"], "info");
     assert!(finding["message"]
@@ -117,7 +125,10 @@ fn red_accent_next_to_error_red() {
 /// audit: mixed neutral temperatures and hand-picked type sizes are flagged
 #[test]
 fn mixed_neutrals_and_hand_picked_type_sizes() {
-    let roles = json!({ "canvas": "#f3f5f8", "surface": "#ffffff", "surface-sunken": "#eef1f5", "rule": "#dde2e8", "border": "#7c8590", "muted": "#5a5048", "ink": "#2a2118", "accent": "#1d4ed8", "on-accent": "#ffffff", "accent-soft": "#e8effd", "accent-text": "#1e40af", "focus": "#1d4ed8" });
+    /// A blue accent (and focus ring) on white (the surface and the text on the accent).
+    const BLUE: &str = "#1d4ed8";
+    const WHITE: &str = "#ffffff";
+    let roles = json!({ "canvas": "#f3f5f8", "surface": WHITE, "surface-sunken": "#eef1f5", "rule": "#dde2e8", "border": "#7c8590", "muted": "#5a5048", "ink": "#2a2118", "accent": BLUE, "on-accent": WHITE, "accent-soft": "#e8effd", "accent-text": "#1e40af", "focus": BLUE });
     assert!(has(
         &audit_colors(&json!({ "roles": roles, "status": {} }), &[]),
         None,
@@ -126,7 +137,7 @@ fn mixed_neutrals_and_hand_picked_type_sizes() {
     let t = audit_type_scale(
         &json!({ "ui": [12, 13, 14, 15, 16], "display": [22, 26, 34, 40] }),
         16.0,
-        "product",
+        PRODUCT_SURFACE,
     );
     assert!(has(&t, None, "type-ratio"));
     assert!(has(&t, None, "type-steps"));
@@ -135,7 +146,11 @@ fn mixed_neutrals_and_hand_picked_type_sizes() {
     assert_eq!(display, [30.0, 42.0, 60.0, 85.0]);
     let ui: Vec<f64> = ts.ui.iter().take(7).map(|u| u.1).collect();
     assert_eq!(
-        audit_type_scale(&json!({ "ui": ui, "display": display }), 16.0, "product"),
+        audit_type_scale(
+            &json!({ "ui": ui, "display": display }),
+            16.0,
+            PRODUCT_SURFACE
+        ),
         Vec::<Value>::new()
     );
 }
@@ -164,15 +179,17 @@ fn dark_palette_and_default_names() {
         &seeds(json!({ "brand": { "hex": "#0b5cad" }, "dark": true })),
         &Names::default(),
     );
-    assert_eq!(pal["roles"]["canvas"], "neutral-950");
-    assert_eq!(pal["roles"]["ink"], "neutral-50");
+    /// The default name of the brand ramp.
+    const BRAND: &str = "brand";
+    assert_eq!(pal[ROLES]["canvas"], "neutral-950");
+    assert_eq!(pal[ROLES]["ink"], "neutral-50");
     assert_eq!(
         pal["names"],
-        json!({ "brand": "brand", "neutral": "neutral", "signature": "signature" })
+        json!({ "brand": BRAND, "neutral": "neutral", "signature": "signature" })
     );
     assert_eq!(pal["seeds"]["sigHue"], Value::Null);
-    let keys: Vec<&String> = pal["ramps"]["brand"].as_object().unwrap().keys().collect();
+    let keys: Vec<&String> = pal["ramps"][BRAND].as_object().unwrap().keys().collect();
     assert_eq!(keys.len(), 11);
     assert_eq!(keys[0], "50");
-    assert_eq!(pal["status"].as_object().unwrap().len(), 12);
+    assert_eq!(pal[STATUS].as_object().unwrap().len(), 12);
 }

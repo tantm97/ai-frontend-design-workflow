@@ -28,20 +28,73 @@ use crate::core::util::{to_json_compact, write_json, write_json_inside};
 use crate::design::color::{oklch_to_hex, Oklch};
 use crate::design::tokens::{dir_names, option, relative_path};
 
-const BASE_SET: &str = "base";
-const THEME_PREFIX: &str = "themes/";
-const THEME_GROUP: &str = "dfw";
+/// The Penpot set that holds `design/tokens/tokens.json`.
+pub(crate) const BASE_SET: &str = "base";
+/// The prefix of the Penpot set of a dfw theme (`themes/<name>`).
+pub(crate) const THEME_PREFIX: &str = "themes/";
+/// The Penpot theme group of the dfw themes.
+pub(crate) const THEME_GROUP: &str = "dfw";
+/// The state of a set a Penpot theme turns on (`selectedTokenSets`).
+pub(crate) const ENABLED: &str = "enabled";
+
+/// The `$` keys of a DTCG tree and of a Penpot token file.
+pub(crate) mod key {
+    pub(crate) const VALUE: &str = "$value";
+    pub(crate) const TYPE: &str = crate::design::tokens::TYPE_KEY;
+    pub(crate) const DESCRIPTION: &str = "$description";
+    pub(crate) const THEMES: &str = "$themes";
+    pub(crate) const METADATA: &str = "$metadata";
+    /// The sRGB fallback of a DTCG colour object.
+    pub(crate) const HEX: &str = "hex";
+}
+
+/// The colour spaces a DTCG colour object names (`colorSpace`).
+pub(crate) mod color_space {
+    pub(crate) const SRGB: &str = "srgb";
+    pub(crate) const OKLCH: &str = "oklch";
+}
+
+/// The units of a DTCG dimension or duration (`unit`).
+pub(crate) mod unit {
+    pub(crate) const PX: &str = "px";
+    pub(crate) const MS: &str = "ms";
+    pub(crate) const S: &str = "s";
+}
+
+/// The DTCG `$type` names dfw reads and writes (their home is `design::tokens`).
+pub(crate) use crate::design::tokens::dtcg;
+
+/// Penpot's token type names (`$type` in a Penpot token file).
+pub(crate) mod penpot_type {
+    pub(crate) const COLOR: &str = "color";
+    pub(crate) const DIMENSION: &str = "dimension";
+    pub(crate) const SPACING: &str = "spacing";
+    pub(crate) const SIZING: &str = "sizing";
+    pub(crate) const BORDER_RADIUS: &str = "borderRadius";
+    pub(crate) const BORDER_WIDTH: &str = "borderWidth";
+    pub(crate) const FONT_SIZES: &str = "fontSizes";
+    pub(crate) const LETTER_SPACING: &str = "letterSpacing";
+    pub(crate) const FONT_FAMILIES: &str = "fontFamilies";
+    pub(crate) const FONT_WEIGHTS: &str = "fontWeights";
+    pub(crate) const NUMBER: &str = "number";
+    pub(crate) const TEXT_CASE: &str = "textCase";
+    pub(crate) const TEXT_DECORATION: &str = "textDecoration";
+    pub(crate) const SHADOW: &str = "shadow";
+    pub(crate) const TYPOGRAPHY: &str = "typography";
+}
 
 /// Token and set names come from a Penpot file (untrusted): in JavaScript a path segment like
 /// `__proto__` would write into `Object.prototype` instead of the tree. Refused here too, so
 /// both implementations accept the same names.
-pub(super) const RESERVED: [&str; 3] = ["__proto__", "constructor", "prototype"];
+pub(super) use crate::core::util::RESERVED_KEYS as RESERVED;
+/// The best known of the [`INHERITED`] names.
+pub(super) const TO_STRING: &str = "toString";
 
 /// The functions every JavaScript object inherits. The Node code read groups and themes with
 /// `object[name]`, so one of these names found the built-in function where nothing was stored.
 const INHERITED: [&str; 11] = [
     "constructor",
-    "toString",
+    TO_STRING,
     "toLocaleString",
     "valueOf",
     "hasOwnProperty",
@@ -223,14 +276,14 @@ pub fn flatten_tokens(tree: &Value) -> Flat {
         let Value::Object(map) = node else {
             return;
         };
-        let ty = js::truthy_value(map.get("$type")).or(ty);
-        if let Some(value) = map.get("$value") {
+        let ty = js::truthy_value(map.get(key::TYPE)).or(ty);
+        if let Some(value) = map.get(key::VALUE) {
             out.set(
                 trail.join("."),
                 Token {
                     ty: ty.cloned(),
                     value: value.clone(),
-                    description: map.get("$description").cloned(),
+                    description: map.get(key::DESCRIPTION).cloned(),
                 },
             );
             return;

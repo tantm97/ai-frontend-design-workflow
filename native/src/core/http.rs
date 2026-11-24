@@ -80,6 +80,9 @@ pub fn get(
     })
 }
 
+/// The loopback address the local servers listen on and tests connect to.
+pub const LOOPBACK: &str = "127.0.0.1";
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -88,14 +91,17 @@ mod tests {
 
     #[test]
     fn a_body_over_the_cap_is_an_error_and_a_status_is_returned() {
+        /// A route whose body is over the smaller cap.
+        const BIG: &str = "/big";
         let (base, _) = serve_routes(HashMap::from([
-            ("/big".to_string(), (200, vec![b'x'; 2048])),
+            (BIG.to_string(), (200, vec![b'x'; 2048])),
             ("/gone".to_string(), (404, b"no".to_vec())),
         ]));
         let t = Duration::from_secs(5);
-        assert!(get(&format!("{base}/big"), &[], t, 1024).is_err());
-        let big = get(&format!("{base}/big"), &[], t, 4096).unwrap();
-        assert!(big.ok() && big.body.len() == 2048 && big.landed.ends_with("/big"));
+        let big_url = format!("{base}{BIG}");
+        assert!(get(&big_url, &[], t, 1024).is_err());
+        let big = get(&big_url, &[], t, 4096).unwrap();
+        assert!(big.ok() && big.body.len() == 2048 && big.landed.ends_with(BIG));
         let gone = get(&format!("{base}/gone"), &[], t, 1024).unwrap();
         assert_eq!((gone.status, gone.ok()), (404, false));
     }
@@ -104,10 +110,10 @@ mod tests {
     fn connect_gives_up_at_its_deadline() {
         // A port nothing listens on is refused at once; an address that drops packets
         // (TEST-NET-1, RFC 5737) is given up at the deadline, not after the system's minutes.
-        let free = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let free = std::net::TcpListener::bind((LOOPBACK, 0)).unwrap();
         let port = free.local_addr().unwrap().port();
         drop(free);
-        assert!(connect("127.0.0.1", port, Duration::from_secs(2)).is_err());
+        assert!(connect(LOOPBACK, port, Duration::from_secs(2)).is_err());
         let start = std::time::Instant::now();
         let dropped = connect("192.0.2.1", 9, Duration::from_millis(300));
         assert!(dropped.is_err());
@@ -117,15 +123,15 @@ mod tests {
             start.elapsed()
         );
         // A listening port connects, with the deadline set for reads.
-        let up = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let up = std::net::TcpListener::bind((LOOPBACK, 0)).unwrap();
         let port = up.local_addr().unwrap().port();
-        let s = connect("127.0.0.1", port, Duration::from_secs(2)).unwrap();
+        let s = connect(LOOPBACK, port, Duration::from_secs(2)).unwrap();
         assert_eq!(s.read_timeout().unwrap(), Some(Duration::from_secs(2)));
     }
 
     #[test]
     fn a_server_that_never_answers_is_given_up() {
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let listener = std::net::TcpListener::bind((LOOPBACK, 0)).unwrap();
         let port = listener.local_addr().unwrap().port();
         let started = std::time::Instant::now();
         let r = get(

@@ -5,6 +5,7 @@ use super::*;
 use crate::core::js;
 use crate::core::util::{copy_dir, list_files, test_dir};
 use crate::design::tokens::build_tokens;
+use crate::penpot::tokens::{key as token_key, BASE_SET};
 
 pub(in crate::penpot) fn fix() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/penpot")
@@ -58,16 +59,16 @@ pub(in crate::penpot) fn fixture_export() -> Value {
 /// file (a fixture) for it.
 pub(in crate::penpot) fn with_export(root: &Path, doc: &Value, changes: &str) -> Value {
     let dir = penpot_dir(root);
-    fs::create_dir_all(dir.join("exports")).unwrap();
+    fs::create_dir_all(dir.join(file::PENPOT_EXPORTS)).unwrap();
     let id = doc["id"].as_str().unwrap();
     fs::write(
-        dir.join("exports").join(format!("{id}.json")),
+        dir.join(file::PENPOT_EXPORTS).join(export_file(id)),
         to_json_compact(doc),
     )
     .unwrap();
-    fs::write(dir.join("export.json"), to_json_compact(doc)).unwrap();
+    fs::write(dir.join(file::PENPOT_EXPORT), to_json_compact(doc)).unwrap();
     let mut changes = read(changes);
-    changes["exportId"] = id.into();
+    changes[wire::EXPORT_ID] = id.into();
     changes
 }
 
@@ -105,7 +106,7 @@ fn structure_snapshot() {
     assert_eq!(export_structure(&doc), structure_fixture());
     // Tokens travel with the export in Penpot's format; colours keep their token names.
     let keys: Vec<&String> = doc["tokens"].as_object().unwrap().keys().collect();
-    assert_eq!(keys, ["base", "$themes", "$metadata"]);
+    assert_eq!(keys, [BASE_SET, token_key::THEMES, token_key::METADATA]);
     assert!(doc["colors"]
         .as_array()
         .unwrap()
@@ -115,15 +116,18 @@ fn structure_snapshot() {
     let layers = doc["pages"][0]["boards"][0]["layers"][0]["children"]
         .as_array()
         .unwrap();
-    let add = layers.iter().find(|l| l["name"] == "items.add").unwrap();
-    let main = doc["components"]
+    let add = layers
+        .iter()
+        .find(|l| l[wire::NAME] == "items.add")
+        .unwrap();
+    let main = doc[wire::COMPONENTS]
         .as_array()
         .unwrap()
         .iter()
-        .find(|c| c["key"] == add["component"]["key"])
+        .find(|c| c[wire::KEY] == add["component"][wire::KEY])
         .unwrap();
-    assert_eq!(add["sig"], main["sig"]);
-    let root = &doc["components"][0]["root"];
+    assert_eq!(add[wire::SIG], main[wire::SIG]);
+    let root = &doc[wire::COMPONENTS][0]["root"];
     assert_eq!(
         (js::to_number(root.get("x")), js::to_number(root.get("y"))),
         (0.0, 0.0)
@@ -133,15 +137,16 @@ fn structure_snapshot() {
 /// penpot export: layout wrappers are hoisted, signatures ignore text
 #[test]
 fn layout_wrappers_are_hoisted_signatures_ignore_text() {
-    let tree = json!([{ "kind": "frame", "name": "div.wrap", "style": {}, "children": [{ "kind": "text", "name": "a", "characters": "x", "style": {} }, { "kind": "frame", "name": "div.empty", "style": {}, "children": [] }] }]);
+    const ONE: &str = "one";
+    let tree = json!([{ "kind": wire::kind::FRAME, "name": "div.wrap", "style": {}, "children": [{ "kind": wire::kind::TEXT, "name": "a", "characters": "x", "style": {} }, { "kind": wire::kind::FRAME, "name": "div.empty", "style": {}, "children": [] }] }]);
     let names: Vec<Value> = simplify(tree.as_array().unwrap().clone())
         .iter()
-        .map(|n| n["name"].clone())
+        .map(|n| n[wire::NAME].clone())
         .collect();
     assert_eq!(names, ["a"]);
-    let frame = |text: &str| json!({ "kind": "frame", "name": "b", "children": [{ "kind": "text", "name": "text", "characters": text }] });
-    assert_eq!(signature(&frame("one")), signature(&frame("two")));
-    assert_eq!(signature(&frame("one")), "frame:b[text:text]");
+    let frame = |text: &str| json!({ "kind": wire::kind::FRAME, "name": "b", "children": [{ "kind": wire::kind::TEXT, "name": wire::kind::TEXT, "characters": text }] });
+    assert_eq!(signature(&frame(ONE)), signature(&frame("two")));
+    assert_eq!(signature(&frame(ONE)), "frame:b[text:text]");
 }
 
 /// penpot export: real render of the fixture project matches the snapshot (needs Chrome)
@@ -162,7 +167,7 @@ fn real_render_of_the_fixture_project_matches_the_snapshot() {
     assert!(root
         .join(rel::PENPOT)
         .join(file::PENPOT_EXPORTS)
-        .join(format!("{id}.json"))
+        .join(export_file(id))
         .exists());
     assert!(root.join(rel::PENPOT_TOKENS).exists());
     assert_eq!(file, root.join(rel::PENPOT_EXPORT));
@@ -189,21 +194,25 @@ fn real_render_of_the_fixture_project_matches_the_snapshot() {
 /// penpot export: only the newest exports are kept
 #[test]
 fn only_the_newest_exports_are_kept() {
+    /// A file of the user's in the exports folder: never pruned.
+    const NOTES: &str = "notes.txt";
     let dir = test_dir("penpot-prune");
-    fs::create_dir_all(dir.join("exports")).unwrap();
+    let exports = dir.join(file::PENPOT_EXPORTS);
+    fs::create_dir_all(&exports).unwrap();
     let ids: Vec<String> = (1..=25)
         .map(|i| format!("px_202611{i:02}100000_abcdef12"))
         .collect();
+    let json_name = |id: &String| export_file(id);
     for id in &ids {
-        fs::write(dir.join("exports").join(format!("{id}.json")), "{}").unwrap();
+        fs::write(exports.join(json_name(id)), "{}").unwrap();
     }
-    fs::write(dir.join("exports/notes.txt"), "mine").unwrap();
+    fs::write(exports.join(NOTES), "mine").unwrap();
     let removed = prune_exports(&dir, KEEP_EXPORTS).unwrap();
     assert_eq!(removed.len(), 5);
-    let mut want: Vec<String> = ids[5..].iter().map(|id| format!("{id}.json")).collect();
-    want.push("notes.txt".into());
+    let mut want: Vec<String> = ids[5..].iter().map(json_name).collect();
+    want.push(NOTES.into());
     want.sort();
-    assert_eq!(dir_names(&dir.join("exports")).unwrap(), want);
+    assert_eq!(dir_names(&exports).unwrap(), want);
     assert!(prune_exports(&dir.join("nope"), KEEP_EXPORTS)
         .unwrap()
         .is_empty());
@@ -219,9 +228,10 @@ fn the_page_function_is_one_function() {
 /// The pages an export renders: declared pages, screens assigned by `page`, the rest.
 #[test]
 fn pages_that_hold_screens() {
+    const ITEMS: &str = "items";
     let manifest = json!({
-        "pages": [{ "id": "system", "title": "DS" }, { "id": "stock", "title": "Stock", "screens": ["items", "gone"], "sections": [{ "screens": ["detail/a"] }] }],
-        "screens": [{ "id": "items" }, { "id": "detail" }, { "id": "cart", "page": "shop" }, { "id": "home" }, { "id": "_try" }, { "id": "old", "archived": true }],
+        "pages": [{ "id": "system", "title": "DS" }, { "id": "stock", "title": "Stock", "screens": [ITEMS, "gone"], "sections": [{ "screens": ["detail/a"] }] }],
+        "screens": [{ "id": ITEMS }, { "id": "detail" }, { "id": "cart", "page": "shop" }, { "id": "home" }, { "id": "_try" }, { "id": "old", "archived": true }],
     });
     let pages: Vec<Value> = screen_pages(&manifest)
         .into_iter()

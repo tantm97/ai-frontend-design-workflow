@@ -32,6 +32,18 @@ pub struct McpTarget {
 }
 
 /// `MCP_TARGETS`.
+/// The name of dfw's server in a tool's MCP config.
+use super::mcp::names::SERVER;
+
+/// The dfw command that serves MCP: the last argument of the server's command.
+use crate::core::word::command::MCP as SUBCOMMAND;
+
+/// The key of OpenCode's config that holds the servers.
+const OPENCODE_KEY: &str = "mcp";
+
+/// The header of dfw's table in Codex's `config.toml`.
+const TOML_HEADER: &str = "[mcp_servers.dfw]";
+
 pub const MCP_TARGETS: [McpTarget; 3] = [
     McpTarget {
         id: "opencode",
@@ -224,7 +236,7 @@ pub fn mcp_config_text(
 ) -> Result<String, DfwError> {
     let mut cmd = vec![command.cmd.clone()];
     cmd.extend(command.args.iter().cloned());
-    cmd.push("mcp".into());
+    cmd.push(SUBCOMMAND.into());
     if format == Format::Toml {
         let without = match toml_block(current)? {
             Some(block) => format!("{}{}", &current[..block.start], &current[block.end..]),
@@ -238,7 +250,7 @@ pub fn mcp_config_text(
         let quoted = |s: &String| to_json_compact(&Value::String(s.clone()));
         let args: Vec<String> = cmd[1..].iter().map(quoted).collect();
         let block = format!(
-            "[mcp_servers.dfw]\ncommand = {}\nargs = [{}]\n",
+            "{TOML_HEADER}\ncommand = {}\nargs = [{}]\n",
             quoted(&cmd[0]),
             args.join(", ")
         );
@@ -258,19 +270,22 @@ pub fn mcp_config_text(
         })?
     };
     let opencode = format == Format::Opencode;
-    let key = if opencode { "mcp" } else { "mcpServers" };
+    let key = if opencode { OPENCODE_KEY } else { "mcpServers" };
     match &mut data {
         Value::Object(map) => {
             let mut servers = js::spread(js::truthy_value(map.get(key)));
             if remove {
-                servers.shift_remove("dfw");
+                servers.shift_remove(SERVER);
             } else if opencode {
                 servers.insert(
-                    "dfw".into(),
+                    SERVER.into(),
                     json!({ "type": "local", "command": cmd, "enabled": true }),
                 );
             } else {
-                servers.insert("dfw".into(), json!({ "command": cmd[0], "args": cmd[1..] }));
+                servers.insert(
+                    SERVER.into(),
+                    json!({ "command": cmd[0], "args": cmd[1..] }),
+                );
             }
             map.insert(key.into(), Value::Object(servers));
             if opencode && js::truthy_value(map.get("$schema")).is_none() {
@@ -297,13 +312,13 @@ fn installed_in(format: Format, file: &Path) -> bool {
         return toml_block(&text).is_ok_and(|b| b.is_some());
     }
     let key = if format == Format::Opencode {
-        "mcp"
+        OPENCODE_KEY
     } else {
         "mcpServers"
     };
     serde_json::from_str::<Value>(&text)
         .ok()
-        .and_then(|v| v.get(key)?.get("dfw").map(js::truthy))
+        .and_then(|v| v.get(key)?.get(SERVER).map(js::truthy))
         .unwrap_or(false)
 }
 
@@ -406,19 +421,23 @@ mod tests {
     /// j: names that are prototype keys are not ids (tests/unit/node-stable.test.mjs; MCP targets)
     #[test]
     fn prototype_names_are_not_mcp_targets() {
-        let err = mcp_install("constructor", false, true).unwrap_err();
+        /// A key every JavaScript object has.
+        const PROTO_KEY: &str = "constructor";
+        let err = mcp_install(PROTO_KEY, false, true).unwrap_err();
         assert!(err
             .message()
             .starts_with("Unknown tool \"constructor\". MCP install targets: "));
         // A user's mistake: the message alone, not an internal "Error: ...".
         assert_eq!(err.report(), err.message());
-        assert!(!mcp_installed("constructor") && !mcp_installed("toString"));
+        assert!(!mcp_installed(PROTO_KEY) && !mcp_installed("toString"));
     }
 
     /// mcp install: config text for OpenCode, Codex, Cursor (add, keep other servers, remove)
     #[test]
     fn config_text_for_opencode_codex_cursor() {
-        let c = command("/x/dfw");
+        /// The dfw the configs start.
+        const DFW: &str = "/x/dfw";
+        let c = command(DFW);
         let oc = parsed(
             &mcp_config_text(
                 Format::Opencode,
@@ -429,10 +448,10 @@ mod tests {
             .unwrap(),
         );
         assert_eq!(
-            oc["mcp"]["dfw"],
-            json!({ "type": "local", "command": ["/x/dfw", "mcp"], "enabled": true })
+            oc[OPENCODE_KEY][SERVER],
+            json!({ "type": "local", "command": [DFW, SUBCOMMAND], "enabled": true })
         );
-        assert!(oc["mcp"]["other"].is_object(), "other servers kept");
+        assert!(oc[OPENCODE_KEY]["other"].is_object(), "other servers kept");
         assert_eq!(oc["$schema"], "https://opencode.ai/config.json");
         let cursor = mcp_config_text(Format::McpServers, "", false, &c).unwrap();
         assert_eq!(
@@ -522,10 +541,7 @@ mod tests {
             Some("[mcp_servers.dfw] \t\nx = 1\n\n")
         );
         // A header on the last line without its newline is a block too.
-        assert_eq!(
-            block("[mcp_servers.dfw]").as_deref(),
-            Some("[mcp_servers.dfw]")
-        );
+        assert_eq!(block(TOML_HEADER).as_deref(), Some(TOML_HEADER));
         assert_eq!(block("[mcp_servers.dfwx]\n"), None);
         assert_eq!(block("[[mcp_servers.dfw]]\n"), None);
         assert_eq!(block("x = \"[mcp_servers.dfw]\"\n"), None);

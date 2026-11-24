@@ -21,21 +21,21 @@ pub(super) fn walk_set(tree: &Value, reserved: &mut Vec<String>) -> Flat {
         let Value::Object(map) = node else {
             return;
         };
-        let ty = js::truthy_value(map.get("$type"))
+        let ty = js::truthy_value(map.get(key::TYPE))
             .or_else(|| js::truthy_value(map.get("type")))
             .or(ty);
         let legacy = map.contains_key("value") && map.contains_key("type") && !trail.is_empty();
-        if map.contains_key("$value") || legacy {
+        if map.contains_key(key::VALUE) || legacy {
             out.set(
                 name,
                 Token {
                     ty: ty.cloned(),
                     value: map
-                        .get("$value")
+                        .get(key::VALUE)
                         .or_else(|| map.get("value"))
                         .cloned()
                         .unwrap_or(Value::Null),
-                    description: js::present(map.get("$description"))
+                    description: js::present(map.get(key::DESCRIPTION))
                         .or_else(|| map.get("description"))
                         .cloned(),
                 },
@@ -191,12 +191,12 @@ pub fn parse_penpot_json(doc: Value, fallback_name: &str) -> Result<PenpotFile, 
             ))
         }
     };
-    if !map.contains_key("$themes") && !map.contains_key("$metadata") {
+    if !map.contains_key(key::THEMES) && !map.contains_key(key::METADATA) {
         return Ok(single(Value::Object(map)));
     }
     let or =
         |key: &str, fallback: Value| js::truthy_value(map.get(key)).cloned().unwrap_or(fallback);
-    let (themes, metadata) = (or("$themes", json!([])), or("$metadata", json!({})));
+    let (themes, metadata) = (or(key::THEMES, json!([])), or(key::METADATA, json!({})));
     let sets = js::entries(&map)
         .into_iter()
         .filter(|(k, _)| !k.starts_with('$'))

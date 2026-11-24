@@ -78,6 +78,10 @@ fn unique_sorted(list: Option<&Value>) -> Vec<f64> {
 
 /// `auditTypeScale`: check a scale for rhythm and hierarchy. `scale` is `{ ui: [px], display:
 /// [px] }` or a flat list of UI sizes; returns `[{ level, rule, message }]`.
+/// The surface of an app's screens, the default when the manifest names none (the other is
+/// `marketing`).
+pub const PRODUCT_SURFACE: &str = "product";
+
 pub fn audit_type_scale(scale: &Value, body: f64, surface: &str) -> Vec<Value> {
     let mut out = Vec::new();
     let ui = unique_sorted(if scale.is_array() {
