@@ -344,6 +344,10 @@ try {
   assert.equal(await page.$eval('#inspector select[data-space]', (s) => s.value), 'space.3', 'padding-block maps to space.3');
   assert.ok(await page.isVisible('#layers .row[aria-selected="true"]'), 'layer highlighted');
   await frame.locator('[data-dfw-id="home.raw"]').click();
+  // Wait for the selection itself: the inspector of home.cta already holds "raw value (no
+  // token)", so waiting for that text went on while home.cta was still selected, and the
+  // keyboard steps below then started from the wrong row (an intermittent timeout).
+  await page.waitForFunction(() => window.__dfwStudio.sel?.own?.id === 'home.raw');
   await page.waitForFunction(() => /raw value \(no token\)/.test(document.querySelector('#inspector').textContent));
   if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-5-inspect.png') });
   // Layers from the keyboard (studio-ui.md U7): one row is in the tab order; arrows move, Enter selects.
