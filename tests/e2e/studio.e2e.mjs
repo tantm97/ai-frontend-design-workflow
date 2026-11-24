@@ -361,8 +361,18 @@ try {
   await page.waitForFunction(() => document.activeElement?.matches('#layers .row[aria-selected="true"][tabindex="0"]'));
   assert.equal(await page.evaluate(() => document.body.classList.contains('space')), false);
   if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'studio-5a-layers-keyboard.png') });
-  // Picking a layer brings its element into view (same zoom) when the camera is elsewhere.
   const vp = await page.locator('#viewport').boundingBox();
+  // The canvas viewport never scrolls: the camera moves the canvas. A frame's scrollIntoView (what
+  // overlay/select.js does for a keyboard or layer selection) reaches every ancestor that can scroll,
+  // the Studio page included; with the element below the view, a scrollable #viewport moved the
+  // whole canvas under a HUD placed from the camera, and every selection box was off by that much.
+  await page.mouse.move(vp.x + 8, vp.y + 8);
+  for (let i = 0; i < 3; i++) await page.mouse.wheel(0, -2000);
+  await painted();
+  await frame.locator('[data-dfw-id="home.cta"]').evaluate((el) => el.scrollIntoView({ block: 'nearest' }));
+  await painted();
+  assert.deepEqual(await page.$eval('#viewport', (v) => [v.scrollLeft, v.scrollTop]), [0, 0], 'the canvas viewport does not scroll');
+  // Picking a layer brings its element into view (same zoom) when the camera is elsewhere.
   await page.mouse.move(vp.x + 8, vp.y + vp.height - 8);
   for (let i = 0; i < 6; i++) await page.mouse.wheel(0, 2000);
   await page.waitForTimeout(250);
@@ -392,6 +402,23 @@ try {
   );
   assert.equal(await elInView(), true, 'the layer pick revealed the element');
   assert.equal(await page.evaluate(() => window.__dfwStudio.cam.z), zBefore, 'the zoom did not change');
+  // The selection box sits on the element. The frame's scrollIntoView reaches the Studio page too;
+  // a scrolled #viewport moved the whole canvas under a box placed from the camera alone.
+  await painted();
+  assert.deepEqual(
+    await page.$eval('#viewport', (v) => [v.scrollLeft, v.scrollTop]),
+    [0, 0],
+    'the canvas viewport never scrolls (the camera moves it)',
+  );
+  const elBox = await frame.locator('[data-dfw-id="home.cta"]').boundingBox();
+  const selBox = await page.locator('#sel-box').boundingBox();
+  for (const [k, a, b] of [
+    ['x', selBox.x + 1, elBox.x],
+    ['y', selBox.y + 1, elBox.y],
+    ['width', selBox.width - 2, elBox.width],
+    ['height', selBox.height - 2, elBox.height],
+  ])
+    assert.ok(Math.abs(a - b) < 1.5, `selection box ${k} ${a} matches the element's ${b}`);
 
   // Direct text edit writes back to the source; Cmd/Ctrl+Z undoes it.
   const src = path.join(tmp, 'design/screens/home/a.html');
