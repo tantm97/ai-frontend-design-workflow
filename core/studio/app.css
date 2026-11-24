@@ -240,11 +240,13 @@ body[data-mode="hand"] .world iframe, body.space .world iframe, body.panning .wo
 .world { position: absolute; left: 0; top: 0; transform-origin: 0 0; --iz: 1; }
 .page-canvas[hidden] { display: none; }
 .world.moving { will-change: transform; }
-.frame { position: absolute; background: var(--frame-bg); box-shadow: 0 0 0 calc(1px * var(--iz)) rgb(0 0 0 / 0.07), 0 calc(4px * var(--iz)) calc(18px * var(--iz)) rgb(0 0 0 / 0.07); }
+.frame { position: absolute; background: var(--frame-bg); --frame-drop: 0 calc(4px * var(--iz)) calc(18px * var(--iz)) rgb(0 0 0 / 0.07); box-shadow: 0 0 0 calc(1px * var(--iz)) rgb(0 0 0 / 0.07), var(--frame-drop); }
 .frame iframe { border: 0; display: block; width: 100%; height: 100%; background: var(--frame-bg); }
-.frame.selected { outline: calc(2px * var(--iz)) solid var(--accent); }
+/* A ring of box-shadow, not outline: an outline on a frame made Chrome exceed its tile memory while
+   the canvas moved, so parts of the window flashed blank (Retina, tall frames). */
+.frame.selected { box-shadow: 0 0 0 calc(2px * var(--iz)) var(--accent), var(--frame-drop); }
 .frame.flash { animation: flash 1.2s ease-out; }
-@keyframes flash { 0% { outline: calc(4px * var(--iz)) solid var(--accent); } 100% { outline: 0 solid transparent; } }
+@keyframes flash { 0% { box-shadow: 0 0 0 calc(4px * var(--iz)) var(--accent), var(--frame-drop); } 100% { box-shadow: 0 0 0 0 transparent, var(--frame-drop); } }
 .frame-title { position: absolute; left: 0; bottom: 100%; padding-bottom: calc(4px * var(--iz)); font-size: calc(11px * var(--iz)); line-height: 1.3; color: var(--frame-title); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; cursor: default; user-select: none; }
 .frame-title:hover, .frame.selected .frame-title { color: var(--accent); }
 .frame-title .st { color: var(--warn); }
