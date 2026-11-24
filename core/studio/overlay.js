@@ -468,6 +468,15 @@
   });
 
   // core/studio/overlay/select.js
+  function propsOf(el) {
+    if (!el.dataset.dfwComponent || !el.dataset.dfwProps) return null;
+    try {
+      const v = JSON.parse(el.dataset.dfwProps);
+      return v && typeof v === "object" && !Array.isArray(v) ? v : null;
+    } catch {
+      return null;
+    }
+  }
   function selPayload(el, withInspect) {
     const t = ui.editTarget(el);
     return {
@@ -479,7 +488,8 @@
         id: el.dataset.dfwId || null,
         comp: el.dataset.dfwComponent || null,
         variant: el.dataset.dfwVariant || null,
-        size: el.dataset.dfwSize || null
+        size: el.dataset.dfwSize || null,
+        props: propsOf(el)
       },
       textEditable: !t.error,
       inspect: withInspect ? inspect(el) : null

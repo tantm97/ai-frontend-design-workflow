@@ -330,13 +330,13 @@ pub fn lint_screen(
     let mut add = |level: &'static str, rule: &'static str, line: usize, message: String| {
         out.push(finding(level, rule, rel, line.max(1), message));
     };
-    let base = design_base_for(rel);
     let composed = compose_html(
         root,
         text,
         ComposeOptions {
             lib: Some(lib),
-            design_base: Some(&base),
+            design_base: Some(&design_base_for(rel)),
+            prop_values: false,
         },
     )?;
     for issue in &composed.issues {

@@ -2,7 +2,7 @@
 // Inspector: the selected frame or element, its component, and the design tokens its styles use.
 // Spacing, component variant/size/props and text are editable here; colours and typography are
 // design-system decisions, so they get an "Ask" button that opens a comment instead.
-import { esc } from './model.js';
+import { esc, own as ownKey } from './model.js';
 import { $, S, currentPage, post } from './state.js';
 import { edit, goToMaster, layoutScopeOf } from './edits.js';
 import { openComposer } from './comments.js';
@@ -54,11 +54,16 @@ function componentHtml(/** @type {any} */ own, /** @type {boolean} */ editable) 
   const can = editable && own.id && def;
   const opt = (/** @type {string[]} */ list, /** @type {string} */ cur) =>
     list.map((x) => `<option ${x === cur ? 'selected' : ''}>${esc(x)}</option>`).join('');
+  // The value written on the <dfw-use> (data-dfw-props, read by the overlay); '' when unset.
+  const val = (/** @type {string} */ p) => {
+    const v = own.props ? ownKey(own.props, p) : undefined;
+    return esc(typeof v === 'string' ? v : '');
+  };
   return `<div class="isec"><h3>${TEXT.label.component} <span class="sp"></span><button type="button" class="btn small comp" data-act="master">${TEXT.goToMaster}</button></h3><dl class="kv">
       <dt>${TEXT.label.component}</dt><dd>${esc(own.comp)}</dd>
       ${def?.variants?.length ? `<dt>${TEXT.label.variant}</dt><dd>${can ? `<select data-edit="variant">${opt(def.variants, own.variant)}</select>` : esc(own.variant)}</dd>` : ''}
       ${def?.sizes?.length ? `<dt>${TEXT.label.size}</dt><dd>${can ? `<select data-edit="size">${opt(def.sizes, own.size)}</select>` : esc(own.size)}</dd>` : ''}
-      ${(def?.props || []).map((/** @type {string} */ p) => `<dt>${esc(p)}</dt><dd>${can ? `<input data-edit="prop" data-prop="${esc(p)}" placeholder="${TEXT.emptyValue}">` : ''}</dd>`).join('')}
+      ${(def?.props || []).map((/** @type {string} */ p) => `<dt>${esc(p)}</dt><dd>${can ? `<input data-edit="prop" data-prop="${esc(p)}" value="${val(p)}" placeholder="${TEXT.emptyValue}">` : val(p)}</dd>`).join('')}
     </dl>${!own.id && editable ? '<p class="note">Give the instance an id to edit it here.</p>' : ''}${def?.description ? `<p class="note">${esc(def.description)}</p>` : ''}</div>`;
 }
 

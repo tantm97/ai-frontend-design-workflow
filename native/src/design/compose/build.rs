@@ -24,6 +24,7 @@ pub fn compose_file(root: &Path, rel: &str) -> Result<ComposedFile, DfwError> {
         ComposeOptions {
             lib: None,
             design_base: Some(&base),
+            prop_values: false,
         },
     )?;
     let needs_components_css =
@@ -127,6 +128,7 @@ pub fn build_composed(root: &Path, rels: &[String]) -> Result<Vec<BuiltFile>, Df
             ComposeOptions {
                 lib: Some(&lib),
                 design_base: Some(&base),
+                prop_values: false,
             },
         )?;
         let out = out_dir.join(rel);

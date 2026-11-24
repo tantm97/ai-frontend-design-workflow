@@ -1060,6 +1060,7 @@ pub(super) fn debug_compose(ctx: &Ctx) -> Result<i32, DfwError> {
         ComposeOptions {
             lib: None,
             design_base: ctx.args.text("base"),
+            prop_values: false,
         },
     )?;
     out(&to_json_compact(&composed.to_json()));

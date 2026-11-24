@@ -304,6 +304,7 @@ pub fn prepare_html(root: &Path, html: &str) -> Result<String, DfwError> {
         ComposeOptions {
             lib: None,
             design_base: Some(DESIGN_BASE),
+            prop_values: true,
         },
     )?;
     let mut out = r.html;

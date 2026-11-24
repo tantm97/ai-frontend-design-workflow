@@ -346,6 +346,7 @@ fn build_system_page(root: &Path) -> Result<PathBuf, DfwError> {
     let opts = ComposeOptions {
         lib: None,
         design_base: Some("../"),
+        prop_values: false,
     };
     let html = compose_html(root, &page, opts)?.html;
     let src_dir = &p.system;

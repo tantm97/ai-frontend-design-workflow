@@ -19,6 +19,13 @@ struct RawIssue {
     index: usize,
 }
 
+/// What every level of a page's expansion shares: the masters and [`ComposeOptions::prop_values`].
+#[derive(Clone, Copy)]
+struct Ctx<'a> {
+    lib: &'a Library,
+    prop_values: bool,
+}
+
 struct Level {
     html: String,
     instances: Vec<RawInstance>,
@@ -211,6 +218,11 @@ pub struct ComposeOptions<'a> {
     /// Path from the page to `design/` (`../../`, or `/design/` in the Studio). When set,
     /// `<dfw-head>` is expanded and `{{base}}` resolved.
     pub design_base: Option<&'a str>,
+    /// Write each instance's own prop values (as written on its `<dfw-use>`, without the
+    /// master's defaults) on its root as `data-dfw-props` JSON, for the Studio's inspector;
+    /// nothing when it sets none.
+    /// Off for every other output.
+    pub prop_values: bool,
 }
 
 /// `composeHtml`: expand `<dfw-use>`, `<dfw-icon>` (and `<dfw-head>` with a design base) in an
@@ -235,7 +247,11 @@ pub fn compose_html(root: &Path, html: &str, opts: ComposeOptions) -> Result<Com
         source_line -= lines(&expanded) - lines(html);
         text = &expanded;
     }
-    let level = compose_level(root, text, lib, 0)?;
+    let ctx = Ctx {
+        lib,
+        prop_values: opts.prop_values,
+    };
+    let level = compose_level(root, text, ctx, 0)?;
     let line = |index: usize| line_of(text, index) as i64 + source_line;
     Ok(Composed {
         // {{base}} in masters, examples and instance attributes: the path from this page to design/.
@@ -313,7 +329,7 @@ fn expand_use(
     html: &str,
     tag: &Tag,
     inner: &str,
-    lib: &Library,
+    ctx: Ctx,
     depth: usize,
     level: &mut Level,
 ) -> Result<(), DfwError> {
@@ -321,7 +337,7 @@ fn expand_use(
     let attrs = attrs_of(html, &tag.attrs);
     let name = attrs.nonempty("c").or(attrs.nonempty("component"));
     let shown = name.unwrap_or("undefined");
-    let Some(def) = lib.get(name) else {
+    let Some(def) = ctx.lib.get(name) else {
         level.issues.push(RawIssue {
             rule: "component-unknown",
             index: start,
@@ -368,12 +384,14 @@ fn expand_use(
     props.set("variant", variant.clone());
     props.set("size", size.clone());
     let mut extra: Vec<(String, Option<String>)> = Vec::new();
+    let mut own = Map::new();
     for (k, v) in attrs.iter() {
         if RESERVED.contains(&k) {
             continue;
         }
         if def.props.iter().any(|p| p == k) {
             props.set(k, v);
+            own.insert(k.to_string(), json!(v));
         } else {
             set_extra(&mut extra, k, Some(v.to_string()));
         }
@@ -396,6 +414,13 @@ fn expand_use(
         "data-dfw-size",
         (!def.sizes.is_empty()).then(|| size.clone()),
     );
+    if ctx.prop_values && !own.is_empty() {
+        // `{{` as JSON escapes, so the page's `{{base}}` pass leaves the values as written.
+        let text = Value::Object(own)
+            .to_string()
+            .replace("{{", "\\u007b\\u007b");
+        set_extra(&mut extra, "data-dfw-props", Some(text));
+    }
     let body = annotate_root(&body, &extra, attrs.get("class"));
     level.instances.push(RawInstance {
         component: name.map(str::to_string),
@@ -404,7 +429,7 @@ fn expand_use(
         id: id.filter(|i| !i.is_empty()).map(str::to_string),
         index: start,
     });
-    let nested = compose_level(root, &body, lib, depth + 1)?;
+    let nested = compose_level(root, &body, ctx, depth + 1)?;
     level.html.push_str(&nested.html);
     level.instances.extend(
         nested
@@ -421,7 +446,7 @@ fn expand_use(
     Ok(())
 }
 
-fn compose_level(root: &Path, html: &str, lib: &Library, depth: usize) -> Result<Level, DfwError> {
+fn compose_level(root: &Path, html: &str, ctx: Ctx, depth: usize) -> Result<Level, DfwError> {
     let mut level = Level {
         html: String::new(),
         instances: Vec::new(),
@@ -480,7 +505,7 @@ fn compose_level(root: &Path, html: &str, lib: &Library, depth: usize) -> Result
                 html,
                 &el.open,
                 &html[el.inner.clone()],
-                lib,
+                ctx,
                 depth,
                 &mut level,
             )?;
