@@ -309,6 +309,39 @@ fn layout_check_finds_overlap_overflow_anchor_and_void() {
     assert_no_browser_left(&sb);
 }
 
+/// A decorative layer (aria-hidden) drawn over a headline is not an overlap; two visible blocks
+/// that overlap on the same screen still are (needs Chrome).
+#[test]
+#[ignore = "needs Chrome"]
+fn layout_check_ignores_decorative_layers_but_not_visible_overlaps() {
+    /// The screen and the sandbox label.
+    const DECOR: &str = "decor";
+    let sb = sandbox(DECOR);
+    let root = sb.join("project");
+    design(&root, &[(
+        DECOR,
+        &page("<main style=\"position:relative;height:880px\"><h1 data-dfw-id=\"headline\" style=\"position:absolute;left:20px;top:20px;width:400px;height:60px;margin:0\">Moonlit headline</h1><div aria-hidden=\"true\" style=\"position:absolute;left:40px;top:30px\"><svg width=\"40\" height=\"40\"><circle cx=\"20\" cy=\"20\" r=\"18\"/></svg><span style=\"position:absolute;left:80px;top:10px\">petal</span></div><p data-dfw-id=\"first\" style=\"position:absolute;left:20px;top:200px;width:200px;height:40px;margin:0\">First block of text</p><p data-dfw-id=\"second\" style=\"position:absolute;left:60px;top:210px;width:200px;height:40px;margin:0\">Second block of text</p></main>"),
+    )]);
+    let (code, stdout, stderr) = dfw(&sb, &[command::LAYOUT, sub::CHECK, flag::JSON], "");
+    assert_eq!(code, 2, "{stderr}");
+    let overlaps: Vec<String> = findings(&stdout)
+        .iter()
+        .filter(|f| f["rule"] == "overlap")
+        .map(|f| f["message"].as_str().unwrap().to_string())
+        .collect();
+    assert!(
+        overlaps
+            .iter()
+            .any(|m| m.contains("\"first\" overlaps \"second\"")),
+        "{overlaps:#?}"
+    );
+    assert!(
+        overlaps.iter().all(|m| !m.contains("headline")),
+        "{overlaps:#?}"
+    );
+    assert_no_browser_left(&sb);
+}
+
 /// hooks: stop re-renders what changed, blocks once on a MUST finding and reports each state of
 /// the design once (no JavaScript unit test covers this part of `stop`).
 #[test]

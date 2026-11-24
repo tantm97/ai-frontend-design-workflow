@@ -52,8 +52,10 @@ function measure(opts) {
   }
   out.blocks = painted.map((p) => ({ x: p.r.left, y: p.r.top + scrollY, w: p.r.width, h: p.r.height }));
 
-  // Overlap between leaf content (text/media/controls) that are not nested.
-  const leaves = painted.filter((p) => (p.hasText || p.replaced) && p.cs.position !== 'fixed');
+  // Overlap between leaf content (text/media/controls) that are not nested. Decorative layers
+  // (aria-hidden) may sit over content on purpose, like the touch-target check below skips them.
+  const decor = (el) => el.closest('[aria-hidden="true"]');
+  const leaves = painted.filter((p) => (p.hasText || p.replaced) && p.cs.position !== 'fixed' && !decor(p.el));
   for (let i = 0; i < leaves.length; i++) {
     for (let j = i + 1; j < leaves.length; j++) {
       const a = leaves[i];
@@ -71,7 +73,7 @@ function measure(opts) {
   }
   // Boxes: two component instances with a visible box (card, stat, banner, table...) that are not nested
   // must not intrude into each other, even if their texts do not touch yet.
-  const boxes = painted.filter((p) => p.boxed && p.el.hasAttribute('data-dfw-component') && !/absolute|fixed/.test(p.cs.position));
+  const boxes = painted.filter((p) => p.boxed && p.el.hasAttribute('data-dfw-component') && !/absolute|fixed/.test(p.cs.position) && !decor(p.el));
   for (let i = 0; i < boxes.length; i++) {
     for (let j = i + 1; j < boxes.length; j++) {
       const a = boxes[i];
