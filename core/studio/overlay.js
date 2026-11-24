@@ -551,6 +551,18 @@
     zoom: (z) => `${Math.round(z * 100)}%`,
     dims: (w, h) => `${Math.round(w)} × ${Math.round(h)}`,
     /** @param {boolean} all @param {string[]} on */
+    fitWidth: "Fit width",
+    allBreakpoints: "All breakpoints",
+    breakpointCount: (n) => `${n} breakpoints`,
+    manifestInferred: "manifest inferred",
+    /** The product name when design.json names none. */
+    defaultProduct: "Design Studio",
+    // Canvas rows; `at` is a breakpoint name and width ("Desktop 1440")
+    flowRow: (at) => `Flow at ${at}`,
+    linkCount: (n) => `${n} link(s)`,
+    atBreakpoint: (at) => `at ${at}`,
+    variantsSub: (at) => `Alternatives at ${at}`,
+    statesRow: (names) => `States (${names})`,
     statesSummary: (all, on) => `States: ${all ? "all" : !on.length ? "off" : on.length <= 2 ? on.join(", ") : on.length}`,
     // Pins
     pinTitle: (n, status) => `Comment #${n} · ${status}`,
@@ -570,6 +582,7 @@
     noFullscreen: "Fullscreen is not available here.",
     // Screenshots
     shootCount: (n) => `${n} frame${plural(n)} · shown breakpoints/states`,
+    allScreens: "All screens",
     shootButton: (n) => `Screenshot ${n}`,
     noScreenToShoot: "No screen to screenshot.",
     shooting: (n) => `Screenshotting ${n} screen${plural(n)}…`,
@@ -591,6 +604,11 @@
     onlyFlexGridChildren: "Only children of a flex or grid container can be reordered.",
     alreadyFirst: "Already the first item.",
     alreadyLast: "Already the last item.",
+    spanOf: (span, of) => `span ${span} / ${of}`,
+    tokenSize: (name, px) => `${name} · ${px}px`,
+    movedInto: (id) => `Moved into ${id}`,
+    moved: (position, id) => `Moved ${position} ${id}`,
+    resetToAuto: (prop) => prop ? `${prop} reset to auto` : "Size reset to auto",
     alreadyAt: (label) => `Already ${label}.`,
     elementNotFound: (what) => `Element ${what} not found in this frame.`,
     layoutConflict: (id, prop, by) => `Saved, but ${id} did not change: ${by ? `"${by}"` : "another rule"} still sets ${prop}${by === "style attribute" ? "" : " with higher priority"}. Remove ${prop} there (or ask the AI), then resize again.`,
@@ -601,6 +619,12 @@
     liveBarLabel: "dfw review",
     liveCommentLabel: "Comment for the AI",
     liveCommentPlaceholder: "What should change?",
+    noSourceMap: (tag) => `${tag} (no source map: dfw inspector setup)`,
+    /** Modifier key names of a shortcut label, on a Mac and elsewhere. */
+    keyNames: Object.freeze({
+      mac: Object.freeze({ ctrl: "Ctrl", alt: "Option", shift: "Shift", meta: "Cmd" }),
+      other: Object.freeze({ ctrl: "Ctrl", alt: "Alt", shift: "Shift", meta: "Meta" })
+    }),
     // Comments list and pins
     nothingHere: "Nothing here.",
     showOnCanvas: (n) => `Show comment #${n} on the canvas`,
@@ -629,6 +653,9 @@
     /** Short labels: field names, menu rows, buttons. */
     label: Object.freeze({
       designSystem: "Design System",
+      prototype: "Prototype",
+      variants: "Variants",
+      states: "States",
       frame: "Frame",
       screen: "Screen",
       variant: "Variant",
@@ -752,7 +779,7 @@
         list: Array.from({ length: n }, (_, i) => ({
           value: `span ${i + 1}`,
           css: `span ${i + 1}`,
-          label: `span ${i + 1} / ${n}`,
+          label: TEXT.spanOf(i + 1, n),
           px: (i + 1) * track + i * gap
         }))
       };
@@ -762,12 +789,12 @@
       const pcs = getComputedStyle(p);
       const inner = p.clientWidth - parseFloat(pcs.paddingLeft) - parseFloat(pcs.paddingRight);
       const pct = PERCENTS.map((v) => ({ value: `${v}%`, css: `${v}%`, label: `${Math.round(v)}%`, px: inner * v / 100 }));
-      const sizes = toks.filter((t) => t.name.startsWith("size.") && t.px <= inner).map((t) => ({ value: t.name, css: `var(${t.var})`, label: `${t.name} · ${Math.round(t.px)}px`, px: t.px }));
+      const sizes = toks.filter((t) => t.name.startsWith("size.") && t.px <= inner).map((t) => ({ value: t.name, css: `var(${t.var})`, label: TEXT.tokenSize(t.name, Math.round(t.px)), px: t.px }));
       return { prop: LAYOUT_PROP.WIDTH, list: [...pct, ...sizes].sort((a, b) => a.px - b.px) };
     }
     return {
       prop: LAYOUT_PROP.MIN_HEIGHT,
-      list: toks.map((t) => ({ value: t.name, css: `var(${t.var})`, label: `${t.name} · ${Math.round(t.px)}px`, px: t.px }))
+      list: toks.map((t) => ({ value: t.name, css: `var(${t.var})`, label: TEXT.tokenSize(t.name, Math.round(t.px)), px: t.px }))
     };
   }
   var nearest = (list, px) => list.reduce((best, o) => Math.abs(o.px - px) < Math.abs(best.px - px) ? o : best, list[0]);
@@ -911,7 +938,7 @@
         id: g.el.dataset.dfwId,
         ref: t.ref.dataset.dfwId,
         position: DROP.INSIDE,
-        label: `Moved into ${t.ref.dataset.dfwId}`
+        label: TEXT.movedInto(t.ref.dataset.dfwId)
       });
     } else if (commit && t) {
       const next = t.position === DROP.BEFORE ? t.ref : t.ref.nextSibling;
@@ -922,7 +949,7 @@
           id: g.el.dataset.dfwId,
           ref: t.ref.dataset.dfwId,
           position: t.position,
-          label: `Moved ${t.position} ${t.ref.dataset.dfwId}`
+          label: TEXT.moved(t.position, t.ref.dataset.dfwId)
         });
       }
     }
@@ -938,7 +965,7 @@
       id: el.dataset.dfwId,
       prop,
       value: null,
-      label: prop ? `${prop} reset to auto` : "Size reset to auto"
+      label: TEXT.resetToAuto(prop)
     });
   }
   function layoutKey(key, shift) {
@@ -960,7 +987,7 @@
         id: el.dataset.dfwId,
         ref: ref.dataset.dfwId,
         position,
-        label: `Moved ${position} ${ref.dataset.dfwId}`
+        label: TEXT.moved(position, ref.dataset.dfwId)
       });
     }
     const axis = key === KEY.LEFT || key === KEY.RIGHT ? "x" : "y";

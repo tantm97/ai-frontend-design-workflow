@@ -16,7 +16,8 @@ import { handleKey } from './keys.js';
 import { renderToolbar } from './toolbar.js';
 import { MSG, SSE } from '#studio/shared/protocol.js';
 import { events, server } from './api.js';
-import { MODE, TAB, EDIT_OP, PHASE, AGENT_PHASE } from '#studio/shared/enums.js';
+import { MODE, TAB, EDIT_OP, PHASE, AGENT_PHASE, SYSTEM_SCREEN } from '#studio/shared/enums.js';
+import { TEXT } from '#studio/shared/text.js';
 
 /** A frame (or the presenter) loaded its overlay: send it the tool, tokens, pins and selection. */
 function onReady(/** @type {any} */ f) {
@@ -181,7 +182,7 @@ export async function loadAll({ keepCam = false } = {}) {
     server.components().catch(() => []),
   ]);
   S.manifest = manifest;
-  S.pages = manifest.studioPages || [{ id: 'system', title: 'Design System', system: true, screens: [] }];
+  S.pages = manifest.studioPages || [{ id: SYSTEM_SCREEN, title: TEXT.label.designSystem, system: true, screens: [] }];
   S.state = st.state;
   S.tokens = tokens;
   S.components = new Map(comps.map((/** @type {any} */ c) => [c.name, c]));
@@ -190,7 +191,7 @@ export async function loadAll({ keepCam = false } = {}) {
   if (!S.activeBps?.length) S.activeBps = null;
   renderToolbar();
   if (keepCam && S.page) rebuildKeepCam();
-  else setPage(store.get('page', null) || S.pages.find((p) => !p.system && !p.flow && p.screens.length)?.id || 'system');
+  else setPage(store.get('page', null) || S.pages.find((p) => !p.system && !p.flow && p.screens.length)?.id || SYSTEM_SCREEN);
   await loadComments();
 }
 

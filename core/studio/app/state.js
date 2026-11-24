@@ -3,6 +3,7 @@
 // settings, the server API, the toast, and messages to the frames.
 import { pageModel as modelOf, screenById as findScreen } from './model.js';
 import { MODE } from '#studio/shared/enums.js';
+import { TEXT } from '#studio/shared/text.js';
 
 /**
  * querySelector with a loose result type: the Studio's own markup (app.html) is known.
@@ -151,7 +152,7 @@ export const viewContext = () => ({
 export const pageModel = (/** @type {any} */ page) => modelOf(viewContext(), page);
 export const screenById = (/** @type {string} */ id) => findScreen(S.manifest, id);
 export const currentPage = () =>
-  S.page === ALL ? { id: ALL, title: 'All pages', screens: [], all: true } : S.pages.find((p) => p.id === S.page) || S.pages[0];
+  S.page === ALL ? { id: ALL, title: TEXT.label.allPages, screens: [], all: true } : S.pages.find((p) => p.id === S.page) || S.pages[0];
 
 /**
  * Message to the overlay of a frame. Frames show /design/ and /__dfw/ pages of this Studio, so the

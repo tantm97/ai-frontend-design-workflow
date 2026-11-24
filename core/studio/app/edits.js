@@ -6,7 +6,7 @@ import { S, post, toast } from './state.js';
 import { reloadFrame, selectFrame, setPage } from './frames.js';
 import { MSG } from '#studio/shared/protocol.js';
 import { server } from './api.js';
-import { EDIT_OP } from '#studio/shared/enums.js';
+import { EDIT_OP, SYSTEM_SCREEN } from '#studio/shared/enums.js';
 import { TEXT } from '#studio/shared/text.js';
 
 /** Layout edit scope of a frame (see model.js layoutScope). */
@@ -63,9 +63,9 @@ export function layoutOp(f, d) {
 /** Open the Design System page on a component's master. */
 export function goToMaster(/** @type {string} */ name) {
   S.zoomOnSelect = true;
-  setPage('system');
-  selectFrame('system');
-  const f = S.frames.get('system');
+  setPage(SYSTEM_SCREEN);
+  selectFrame(SYSTEM_SCREEN);
+  const f = S.frames.get(SYSTEM_SCREEN);
   f.pendingSelect = { dfwId: `system.component.${name}`, required: true };
   if (f.loaded) {
     post(f, { type: MSG.SELECT_ID, ...f.pendingSelect });

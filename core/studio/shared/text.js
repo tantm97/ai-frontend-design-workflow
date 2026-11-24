@@ -45,6 +45,18 @@ export const TEXT = Object.freeze({
   zoom: (/** @type {number} */ z) => `${Math.round(z * 100)}%`,
   dims: (/** @type {number} */ w, /** @type {number} */ h) => `${Math.round(w)} × ${Math.round(h)}`,
   /** @param {boolean} all @param {string[]} on */
+  fitWidth: 'Fit width',
+  allBreakpoints: 'All breakpoints',
+  breakpointCount: (/** @type {number} */ n) => `${n} breakpoints`,
+  manifestInferred: 'manifest inferred',
+  /** The product name when design.json names none. */
+  defaultProduct: 'Design Studio',
+  // Canvas rows; `at` is a breakpoint name and width ("Desktop 1440")
+  flowRow: (/** @type {string} */ at) => `Flow at ${at}`,
+  linkCount: (/** @type {number} */ n) => `${n} link(s)`,
+  atBreakpoint: (/** @type {string} */ at) => `at ${at}`,
+  variantsSub: (/** @type {string} */ at) => `Alternatives at ${at}`,
+  statesRow: (/** @type {string} */ names) => `States (${names})`,
   statesSummary: (all, on) => `States: ${all ? 'all' : !on.length ? 'off' : on.length <= 2 ? on.join(', ') : on.length}`,
   // Pins
   pinTitle: (/** @type {string} */ n, /** @type {string} */ status) => `Comment #${n} · ${status}`,
@@ -65,6 +77,7 @@ export const TEXT = Object.freeze({
   noFullscreen: 'Fullscreen is not available here.',
   // Screenshots
   shootCount: (/** @type {number} */ n) => `${n} frame${plural(n)} · shown breakpoints/states`,
+  allScreens: 'All screens',
   shootButton: (/** @type {number} */ n) => `Screenshot ${n}`,
   noScreenToShoot: 'No screen to screenshot.',
   shooting: (/** @type {number} */ n) => `Screenshotting ${n} screen${plural(n)}…`,
@@ -89,6 +102,11 @@ export const TEXT = Object.freeze({
   onlyFlexGridChildren: 'Only children of a flex or grid container can be reordered.',
   alreadyFirst: 'Already the first item.',
   alreadyLast: 'Already the last item.',
+  spanOf: (/** @type {number} */ span, /** @type {number} */ of) => `span ${span} / ${of}`,
+  tokenSize: (/** @type {string} */ name, /** @type {number} */ px) => `${name} · ${px}px`,
+  movedInto: (/** @type {string} */ id) => `Moved into ${id}`,
+  moved: (/** @type {string} */ position, /** @type {string} */ id) => `Moved ${position} ${id}`,
+  resetToAuto: (/** @type {string | null} */ prop) => (prop ? `${prop} reset to auto` : 'Size reset to auto'),
   alreadyAt: (/** @type {string} */ label) => `Already ${label}.`,
   elementNotFound: (/** @type {string} */ what) => `Element ${what} not found in this frame.`,
   layoutConflict: (/** @type {string} */ id, /** @type {string} */ prop, /** @type {string | null} */ by) =>
@@ -100,6 +118,12 @@ export const TEXT = Object.freeze({
   liveBarLabel: 'dfw review',
   liveCommentLabel: 'Comment for the AI',
   liveCommentPlaceholder: 'What should change?',
+  noSourceMap: (/** @type {string} */ tag) => `${tag} (no source map: dfw inspector setup)`,
+  /** Modifier key names of a shortcut label, on a Mac and elsewhere. */
+  keyNames: Object.freeze({
+    mac: Object.freeze({ ctrl: 'Ctrl', alt: 'Option', shift: 'Shift', meta: 'Cmd' }),
+    other: Object.freeze({ ctrl: 'Ctrl', alt: 'Alt', shift: 'Shift', meta: 'Meta' }),
+  }),
   // Comments list and pins
   nothingHere: 'Nothing here.',
   showOnCanvas: (/** @type {string} */ n) => `Show comment #${n} on the canvas`,
@@ -131,6 +155,9 @@ export const TEXT = Object.freeze({
   /** Short labels: field names, menu rows, buttons. */
   label: Object.freeze({
     designSystem: 'Design System',
+    prototype: 'Prototype',
+    variants: 'Variants',
+    states: 'States',
     frame: 'Frame',
     screen: 'Screen',
     variant: 'Variant',

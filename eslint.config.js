@@ -3,6 +3,21 @@
 import js from '@eslint/js';
 import globals from 'globals';
 
+// Text the user reads (J14): a literal with letters, or a template whose fixed parts hold a word,
+// given to a property people read (textContent, title, aria-label, a row's label ...), directly or
+// as a branch of `?:` or `||`. A call such as box(id, 'All screens') is not seen: review catches it.
+const TEXT_PROPS = 'textContent|innerText|placeholder|title|ariaLabel|alt|label|sub';
+const TEXT_ATTRS = 'aria-label|aria-description|title|placeholder|alt';
+const WORDS = ':matches(Literal[value=/[A-Za-z]{2}/], TemplateLiteral:has(TemplateElement[value.raw=/[A-Za-z]{2}/]))';
+const READ = (/** @type {string} */ owner) =>
+  [`${owner} > ${WORDS}`, `${owner} > :matches(ConditionalExpression, LogicalExpression) ${WORDS}`].join(', ');
+const USER_TEXT = [
+  READ(`AssignmentExpression[left.property.name=/^(${TEXT_PROPS})$/]`),
+  READ(`Property[key.name=/^(${TEXT_PROPS})$/]`),
+  READ(`Property[key.value=/^(${TEXT_ATTRS})$/]`),
+  `CallExpression[callee.property.name='setAttribute'][arguments.0.value=/^(${TEXT_ATTRS})$/] > ${WORDS}.arguments:nth-child(2)`,
+].join(', ');
+
 export default [
   {
     ignores: [
@@ -60,10 +75,10 @@ export default [
           message: 'A fixed value is compared through core/studio/shared/enums.js: use MODE / STATUS / TAB / KEY / ... (J14).',
         },
         {
-          selector:
-            "AssignmentExpression[left.property.name=/^(textContent|placeholder|title)$/] > :matches(Literal[value=/ /], TemplateLiteral[quasis.length>1]), CallExpression[callee.property.name='setAttribute'][arguments.0.value=/^(aria-label|title|placeholder)$/] > :matches(Literal[value=/ /], TemplateLiteral).arguments:nth-child(2)",
-          message: 'Text the user reads lives in core/studio/shared/text.js: TEXT.<name> (J14).',
+          selector: "Literal[value='system']",
+          message: 'The Design System page id is SYSTEM_SCREEN in core/studio/shared/enums.js (J14).',
         },
+        { selector: USER_TEXT, message: 'Text the user reads lives in core/studio/shared/text.js: TEXT.<name> (J14).' },
         {
           selector: "CallExpression[callee.name='toast'] > :matches(Literal, TemplateLiteral)",
           message: 'Text the user reads lives in core/studio/shared/text.js: toast(TEXT.<name>) (J14).',

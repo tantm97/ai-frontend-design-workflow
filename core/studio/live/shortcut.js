@@ -3,6 +3,8 @@
 // in the button's title, and matched on keydown by event.code (Option+C types "ç" on macOS).
 // Functions of values only, tested in tests/unit/studio-live-shortcut.test.mjs.
 
+import { TEXT } from '#studio/shared/text.js';
+
 /** @typedef {{ key: string, alt: boolean, ctrl: boolean, shift: boolean, meta: boolean }} Shortcut */
 
 /**
@@ -24,9 +26,7 @@ export function parseShortcut(spec) {
  */
 export function shortcutLabel(sc, mac) {
   if (!sc) return '';
-  const names = mac
-    ? { ctrl: 'Ctrl', alt: 'Option', shift: 'Shift', meta: 'Cmd' }
-    : { ctrl: 'Ctrl', alt: 'Alt', shift: 'Shift', meta: 'Meta' };
+  const names = mac ? TEXT.keyNames.mac : TEXT.keyNames.other;
   return [...['ctrl', 'alt', 'shift', 'meta'].filter((m) => sc[m]).map((m) => names[m]), sc.key.toUpperCase()].join('+');
 }
 

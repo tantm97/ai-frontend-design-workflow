@@ -106,7 +106,7 @@ button[aria-pressed=true],button.primary{background:#2f6fed}
     picked = el;
     outline(el);
     const src = shortSrc(inspOf(el));
-    $('.src').textContent = src || `${el.tagName.toLowerCase()} (no source map: dfw inspector setup)`;
+    $('.src').textContent = src || TEXT.noSourceMap(el.tagName.toLowerCase());
     const r = el.getBoundingClientRect();
     pop.hidden = false;
     const w = pop.offsetWidth;

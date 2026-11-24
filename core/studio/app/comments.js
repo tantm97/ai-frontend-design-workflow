@@ -145,7 +145,7 @@ export function openComposer(sel, f, prefill) {
         theme: S.theme || null,
         target: sel.target,
       };
-  const where = f.system ? 'Design System' : [s?.id || f.file, f.variant?.id, f.bp?.id, f.state].filter(Boolean).join(' / ');
+  const where = f.system ? TEXT.label.designSystem : [s?.id || f.file, f.variant?.id, f.bp?.id, f.state].filter(Boolean).join(' / ');
   $('#composer-target').textContent = TEXT.composerTarget(where, sel.target.dfwId || sel.target.selector);
   const r = toScreen(f, sel.rect || [0, 0, 0, 0]);
   const comp = $('#composer');

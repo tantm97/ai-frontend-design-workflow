@@ -6,9 +6,10 @@ import { $, P, S, pageModel, store, toast } from './state.js';
 import { allFrameSpecs } from './frames.js';
 import { presentSrc } from './present.js';
 import { server } from './api.js';
+import { SYSTEM_SCREEN } from '#studio/shared/enums.js';
 import { TEXT } from '#studio/shared/text.js';
 
-const shootKey = (/** @type {any} */ f) => (f.system ? 'system' : f.screen?.id || f.file);
+const shootKey = (/** @type {any} */ f) => (f.system ? SYSTEM_SCREEN : f.screen?.id || f.file);
 /** @type {string[] | null} */
 let shootPicked = store.get('shoot1', null);
 
@@ -26,7 +27,7 @@ function shootGroups() {
         const k = shootKey(f);
         if (seen.has(k)) continue;
         seen.add(k);
-        items.push({ id: k, label: f.system ? 'Design System' : f.screen?.title || k, n: count.get(k) || 0 });
+        items.push({ id: k, label: f.system ? TEXT.label.designSystem : f.screen?.title || k, n: count.get(k) || 0 });
       }
     if (items.length) groups.push({ id: p.id, title: p.title, items });
   }
@@ -65,7 +66,7 @@ function renderShootMenu() {
     wrap.append(l);
   };
   const nOn = ids.filter(on).length;
-  box('ms-all', 'All screens', nOn === ids.length, nOn > 0 && nOn < ids.length, (c) => set(c ? null : []));
+  box('ms-all', TEXT.allScreens, nOn === ids.length, nOn > 0 && nOn < ids.length, (c) => set(c ? null : []));
   for (const g of groups) {
     const gOn = g.items.filter((i) => on(i.id)).length;
     const gIds = g.items.map((i) => i.id);
