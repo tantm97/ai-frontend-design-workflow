@@ -131,6 +131,52 @@ fn install_binary_from(base: &str, version: &str, log: &dyn Fn(&str)) -> Result<
     )
 }
 
+/// What the binary installer says.
+pub mod message {
+    /// `dfw install` removed the Node binaries of these versions.
+    pub fn removed_node_binaries(versions: &[String]) -> String {
+        format!(
+            "Removed the Node binaries of dfw {} (native since 0.6.0)",
+            versions.join(", ")
+        )
+    }
+}
+
+/// The first version whose binary is native (Rust). The binaries before it are the Node
+/// builds of 0.5.x: no 0.6 plugin runs one, and each is tens of megabytes.
+const FIRST_NATIVE: (u64, u64) = (0, 6);
+
+/// Remove the binaries of the Node era (versions before 0.6.0) from `<dfw home>/bin/`, after an
+/// install put the native one in place. Only a version folder that holds a dfw binary is
+/// removed; every 0.6 or later version stays (another host's plugin may still run it). Returns
+/// the versions removed.
+pub fn remove_node_binaries() -> Vec<String> {
+    remove_node_binaries_in(&global_dir().join("bin"))
+}
+
+fn remove_node_binaries_in(bin: &std::path::Path) -> Vec<String> {
+    let Ok(entries) = fs::read_dir(bin) else {
+        return Vec::new();
+    };
+    let mut removed: Vec<String> = entries
+        .flatten()
+        .filter_map(|e| {
+            let version = e.file_name().to_string_lossy().into_owned();
+            let mut parts = version.split('.').map(str::parse::<u64>);
+            let (Some(Ok(major)), Some(Ok(minor))) = (parts.next(), parts.next()) else {
+                return None;
+            };
+            let holds_dfw = ["dfw", "dfw.exe"]
+                .iter()
+                .any(|exe| e.path().join(exe).is_file());
+            ((major, minor) < FIRST_NATIVE && holds_dfw && fs::remove_dir_all(e.path()).is_ok())
+                .then_some(version)
+        })
+        .collect();
+    removed.sort();
+    removed
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -219,5 +265,29 @@ mod tests {
             err.message(),
             format!("No dfw binary release for v7.7.7 yet (HTTP 404 for {base}/none/SHA256SUMS). The installed dfw keeps running.")
         );
+    }
+
+    /// The Node binaries of 0.5.x go; every native version, and any folder that is not a dfw
+    /// binary of its own, stays.
+    #[test]
+    fn node_era_binaries_are_removed_and_native_ones_kept() {
+        /// A version of the Node era, two native ones, and folders that are not dfw binaries.
+        const NODE: &str = "0.5.2";
+        const NATIVE: [&str; 2] = ["0.6.0", "0.10.1"];
+        const NO_BINARY: &str = "0.4.0";
+        const NOT_A_VERSION: &str = "latest";
+        let bin = crate::core::util::test_dir("bin-node");
+        for v in [NODE, NATIVE[0], NATIVE[1], NOT_A_VERSION] {
+            fs::create_dir_all(bin.join(v)).unwrap();
+            fs::write(bin.join(v).join("dfw"), "x").unwrap();
+        }
+        fs::create_dir_all(bin.join(NO_BINARY)).unwrap();
+        assert_eq!(remove_node_binaries_in(&bin), [NODE]);
+        for kept in [NATIVE[0], NATIVE[1], NOT_A_VERSION, NO_BINARY] {
+            assert!(bin.join(kept).exists(), "{kept}");
+        }
+        assert!(!bin.join(NODE).exists());
+        assert!(remove_node_binaries_in(&bin.join("missing")).is_empty());
+        fs::remove_dir_all(&bin).unwrap();
     }
 }
