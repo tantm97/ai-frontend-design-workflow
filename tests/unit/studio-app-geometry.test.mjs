@@ -3,12 +3,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  FRAME_MAX_H,
   L,
   ZMAX,
   ZMIN,
   boundsOf,
   fitRect,
   flowArrows,
+  frameHeight,
   frameToScreen,
   layoutSections,
   nextZoom,
@@ -129,4 +131,11 @@ test('studio-app-geometry: wheel pans (Shift: sideways), Ctrl/Cmd zooms at the p
 
 test('studio-app-geometry: a rectangle in a frame to window coordinates', () => {
   assert.deepEqual(frameToScreen({ x: 100, y: 200 }, [10, 20, 30, 40], { x: 5, y: 6, z: 0.5 }, { left: 240, top: 44 }), [300, 160, 15, 20]);
+});
+
+test('studio-app-geometry: a frame grows to its whole document, a design system page of 46,000px too', () => {
+  assert.equal(frameHeight(45977, 900), 45977, 'the lower half of a tall page is not cut off');
+  assert.equal(frameHeight(300.2, 900), 900);
+  assert.equal(frameHeight(1200.4, 900), 1201);
+  assert.equal(frameHeight(5e6, 900), FRAME_MAX_H, 'a page that keeps growing stops at the guard');
 });

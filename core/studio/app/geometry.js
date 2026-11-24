@@ -112,6 +112,21 @@ export function flowArrows(flows, byScreen) {
   return out;
 }
 
+/**
+ * The tallest a frame grows to fit its document, in world pixels: a guard against a page that keeps
+ * growing, not a size limit. A design system page of about 46,000px must show whole: the canvas
+ * cannot scroll inside a frame. A 46,000px frame panned at 2x scale gave no "tile memory limits
+ * exceeded" warnings in Chrome.
+ */
+export const FRAME_MAX_H = 100000;
+
+/**
+ * Height of a frame that follows its document: the document height, at least minH, at most FRAME_MAX_H.
+ * @param {number} docH the document's scroll height
+ * @param {number} minH the frame's smallest height (the breakpoint height)
+ */
+export const frameHeight = (docH, minH) => Math.min(FRAME_MAX_H, Math.max(minH, Math.ceil(docH)));
+
 export const clampZoom = (/** @type {number} */ z) => Math.min(ZMAX, Math.max(ZMIN, z));
 
 /**
