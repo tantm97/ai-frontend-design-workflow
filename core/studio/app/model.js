@@ -98,10 +98,10 @@ export function makeSpec(ctx, s, v, bp, state) {
 /** @returns {FrameSpec} */
 export function systemSpec() {
   return {
-    key: 'system',
+    key: SYSTEM_SCREEN,
     system: true,
     screen: null,
-    title: 'Design System',
+    title: TEXT.label.designSystem,
     src: PATH.SYSTEM_PAGE,
     w: 1440,
     h: 900,
@@ -154,8 +154,8 @@ export function pageModel(ctx, page) {
     const specs = screens.map((s) => makeSpec(ctx, s, primaryVariant(s), primary, null));
     for (let i = 0; i < specs.length; i += 4)
       rows.push({
-        title: i ? null : `Flow at ${primary.label || primary.id} ${primary.width}`,
-        sub: i ? null : `${(m.flows || []).length} link(s)`,
+        title: i ? null : TEXT.flowRow(`${primary.label || primary.id} ${primary.width}`),
+        sub: i ? null : TEXT.linkCount((m.flows || []).length),
         frames: specs.slice(i, i + 4),
       });
     return { id: page.id, title: page.title, description: page.description || '', rows, flow: true };
@@ -178,10 +178,11 @@ export function pageModel(ctx, page) {
           for (const st of designedOf(sv, shownStates(ctx, sec.states || statesOf(m, s)))) frames.push(makeSpec(ctx, s, sv, bp, st));
         } else frames.push(makeSpec(ctx, s, v || primaryVariant(s), bp, null));
       }
-      const defTitle = { breakpoint: `${bp.label || bp.id} ${bp.width}`, variants: 'Variants', states: 'States' }[kind] || '';
+      const defTitle =
+        { breakpoint: `${bp.label || bp.id} ${bp.width}`, variants: TEXT.label.variants, states: TEXT.label.states }[kind] || '';
       rows.push({
         title: sec.title || defTitle,
-        sub: kind === SECTION_KIND.BREAKPOINT ? `${bp.width} × ${bp.height}` : `at ${bp.label || bp.id} ${bp.width}`,
+        sub: kind === SECTION_KIND.BREAKPOINT ? `${bp.width} × ${bp.height}` : TEXT.atBreakpoint(`${bp.label || bp.id} ${bp.width}`),
         notes: sec.notes || null,
         frames,
       });
@@ -197,14 +198,19 @@ export function pageModel(ctx, page) {
     const alt = screens.flatMap((s) =>
       (s.variants || []).filter((v) => v !== primaryVariant(s)).map((v) => makeSpec(ctx, s, v, primary, null)),
     );
-    if (alt.length) rows.push({ title: 'Variants', sub: `Alternatives at ${primary.label || primary.id} ${primary.width}`, frames: alt });
+    if (alt.length)
+      rows.push({ title: TEXT.label.variants, sub: TEXT.variantsSub(`${primary.label || primary.id} ${primary.width}`), frames: alt });
     if (allStates(m).length) {
       const st = screens.flatMap((s) =>
         designedOf(primaryVariant(s), shownStates(ctx, statesOf(m, s))).map((x) => makeSpec(ctx, s, primaryVariant(s), primary, x)),
       );
       const names = [...new Set(st.map((f) => f.state))];
       if (st.length)
-        rows.push({ title: `States (${names.join(' · ')})`, sub: `at ${primary.label || primary.id} ${primary.width}`, frames: st });
+        rows.push({
+          title: TEXT.statesRow(names.join(' · ')),
+          sub: TEXT.atBreakpoint(`${primary.label || primary.id} ${primary.width}`),
+          frames: st,
+        });
     }
   }
   if (page.notes?.length) {

@@ -349,7 +349,8 @@ export function renderPages() {
  * @param {{ fit?: boolean }} [opts]
  */
 export function setPage(id, { fit = false } = {}) {
-  if (id !== ALL && !S.pages.some((p) => p.id === id)) id = S.pages.find((p) => !p.system && !p.flow && p.screens.length)?.id || 'system';
+  if (id !== ALL && !S.pages.some((p) => p.id === id))
+    id = S.pages.find((p) => !p.system && !p.flow && p.screens.length)?.id || SYSTEM_SCREEN;
   S.cams[S.page] = { ...S.cam };
   S.page = id;
   store.set('page', id);

@@ -80,7 +80,7 @@ export function loadPresent() {
   const iframe = document.createElement('iframe');
   iframe.id = 'p-frame';
   iframe.name = PKEY;
-  iframe.title = 'Prototype';
+  iframe.title = TEXT.label.prototype;
   iframe.src = presentSrc();
   if (old) {
     S.byWin.delete(old.contentWindow);
@@ -107,7 +107,7 @@ export function layoutPresent() {
   P.iframe.style.width = `${w}px`;
   P.iframe.style.height = `${Math.round(sh / P.scale)}px`;
   P.iframe.style.transform = P.scale === 1 ? '' : `scale(${P.scale})`;
-  $('#p-fit').textContent = P.fit ? 'Fit width' : '100%';
+  $('#p-fit').textContent = P.fit ? TEXT.fitWidth : TEXT.zoom(1);
   $('#p-fit').setAttribute('aria-pressed', String(P.fit));
   updateHud();
 }
@@ -137,7 +137,7 @@ export function renderPresentBar() {
   const i = presentIndex();
   const s = P.screen;
   $('#p-title').textContent = P.system
-    ? 'Design System'
+    ? TEXT.label.designSystem
     : s
       ? `${s.title || s.id}${(s.variants || []).length > 1 ? ` · ${P.variant?.label || P.variant?.id}` : ''}`
       : P.file || '';

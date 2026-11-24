@@ -136,7 +136,7 @@ export function snapOptions(el, axis) {
       list: Array.from({ length: n }, (_, i) => ({
         value: `span ${i + 1}`,
         css: `span ${i + 1}`,
-        label: `span ${i + 1} / ${n}`,
+        label: TEXT.spanOf(i + 1, n),
         px: (i + 1) * track + i * gap,
       })),
     };
@@ -148,12 +148,12 @@ export function snapOptions(el, axis) {
     const pct = PERCENTS.map((v) => ({ value: `${v}%`, css: `${v}%`, label: `${Math.round(v)}%`, px: (inner * v) / 100 }));
     const sizes = toks
       .filter((t) => t.name.startsWith('size.') && t.px <= inner)
-      .map((t) => ({ value: t.name, css: `var(${t.var})`, label: `${t.name} · ${Math.round(t.px)}px`, px: t.px }));
+      .map((t) => ({ value: t.name, css: `var(${t.var})`, label: TEXT.tokenSize(t.name, Math.round(t.px)), px: t.px }));
     return { prop: LAYOUT_PROP.WIDTH, list: [...pct, ...sizes].sort((a, b) => a.px - b.px) };
   }
   return {
     prop: LAYOUT_PROP.MIN_HEIGHT,
-    list: toks.map((t) => ({ value: t.name, css: `var(${t.var})`, label: `${t.name} · ${Math.round(t.px)}px`, px: t.px })),
+    list: toks.map((t) => ({ value: t.name, css: `var(${t.var})`, label: TEXT.tokenSize(t.name, Math.round(t.px)), px: t.px })),
   };
 }
 
@@ -326,7 +326,7 @@ export function endDrag(/** @type {boolean} */ commit) {
       id: g.el.dataset.dfwId,
       ref: t.ref.dataset.dfwId,
       position: DROP.INSIDE,
-      label: `Moved into ${t.ref.dataset.dfwId}`,
+      label: TEXT.movedInto(t.ref.dataset.dfwId),
     });
   } else if (commit && t) {
     const next = t.position === DROP.BEFORE ? t.ref : t.ref.nextSibling;
@@ -341,7 +341,7 @@ export function endDrag(/** @type {boolean} */ commit) {
         id: g.el.dataset.dfwId,
         ref: t.ref.dataset.dfwId,
         position: t.position,
-        label: `Moved ${t.position} ${t.ref.dataset.dfwId}`,
+        label: TEXT.moved(t.position, t.ref.dataset.dfwId),
       });
     }
   }
@@ -363,7 +363,7 @@ export function resetLayout(el, prop = null) {
     id: el.dataset.dfwId,
     prop,
     value: null,
-    label: prop ? `${prop} reset to auto` : 'Size reset to auto',
+    label: TEXT.resetToAuto(prop),
   });
 }
 
@@ -391,7 +391,7 @@ export function layoutKey(key, shift) {
       id: el.dataset.dfwId,
       ref: ref.dataset.dfwId,
       position,
-      label: `Moved ${position} ${ref.dataset.dfwId}`,
+      label: TEXT.moved(position, ref.dataset.dfwId),
     });
   }
   const axis = key === KEY.LEFT || key === KEY.RIGHT ? 'x' : 'y';

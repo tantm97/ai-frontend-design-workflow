@@ -11,18 +11,18 @@ import { TEXT } from '#studio/shared/text.js';
 export function renderToolbar() {
   const m = S.manifest;
   const ctx = viewContext();
-  $('#product').textContent = m.product || 'Design Studio';
+  $('#product').textContent = m.product || TEXT.defaultProduct;
   const st = S.state;
-  $('#meta').textContent = [st ? `v${st.design.version} ${st.design.status}` : null, m.inferred ? 'manifest inferred' : null]
+  $('#meta').textContent = [st ? `v${st.design.version} ${st.design.status}` : null, m.inferred ? TEXT.manifestInferred : null]
     .filter(Boolean)
     .join(' · ');
   const bpName = (/** @type {any} */ bp) => `${bp.label || bp.id} ${bp.width}`;
   const bpOn = activeBps(ctx);
   $('#bp-menu summary').textContent = !S.activeBps
-    ? 'All breakpoints'
+    ? TEXT.allBreakpoints
     : bpOn.length <= 2
       ? bpOn.map(bpName).join(', ')
-      : `${bpOn.length} breakpoints`;
+      : TEXT.breakpointCount(bpOn.length);
   checkList(
     $('#breakpoints'),
     m.breakpoints.map((/** @type {any} */ bp) => ({ id: bp.id, label: bpName(bp) })),
