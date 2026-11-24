@@ -231,7 +231,7 @@ svg.flow text { fill: var(--accent); font: 600 22px var(--font); text-anchor: mi
 .hint { padding: 8px 12px; margin: 0; }
 
 /* Canvas */
-.viewport { position: relative; overflow: hidden; background: var(--canvas); cursor: default; touch-action: none; }
+.viewport { position: relative; overflow: clip; background: var(--canvas); cursor: default; touch-action: none; }
 /* The canvas takes focus for keyboard panning: the ring of :focus-visible shows it, a mouse click does not. */
 .viewport:focus:not(:focus-visible) { outline: none; }
 body[data-mode="hand"] .viewport, body.space .viewport { cursor: grab; }
