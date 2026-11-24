@@ -56,6 +56,9 @@ jobs:
         run: cargo build
       - name: Unit tests
         working-directory: native
+        # About 2 minutes on every runner: a test that hangs (a lock that is never let go) fails
+        # here instead of holding the job until its 30 minutes are up.
+        timeout-minutes: 10
         # Every test binary runs, so one red run shows every failure of the platform.
         run: cargo test --no-fail-fast
       - name: Clippy (tests included)
