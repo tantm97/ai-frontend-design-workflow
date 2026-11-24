@@ -6,8 +6,10 @@ use crate::core::fixture::ITEMS_PAGE;
 use crate::core::paths::rel;
 use crate::core::util::{iso_from_millis, to_json_compact};
 use crate::penpot::export::tests::{draft, fixture_export_at, project, with_export};
+use crate::penpot::wire;
 use crate::review::comments::{update_comment, Update};
 use crate::review::inbox::{format_for_claude, undelivered};
+use crate::review::status::field;
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
 
@@ -41,6 +43,19 @@ fn sync(
     sync_threads(root, &payload, None).unwrap()
 }
 
+/// The Penpot file the threads are in.
+const FILE: &str = "file-1";
+/// What designers write in the threads.
+const LOW_STOCK: &str = "Make low stock more visible";
+const RED: &str = "Make it red";
+const STILL_SMALL: &str = "Still too small";
+const PLEASE_DO: &str = "Actually please do it";
+const ACKNOWLEDGED: &str = Status::Acknowledged.as_str();
+const FIXED: &str = Status::Fixed.as_str();
+const RESOLVED: &str = Status::Resolved.as_str();
+const REOPENED: &str = Status::Reopened.as_str();
+const DISMISSED: &str = Status::Dismissed.as_str();
+
 fn count(r: &Value, key: &str) -> usize {
     r[key].as_array().unwrap().len()
 }
@@ -64,28 +79,25 @@ fn a_new_thread_becomes_one_dfw_comment_and_stays_one() {
     let (root, id) = live_project("penpot-live-new");
     let threads = || {
         vec![
-            thread(1, &["Make low stock more visible"], false),
+            thread(1, &[LOW_STOCK], false),
             thread(2, &["Old note"], true),
         ]
     };
-    let first = sync(&root, "file-1", &id, threads(), json!([]));
-    assert_eq!(count(&first, "comments"), 1); // the resolved thread was never open for dfw
-    assert_eq!(first["replies"], json!([]));
+    let first = sync(&root, FILE, &id, threads(), json!([]));
+    assert_eq!(count(&first, wire::COMMENTS), 1); // the resolved thread was never open for dfw
+    assert_eq!(first[wire::REPLIES], json!([]));
     let c = one(&root);
     assert_eq!(c["provider"], "penpot");
-    assert!(c["comment"]
-        .as_str()
-        .unwrap()
-        .contains("Make low stock more visible"));
+    assert!(c["comment"].as_str().unwrap().contains(LOW_STOCK));
     assert_eq!(c["screen"], "items");
-    let again = sync(&root, "file-1", &id, threads(), json!([]));
+    let again = sync(&root, FILE, &id, threads(), json!([]));
     assert_eq!(
-        (count(&again, "comments"), count(&again, "updated")),
+        (count(&again, wire::COMMENTS), count(&again, wire::UPDATED)),
         (0, 0)
     );
     assert_eq!(all_comments(&root).unwrap().len(), 1);
     // "Send changes" from the same file does not import the thread a second time.
-    let mut changes = json!({ "schema": "dfw-penpot-changes/1", "exportId": id, "fileId": "file-1", "boards": [], "comments": threads() });
+    let mut changes = json!({ "schema": CHANGES_SCHEMA, "exportId": id, "fileId": FILE, "boards": [], "comments": threads() });
     import_changes(&root, &mut changes, ImportOptions::default()).unwrap();
     assert_eq!(all_comments(&root).unwrap().len(), 1);
 }
@@ -94,49 +106,49 @@ fn a_new_thread_becomes_one_dfw_comment_and_stays_one() {
 #[test]
 fn what_dfw_does_comes_back_as_thread_replies_once() {
     let (root, export) = live_project("penpot-live-replies");
-    let t = || vec![thread(1, &["Make low stock more visible"], false)];
-    sync(&root, "file-1", &export, t(), json!([]));
+    let t = || vec![thread(1, &[LOW_STOCK], false)];
+    sync(&root, FILE, &export, t(), json!([]));
     let id = one(&root)["id"].as_str().unwrap().to_string();
-    set(&root, &id, "acknowledged", None);
-    let ack = sync(&root, "file-1", &export, t(), json!([]))["replies"].clone();
+    set(&root, &id, ACKNOWLEDGED, None);
+    let ack = sync(&root, FILE, &export, t(), json!([]))[wire::REPLIES].clone();
     assert_eq!(ack.as_array().unwrap().len(), 1);
-    let text = ack[0]["text"].as_str().unwrap();
+    let text = ack[0][wire::TEXT].as_str().unwrap();
     assert!(text.starts_with(&format!("[dfw] {id} seen")), "{text}");
     assert_eq!(to_json_compact(&ack[0]["seq"]), "1");
     // Not confirmed as posted yet: offered again. Confirmed: not offered again.
     assert_eq!(
-        count(&sync(&root, "file-1", &export, t(), json!([])), "replies"),
+        count(&sync(&root, FILE, &export, t(), json!([])), wire::REPLIES),
         1
     );
-    let posted = json!([{ "seq": 1, "key": ack[0]["key"] }]);
+    let posted = json!([{ "seq": 1, "key": ack[0][wire::KEY] }]);
     assert_eq!(
-        count(&sync(&root, "file-1", &export, t(), posted), "replies"),
+        count(&sync(&root, FILE, &export, t(), posted), wire::REPLIES),
         0
     );
     set(
         &root,
         &id,
-        "fixed",
+        FIXED,
         Some("Low stock rows now have a warning badge."),
     );
-    let fixed = sync(&root, "file-1", &export, t(), json!([]))["replies"].clone();
+    let fixed = sync(&root, FILE, &export, t(), json!([]))[wire::REPLIES].clone();
     assert_eq!(fixed.as_array().unwrap().len(), 1);
-    let text = fixed[0]["text"].as_str().unwrap();
+    let text = fixed[0][wire::TEXT].as_str().unwrap();
     assert!(text.contains("fixed: Low stock rows now have a warning badge."));
     assert!(text.contains("Resolve this thread to accept"));
     // The reply dfw posted is in the thread now: it is not a designer message.
-    let with_reply = vec![thread(1, &["Make low stock more visible", text], false)];
-    let posted = json!([{ "seq": 1, "key": fixed[0]["key"] }]);
-    let r = sync(&root, "file-1", &export, with_reply, posted);
+    let with_reply = vec![thread(1, &[LOW_STOCK, text], false)];
+    let posted = json!([{ "seq": 1, "key": fixed[0][wire::KEY] }]);
+    let r = sync(&root, FILE, &export, with_reply, posted);
     assert_eq!(
         (
-            count(&r, "comments"),
-            count(&r, "updated"),
-            count(&r, "replies")
+            count(&r, wire::COMMENTS),
+            count(&r, wire::UPDATED),
+            count(&r, wire::REPLIES)
         ),
         (0, 0, 0)
     );
-    assert_eq!(one(&root)["status"], "fixed");
+    assert_eq!(one(&root)[field::STATUS], FIXED);
     // Another file's thread #1 is another thread.
     assert_eq!(
         count(
@@ -151,7 +163,7 @@ fn what_dfw_does_comes_back_as_thread_replies_once() {
 #[test]
 fn replying_reopens_resolving_accepts_or_dismisses() {
     let (root, export) = live_project("penpot-live-resolve");
-    let go = |threads: Vec<Value>| sync(&root, "file-1", &export, threads, json!([]));
+    let go = |threads: Vec<Value>| sync(&root, FILE, &export, threads, json!([]));
     go(vec![thread(1, &["A"], false), thread(3, &["B"], false)]);
     let ids: Vec<String> = all_comments(&root)
         .unwrap()
@@ -159,31 +171,31 @@ fn replying_reopens_resolving_accepts_or_dismisses() {
         .map(|c| c["id"].as_str().unwrap().to_string())
         .collect();
     let (a, b) = (ids[0].as_str(), ids[1].as_str());
-    set(&root, a, "fixed", Some("Done."));
+    set(&root, a, FIXED, Some("Done."));
     // Designer replies after the fix: reopened with the message, and the agent is told.
     let r = go(vec![
-        thread(1, &["A", "[dfw] fixed: Done.", "Still too small"], false),
+        thread(1, &["A", "[dfw] fixed: Done.", STILL_SMALL], false),
         thread(3, &["B"], false),
     ]);
-    assert_eq!(r["updated"], json!([{ "id": a, "status": "reopened" }]));
+    assert_eq!(r[wire::UPDATED], json!([{ "id": a, "status": REOPENED }]));
     let mine: Vec<Value> = undelivered(&root)
         .unwrap()
         .into_iter()
         .filter(|c| c["id"] == a)
         .collect();
     assert!(format_for_claude(&mine).contains("reopened by user: \"Still too small\""));
-    set(&root, a, "fixed", Some("Bigger now."));
+    set(&root, a, FIXED, Some("Bigger now."));
     // Resolving the thread accepts the fix; resolving an open thread dismisses the comment.
     let resolved = || {
         vec![
-            thread(1, &["A", "Still too small"], true),
+            thread(1, &["A", STILL_SMALL], true),
             thread(3, &["B"], true),
         ]
     };
     let r = go(resolved());
     assert_eq!(
-        r["updated"],
-        json!([{ "id": a, "status": "resolved" }, { "id": b, "status": "dismissed" }])
+        r[wire::UPDATED],
+        json!([{ "id": a, "status": RESOLVED }, { "id": b, "status": DISMISSED }])
     );
     let list = all_comments(&root).unwrap();
     let first = list.iter().find(|c| c["id"] == a).unwrap();
@@ -192,12 +204,12 @@ fn replying_reopens_resolving_accepts_or_dismisses() {
         "user"
     );
     // Nothing changes on the next check; un-resolving the thread reopens.
-    assert_eq!(go(resolved())["updated"], json!([]));
+    assert_eq!(go(resolved())[wire::UPDATED], json!([]));
     let r = go(vec![
-        thread(1, &["A", "Still too small"], false),
+        thread(1, &["A", STILL_SMALL], false),
         thread(3, &["B"], true),
     ]);
-    assert_eq!(r["updated"], json!([{ "id": a, "status": "reopened" }]));
+    assert_eq!(r[wire::UPDATED], json!([{ "id": a, "status": REOPENED }]));
 }
 
 /// penpot live: a follow-up on a comment being worked on reaches the agent
@@ -206,17 +218,17 @@ fn a_follow_up_on_a_comment_being_worked_on_reaches_the_agent() {
     let (root, export) = live_project("penpot-live-follow-up");
     sync(
         &root,
-        "file-1",
+        FILE,
         &export,
         vec![thread(1, &["A"], false)],
         json!([]),
     );
     let id = one(&root)["id"].as_str().unwrap().to_string();
-    set(&root, &id, "acknowledged", None);
+    set(&root, &id, ACKNOWLEDGED, None);
     assert_eq!(undelivered(&root).unwrap().len(), 0);
     let threads = vec![thread(1, &["A", "Also the header"], false)];
-    sync(&root, "file-1", &export, threads, json!([]));
-    assert_eq!(one(&root)["status"], "acknowledged");
+    sync(&root, FILE, &export, threads, json!([]));
+    assert_eq!(one(&root)[field::STATUS], ACKNOWLEDGED);
     let told = format_for_claude(&undelivered(&root).unwrap());
     assert!(
         told.contains("follow-up by user: \"Also the header\""),
@@ -229,30 +241,18 @@ fn a_follow_up_on_a_comment_being_worked_on_reaches_the_agent() {
 fn a_reply_in_a_thread_that_stays_resolved_reopens_the_comment() {
     let (root, export) = live_project("penpot-live-resolved-reply");
     let threads = |messages: &[&str], resolved| vec![thread(1, messages, resolved)];
-    sync(
-        &root,
-        "file-1",
-        &export,
-        threads(&["Make it red"], false),
-        json!([]),
-    );
-    sync(
-        &root,
-        "file-1",
-        &export,
-        threads(&["Make it red"], true),
-        json!([]),
-    );
-    assert_eq!(one(&root)["status"], "dismissed");
+    sync(&root, FILE, &export, threads(&[RED], false), json!([]));
+    sync(&root, FILE, &export, threads(&[RED], true), json!([]));
+    assert_eq!(one(&root)[field::STATUS], DISMISSED);
     assert_eq!(undelivered(&root).unwrap().len(), 0);
-    let reply = ["Make it red", "Actually please do it"];
-    sync(&root, "file-1", &export, threads(&reply, true), json!([]));
-    assert_eq!(one(&root)["status"], "reopened");
+    let reply = [RED, PLEASE_DO];
+    sync(&root, FILE, &export, threads(&reply, true), json!([]));
+    assert_eq!(one(&root)[field::STATUS], REOPENED);
     let told = format_for_claude(&undelivered(&root).unwrap());
-    assert!(told.contains("Actually please do it"), "{told}");
-    let again = sync(&root, "file-1", &export, threads(&reply, true), json!([]));
+    assert!(told.contains(PLEASE_DO), "{told}");
+    let again = sync(&root, FILE, &export, threads(&reply, true), json!([]));
     assert_eq!(
-        again["updated"],
+        again[wire::UPDATED],
         json!([]),
         "the same messages change nothing"
     );
@@ -262,16 +262,16 @@ fn a_reply_in_a_thread_that_stays_resolved_reopens_the_comment() {
 #[test]
 fn seen_working_on_it_is_posted_once_also_after_a_later_reply() {
     let (root, export) = live_project("penpot-live-ack-once");
-    let threads = || vec![thread(1, &["Make it red"], false)];
-    sync(&root, "file-1", &export, threads(), json!([]));
+    let threads = || vec![thread(1, &[RED], false)];
+    sync(&root, FILE, &export, threads(), json!([]));
     let id = one(&root)["id"].as_str().unwrap().to_string();
-    set(&root, &id, "acknowledged", None);
-    let first = sync(&root, "file-1", &export, threads(), json!([]))["replies"].clone();
+    set(&root, &id, ACKNOWLEDGED, None);
+    let first = sync(&root, FILE, &export, threads(), json!([]))[wire::REPLIES].clone();
     let texts = |r: &Value| -> Vec<String> {
         r.as_array()
             .unwrap()
             .iter()
-            .map(|x| x["text"].as_str().unwrap().to_string())
+            .map(|x| x[wire::TEXT].as_str().unwrap().to_string())
             .collect()
     };
     assert_eq!(texts(&first), [format!("[dfw] {id} seen, working on it.")]);
@@ -285,9 +285,9 @@ fn seen_working_on_it_is_posted_once_also_after_a_later_reply() {
         .as_array()
         .unwrap()
         .iter()
-        .map(|r| json!({ "seq": r["seq"], "key": r["key"] }))
+        .map(|r| json!({ "seq": r["seq"], "key": r[wire::KEY] }))
         .collect();
-    let next = sync(&root, "file-1", &export, threads(), json!(posted))["replies"].clone();
+    let next = sync(&root, FILE, &export, threads(), json!(posted))[wire::REPLIES].clone();
     assert_eq!(
         texts(&next),
         [format!("[dfw] {id}: Which red: brand or status?")]

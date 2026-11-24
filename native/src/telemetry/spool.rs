@@ -21,9 +21,9 @@ pub const SPOOL_CAP: u64 = 1024 * 1024;
 /// A flush is started at most this often.
 pub const FLUSH_EVERY: Duration = Duration::from_secs(60);
 
-const SPOOL: &str = "spool.jsonl";
-const ID: &str = "id";
-const NOTICE: &str = "notice";
+const SPOOL: &str = super::wire::file::SPOOL;
+const ID: &str = super::wire::file::ID;
+const NOTICE: &str = super::wire::file::NOTICE;
 const STAMP: &str = "last-flush";
 const LOCK: &str = ".lock";
 const FLUSHING: &str = ".flushing";
@@ -344,9 +344,11 @@ mod tests {
             "only whole lines are left"
         );
         assert_eq!(exits(&left).last(), Some(&1999), "the newest are kept");
-        assert_eq!(newest_from(b"aa\nbb\ncc\n", 4), 6);
-        assert_eq!(newest_from(b"aa\nbb\ncc\n", 6), 3);
-        assert_eq!(newest_from(b"aa\nbb\ncc\n", 100), 0);
+        /// Three lines of three bytes.
+        const THREE_LINES: &[u8] = b"aa\nbb\ncc\n";
+        assert_eq!(newest_from(THREE_LINES, 4), 6);
+        assert_eq!(newest_from(THREE_LINES, 6), 3);
+        assert_eq!(newest_from(THREE_LINES, 100), 0);
     }
 
     #[test]

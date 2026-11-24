@@ -18,11 +18,43 @@ use serde_json::{json, Value};
 
 use super::export::{resolve_alias, CHANGES_SCHEMA};
 use super::tokens::flatten_tokens;
+use super::wire;
 
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::rel;
 use crate::design::compose::{load_components, Library};
+
+/// The `type` of a change.
+pub(crate) mod change_type {
+    pub(crate) const TEXT: &str = "text";
+    pub(crate) const MOVE: &str = "move";
+    pub(crate) const RESIZE: &str = "resize";
+    pub(crate) const FILL: &str = "fill";
+    pub(crate) const STROKE: &str = "stroke";
+    pub(crate) const RADIUS: &str = "radius";
+    pub(crate) const SIZE: &str = "size";
+    pub(crate) const SPACING: &str = "spacing";
+    pub(crate) const RENAME: &str = "rename";
+    pub(crate) const REMOVED: &str = "removed";
+    pub(crate) const ADDED: &str = "added";
+    pub(crate) const COMMENT: &str = "comment";
+    pub(crate) const BOARD_REMOVED: &str = "board-removed";
+    pub(crate) const COMPONENT_REMOVED: &str = "component-removed";
+}
+
+/// The fields of a change.
+pub(crate) mod field {
+    pub(crate) const TYPE: &str = "type";
+    pub(crate) const FROM: &str = "from";
+    pub(crate) const TO: &str = "to";
+    /// The token of a colour or a dimension, on either side of a change.
+    pub(crate) const TOKEN: &str = "token";
+    /// The master a change is on: `{ key, name, variant, size, title }`.
+    pub(crate) const COMPONENT: &str = "component";
+    /// The padding sides of a spacing change.
+    pub(crate) const SIDES: &str = "sides";
+}
 
 /// Positions and sizes within this many px are the same (Penpot rounds, fonts differ).
 const TOL: f64 = 1.5;
@@ -60,11 +92,11 @@ pub(super) fn walkable(
 }
 
 fn kind(l: &Value) -> Option<&str> {
-    l.get("kind").and_then(Value::as_str)
+    l.get(wire::KIND).and_then(Value::as_str)
 }
 
 fn is_text(l: &Value) -> bool {
-    kind(l) == Some("text")
+    kind(l) == Some(wire::kind::TEXT)
 }
 
 /// `value ?? fallback` for an opacity or a width that defaults to 1.
@@ -227,7 +259,7 @@ fn color_token(baseline: &Value, c: &Value) -> Value {
             t.get("hex").and_then(Value::as_str) == Some(&hex)
                 && (js::to_number(t.get("opacity")) - opacity).abs() < 0.01
         })
-        .map_or(Value::Null, |t| js::or_null(t.get("name")))
+        .map_or(Value::Null, |t| js::or_null(t.get(wire::NAME)))
 }
 
 /// Whether two paints differ: another colour, or an opacity more than 1% apart.

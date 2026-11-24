@@ -86,11 +86,14 @@ pub struct Image {
     pub rgba: Vec<u8>,
 }
 
+/// Why a file that is not a PNG (or a broken one) has no diff.
+const CANNOT_DECODE: &str = "Error: cannot decode image";
+
 /// Read a PNG of any colour type as 8-bit RGBA.
 pub fn decode_rgba(file: &Path) -> Result<Image, String> {
     let bytes = fs::read(file).map_err(|e| format!("{}: {e}", file.display()))?;
     // What the page's `img.onerror` rejected with, as Node printed it (without the page's stack line).
-    decode(&bytes).ok_or_else(|| "Error: cannot decode image".to_string())
+    decode(&bytes).ok_or_else(|| CANNOT_DECODE.to_string())
 }
 
 fn decode(bytes: &[u8]) -> Option<Image> {
@@ -567,24 +570,26 @@ mod tests {
         {
             *p = [0xd0, 0x30, 0x30, 0xff];
         }
-        write(&dir.join("a.png"), 200, 100, &text);
-        write(&dir.join("b.png"), 200, 100, &text);
-        write(&dir.join("c.png"), 200, 100, &red);
+        // The first image, the same again, a changed one, and where the diff goes.
+        const FIRST: &str = "a.png";
+        const SAME: &str = "b.png";
+        const CHANGED: &str = "c.png";
+        const DIFF: &str = "x/d.png";
+        write(&dir.join(FIRST), 200, 100, &text);
+        write(&dir.join(SAME), 200, 100, &text);
+        write(&dir.join(CHANGED), 200, 100, &red);
         let pair = |b: &str, out: Option<&str>| Pair {
-            a: dir.join("a.png"),
+            a: dir.join(FIRST),
             b: dir.join(b),
             out: out.map(|o| dir.join(o)),
         };
-        let results = diff_images(
-            &[pair("b.png", None), pair("c.png", Some("x/d.png"))],
-            THRESHOLD,
-        );
+        let results = diff_images(&[pair(SAME, None), pair(CHANGED, Some(DIFF))], THRESHOLD);
         let same = results[0].outcome.as_ref().unwrap();
         assert_eq!((same.diff, same.ratio, &same.size_changed), (0, 0.0, &None));
         let changed = results[1].outcome.as_ref().unwrap();
         assert_eq!(changed.diff, 200 * 100 - 100 * 20);
         assert!(changed.ratio > 0.5, "changed ratio {}", changed.ratio);
-        let d = decode_rgba(&dir.join("x/d.png")).unwrap();
+        let d = decode_rgba(&dir.join(DIFF)).unwrap();
         assert_eq!((d.w, d.h), (200, 100));
         assert_eq!(&d.rgba[..4], [255, 0, 0, 255], "changed pixels are red");
         let unchanged = (20 * 200 + 20) * 4;
@@ -604,13 +609,17 @@ mod tests {
     #[test]
     fn sizes_alpha_and_colour_types() {
         let dir = test_dir("diff-size");
-        write(&dir.join("small.png"), 2, 2, &solid(2, 2, [0, 0, 0, 255]));
-        write(&dir.join("big.png"), 3, 4, &solid(3, 4, [0, 0, 0, 255]));
+        const SMALL: &str = "small.png";
+        const BIG: &str = "big.png";
+        const OUT: &str = "out.png";
+        const BROKEN: &str = "broken.png";
+        write(&dir.join(SMALL), 2, 2, &solid(2, 2, [0, 0, 0, 255]));
+        write(&dir.join(BIG), 3, 4, &solid(3, 4, [0, 0, 0, 255]));
         let r = diff_images(
             &[Pair {
-                a: dir.join("small.png"),
-                b: dir.join("big.png"),
-                out: Some(dir.join("out.png")),
+                a: dir.join(SMALL),
+                b: dir.join(BIG),
+                out: Some(dir.join(OUT)),
             }],
             THRESHOLD,
         );
@@ -619,7 +628,7 @@ mod tests {
         assert_eq!((d.w, d.h, d.diff), (3, 4, 8));
         assert_eq!(d.size_changed.as_deref(), Some("2x2 -> 3x4"));
         assert_eq!(
-            format_line(&r[0], "out.png"),
+            format_line(&r[0], OUT),
             " 66.67%  big.png  (size 2x2 -> 3x4)  -> out.png"
         );
 
@@ -648,27 +657,21 @@ mod tests {
             [0, 0, 0, 255, 200, 200, 200, 255]
         );
 
-        fs::write(dir.join("broken.png"), b"not a png").unwrap();
+        fs::write(dir.join(BROKEN), b"not a png").unwrap();
         let broken = diff_images(
             &[Pair {
-                a: dir.join("broken.png"),
-                b: dir.join("big.png"),
+                a: dir.join(BROKEN),
+                b: dir.join(BIG),
                 out: None,
             }],
             THRESHOLD,
         );
-        assert_eq!(
-            broken[0].outcome,
-            Err("Error: cannot decode image".to_string())
-        );
+        assert_eq!(broken[0].outcome, Err(CANNOT_DECODE.to_string()));
         assert_eq!(
             format_line(&broken[0], ""),
-            "ERROR  big.png: Error: cannot decode image"
+            format!("ERROR  {BIG}: {CANNOT_DECODE}")
         );
-        assert_eq!(
-            broken[0].to_value()["error"],
-            json!("Error: cannot decode image")
-        );
+        assert_eq!(broken[0].to_value()["error"], json!(CANNOT_DECODE));
     }
 
     #[test]
@@ -733,6 +736,8 @@ mod tests {
     #[test]
     fn pairs_for_files_and_folders() {
         let dir = test_dir("diff-pairs");
+        /// The one PNG name both folders have.
+        const ONE: &str = "one.png";
         let (a, b) = (dir.join("a"), dir.join("b"));
         fs::create_dir_all(&a).unwrap();
         fs::create_dir_all(&b).unwrap();
@@ -750,15 +755,15 @@ mod tests {
         assert_eq!(
             pairs,
             [Pair {
-                a: a.join("one.png"),
-                b: b.join("one.png"),
-                out: Some(b.join("_diff").join("one.png"))
+                a: a.join(ONE),
+                b: b.join(ONE),
+                out: Some(b.join("_diff").join(ONE))
             }]
         );
         let out = dir.join("o");
         assert_eq!(
             diff_pairs(&a, &b, Some(&out)).unwrap()[0].out,
-            Some(out.join("one.png"))
+            Some(out.join(ONE))
         );
         let empty = dir.join("empty");
         fs::create_dir(&empty).unwrap();
@@ -771,34 +776,34 @@ mod tests {
             )
         );
         let file = |b: &Path| {
-            diff_pairs(&a.join("one.png"), b, None).unwrap()[0]
+            diff_pairs(&a.join(ONE), b, None).unwrap()[0]
                 .out
                 .clone()
                 .unwrap()
         };
-        assert_eq!(file(&b.join("one.png")), b.join("one.diff.png"));
+        assert_eq!(file(&b.join(ONE)), b.join("one.diff.png"));
         assert_eq!(file(&b.join("three.PNG")), b.join("three.diff.png"));
         assert_eq!(file(&b.join("notes.txt")), b.join("notes.txt.diff.png"));
+        let gone = b.join("gone.png");
         assert_eq!(
-            diff_pairs(&a.join("one.png"), &b.join("gone.png"), None)
-                .unwrap_err()
-                .message(),
-            format!("Not found: {}", b.join("gone.png").display())
+            diff_pairs(&a.join(ONE), &gone, None).unwrap_err().message(),
+            format!("Not found: {}", gone.display())
         );
     }
 
     #[test]
     fn to_fixed_rounds_like_javascript() {
         // (0.125).toFixed(2) is "0.13" in JavaScript; Rust's {:.2} gives 0.12.
+        const HUNDRED: &str = "100.00";
         for (x, text) in [
             (0.125, "0.13"),
             (0.0, "0.00"),
             (66.666_666, "66.67"),
-            (100.0, "100.00"),
+            (100.0, HUNDRED),
             (0.005, "0.01"),
             (1.005, "1.00"),
             (0.375, "0.38"),
-            (99.995, "100.00"),
+            (99.995, HUNDRED),
             (12.344_999, "12.34"),
         ] {
             assert_eq!(to_fixed2(x), text, "{x}");

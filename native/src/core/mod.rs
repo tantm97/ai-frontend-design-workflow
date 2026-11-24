@@ -14,3 +14,4 @@ pub mod paths;
 pub mod platform;
 pub mod process;
 pub mod util;
+pub mod word;

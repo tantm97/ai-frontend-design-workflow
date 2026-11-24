@@ -556,35 +556,48 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn symlinks_out_of_the_base_are_refused() {
+        use crate::core::fixture::OUTSIDE_DIR;
         use crate::core::paths::file;
+        /// A folder outside the project, and a file in it a link points at.
+        const FOLDER: &str = "folder";
+        const SECRET_FILE: &str = "secret.txt";
+        /// What the files outside hold.
+        const SECRET: &str = "secret";
+        /// A link in `design/` to [`SECRET_FILE`], and one to [`FOLDER`].
+        const LEAK: &str = "leak.txt";
+        const LINKED: &str = "linked";
+        /// A file of [`FOLDER`] through [`LINKED`].
+        const LINKED_SECRET: &str = "linked/secret.png";
+        /// A page through a link that stays inside `design/`.
+        const ALIAS_PAGE: &str = "alias/a.html";
         let dir = crate::core::util::test_dir("studio-symlink");
-        let outside = dir.join("outside");
-        fs::create_dir_all(outside.join("folder")).unwrap();
-        fs::write(outside.join("secret.txt"), "secret").unwrap();
-        fs::write(outside.join("folder/secret.png"), "secret").unwrap();
+        let outside = dir.join(OUTSIDE_DIR);
+        fs::create_dir_all(outside.join(FOLDER)).unwrap();
+        fs::write(outside.join(SECRET_FILE), SECRET).unwrap();
+        fs::write(outside.join("folder/secret.png"), SECRET).unwrap();
         let design = dir.join("project/design");
         fs::create_dir_all(design.join(file::SCREENS)).unwrap();
         fs::write(design.join("screens/a.html"), "<p>a</p>").unwrap();
-        std::os::unix::fs::symlink(outside.join("secret.txt"), design.join("leak.txt")).unwrap();
-        std::os::unix::fs::symlink(outside.join("folder"), design.join("linked")).unwrap();
+        std::os::unix::fs::symlink(outside.join(SECRET_FILE), design.join(LEAK)).unwrap();
+        std::os::unix::fs::symlink(outside.join(FOLDER), design.join(LINKED)).unwrap();
         // A link that stays inside is fine.
         std::os::unix::fs::symlink(design.join(file::SCREENS), design.join("alias")).unwrap();
-        assert_eq!(safe_join(&design, "leak.txt"), None);
-        assert_eq!(safe_join(&design, "linked/secret.png"), None);
-        assert_eq!(safe_join(&design, "linked"), None);
+        assert_eq!(safe_join(&design, LEAK), None);
+        assert_eq!(safe_join(&design, LINKED_SECRET), None);
+        assert_eq!(safe_join(&design, LINKED), None);
         assert_eq!(safe_join(&design, ""), None);
-        assert!(safe_join(&design, "alias/a.html").is_some());
+        assert!(safe_join(&design, ALIAS_PAGE).is_some());
         assert!(
             safe_join(&design, "../../outside/secret.txt").is_none_or(|p| p.starts_with(&design))
         );
         let root = dir.join("project");
-        assert_eq!(design_file(&root, "leak.txt").unwrap(), DesignFile::Missing);
+        assert_eq!(design_file(&root, LEAK).unwrap(), DesignFile::Missing);
         assert_eq!(
-            design_file(&root, "linked/secret.png").unwrap(),
+            design_file(&root, LINKED_SECRET).unwrap(),
             DesignFile::Missing
         );
         assert!(matches!(
-            design_file(&root, "alias/a.html").unwrap(),
+            design_file(&root, ALIAS_PAGE).unwrap(),
             DesignFile::Found(..)
         ));
         let _ = fs::remove_dir_all(&dir);
@@ -610,20 +623,23 @@ mod tests {
     /// two screenshot runs in the same second get two folders
     #[test]
     fn screenshot_runs_in_one_second_do_not_share_a_folder() {
+        /// The second the three runs start in.
+        const SECOND: &str = "2026-11-19T10-20-30";
         let dir = crate::core::util::test_dir("studio-shot-runs");
-        let a = new_run_dir(&dir, "2026-11-19T10-20-30").unwrap();
-        let b = new_run_dir(&dir, "2026-11-19T10-20-30").unwrap();
-        let c = new_run_dir(&dir, "2026-11-19T10-20-30").unwrap();
-        assert_eq!(a, dir.join("2026-11-19T10-20-30"));
-        assert_eq!(b, dir.join("2026-11-19T10-20-30-2"));
-        assert_eq!(c, dir.join("2026-11-19T10-20-30-3"));
+        let a = new_run_dir(&dir, SECOND).unwrap();
+        let b = new_run_dir(&dir, SECOND).unwrap();
+        let c = new_run_dir(&dir, SECOND).unwrap();
+        assert_eq!(a, dir.join(SECOND));
+        assert_eq!(b, dir.join(format!("{SECOND}-2")));
+        assert_eq!(c, dir.join(format!("{SECOND}-3")));
         let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
     fn frame_names_are_safe_file_names() {
         assert_eq!(frame_name("home / a @ 1440"), "home_a_1440");
-        assert_eq!(frame_name("x.y-z_1"), "x.y-z_1");
+        let safe = "x.y-z_1";
+        assert_eq!(frame_name(safe), safe);
         assert_eq!(frame_name(&"é".repeat(5)), "_");
         assert_eq!(frame_name(&"a".repeat(200)).len(), 120);
     }

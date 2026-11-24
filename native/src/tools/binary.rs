@@ -185,19 +185,20 @@ mod tests {
 
     #[test]
     fn asset_names_and_paths() {
-        assert_eq!(
-            asset_name("0.4.0", "darwin", "arm64"),
-            "dfw-0.4.0-darwin-arm64"
-        );
-        assert_eq!(
-            asset_name("0.4.0", "win32", "x64"),
-            "dfw-0.4.0-win32-x64.exe"
-        );
-        assert!(["darwin", "linux", "win32"].contains(&node_platform()));
-        assert!(["arm64", "x64", "ia32"].contains(&node_arch()));
-        let p = binary_path("9.9.9");
+        /// A release, and the platforms and architectures its assets are named after (Node's
+        /// names).
+        const RELEASE: &str = "0.4.0";
+        use crate::core::platform::arch::{ARM64, IA32, X64};
+        use crate::core::platform::os::{DARWIN, LINUX, WIN32};
+        /// A version that is not installed.
+        const MISSING: &str = "9.9.9";
+        assert_eq!(asset_name(RELEASE, DARWIN, ARM64), "dfw-0.4.0-darwin-arm64");
+        assert_eq!(asset_name(RELEASE, WIN32, X64), "dfw-0.4.0-win32-x64.exe");
+        assert!([DARWIN, LINUX, WIN32].contains(&node_platform()));
+        assert!([ARM64, X64, IA32].contains(&node_arch()));
+        let p = binary_path(MISSING);
         assert!(
-            p.ends_with(PathBuf::from("bin").join("9.9.9").join(if cfg!(windows) {
+            p.ends_with(PathBuf::from("bin").join(MISSING).join(if cfg!(windows) {
                 "dfw.exe"
             } else {
                 "dfw"
@@ -228,30 +229,34 @@ mod tests {
     /// (its own DFW_HOME), not here.
     #[test]
     fn download_is_verified_before_anything_is_installed() {
-        let name = asset_name("7.7.7", node_platform(), node_arch());
+        /// The release the local server offers.
+        const RELEASE: &str = "7.7.7";
+        /// The binary of the release with the wrong checksum.
+        const BINARY: &[u8] = b"binary";
+        let name = asset_name(RELEASE, node_platform(), node_arch());
         let (base, _) = serve(HashMap::from([
             (
                 "/bad/SHA256SUMS".to_string(),
                 (200, format!("{}  {name}\n", "0".repeat(64)).into_bytes()),
             ),
-            (format!("/bad/{name}"), (200, b"binary".to_vec())),
+            (format!("/bad/{name}"), (200, BINARY.to_vec())),
             (
                 "/other/SHA256SUMS".to_string(),
                 (200, b"abc  dfw-7.7.7-plan9-mips\n".to_vec()),
             ),
         ]));
         let quiet = |_: &str| {};
-        let err = install_binary_from(&format!("{base}/bad"), "7.7.7", &quiet).unwrap_err();
+        let err = install_binary_from(&format!("{base}/bad"), RELEASE, &quiet).unwrap_err();
         assert_eq!(
             err.message(),
             format!(
                 "Checksum mismatch for {name} (expected {}, got {}); not installed.",
                 "0".repeat(64),
-                sha256(b"binary")
+                sha256(BINARY)
             )
         );
-        assert!(!binary_path("7.7.7").exists());
-        let err = install_binary_from(&format!("{base}/other"), "7.7.7", &quiet).unwrap_err();
+        assert!(!binary_path(RELEASE).exists());
+        let err = install_binary_from(&format!("{base}/other"), RELEASE, &quiet).unwrap_err();
         assert_eq!(
             err.message(),
             format!(
@@ -260,7 +265,7 @@ mod tests {
                 node_arch()
             )
         );
-        let err = install_binary_from(&format!("{base}/none"), "7.7.7", &quiet).unwrap_err();
+        let err = install_binary_from(&format!("{base}/none"), RELEASE, &quiet).unwrap_err();
         assert_eq!(
             err.message(),
             format!("No dfw binary release for v7.7.7 yet (HTTP 404 for {base}/none/SHA256SUMS). The installed dfw keeps running.")

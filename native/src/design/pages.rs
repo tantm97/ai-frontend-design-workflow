@@ -24,6 +24,19 @@ static HREF: LazyLock<Option<Regex>> =
     LazyLock::new(|| Regex::new(r##"(?-u:\b)href="([^"#?]+\.html)[^"]*""##).ok());
 static EXTERNAL: LazyLock<Option<Regex>> = LazyLock::new(|| Regex::new(r"(?i)^[a-z]+:|^/").ok());
 
+/// The ids of the pages the Studio makes itself.
+pub(crate) mod page {
+    /// The Design System page, always first; a declared page with this id only adds its
+    /// description and notes.
+    pub const SYSTEM: &str = "system";
+    /// The page of the links between screens.
+    pub const FLOW: &str = "flow";
+    /// The page of the screens on no other page.
+    pub const SCREENS: &str = "screens";
+    /// The page of the screens whose id starts with `_`.
+    pub const EXPLORATIONS: &str = "explorations";
+}
+
 fn screens_of(manifest: &Value) -> Vec<&Value> {
     manifest
         .get(key::SCREENS)
@@ -197,7 +210,7 @@ impl Pages<'_> {
             .unwrap_or_else(|| id.clone());
         let mut map = Map::new();
         map.insert("id".into(), id.clone());
-        map.insert("title".into(), title);
+        map.insert(key::TITLE.into(), title);
         map.insert(key::SCREENS.into(), Value::Null);
         self.pages.push(Page {
             map,
@@ -246,7 +259,7 @@ fn place_declared_pages(manifest: &Value, pages: &mut Pages<'_>) -> Map<String, 
             continue;
         }
         let pid = p.get("id").cloned().unwrap_or(Value::Null);
-        if pid == json!("system") {
+        if pid == json!(page::SYSTEM) {
             for key in ["description", "notes"] {
                 if let Some(v) = p.get(key) {
                     system_extra.insert(key.into(), v.clone());
@@ -254,7 +267,7 @@ fn place_declared_pages(manifest: &Value, pages: &mut Pages<'_>) -> Map<String, 
             }
             continue;
         }
-        let page = pages.ensure(&pid, p.get("title"));
+        let page = pages.ensure(&pid, p.get(key::TITLE));
         for key in [key::DESCRIPTION, key::NOTES, key::SECTIONS] {
             if let Some(v) = p.get(key).filter(|v| js::truthy(Some(v))) {
                 pages.pages[page].map.insert(key.into(), v.clone());
@@ -280,7 +293,7 @@ fn place_by_screen_page(screens: &[&Value], pages: &mut Pages<'_>) {
     for s in screens {
         if let Some(page_id) = s
             .get("page")
-            .filter(|p| js::truthy(Some(p)) && **p != json!("system"))
+            .filter(|p| js::truthy(Some(p)) && **p != json!(page::SYSTEM))
         {
             let page = pages.ensure(page_id, Some(page_id));
             pages.add(page, &id_of(s));
@@ -313,15 +326,15 @@ fn place_unassigned(screens: &[&Value], pages: &mut Pages<'_>) {
         .collect();
     if !main.is_empty() || pages.pages.is_empty() {
         for s in &main {
-            let page = pages.ensure(&json!("screens"), Some(&json!("Screens")));
+            let page = pages.ensure(&json!(page::SCREENS), Some(&json!("Screens")));
             pages.add(page, &id_of(s));
         }
     }
     if pages.pages.is_empty() && main.is_empty() && explore.is_empty() {
-        pages.ensure(&json!("screens"), Some(&json!("Screens")));
+        pages.ensure(&json!(page::SCREENS), Some(&json!("Screens")));
     }
     for s in &explore {
-        let page = pages.ensure(&json!("explorations"), Some(&json!("Explorations")));
+        let page = pages.ensure(&json!(page::EXPLORATIONS), Some(&json!("Explorations")));
         pages.add(page, &id_of(s));
     }
 }
@@ -348,8 +361,8 @@ fn page_list(
     pages: Vec<Page>,
 ) -> Vec<Value> {
     let mut system = Map::new();
-    system.insert("id".into(), json!("system"));
-    system.insert("title".into(), json!("Design System"));
+    system.insert(key::ID.into(), json!(page::SYSTEM));
+    system.insert(key::TITLE.into(), json!("Design System"));
     system.insert("system".into(), json!(true));
     system.insert(key::SCREENS.into(), json!([]));
     for (k, v) in system_extra {
@@ -358,7 +371,7 @@ fn page_list(
     let mut out = vec![Value::Object(system)];
     if !flow_screens.is_empty() {
         out.push(json!({
-            "id": "flow",
+            "id": page::FLOW,
             "title": "Flow",
             "flow": true,
             "description": "How screens link to each other (buttons and links with data-dfw-goto or href). Arrows carry the control text.",
@@ -375,60 +388,70 @@ fn page_list(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::fixture::{screen_page, HTML_FILE};
+    use crate::core::paths::{file, rel};
+
+    /// A screen of the manifest kept for a direction exploration.
+    const EXPLORATION: &str = "_dir";
 
     fn ids(pages: &[Value]) -> Vec<&str> {
-        pages.iter().map(|p| p["id"].as_str().unwrap()).collect()
+        pages.iter().map(|p| p[key::ID].as_str().unwrap()).collect()
     }
 
     /// studio pages: system first, declared pages, Screens + Explorations fallback
     #[test]
     fn studio_pages_system_first_declared_pages_and_fallbacks() {
-        let screens = json!([{ "id": "a", "variants": [] }, { "id": "b", "page": "flow", "variants": [] }, { "id": "_dir", "variants": [] }, { "id": "c", "variants": [] }]);
+        let screens = json!([{ "id": "a", "variants": [] }, { "id": "b", "page": page::FLOW, "variants": [] }, { "id": EXPLORATION, "variants": [] }, { "id": "c", "variants": [] }]);
         let p1 = studio_pages(&json!({ "screens": screens }));
         let pairs: Vec<(Value, Value)> = p1
             .iter()
-            .map(|p| (p["id"].clone(), p["screens"].clone()))
+            .map(|p| (p[key::ID].clone(), p[key::SCREENS].clone()))
             .collect();
         assert_eq!(
             pairs,
             vec![
-                (json!("system"), json!([])),
-                (json!("flow"), json!(["b"])),
-                (json!("screens"), json!(["a", "c"])),
-                (json!("explorations"), json!(["_dir"]))
+                (json!(page::SYSTEM), json!([])),
+                (json!(page::FLOW), json!(["b"])),
+                (json!(page::SCREENS), json!(["a", "c"])),
+                (json!(page::EXPLORATIONS), json!([EXPLORATION]))
             ]
         );
+        /// A page the manifest declares, and its title.
+        const MAIN: &str = "main";
+        const MAIN_TITLE: &str = "Main";
         let p2 = studio_pages(
-            &json!({ "screens": screens, "pages": [{ "id": "main", "title": "Main", "screens": ["c", "a"] }] }),
+            &json!({ "screens": screens, "pages": [{ "id": MAIN, "title": MAIN_TITLE, "screens": ["c", "a"] }] }),
         );
         let triples: Vec<Value> = p2
             .iter()
-            .map(|p| json!([p["id"], p["title"], p["screens"]]))
+            .map(|p| json!([p[key::ID], p[key::TITLE], p[key::SCREENS]]))
             .collect();
         assert_eq!(
             triples,
             vec![
-                json!(["system", "Design System", []]),
-                json!(["main", "Main", ["c", "a"]]),
-                json!(["flow", "flow", ["b"]]),
-                json!(["explorations", "Explorations", ["_dir"]])
+                json!([page::SYSTEM, "Design System", []]),
+                json!([MAIN, MAIN_TITLE, ["c", "a"]]),
+                json!([page::FLOW, page::FLOW, ["b"]]),
+                json!([page::EXPLORATIONS, "Explorations", [EXPLORATION]])
             ]
         );
         assert_eq!(
             ids(&studio_pages(&json!({ "screens": [] }))),
-            ["system", "screens"]
+            [page::SYSTEM, page::SCREENS]
         );
         // Page metadata and section-only screen refs ("id/variant") pass through.
         let notes = json!([{ "title": "Frame", "items": ["Rail 72"] }]);
         let sections = json!([{ "kind": "states", "screens": ["c/x"], "states": ["empty"] }]);
+        /// The description of a declared page.
+        const DESCRIPTION: &str = "Desc";
         let p3 = studio_pages(
-            &json!({ "screens": screens, "pages": [{ "id": "system", "notes": notes }, { "id": "m", "title": "M", "description": "Desc", "notes": notes, "sections": sections }] }),
+            &json!({ "screens": screens, "pages": [{ "id": page::SYSTEM, "notes": notes }, { "id": "m", "title": "M", "description": DESCRIPTION, "notes": notes, "sections": sections }] }),
         );
-        assert_eq!(p3[0]["notes"], notes, "system page notes");
-        assert_eq!(p3[1]["description"], "Desc");
-        assert_eq!(p3[1]["sections"], sections);
+        assert_eq!(p3[0][key::NOTES], notes, "system page notes");
+        assert_eq!(p3[1][key::DESCRIPTION], DESCRIPTION);
+        assert_eq!(p3[1][key::SECTIONS], sections);
         assert_eq!(
-            p3[1]["screens"],
+            p3[1][key::SCREENS],
             json!(["c"]),
             "screen referenced only from a section belongs to the page"
         );
@@ -436,30 +459,44 @@ mod tests {
         let keys: Vec<&String> = p3[1].as_object().unwrap().keys().collect();
         assert_eq!(
             keys,
-            ["id", "title", "screens", "description", "notes", "sections"]
+            [
+                key::ID,
+                key::TITLE,
+                key::SCREENS,
+                key::DESCRIPTION,
+                key::NOTES,
+                key::SECTIONS
+            ]
         );
     }
 
     /// studio: screen flows from data-dfw-goto and links; Flow page only when there are links
     #[test]
     fn screen_flows_from_goto_and_links() {
-        let mut m = json!({ "screens": [{ "id": "list", "variants": [{ "id": "a", "file": "screens/list/a.html" }] }, { "id": "detail", "variants": [{ "id": "a", "file": "screens/detail/a.html" }] }] });
+        /// A list screen that links to a detail screen, which goes back to it.
+        const LIST: &str = "list";
+        const DETAIL: &str = "detail";
+        let page_file = |id: &str| rel::join(file::SCREENS, &screen_page(id));
+        let (list, detail) = (page_file(LIST), page_file(DETAIL));
+        let mut m = json!({ "screens": [{ "id": LIST, "variants": [{ "id": "a", "file": list }] }, { "id": DETAIL, "variants": [{ "id": "a", "file": detail }] }] });
         let files: HashMap<String, String> = [
-            ("screens/list/a.html", r#"<a href="../detail/a.html">Open <b>drill</b></a><a href="https://example.com/x.html">ext</a>"#),
-            ("screens/detail/a.html", r#"<button data-dfw-goto="list">Back to list</button><button data-dfw-goto="nope">x</button>"#),
+            (list, format!(r#"<a href="../{DETAIL}/{HTML_FILE}">Open <b>drill</b></a><a href="https://example.com/x.html">ext</a>"#)),
+            (detail, format!(r#"<button data-dfw-goto="{LIST}">Back to list</button><button data-dfw-goto="nope">x</button>"#)),
         ]
-        .iter()
-        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .into_iter()
         .collect();
         let flows = screen_flows(&m, &files);
         assert_eq!(
             Value::Array(flows.clone()),
-            json!([{ "from": "list", "to": "detail", "label": "Open drill" }, { "from": "detail", "to": "list", "label": "Back to list" }])
+            json!([{ "from": LIST, "to": DETAIL, "label": "Open drill" }, { "from": DETAIL, "to": LIST, "label": "Back to list" }])
         );
-        m["flows"] = Value::Array(flows);
-        assert_eq!(ids(&studio_pages(&m)), ["system", "flow", "screens"]);
-        m["flows"] = json!([]);
-        assert!(!studio_pages(&m).iter().any(|p| p.get("flow").is_some()));
+        m[key::FLOWS] = Value::Array(flows);
+        assert_eq!(
+            ids(&studio_pages(&m)),
+            [page::SYSTEM, page::FLOW, page::SCREENS]
+        );
+        m[key::FLOWS] = json!([]);
+        assert!(!studio_pages(&m).iter().any(|p| p.get(page::FLOW).is_some()));
     }
 
     #[test]

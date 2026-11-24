@@ -77,19 +77,19 @@ fn find_dim(dims: &[Dim], role: &str, px: Option<f64>) -> Value {
 }
 
 pub(super) fn components_of(baseline: &Value) -> HashMap<String, &Value> {
-    list(baseline.get("components"))
+    list(baseline.get(wire::COMPONENTS))
         .iter()
-        .map(|c| (js::stringify(c.get("key")), c))
+        .map(|c| (js::stringify(c.get(wire::KEY)), c))
         .collect()
 }
 
 pub(super) fn comp_info(c: &Value) -> Value {
     js::object(vec![
-        ("key", c.get("key").cloned()),
-        ("name", c.get("component").cloned()),
+        (wire::KEY, c.get(wire::KEY).cloned()),
+        (wire::NAME, c.get("component").cloned()),
         ("variant", Some(js::or_null(c.get("variant")))),
         ("size", Some(js::or_null(c.get("size")))),
-        ("title", c.get("name").cloned()),
+        ("title", c.get(wire::NAME).cloned()),
     ])
 }
 
@@ -130,23 +130,23 @@ pub(super) fn diff_components(
     let baseline_id = js::to_string(baseline.get("id"));
     let mut out = Vec::new();
     let mut seen: Vec<String> = Vec::new();
-    walkable(changes.get("components"), Some("key"), false)?;
-    walkable(changes.get("missingComponents"), None, false)?;
-    for cc in list(changes.get("components")) {
-        let Some(c) = comps.get(&js::stringify(cc.get("key"))).copied() else {
-            let name = js::truthy_value(cc.get("name")).or(cc.get("key"));
+    walkable(changes.get(wire::COMPONENTS), Some(wire::KEY), false)?;
+    walkable(changes.get(wire::MISSING_COMPONENTS), None, false)?;
+    for cc in list(changes.get(wire::COMPONENTS)) {
+        let Some(c) = comps.get(&js::stringify(cc.get(wire::KEY))).copied() else {
+            let name = js::truthy_value(cc.get(wire::NAME)).or(cc.get(wire::KEY));
             warnings.push(format!(
                 "Component \"{}\" is not in export {baseline_id}: skipped.",
                 js::to_string(name)
             ));
             continue;
         };
-        seen.push(js::stringify(c.get("key")));
-        walkable(cc.get("layers"), Some("root"), false)?;
-        walkable(cc.get("added"), Some("x"), false)?;
+        seen.push(js::stringify(c.get(wire::KEY)));
+        walkable(cc.get(wire::LAYERS), Some("root"), false)?;
+        walkable(cc.get(wire::ADDED), Some("x"), false)?;
         diff_component(c, cc, baseline, dims, &mut out, warnings);
     }
-    for key in list(changes.get("missingComponents")) {
+    for key in list(changes.get(wire::MISSING_COMPONENTS)) {
         let key = js::stringify(Some(key));
         let Some(c) = comps.get(&key).filter(|_| !seen.contains(&key)) else {
             continue;
@@ -154,14 +154,14 @@ pub(super) fn diff_components(
         let root = c.get("root");
         let mut pairs = nowhere();
         pairs.extend([
-            ("component", Some(comp_info(c))),
+            (field::COMPONENT, Some(comp_info(c))),
             ("path", root.and_then(|r| r.get("path")).cloned()),
-            ("name", c.get("name").cloned()),
-            ("kind", root.and_then(|r| r.get("kind")).cloned()),
+            (wire::NAME, c.get(wire::NAME).cloned()),
+            (wire::KIND, root.and_then(|r| r.get(wire::KIND)).cloned()),
             ("isRoot", Some(Value::Bool(true))),
             ("tag", Some(js::or_null(root.and_then(|r| r.get("tag"))))),
         ]);
-        out.push(change("component-removed", vec![pairs]));
+        out.push(change(change_type::COMPONENT_REMOVED, vec![pairs]));
     }
     Ok(out)
 }
@@ -209,8 +209,8 @@ fn sent_layers(
     warnings: &mut Vec<String>,
 ) -> (Vec<(String, Value)>, Vec<Value>) {
     let mut sent: Vec<(String, Value)> = Vec::new();
-    let mut added: Vec<Value> = list(js::truthy_value(cc.get("added"))).to_vec();
-    for n in list(cc.get("layers")) {
+    let mut added: Vec<Value> = list(js::truthy_value(cc.get(wire::ADDED))).to_vec();
+    for n in list(cc.get(wire::LAYERS)) {
         let path: Value = if js::truthy(n.get("root")) {
             root_path.cloned().unwrap_or(Value::Null)
         } else {
@@ -229,7 +229,7 @@ fn sent_layers(
         } else {
             warnings.push(format!(
                 "{}: layer path {} unknown in the export; treated as added.",
-                js::to_string(c.get("name")),
+                js::to_string(c.get(wire::NAME)),
                 js::to_string(n.get("path"))
             ));
             added.push(n.clone());
@@ -259,26 +259,26 @@ impl Master<'_> {
 
     fn location(&self) -> Pairs {
         let mut pairs = nowhere();
-        pairs.push(("component", Some(comp_info(self.c))));
+        pairs.push((field::COMPONENT, Some(comp_info(self.c))));
         pairs
     }
 
     fn label(&self, l: &Value) -> Option<Value> {
         if self.is_root(l) {
-            self.c.get("name").cloned()
+            self.c.get(wire::NAME).cloned()
         } else if is_text(l) {
             let shown = js::slice16(&js::norm(l.get("characters")), 0, 40);
             Some(format!("text \"{shown}\"").into())
         } else {
-            l.get("name").cloned()
+            l.get(wire::NAME).cloned()
         }
     }
 
     fn target(&self, l: &Value) -> Pairs {
         vec![
             ("path", l.get("path").cloned()),
-            ("name", self.label(l)),
-            ("kind", l.get("kind").cloned()),
+            (wire::NAME, self.label(l)),
+            (wire::KIND, l.get(wire::KIND).cloned()),
             ("tag", Some(js::or_null(l.get("tag")))),
             ("isRoot", Some(self.is_root(l).into())),
             ("bbox", Some(bbox(l))),
@@ -291,15 +291,15 @@ impl Master<'_> {
 
     /// The main component renamed.
     fn rename_master(&self, cc: &Value, root: &Value, out: &mut Vec<Value>) {
-        if let Some(name) = js::truthy_value(cc.get("name")) {
-            if js::norm(Some(name)) != js::norm(self.c.get("name")) {
+        if let Some(name) = js::truthy_value(cc.get(wire::NAME)) {
+            if js::norm(Some(name)) != js::norm(self.c.get(wire::NAME)) {
                 self.push(
                     out,
-                    "rename",
+                    change_type::RENAME,
                     root,
                     vec![
-                        ("from", self.c.get("name").cloned()),
-                        ("to", Some(name.clone())),
+                        (field::FROM, self.c.get(wire::NAME).cloned()),
+                        (field::TO, Some(name.clone())),
                     ],
                 );
             }
@@ -314,13 +314,16 @@ impl Master<'_> {
         self.radius_change(l, n, out);
         self.size_change(l, n, out);
         self.spacing_change(l, n, out);
-        if let Some(name) = js::truthy_value(n.get("name")) {
-            if !self.is_root(l) && !js::strict_eq(Some(name), l.get("name")) {
+        if let Some(name) = js::truthy_value(n.get(wire::NAME)) {
+            if !self.is_root(l) && !js::strict_eq(Some(name), l.get(wire::NAME)) {
                 self.push(
                     out,
-                    "rename",
+                    change_type::RENAME,
                     l,
-                    vec![("from", l.get("name").cloned()), ("to", Some(name.clone()))],
+                    vec![
+                        (field::FROM, l.get(wire::NAME).cloned()),
+                        (field::TO, Some(name.clone())),
+                    ],
                 );
             }
         }
@@ -333,11 +336,11 @@ impl Master<'_> {
         {
             self.push(
                 out,
-                "text",
+                change_type::TEXT,
                 l,
                 vec![
-                    ("from", l.get("characters").cloned()),
-                    ("to", n.get("characters").cloned()),
+                    (field::FROM, l.get("characters").cloned()),
+                    (field::TO, n.get("characters").cloned()),
                 ],
             );
         }
@@ -364,22 +367,22 @@ impl Master<'_> {
                 let token = if is_text(l) {
                     l.get("text").and_then(|t| t.get("colorToken"))
                 } else {
-                    before.get("token")
+                    before.get(field::TOKEN)
                 };
                 js::object(vec![
                     ("color", before_color.cloned()),
                     ("opacity", Some(or_one(before.get("opacity")))),
-                    ("token", token.cloned()),
+                    (field::TOKEN, token.cloned()),
                 ])
             });
             self.push(
                 out,
-                "fill",
+                change_type::FILL,
                 l,
                 vec![
-                    ("from", Some(from)),
+                    (field::FROM, Some(from)),
                     (
-                        "to",
+                        field::TO,
                         Some(json!({
                             "color": lower(after.get("color")),
                             "opacity": or_one(after.get("opacity")),
@@ -393,18 +396,18 @@ impl Master<'_> {
         {
             self.push(
                 out,
-                "fill",
+                change_type::FILL,
                 l,
                 vec![
                     (
-                        "from",
+                        field::FROM,
                         Some(js::object(vec![
                             ("color", before.get("color").cloned()),
                             ("opacity", Some(or_one(before.get("opacity")))),
-                            ("token", before.get("token").cloned()),
+                            (field::TOKEN, before.get(field::TOKEN).cloned()),
                         ])),
                     ),
-                    ("to", Some(Value::Null)),
+                    (field::TO, Some(Value::Null)),
                 ],
             );
         }
@@ -435,7 +438,7 @@ impl Master<'_> {
                 ("color", sb.get("color").cloned()),
                 ("opacity", Some(or_one(sb.get("opacity")))),
                 ("width", sb.get("width").cloned()),
-                ("token", Some(js::or_null(sb.get("token")))),
+                (field::TOKEN, Some(js::or_null(sb.get(field::TOKEN)))),
                 (
                     "widthToken",
                     Some(find_dim(self.dims, "border", number(sb.get("width")))),
@@ -454,9 +457,9 @@ impl Master<'_> {
         });
         self.push(
             out,
-            "stroke",
+            change_type::STROKE,
             l,
-            vec![("from", Some(from)), ("to", Some(to))],
+            vec![(field::FROM, Some(from)), (field::TO, Some(to))],
         );
     }
 
@@ -496,14 +499,17 @@ impl Master<'_> {
         };
         self.push(
             out,
-            "radius",
+            change_type::RADIUS,
             l,
             vec![
                 (
-                    "from",
+                    field::FROM,
                     Some(json!({ "radius": rb, "token": js::or_null(l.get("radiusToken")) })),
                 ),
-                ("to", Some(json!({ "radius": corners, "token": token }))),
+                (
+                    field::TO,
+                    Some(json!({ "radius": corners, "token": token })),
+                ),
             ],
         );
     }
@@ -523,11 +529,11 @@ impl Master<'_> {
         };
         self.push(
             out,
-            "size",
+            change_type::SIZE,
             l,
             vec![
-                ("from", Some(pair(l.get("w"), l.get("h")))),
-                ("to", Some(pair(n.get("w"), n.get("h")))),
+                (field::FROM, Some(pair(l.get("w"), l.get("h")))),
+                (field::TO, Some(pair(n.get("w"), n.get("h")))),
                 ("tokens", Some(json!({ "w": token("w"), "h": token("h") }))),
             ],
         );
@@ -574,9 +580,9 @@ impl Master<'_> {
             let border = sb.map_or(Some(json!(0)), |sb| sb.get("width").cloned());
             self.push(
                 out,
-                "spacing",
+                change_type::SPACING,
                 l,
-                vec![("sides", Some(js::object(sides))), ("border", border)],
+                vec![(field::SIDES, Some(js::object(sides))), ("border", border)],
             );
         }
     }
@@ -599,9 +605,9 @@ impl Master<'_> {
             }
             self.push(
                 out,
-                "removed",
+                change_type::REMOVED,
                 l,
-                vec![("text", l.get("characters").cloned())],
+                vec![(wire::TEXT, l.get("characters").cloned())],
             );
         }
     }
@@ -618,14 +624,16 @@ impl Master<'_> {
             }
             self.push(
                 out,
-                "added",
+                change_type::ADDED,
                 host,
                 vec![
                     (
-                        "kind",
-                        js::truthy_value(a.get("kind")).or(a.get("type")).cloned(),
+                        wire::KIND,
+                        js::truthy_value(a.get(wire::KIND))
+                            .or(a.get(field::TYPE))
+                            .cloned(),
                     ),
-                    ("layer", a.get("name").cloned()),
+                    ("layer", a.get(wire::NAME).cloned()),
                     ("bbox", Some(bbox(a))),
                     ("characters", a.get("characters").cloned()),
                 ],

@@ -66,6 +66,41 @@ const GRID: &str = r#"<!doctype html>
 const HOME: &str = "screens/home/a.html";
 const G: &str = "screens/home/grid.html";
 
+// The ids of [`SCREEN_HTML`].
+
+/// The heading: an element with text only.
+const TITLE: &str = "home.title";
+/// The `button` instance with a variant and a prop.
+const CTA: &str = "home.cta";
+/// The main element, with an inline style.
+const MAIN: &str = "home.main";
+/// The prop the `button` master declares.
+const KBD: &str = "kbd";
+
+// The ids of [`GRID`].
+
+/// The first card: a plain element.
+const CARD_A: &str = "dash.a";
+/// The second card: an element over several lines, with a heading inside.
+const CARD_B: &str = "dash.b";
+/// The heading inside [`CARD_B`].
+const CARD_B_TITLE: &str = "dash.b.title";
+/// The third card: a component instance.
+const CARD_C: &str = "dash.c";
+/// The first span of the inline row.
+const ROW_X: &str = "dash.x";
+/// The second span of the inline row.
+const ROW_Y: &str = "dash.y";
+
+/// A grid item spanning one column.
+const SPAN_1: &str = "span 1";
+/// A grid item spanning two columns.
+const SPAN_2: &str = "span 2";
+/// A width percentage a resize snaps to.
+const HALF: &str = "50%";
+/// The smallest space token of [`TOKENS`].
+const SPACE_1: &str = "space.1";
+
 fn write(root: &Path, rel: &str, text: &str) {
     let file = root.join(rel);
     fs::create_dir_all(file.parent().unwrap()).unwrap();
@@ -90,7 +125,7 @@ fn grid_project() -> PathBuf {
     let root = project();
     write(&root, &rel::screen(&variant_page(SCREEN, "grid")), GRID);
     let mut tokens: Value = serde_json::from_str(TOKENS).unwrap();
-    tokens["size"] =
+    tokens[ops::SIZE] =
         json!({ "$type": "dimension", "sidebar": { "$value": { "value": 240, "unit": "px" } } });
     write(&root, rel::TOKENS_JSON, &tokens.to_string());
     root
@@ -127,7 +162,7 @@ fn text_replaces_only_the_element_text() {
     let root = project();
     let r = apply(
         &root,
-        json!({ "file": HOME, "op": "text", "id": "home.title", "value": "Hi <you> & co" }),
+        json!({ "file": HOME, "op": ops::TEXT, "id": TITLE, "value": "Hi <you> & co" }),
     );
     assert!(r.changed);
     assert_eq!(r.file, rel::screen(SCREEN_PAGE));
@@ -148,7 +183,7 @@ fn text_of_a_component_instance() {
     let root = project();
     apply(
         &root,
-        json!({ "file": &rel::screen(SCREEN_PAGE), "op": "text", "id": "home.cta", "value": "Create order" }),
+        json!({ "file": &rel::screen(SCREEN_PAGE), "op": ops::TEXT, "id": CTA, "value": "Create order" }),
     );
     assert!(read(&root, &rel::screen(SCREEN_PAGE)).contains(
         r#"<dfw-use c="button" variant="primary" id="home.cta" kbd="Enter">Create order</dfw-use>"#
@@ -158,15 +193,17 @@ fn text_of_a_component_instance() {
 /// edit text: refusals (child elements, void, unknown, duplicate ids)
 #[test]
 fn text_refusals() {
+    /// The refusal of a text edit on an element with child elements.
+    const HAS_CHILDREN: &str = "child elements";
     let root = project();
     let op =
-        |id: &str, value: &str| json!({ "file": HOME, "op": "text", "id": id, "value": value });
-    refused(&root, op("home.lede", "x"), "child elements");
-    refused(&root, op("home.more", "x"), "child elements");
+        |id: &str, value: &str| json!({ "file": HOME, "op": ops::TEXT, "id": id, "value": value });
+    refused(&root, op("home.lede", "x"), HAS_CHILDREN);
+    refused(&root, op("home.more", "x"), HAS_CHILDREN);
     refused(&root, op("home.search", "x"), "no text");
     refused(&root, op("nope", "x"), "not found");
     refused(&root, op("dup", "x"), "2 times");
-    refused(&root, op("home.title", "   "), "empty");
+    refused(&root, op(TITLE, "   "), "empty");
     assert_eq!(
         read(&root, &rel::screen(SCREEN_PAGE)),
         SCREEN_HTML,
@@ -177,23 +214,22 @@ fn text_refusals() {
 /// edit boundary: refuses design/approved, files outside design/, traversal and non-html
 #[test]
 fn boundary() {
+    /// The refusal of an edit in a frozen snapshot.
+    const IN_SNAPSHOT: &str = "approved";
     let root = project();
-    let op = |file: &str, id: &str| json!({ "file": file, "op": "text", "id": id, "value": "x" });
+    let op =
+        |file: &str, id: &str| json!({ "file": file, "op": ops::TEXT, "id": id, "value": "x" });
     refused(
         &root,
-        op("approved/v1/screens/home/a.html", "home.title"),
-        "approved",
+        op("approved/v1/screens/home/a.html", TITLE),
+        IN_SNAPSHOT,
     );
     refused(
         &root,
-        op(&rel::approved("v1/screens/home/a.html"), "home.title"),
-        "approved",
+        op(&rel::approved("v1/screens/home/a.html"), TITLE),
+        IN_SNAPSHOT,
     );
-    refused(
-        &root,
-        op(&format!("../{APP_PAGE}"), "home.title"),
-        "under design",
-    );
+    refused(&root, op(&format!("../{APP_PAGE}"), TITLE), "under design");
     refused(&root, op("tokens/tokens.json", "x"), "HTML");
     assert_eq!(read(&root, APP_PAGE), SCREEN_HTML);
 }
@@ -204,39 +240,39 @@ fn variant_size_prop() {
     let root = project();
     apply(
         &root,
-        json!({ "file": HOME, "op": "variant", "id": "home.cta", "value": "secondary" }),
+        json!({ "file": HOME, "op": ops::VARIANT, "id": CTA, "value": "secondary" }),
     );
     apply(
         &root,
-        json!({ "file": HOME, "op": "size", "id": "home.cta", "value": "lg" }),
+        json!({ "file": HOME, "op": ops::SIZE, "id": CTA, "value": "lg" }),
     );
     apply(
         &root,
-        json!({ "file": HOME, "op": "prop", "id": "home.cta", "prop": "kbd", "value": "F2" }),
+        json!({ "file": HOME, "op": ops::PROP, "id": CTA, "prop": KBD, "value": "F2" }),
     );
     assert!(read(&root, &rel::screen(SCREEN_PAGE)).contains(
         r#"<dfw-use c="button" variant="secondary" id="home.cta" kbd="F2" size="lg">New order</dfw-use>"#
     ));
     apply(
         &root,
-        json!({ "file": HOME, "op": "prop", "id": "home.cta", "prop": "kbd", "value": "" }),
+        json!({ "file": HOME, "op": ops::PROP, "id": CTA, "prop": KBD, "value": "" }),
     );
     assert!(read(&root, &rel::screen(SCREEN_PAGE)).contains(
         r#"<dfw-use c="button" variant="secondary" id="home.cta" size="lg">New order</dfw-use>"#
     ));
     refused(
         &root,
-        json!({ "file": HOME, "op": "variant", "id": "home.cta", "value": "huge" }),
+        json!({ "file": HOME, "op": ops::VARIANT, "id": CTA, "value": "huge" }),
         "no variant \"huge\"",
     );
     refused(
         &root,
-        json!({ "file": HOME, "op": "prop", "id": "home.cta", "prop": "onclick", "value": "x" }),
+        json!({ "file": HOME, "op": ops::PROP, "id": CTA, "prop": "onclick", "value": "x" }),
         "no prop",
     );
     refused(
         &root,
-        json!({ "file": HOME, "op": "variant", "id": "home.title", "value": "primary" }),
+        json!({ "file": HOME, "op": ops::VARIANT, "id": TITLE, "value": "primary" }),
         "not a component instance",
     );
 }
@@ -244,37 +280,30 @@ fn variant_size_prop() {
 /// edit spacing: sets/replaces inline style with space tokens only
 #[test]
 fn spacing() {
+    /// The spacing property most edits set.
+    const PADDING: &str = "padding";
     let root = project();
-    let op = |id: &str, prop: &str, value: &str| json!({ "file": HOME, "op": "spacing", "id": id, "prop": prop, "value": value });
-    apply(&root, op("home.main", "padding", "space.4"));
+    let op = |id: &str, prop: &str, value: &str| json!({ "file": HOME, "op": ops::SPACING, "id": id, "prop": prop, "value": value });
+    apply(&root, op(MAIN, PADDING, "space.4"));
     assert!(read(&root, &rel::screen(SCREEN_PAGE))
         .contains(r#"style="color: var(--color-ink); padding: var(--space-4)""#));
-    apply(&root, op("home.main", "gap", "--space-1"));
+    apply(&root, op(MAIN, "gap", "--space-1"));
     assert!(read(&root, &rel::screen(SCREEN_PAGE)).contains(
         r#"style="color: var(--color-ink); padding: var(--space-4); gap: var(--space-1)""#
     ));
-    apply(&root, op("home.title", "margin-top", "space.1"));
+    apply(&root, op(TITLE, "margin-top", SPACE_1));
     assert!(read(&root, &rel::screen(SCREEN_PAGE))
         .contains(r#"<h1 data-dfw-id="home.title" style="margin-top: var(--space-1)">"#));
-    refused(
-        &root,
-        op("home.main", "padding", "color.ink"),
-        r"space\.\* token",
-    );
-    refused(&root, op("home.main", "color", "space.1"), "not editable");
-    refused(
-        &root,
-        op("home.cta", "padding", "space.1"),
-        "component instance",
-    );
+    refused(&root, op(MAIN, PADDING, "color.ink"), r"space\.\* token");
+    refused(&root, op(MAIN, "color", SPACE_1), "not editable");
+    refused(&root, op(CTA, PADDING, SPACE_1), "component instance");
 }
 
 /// undo restores edits in reverse order and refuses when the file changed since
 #[test]
 fn undo_restores_in_reverse_order() {
     let root = project();
-    let text =
-        |value: &str| json!({ "file": HOME, "op": "text", "id": "home.title", "value": value });
+    let text = |value: &str| json!({ "file": HOME, "op": ops::TEXT, "id": TITLE, "value": value });
     apply(&root, text("One"));
     apply(&root, text("Two"));
     let mut recs: Vec<String> = fs::read_dir(root.join(rel::EDITS))
@@ -317,7 +346,7 @@ fn helpers() {
         r#"<img src="a.png" alt="A &quot;b&quot;"/>"#
     );
     assert_eq!(
-        set(r#"<p title="variant=x" class="c">"#, "variant", "v"),
+        set(r#"<p title="variant=x" class="c">"#, ops::VARIANT, "v"),
         r#"<p title="variant=x" class="c" variant="v">"#,
         "does not match inside values"
     );
@@ -338,7 +367,7 @@ fn helpers() {
     let same = transform(
         &project(),
         SCREEN_HTML,
-        &json!({ "op": "text", "id": "home.title", "value": "Welcome back" }),
+        &json!({ "op": ops::TEXT, "id": TITLE, "value": "Welcome back" }),
     );
     assert_eq!(same.unwrap(), SCREEN_HTML);
 }
@@ -347,17 +376,17 @@ fn helpers() {
 #[test]
 fn move_whole_lines() {
     let root = grid_project();
-    let mv = |id: &str, target: &str, position: &str| json!({ "file": G, "op": "move", "id": id, "ref": target, "position": position });
-    apply(&root, mv("dash.c", "dash.a", "before"));
+    let mv = |id: &str, target: &str, position: &str| json!({ "file": G, "op": ops::MOVE, "id": id, "ref": target, "position": position });
+    apply(&root, mv(CARD_C, CARD_A, position::BEFORE));
     assert!(read_g(&root).contains("<section class=\"cards\" data-dfw-id=\"dash.cards\">\n      <dfw-use c=\"button\" id=\"dash.c\">C</dfw-use>\n      <div data-dfw-id=\"dash.a\">A</div>\n      <article"));
-    apply(&root, mv("dash.b", "dash.c", "before"));
+    apply(&root, mv(CARD_B, CARD_C, position::BEFORE));
     assert!(read_g(&root).contains("cards\">\n      <article data-dfw-id=\"dash.b\">\n        <h2 data-dfw-id=\"dash.b.title\">B</h2>\n      </article>\n      <dfw-use c=\"button\" id=\"dash.c\">C</dfw-use>\n      <div data-dfw-id=\"dash.a\">A</div>\n    </section>"));
     // Back to the original order: the file is byte-identical.
-    apply(&root, mv("dash.a", "dash.b", "before"));
-    apply(&root, mv("dash.c", "dash.b", "after"));
+    apply(&root, mv(CARD_A, CARD_B, position::BEFORE));
+    apply(&root, mv(CARD_C, CARD_B, position::AFTER));
     assert_eq!(read_g(&root), GRID);
     // Moving into another container re-indents to the new place.
-    apply(&root, mv("dash.b", "dash.row", "after"));
+    apply(&root, mv(CARD_B, "dash.row", position::AFTER));
     assert!(read_g(&root).contains("</div>\n    <article data-dfw-id=\"dash.b\">\n      <h2 data-dfw-id=\"dash.b.title\">B</h2>\n    </article>\n  </main>"));
 }
 
@@ -365,37 +394,37 @@ fn move_whole_lines() {
 #[test]
 fn move_inline_and_refusals() {
     let root = grid_project();
-    let mv = |id: &str, target: &str, position: &str| json!({ "file": G, "op": "move", "id": id, "ref": target, "position": position });
-    apply(&root, mv("dash.y", "dash.x", "before"));
+    let mv = |id: &str, target: &str, position: &str| json!({ "file": G, "op": ops::MOVE, "id": id, "ref": target, "position": position });
+    apply(&root, mv(ROW_Y, ROW_X, position::BEFORE));
     assert!(read_g(&root)
         .contains(r#"<span data-dfw-id="dash.y">y</span><span data-dfw-id="dash.x">x</span>"#));
-    let same = apply(&root, mv("dash.y", "dash.x", "before"));
+    let same = apply(&root, mv(ROW_Y, ROW_X, position::BEFORE));
     assert!(!same.changed, "already there: idempotent");
     let before = read_g(&root);
-    refused(&root, mv("dash.b", "dash.b.title", "after"), "into itself");
-    refused(&root, mv("dash.b.title", "dash.b", "after"), "parent");
-    refused(&root, mv("dash.a", "nope", "after"), "not found");
     refused(
         &root,
-        mv("dash.a", "dash.b", "over"),
-        "before.*after.*inside",
+        mv(CARD_B, CARD_B_TITLE, position::AFTER),
+        "into itself",
     );
+    refused(&root, mv(CARD_B_TITLE, CARD_B, position::AFTER), "parent");
+    refused(&root, mv(CARD_A, "nope", position::AFTER), "not found");
+    refused(&root, mv(CARD_A, CARD_B, "over"), "before.*after.*inside");
     assert_eq!(read_g(&root), before);
 }
 
 fn layout(id: &str, prop: &str, value: &str) -> Value {
-    json!({ "file": G, "op": "layout", "id": id, "prop": prop, "value": value })
+    json!({ "file": G, "op": ops::LAYOUT, "id": id, "prop": prop, "value": value })
 }
 
 fn layout_at(id: &str, prop: &str, value: Value, max_width: u32) -> Value {
-    json!({ "file": G, "op": "layout", "id": id, "prop": prop, "value": value, "maxWidth": max_width })
+    json!({ "file": G, "op": ops::LAYOUT, "id": id, "prop": prop, "value": value, "maxWidth": max_width })
 }
 
 /// layout: grid-column span rule in a dfw layout block; update, media placement, removal
 #[test]
 fn layout_block() {
     let root = grid_project();
-    apply(&root, layout("dash.b", "grid-column", "span 2"));
+    apply(&root, layout(CARD_B, layout_prop::GRID_COLUMN, SPAN_2));
     let t = read_g(&root);
     assert_match(
         &t,
@@ -404,19 +433,19 @@ fn layout_block() {
     let block = Regex::new(r" {2}<style data-dfw-layout>[\s\S]*?</style>\n").unwrap();
     assert_eq!(block.replace(&t, ""), GRID, "nothing else changed");
     // Same value again: no change (idempotent).
-    assert!(!apply(&root, layout("dash.b", "grid-column", "span 2")).changed);
-    apply(&root, layout("dash.b", "grid-column", "3"));
+    assert!(!apply(&root, layout(CARD_B, layout_prop::GRID_COLUMN, SPAN_2)).changed);
+    apply(&root, layout(CARD_B, layout_prop::GRID_COLUMN, "3"));
     apply(
         &root,
-        layout_at("dash.c", "grid-column", json!("span 1"), 834),
+        layout_at(CARD_C, layout_prop::GRID_COLUMN, json!(SPAN_1), 834),
     );
     apply(
         &root,
-        layout_at("dash.b", "grid-column", json!("span 1"), 390),
+        layout_at(CARD_B, layout_prop::GRID_COLUMN, json!(SPAN_1), 390),
     );
     apply(
         &root,
-        layout_at("dash.b", "grid-column", json!("span 2"), 834),
+        layout_at(CARD_B, layout_prop::GRID_COLUMN, json!(SPAN_2), 834),
     );
     let t = read_g(&root);
     let block = Regex::new(r"<style data-dfw-layout>([\s\S]*?)</style>")
@@ -441,13 +470,11 @@ fn layout_block() {
         "base first, then media blocks widest first so narrower ones win"
     );
     // Removing every rule removes the block and restores the file.
-    for (id, mw) in [
-        ("dash.b", 0),
-        ("dash.c", 834),
-        ("dash.b", 390),
-        ("dash.b", 834),
-    ] {
-        apply(&root, layout_at(id, "grid-column", Value::Null, mw));
+    for (id, mw) in [(CARD_B, 0), (CARD_C, 834), (CARD_B, 390), (CARD_B, 834)] {
+        apply(
+            &root,
+            layout_at(id, layout_prop::GRID_COLUMN, Value::Null, mw),
+        );
     }
     assert_eq!(read_g(&root), GRID);
 }
@@ -456,27 +483,41 @@ fn layout_block() {
 // The lint and comment-source assertions of the JS test belong to the lint and review groups.
 #[test]
 fn layout_values_and_refusals() {
+    /// The refusal of a value that is no token.
+    const NOT_A_TOKEN: &str = "token";
     let root = grid_project();
-    apply(&root, layout("dash.a", "width", "50%"));
-    apply(&root, layout("dash.a", "min-height", "space.4"));
-    apply(&root, layout("dash.c", "width", "--size-sidebar"));
+    apply(&root, layout(CARD_A, layout_prop::WIDTH, HALF));
+    apply(&root, layout(CARD_A, layout_prop::MIN_HEIGHT, "space.4"));
+    apply(&root, layout(CARD_C, layout_prop::WIDTH, "--size-sidebar"));
     let t = read_g(&root);
     assert!(
         t.contains("[data-dfw-id='dash.a']:not(#dfw) { width: 50%; min-height: var(--space-4); }")
     );
     assert!(t.contains("[data-dfw-id='dash.c']:not(#dfw) { width: var(--size-sidebar); }"));
-    refused(&root, layout("dash.a", "width", "37%"), "snap");
-    refused(&root, layout("dash.a", "width", "300px"), "token");
-    refused(&root, layout("dash.a", "min-height", "color.ink"), "token");
-    refused(&root, layout("dash.a", "grid-column", "span 99"), "span N");
-    refused(&root, layout("dash.a", "color", "x"), "not resizable");
+    refused(&root, layout(CARD_A, layout_prop::WIDTH, "37%"), "snap");
     refused(
         &root,
-        json!({ "file": G, "op": "layout", "id": "dash.a", "prop": "width", "value": "50%", "maxWidth": "wide" }),
+        layout(CARD_A, layout_prop::WIDTH, "300px"),
+        NOT_A_TOKEN,
+    );
+    refused(
+        &root,
+        layout(CARD_A, layout_prop::MIN_HEIGHT, "color.ink"),
+        NOT_A_TOKEN,
+    );
+    refused(
+        &root,
+        layout(CARD_A, layout_prop::GRID_COLUMN, "span 99"),
+        "span N",
+    );
+    refused(&root, layout(CARD_A, "color", "x"), "not resizable");
+    refused(
+        &root,
+        json!({ "file": G, "op": ops::LAYOUT, "id": CARD_A, "prop": layout_prop::WIDTH, "value": HALF, "maxWidth": "wide" }),
         "breakpoint",
     );
-    refused(&root, layout("nope", "width", "50%"), "not found");
-    // The rule is written with single quotes, so the element is the only data-dfw-id="dash.a".
+    refused(&root, layout("nope", layout_prop::WIDTH, HALF), "not found");
+    // The rule is written with single quotes, so the element is the only data-dfw-id=CARD_A.
     assert_eq!(t.matches("data-dfw-id=\"dash.a\"").count(), 1);
 }
 
@@ -484,10 +525,10 @@ fn layout_values_and_refusals() {
 #[test]
 fn layout_hand_edited_and_undo() {
     let root = grid_project();
-    apply(&root, layout("dash.b", "grid-column", "span 2"));
+    apply(&root, layout(CARD_B, layout_prop::GRID_COLUMN, SPAN_2));
     apply(
         &root,
-        json!({ "file": G, "op": "move", "id": "dash.c", "ref": "dash.a", "position": "before" }),
+        json!({ "file": G, "op": ops::MOVE, "id": CARD_C, "ref": CARD_A, "position": position::BEFORE }),
     );
     undo_edit(&root).unwrap();
     undo_edit(&root).unwrap();
@@ -502,7 +543,7 @@ fn layout_hand_edited_and_undo() {
     );
     refused(
         &root,
-        layout("dash.b", "grid-column", "span 2"),
+        layout(CARD_B, layout_prop::GRID_COLUMN, SPAN_2),
         "edited by hand",
     );
 }
@@ -510,33 +551,33 @@ fn layout_hand_edited_and_undo() {
 /// edits are refused once the design is approved and locked (G2) or in review-only mode
 #[test]
 fn refused_when_locked_or_review_only() {
+    /// The mode of a project building a new product.
+    const NEW_PRODUCT: &str = "new-product";
+    /// The mode of a project that only reviews; its name is in the refusal.
+    const REVIEW_ONLY: &str = "review-only";
     let root = grid_project();
     let state = |s: Value| write(&root, rel::STATE, &s.to_string());
     state(
-        json!({ "schema": 1, "mode": "new-product", "phase": "stack", "design": { "version": 1, "status": "approved", "locked": true, "approved": [] } }),
+        json!({ "schema": 1, "mode": NEW_PRODUCT, "phase": "stack", "design": { "version": 1, "status": "approved", "locked": true, "approved": [] } }),
     );
     for op in [
-        json!({ "file": G, "op": "move", "id": "dash.c", "ref": "dash.a", "position": "before" }),
-        layout("dash.b", "grid-column", "span 2"),
-        json!({ "file": G, "op": "text", "id": "dash.a", "value": "Z" }),
+        json!({ "file": G, "op": ops::MOVE, "id": CARD_C, "ref": CARD_A, "position": position::BEFORE }),
+        layout(CARD_B, layout_prop::GRID_COLUMN, SPAN_2),
+        json!({ "file": G, "op": ops::TEXT, "id": CARD_A, "value": "Z" }),
     ] {
         refused(&root, op, r"approved and locked \(G2\)");
     }
     assert!(undo_edit(&root).unwrap_err().message().contains("locked"));
-    state(
-        json!({ "schema": 1, "mode": "review-only", "design": { "version": 1, "locked": false } }),
-    );
+    state(json!({ "schema": 1, "mode": REVIEW_ONLY, "design": { "version": 1, "locked": false } }));
     refused(
         &root,
-        json!({ "file": G, "op": "text", "id": "dash.a", "value": "Z" }),
-        "review-only",
+        json!({ "file": G, "op": ops::TEXT, "id": CARD_A, "value": "Z" }),
+        REVIEW_ONLY,
     );
-    state(
-        json!({ "schema": 1, "mode": "new-product", "design": { "version": 2, "locked": false } }),
-    );
+    state(json!({ "schema": 1, "mode": NEW_PRODUCT, "design": { "version": 2, "locked": false } }));
     let again = apply(
         &root,
-        json!({ "file": G, "op": "text", "id": "dash.a", "value": "Z" }),
+        json!({ "file": G, "op": ops::TEXT, "id": CARD_A, "value": "Z" }),
     );
     assert!(again.changed, "editable again after reopen");
     assert_eq!(read_g(&root), GRID.replace(">A<", ">Z<"));
@@ -546,7 +587,7 @@ fn refused_when_locked_or_review_only() {
 #[test]
 fn layout_specificity() {
     let root = grid_project();
-    apply(&root, layout("dash.a", "width", "50%"));
+    apply(&root, layout(CARD_A, layout_prop::WIDTH, HALF));
     let t = read_g(&root);
     let rule = Regex::new(r"(\[data-dfw-id='dash.a'\][^{]*)\{")
         .unwrap()
@@ -567,7 +608,7 @@ fn layout_specificity() {
             "  <style data-dfw-layout>\n    [data-dfw-id='dash.b'] { grid-column: span 2; }\n  </style>\n</head>",
         ),
     );
-    apply(&root, layout("dash.c", "grid-column", "span 1"));
+    apply(&root, layout(CARD_C, layout_prop::GRID_COLUMN, SPAN_1));
     assert!(read_g(&root).contains("[data-dfw-id='dash.b']:not(#dfw) { grid-column: span 2; }\n    [data-dfw-id='dash.c']:not(#dfw) { grid-column: span 1; }"));
 }
 
@@ -575,13 +616,16 @@ fn layout_specificity() {
 #[test]
 fn layout_reset() {
     let root = grid_project();
-    apply(&root, layout("dash.a", "width", "50%"));
-    apply(&root, layout("dash.a", "min-height", "space.4"));
-    apply(&root, layout_at("dash.a", "width", json!("25%"), 390));
-    apply(&root, layout("dash.a", "width", "auto"));
+    apply(&root, layout(CARD_A, layout_prop::WIDTH, HALF));
+    apply(&root, layout(CARD_A, layout_prop::MIN_HEIGHT, "space.4"));
+    apply(
+        &root,
+        layout_at(CARD_A, layout_prop::WIDTH, json!("25%"), 390),
+    );
+    apply(&root, layout(CARD_A, layout_prop::WIDTH, "auto"));
     assert!(read_g(&root)
         .contains("[data-dfw-id='dash.a']:not(#dfw) { min-height: var(--space-4); }\n    @media"));
-    let reset = json!({ "file": G, "op": "layout", "id": "dash.a", "maxWidth": 390 });
+    let reset = json!({ "file": G, "op": ops::LAYOUT, "id": CARD_A, "maxWidth": 390 });
     apply(&root, reset.clone());
     let t = read_g(&root);
     assert!(!t.contains("@media"), "empty media block removed");
@@ -589,7 +633,7 @@ fn layout_reset() {
     assert!(!apply(&root, reset).changed, "nothing to reset");
     apply(
         &root,
-        json!({ "file": G, "op": "layout", "id": "dash.a", "prop": null, "value": null }),
+        json!({ "file": G, "op": ops::LAYOUT, "id": CARD_A, "prop": null, "value": null }),
     );
     assert_eq!(
         read_g(&root),
@@ -601,16 +645,18 @@ fn layout_reset() {
 /// move inside: drops into an empty container (own-line close tag, one-line empty, inline); refusals
 #[test]
 fn move_inside_a_container() {
+    /// The empty container on one line.
+    const COLS: &str = "dash.cols";
     let root = grid_project();
     let with_empty = GRID.replace(
         "    <div class=\"row\"",
         "    <section class=\"cards\" data-dfw-id=\"dash.empty\">\n    </section>\n    <div class=\"cols\" data-dfw-id=\"dash.cols\"></div>\n    <div class=\"row\"",
     );
     write(&root, &rel::design(G), &with_empty);
-    let inside = |id: &str, target: &str| json!({ "file": G, "op": "move", "id": id, "ref": target, "position": "inside" });
-    apply(&root, inside("dash.b", "dash.empty"));
+    let inside = |id: &str, target: &str| json!({ "file": G, "op": ops::MOVE, "id": id, "ref": target, "position": position::INSIDE });
+    apply(&root, inside(CARD_B, "dash.empty"));
     assert!(read_g(&root).contains("<section class=\"cards\" data-dfw-id=\"dash.empty\">\n      <article data-dfw-id=\"dash.b\">\n        <h2 data-dfw-id=\"dash.b.title\">B</h2>\n      </article>\n    </section>"));
-    apply(&root, inside("dash.a", "dash.cols"));
+    apply(&root, inside(CARD_A, COLS));
     assert!(read_g(&root).contains("<div class=\"cols\" data-dfw-id=\"dash.cols\">\n      <div data-dfw-id=\"dash.a\">A</div>\n    </div>"));
     undo_edit(&root).unwrap();
     undo_edit(&root).unwrap();
@@ -619,15 +665,15 @@ fn move_inside_a_container() {
         with_empty,
         "undo restores the source byte for byte"
     );
-    apply(&root, inside("dash.x", "dash.cols"));
+    apply(&root, inside(ROW_X, COLS));
     assert!(
         read_g(&root).contains(
             r#"<div class="cols" data-dfw-id="dash.cols"><span data-dfw-id="dash.x">x</span></div>"#
         ),
         "inline element into an inline container"
     );
-    refused(&root, inside("dash.cards", "dash.b.title"), "into itself");
-    refused(&root, inside("dash.a", "dash.c"), "component instance");
+    refused(&root, inside("dash.cards", CARD_B_TITLE), "into itself");
+    refused(&root, inside(CARD_A, CARD_C), "component instance");
 }
 
 const SHELL: &str = r#"<dfw-component name="app-shell" description="App frame with a nav and a main slot">
@@ -653,6 +699,12 @@ const SLOTTED: &str = r#"<!doctype html>
 /// slot content: screen elements reorder among slot siblings; master-only ids are refused with a hint to edit the master
 #[test]
 fn slot_content_and_master_ids() {
+    /// The first section the screen fills the slot with.
+    const SUMMARY: &str = "orders.summary";
+    /// The second section the screen fills the slot with.
+    const TABLE: &str = "orders.table";
+    /// An element of the master, not of the screen.
+    const MASTER_NAV: &str = "shell.nav";
     let root = grid_project();
     write(&root, &rel::component(APP_SHELL_MASTER), SHELL);
     let s = "screens/home/slotted.html";
@@ -673,21 +725,21 @@ fn slot_content_and_master_ids() {
     );
     apply(
         &root,
-        json!({ "file": s, "op": "move", "id": "orders.help", "ref": "orders.summary", "position": "before" }),
+        json!({ "file": s, "op": ops::MOVE, "id": "orders.help", "ref": SUMMARY, "position": position::BEFORE }),
     );
     assert!(read(&root, &file).contains("<dfw-fill slot=\"main\">\n      <aside data-dfw-id=\"orders.help\">Help</aside>\n      <section data-dfw-id=\"orders.summary\">"));
     apply(
         &root,
-        json!({ "file": s, "op": "layout", "id": "orders.table", "prop": "min-height", "value": "space.4" }),
+        json!({ "file": s, "op": ops::LAYOUT, "id": TABLE, "prop": layout_prop::MIN_HEIGHT, "value": "space.4" }),
     );
     assert!(read(&root, &file)
         .contains("[data-dfw-id='orders.table']:not(#dfw) { min-height: var(--space-4); }"));
     let before = read(&root, &file);
     for op in [
-        json!({ "file": s, "op": "move", "id": "shell.nav", "ref": "orders.summary", "position": "after" }),
-        json!({ "file": s, "op": "move", "id": "orders.table", "ref": "shell.nav", "position": "before" }),
-        json!({ "file": s, "op": "move", "id": "orders.table", "ref": "shell.main", "position": "inside" }),
-        json!({ "file": s, "op": "layout", "id": "shell.nav", "prop": "width", "value": "25%" }),
+        json!({ "file": s, "op": ops::MOVE, "id": MASTER_NAV, "ref": SUMMARY, "position": position::AFTER }),
+        json!({ "file": s, "op": ops::MOVE, "id": TABLE, "ref": MASTER_NAV, "position": position::BEFORE }),
+        json!({ "file": s, "op": ops::MOVE, "id": TABLE, "ref": "shell.main", "position": position::INSIDE }),
+        json!({ "file": s, "op": ops::LAYOUT, "id": MASTER_NAV, "prop": layout_prop::WIDTH, "value": "25%" }),
     ] {
         refused(
             &root,
@@ -700,7 +752,7 @@ fn slot_content_and_master_ids() {
     }
     refused(
         &root,
-        json!({ "file": s, "op": "move", "id": "orders.table", "ref": "nope", "position": "before" }),
+        json!({ "file": s, "op": ops::MOVE, "id": TABLE, "ref": "nope", "position": position::BEFORE }),
         "was not found",
     );
     assert_eq!(read(&root, &file), before, "refusals change nothing");
@@ -718,7 +770,7 @@ fn audit_1_tag_in_a_comment() {
     write(&root, &rel::screen(INDEX_PAGE), &page(a, b));
     apply(
         &root,
-        json!({ "file": "screens/a/index.html", "op": "move", "id": "a", "ref": "b", "position": "after" }),
+        json!({ "file": "screens/a/index.html", "op": ops::MOVE, "id": "a", "ref": "b", "position": position::AFTER }),
     );
     assert_eq!(read(&root, &rel::screen(INDEX_PAGE)), page(b, a));
 }
@@ -732,18 +784,22 @@ fn audit_7_deleted_file_and_cap() {
         |t: &str| format!("<html><head></head><body><p data-dfw-id=\"t\">{t}</p></body></html>");
     let root = test_dir("edit-audit");
     write(&root, &rel::screen(INDEX_PAGE_C), &screen("c"));
+    // The page of the screen kept, as an edit names it: in `design/`.
+    let page_c = rel::join(file::SCREENS, INDEX_PAGE_C);
     write(&root, &rel::screen(&index_page(GONE)), &screen(GONE));
-    let text =
-        |file: &str, value: &str| json!({ "file": file, "op": "text", "id": "t", "value": value });
-    apply(&root, text("screens/c/index.html", "c2"));
-    apply(&root, text("screens/d/index.html", "d2"));
+    let text = |file: &str, value: &str| json!({ "file": file, "op": ops::TEXT, "id": "t", "value": value });
+    apply(&root, text(&page_c, "c2"));
+    apply(
+        &root,
+        text(&rel::join(file::SCREENS, &index_page(GONE)), "d2"),
+    );
     fs::remove_dir_all(root.join(rel::screen(GONE))).unwrap();
     assert_eq!(undo_edit(&root).unwrap().file, rel::screen(INDEX_PAGE_C));
     assert_eq!(read(&root, &rel::screen(INDEX_PAGE_C)), screen("c"));
     assert_eq!(undo_edit(&root).unwrap_err().message(), "Nothing to undo.");
 
     for i in 0..MAX_JOURNAL + 5 {
-        apply(&root, text("screens/c/index.html", &format!("v{i}")));
+        apply(&root, text(&page_c, &format!("v{i}")));
     }
     assert_eq!(
         fs::read_dir(root.join(rel::EDITS)).unwrap().count(),
@@ -772,7 +828,7 @@ fn audit_9_custom_property_case() {
     );
     apply(
         &root,
-        json!({ "file": "screens/c/index.html", "op": "spacing", "id": "g", "prop": "gap", "value": "space.4" }),
+        json!({ "file": "screens/c/index.html", "op": ops::SPACING, "id": "g", "prop": "gap", "value": "space.4" }),
     );
     assert!(read(&root, &rel::screen(INDEX_PAGE_C))
         .contains(r#"style="--colW: 3; gap: var(--space-4)""#));
@@ -781,9 +837,13 @@ fn audit_9_custom_property_case() {
 /// 10: the design/approved boundary holds for other letter case and for symlinks; missing files still get a clear error
 #[test]
 fn audit_10_boundary_on_real_paths() {
+    /// The refusal of an edit in a frozen snapshot.
+    const IN_SNAPSHOT: &str = "frozen";
+    /// The approved version of the snapshot.
+    const VERSION: &str = "v1";
     let frozen = r#"<html><body><p data-dfw-id="t">frozen</p></body></html>"#;
     let root = test_dir("edit-audit");
-    write(&root, &rel::approved("v1/index.html"), frozen);
+    write(&root, &rel::approved(&index_page(VERSION)), frozen);
     write(&root, &rel::screen(INDEX_PAGE), frozen);
     write(&root, OUTSIDE_DIR_PAGE, frozen);
     let resolve_file = |file: &str| resolve_design_file(&root, Some(&json!(file)));
@@ -798,7 +858,7 @@ fn audit_10_boundary_on_real_paths() {
         resolve_file(&rel::screen(INDEX_PAGE)).unwrap().rel,
         rel::screen(INDEX_PAGE)
     );
-    let op = |file: &str| json!({ "file": file, "op": "text", "id": "t", "value": "X" });
+    let op = |file: &str| json!({ "file": file, "op": ops::TEXT, "id": "t", "value": "X" });
     #[cfg(unix)]
     {
         use crate::core::fixture::{OTHER_HTML_FILE, OUTSIDE_DIR};
@@ -820,8 +880,8 @@ fn audit_10_boundary_on_real_paths() {
         .unwrap();
         refused(
             &root,
-            op(&rel::join(SNAPSHOT_LINK, &index_page("v1"))),
-            "frozen",
+            op(&rel::join(SNAPSHOT_LINK, &index_page(VERSION))),
+            IN_SNAPSHOT,
         );
     }
     if root
@@ -829,9 +889,9 @@ fn audit_10_boundary_on_real_paths() {
         .exists()
     {
         // Case-insensitive file system (macOS, Windows): "Approved/..." is the frozen file.
-        refused(&root, op("Approved/v1/index.html"), "frozen");
+        refused(&root, op("Approved/v1/index.html"), IN_SNAPSHOT);
     }
-    assert_eq!(read(&root, &rel::approved("v1/index.html")), frozen);
+    assert_eq!(read(&root, &rel::approved(&index_page(VERSION))), frozen);
     assert_eq!(read(&root, OUTSIDE_DIR_PAGE), frozen);
 }
 
@@ -840,6 +900,10 @@ fn audit_10_boundary_on_real_paths() {
 /// Every byte outside the edited range stays as it was, whatever the file looks like.
 #[test]
 fn bytes_outside_the_edit_are_kept() {
+    /// The text of the edited element, with a character outside the BMP.
+    const OLD_TEXT: &str = "Text \u{1F600}";
+    /// The text the edit writes.
+    const NEW_TEXT: &str = "New";
     let root = test_dir("edit-bytes");
     write(&root, rel::TOKENS_JSON, TOKENS);
     let body = "<main data-dfw-id='m' class='a > b'>\r\n\t<!-- </main> <p data-dfw-id=\"t\"> -->\r\n\t<p data-dfw-id=\"t\" title='it\"s'>Text \u{1F600}</p>\r\n</main>";
@@ -847,19 +911,19 @@ fn bytes_outside_the_edit_are_kept() {
     write(&root, &rel::design(COMPOSED_PAGE), &source);
     apply(
         &root,
-        json!({ "file": "s/a.html", "op": "text", "id": "t", "value": "New" }),
+        json!({ "file": COMPOSED_PAGE, "op": ops::TEXT, "id": "t", "value": NEW_TEXT }),
     );
     assert_eq!(
         read(&root, &rel::design(COMPOSED_PAGE)),
-        source.replace("Text \u{1F600}", "New")
+        source.replace(OLD_TEXT, NEW_TEXT)
     );
     apply(
         &root,
-        json!({ "file": "s/a.html", "op": "spacing", "id": "t", "prop": "gap", "value": "space.4" }),
+        json!({ "file": COMPOSED_PAGE, "op": ops::SPACING, "id": "t", "prop": "gap", "value": "space.4" }),
     );
     assert_eq!(
         read(&root, &rel::design(COMPOSED_PAGE)),
-        source.replace("Text \u{1F600}", "New").replace(
+        source.replace(OLD_TEXT, NEW_TEXT).replace(
             " title='it\"s'",
             " title='it\"s' style=\"gap: var(--space-4)\""
         )
@@ -876,10 +940,14 @@ fn bytes_outside_the_edit_are_kept() {
 /// millisecond keep their order.
 #[test]
 fn journal_names_stay_in_order() {
-    assert!(next_stamp(&[], None).ends_with("-0000"));
+    /// The sequence of the first record, and of the one after the last sequence.
+    const FIRST_SEQUENCE: &str = "-0000";
+    assert!(next_stamp(&[], None).ends_with(FIRST_SEQUENCE));
     let next = next_stamp(&["00001700000000000-0041.json".to_string()], None);
     assert!(next.ends_with("-0042"), "{next}");
-    assert!(next_stamp(&["00001700000000000-9999.json".to_string()], None).ends_with("-0000"));
+    assert!(
+        next_stamp(&["00001700000000000-9999.json".to_string()], None).ends_with(FIRST_SEQUENCE)
+    );
     assert_eq!(next.len(), "00001700000000-0042".len());
 }
 
@@ -914,7 +982,7 @@ fn token_names() {
     assert_eq!(
         names,
         [
-            pair("space.1", "--space-1"),
+            pair(SPACE_1, "--space-1"),
             pair("space.4", "--space-4"),
             pair("color.ink", "--color-ink")
         ]
@@ -937,7 +1005,7 @@ fn concurrent_edits_are_all_kept_and_journaled() {
         for i in 0..40 {
             let root = &root;
             s.spawn(move || {
-                let op = json!({ "file": "screens/many/a.html", "op": "text", "id": format!("p.{i}"), "value": format!("new {i}") });
+                let op = json!({ "file": "screens/many/a.html", "op": ops::TEXT, "id": format!("p.{i}"), "value": format!("new {i}") });
                 assert!(apply_edit(root, &op).unwrap().changed);
             });
         }

@@ -1,5 +1,5 @@
 //! What a host sends to a hook, named once: the hook events, the names of the tools that write
-//! files and the body of an apply_patch call. It uses nothing else, so the binary tests include it too
+//! files and the body of an apply_patch call; and what a hook answers it ([`reply`]). It uses nothing else, so the binary tests include it too
 //! (`#[path = "../src/core/host/wire.rs"] mod wire;`) and build their hook payloads from it.
 
 /// Hook events, by the names Claude Code gives them (`hook_event_name`); every host's output is
@@ -64,4 +64,26 @@ pub mod patch {
     pub fn body(headers: &[(&str, &str)]) -> String {
         format!("{BEGIN}\n{}\n{END}", lines(headers))
     }
+}
+
+/// What a hook prints for the host: its keys and the values that refuse or hold back.
+pub mod reply {
+    /// Claude Code's wrapper around a hook's answer.
+    pub const HOOK_SPECIFIC_OUTPUT: &str = "hookSpecificOutput";
+    /// The event the wrapped answer is for.
+    pub const HOOK_EVENT_NAME: &str = "hookEventName";
+    /// Text added to the model's context.
+    pub const ADDITIONAL_CONTEXT: &str = "additionalContext";
+    /// Whether a tool call may run; [`DENY`] refuses it.
+    pub const PERMISSION_DECISION: &str = "permissionDecision";
+    /// Why a tool call is refused.
+    pub const PERMISSION_DECISION_REASON: &str = "permissionDecisionReason";
+    /// The value of [`PERMISSION_DECISION`] that refuses a tool call.
+    pub const DENY: &str = "deny";
+    /// Whether the agent may stop; [`BLOCK`] holds it back.
+    pub const DECISION: &str = "decision";
+    /// Why the agent may not stop yet.
+    pub const REASON: &str = "reason";
+    /// The value of [`DECISION`] that keeps the agent from stopping.
+    pub const BLOCK: &str = "block";
 }

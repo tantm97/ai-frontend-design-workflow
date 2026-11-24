@@ -22,6 +22,15 @@ use serde_json::Value;
 mod layout;
 use layout::{file, rel};
 
+#[path = "../src/core/word.rs"]
+#[allow(dead_code, reason = "each test binary uses a part of the command line")]
+mod word;
+use word::{command, flag, sub};
+
+/// What a dry run of an import says it was.
+const DRY_RUN: &str = "Dry run";
+/// The changes file an import reads.
+const CHANGES: &str = "changes.json";
 const DFW: &str = env!("CARGO_BIN_EXE_dfw");
 
 fn repo() -> PathBuf {
@@ -59,7 +68,7 @@ fn project(label: &str) -> PathBuf {
     fs::create_dir_all(&dir).unwrap();
     let root = dir.canonicalize().unwrap();
     copy_tree(&fix().join("project"), &root);
-    ok(&root, &["init", "--product", "T"]);
+    ok(&root, &[command::INIT, flag::PRODUCT, "T"]);
     root
 }
 
@@ -104,37 +113,56 @@ fn set_locked(root: &Path, locked: bool) {
 /// penpot tokens: CLI export/import, refused while frozen, dry run allowed
 #[test]
 fn tokens_export_and_import_refused_while_frozen_dry_run_allowed() {
+    /// The file `--out` names.
+    const OUT_FILE: &str = "pp.json";
     let root = project("tokens-cli");
     fs::copy(fix().join("dfw-tokens.json"), root.join(rel::TOKENS_JSON)).unwrap();
     let out = ok(
         &root,
-        &["tokens", "export", "--format", "penpot", "--out", "pp.json"],
+        &[
+            command::TOKENS,
+            sub::EXPORT,
+            flag::FORMAT,
+            "penpot",
+            flag::OUT,
+            OUT_FILE,
+        ],
     );
     assert!(out.contains("Wrote pp.json"), "{out}");
     assert!(out.contains("Not exported: base easing.out (cubicBezier)"));
-    assert!(root.join("pp.json").exists());
+    assert!(root.join(OUT_FILE).exists());
     let edited = fix().join("penpot-edited.tokens.json");
     let edited = edited.to_str().unwrap();
-    let dry = ok(&root, &["tokens", "import", edited, "--dry-run"]);
+    let dry = ok(
+        &root,
+        &[command::TOKENS, sub::IMPORT, edited, flag::DRY_RUN],
+    );
     let change = dry.find("color.blue.600: #0066ff -> #0055dd").unwrap();
-    assert!(dry[change..].contains("Dry run"));
+    assert!(dry[change..].contains(DRY_RUN));
     set_locked(&root, true);
-    let (code, _, stderr) = cli(&root, &["tokens", "import", edited]);
+    let (code, _, stderr) = cli(&root, &[command::TOKENS, sub::IMPORT, edited]);
     assert_eq!(code, 1);
     let frozen = stderr.find("frozen (G2)").unwrap();
     assert!(stderr[frozen..].contains("dfw reopen"));
-    assert!(ok(&root, &["tokens", "import", edited, "--dry-run"]).contains("Dry run"));
+    assert!(ok(
+        &root,
+        &[command::TOKENS, sub::IMPORT, edited, flag::DRY_RUN]
+    )
+    .contains(DRY_RUN));
     set_locked(&root, false);
-    assert!(ok(&root, &["tokens", "import", edited]).contains("tokens.css rebuilt"));
+    assert!(ok(&root, &[command::TOKENS, sub::IMPORT, edited]).contains("tokens.css rebuilt"));
     let css = fs::read_to_string(root.join(rel::join(rel::TOKENS, file::TOKENS_CSS))).unwrap();
     assert!(css.contains("--color-blue-600: #0055dd;"));
     // Usage errors of the two branches.
-    let (code, _, stderr) = cli(&root, &["tokens", "export", "--format", "figma"]);
+    let (code, _, stderr) = cli(
+        &root,
+        &[command::TOKENS, sub::EXPORT, flag::FORMAT, "figma"],
+    );
     assert_eq!(
         (code, stderr.trim_end()),
         (1, "Unknown --format \"figma\" (supported: penpot).")
     );
-    let (code, _, stderr) = cli(&root, &["tokens", "import"]);
+    let (code, _, stderr) = cli(&root, &[command::TOKENS, sub::IMPORT]);
     assert_eq!(code, 1);
     assert!(stderr.starts_with("Usage: dfw tokens import <penpot-tokens.json|folder>"));
 }
@@ -149,7 +177,7 @@ fn penpot_import_and_plugin_instructions() {
     let doc = ok(
         &root,
         &[
-            "__debug",
+            command::DEBUG,
             "penpot-build-export",
             renders.to_str().unwrap(),
             tokens.to_str().unwrap(),
@@ -164,28 +192,34 @@ fn penpot_import_and_plugin_instructions() {
     fs::write(exports.join(format!("{id}.json")), &doc).unwrap();
     fs::write(root.join(rel::PENPOT_EXPORT), &doc).unwrap();
     let mut changes: Value =
-        serde_json::from_str(&fs::read_to_string(fix().join("changes.json")).unwrap()).unwrap();
+        serde_json::from_str(&fs::read_to_string(fix().join(CHANGES)).unwrap()).unwrap();
     changes["exportId"] = id.into();
-    fs::write(root.join("changes.json"), changes.to_string()).unwrap();
+    fs::write(root.join(CHANGES), changes.to_string()).unwrap();
 
-    let dry = ok(&root, &["penpot", "import", "changes.json", "--dry-run"]);
+    let dry = ok(
+        &root,
+        &[command::PENPOT, sub::IMPORT, CHANGES, flag::DRY_RUN],
+    );
     let text = dry.find("1 text").unwrap();
-    assert!(dry[text..].contains("Dry run"));
+    assert!(dry[text..].contains(DRY_RUN));
     assert!(!root.join(rel::REVIEWS).exists() || !dry.contains("fb_001"));
-    let real = ok(&root, &["penpot", "import", "changes.json"]);
+    let real = ok(&root, &[command::PENPOT, sub::IMPORT, CHANGES]);
     assert!(real.contains("Comments are in the review loop"));
     assert!(real.contains("fb_001 items/a/desktop -> items.add"));
-    let json: Value =
-        serde_json::from_str(&ok(&root, &["penpot", "import", "changes.json", "--json"])).unwrap();
+    let json: Value = serde_json::from_str(&ok(
+        &root,
+        &[command::PENPOT, sub::IMPORT, CHANGES, flag::JSON],
+    ))
+    .unwrap();
     assert_eq!(json["comments"], serde_json::json!([]));
     assert!(json["skipped"].as_u64().unwrap() >= 5);
-    let plugin = ok(&root, &["penpot", "plugin"]);
+    let plugin = ok(&root, &[command::PENPOT, sub::PLUGIN]);
     assert!(plugin.starts_with("The Studio is not running: start it with \"dfw studio start\".\nPenpot plugin manifest: http://127.0.0.1:4600/__dfw/penpot/manifest.json\n"));
     assert!(plugin.contains("No Penpot API token"));
-    let (code, _, stderr) = cli(&root, &["penpot", "nope"]);
+    let (code, _, stderr) = cli(&root, &[command::PENPOT, "nope"]);
     assert_eq!(code, 1);
     assert!(stderr.starts_with("Usage: dfw penpot export"));
-    let (code, _, stderr) = cli(&root, &["penpot", "import", "missing.json"]);
+    let (code, _, stderr) = cli(&root, &[command::PENPOT, sub::IMPORT, "missing.json"]);
     assert_eq!(
         (code, stderr.trim_end()),
         (1, "missing.json: not found or not JSON.")

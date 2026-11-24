@@ -2,6 +2,7 @@
 
 use serde_json::Value;
 
+use super::word::{command, sub};
 use super::{Ctx, Handler};
 use crate::core::error::DfwError;
 use crate::core::js;
@@ -15,7 +16,7 @@ use crate::workflow::state::arg_truthy;
 
 /// The commands of this group: every subcommand runs here.
 pub fn commands() -> Vec<(&'static str, Handler)> {
-    vec![("comments", comments as Handler)]
+    vec![(command::COMMENTS, comments as Handler)]
 }
 
 fn print_json(value: &Value) -> Result<i32, DfwError> {
@@ -26,7 +27,7 @@ fn print_json(value: &Value) -> Result<i32, DfwError> {
 fn comments(ctx: &Ctx) -> Result<i32, DfwError> {
     let a = &ctx.args;
     let root = ctx.root();
-    let sub = a.pos(1).filter(|s| !s.is_empty()).unwrap_or("list");
+    let sub = a.pos(1).filter(|s| !s.is_empty()).unwrap_or(sub::LIST);
     let id = a.pos(2);
     let msg = arg_truthy(a, "message").or_else(|| arg_truthy(a, "m"));
     let by = |fallback: &str| arg_truthy(a, "by").or_else(|| Some(fallback.into()));
@@ -42,7 +43,7 @@ fn comments(ctx: &Ctx) -> Result<i32, DfwError> {
     }
     match sub {
         "wait" => wait(ctx),
-        "list" => list(ctx),
+        sub::LIST => list(ctx),
         "show" => {
             let found = all_comments(&root)?
                 .into_iter()
@@ -96,7 +97,7 @@ fn comments(ctx: &Ctx) -> Result<i32, DfwError> {
             by: by("user"),
             ..Update::default()
         }),
-        "add" => {
+        sub::ADD => {
             // `JSON.parse(a.json)`: the flag alone is `true`, a missing flag is not JSON.
             let input: Value = match a.get("json") {
                 Some(ArgValue::Flag) => Value::Bool(true),

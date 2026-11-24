@@ -25,6 +25,9 @@ use super::pre_tool_use::{root_from, tool_files};
 use super::user_prompt_submit::{delivers_on_prompt, inbox_for};
 
 /// `/^design\/<dir>.*\.json$/.test(rel)`.
+/// The token folder of `design/`: a JSON file there rebuilds `tokens.css`.
+const TOKENS_DIR: &str = "tokens/";
+
 fn design_json(rel: &str, dir: &str) -> bool {
     let prefix = rel::design(dir);
     rel.starts_with(&prefix)
@@ -93,7 +96,7 @@ fn post_tool_use_checks(input: &HookInput) -> Result<Option<String>, DfwError> {
     };
     // Keep generated files in sync. A failure here is reported by lint.
     let rebuild = || -> Result<(), DfwError> {
-        if targets.iter().any(|t| design_json(t, "tokens/")) {
+        if targets.iter().any(|t| design_json(t, TOKENS_DIR)) {
             build_tokens(&root)?;
         }
         if targets.iter().any(|t| rel::under(rel::COMPONENTS, t)) {
@@ -158,13 +161,16 @@ mod tests {
             &rel::join(APP_DIR, &rel::design(JSON_FILE)),
             ""
         ));
-        assert!(design_json(&rel::join(rel::THEMES, DARK_THEME), "tokens/"));
+        assert!(design_json(&rel::join(rel::THEMES, DARK_THEME), TOKENS_DIR));
         assert!(design_json(
             &rel::join(rel::TOKENS, BARE_EXTENSION),
-            "tokens/"
+            TOKENS_DIR
         ));
-        assert!(!design_json(&rel::design(file::TOKENS_JSON), "tokens/"));
-        assert!(!design_json(&rel::join(rel::TOKENS, LINE_BREAK), "tokens/"));
+        assert!(!design_json(&rel::design(file::TOKENS_JSON), TOKENS_DIR));
+        assert!(!design_json(
+            &rel::join(rel::TOKENS, LINE_BREAK),
+            TOKENS_DIR
+        ));
     }
 
     /// d: a file whose name starts with two dots is in the project (tests/unit/node-stable)

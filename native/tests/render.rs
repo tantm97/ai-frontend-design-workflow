@@ -41,6 +41,11 @@ use fixture::screen_page;
 mod wire;
 use wire::event;
 
+#[path = "../src/core/word.rs"]
+#[allow(dead_code, reason = "each test binary uses a part of the command line")]
+mod word;
+use word::{command, flag, hook_name, sub};
+
 const DFW: &str = env!("CARGO_BIN_EXE_dfw");
 
 fn repo() -> PathBuf {
@@ -168,9 +173,9 @@ fn copy_axe(sandbox: &Path) -> bool {
 #[test]
 fn usage_errors_need_no_browser() {
     let sb = sandbox("usage");
-    let (code, _, stderr) = dfw(&sb, &["layout", "measure"], "");
+    let (code, _, stderr) = dfw(&sb, &[command::LAYOUT, "measure"], "");
     assert_eq!((code, stderr.as_str()), (1, "Usage: dfw layout check [--screen a,b] [--bp ids] [--states] [--no-stress] [--changed] [--no-system] [--json]\n"));
-    let (code, _, stderr) = dfw(&sb, &["tokens", "extract"], "");
+    let (code, _, stderr) = dfw(&sb, &[command::TOKENS, sub::EXTRACT], "");
     assert_eq!(
         (code, stderr),
         (
@@ -189,7 +194,7 @@ fn a11y_without_axe_is_unverifiable() {
     let sb = sandbox("no-axe");
     let (code, stdout, stderr) = dfw(
         &sb,
-        &["__debug", "a11y", "--url", "http://127.0.0.1:9/"],
+        &[command::DEBUG, "a11y", flag::URL, "http://127.0.0.1:9/"],
         "",
     );
     assert_eq!(code, 0, "{stderr}");
@@ -214,12 +219,18 @@ fn layout_small_tappable_controls_on_touch_breakpoints_are_a_touch_target_findin
         rel::MANIFEST,
         r#"{"schema":1,"product":"T","screens":[]}"#,
     );
-    let (code, _, stderr) = dfw(&sb, &["system", "init", "--preset", "crisp"], "");
+    let (code, _, stderr) = dfw(&sb, &[command::SYSTEM, sub::INIT, "--preset", "crisp"], "");
     assert_eq!(code, 0, "{stderr}");
     design(&root, &[("s", "<!doctype html><html lang=\"en\"><head><dfw-head></dfw-head></head><body><main><button data-dfw-id=\"tiny\" style=\"height:30px;width:120px\">Small</button><button data-dfw-id=\"ok\" style=\"height:48px;width:120px\">Big</button><p>Read the <a href=\"#\" data-dfw-id=\"inline\">terms</a> first.</p></main></body></html>")]);
     let (_, stdout, stderr) = dfw(
         &sb,
-        &["layout", "check", "--no-system", "--no-stress", "--json"],
+        &[
+            command::LAYOUT,
+            sub::CHECK,
+            "--no-system",
+            "--no-stress",
+            flag::JSON,
+        ],
         "",
     );
     let all = findings(&stdout);
@@ -246,15 +257,17 @@ fn layout_small_tappable_controls_on_touch_breakpoints_are_a_touch_target_findin
 #[test]
 #[ignore = "needs Chrome"]
 fn layout_check_finds_overlap_overflow_anchor_and_void() {
+    /// The screen whose content ends early.
+    const VOID: &str = "void";
     let sb = sandbox("problems");
     let root = sb.join("project");
     design(&root, &[
         ("overlap", &page("<main><p data-dfw-id=\"first\" style=\"position:absolute;left:20px;top:20px;width:200px;height:40px;margin:0\">First block of text</p><p data-dfw-id=\"second\" style=\"position:absolute;left:60px;top:30px;width:200px;height:40px;margin:0\">Second block of text</p><div style=\"height:860px;background:#eee\"></div></main>")),
         ("overflow", &page("<main><div data-dfw-id=\"wide\" style=\"width:2000px;height:880px;background:#ccd\">Wider than any screen</div></main>")),
         ("anchor", &page("<main><div style=\"height:1500px;background:#eee\">Long content</div><button data-dfw-anchor=\"save\" style=\"height:48px;width:160px\">Save</button></main>")),
-        ("void", &page("<main><p data-dfw-id=\"top\" style=\"margin:0;height:60px;background:#dde\">Top</p></main>")),
+        (VOID, &page("<main><p data-dfw-id=\"top\" style=\"margin:0;height:60px;background:#dde\">Top</p></main>")),
     ]);
-    let (code, stdout, stderr) = dfw(&sb, &["layout", "check", "--json"], "");
+    let (code, stdout, stderr) = dfw(&sb, &[command::LAYOUT, sub::CHECK, flag::JSON], "");
     assert_eq!(code, 2, "{stderr}");
     let found: Vec<String> = findings(&stdout)
         .iter()
@@ -281,7 +294,7 @@ fn layout_check_finds_overlap_overflow_anchor_and_void() {
         );
     }
     assert!(!root.join(rel::join(rel::DFW, file::LAYOUT_CACHE)).exists());
-    let (code, stdout, _) = dfw(&sb, &["layout", "check", "--screen", "void"], "");
+    let (code, stdout, _) = dfw(&sb, &[command::LAYOUT, sub::CHECK, flag::SCREEN, VOID], "");
     assert_eq!(code, 0);
     assert!(
         stdout.starts_with("Layout: 5 render(s), 0 must, "),
@@ -290,7 +303,7 @@ fn layout_check_finds_overlap_overflow_anchor_and_void() {
     assert!(stdout.contains("- [SHOULD] (void) void/a @ mobile: content ends early: 784px empty at the bottom of the first screen"), "{stdout}");
     assert!(root.join(rel::join(rel::DFW, file::LAYOUT_CACHE)).exists());
     assert_eq!(
-        dfw(&sb, &["layout", "check", "--changed"], "").1,
+        dfw(&sb, &[command::LAYOUT, sub::CHECK, "--changed"], "").1,
         "Layout: nothing changed since the last check.\n"
     );
     assert_no_browser_left(&sb);
@@ -301,16 +314,18 @@ fn layout_check_finds_overlap_overflow_anchor_and_void() {
 #[test]
 #[ignore = "needs Chrome"]
 fn stop_hook_blocks_once_on_a_layout_must_finding() {
-    let sb = sandbox("stop");
+    /// The screen wider than any viewport.
+    const WIDE: &str = "wide";
+    let sb = sandbox(hook_name::STOP);
     let root = sb.join("project");
     write(
         &root,
         rel::STATE,
         r#"{"schema":1,"phase":"concepts","active":true}"#,
     );
-    design(&root, &[("wide", &page("<main><div data-dfw-id=\"wide\" style=\"width:2000px;height:880px;background:#ccd\">Wider than any screen</div></main>"))]);
+    design(&root, &[(WIDE, &page("<main><div data-dfw-id=\"wide\" style=\"width:2000px;height:880px;background:#ccd\">Wider than any screen</div></main>"))]);
     let payload = json!({ "hook_event_name": event::STOP, "cwd": root }).to_string();
-    let (code, stdout, stderr) = dfw(&sb, &["hook", "stop"], &payload);
+    let (code, stdout, stderr) = dfw(&sb, &[command::HOOK, hook_name::STOP], &payload);
     assert_eq!(code, 0, "{stderr}");
     let out: Value =
         serde_json::from_str(&stdout).unwrap_or_else(|e| panic!("{e}: {stdout} {stderr}"));
@@ -326,22 +341,26 @@ fn stop_hook_blocks_once_on_a_layout_must_finding() {
     assert!(reason.lines().count() <= 17);
     // Reported once: the same design does not block the next stop.
     assert_eq!(
-        dfw(&sb, &["hook", "stop"], &payload),
+        dfw(&sb, &[command::HOOK, hook_name::STOP], &payload),
         (0, String::new(), String::new())
     );
     // Switched off: an edit is not checked, and stays unchecked.
     write(&root, rel::CONFIG, r#"{"checks":{"layoutOnStop":false}}"#);
     fs::write(
-        root.join(rel::screen(&screen_page("wide"))),
+        root.join(rel::screen(&screen_page(WIDE))),
         page("<main>changed</main>"),
     )
     .unwrap();
-    assert_eq!(dfw(&sb, &["hook", "stop"], &payload).1, "");
+    assert_eq!(dfw(&sb, &[command::HOOK, hook_name::STOP], &payload).1, "");
     assert_eq!(
-        dfw(&sb, &["layout", "check", "--changed", "--no-stress"], "")
-            .1
-            .lines()
-            .next(),
+        dfw(
+            &sb,
+            &[command::LAYOUT, sub::CHECK, "--changed", "--no-stress"],
+            ""
+        )
+        .1
+        .lines()
+        .next(),
         Some("Layout: 2 render(s), 0 must, 2 should.")
     );
     assert_no_browser_left(&sb);
@@ -351,11 +370,19 @@ fn stop_hook_blocks_once_on_a_layout_must_finding() {
 #[test]
 #[ignore = "needs Chrome"]
 fn tokens_extract_writes_a_seed_from_a_local_page() {
+    /// The keys of a DTCG token file: a description and a token's value.
+    const DESCRIPTION: &str = "$description";
+    const VALUE: &str = "$value";
+    /// The token groups the seed has.
+    const COLOR: &str = "color";
+    const RADIUS: &str = "radius";
+    /// A seed file that is never written.
+    const UNWRITTEN: &str = "x.json";
     let sb = sandbox("extract");
     let root = sb.join("project");
     write(&root, "site/index.html", &page("<header style=\"background:#0d6b78;color:#fff;padding:16px 24px\"><h1 style=\"font:600 24px Georgia,serif;margin:0\">Shop</h1></header><main style=\"padding:24px\"><button style=\"border:1px solid #cbd5e1;border-radius:6px;padding:8px 12px;background:#f8fafc\">Buy</button></main>"));
     let url = format!("file://{}/site/index.html", root.display());
-    let (code, stdout, stderr) = dfw(&sb, &["tokens", "extract", "--url", &url], "");
+    let (code, stdout, stderr) = dfw(&sb, &[command::TOKENS, sub::EXTRACT, flag::URL, &url], "");
     assert_eq!(code, 0, "{stderr}");
     assert!(
         stdout.starts_with(&format!("Wrote {}: ", rel::EXTRACTED_TOKENS)),
@@ -367,36 +394,36 @@ fn tokens_extract_writes_a_seed_from_a_local_page() {
     let text = fs::read_to_string(root.join(rel::EXTRACTED_TOKENS)).unwrap();
     assert!(text.ends_with("}\n"));
     let seed: Value = serde_json::from_str(&text).unwrap();
-    assert!(seed["$description"].as_str().unwrap().starts_with(&format!(
+    assert!(seed[DESCRIPTION].as_str().unwrap().starts_with(&format!(
         "Extracted from {url} on 2026-01-02 by \"dfw tokens extract\"."
     )));
     let keys: Vec<&String> = seed.as_object().unwrap().keys().collect();
-    assert_eq!(keys, ["$description", "color", "font", "radius", "space"]);
-    let teal = seed["color"]
+    assert_eq!(keys, [DESCRIPTION, COLOR, "font", RADIUS, "space"]);
+    let teal = seed[COLOR]
         .as_object()
         .unwrap()
         .values()
-        .find(|c| c["$value"]["hex"] == "#0d6b78")
+        .find(|c| c[VALUE]["hex"] == "#0d6b78")
         .unwrap();
-    assert_eq!(teal["$value"]["components"], json!([0.051, 0.4196, 0.4706]));
+    assert_eq!(teal[VALUE]["components"], json!([0.051, 0.4196, 0.4706]));
     assert_eq!(
         teal["$extensions"]["dfw.extracted"]["roles"],
         json!(["background"])
     );
     assert_eq!(
-        seed["radius"]["r1"]["$value"],
+        seed[RADIUS]["r1"][VALUE],
         json!({ "value": 6, "unit": "px" })
     );
     // A page that cannot be opened is an error, and the browser is closed all the same.
     let (code, _, stderr) = dfw(
         &sb,
         &[
-            "tokens",
-            "extract",
-            "--url",
+            command::TOKENS,
+            sub::EXTRACT,
+            flag::URL,
             "http://127.0.0.1:9/",
-            "--out",
-            "x.json",
+            flag::OUT,
+            UNWRITTEN,
         ],
         "",
     );
@@ -405,7 +432,7 @@ fn tokens_extract_writes_a_seed_from_a_local_page() {
         stderr.starts_with("Error: cannot open http://127.0.0.1:9/: net::ERR_"),
         "{stderr}"
     );
-    assert!(!root.join("x.json").exists());
+    assert!(!root.join(UNWRITTEN).exists());
     assert_no_browser_left(&sb);
 }
 
@@ -414,7 +441,9 @@ fn tokens_extract_writes_a_seed_from_a_local_page() {
 #[test]
 #[ignore = "needs Chrome"]
 fn a11y_check_reports_known_violations_and_dead_controls() {
-    let sb = sandbox("axe");
+    /// The source axe-core's findings carry.
+    const AXE: &str = "axe";
+    let sb = sandbox(AXE);
     if !copy_axe(&sb) {
         eprintln!("skipped: axe-core 4.14.0 is not in ~/.config/dfw (dfw setup --a11y)");
         return;
@@ -422,7 +451,7 @@ fn a11y_check_reports_known_violations_and_dead_controls() {
     let root = sb.join("project");
     write(&root, "bad.html", &page("<main><h1>Orders</h1><img src=\"data:image/gif;base64,R0lGODlhAQABAAAAACw=\" width=\"40\" height=\"40\"><form><input type=\"text\" name=\"q\"></form><p style=\"color:#bbb;background:#fff\">Hard to read</p><button aria-pressed=\"false\">Dead toggle</button></main>"));
     let url = format!("file://{}/bad.html", root.display());
-    let (code, stdout, stderr) = dfw(&sb, &["__debug", "a11y", "--url", &url], "");
+    let (code, stdout, stderr) = dfw(&sb, &[command::DEBUG, "a11y", flag::URL, &url], "");
     assert_eq!(code, 0, "{stderr}");
     let all = findings(&stdout);
     let rules: Vec<String> = all
@@ -446,14 +475,14 @@ fn a11y_check_reports_known_violations_and_dead_controls() {
     let first = &all[0];
     assert_eq!(
         (&first["file"], &first["line"], &first["source"]),
-        (&json!(url), &json!(1), &json!("axe"))
+        (&json!(url), &json!(1), &json!(AXE))
     );
     assert!(first["message"]
         .as_str()
         .unwrap()
         .starts_with(&format!("{url}: ")));
     // `setup --a11y` with axe in place answers without a download.
-    let (code, stdout, _) = dfw(&sb, &["setup", "--a11y"], "");
+    let (code, stdout, _) = dfw(&sb, &[command::SETUP, "--a11y"], "");
     let status: Value = serde_json::from_str(&stdout).unwrap();
     assert_eq!(
         (code, &status["installed"], &status["version"]),

@@ -1,7 +1,7 @@
 //! Generic-AI tells ("slop") and the interface-guideline rules checkable in CSS: `slopHtml`,
 //! `slopCss` and `guidelineCss` of lint.mjs.
 
-use super::{style_blocks, Add};
+use super::{rule, style_blocks, Add};
 use crate::core::js;
 use crate::core::js::regex::{blank_matches, js_re};
 use crate::core::level::Level;
@@ -242,31 +242,31 @@ pub(super) fn slop_html(text: &str, add: &mut Add) {
     emoji_in_text_blocks(&markup, body, add);
     emoji_in_icon_class(&markup, body, add);
     for m in FILLER.find_iter(&markup) {
-        add(Level::Error.as_str(), "filler-copy", Some(body + m.start()), format!("Filler copy \"{}\". Write real, domain-specific content (PRODUCT.md data shapes), or solve the empty space with composition.", m.as_str()));
+        add(Level::Error.as_str(), rule::FILLER_COPY, Some(body + m.start()), format!("Filler copy \"{}\". Write real, domain-specific content (PRODUCT.md data shapes), or solve the empty space with composition.", m.as_str()));
     }
     let text_only = blank_matches(&markup, &TAG);
     for m in COPY_TELL.find_iter(&text_only) {
-        add(Level::Warn.as_str(), "copy-tell", Some(body + m.start()), format!("\"{}\" is marketing filler that reads as machine-written. Say what the product does, in the user's words.", m.as_str()));
+        add(Level::Warn.as_str(), rule::COPY_TELL, Some(body + m.start()), format!("\"{}\" is marketing filler that reads as machine-written. Say what the product does, in the user's words.", m.as_str()));
     }
     for m in VAGUE_ERROR.find_iter(&text_only) {
-        add(Level::Warn.as_str(), "vague-error", Some(body + m.start()), format!("\"{}\" says nothing. An error message states what happened, why if known, and what the user can do; keep their input.", m.as_str()));
+        add(Level::Warn.as_str(), rule::VAGUE_ERROR, Some(body + m.start()), format!("\"{}\" says nothing. An error message states what happened, why if known, and what the user can do; keep their input.", m.as_str()));
     }
     for at in ellipses(&text_only) {
         add(
             Level::Info.as_str(),
-            "ellipsis-char",
+            rule::ELLIPSIS_CHAR,
             Some(body + at),
             "Use the ellipsis character \"…\" instead of three dots.".into(),
         );
     }
     for m in CLICK_HERE.find_iter(&markup) {
-        add(Level::Warn.as_str(), "link-text", Some(body + m.start()), "Link text must say where it goes (\"View invoice 1042\"), not \"click here\" / \"learn more\" (WCAG 2.4.4).".into());
+        add(Level::Warn.as_str(), rule::LINK_TEXT, Some(body + m.start()), "Link text must say where it goes (\"View invoice 1042\"), not \"click here\" / \"learn more\" (WCAG 2.4.4).".into());
     }
     for m in METRIC.find_iter(&markup) {
         add(Level::Warn.as_str(), "invented-metric", Some(body + m.start()), format!("\"{}\" looks like an invented metric. Use a real figure from the brief, or a clearly labelled placeholder.", m.as_str()));
     }
     for m in PLACEHOLDER_IMG.find_iter(text) {
-        add(Level::Warn.as_str(), "placeholder-image-host", Some(m.start()), format!("External placeholder image host \"{}\": fragile and obviously generic. Use a local asset in {}/ or a designed placeholder.", m.as_str(), rel::ASSETS));
+        add(Level::Warn.as_str(), rule::PLACEHOLDER_IMAGE_HOST, Some(m.start()), format!("External placeholder image host \"{}\": fragile and obviously generic. Use a local asset in {}/ or a designed placeholder.", m.as_str(), rel::ASSETS));
     }
 }
 

@@ -132,6 +132,9 @@ pub fn pre_tool_use(input: &HookInput) -> Result<Option<HookResult>, DfwError> {
     Ok(None)
 }
 
+/// The key of the presence note that names the element (`data-dfw-id`).
+pub(crate) const DFW_ID: &str = "dfwId";
+
 /// `notePresence(root, input, absFile)`: tell the Studio what the agent is about to edit
 /// (`.dfw/presence.json`), so it can show a cursor on that element before the change lands.
 /// Only for design files; the element is the `data-dfw-id` inside the text being replaced, or
@@ -168,7 +171,7 @@ pub fn note_presence(
                 .map(|m| m.id.clone());
         }
     }
-    let note = json!({ "file": rel, "dfwId": dfw_id, "at": now_iso() });
+    let note = json!({ "file": rel, DFW_ID: dfw_id, "at": now_iso() });
     write_json_inside(root, &p.presence, &note)?;
     Ok(Some(note))
 }
@@ -189,23 +192,25 @@ mod tests {
         fs::write(&file, "<main data-dfw-id=\"demo.main\">\n  <h1 data-dfw-id=\"demo.title\">Hello</h1>\n  <p>Plain line</p>\n  <dfw-use c=\"button\" id=\"demo.cta\">Go</dfw-use>\n  <span>After</span>\n</main>\n").unwrap();
         let note = |input: Value, f: &Path| note_presence(&root, &input, f).unwrap();
         let at = |old: &str| note(json!({ "old_string": old }), &file).unwrap();
+        /// The id of the heading the edits land in.
+        const TITLE: &str = "demo.title";
         let title = at("<h1 data-dfw-id=\"demo.title\">Hello</h1>");
         assert_eq!(title["file"], "screens/demo/a.html");
-        assert_eq!(title["dfwId"], "demo.title");
+        assert_eq!(title[DFW_ID], TITLE);
         assert_eq!(
-            at("Plain line")["dfwId"],
-            "demo.title",
+            at("Plain line")[DFW_ID],
+            TITLE,
             "nearest id before the text"
         );
-        assert_eq!(at("After")["dfwId"], "demo.cta", "an instance id counts");
-        assert_eq!(at("not in the file")["dfwId"], Value::Null);
+        assert_eq!(at("After")[DFW_ID], "demo.cta", "an instance id counts");
+        assert_eq!(at("not in the file")[DFW_ID], Value::Null);
         assert_eq!(
-            note(json!({ "edits": [{ "old_string": "Hello" }] }), &file).unwrap()["dfwId"],
-            "demo.title",
+            note(json!({ "edits": [{ "old_string": "Hello" }] }), &file).unwrap()[DFW_ID],
+            TITLE,
             "MultiEdit: the first edit"
         );
         assert_eq!(
-            note(json!({}), &file).unwrap()["dfwId"],
+            note(json!({}), &file).unwrap()[DFW_ID],
             Value::Null,
             "Write: the file only"
         );
@@ -236,16 +241,17 @@ mod tests {
         let at = |old: &str| {
             note_presence(&root, &json!({ "old_string": old }), &file)
                 .unwrap()
-                .unwrap()["dfwId"]
+                .unwrap()[DFW_ID]
                 .clone()
         };
-        assert_eq!(at("<section data-dfw-id='hero'><h1>Title</h1>"), "hero");
+        const HERO: &str = "hero";
+        assert_eq!(at("<section data-dfw-id='hero'><h1>Title</h1>"), HERO);
         assert_eq!(
             at("<a>Home</a>"),
             "nav",
             "the commented-out id before it is not an element"
         );
-        assert_eq!(at("</main>"), "hero", "an unclosed comment hides the rest");
+        assert_eq!(at("</main>"), HERO, "an unclosed comment hides the rest");
         // "..x.html" is inside design/ (node-stable d: two leading dots are not "outside").
         const DOTS: &str = "..x.html";
         let dots = root.join(rel::design(DOTS));

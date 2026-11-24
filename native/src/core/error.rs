@@ -104,9 +104,10 @@ mod tests {
 
     #[test]
     fn user_error_prints_the_message_and_keeps_its_code() {
-        let e = DfwError::new("Unknown command \"x\". Run \"dfw help\".");
+        const MESSAGE: &str = "Unknown command \"x\". Run \"dfw help\".";
+        let e = DfwError::new(MESSAGE);
         assert_eq!(e.exit_code(), 1);
-        assert_eq!(e.report(), "Unknown command \"x\". Run \"dfw help\".");
+        assert_eq!(e.report(), MESSAGE);
     }
 
     #[test]

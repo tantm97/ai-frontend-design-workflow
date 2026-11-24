@@ -18,7 +18,7 @@ use crate::core::encoding::base64_encode;
 
 /// How long unpacking the axe-core archive may take.
 const UNPACK_DEADLINE: std::time::Duration = std::time::Duration::from_secs(60);
-use super::cdp::lock;
+use super::cdp::{lock, method};
 use super::launch::{
     browser_status, fonts_ready, open_renderer_with, BrowserStatus, LaunchOptions, Renderer,
 };
@@ -38,6 +38,9 @@ use crate::design::manifest::{Manifest, Screen, Variant};
 pub const AXE_VERSION: &str = "4.14.0";
 const AXE_TARBALL: &str = "https://registry.npmjs.org/axe-core/-/axe-core-4.14.0.tgz";
 const AXE_INTEGRITY: &str = "sha512-9WTZxEjsZ7b13TH8JPmbV2z8CHbl80/2hm3XPEG4JgNdQLK81IBRXmSxHfMAOkSqQeRxT/0dwNDz2GOm3zzpcQ==";
+/// The file of the axe-core package dfw runs, and its licence, the two files it keeps.
+const AXE_FILE: &str = "axe.min.js";
+const AXE_LICENSE: &str = "LICENSE";
 const NOT_DOWNLOADED: &str = "axe-core not downloaded (dfw setup --a11y, ~550 KB, once)";
 
 /// `runAxe` and `deadControls` of a11y.mjs, byte for byte: they run in the page.
@@ -82,7 +85,7 @@ pub fn axe_status() -> AxeStatus {
 }
 
 fn status_in(dir: &Path) -> AxeStatus {
-    let path = dir.join("axe.min.js");
+    let path = dir.join(AXE_FILE);
     if path.exists() {
         AxeStatus::Installed { path }
     } else {
@@ -139,8 +142,8 @@ fn install_axe_from(
             "-C".into(),
             dir.display().to_string(),
             "--strip-components=1".into(),
-            "package/axe.min.js".into(),
-            "package/LICENSE".into(),
+            format!("package/{AXE_FILE}"),
+            format!("package/{AXE_LICENSE}"),
         ],
     );
     let ran = crate::core::process::run_timed(&plan, None, &[], UNPACK_DEADLINE);
@@ -159,7 +162,7 @@ fn install_axe_from(
     } else {
         (ran.status == Some(0), ran.stderr)
     };
-    if !ok || !dir.join("axe.min.js").exists() {
+    if !ok || !dir.join(AXE_FILE).exists() {
         return Err(DfwError::new(format!(
             "could not extract axe-core (needs tar): {}",
             head(&stderr, 200)
@@ -415,7 +418,7 @@ fn check_page(renderer: &Renderer, job: &Job, url: Option<&str>, axe_src: &str) 
                 Some(&json!({ "state": job.state, "theme": job.theme })),
             )?;
             fonts_ready(&page, 3000)?;
-            page.send("Runtime.evaluate", json!({ "expression": axe_src }))?;
+            page.send(method::RUNTIME_EVALUATE, json!({ "expression": axe_src }))?;
             let violations = page.evaluate(RUN_AXE.trim_end(), None)?;
             for v in violations.as_array().into_iter().flatten() {
                 let text = |key: &str| js::to_string(v.get(key));
@@ -506,7 +509,7 @@ mod tests {
         let tmp = crate::core::util::test_dir("axe-install");
         let package = tmp.join("src/package");
         fs::create_dir_all(&package).unwrap();
-        for name in ["axe.min.js", "LICENSE", "axe.js"] {
+        for name in [AXE_FILE, AXE_LICENSE, "axe.js"] {
             fs::write(package.join(name), format!("// {name}")).unwrap();
         }
         let tgz = tmp.join("fake.tgz");
@@ -538,7 +541,7 @@ mod tests {
             !dir.exists(),
             "nothing is kept from a download that fails the check"
         );
-        let path = dir.join("axe.min.js");
+        let path = dir.join(AXE_FILE);
         assert_eq!(
             install(&integrity).unwrap(),
             AxeStatus::Installed { path: path.clone() }
@@ -548,8 +551,8 @@ mod tests {
             .map(|e| e.unwrap().file_name())
             .collect();
         kept.sort();
-        assert_eq!(kept, ["LICENSE", "axe.min.js"]);
-        assert_eq!(fs::read_to_string(&path).unwrap(), "// axe.min.js");
+        assert_eq!(kept, [AXE_LICENSE, AXE_FILE]);
+        assert_eq!(fs::read_to_string(&path).unwrap(), format!("// {AXE_FILE}"));
         // Installed: no download (the server has no response left).
         assert_eq!(install(&integrity).unwrap(), AxeStatus::Installed { path });
         assert_eq!(
@@ -592,7 +595,11 @@ mod tests {
             r#"{"tool":"axe","status":"unverifiable","detail":"axe-core not downloaded (dfw setup --a11y, ~550 KB, once)","findings":[]}"#
         );
         let levels = [Some("critical"), Some("moderate"), Some("minor"), None].map(impact_level);
-        assert_eq!(levels, ["error", "warn", "info", "warn"]);
+        let warn = Level::Warn.as_str();
+        assert_eq!(
+            levels,
+            [Level::Error.as_str(), warn, Level::Info.as_str(), warn]
+        );
         assert_eq!(
             crate::core::util::to_json_compact(
                 &AxeStatus::Missing {

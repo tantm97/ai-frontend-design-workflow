@@ -26,12 +26,31 @@ use crate::core::util::{parse_args, plugin_manifest, to_json_compact};
 use crate::workflow::gates::decide_write;
 use crate::workflow::state::load_state;
 
+pub(crate) mod names;
+use names::{key, tool, SERVER};
+
 /// The value of `{{SKILL_DIR}}` for the host "mcp" (`core::host`).
 const SKILL_DIR_MARK: &str = "__DFW_SKILL_DIR__";
 /// Commands a model may not run through the `dfw` tool, besides every internal `__*` command
 /// (the Studio and review servers, `__debug`) and the forms that write outside the project:
 /// see [`blocked`].
-const BLOCKED: [&str; 5] = ["hook", "mcp", "install", "uninstall", "setup"];
+/// The CLI's words [`blocked`] looks at: commands, and the subcommands that decide.
+mod word {
+    pub use crate::core::word::command::{
+        CONFIG, HOOK, INSTALL, LANG, MCP, SETUP, STATUS, TELEMETRY, UNINSTALL,
+    };
+    pub use crate::core::word::sub::{SET, SHOW};
+    /// The form a `config` command with `--global` is refused as.
+    pub const GLOBAL_CONFIG: &str = "config --global";
+}
+
+const BLOCKED: [&str; 5] = [
+    word::HOOK,
+    word::MCP,
+    word::INSTALL,
+    word::UNINSTALL,
+    word::SETUP,
+];
 const TOOL_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 
 const INSTRUCTIONS: &str = "dfw is a design-first frontend workflow: design, design system and approval gates come before UI code. \
@@ -157,13 +176,13 @@ fn blocked(list: &[&str]) -> Option<String> {
         return Some(cmd.to_string());
     }
     let refused = match cmd {
-        "telemetry" => !matches!(sub, None | Some("status" | "show")),
-        "config" => args.get("global").is_some(),
-        "lang" => sub == Some("set"),
+        word::TELEMETRY => !matches!(sub, None | Some(word::STATUS | word::SHOW)),
+        word::CONFIG => args.get("global").is_some(),
+        word::LANG => sub == Some(word::SET),
         _ => false,
     };
     refused.then(|| match (cmd, sub) {
-        ("config", _) => "config --global".to_string(),
+        (word::CONFIG, _) => word::GLOBAL_CONFIG.to_string(),
         (_, Some(sub)) => format!("{cmd} {sub}"),
         _ => cmd.to_string(),
     })
@@ -292,12 +311,12 @@ fn can_write(files: Option<&Value>, cwd: Option<&Value>) -> Result<ToolResult, T
 fn tools() -> Value {
     json!([
         {
-            "name": "dfw_guide",
+            (key::NAME): tool::GUIDE,
             "description": format!("The dfw workflow instructions. No topic: the main guide (read it first). Topics: {}.", topics().join(", ")),
             "inputSchema": { "type": "object", "properties": { "topic": { "type": "string", "description": "Optional, e.g. \"references/phase-concepts.md\"." } } },
         },
         {
-            "name": "dfw",
+            (key::NAME): tool::CLI,
             "description": "Run a dfw CLI command, e.g. [\"status\"], [\"init\",\"--mode\",\"new-product\"], [\"shoot\",\"--page\",\"borrow\",\"--states\"]. [\"help\"] lists every command.",
             "inputSchema": {
                 "type": "object",
@@ -306,7 +325,7 @@ fn tools() -> Value {
             },
         },
         {
-            "name": "dfw_can_write",
+            (key::NAME): tool::CAN_WRITE,
             "description": "Check the approval gates before writing files (design files are open in design phases; implementation code needs G2 + G3 + the implement phase).",
             "inputSchema": {
                 "type": "object",
@@ -362,7 +381,7 @@ fn handle(method: Option<&Value>, params: Option<&Value>) -> Result<Value, RpcEr
             Ok(json!({
                 "protocolVersion": protocol,
                 "capabilities": { "tools": {}, "prompts": {} },
-                "serverInfo": { "name": "dfw", "version": version },
+                "serverInfo": { (key::NAME): SERVER, "version": version },
                 "instructions": INSTRUCTIONS,
             }))
         }
@@ -371,14 +390,14 @@ fn handle(method: Option<&Value>, params: Option<&Value>) -> Result<Value, RpcEr
         Some("tools/call") => {
             let a = js::truthy_value(param(params, "arguments")?);
             let arg = |key: &str| a.and_then(|a| a.get(key));
-            let name = param(params, "name")?;
+            let name = param(params, key::NAME)?;
             let result = match name.and_then(Value::as_str) {
-                Some("dfw_guide") => guide(arg("topic")).map(|text| ToolResult {
+                Some(tool::GUIDE) => guide(arg("topic")).map(|text| ToolResult {
                     text,
                     is_error: false,
                 }),
-                Some("dfw") => run_dfw(arg("args"), arg("cwd")),
-                Some("dfw_can_write") => can_write(arg("files"), arg("cwd")),
+                Some(tool::CLI) => run_dfw(arg("args"), arg("cwd")),
+                Some(tool::CAN_WRITE) => can_write(arg("files"), arg("cwd")),
                 _ => {
                     return Err(RpcError::invalid_params(format!(
                         "Unknown tool {}",
@@ -393,11 +412,11 @@ fn handle(method: Option<&Value>, params: Option<&Value>) -> Result<Value, RpcEr
             Ok(json!({ "content": [{ "type": "text", "text": text }], "isError": is_error }))
         }
         Some("prompts/list") => Ok(json!({
-            "prompts": [{ "name": "dfw", "description": "Start or continue the dfw design-first workflow in this project." }]
+            "prompts": [{ (key::NAME): SERVER, "description": "Start or continue the dfw design-first workflow in this project." }]
         })),
         Some("prompts/get") => {
-            let name = param(params, "name")?;
-            if name.and_then(Value::as_str) != Some("dfw") {
+            let name = param(params, key::NAME)?;
+            if name.and_then(Value::as_str) != Some(SERVER) {
                 return Err(RpcError::invalid_params(format!(
                     "Unknown prompt {}",
                     js::to_string(name)
@@ -453,7 +472,7 @@ fn reply_to(line: &str) -> Option<Value> {
     };
     let id = msg.get("id")?.clone(); // no id: a notification
     match handle(msg.get("method"), msg.get("params")) {
-        Ok(result) => Some(json!({ "jsonrpc": JSONRPC, "id": id, "result": result })),
+        Ok(result) => Some(json!({ "jsonrpc": JSONRPC, "id": id, (key::RESULT): result })),
         Err(err) => Some(rpc_error(id, err.code, &err.message)),
     }
 }
@@ -607,64 +626,70 @@ mod tests {
     /// refused, wherever the command word stands; the project's own commands still run.
     #[test]
     fn forms_that_write_outside_the_project_are_refused() {
+        use crate::core::word::{command::DEBUG, flag::GLOBAL, sub::GET};
+        use word::{
+            CONFIG, GLOBAL_CONFIG, HOOK, INSTALL, LANG, MCP, SET, SETUP, STATUS, TELEMETRY,
+            UNINSTALL,
+        };
+        /// Where a page elsewhere would send the telemetry.
+        const FOREIGN_ENDPOINT: &str = "https://evil.example/v1";
+        use crate::core::word::sub::ENDPOINT;
         let form = |list: &[&str]| blocked(list);
+        let lang_set = format!("{LANG} {SET}");
         let refused = [
-            (&["install"][..], "install"),
-            (&["--root", ".", "install", "--host", "claude"], "install"),
-            (&["uninstall"], "uninstall"),
-            (&["setup", "--a11y"], "setup"),
-            (&["setup", "--marketplace-repo", "/x"], "setup"),
-            (&["mcp", "install", "codex"], "mcp"),
-            (&["hook", "stop"], "hook"),
-            (&["telemetry", "on"], "telemetry on"),
-            (&["telemetry", "off"], "telemetry off"),
+            (&[INSTALL][..], INSTALL),
+            (&["--root", ".", INSTALL, "--host", "claude"], INSTALL),
+            (&[UNINSTALL], UNINSTALL),
+            (&[SETUP, "--a11y"], SETUP),
+            (&[SETUP, "--marketplace-repo", "/x"], SETUP),
+            (&[MCP, INSTALL, "codex"], MCP),
+            (&[HOOK, "stop"], HOOK),
+            (&[TELEMETRY, "on"], "telemetry on"),
+            (&[TELEMETRY, "off"], "telemetry off"),
             (
-                &["telemetry", "endpoint", "https://evil.example/v1"],
+                &[TELEMETRY, ENDPOINT, FOREIGN_ENDPOINT],
                 "telemetry endpoint",
             ),
-            (&["telemetry", "flush"], "telemetry flush"),
-            (&["telemetry", ""], "telemetry "),
+            (&[TELEMETRY, "flush"], "telemetry flush"),
+            (&[TELEMETRY, ""], "telemetry "),
             (
                 &[
-                    "config",
-                    "set",
+                    CONFIG,
+                    SET,
                     "impeccable.allowUnverifiedEngine",
                     "true",
-                    "--global",
+                    GLOBAL,
                 ],
-                "config --global",
+                GLOBAL_CONFIG,
             ),
             (
-                &["config", "set", "env.PATH", "/x", "--global", "yes"],
-                "config --global",
+                &[CONFIG, SET, "env.PATH", "/x", GLOBAL, "yes"],
+                GLOBAL_CONFIG,
             ),
-            (&["config", "set", "a", "1", "--global="], "config --global"),
-            (
-                &["config", "get", "telemetry", "--global"],
-                "config --global",
-            ),
-            (&["lang", "set", "vi"], "lang set"),
-            (&["lang", "set", "vi", "--session", "s1"], "lang set"),
-            (&["__debug", "hot"], "__debug"),
+            (&[CONFIG, SET, "a", "1", "--global="], GLOBAL_CONFIG),
+            (&[CONFIG, GET, TELEMETRY, GLOBAL], GLOBAL_CONFIG),
+            (&[LANG, SET, "vi"], &lang_set),
+            (&[LANG, SET, "vi", "--session", "s1"], &lang_set),
+            (&[DEBUG, "hot"], DEBUG),
         ];
         for (list, name) in refused {
             assert_eq!(form(list).as_deref(), Some(name), "{list:?}");
         }
         for allowed in [
-            &["status"][..],
-            &["telemetry"],
-            &["telemetry", "status"],
-            &["telemetry", "show", "--raw"],
-            &["config", "get", "gate"],
-            &["config", "set", "checks.onEdit", "full"],
-            &["config", "set", "a", "1", "--local"],
-            &["lang", "status"],
-            &["lang"],
+            &[STATUS][..],
+            &[TELEMETRY],
+            &[TELEMETRY, STATUS],
+            &[TELEMETRY, "show", "--raw"],
+            &[CONFIG, GET, "gate"],
+            &[CONFIG, SET, "checks.onEdit", "full"],
+            &[CONFIG, SET, "a", "1", "--local"],
+            &[LANG, STATUS],
+            &[LANG],
         ] {
             assert_eq!(form(allowed), None, "{allowed:?}");
         }
         assert_eq!(
-            run_dfw(Some(&json!(["telemetry", "endpoint", "https://evil.example/v1"])), None).err(),
+            run_dfw(Some(&json!([TELEMETRY, ENDPOINT, FOREIGN_ENDPOINT])), None).err(),
             Some("\"dfw telemetry endpoint\" is not available through MCP; ask the user to run it in a terminal.".to_string())
         );
     }
@@ -702,8 +727,9 @@ mod tests {
             .map(|l| serde_json::from_str(l).unwrap())
             .collect();
         assert_eq!(lines.len(), 2, "{lines:?}");
-        assert_eq!(lines[0]["error"]["code"], -32600);
-        assert!(lines[0]["error"]["message"]
+        let refused = &lines[0]["error"];
+        assert_eq!(refused["code"], -32600);
+        assert!(refused["message"]
             .as_str()
             .unwrap()
             .contains("at most 4 MB"));

@@ -258,6 +258,11 @@ mod tests {
     use std::sync::Arc;
     use zip::write::SimpleFileOptions;
 
+    /// The platform the fixture index has a headless shell for.
+    const PLATFORM: &str = "test-plat";
+    /// The good index of the fixture server.
+    const INDEX: &str = "index.json";
+
     /// cdp: the headless Chrome download is https on storage.googleapis.com only
     #[test]
     fn download_is_https_on_storage_googleapis_com_only() {
@@ -299,10 +304,9 @@ mod tests {
             checked_download_url("https://storage.googleapis.com:443/a?b#c").unwrap(),
             "https://storage.googleapis.com/a?b#c"
         );
-        assert_eq!(
-            checked_download_url("https://storage.googleapis.com:8443/a").unwrap(),
-            "https://storage.googleapis.com:8443/a"
-        );
+        // Another port stays: the URL is already in its normal form.
+        const OTHER_PORT: &str = "https://storage.googleapis.com:8443/a";
+        assert_eq!(checked_download_url(OTHER_PORT).unwrap(), OTHER_PORT);
         for bad in [
             "https://storage.googleapis.com\\@evil.example/x.zip",
             "https:\\\\storage.googleapis.com/x.zip",
@@ -334,7 +338,7 @@ mod tests {
     fn index(version: &Value, url: &str) -> Vec<u8> {
         json!({ "channels": { "Stable": { "version": version, "downloads": { "chrome-headless-shell": [
             { "platform": "other-plat", "url": "https://storage.googleapis.com/other.zip" },
-            { "platform": "test-plat", "url": url },
+            { "platform": PLATFORM, "url": url },
         ] } } } })
         .to_string()
         .into_bytes()
@@ -420,7 +424,7 @@ mod tests {
     fn index_routes(files: &str) -> HashMap<String, (u16, Vec<u8>)> {
         HashMap::from([
             (
-                "/index.json".to_string(),
+                format!("/{INDEX}"),
                 (
                     200,
                     index(&json!("131.0.6778.85"), &format!("{files}/shell.zip")),
@@ -508,8 +512,8 @@ mod tests {
     /// What is refused, each with its message, and nothing more downloaded.
     fn assert_refusals(fx: &LocalIndex, log: &dyn Fn(&str)) {
         // The real check refuses the fixture server and any look-alike host, before any download.
-        for name in ["index.json", "evil.json"] {
-            let err = fx.install(name, "test-plat", checked, log).unwrap_err();
+        for name in [INDEX, "evil.json"] {
+            let err = fx.install(name, PLATFORM, checked, log).unwrap_err();
             assert!(
                 err.message()
                     .starts_with("refusing to download a browser from \"http"),
@@ -519,25 +523,23 @@ mod tests {
         assert_eq!(fx.hits(), 1);
 
         let err = fx
-            .install("version.json", "test-plat", local_only, log)
+            .install("version.json", PLATFORM, local_only, log)
             .unwrap_err();
         assert_eq!(
             err.message(),
             "unexpected Chrome version \"../../131\" in the Chrome for Testing index."
         );
-        let err = fx
-            .install("index.json", "mars-x1", local_only, log)
-            .unwrap_err();
+        let err = fx.install(INDEX, "mars-x1", local_only, log).unwrap_err();
         assert_eq!(
             err.message(),
             "Chrome for Testing has no headless shell for mars-x1."
         );
         let err = fx
-            .install("gone.json", "test-plat", local_only, log)
+            .install("gone.json", PLATFORM, local_only, log)
             .unwrap_err();
         assert_eq!(err.message(), "download failed: HTTP 404");
         assert!(fx
-            .install("missing.json", "test-plat", local_only, log)
+            .install("missing.json", PLATFORM, local_only, log)
             .is_err());
     }
 
@@ -549,14 +551,11 @@ mod tests {
         let logged = std::cell::RefCell::new(Vec::new());
         let log = |m: &str| logged.borrow_mut().push(m.to_string());
 
-        let r = fx
-            .install("index.json", "test-plat", local_only, &log)
-            .unwrap();
+        let r = fx.install(INDEX, PLATFORM, local_only, &log).unwrap();
         assert_installed(&fx, &r, &logged.borrow());
 
         // Already there: the index is read again, the archive is not.
-        fx.install("index.json", "test-plat", local_only, &log)
-            .unwrap();
+        fx.install(INDEX, PLATFORM, local_only, &log).unwrap();
         assert_eq!(fx.hits(), 1);
 
         assert_refusals(&fx, &log);
@@ -602,12 +601,14 @@ mod tests {
         assert!(!dir.join("x").exists(), "nothing written outside");
 
         let mut writer = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        // A file and a link next to it that points at it.
+        const LINKED: &str = "real";
         writer
-            .start_file("d/real", SimpleFileOptions::default())
+            .start_file(format!("d/{LINKED}"), SimpleFileOptions::default())
             .unwrap();
-        writer.write_all(b"real").unwrap();
+        writer.write_all(LINKED.as_bytes()).unwrap();
         writer
-            .add_symlink("d/link", "real", SimpleFileOptions::default())
+            .add_symlink("d/link", LINKED, SimpleFileOptions::default())
             .unwrap();
         let link_in = writer.finish().unwrap().into_inner();
         let fine = dir.join("fine");

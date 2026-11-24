@@ -12,7 +12,7 @@ pub struct Diff {
 
 fn where_board(b: &Value) -> Pairs {
     vec![
-        ("board", b.get("key").cloned()),
+        ("board", b.get(wire::KEY).cloned()),
         ("screen", b.get("screen").cloned()),
         ("variant", b.get("variant").cloned()),
         ("breakpoint", b.get("breakpoint").cloned()),
@@ -28,7 +28,7 @@ pub(super) fn nowhere() -> Pairs {
 }
 
 pub(super) fn change(ty: &str, parts: Vec<Pairs>) -> Value {
-    let mut pairs: Pairs = vec![("type", Some(ty.into()))];
+    let mut pairs: Pairs = vec![(field::TYPE, Some(ty.into()))];
     for part in parts {
         pairs.extend(part);
     }
@@ -41,8 +41,8 @@ type Boards<'a> = HashMap<String, &'a Value>;
 fn board_index(baseline: &Value) -> Boards<'_> {
     let mut boards: Boards = HashMap::new();
     for p in list(baseline.get("pages")) {
-        for b in list(p.get("boards")) {
-            boards.insert(js::stringify(b.get("key")), b);
+        for b in list(p.get(wire::BOARDS)) {
+            boards.insert(js::stringify(b.get(wire::KEY)), b);
         }
     }
     boards
@@ -67,17 +67,17 @@ pub fn diff_changes(baseline: &Value, changes: &mut Value, dims: &[Dim]) -> Resu
     let boards = board_index(baseline);
     let mut out = Vec::new();
     let mut warnings = Vec::new();
-    walkable(changes.get("boards"), Some("key"), false)?;
+    walkable(changes.get(wire::BOARDS), Some(wire::KEY), false)?;
     walkable(changes.get("missingBoards"), None, false)?;
-    walkable(changes.get("comments"), Some("boardKey"), false)?;
-    for t in list(changes.get("comments")) {
-        walkable(t.get("comments"), Some("content"), true)?;
+    walkable(changes.get(wire::COMMENTS), Some("boardKey"), false)?;
+    for t in list(changes.get(wire::COMMENTS)) {
+        walkable(t.get(wire::COMMENTS), Some("content"), true)?;
     }
     diff_sent_boards(&boards, baseline, changes, &mut out, &mut warnings)?;
     for key in list(changes.get("missingBoards")) {
         if let Some(b) = board_of(&boards, Some(key)) {
             out.push(change(
-                "board-removed",
+                change_type::BOARD_REMOVED,
                 vec![where_board(b), vec![("anchor", Some(Value::Null))]],
             ));
         }
@@ -85,7 +85,7 @@ pub fn diff_changes(baseline: &Value, changes: &mut Value, dims: &[Dim]) -> Resu
     let current = current_boxes(&boards, changes);
     let comps = components_of(baseline);
     out.extend(diff_components(baseline, changes, dims, &mut warnings)?);
-    for t in list(changes.get("comments")) {
+    for t in list(changes.get(wire::COMMENTS)) {
         out.push(comment_change(t, &boards, &current, &comps));
     }
     Ok(Diff {
@@ -104,31 +104,31 @@ fn diff_sent_boards(
     warnings: &mut Vec<String>,
 ) -> Result<(), DfwError> {
     let baseline_id = js::to_string(baseline.get("id"));
-    let board_count = list(changes.get("boards")).len();
+    let board_count = list(changes.get(wire::BOARDS)).len();
     for bi in 0..board_count {
-        let cb = list(changes.get("boards"))[bi].clone();
-        let Some(b) = board_of(boards, cb.get("key")) else {
-            let name = js::truthy_value(cb.get("name")).or(cb.get("key"));
+        let cb = list(changes.get(wire::BOARDS))[bi].clone();
+        let Some(b) = board_of(boards, cb.get(wire::KEY)) else {
+            let name = js::truthy_value(cb.get(wire::NAME)).or(cb.get(wire::KEY));
             warnings.push(format!(
                 "Board \"{}\" is not in export {baseline_id}: skipped.",
                 js::to_string(name)
             ));
             continue;
         };
-        walkable(cb.get("layers"), Some("path"), false)?;
-        walkable(cb.get("added"), Some("x"), false)?;
+        walkable(cb.get(wire::LAYERS), Some("path"), false)?;
+        walkable(cb.get(wire::ADDED), Some("x"), false)?;
         let unknown = diff_board(b, &cb, baseline, out, warnings);
         if unknown.is_empty() {
             continue;
         }
         // `cb.added.push` of a string is not a function.
-        walkable(cb.get("added"), None, true)?;
+        walkable(cb.get(wire::ADDED), None, true)?;
         // `(cb.added ||= []).push(n)`: the change file itself carries them from now on.
         if let Some(Value::Object(real)) = changes
-            .get_mut("boards")
+            .get_mut(wire::BOARDS)
             .and_then(|boards| boards.get_mut(bi))
         {
-            let slot = real.entry("added").or_insert(Value::Null);
+            let slot = real.entry(wire::ADDED).or_insert(Value::Null);
             if !js::truthy(&*slot) {
                 *slot = json!([]);
             }
@@ -144,13 +144,13 @@ fn diff_sent_boards(
 /// Comments sit on the board as the designer sees it: they are resolved against these.
 fn current_boxes(boards: &Boards, changes: &Value) -> HashMap<String, Vec<Value>> {
     let mut current: HashMap<String, Vec<Value>> = HashMap::new();
-    for cb in list(changes.get("boards")) {
-        let Some(b) = board_of(boards, cb.get("key")) else {
+    for cb in list(changes.get(wire::BOARDS)) {
+        let Some(b) = board_of(boards, cb.get(wire::KEY)) else {
             continue;
         };
-        let flat = Layers::of(b.get("layers"));
+        let flat = Layers::of(b.get(wire::LAYERS));
         let mut moved: Vec<(String, Value)> = Vec::new();
-        for n in list(cb.get("layers")) {
+        for n in list(cb.get(wire::LAYERS)) {
             let Some(l) = flat.get(n.get("path")) else {
                 continue;
             };
@@ -172,7 +172,7 @@ fn current_boxes(boards: &Boards, changes: &Value) -> HashMap<String, Vec<Value>
             }
         }
         current.insert(
-            js::stringify(cb.get("key")),
+            js::stringify(cb.get(wire::KEY)),
             moved.into_iter().map(|(_, l)| l).collect(),
         );
     }
@@ -189,15 +189,15 @@ fn comment_change(
 ) -> Value {
     let b = js::truthy_value(t.get("boardKey")).and_then(|k| board_of(boards, Some(k)));
     let (x, y) = (js::to_number(t.get("x")), js::to_number(t.get("y")));
-    let host = b.and_then(|b| match current.get(&js::stringify(b.get("key"))) {
+    let host = b.and_then(|b| match current.get(&js::stringify(b.get(wire::KEY))) {
         Some(now) => deepest_at(now.iter(), x, y).cloned(),
-        None => deepest_at(Layers::of(b.get("layers")).order.into_iter(), x, y).cloned(),
+        None => deepest_at(Layers::of(b.get(wire::LAYERS)).order.into_iter(), x, y).cloned(),
     });
     let comp = match (b, js::truthy_value(t.get("componentKey"))) {
         (None, Some(key)) => comps.get(&js::stringify(Some(key))).copied(),
         _ => None,
     };
-    let messages: Vec<Value> = list(t.get("comments"))
+    let messages: Vec<Value> = list(t.get(wire::COMMENTS))
         .iter()
         .filter(|c| !is_dfw_reply(c.get("content")))
         .map(|c| {
@@ -216,11 +216,11 @@ fn comment_change(
         })
         .collect();
     change(
-        "comment",
+        change_type::COMMENT,
         vec![
             b.map_or_else(nowhere, where_board),
             vec![
-                ("component", comp.map(comp_info)),
+                (field::COMPONENT, comp.map(comp_info)),
                 ("anchor", Some(anchor_of(host.as_ref()))),
                 ("bbox", Some(host.as_ref().map_or(Value::Null, bbox))),
                 (
@@ -244,15 +244,15 @@ fn diff_board(
     out: &mut Vec<Value>,
     warnings: &mut Vec<String>,
 ) -> Vec<Value> {
-    let flat = Layers::of(b.get("layers"));
+    let flat = Layers::of(b.get(wire::LAYERS));
     let deltas = layer_deltas(&flat, cb);
     let mut present: Vec<String> = Vec::new();
     let mut unknown = Vec::new();
-    for n in list(cb.get("layers")) {
+    for n in list(cb.get(wire::LAYERS)) {
         let Some(l) = flat.get(n.get("path")) else {
             warnings.push(format!(
                 "{}: layer path {} unknown in the export; treated as added.",
-                js::to_string(b.get("name")),
+                js::to_string(b.get(wire::NAME)),
                 js::to_string(n.get("path"))
             ));
             unknown.push(n.clone());
@@ -262,32 +262,37 @@ fn diff_board(
         text_change(b, l, n, out);
         box_change(b, l, n, &deltas, out);
         fill_change(b, l, n, baseline, out);
-        if let Some(name) = js::truthy_value(n.get("name")) {
-            if !js::strict_eq(Some(name), l.get("name")) && js::truthy(l.get("dfwId")) {
+        if let Some(name) = js::truthy_value(n.get(wire::NAME)) {
+            if !js::strict_eq(Some(name), l.get(wire::NAME)) && js::truthy(l.get("dfwId")) {
                 out.push(layer_change(
-                    "rename",
+                    change_type::RENAME,
                     b,
                     l,
-                    vec![("from", l.get("name").cloned()), ("to", Some(name.clone()))],
+                    vec![
+                        (field::FROM, l.get(wire::NAME).cloned()),
+                        (field::TO, Some(name.clone())),
+                    ],
                 ));
             }
         }
     }
     removed_layers(b, &flat, &present, out);
-    let sent_added = js::truthy_value(cb.get("added"));
+    let sent_added = js::truthy_value(cb.get(wire::ADDED));
     for a in list(sent_added).iter().chain(&unknown) {
         let (x, y) = centre(a);
         let host = deepest_at(flat.order.iter().copied(), x, y);
         out.push(change(
-            "added",
+            change_type::ADDED,
             vec![
                 where_board(b),
                 vec![
                     ("anchor", Some(anchor_of(host))),
-                    ("name", a.get("name").cloned()),
+                    (wire::NAME, a.get(wire::NAME).cloned()),
                     (
-                        "kind",
-                        js::truthy_value(a.get("kind")).or(a.get("type")).cloned(),
+                        wire::KIND,
+                        js::truthy_value(a.get(wire::KIND))
+                            .or(a.get(field::TYPE))
+                            .cloned(),
                     ),
                     ("bbox", Some(bbox(a))),
                     ("characters", a.get("characters").cloned()),
@@ -305,7 +310,7 @@ fn delta(n: &Value, l: &Value, k: &str) -> f64 {
 /// How far each sent layer moved (x, y), by path.
 fn layer_deltas(flat: &Layers, cb: &Value) -> HashMap<String, (f64, f64)> {
     let mut deltas: HashMap<String, (f64, f64)> = HashMap::new();
-    for n in list(cb.get("layers")) {
+    for n in list(cb.get(wire::LAYERS)) {
         if let Some(l) = flat.get(n.get("path")) {
             deltas.insert(
                 js::stringify(n.get("path")),
@@ -330,9 +335,9 @@ fn layer_target(l: &Value) -> Pairs {
         ("anchor", l.get("anchor").cloned()),
         ("dfwId", l.get("dfwId").cloned()),
         ("path", l.get("path").cloned()),
-        ("name", l.get("name").cloned()),
+        (wire::NAME, l.get(wire::NAME).cloned()),
         ("bbox", Some(bbox(l))),
-        ("kind", l.get("kind").cloned()),
+        (wire::KIND, l.get(wire::KIND).cloned()),
     ]
 }
 
@@ -346,12 +351,12 @@ fn text_change(b: &Value, l: &Value, n: &Value, out: &mut Vec<Value>) {
         && js::norm(n.get("characters")) != js::norm(l.get("characters"))
     {
         out.push(layer_change(
-            "text",
+            change_type::TEXT,
             b,
             l,
             vec![
-                ("from", l.get("characters").cloned()),
-                ("to", n.get("characters").cloned()),
+                (field::FROM, l.get("characters").cloned()),
+                (field::TO, n.get("characters").cloned()),
                 ("placeholder", Some(js::truthy(l.get("placeholder")).into())),
             ],
         ));
@@ -375,12 +380,16 @@ fn box_change(
     let resized = !is_text(l) && (dw.abs() > TOL || dh.abs() > TOL);
     if moved || resized {
         out.push(layer_change(
-            if resized { "resize" } else { "move" },
+            if resized {
+                change_type::RESIZE
+            } else {
+                change_type::MOVE
+            },
             b,
             l,
             vec![
-                ("from", Some(bbox(l))),
-                ("to", Some(bbox(n))),
+                (field::FROM, Some(bbox(l))),
+                (field::TO, Some(bbox(n))),
                 (
                     "delta",
                     Some(json!({ "x": js::num(dx), "y": js::num(dy), "w": js::num(dw), "h": js::num(dh) })),
@@ -404,23 +413,23 @@ fn fill_change(b: &Value, l: &Value, n: &Value, baseline: &Value, out: &mut Vec<
                 let token = if is_text(l) {
                     l.get("text").and_then(|t| t.get("colorToken"))
                 } else {
-                    fill.and_then(|f| f.get("token"))
+                    fill.and_then(|f| f.get(field::TOKEN))
                 };
                 out.push(layer_change(
-                    "fill",
+                    change_type::FILL,
                     b,
                     l,
                     vec![
                         (
-                            "from",
+                            field::FROM,
                             Some(js::object(vec![
                                 ("color", before_color.cloned()),
                                 ("opacity", Some(or_one(before.get("opacity")))),
-                                ("token", token.cloned()),
+                                (field::TOKEN, token.cloned()),
                             ])),
                         ),
                         (
-                            "to",
+                            field::TO,
                             Some(json!({
                                 "color": lower(after.get("color")),
                                 "opacity": or_one(after.get("opacity")),
@@ -432,13 +441,13 @@ fn fill_change(b: &Value, l: &Value, n: &Value, baseline: &Value, out: &mut Vec<
             }
         }
         (Some(after), None) if !is_text(l) => out.push(layer_change(
-            "fill",
+            change_type::FILL,
             b,
             l,
             vec![
-                ("from", Some(Value::Null)),
+                (field::FROM, Some(Value::Null)),
                 (
-                    "to",
+                    field::TO,
                     Some(json!({ "color": lower(after.get("color")), "opacity": or_one(after.get("opacity")) })),
                 ),
             ],
@@ -465,10 +474,10 @@ fn removed_layers(b: &Value, flat: &Layers, present: &[String], out: &mut Vec<Va
             }
         }
         out.push(layer_change(
-            "removed",
+            change_type::REMOVED,
             b,
             l,
-            vec![("text", l.get("characters").cloned())],
+            vec![(wire::TEXT, l.get("characters").cloned())],
         ));
     }
 }

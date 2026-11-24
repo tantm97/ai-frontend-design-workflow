@@ -24,6 +24,15 @@ use serde_json::Value;
 mod layout;
 use layout::{file, rel};
 
+#[path = "../src/core/word.rs"]
+#[allow(dead_code, reason = "each test binary uses a part of the command line")]
+mod word;
+use word::{command, flag, sub};
+
+#[path = "../src/tools/mcp/names.rs"]
+#[allow(dead_code, reason = "each test binary uses a part of the MCP names")]
+mod mcp_names;
+
 const DFW: &str = env!("CARGO_BIN_EXE_dfw");
 
 /// A fresh folder outside the repository (its real path: macOS reaches the temporary directory
@@ -135,7 +144,7 @@ impl Standalone {
 
 impl Drop for Standalone {
     fn drop(&mut self) {
-        let _ = self.run(&["studio", "stop"], "");
+        let _ = self.run(&[command::STUDIO, "stop"], "");
         let _ = fs::remove_dir_all(&self.tmp);
     }
 }
@@ -156,35 +165,43 @@ fn get(port: u64, path: &str) -> Option<(u16, String)> {
 
 #[test]
 fn the_binary_alone_runs_every_command_that_reads_embedded_files() {
+    /// A style guide of the kits.
+    const STYLE_GUIDE: &str = "swiss-grid";
+    /// A word the icon library has icons for.
+    const ICON_QUERY: &str = "arrow";
+    /// An icon of the library.
+    const ICON: &str = "check";
     let s = Standalone::new();
-    assert!(s.ok(&["version"]).starts_with("dfw "));
+    assert!(s.ok(&[command::VERSION]).starts_with("dfw "));
 
     // Templates.
-    s.ok(&["init", "--product", "Standalone"]);
+    s.ok(&[command::INIT, flag::PRODUCT, "Standalone"]);
     assert!(s.project.join(rel::STATE).is_file());
-    assert!(s.project.join("PRODUCT.md").is_file());
+    assert!(s.project.join(rel::PRODUCT_DOC).is_file());
     assert!(s.project.join(rel::MANIFEST).is_file());
 
     // Kits: presets, style guides, the starter kit's masters.
-    assert!(s.ok(&["system", "presets"]).contains("crisp"));
-    assert!(s.ok(&["style", "list"]).contains("swiss-grid"));
+    assert!(s.ok(&[command::SYSTEM, "presets"]).contains("crisp"));
+    assert!(s.ok(&[command::STYLE, sub::LIST]).contains(STYLE_GUIDE));
     assert!(s
-        .ok(&["system", "ref", "button"])
+        .ok(&[command::SYSTEM, "ref", "button"])
         .contains("<dfw-component"));
-    s.ok(&["system", "init", "--preset", "soft"]);
+    s.ok(&[command::SYSTEM, sub::INIT, "--preset", "soft"]);
     let tokens = fs::read_to_string(s.project.join(rel::TOKENS_JSON)).unwrap();
     assert!(!tokens.contains("Placeholder tokens created by dfw init"));
-    s.ok(&["style", "apply", "swiss-grid", "--fonts", "latin"]);
+    s.ok(&[command::STYLE, "apply", STYLE_GUIDE, "--fonts", "latin"]);
 
     // Assets: the icon library.
-    assert!(s.ok(&["icons", "search", "arrow"]).contains("arrow"));
-    s.ok(&["icons", "add", "check"]);
+    assert!(s
+        .ok(&[command::ICONS, "search", ICON_QUERY])
+        .contains(ICON_QUERY));
+    s.ok(&[command::ICONS, sub::ADD, ICON]);
     assert!(s
         .project
-        .join(rel::join(rel::ICONS, &file::icon("check")))
+        .join(rel::join(rel::ICONS, &file::icon(ICON)))
         .is_file());
 
-    s.ok(&["build"]);
+    s.ok(&[command::BUILD]);
     assert!(s
         .project
         .join(rel::join(rel::TOKENS, file::TOKENS_CSS))
@@ -196,7 +213,7 @@ fn the_binary_alone_runs_every_command_that_reads_embedded_files() {
         "<!doctype html>\n<html lang=\"en\"><head><title>Home</title></head><body><main><h1>Home</h1></main></body></html>\n",
     )
     .unwrap();
-    let lint = s.run(&["lint"], "");
+    let lint = s.run(&[command::LINT], "");
     assert!(
         matches!(lint.status.code(), Some(0 | 2)),
         "lint: {}",
@@ -204,7 +221,7 @@ fn the_binary_alone_runs_every_command_that_reads_embedded_files() {
     );
 
     // The Studio serves its embedded browser files.
-    assert!(s.ok(&["studio", "start"]).contains("studio"));
+    assert!(s.ok(&[command::STUDIO, sub::START]).contains("studio"));
     let info: Value = serde_json::from_str(
         &fs::read_to_string(s.project.join(rel::join(rel::DFW, file::STUDIO))).unwrap(),
     )
@@ -223,14 +240,14 @@ fn the_binary_alone_runs_every_command_that_reads_embedded_files() {
     let (code, js) = get(port, "/__dfw/static/app.js").unwrap();
     assert_eq!(code, 200);
     assert!(!js.is_empty());
-    assert!(s.ok(&["studio", "stop"]).contains("studio stopped"));
+    assert!(s.ok(&[command::STUDIO, "stop"]).contains("studio stopped"));
 
     // The MCP guide comes from the embedded workflow text.
     let request = r#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"dfw_guide","arguments":{"topic":"references/phase-concepts.md"}}}"#;
-    let out = s.run(&["mcp"], &format!("{request}\n"));
+    let out = s.run(&[command::MCP], &format!("{request}\n"));
     let reply: Value = serde_json::from_slice(&out.stdout).unwrap();
-    assert_eq!(reply["result"]["isError"], false, "{reply}");
-    assert!(reply["result"]["content"][0]["text"]
+    assert_eq!(reply[mcp_names::key::RESULT]["isError"], false, "{reply}");
+    assert!(reply[mcp_names::key::RESULT]["content"][0]["text"]
         .as_str()
         .unwrap()
         .contains("Phase: concepts"));

@@ -47,7 +47,9 @@ mod tests {
     /// Every path of `core/studio/shared/paths.js` is here, under the same name and value.
     #[test]
     fn the_browser_table_matches() {
-        let js = crate::assets::studio_text("shared/paths.js").expect("shared/paths.js");
+        /// The browser's table of the paths, in `core/studio`.
+        const TABLE: &str = "shared/paths.js";
+        let js = crate::assets::studio_text(TABLE).expect(TABLE);
         let ours = [
             ("SYSTEM_PAGE", super::SYSTEM_PAGE),
             ("EVENTS", super::EVENTS),

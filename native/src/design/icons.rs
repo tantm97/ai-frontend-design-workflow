@@ -152,12 +152,14 @@ mod tests {
             search_icons(&bundle, "scan barcode", 1.0)[0].name,
             "scan-barcode"
         );
-        let r = add_icons(&root, &["search".to_string(), "serch".to_string()]).unwrap();
-        assert_eq!(r.added, ["search"]);
-        assert_eq!(r.missing, ["serch"]);
-        assert_eq!(r.suggestions[0].0, "serch");
-        let svg =
-            fs::read_to_string(root.join(rel::join(rel::ICONS, &file::icon("search")))).unwrap();
+        /// An icon of the bundle, and a misspelling of it.
+        const ICON: &str = "search";
+        const TYPO: &str = "serch";
+        let r = add_icons(&root, &[ICON.to_string(), TYPO.to_string()]).unwrap();
+        assert_eq!(r.added, [ICON]);
+        assert_eq!(r.missing, [TYPO]);
+        assert_eq!(r.suggestions[0].0, TYPO);
+        let svg = fs::read_to_string(root.join(rel::join(rel::ICONS, &file::icon(ICON)))).unwrap();
         assert!(
             svg.starts_with("<svg")
                 && svg[..svg.find('>').unwrap()].contains("viewBox=\"0 0 24 24\""),
@@ -170,11 +172,13 @@ mod tests {
     fn prototype_names_are_not_icons() {
         let root = test_dir("icons-proto");
         let bundle = icon_bundle().unwrap();
-        assert_eq!(icon_svg(&bundle, "constructor"), None);
-        let r = add_icons(&root, &["constructor".to_string(), "toString".to_string()]).unwrap();
+        /// A prototype key of a JavaScript object.
+        const PROTO: &str = "constructor";
+        assert_eq!(icon_svg(&bundle, PROTO), None);
+        let r = add_icons(&root, &[PROTO.to_string(), "toString".to_string()]).unwrap();
         assert!(r.added.is_empty(), "not icons");
         assert!(!root
-            .join(rel::join(rel::ICONS, &file::icon("constructor")))
+            .join(rel::join(rel::ICONS, &file::icon(PROTO)))
             .exists());
     }
 

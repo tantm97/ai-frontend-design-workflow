@@ -629,12 +629,14 @@ mod tests {
 
     #[test]
     fn utf16_slices() {
+        /// A character outside the basic plane (two UTF-16 units) between two others.
+        const ASTRAL: &str = "a🚀b";
         assert_eq!(len16("a🚀"), 3);
-        assert_eq!(slice16("a🚀b", 0, 2), "a\u{fffd}");
-        assert_eq!(slice16("a🚀b", 0, 3), "a🚀");
+        assert_eq!(slice16(ASTRAL, 0, 2), "a\u{fffd}");
+        assert_eq!(slice16(ASTRAL, 0, 3), "a🚀");
         assert_eq!(slice16("ab", 0, 9), "ab");
-        assert_eq!(suffix16("a🚀b", 2), "b");
-        assert_eq!(suffix16("a🚀b", 3), "🚀b");
+        assert_eq!(suffix16(ASTRAL, 2), "b");
+        assert_eq!(suffix16(ASTRAL, 3), "🚀b");
     }
 
     #[test]

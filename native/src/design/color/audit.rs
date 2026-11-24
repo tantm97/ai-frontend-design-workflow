@@ -5,6 +5,9 @@ use crate::core::js;
 use crate::core::level::Level;
 use serde_json::{json, Map, Value};
 
+/// The rule of an accent too close in hue to a status colour.
+pub(crate) const ACCENT_VS_STATUS: &str = "accent-vs-status";
+
 const ROLE_PAIRS: [(&str, &str, f64, bool, &str); 13] = [
     ("ink", "surface", 7.0, true, "Body text"),
     ("ink", "canvas", 7.0, true, "Body text on canvas"),
@@ -185,11 +188,11 @@ fn check_accent_vs_status(colors: &RoleColors, findings: &mut Findings) {
             } else {
                 "a success"
             };
-            findings.add(Level::Error, "accent-vs-status", format!("Accent ({accent}) and status.{s} ({fill}) are only {}° apart: users will read the primary action as {reads_as} signal. Move the accent, or make the brand hue a surface/ornament colour and use a different accent.", js::to_fixed(d, 0)));
+            findings.add(Level::Error, ACCENT_VS_STATUS, format!("Accent ({accent}) and status.{s} ({fill}) are only {}° apart: users will read the primary action as {reads_as} signal. Move the accent, or make the brand hue a surface/ornament colour and use a different accent.", js::to_fixed(d, 0)));
         } else if acc.c > 0.05 && d < 40.0 {
             findings.add(
                 Level::Warn,
-                "accent-vs-status",
+                ACCENT_VS_STATUS,
                 format!(
                     "Accent and status.{s} are {}° apart; keep icons + words on every {s} message.",
                     js::to_fixed(d, 0)

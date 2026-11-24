@@ -8,6 +8,7 @@ use std::time::{Duration, SystemTime};
 
 use serde_json::{json, Map, Value};
 
+use crate::core::config::key;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{self, env_nonempty, file, global_dir};
@@ -46,7 +47,7 @@ fn empty() -> Value {
 
 fn last_used_in(home: &Path) -> Result<Value, DfwError> {
     let config = read_json(&home.join(file::CONFIG), Some(empty()))?;
-    let last = js::truthy_value(config.get("language").and_then(|l| l.get("lastUsed")));
+    let last = js::truthy_value(config.get(key::LANGUAGE).and_then(|l| l.get("lastUsed")));
     Ok(last.cloned().unwrap_or_else(|| "en".into()))
 }
 
@@ -101,9 +102,9 @@ fn set_language_in(home: &Path, code: Option<&str>, id: Option<&str>) -> Result<
     let file = home.join(paths::file::CONFIG);
     let mut config = read_json(&file, Some(empty()))?;
     if let Value::Object(map) = &mut config {
-        let mut language = js::spread(js::truthy_value(map.get("language")));
+        let mut language = js::spread(js::truthy_value(map.get(key::LANGUAGE)));
         language.insert("lastUsed".into(), lang.clone().into());
-        map.insert("language".into(), Value::Object(language));
+        map.insert(key::LANGUAGE.into(), Value::Object(language));
     }
     write_json(&file, &config)?;
     Ok(json!({ "session": id, "language": lang }))
@@ -139,22 +140,28 @@ mod tests {
     use super::*;
     use crate::core::util::test_dir;
 
+    /// The status field: the language is chosen in this session.
+    const CHOSEN: &str = "chosen";
+    /// The status field: the language last chosen in any session.
+    const LAST_USED: &str = "lastUsed";
+
     /// language: asked once per session, last used remembered (tests/unit/dfw.test.mjs; the
     /// same case through the command line is in native/tests/hot.rs)
     #[test]
     fn language_asked_once_per_session_last_used_remembered() {
+        const SESSION: &str = "abc";
         let home = test_dir("lang");
-        let st = language_status_in(&home, Some("abc")).unwrap();
-        assert_eq!(st["chosen"], false);
-        assert_eq!(st["lastUsed"], "en");
-        set_language_in(&home, Some("vi"), Some("abc")).unwrap();
+        let st = language_status_in(&home, Some(SESSION)).unwrap();
+        assert_eq!(st[CHOSEN], false);
+        assert_eq!(st[LAST_USED], "en");
+        set_language_in(&home, Some("vi"), Some(SESSION)).unwrap();
         assert_eq!(
-            language_status_in(&home, Some("abc")).unwrap()["chosen"],
+            language_status_in(&home, Some(SESSION)).unwrap()[CHOSEN],
             true
         );
         let other = language_status_in(&home, Some("def")).unwrap();
-        assert_eq!(other["chosen"], false, "new session asks again");
-        assert_eq!(other["lastUsed"], "vi", "offers last used as default");
+        assert_eq!(other[CHOSEN], false, "new session asks again");
+        assert_eq!(other[LAST_USED], "vi", "offers last used as default");
     }
 
     #[test]
@@ -171,14 +178,13 @@ mod tests {
             fs::read_to_string(home.join(file::CONFIG)).unwrap(),
             "{\n  \"marketplaceRepo\": \"/r\",\n  \"language\": {\n    \"askPolicy\": \"session\",\n    \"lastUsed\": \"vi\"\n  }\n}\n"
         );
+        /// The result field: the language set.
+        const LANGUAGE: &str = "language";
         assert_eq!(
-            set_language_in(&home, Some("  "), None).unwrap()["language"],
+            set_language_in(&home, Some("  "), None).unwrap()[LANGUAGE],
             "en"
         );
-        assert_eq!(
-            set_language_in(&home, None, None).unwrap()["language"],
-            "en"
-        );
+        assert_eq!(set_language_in(&home, None, None).unwrap()[LANGUAGE], "en");
         assert!(!home.join("sessions").exists(), "no session, no file");
         let status = language_status_in(&home, None).unwrap();
         assert_eq!(
@@ -206,7 +212,8 @@ mod tests {
     fn old_sessions_are_pruned() {
         let home = test_dir("lang-prune");
         prune_sessions_in(&home).unwrap();
-        set_language_in(&home, Some("en"), Some("fresh")).unwrap();
+        const FRESH: &str = "fresh";
+        set_language_in(&home, Some("en"), Some(FRESH)).unwrap();
         let old = session_file(&home, "old");
         fs::write(&old, "{}").unwrap();
         let long_ago = SystemTime::now() - Duration::from_secs(31 * 86_400);
@@ -218,6 +225,6 @@ mod tests {
             .unwrap();
         prune_sessions_in(&home).unwrap();
         assert!(!old.exists());
-        assert!(session_file(&home, "fresh").exists());
+        assert!(session_file(&home, FRESH).exists());
     }
 }

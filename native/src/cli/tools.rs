@@ -3,6 +3,7 @@
 
 use serde_json::{json, Value};
 
+use super::word::{self, command};
 use super::{Ctx, Handler};
 use crate::browser::download::install_browser;
 use crate::core::config::{set_config_value, Scope};
@@ -18,14 +19,14 @@ use crate::tools::install::{install, uninstall, InstallOptions};
 /// The commands of this group. `mcp`, `stack` and `handoff` are at the end of the file.
 pub fn commands() -> Vec<(&'static str, Handler)> {
     vec![
-        ("inspector", inspector as Handler),
-        ("mcp", mcp as Handler),
-        ("install", cmd_install as Handler),
-        ("uninstall", cmd_uninstall as Handler),
-        ("setup", setup as Handler),
-        ("doctor", doctor as Handler),
-        ("stack", stack as Handler),
-        ("handoff", handoff as Handler),
+        (command::INSPECTOR, inspector as Handler),
+        (command::MCP, mcp as Handler),
+        (command::INSTALL, cmd_install as Handler),
+        (command::UNINSTALL, cmd_uninstall as Handler),
+        (command::SETUP, setup as Handler),
+        (command::DOCTOR, doctor as Handler),
+        (command::STACK, stack as Handler),
+        (command::HANDOFF, handoff as Handler),
     ]
 }
 
@@ -171,7 +172,7 @@ fn mcp(ctx: &Ctx) -> Result<i32, DfwError> {
         serve_mcp()?;
         return Ok(0);
     };
-    if sub != "install" && sub != "uninstall" {
+    if sub != word::sub::INSTALL && sub != word::sub::UNINSTALL {
         return Err(DfwError::new(
             "Usage: dfw mcp | dfw mcp install|uninstall <opencode|codex|cursor|all> [--print]",
         ));
@@ -179,7 +180,11 @@ fn mcp(ctx: &Ctx) -> Result<i32, DfwError> {
     let Some(tool) = a.pos(2).filter(|t| !t.is_empty()) else {
         return Err(DfwError::new(which_tool()));
     };
-    out(&mcp_install(tool, sub == "uninstall", a.truthy("print"))?);
+    out(&mcp_install(
+        tool,
+        sub == word::sub::UNINSTALL,
+        a.truthy("print"),
+    )?);
     Ok(0)
 }
 

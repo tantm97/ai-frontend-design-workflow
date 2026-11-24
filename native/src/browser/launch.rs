@@ -35,7 +35,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
 
-use super::cdp::{lock, Connection, Context, ContextOptions, Page};
+use super::cdp::{lock, method, Connection, Context, ContextOptions, Page};
 use crate::core::error::DfwError;
 use crate::core::paths::{env_nonempty, global_dir};
 use crate::core::util::make_temp_dir;
@@ -260,7 +260,7 @@ impl Browser {
                 // Browser.close often gets no reply (the socket dies first): wait for the
                 // process instead.
                 let (tx, _) = mpsc::channel();
-                let _ = self.conn.post("Browser.close", json!({}), None, tx);
+                let _ = self.conn.post(method::BROWSER_CLOSE, json!({}), None, tx);
                 if !exited_within(&mut proc, 1500) {
                     let _ = proc.kill();
                     exited_within(&mut proc, 1500);
@@ -586,7 +586,7 @@ mod tests {
     //! never answers Page.navigate or Runtime.evaluate, like a dev server that stalls or a page
     //! stuck in a loop. No Chrome needed.
     use super::*;
-    use crate::browser::cdp::ShotOptions;
+    use crate::browser::cdp::{ShotOptions, METHOD};
     use crate::core::util::test_dir;
     use std::net::{TcpListener, TcpStream};
     use std::os::unix::fs::PermissionsExt;
@@ -642,16 +642,16 @@ exec sleep 300
                 continue;
             };
             let m: Value = serde_json::from_str(text.as_str()).unwrap();
-            let result = match m["method"].as_str().unwrap() {
-                "Page.navigate" | "Runtime.evaluate" => continue,
-                "Browser.close" => {
+            let result = match m[METHOD].as_str().unwrap() {
+                method::PAGE_NAVIGATE | method::RUNTIME_EVALUATE => continue,
+                method::BROWSER_CLOSE => {
                     let pid = fs::read_to_string(&pid_file).unwrap();
                     let _ = Command::new("kill").arg(pid.trim()).status();
                     continue;
                 }
-                "Target.createBrowserContext" => json!({ "browserContextId": "c1" }),
-                "Target.createTarget" => json!({ "targetId": "t1" }),
-                "Target.attachToTarget" => json!({ "sessionId": "s1" }),
+                method::TARGET_CREATE_BROWSER_CONTEXT => json!({ "browserContextId": "c1" }),
+                method::TARGET_CREATE_TARGET => json!({ "targetId": "t1" }),
+                method::TARGET_ATTACH_TO_TARGET => json!({ "sessionId": "s1" }),
                 _ => json!({}),
             };
             let reply = json!({ "id": m["id"], "result": result }).to_string();
@@ -764,7 +764,7 @@ exec sleep 300
             "Runtime.evaluate: no reply from the browser within 200 ms"
         );
         assert_eq!(
-            page.send("Page.enable", json!({})).unwrap(),
+            page.send(method::PAGE_ENABLE, json!({})).unwrap(),
             json!({}),
             "the connection still works"
         );
@@ -779,7 +779,7 @@ exec sleep 300
         assert_eq!(err.message(), "Page.captureScreenshot: no image data");
         browser.close();
         assert!(page
-            .send("Page.enable", json!({}))
+            .send(method::PAGE_ENABLE, json!({}))
             .is_err_and(|e| e.message() == "browser connection closed"));
     }
 
@@ -851,7 +851,9 @@ exec sleep 300
         let dir = test_dir("guard");
         let profile = dir.join("dfw-browser-test");
         fs::create_dir_all(profile.join("Default")).unwrap();
-        let mut browser = Command::new("sleep").arg("300").spawn().unwrap();
+        // A process that runs longer than the test: it stands in for the browser.
+        let browser_stand_in = || Command::new("sleep").arg("300").spawn().unwrap();
+        let mut browser = browser_stand_in();
         let mut guard = guard_process(browser.id(), &profile).unwrap();
         // What the kernel does when this process ends: the pipe's only write end closes.
         drop(guard.watchdog.stdin.take());
@@ -861,7 +863,7 @@ exec sleep 300
 
         // Disarmed (normal close): nothing is touched afterwards.
         fs::create_dir_all(&profile).unwrap();
-        let mut other = Command::new("sleep").arg("300").spawn().unwrap();
+        let mut other = browser_stand_in();
         guard_process(other.id(), &profile).unwrap().disarm();
         // T12: proves nothing happens, so it can only wait and look.
         thread::sleep(Duration::from_millis(200));

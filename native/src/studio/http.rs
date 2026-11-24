@@ -37,6 +37,7 @@ pub mod method {
 
 /// The status codes the servers send (as `net/http`'s `StatusOK`, ...).
 pub mod status {
+    pub const SWITCHING_PROTOCOLS: u16 = 101;
     pub const OK: u16 = 200;
     pub const CREATED: u16 = 201;
     pub const NO_CONTENT: u16 = 204;
@@ -46,6 +47,7 @@ pub mod status {
     pub const NOT_FOUND: u16 = 404;
     pub const PAYLOAD_TOO_LARGE: u16 = 413;
     pub const INTERNAL_SERVER_ERROR: u16 = 500;
+    pub const BAD_GATEWAY: u16 = 502;
     pub const SERVICE_UNAVAILABLE: u16 = 503;
 
     /// The status of a failed route: 400 for an error the user can fix, 500 for the others.
@@ -65,6 +67,34 @@ pub mod message {
     pub const TOO_LARGE: &str = "Request too large.";
     pub const MALFORMED: &str = "Malformed request.";
     pub const BUSY: &str = "Too many connections; try again in a moment.";
+}
+
+/// The protocol version every answer is written with.
+pub const VERSION: &str = "HTTP/1.1";
+
+/// The blank line that ends a head.
+pub const END_OF_HEAD: &str = "\r\n\r\n";
+
+/// The start of the status line of an answer with `code` (`HTTP/1.1 403`), as a client reads it.
+pub fn status_line(code: u16) -> String {
+    format!("{VERSION} {code}")
+}
+
+/// The loopback address the Studio and the review proxy listen on.
+pub use crate::core::http::LOOPBACK;
+
+/// The header names the servers read or rewrite, lowercase as [`Head::header`] and
+/// [`node_headers`] compare them.
+pub mod header {
+    pub const HOST: &str = "host";
+    pub const ORIGIN: &str = "origin";
+    pub const REFERER: &str = "referer";
+    pub const LOCATION: &str = "location";
+    pub const ACCEPT_ENCODING: &str = "accept-encoding";
+    pub const CONTENT_TYPE: &str = "content-type";
+    pub const CONTENT_ENCODING: &str = "content-encoding";
+    pub const COOKIE: &str = "cookie";
+    pub const SET_COOKIE: &str = "set-cookie";
 }
 
 /// The body of every error answer: `{"error": message}`.
@@ -283,7 +313,7 @@ pub fn read_head(stream: &mut impl Read) -> io::Result<Option<Head>> {
     let mut buf: Vec<u8> = Vec::with_capacity(2048);
     let mut chunk = [0u8; 4096];
     let end = loop {
-        if let Some(i) = find(&buf, b"\r\n\r\n") {
+        if let Some(i) = find(&buf, END_OF_HEAD.as_bytes()) {
             break i;
         }
         if buf.len() > MAX_HEAD {
@@ -491,26 +521,26 @@ fn invalid(msg: &str) -> io::Error {
 /// Reason phrase of a status code (Node's `STATUS_CODES`).
 pub fn reason(code: u16) -> &'static str {
     match code {
-        101 => "Switching Protocols",
-        200 => "OK",
-        201 => "Created",
-        204 => "No Content",
+        status::SWITCHING_PROTOCOLS => "Switching Protocols",
+        status::OK => "OK",
+        status::CREATED => "Created",
+        status::NO_CONTENT => "No Content",
         301 => "Moved Permanently",
         302 => "Found",
         303 => "See Other",
-        304 => "Not Modified",
+        status::NOT_MODIFIED => "Not Modified",
         307 => "Temporary Redirect",
         308 => "Permanent Redirect",
-        400 => "Bad Request",
+        status::BAD_REQUEST => "Bad Request",
         401 => "Unauthorized",
-        403 => "Forbidden",
-        404 => "Not Found",
+        status::FORBIDDEN => "Forbidden",
+        status::NOT_FOUND => "Not Found",
         405 => "Method Not Allowed",
-        413 => "Payload Too Large",
-        500 => "Internal Server Error",
+        status::PAYLOAD_TOO_LARGE => "Payload Too Large",
+        status::INTERNAL_SERVER_ERROR => "Internal Server Error",
         501 => "Not Implemented",
-        502 => "Bad Gateway",
-        503 => "Service Unavailable",
+        status::BAD_GATEWAY => "Bad Gateway",
+        status::SERVICE_UNAVAILABLE => "Service Unavailable",
         _ => "",
     }
 }
@@ -521,7 +551,7 @@ pub fn write_head(
     code: u16,
     headers: &[(String, String)],
 ) -> io::Result<()> {
-    let mut head = format!("HTTP/1.1 {code} {}\r\n", reason(code));
+    let mut head = format!("{} {}\r\n", status_line(code), reason(code));
     for (k, v) in headers {
         // A value with a line break would split the head: Node refuses such a header too.
         if k.contains(['\r', '\n', ':']) || v.contains(['\r', '\n']) {
@@ -643,32 +673,32 @@ pub fn node_headers(raw: &[(String, String)]) -> Vec<(String, String)> {
         "age",
         "authorization",
         "content-length",
-        "content-type",
+        header::CONTENT_TYPE,
         "etag",
         "expires",
         "from",
-        "host",
+        header::HOST,
         "if-modified-since",
         "if-unmodified-since",
         "last-modified",
-        "location",
+        header::LOCATION,
         "max-forwards",
         "proxy-authorization",
-        "referer",
+        header::REFERER,
         "retry-after",
         "server",
     ];
     let mut out: Vec<(String, String)> = Vec::new();
     for (k, v) in raw {
         let name = k.to_ascii_lowercase();
-        if name == "set-cookie" {
+        if name == header::SET_COOKIE {
             out.push((name, v.clone()));
             continue;
         }
         match out.iter_mut().find(|(n, _)| *n == name) {
             Some(_) if SINGLE.contains(&name.as_str()) || name == "user-agent" => {}
             Some((_, value)) => {
-                value.push_str(if name == "cookie" { "; " } else { ", " });
+                value.push_str(if name == header::COOKIE { "; " } else { ", " });
                 value.push_str(v);
             }
             None => out.push((name, v.clone())),
@@ -681,6 +711,18 @@ pub fn node_headers(raw: &[(String, String)]) -> Vec<(String, String)> {
 mod tests {
     use super::*;
 
+    /// A path whose `..` are escaped: it stays as written.
+    const ENCODED_TRAVERSAL: &str = "/..%2F..%2Fx";
+    /// Two cookies a response sets.
+    const FIRST_COOKIE: &str = "a=1";
+    const SECOND_COOKIE: &str = "b=2";
+    /// The first of two content types: the one kept.
+    const FIRST_TYPE: &str = "text/html";
+    /// A header whose values are joined with a comma.
+    const JOINED: &str = "accept";
+    /// The query parameter read.
+    const PARAM: &str = "page";
+
     #[test]
     fn paths_resolve_like_the_url_parser() {
         assert_eq!(url_pathname("/design/../x"), "/x");
@@ -691,7 +733,7 @@ mod tests {
         assert_eq!(url_pathname("\\design\\x"), "/design/x");
         assert_eq!(url_pathname("http://h:1/p/q"), "/p/q");
         assert_eq!(url_pathname("/a b"), "/a%20b");
-        assert_eq!(url_pathname("/..%2F..%2Fx"), "/..%2F..%2Fx");
+        assert_eq!(url_pathname(ENCODED_TRAVERSAL), ENCODED_TRAVERSAL);
     }
 
     #[test]
@@ -792,10 +834,10 @@ mod tests {
     /// a client that sends its head one byte at a time is cut off at the head deadline
     #[test]
     fn the_head_deadline_stops_a_slow_client() {
-        let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let listener = std::net::TcpListener::bind((LOOPBACK, 0)).unwrap();
         let port = listener.local_addr().unwrap().port();
         let slow = std::thread::spawn(move || {
-            let mut c = TcpStream::connect(("127.0.0.1", port)).unwrap();
+            let mut c = TcpStream::connect((LOOPBACK, port)).unwrap();
             for _ in 0..40 {
                 if c.write_all(b"a").is_err() {
                     break;
@@ -841,20 +883,23 @@ mod tests {
         drop(first);
         assert!(conns.enter(1).is_some());
 
-        let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let listener = std::net::TcpListener::bind((LOOPBACK, 0)).unwrap();
         let port = listener.local_addr().unwrap().port();
         let (release, wait) = std::sync::mpsc::channel::<()>();
-        let held = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        let held = TcpStream::connect((LOOPBACK, port)).unwrap();
         let (a, _) = listener.accept().unwrap();
         spawn_connection(&conns, 1, a, move |_s| {
             let _ = wait.recv();
         });
-        let mut second = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        let mut second = TcpStream::connect((LOOPBACK, port)).unwrap();
         let (b, _) = listener.accept().unwrap();
         spawn_connection(&conns, 1, b, |_s| panic!("over the cap"));
         let mut answer = String::new();
         second.read_to_string(&mut answer).unwrap();
-        assert!(answer.starts_with("HTTP/1.1 503"), "{answer}");
+        assert!(
+            answer.starts_with(&status_line(status::SERVICE_UNAVAILABLE)),
+            "{answer}"
+        );
         release.send(()).unwrap();
         drop(held);
     }
@@ -862,14 +907,14 @@ mod tests {
     #[test]
     fn headers_merge_like_node() {
         let raw: Vec<(String, String)> = [
-            ("Set-Cookie", "a=1"),
-            ("set-cookie", "b=2"),
+            ("Set-Cookie", FIRST_COOKIE),
+            (header::SET_COOKIE, SECOND_COOKIE),
             ("Cookie", "x=1"),
-            ("cookie", "y=2"),
+            (header::COOKIE, "y=2"),
             ("Accept", "a"),
-            ("accept", "b"),
-            ("Content-Type", "text/html"),
-            ("content-type", "text/plain"),
+            (JOINED, "b"),
+            ("Content-Type", FIRST_TYPE),
+            (header::CONTENT_TYPE, "text/plain"),
         ]
         .iter()
         .map(|(k, v)| (k.to_string(), v.to_string()))
@@ -882,18 +927,18 @@ mod tests {
                 .map(|(_, v)| v.as_str())
                 .collect()
         };
-        assert_eq!(get("set-cookie"), ["a=1", "b=2"]);
-        assert_eq!(get("cookie"), ["x=1; y=2"]);
-        assert_eq!(get("accept"), ["a, b"]);
-        assert_eq!(get("content-type"), ["text/html"]);
+        assert_eq!(get(header::SET_COOKIE), [FIRST_COOKIE, SECOND_COOKIE]);
+        assert_eq!(get(header::COOKIE), ["x=1; y=2"]);
+        assert_eq!(get(JOINED), ["a, b"]);
+        assert_eq!(get(header::CONTENT_TYPE), [FIRST_TYPE]);
     }
 
     #[test]
     fn query_params_are_decoded() {
         assert_eq!(
-            query_param("/x?refresh=1&page=a%20b", "page").as_deref(),
+            query_param("/x?refresh=1&page=a%20b", PARAM).as_deref(),
             Some("a b")
         );
-        assert_eq!(query_param("/x?refresh=1", "page"), None);
+        assert_eq!(query_param("/x?refresh=1", PARAM), None);
     }
 }

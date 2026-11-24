@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{json, Map, Value};
 
+use super::word::{command, sub};
 use super::{Ctx, Handler};
 use crate::browser::a11y::{a11y_check, A11yOptions};
 use crate::core::config::{get_config_value, load_config, set_config_value, Scope};
@@ -41,19 +42,19 @@ use crate::workflow::state::{
 /// The commands of this group.
 pub fn commands() -> Vec<(&'static str, Handler)> {
     vec![
-        ("init", init as Handler),
-        ("status", status as Handler),
-        ("mode", mode as Handler),
-        ("phase", phase as Handler),
-        ("approve", approve as Handler),
-        ("reopen", reopen as Handler),
-        ("pause", pause_resume as Handler),
-        ("resume", pause_resume as Handler),
-        ("decide", decide_cmd as Handler),
-        ("decisions", decisions as Handler),
-        ("config", config as Handler),
-        ("lang", lang as Handler),
-        ("verify-snapshot", verify_snapshot_cmd as Handler),
+        (command::INIT, init as Handler),
+        (command::STATUS, status as Handler),
+        (command::MODE, mode as Handler),
+        (command::PHASE, phase as Handler),
+        (command::APPROVE, approve as Handler),
+        (command::REOPEN, reopen as Handler),
+        (command::PAUSE, pause_resume as Handler),
+        (command::RESUME, pause_resume as Handler),
+        (command::DECIDE, decide_cmd as Handler),
+        (command::DECISIONS, decisions as Handler),
+        (command::CONFIG, config as Handler),
+        (command::LANG, lang as Handler),
+        (command::VERIFY_SNAPSHOT, verify_snapshot_cmd as Handler),
     ]
 }
 
@@ -103,7 +104,7 @@ fn init(ctx: &Ctx) -> Result<i32, DfwError> {
         ),
     )?;
     let mut created = Vec::new();
-    for doc in ["PRODUCT.md", "DESIGN.md"] {
+    for doc in [rel::PRODUCT_DOC, rel::DESIGN_DOC] {
         if !root.join(doc).exists() {
             write_atomic_inside(&root, &root.join(doc), crate::assets::template_text(doc)?)?;
             created.push(doc.to_string());
@@ -548,7 +549,7 @@ fn config(ctx: &Ctx) -> Result<i32, DfwError> {
     let a = &ctx.args;
     let root = ctx.root();
     match a.pos(1) {
-        Some("get") => {
+        Some(sub::GET) => {
             let value = match a.pos(2).filter(|k| !k.is_empty()) {
                 Some(key) => get_config_value(Some(&root), key)?.ok_or_else(|| {
                     DfwError::new(format!("\"{key}\" is not set in the config; \"dfw config get\" prints every setting."))
@@ -558,7 +559,7 @@ fn config(ctx: &Ctx) -> Result<i32, DfwError> {
             out(&to_json_pretty(&value));
             Ok(0)
         }
-        Some("set") => {
+        Some(sub::SET) => {
             let scope = if a.truthy("global") {
                 Scope::Global
             } else if a.truthy("local") {
@@ -585,9 +586,9 @@ fn lang(ctx: &Ctx) -> Result<i32, DfwError> {
     let a = &ctx.args;
     // `--session` alone never gets here (`require_flag_values`).
     let session = a.text("session");
-    match a.pos(1).filter(|s| !s.is_empty()).unwrap_or("status") {
-        "status" => print_json(&language_status(session)?),
-        "set" => print_json(&set_language(a.pos(2), session)?),
+    match a.pos(1).filter(|s| !s.is_empty()).unwrap_or(sub::STATUS) {
+        sub::STATUS => print_json(&language_status(session)?),
+        sub::SET => print_json(&set_language(a.pos(2), session)?),
         _ => Err(DfwError::new(
             "Usage: dfw lang status|set <code> [--session <id>]",
         )),

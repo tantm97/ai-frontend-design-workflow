@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{json, Value};
 
+use super::tokens::COLOR_TYPE;
 use super::*;
 use crate::core::fixture::{
     screen_page, BRAND_TOKENS, COMPOSED_PAGE, COMPOSED_PAGE_B, COMPOSED_PAGE_C, CSS_FILE,
@@ -19,6 +20,9 @@ use crate::design::compose::build_system;
 use crate::design::icons::add_icons;
 use crate::design::inventory::kit_components;
 use crate::design::system::{system_init, InitOptions};
+
+/// The name a token tree linted on its own is reported under.
+const TOKEN_FILE: &str = "t.json";
 
 fn write(root: &Path, rel: &str, text: &str) {
     let file = root.join(rel);
@@ -135,7 +139,12 @@ fn patterns_compile() {
 fn ids_alt_colors_focus() {
     let html = r##"<html><head><link href="../../tokens/tokens.css"></head><body><button data-dfw-id="a.b">x</button><button data-dfw-id="a.b">y</button><img src="x.png"><a href="#">z</a></body></html>"##;
     let found = rules(&lint_html("x.html", html));
-    for rule in ["dfw-id-duplicate", "img-alt", "dfw-id-missing", "html-lang"] {
+    for rule in [
+        "dfw-id-duplicate",
+        rule::IMG_ALT,
+        rule::DFW_ID_MISSING,
+        "html-lang",
+    ] {
         assert!(found.iter().any(|r| r == rule), "{rule} in {found:?}");
     }
     let mut css = rules(&lint_css(
@@ -143,7 +152,7 @@ fn ids_alt_colors_focus() {
         ":root{--x:#fff}\n.a{color:#123456}\n.b:focus{outline:none}",
     ));
     css.sort();
-    assert_eq!(css, ["focus-removed", "hardcoded-color"]);
+    assert_eq!(css, [rule::FOCUS_REMOVED, rule::HARDCODED_COLOR]);
 }
 
 /// lint: generic-AI tells (default colours, emoji icons, filler, metrics, placeholder hosts,
@@ -189,9 +198,9 @@ fn generic_ai_tells() {
         ),
         "left-border-card"
     ));
-    let tokens = json!({ "color": { "$type": "color", "accent": { "$value": "#4F46E5" } } });
+    let tokens = json!({ "color": { "$type": COLOR_TYPE, "accent": { "$value": "#4F46E5" } } });
     assert!(has(
-        &lint_tokens("t.json", &tokens, None),
+        &lint_tokens(TOKEN_FILE, &tokens, None),
         "ai-default-color"
     ));
 }
@@ -199,20 +208,19 @@ fn generic_ai_tells() {
 /// lint: state coverage for data surfaces and forms (tests/unit/dfw.test.mjs)
 #[test]
 fn state_coverage_for_data_surfaces_and_forms() {
+    /// The screen whose states the manifest declares.
+    const LIST_SCREEN: &str = "list";
     let root = test_dir("lint-states");
     let manifest = |states: Value| {
-        let text = json!({ "states": states, "screens": [{ "id": "list", "variants": [{ "id": "a", "file": "screens/list/a.html" }] }] });
+        let text = json!({ "states": states, "screens": [{ "id": LIST_SCREEN, "variants": [{ "id": "a", "file": "screens/list/a.html" }] }] });
         write(&root, rel::MANIFEST, &text.to_string());
     };
     manifest(json!([]));
-    let rel = &rel::screen(&screen_page("list"));
+    let rel = &rel::screen(&screen_page(LIST_SCREEN));
     let found = state_coverage(&root, rel, "<body><table></table><form></form></body>").unwrap();
     assert_eq!(found.len(), 1);
-    assert!(found[0]["message"]
-        .as_str()
-        .unwrap()
-        .contains("no loading/empty/error state"));
-    manifest(json!(["loading", "empty", "error"]));
+    assert!(messages(&found)[0].contains("no loading/empty/error state"));
+    manifest(json!([state::LOADING, state::EMPTY, state::ERROR]));
     let designed = r#"<body><table class="unless-empty"></table><p class="when-loading">Loading</p><p class="when-empty">No orders</p><p class="when-error">Could not load</p></body>"#;
     assert!(state_coverage(&root, rel, designed).unwrap().is_empty());
     assert!(state_coverage(
@@ -229,13 +237,13 @@ fn state_coverage_for_data_surfaces_and_forms() {
 #[test]
 fn declared_but_undesigned_states() {
     let root = test_dir("lint-states-undesigned");
-    let text = json!({ "states": ["loading", "empty", "error"], "screens": [{ "id": "home", "variants": [{ "id": "a", "file": "screens/home/a.html" }] }] });
+    let text = json!({ "states": [state::LOADING, state::EMPTY, state::ERROR], "screens": [{ "id": "home", "variants": [{ "id": "a", "file": "screens/home/a.html" }] }] });
     write(&root, rel::MANIFEST, &text.to_string());
     let rel = &rel::screen(SCREEN_PAGE);
     // Inherited from the top of design.json and designed nowhere: one finding naming all three.
     let found = state_coverage(&root, rel, "<body><h1>Home</h1></body>").unwrap();
     assert_eq!(rules(&found), ["state-undesigned"]);
-    let message = found[0]["message"].as_str().unwrap();
+    let message = messages(&found)[0];
     assert!(message.contains("loading/empty/error"), "{message}");
     // A screen block, a data-state rule and a master the screen uses each count as designed.
     write(
@@ -244,7 +252,9 @@ fn declared_but_undesigned_states() {
         r#"<dfw-component name="order-list"><style>html[data-state="loading"] .ol { opacity: .5 }</style><template><ul class="ol"></ul></template></dfw-component>"#,
     );
     let html = r#"<body><p class="when-empty">No orders yet</p><style>[data-state='error'] main{display:none}</style><dfw-use c="order-list"></dfw-use></body>"#;
-    let names: Vec<String> = ["loading", "empty", "error"].map(String::from).to_vec();
+    let names: Vec<String> = [state::LOADING, state::EMPTY, state::ERROR]
+        .map(String::from)
+        .to_vec();
     assert_eq!(designed_states(&root, html, &names).unwrap(), names);
     assert!(state_coverage(&root, rel, html).unwrap().is_empty());
     // Only one of them: the other two are reported.
@@ -254,13 +264,7 @@ fn declared_but_undesigned_states() {
         r#"<body><p class="when-empty-hint">x</p><p class="when-error">x</p></body>"#,
     )
     .unwrap();
-    assert!(
-        one[0]["message"]
-            .as_str()
-            .unwrap()
-            .contains("loading/empty"),
-        "{one:?}"
-    );
+    assert!(messages(&one)[0].contains("loading/empty"), "{one:?}");
 }
 
 /// lint: interface-guideline and copy rules, near-duplicate colours, component state matrix
@@ -272,10 +276,10 @@ fn guideline_and_copy_rules_near_duplicates_component_states() {
   <a data-dfw-id="d" href="#x">click here</a></body></html>"##;
     let found = rules(&lint_html(&rel::screen(OTHER_HTML_FILE), html));
     for rule in [
-        "copy-tell",
-        "vague-error",
-        "ellipsis-char",
-        "link-text",
+        rule::COPY_TELL,
+        rule::VAGUE_ERROR,
+        rule::ELLIPSIS_CHAR,
+        rule::LINK_TEXT,
         "input-font-size",
         "z-index-raw",
     ] {
@@ -286,18 +290,18 @@ fn guideline_and_copy_rules_near_duplicates_component_states() {
         r##"<html lang="en"><head><style>input{font-size:16px} .menu{z-index:var(--z-menu)}</style></head><body><p data-dfw-id="a">Loading…</p><a data-dfw-id="d" href="#x">View invoice 1042</a></body></html>"##,
     );
     let guideline = [
-        "copy-tell",
-        "vague-error",
+        rule::COPY_TELL,
+        rule::VAGUE_ERROR,
         "ellipsis",
-        "link-text",
+        rule::LINK_TEXT,
         "input-font",
         "z-index",
     ];
     assert!(!rules(&clean)
         .iter()
         .any(|r| guideline.iter().any(|g| r.contains(g))));
-    let tokens = json!({ "color": { "$type": "color", "a": { "$value": "#f4f4f5" }, "b": { "$value": "#f4f4f6" }, "c": { "$value": "#2453c7" } } });
-    let near = lint_tokens("t.json", &tokens, None);
+    let tokens = json!({ "color": { "$type": COLOR_TYPE, "a": { "$value": "#f4f4f5" }, "b": { "$value": "#f4f4f6" }, "c": { "$value": "#2453c7" } } });
+    let near = lint_tokens(TOKEN_FILE, &tokens, None);
     assert_eq!(lines_of(&near, "near-duplicate-color").len(), 1);
     let button = |css: &str| {
         lint_component_file(
@@ -307,17 +311,17 @@ fn guideline_and_copy_rules_near_duplicates_component_states() {
             ),
         )
     };
-    assert!(has(&button(".b{color:var(--c)}"), "component-states"));
+    assert!(has(&button(".b{color:var(--c)}"), rule::COMPONENT_STATES));
     assert!(!has(
         &button(".b:hover{} .b:disabled{}"),
-        "component-states"
+        rule::COMPONENT_STATES
     ));
     // A card that merely contains a link is not a control.
     let card = lint_component_file(
         "c.html",
         r##"<dfw-component name="c"><style>.c{}</style><template><div class="c"><a href="#">x</a></div></template></dfw-component>"##,
     );
-    assert!(!has(&card, "component-states"));
+    assert!(!has(&card, rule::COMPONENT_STATES));
 }
 
 /// kit: every reference master composes its examples without issues and lints clean
@@ -352,7 +356,7 @@ fn screens_compose_the_design_system_and_keep_visual_styling_out() {
         3
     );
     assert!(found.iter().any(|r| r == "use-component"));
-    assert!(found.iter().any(|r| r == "no-components"));
+    assert!(found.iter().any(|r| r == rule::NO_COMPONENTS));
     let good = r#"<!doctype html><html lang="en"><head><dfw-head></dfw-head><style>.x { display: grid; gap: var(--space-2) }</style></head><body><main data-dfw-id="m"><dfw-use c="button" id="m.ok">OK</dfw-use></main></body></html>"#;
     assert_eq!(
         lint_screen(&root, &rel::screen(COMPOSED_PAGE_B), good, &lib).unwrap(),
@@ -382,10 +386,10 @@ fn an_unclosed_instance_is_a_lint_finding() {
 fn a_theme_may_alias_tokens_of_the_base_file() {
     let root = test_dir("lint-theme");
     write(&root, rel::MANIFEST, r#"{"screens":[]}"#);
-    let tokens = json!({ "color": { "$type": "color", "palette": { "n900": { "$value": "#111111" }, "n50": { "$value": "#fafafa" } }, "ink": { "$value": "{color.palette.n900}" } } });
+    let tokens = json!({ "color": { "$type": COLOR_TYPE, "palette": { "n900": { "$value": "#111111" }, "n50": { "$value": "#fafafa" } }, "ink": { "$value": "{color.palette.n900}" } } });
     write(&root, rel::TOKENS_JSON, &tokens.to_string());
     let theme = |alias: &str| {
-        let text = json!({ "color": { "$type": "color", "ink": { "$value": alias } } });
+        let text = json!({ "color": { "$type": COLOR_TYPE, "ink": { "$value": alias } } });
         write(
             &root,
             &rel::join(rel::THEMES, DARK_THEME),
@@ -438,7 +442,7 @@ fn a_malformed_manifest_is_a_finding() {
 fn findings_have_the_keys_of_the_node_objects_in_order() {
     /// The page of the manifest below, straight in `design/`.
     const FLAT_PAGE: &str = "s.html";
-    let found = lint_html("a.html", "<html><body></body></html>");
+    let found = lint_html(HTML_FILE, "<html><body></body></html>");
     assert_eq!(
         found[0].to_string(),
         r#"{"level":"warn","rule":"html-lang","file":"a.html","line":1,"message":"<html> has no lang attribute.","source":"dfw"}"#
@@ -452,62 +456,65 @@ fn findings_have_the_keys_of_the_node_objects_in_order() {
     let coverage = state_coverage(&root, &rel::design(FLAT_PAGE), "<form>").unwrap();
     let keys: Vec<&String> = coverage[0].as_object().unwrap().keys().collect();
     assert_eq!(keys, ["level", "rule", "file", "line", "source", "message"]);
-    assert!(coverage[0]["message"]
-        .as_str()
-        .unwrap()
-        .starts_with("Screen \"s\" has a form but no error state."));
+    assert!(messages(&coverage)[0].starts_with("Screen \"s\" has a form but no error state."));
 }
 
 #[test]
 fn html_ids_lines_and_structure() {
     let html = "<html lang=\"en\">\n<head><dfw-head></dfw-head>\n<nav>before body is not counted</nav></head>\n<body>\n<p data-dfw-id=\"\">a</p>\n<p data-dfw-id=\"Bad Id\">b</p>\n<p data-dfw-id=\"ok.one\">c</p>\n<p data-dfw-id = \"ok.one\">d</p>\n<IMG src=x>\n<button style=\"x\" data-dfw-id=\"b\">e</button>\n<aside>f</aside>\n<!-- <img src=y> -->\n</body></html>";
-    let found = lint_html("a.html", html);
+    let found = lint_html(HTML_FILE, html);
     assert_eq!(lines_of(&found, "dfw-id-empty"), [5]);
     assert_eq!(lines_of(&found, "dfw-id-format"), [6]);
     assert_eq!(lines_of(&found, "dfw-id-duplicate"), [8]);
     assert!(messages(&found).contains(&"Duplicate data-dfw-id \"ok.one\" (first on line 7)."));
     // A tag inside a comment is still a tag for the Node expressions, and so here.
-    assert_eq!(lines_of(&found, "img-alt"), [9, 12]);
+    assert_eq!(lines_of(&found, rule::IMG_ALT), [9, 12]);
     assert_eq!(lines_of(&found, "inline-style"), [10]);
-    assert_eq!(lines_of(&found, "dfw-id-missing"), [9]);
+    assert_eq!(lines_of(&found, rule::DFW_ID_MISSING), [9]);
     assert!(messages(&found)
         .iter()
         .any(|m| m.starts_with("3 structural/interactive element(s)")));
     assert!(!has(&found, "html-lang"));
-    assert!(!has(&found, "tokens-link"));
+    assert!(!has(&found, rule::TOKENS_LINK));
     // Without <body> nothing is "before the body".
-    let no_body = lint_html("a.html", "<nav></nav>");
-    assert_eq!(lines_of(&no_body, "dfw-id-missing"), [1]);
-    assert!(has(&no_body, "tokens-link"));
+    let no_body = lint_html(HTML_FILE, "<nav></nav>");
+    assert_eq!(lines_of(&no_body, rule::DFW_ID_MISSING), [1]);
+    assert!(has(&no_body, rule::TOKENS_LINK));
 }
 
 #[test]
 fn style_colors_and_the_eighty_character_window() {
     let html = "<style>\n:root{--a:#fff; --b: rgb(0 0 0)}\n.x{color:#abc;\n background:oklch(50% 0 0)}\n.y{--local:1px solid #123456}\n</style>";
-    let found = lint_html("a.html", html);
+    let found = lint_html(HTML_FILE, html);
     // "#abc" is excused: the definition before it ("--b: ...}") has no semicolon in between,
     // so the Node expression takes the colour for part of it (a Node bug, kept).
-    assert_eq!(lines_of(&found, "hardcoded-color"), [4]);
+    assert_eq!(lines_of(&found, rule::HARDCODED_COLOR), [4]);
     assert!(messages(&found)
         .contains(&"Hard-coded color \"oklch(\" in <style>; use a token (var(--...))."));
     // The definition is more than 80 UTF-16 units back: the colour is no longer excused.
-    let far = format!("<style>.x{{--v: {} #fff}}</style>", "a".repeat(80));
-    assert_eq!(lines_of(&lint_html("a.html", &far), "hardcoded-color"), [1]);
-    let near = format!("<style>.x{{--v: {} #fff}}</style>", "a".repeat(70));
-    assert!(!has(&lint_html("a.html", &near), "hardcoded-color"));
-    // 40 emoji are 80 units: the window starts after "--v:".
-    let emoji = format!("<style>.x{{--v:{}#fff}}</style>", "🚀".repeat(40));
+    // A custom property defined `gap` before the colour, with a space on each side, or none.
+    let spaced = |gap: String| format!("<style>.x{{--v: {gap} #fff}}</style>");
+    let tight = |gap: String| format!("<style>.x{{--v:{gap}#fff}}</style>");
+    let far = spaced("a".repeat(80));
     assert_eq!(
-        lines_of(&lint_html("a.html", &emoji), "hardcoded-color"),
+        lines_of(&lint_html(HTML_FILE, &far), rule::HARDCODED_COLOR),
         [1]
     );
-    let fewer = format!("<style>.x{{--v:{}#fff}}</style>", "🚀".repeat(38));
-    assert!(!has(&lint_html("a.html", &fewer), "hardcoded-color"));
+    let near = spaced("a".repeat(70));
+    assert!(!has(&lint_html(HTML_FILE, &near), rule::HARDCODED_COLOR));
+    // 40 emoji are 80 units: the window starts after "--v:".
+    let emoji = tight("🚀".repeat(40));
+    assert_eq!(
+        lines_of(&lint_html(HTML_FILE, &emoji), rule::HARDCODED_COLOR),
+        [1]
+    );
+    let fewer = tight("🚀".repeat(38));
+    assert!(!has(&lint_html(HTML_FILE, &fewer), rule::HARDCODED_COLOR));
 }
 
 #[test]
 fn slop_rules_one_by_one() {
-    let found = |html: &str| lint_html("a.html", html);
+    let found = |html: &str| lint_html(HTML_FILE, html);
     // Emoji: text blocks close on their own name, any case; an unclosed one is skipped.
     let html = "<body>\n<h1>Plain</h1>\n<LI>🚀 x</li>\n<button>never closed 🚀\n<label><b>🎉</b></label>\n<span class=\"x icon\">\n ⭐</span>\n<i class=\"icon\">ab</i></body>";
     let f = found(html);
@@ -518,57 +525,62 @@ fn slop_rules_one_by_one() {
     // Filler, copy tells, vague errors, ellipses, link text, metrics, placeholder hosts.
     let f = found("<body><p>Lorem IPSUM</p><p title=\"seamless\">Unlock the power</p><p>Oops</p><p>a... b.... c…</p><a href=x> Read More </a><p>3.5× faster, 99.99% uptime</p><img alt src=//PLACEHOLD.co/1></body>");
     for (rule, count) in [
-        ("filler-copy", 1),
-        ("copy-tell", 1),
-        ("vague-error", 1),
-        ("ellipsis-char", 1),
-        ("link-text", 1),
+        (rule::FILLER_COPY, 1),
+        (rule::COPY_TELL, 1),
+        (rule::VAGUE_ERROR, 1),
+        (rule::ELLIPSIS_CHAR, 1),
+        (rule::LINK_TEXT, 1),
         ("invented-metric", 2),
-        ("placeholder-image-host", 1),
+        (rule::PLACEHOLDER_IMAGE_HOST, 1),
     ] {
         assert_eq!(lines_of(&f, rule).len(), count, "{rule}: {:?}", rules(&f));
     }
     // Text inside <style> and <script> is not copy; an attribute is not text.
     let f = found("<body><style>.a::after{content:'lorem ipsum'}</style><script>var s = 'click here... seamless';</script><p title=\"oops\">fine</p></body>");
-    for rule in ["filler-copy", "copy-tell", "vague-error", "ellipsis-char"] {
+    for rule in [
+        rule::FILLER_COPY,
+        rule::COPY_TELL,
+        rule::VAGUE_ERROR,
+        rule::ELLIPSIS_CHAR,
+    ] {
         assert!(!has(&f, rule), "{rule}");
     }
     // Before <body> (or <template>) nothing is copy, but colours and hosts count everywhere.
     let f = found("<title>Lorem ipsum #6366F1 picsum.photos</title><body></body>");
-    assert!(!has(&f, "filler-copy"));
-    assert!(has(&f, "placeholder-image-host"));
+    assert!(!has(&f, rule::FILLER_COPY));
+    assert!(has(&f, rule::PLACEHOLDER_IMAGE_HOST));
     assert!(messages(&f)
         .iter()
         .any(|m| m.starts_with("#6366F1 is Tailwind indigo,")));
     // ASCII-only case folding: U+017F is not "s".
-    assert!(!has(&found("<body>\u{17f}eamless</body>"), "copy-tell"));
+    assert!(!has(&found("<body>\u{17f}eamless</body>"), rule::COPY_TELL));
 }
 
 #[test]
 fn css_rules_one_by_one() {
     let css = "/* #fff in a comment\n */\n.a{color:#fff;transition : all .2s}\n.b{--c:#000;border-left:2px solid var(--c);border-radius:4px}\nselect.x,\n.y{font-size:15.5px;z-index:-2}\n.z{z-index:1;font-size:12px}\n.g{background:LINEAR-GRADIENT(#3b82f6,#8b5cf6)}\n.h{background:linear-gradient(#ff0000,#00ff00)}\n.o{outline:0}";
     let f = lint_css(&rel::design(CSS_FILE), css);
-    assert_eq!(lines_of(&f, "hardcoded-color"), [3, 8, 8, 9, 9]);
+    assert_eq!(lines_of(&f, rule::HARDCODED_COLOR), [3, 8, 8, 9, 9]);
     assert_eq!(lines_of(&f, "transition-all"), [3]);
     assert_eq!(lines_of(&f, "left-border-card"), [4]);
     // A rule is reported on the line its selector text starts (the end of the rule before it).
     assert_eq!(lines_of(&f, "input-font-size"), [4]);
     assert_eq!(lines_of(&f, "z-index-raw"), [4]);
     assert_eq!(lines_of(&f, "ai-gradient"), [8]);
-    assert_eq!(lines_of(&f, "focus-removed"), [10]);
+    assert_eq!(lines_of(&f, rule::FOCUS_REMOVED), [10]);
     assert!(messages(&f)
         .iter()
         .any(|m| m.starts_with("Form field text is 15.5px")));
     assert!(messages(&f)
         .iter()
         .any(|m| m.starts_with("Raw z-index -2:")));
-    assert_eq!(rules(&f).last().unwrap(), "focus-removed");
+    assert_eq!(rules(&f).last().unwrap(), rule::FOCUS_REMOVED);
     assert!(lint_css(&rel::join(rel::TOKENS, file::TOKENS_CSS), ".a{color:#fff}").is_empty());
     let replaced = lint_css(
         "a.css",
         ".o{outline:none}.o:focus-visible{outline:1px solid}",
     );
-    assert!(!has(&replaced, "focus-removed"));
+    assert!(!has(&replaced, rule::FOCUS_REMOVED));
 }
 
 #[test]
@@ -580,7 +592,7 @@ fn component_rules_one_by_one() {
     );
     let f = lint("<dfw-component name=\"Bad\">\n<style>\n.x{color:red;padding:var(--space-2) 12px;margin:2px;gap:1.5px;\n font-size:14px;border-radius:calc(4px + 1px)}\n.y{color:#fff;outline:none}\n</style>\n<template>\n <input class=\"x\">\n</template></dfw-component>");
     assert_eq!(lines_of(&f, "component-name"), [1]);
-    assert_eq!(lines_of(&f, "hardcoded-color"), [5]);
+    assert_eq!(lines_of(&f, rule::HARDCODED_COLOR), [5]);
     assert_eq!(lines_of(&f, "raw-dimension"), [3, 4, 4]);
     assert!(messages(&f).contains(
         &"Raw length \"padding:var(--space-2) 12px\" in a component; use space/font/radius tokens."
@@ -591,7 +603,7 @@ fn component_rules_one_by_one() {
     let states = |text: &str| {
         lint(text)
             .iter()
-            .find(|x| x["rule"] == "component-states")
+            .find(|x| x["rule"] == rule::COMPONENT_STATES)
             .map(|x| {
                 let message = x["message"].as_str().unwrap();
                 message.split(" style.").next().unwrap().to_string()
@@ -602,21 +614,24 @@ fn component_rules_one_by_one() {
     };
     let missing = |css: &str, tpl: &str| states(&master(css, tpl));
     let no = |what: &str| Some(format!("Interactive component has no {what}"));
-    assert_eq!(missing("", "<A href=x>y</A>"), no(":hover"));
-    assert_eq!(missing("", "<div role=\"tab\">y</div>"), no(":hover"));
+    /// A hover state, the first a link or a role-button misses.
+    const HOVER: &str = ":hover";
+    /// A native select: the browser gives it its states.
+    const SELECT: &str = "<select></select>";
+    /// A button with no state styles of its own.
+    const BUTTON: &str = "<button>y</button>";
+    assert_eq!(missing("", "<A href=x>y</A>"), no(HOVER));
+    assert_eq!(missing("", "<div role=\"tab\">y</div>"), no(HOVER));
+    assert_eq!(missing("select{appearance: none}", SELECT), no("disabled"));
+    assert_eq!(missing("", SELECT), None);
     assert_eq!(
-        missing("select{appearance: none}", "<select></select>"),
-        no("disabled")
-    );
-    assert_eq!(missing("", "<select></select>"), None);
-    assert_eq!(
-        missing(".b{outline:0}", "<button>y</button>"),
+        missing(".b{outline:0}", BUTTON),
         no(":hover / disabled / :focus-visible")
     );
     assert_eq!(
         missing(
             ".b:hover{}[aria-disabled]{} .b:focus-within{outline:0}",
-            "<button>y</button>"
+            BUTTON
         ),
         None
     );
@@ -627,7 +642,7 @@ fn token_rules_one_by_one() {
     let tree = json!({
         "$description": "skipped",
         "color": {
-            "$type": "color",
+            "$type": COLOR_TYPE,
             "a.b": { "$value": "#111111" },
             "list": [{ "$value": "{color.nope} and {color.list.0}" }],
             "deep": { "$type": "", "x": { "$value": { "hex": "#111112", "more": ["{0}", { "y": "CONSTRUCTOR " }] } } }
@@ -635,7 +650,7 @@ fn token_rules_one_by_one() {
         "untyped": { "$value": 4 },
         "0": { "$value": "{untyped}", "$type": "number" }
     });
-    let f = lint_tokens("t.json", &tree, None);
+    let f = lint_tokens(TOKEN_FILE, &tree, None);
     assert_eq!(
         messages(&f),
         [
@@ -647,18 +662,21 @@ fn token_rules_one_by_one() {
         ]
     );
     assert_eq!(
-        rules(&lint_tokens("t.json", &json!({}), None)),
-        ["token-empty"]
+        rules(&lint_tokens(TOKEN_FILE, &json!({}), None)),
+        [rule::TOKEN_EMPTY]
     );
     assert_eq!(
-        rules(&lint_tokens("t.json", &json!("text"), None)),
-        ["token-empty"]
+        rules(&lint_tokens(TOKEN_FILE, &json!("text"), None)),
+        [rule::TOKEN_EMPTY]
     );
     // A theme resolves aliases against its base.
-    let theme = json!({ "c": { "$type": "color", "$value": "{base.ink}" } });
-    assert_eq!(rules(&lint_tokens("t.json", &theme, None)), ["token-alias"]);
+    let theme = json!({ "c": { "$type": COLOR_TYPE, "$value": "{base.ink}" } });
+    assert_eq!(
+        rules(&lint_tokens(TOKEN_FILE, &theme, None)),
+        ["token-alias"]
+    );
     let base = json!({ "base": { "ink": { "$value": "#000000" } } });
-    assert!(lint_tokens("t.json", &theme, Some(&base)).is_empty());
+    assert!(lint_tokens(TOKEN_FILE, &theme, Some(&base)).is_empty());
 }
 
 #[test]
@@ -666,11 +684,20 @@ fn manifest_rules_one_by_one() {
     /// The file a variant of the manifest below names; never written.
     const NOT_WRITTEN: &str = "none.html";
     let root = test_dir("lint-manifest");
-    assert_eq!(rules(&lint_manifest(&root).unwrap()), ["manifest-missing"]);
+    assert_eq!(
+        rules(&lint_manifest(&root).unwrap()),
+        [rule::MANIFEST_MISSING]
+    );
     write(&root, rel::MANIFEST, "null");
-    assert_eq!(rules(&lint_manifest(&root).unwrap()), ["manifest-missing"]);
+    assert_eq!(
+        rules(&lint_manifest(&root).unwrap()),
+        [rule::MANIFEST_MISSING]
+    );
     write(&root, rel::MANIFEST, "{}");
-    assert_eq!(rules(&lint_manifest(&root).unwrap()), ["manifest-screens"]);
+    assert_eq!(
+        rules(&lint_manifest(&root).unwrap()),
+        [rule::MANIFEST_SCREENS]
+    );
     write(&root, &rel::screen(HTML_FILE), "x");
     let manifest = json!({
         "screens": [
@@ -762,8 +789,8 @@ fn screen_rules_one_by_one() {
         .iter()
         .any(|m| m.starts_with("3 primary-variant instances")));
     assert!(has(&f, "page-layout"));
-    assert!(has(&f, "app-shell"));
-    assert!(!has(&f, "no-components"));
+    assert!(has(&f, rule::APP_SHELL));
+    assert!(!has(&f, rule::NO_COMPONENTS));
     // Shared screens (a path segment that starts with "_") need no page or shell.
     let shared = lint(
         &rel::screen(&screen_page("_shared")),
@@ -774,7 +801,7 @@ fn screen_rules_one_by_one() {
         &rel::screen(COMPOSED_PAGE_B),
         "<html>\n<body></body></html>",
     );
-    assert_eq!(lines_of(&empty, "no-components"), [2]);
+    assert_eq!(lines_of(&empty, rule::NO_COMPONENTS), [2]);
     // Compose issues come first, with their line.
     let unknown = lint(
         &rel::screen(COMPOSED_PAGE_C),
@@ -793,26 +820,24 @@ fn screen_rules_one_by_one() {
 fn design_targets_and_file_kinds() {
     /// A JSON file of `design/` that is not a tokens file.
     const NOTES_JSON: &str = "notes.json";
+    /// A page body with one finding of each kind a page gets: no tokens link, no alt, no id.
+    const BARE_IMG: &str = "<img>";
+    /// A stylesheet with one hard-coded colour.
+    const WHITE_CSS: &str = ".a{color:#fff}";
+    /// A page of an approved snapshot: never linted.
+    const APPROVED_PAGE: &str = "v1/a.html";
     let root = test_dir("lint-design");
     write(&root, rel::MANIFEST, r#"{"screens":[]}"#);
-    write(&root, &rel::approved("v1/a.html"), "<img>");
-    write(&root, rel::HEAD, "<img>");
-    write(&root, rel::COMPONENTS_CSS, ".a{color:#fff}");
-    write(
-        &root,
-        &rel::join(rel::SYSTEM, file::BASE_CSS),
-        ".a{color:#fff}",
-    );
+    write(&root, &rel::approved(APPROVED_PAGE), BARE_IMG);
+    write(&root, rel::HEAD, BARE_IMG);
+    write(&root, rel::COMPONENTS_CSS, WHITE_CSS);
+    write(&root, &rel::join(rel::SYSTEM, file::BASE_CSS), WHITE_CSS);
     write(&root, rel::TOKENS_JSON, "{ nope");
-    write(
-        &root,
-        &rel::join(rel::TOKENS, file::TOKENS_CSS),
-        ".a{color:#fff}",
-    );
+    write(&root, &rel::join(rel::TOKENS, file::TOKENS_CSS), WHITE_CSS);
     write(&root, &rel::design(BRAND_TOKENS), "{}");
     write(&root, &rel::design(NOTES_JSON), "{ not linted");
-    write(&root, &rel::screen(INDEX_PAGE), "<img>");
-    write(&root, &rel::design(DESIGN_PAGE_B), "<img>");
+    write(&root, &rel::screen(INDEX_PAGE), BARE_IMG);
+    write(&root, &rel::design(DESIGN_PAGE_B), BARE_IMG);
     let files = |found: &[Value]| -> Vec<String> {
         found
             .iter()
@@ -833,15 +858,15 @@ fn design_targets_and_file_kinds() {
     assert_eq!(
         all,
         [
-            at(rel::MANIFEST, "manifest-screens"),
-            at(&rel::design(BRAND_TOKENS), "token-empty"),
-            at(&page, "tokens-link"),
-            at(&page, "img-alt"),
-            at(&page, "dfw-id-missing"),
-            at(&screen, "tokens-link"),
-            at(&screen, "img-alt"),
-            at(&screen, "dfw-id-missing"),
-            at(&base_css, "hardcoded-color"),
+            at(rel::MANIFEST, rule::MANIFEST_SCREENS),
+            at(&rel::design(BRAND_TOKENS), rule::TOKEN_EMPTY),
+            at(&page, rule::TOKENS_LINK),
+            at(&page, rule::IMG_ALT),
+            at(&page, rule::DFW_ID_MISSING),
+            at(&screen, rule::TOKENS_LINK),
+            at(&screen, rule::IMG_ALT),
+            at(&screen, rule::DFW_ID_MISSING),
+            at(&base_css, rule::HARDCODED_COLOR),
             at(rel::TOKENS_JSON, "token-json"),
         ]
     );
@@ -854,23 +879,23 @@ fn design_targets_and_file_kinds() {
     assert_eq!(
         targets(&[rel::SCREENS, &rel::design(MISSING_HTML_FILE)]),
         [
-            at(&screen, "tokens-link"),
-            at(&screen, "img-alt"),
-            at(&screen, "dfw-id-missing"),
+            at(&screen, rule::TOKENS_LINK),
+            at(&screen, rule::IMG_ALT),
+            at(&screen, rule::DFW_ID_MISSING),
         ]
     );
     assert_eq!(
-        targets(&[&rel::approved("v1/a.html")]),
+        targets(&[&rel::approved(APPROVED_PAGE)]),
         Vec::<String>::new()
     );
     assert_eq!(
         targets(&[&format!("./{}", rel::MANIFEST)]),
-        [at(rel::MANIFEST, "manifest-screens")]
+        [at(rel::MANIFEST, rule::MANIFEST_SCREENS)]
     );
     let abs = root.join(&base_css);
     assert_eq!(
         targets(&[abs.to_str().unwrap()]),
-        [at(&base_css, "hardcoded-color")]
+        [at(&base_css, rule::HARDCODED_COLOR)]
     );
     assert!(is_token_file(&rel::join(rel::THEMES, DARK_THEME)));
     assert!(is_token_file("x.tokens.json"));
@@ -882,12 +907,14 @@ fn design_targets_and_file_kinds() {
 /// manifest of the wrong shape never passes a gate.
 #[test]
 fn a_manifest_of_the_wrong_shape_is_an_error_where_node_dies() {
+    /// A data surface: it needs the loading, empty and error states.
+    const TABLE: &str = "<table></table>";
     let root = test_dir("lint-manifest-shapes");
-    write(&root, &rel::screen(HTML_FILE), "<table></table>");
+    write(&root, &rel::screen(HTML_FILE), TABLE);
     let variant = json!({ "id": "a", "file": "screens/a.html" });
     let check = |manifest: Value| {
         write(&root, rel::MANIFEST, &manifest.to_string());
-        let coverage = state_coverage(&root, &rel::screen(HTML_FILE), "<table></table>");
+        let coverage = state_coverage(&root, &rel::screen(HTML_FILE), TABLE);
         (lint_manifest(&root).is_ok(), coverage.is_ok())
     };
     // Wrong types the Node code read without trouble.
@@ -919,7 +946,7 @@ fn a_manifest_of_the_wrong_shape_is_an_error_where_node_dies() {
         ),
         // `find` and `some` stop at the first match: what follows it is not read.
         (
-            json!({ "screens": [{ "id": "a", "states": ["loading", "empty", "error"], "variants": [variant, null] }, null] }),
+            json!({ "screens": [{ "id": "a", "states": [state::LOADING, state::EMPTY, state::ERROR], "variants": [variant, null] }, null] }),
             (false, true),
         ),
         (json!({ "screens": [], "pages": {} }), (false, true)),
@@ -929,7 +956,7 @@ fn a_manifest_of_the_wrong_shape_is_an_error_where_node_dies() {
             (false, true),
         ),
         (
-            json!({ "screens": [{ "id": "a", "states": "loading", "variants": [variant] }] }),
+            json!({ "screens": [{ "id": "a", "states": state::LOADING, "variants": [variant] }] }),
             (true, false),
         ),
         (

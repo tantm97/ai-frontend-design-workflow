@@ -29,13 +29,13 @@ fn fmt_color(c: Option<&Value>) -> String {
         }
         _ => String::new(),
     };
-    let token = js::truthy_value(c.get("token"))
+    let token = js::truthy_value(c.get(field::TOKEN))
         .map_or(String::new(), |t| format!(" ({})", js::to_string(Some(t))));
     format!("{}{opacity}{token}", js::to_string(c.get("color")))
 }
 
 fn has_token(c: Option<&Value>) -> bool {
-    js::truthy(c.and_then(|c| c.get("token")))
+    js::truthy(c.and_then(|c| c.get(field::TOKEN)))
 }
 
 /// `("<text>")` for a removed or added text, cut at `max` characters.
@@ -57,61 +57,61 @@ pub fn describe_change(c: &Value) -> String {
         other => rounded(other),
     };
     let s = |key: &str| js::to_string(c.get(key));
-    match c.get("type").and_then(Value::as_str) {
-        Some("text") => format!(
+    match c.get(field::TYPE).and_then(Value::as_str) {
+        Some(change_type::TEXT) => format!(
             "{} changed: \"{}\" -> \"{}\"",
             if js::truthy(c.get("placeholder")) {
                 "Placeholder"
             } else {
                 "Text"
             },
-            js::norm(c.get("from")),
-            js::norm(c.get("to"))
+            js::norm(c.get(field::FROM)),
+            js::norm(c.get(field::TO))
         ),
-        Some("move") => format!(
+        Some(change_type::MOVE) => format!(
             "Moved by {}, {} px (now x {}, y {})",
             delta("x"),
             delta("y"),
-            at("to", 0),
-            at("to", 1)
+            at(field::TO, 0),
+            at(field::TO, 1)
         ),
-        Some("resize") => format!(
+        Some(change_type::RESIZE) => format!(
             "Resized {}x{} -> {}x{} px{}",
-            at("from", 2),
-            at("from", 3),
-            at("to", 2),
-            at("to", 3),
+            at(field::FROM, 2),
+            at(field::FROM, 3),
+            at(field::TO, 2),
+            at(field::TO, 3),
             if moved_beyond(c) {
                 format!(", moved by {}, {}", delta("x"), delta("y"))
             } else {
                 String::new()
             }
         ),
-        Some("fill") => format!(
+        Some(change_type::FILL) => format!(
             "Colour changed: {} -> {}{}",
-            fmt_color(c.get("from")),
-            fmt_color(c.get("to")),
-            if js::truthy(c.get("to")) && !has_token(c.get("to")) {
+            fmt_color(c.get(field::FROM)),
+            fmt_color(c.get(field::TO)),
+            if js::truthy(c.get(field::TO)) && !has_token(c.get(field::TO)) {
                 " (no token has this value: use a token or propose one)"
             } else {
                 ""
             }
         ),
-        Some("rename") => format!(
+        Some(change_type::RENAME) => format!(
             "Layer renamed \"{}\" -> \"{}\" (data-dfw-id stays; rename only if intended)",
-            s("from"),
-            s("to")
+            s(field::FROM),
+            s(field::TO)
         ),
-        Some("removed") => removed_line(c),
-        Some("added") => format!(
+        Some(change_type::REMOVED) => removed_line(c),
+        Some(change_type::ADDED) => format!(
             "Added in Penpot: {} \"{}\" at {}{}",
             s("kind"),
             s("name"),
             rounded_list(c.get("bbox")),
             added_text(c)
         ),
-        Some("board-removed") => "Board deleted in Penpot".to_string(),
-        Some("comment") => list(c.get("messages"))
+        Some(change_type::BOARD_REMOVED) => "Board deleted in Penpot".to_string(),
+        Some(change_type::COMMENT) => list(c.get("messages"))
             .iter()
             .map(|m| {
                 format!(
@@ -168,7 +168,7 @@ fn token_or(token: Option<&Value>, what: &str) -> String {
 #[allow(clippy::too_many_lines, reason = "Long: one sentence per change type")]
 pub fn describe_component_change(c: &Value) -> String {
     let s = |key: &str| js::to_string(c.get(key));
-    let (from, to) = (c.get("from"), c.get("to"));
+    let (from, to) = (c.get(field::FROM), c.get(field::TO));
     let sub = |v: Option<&Value>, key: &str| js::to_string(v.and_then(|v| v.get(key)));
     let no_colour_token = |v: Option<&Value>| {
         if has_token(v) {
@@ -177,15 +177,15 @@ pub fn describe_component_change(c: &Value) -> String {
             " (no colour token has this value)"
         }
     };
-    match c.get("type").and_then(Value::as_str) {
-        Some("text") => format!(
+    match c.get(field::TYPE).and_then(Value::as_str) {
+        Some(change_type::TEXT) => format!(
             "Example text changed: \"{}\" -> \"{}\" (slot/default content; screens pass their own text)",
             js::norm(from),
             js::norm(to)
         ),
-        Some("fill") => format!(
+        Some(change_type::FILL) => format!(
             "{} changed: {} -> {}{}",
-            if kind(c) == Some("text") {
+            if kind(c) == Some(wire::kind::TEXT) {
                 "Text colour"
             } else {
                 "Fill"
@@ -198,7 +198,7 @@ pub fn describe_component_change(c: &Value) -> String {
                 ""
             }
         ),
-        Some("stroke") => {
+        Some(change_type::STROKE) => {
             if !js::truthy(from) {
                 return format!(
                     "Border added: {}px {}{}",
@@ -233,7 +233,7 @@ pub fn describe_component_change(c: &Value) -> String {
                 no_colour_token(to)
             )
         }
-        Some("radius") => {
+        Some(change_type::RADIUS) => {
             let corners = |v: Option<&Value>| {
                 list(v.and_then(|v| v.get("radius")))
                     .iter()
@@ -241,7 +241,7 @@ pub fn describe_component_change(c: &Value) -> String {
                     .collect::<Vec<_>>()
                     .join(" ")
             };
-            let from_token = js::truthy_value(from.and_then(|f| f.get("token")))
+            let from_token = js::truthy_value(from.and_then(|f| f.get(field::TOKEN)))
                 .map_or(String::new(), |t| format!(" ({})", js::to_string(Some(t))));
             let now = list(to.and_then(|t| t.get("radius")));
             let uniform = now.iter().all(|v| js::strict_eq(Some(v), now.first()));
@@ -250,13 +250,13 @@ pub fn describe_component_change(c: &Value) -> String {
                 corners(from),
                 corners(to),
                 if uniform {
-                    token_or(to.and_then(|t| t.get("token")), "radius")
+                    token_or(to.and_then(|t| t.get(field::TOKEN)), "radius")
                 } else {
                     String::new()
                 }
             )
         }
-        Some("size") => {
+        Some(change_type::SIZE) => {
             let at = |v: Option<&Value>, i: usize| rounded(v.and_then(|v| v.get(i)));
             let token = |k: &str| js::truthy_value(c.get("tokens").and_then(|t| t.get(k)));
             let tokens: Vec<String> = [("w", "width"), ("h", "height")]
@@ -278,9 +278,9 @@ pub fn describe_component_change(c: &Value) -> String {
                 }
             )
         }
-        Some("spacing") => {
+        Some(change_type::SPACING) => {
             let sides: Vec<String> = c
-                .get("sides")
+                .get(field::SIDES)
                 .and_then(Value::as_object)
                 .map(js::entries)
                 .unwrap_or_default()
@@ -288,9 +288,9 @@ pub fn describe_component_change(c: &Value) -> String {
                 .map(|(side, v)| {
                     format!(
                         "{side} {} -> {}{}",
-                        fmt_px(v.get("from")),
-                        fmt_px(v.get("to")),
-                        token_or(v.get("token"), "space")
+                        fmt_px(v.get(field::FROM)),
+                        fmt_px(v.get(field::TO)),
+                        token_or(v.get(field::TOKEN), "space")
                     )
                 })
                 .collect();
@@ -304,19 +304,19 @@ pub fn describe_component_change(c: &Value) -> String {
                 }
             )
         }
-        Some("rename") => {
+        Some(change_type::RENAME) => {
             if js::truthy(c.get("isRoot")) {
                 format!(
                     "Component renamed \"{}\" -> \"{}\" (the master's name/variant ids stay; rename only if intended)",
-                    s("from"),
-                    s("to")
+                    s(field::FROM),
+                    s(field::TO)
                 )
             } else {
-                format!("Layer renamed \"{}\" -> \"{}\"", s("from"), s("to"))
+                format!("Layer renamed \"{}\" -> \"{}\"", s(field::FROM), s(field::TO))
             }
         }
-        Some("removed") => removed_line(c),
-        Some("added") => format!(
+        Some(change_type::REMOVED) => removed_line(c),
+        Some(change_type::ADDED) => format!(
             "Added in Penpot inside \"{}\": {} \"{}\" at {}{}",
             s("name"),
             s("kind"),
@@ -324,7 +324,7 @@ pub fn describe_component_change(c: &Value) -> String {
             rounded_list(c.get("bbox")),
             added_text(c)
         ),
-        Some("component-removed") => {
+        Some(change_type::COMPONENT_REMOVED) => {
             "Main component deleted in Penpot (remove the variant only if intended: screens may use it)"
                 .to_string()
         }

@@ -371,9 +371,12 @@ fn is_program(path: &str) -> bool {
     meta.is_file()
 }
 
+/// The environment variable that lists the folders searched for a program.
+pub const PATH_VAR: &str = "PATH";
+
 /// [`find_in_path`] on this process's `PATH` (and `PATHEXT` on Windows).
 pub fn find_executable(name: &str) -> Option<PathBuf> {
-    let path = std::env::var("PATH").unwrap_or_default();
+    let path = std::env::var(PATH_VAR).unwrap_or_default();
     let pathext = std::env::var("PATHEXT").ok();
     find_in_path(name, &path, pathext.as_deref(), cfg!(windows), &is_program).map(PathBuf::from)
 }
@@ -706,9 +709,18 @@ mod tests {
     /// tries PATHEXT in order, and runs a .cmd through cmd.exe with every part quoted.
     #[test]
     fn windows_lookup_skips_the_current_folder_and_quotes_cmd_shims() {
+        /// A program in a folder with a space.
+        const NODE_EXE: &str = "C:\\Program Files\\nodejs\\node.exe";
+        /// A .cmd shim, run through cmd.exe.
+        const CLAUDE_CMD: &str = "C:\\Users\\me\\AppData\\Roaming\\npm\\claude.cmd";
+        const CLAUDE: &str = "claude";
+        /// An argument cmd.exe would read as two commands.
+        const AMPERSAND: &str = "a&b";
+        /// An argument that needs no quotes.
+        const PLAIN: &str = "plain";
         let files = [
-            "C:\\Program Files\\nodejs\\node.exe",
-            "C:\\Users\\me\\AppData\\Roaming\\npm\\claude.cmd",
+            NODE_EXE,
+            CLAUDE_CMD,
             "node.cmd",
             ".\\claude.bat",
             "repo\\bin\\npx.cmd",
@@ -723,7 +735,7 @@ mod tests {
             Some("C:\\Program Files\\nodejs\\node.EXE")
         );
         assert_eq!(
-            find("claude").as_deref(),
+            find(CLAUDE).as_deref(),
             Some("C:\\Users\\me\\AppData\\Roaming\\npm\\claude.CMD")
         );
         assert_eq!(find("npx"), None, "a relative PATH entry is not searched");
@@ -731,61 +743,55 @@ mod tests {
         assert_eq!(find("..\\node"), None);
         // PATHEXT decides which extensions count, in its order.
         assert_eq!(
-            find_in_path("claude", path, Some(".EXE"), true, &exists),
+            find_in_path(CLAUDE, path, Some(".EXE"), true, &exists),
             None
         );
         assert_eq!(
             find_in_path("claude.cmd", path, Some(".EXE;.CMD"), true, &exists).as_deref(),
-            Some("C:\\Users\\me\\AppData\\Roaming\\npm\\claude.cmd")
+            Some(CLAUDE_CMD)
         );
 
         let shim = plan_for(
-            "C:\\Users\\me\\AppData\\Roaming\\npm\\claude.cmd",
+            CLAUDE_CMD,
             vec![
                 "a&calc".into(),
                 "C:\\Users\\John Doe\\repo".into(),
-                "plain".into(),
+                PLAIN.into(),
             ],
             true,
         );
         assert_eq!(
             shim,
             Spawn {
-                cmd: "\"C:\\Users\\me\\AppData\\Roaming\\npm\\claude.cmd\"".into(),
+                cmd: format!("\"{CLAUDE_CMD}\""),
                 args: vec![
                     "\"a&calc\"".into(),
                     "\"C:\\Users\\John Doe\\repo\"".into(),
-                    "plain".into()
+                    PLAIN.into()
                 ],
                 shell: true
             }
         );
-        let exe = plan_for(
-            "C:\\Program Files\\nodejs\\node.exe",
-            vec!["a&b".into()],
-            true,
-        );
-        assert_eq!(
-            exe,
-            Spawn::direct("C:\\Program Files\\nodejs\\node.exe", vec!["a&b".into()])
-        );
+        let exe = plan_for(NODE_EXE, vec![AMPERSAND.into()], true);
+        assert_eq!(exe, Spawn::direct(NODE_EXE, vec![AMPERSAND.into()]));
         assert!(!plan_for("/usr/bin/claude.cmd", Vec::new(), false).shell);
     }
 
     #[test]
     fn posix_lookup_skips_relative_entries() {
-        let files = ["node", "./node", "bin/node", "/opt/node/bin/node"];
+        const NODE: &str = "node";
+        /// The one [`NODE`] in an absolute folder.
+        const ABSOLUTE: &str = "/opt/node/bin/node";
+        let files = [NODE, "./node", "bin/node", ABSOLUTE];
         let exists = |p: &str| files.contains(&p);
-        let find = |path: &str| find_in_path("node", path, None, false, &exists);
-        assert_eq!(
-            find(":.:bin:/opt/node/bin/").as_deref(),
-            Some("/opt/node/bin/node")
-        );
+        let find = |path: &str| find_in_path(NODE, path, None, false, &exists);
+        assert_eq!(find(":.:bin:/opt/node/bin/").as_deref(), Some(ABSOLUTE));
         assert_eq!(find("::.:bin"), None);
         assert_eq!(find_in_path("a/node", "/opt", None, false, &exists), None);
         // The real lookup: a program in the current folder is not found through a "." entry.
         let dir = crate::core::util::test_dir("lookup");
-        let bin = dir.join("dfw-lookup-probe");
+        const PROBE: &str = "dfw-lookup-probe";
+        let bin = dir.join(PROBE);
         std::fs::write(&bin, "#!/bin/sh\n").unwrap();
         #[cfg(unix)]
         {
@@ -793,24 +799,22 @@ mod tests {
             std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
             let abs = dir.display().to_string();
             assert_eq!(
-                find_in_path("dfw-lookup-probe", &abs, None, false, &is_program),
+                find_in_path(PROBE, &abs, None, false, &is_program),
                 Some(bin.display().to_string())
             );
             std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o644)).unwrap();
-            assert_eq!(
-                find_in_path("dfw-lookup-probe", &abs, None, false, &is_program),
-                None
-            );
+            assert_eq!(find_in_path(PROBE, &abs, None, false, &is_program), None);
         }
     }
 
     #[test]
     fn cmd_quoting() {
-        assert_eq!(quote_for_cmd("plain", false), "plain");
+        const PLAIN: &str = "plain";
+        assert_eq!(quote_for_cmd(PLAIN, false), PLAIN);
         assert_eq!(quote_for_cmd("a&calc", false), "\"a&calc\"");
         assert_eq!(quote_for_cmd("", false), "\"\"");
         assert_eq!(quote_for_cmd("say \"hi\"", false), "\"say \"\"hi\"\"\"");
-        assert_eq!(quote_for_cmd("plain", true), "\"plain\"");
+        assert_eq!(quote_for_cmd(PLAIN, true), format!("\"{PLAIN}\""));
         assert_eq!(quote_for_cmd("a\"b", true), "\"a\"b\"");
     }
 

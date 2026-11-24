@@ -13,13 +13,14 @@ use crate::core::util::{
 };
 
 use super::gates::relative;
-use super::state::{approve_gate, push_history, save_state, state_field_error};
+use super::state::phase::{CONCEPTS, DONE, IMPLEMENT, STACK, VERIFY};
+use super::state::{approve_gate, field, push_history, save_state, state_field_error};
 
 const EXCLUDE: [&str; 2] = [file::APPROVED, file::HANDOFF];
 
 /// Canonical product/design documents live at the project root because Impeccable and Hallmark
 /// read them there; they are frozen with the design.
-pub const ROOT_DOCS: [&str; 2] = ["PRODUCT.md", "DESIGN.md"];
+pub const ROOT_DOCS: [&str; 2] = [rel::PRODUCT_DOC, rel::DESIGN_DOC];
 
 /// One file of a design hash.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -226,19 +227,19 @@ pub fn reopen_design(
     design.insert("version".into(), next.clone());
     design.insert("status".into(), "draft".into());
     design.insert("locked".into(), false.into());
-    match state.get_mut("gates") {
+    match state.get_mut(field::GATES) {
         Some(Value::Object(gates)) => {
             gates.insert("G2".into(), Value::Null);
             gates.insert("G4".into(), Value::Null);
         }
-        _ => return Err(state_field_error("gates", "an object")),
+        _ => return Err(state_field_error(field::GATES, "an object")),
     }
     let late = matches!(
-        state.get("phase").and_then(Value::as_str),
-        Some("implement" | "verify" | "done" | "stack")
+        state.get(field::PHASE).and_then(Value::as_str),
+        Some(IMPLEMENT | VERIFY | DONE | STACK)
     );
     if late {
-        state["phase"] = "concepts".into();
+        state[field::PHASE] = CONCEPTS.into();
     }
     push_history(
         state,
@@ -258,6 +259,7 @@ mod tests {
     use super::*;
     use crate::core::fixture::{SCREEN, SCREEN_PAGE};
     use crate::core::util::{test_dir, write_json};
+    use crate::workflow::state::mode_name::NEW_PRODUCT;
     use crate::workflow::state::{load_state, new_state};
 
     /// e: a comment file or snapshot version from input never leaves design/
@@ -289,14 +291,14 @@ mod tests {
         fs::create_dir_all(root.join(rel::DESIGN)).unwrap();
         fs::write(root.join(rel::MANIFEST), "{}").unwrap();
         for bad in [
-            json!("1/../../../../escaped"),
+            json!(format!("1/../../../../{ESCAPED}")),
             json!("../x"),
             json!(1.5),
             json!(null),
             json!(""),
         ] {
-            let mut s = new_state("new-product", "".into()).unwrap();
-            s["design"]["version"] = bad.clone();
+            let mut s = new_state(NEW_PRODUCT, "".into()).unwrap();
+            s[field::DESIGN][field::VERSION] = bad.clone();
             let err = freeze_design(&root, &mut s, None).unwrap_err();
             assert!(
                 err.message().starts_with(&format!(
@@ -305,9 +307,11 @@ mod tests {
                 )),
                 "{bad}"
             );
-            assert_eq!(s["design"]["status"], "draft", "{bad}");
+            assert_eq!(s[field::DESIGN]["status"], "draft", "{bad}");
         }
-        assert!(!root.join("escaped").exists() && !root.parent().unwrap().join("escaped").exists());
+        /// The folder a version with `..` would name.
+        const ESCAPED: &str = "escaped";
+        assert!(!root.join(ESCAPED).exists() && !root.parent().unwrap().join(ESCAPED).exists());
         assert!(!root.join(rel::APPROVED).exists());
     }
 
@@ -315,17 +319,18 @@ mod tests {
     #[test]
     fn freeze_snapshot_lock_tamper_detection_reopen() {
         let root = test_dir("freeze");
-        let mut s = new_state("new-product", "".into()).unwrap();
-        s["gates"]["G1"] = json!({ "approvedAt": "x" });
-        s["phase"] = "concepts".into();
+        let mut s = new_state(NEW_PRODUCT, "".into()).unwrap();
+        s[field::GATES]["G1"] = json!({ "approvedAt": "x" });
+        s[field::PHASE] = CONCEPTS.into();
         save_state(&root, &mut s).unwrap();
         fs::create_dir_all(root.join(rel::screen(SCREEN))).unwrap();
         fs::write(root.join(rel::MANIFEST), r#"{"schema":1,"screens":[]}"#).unwrap();
         fs::write(root.join(rel::screen(SCREEN_PAGE)), "<html></html>").unwrap();
-        fs::write(root.join("DESIGN.md"), "# Design").unwrap();
+        fs::write(root.join(rel::DESIGN_DOC), "# Design").unwrap();
         let mut s = load_state(&root).unwrap().unwrap();
         freeze_design(&root, &mut s, Some("ok".into())).unwrap();
-        assert_eq!(s["design"]["status"], "approved");
+        let design = &s[field::DESIGN];
+        assert_eq!(design["status"], "approved");
         assert!(root.join(rel::approved("v1/docs/DESIGN.md")).exists());
         assert!(verify_snapshot(&root, "v1").unwrap().is_empty());
         fs::write(
@@ -344,9 +349,10 @@ mod tests {
             .contains("already approved"));
         let mut s = load_state(&root).unwrap().unwrap();
         reopen_design(&root, &mut s, Some("client feedback".into())).unwrap();
-        assert_eq!(s["design"]["version"], 2);
-        assert_eq!(s["design"]["locked"], false);
-        assert_eq!(s["gates"]["G2"], Value::Null);
+        let design = &s[field::DESIGN];
+        assert_eq!(design[field::VERSION], 2);
+        assert_eq!(design["locked"], false);
+        assert_eq!(s[field::GATES]["G2"], Value::Null);
     }
 
     #[test]
@@ -365,7 +371,7 @@ mod tests {
             "not frozen",
         )
         .unwrap();
-        fs::write(root.join("PRODUCT.md"), "# Product").unwrap();
+        fs::write(root.join(rel::PRODUCT_DOC), "# Product").unwrap();
         let h = hash_design(&root).unwrap();
         let paths: Vec<&str> = h.files.iter().map(|f| f.path.as_str()).collect();
         assert_eq!(paths, [CSS, file::MANIFEST, "docs/PRODUCT.md"]);
@@ -376,17 +382,19 @@ mod tests {
             .collect();
         assert_eq!(h.hash, sha256(lines.join("\n")));
 
-        let mut s = new_state("new-product", "".into()).unwrap();
+        let mut s = new_state(NEW_PRODUCT, "".into()).unwrap();
         freeze_design(&root, &mut s, None).unwrap();
         let lock = fs::read_to_string(root.join(rel::approved("v1/approval.lock.json"))).unwrap();
         assert!(lock.starts_with("{\n  \"version\": \"v1\",\n  \"approvedAt\": \""));
         assert!(!lock.contains("\"note\""), "no note, no field");
         assert!(!root.join(rel::approved("v1/handoff")).exists());
-        assert_eq!(s["gates"]["G2"]["hash"], h.hash.as_str());
-        assert_eq!(s["design"]["approved"][0]["version"], "v1");
-        let last = s["history"].as_array().unwrap().last().unwrap();
+        assert_eq!(s[field::GATES]["G2"]["hash"], h.hash.as_str());
+        /// The field of an approval record and of a history entry that names the version.
+        const VERSION: &str = "version";
+        assert_eq!(s[field::DESIGN][field::APPROVED][0][VERSION], "v1");
+        let last = s[field::HISTORY].as_array().unwrap().last().unwrap();
         assert_eq!(last["gate"], "G2");
-        assert_eq!(last["version"], "v1");
+        assert_eq!(last[VERSION], "v1");
 
         fs::write(root.join(rel::approved("v1/extra.txt")), "x").unwrap();
         fs::remove_file(root.join(rel::approved("v1/b.css"))).unwrap();
@@ -398,19 +406,20 @@ mod tests {
             .unwrap_err()
             .message()
             .starts_with("No approval.lock.json in "));
-        let mut draft = new_state("new-product", "".into()).unwrap();
+        let mut draft = new_state(NEW_PRODUCT, "".into()).unwrap();
         assert!(reopen_design(&root, &mut draft, None)
             .unwrap_err()
             .message()
             .contains("needs --reason"));
-        assert!(reopen_design(&root, &mut draft, Some("why".into()))
+        const REASON: &str = "why";
+        assert!(reopen_design(&root, &mut draft, Some(REASON.into()))
             .unwrap_err()
             .message()
             .contains("nothing to re-open"));
-        s["phase"] = "verify".into();
-        reopen_design(&root, &mut s, Some("why".into())).unwrap();
-        assert_eq!(s["phase"], "concepts");
-        let last = s["history"].as_array().unwrap().last().unwrap();
+        s[field::PHASE] = VERIFY.into();
+        reopen_design(&root, &mut s, Some(REASON.into())).unwrap();
+        assert_eq!(s[field::PHASE], CONCEPTS);
+        let last = s[field::HISTORY].as_array().unwrap().last().unwrap();
         assert_eq!(
             (last["from"].as_str(), last["to"].as_str()),
             (Some("v1"), Some("v2"))
@@ -423,8 +432,13 @@ mod tests {
         let root = test_dir("doctor-snapshot");
         let dir = project_paths(&root).approved.join("v1");
         fs::create_dir_all(dir.join(file::SCREENS)).unwrap();
-        fs::write(dir.join("kept.html"), "kept").unwrap();
-        fs::write(dir.join("screens/changed.html"), "now").unwrap();
+        /// A file whose content is what the lock says.
+        const KEPT: &str = "kept.html";
+        const KEPT_TEXT: &str = "kept";
+        /// A file whose content changed since the lock.
+        const CHANGED: &str = "screens/changed.html";
+        fs::write(dir.join(KEPT), KEPT_TEXT).unwrap();
+        fs::write(dir.join(CHANGED), "now").unwrap();
         fs::write(dir.join("extra.css"), "x").unwrap();
         assert_eq!(
             verify_snapshot(&root, "v1").unwrap_err().message(),
@@ -433,8 +447,8 @@ mod tests {
         write_json(
             &dir.join("approval.lock.json"),
             &json!({ "files": [
-                { "path": "kept.html", "sha256": sha256("kept") },
-                { "path": "screens/changed.html", "sha256": sha256("before") },
+                { "path": KEPT, "sha256": sha256(KEPT_TEXT) },
+                { "path": CHANGED, "sha256": sha256("before") },
                 { "path": "gone.html", "sha256": sha256("gone") },
             ] }),
         )
@@ -442,7 +456,7 @@ mod tests {
         assert_eq!(
             verify_snapshot(&root, "v1").unwrap(),
             [
-                "modified: screens/changed.html",
+                format!("modified: {CHANGED}").as_str(),
                 "missing: gone.html",
                 "added: extra.css"
             ]

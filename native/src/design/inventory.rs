@@ -26,6 +26,14 @@ pub const DS_GATE_RULES: [&str; 4] = [
     "inventory-invalid",
 ];
 
+/// The rule of a master or examples copied from the starter kit verbatim.
+pub(crate) const KIT_COPY: &str = "kit-copy";
+
+/// The blocks of a master a kit copy is recognised by.
+const STYLE_BLOCK: &str = "style";
+const TEMPLATE_BLOCK: &str = "template";
+const EXAMPLES_BLOCK: &str = "dfw-examples";
+
 const STATES: [&str; 11] = [
     "hover",
     "focus-visible",
@@ -206,7 +214,7 @@ pub fn kit_refs() -> Result<Vec<KitRef>, DfwError> {
                 .unwrap_or_default()
                 .to_string()
         };
-        let css = block(&text, "style");
+        let css = block(&text, STYLE_BLOCK);
         refs.push(KitRef {
             name: file_stem(&f),
             group: attr("group"),
@@ -251,9 +259,9 @@ fn kit_fingerprints() -> Result<KitFingerprints, DfwError> {
     for f in kit_files() {
         let text = kit_text(&f).unwrap_or_default();
         for (map, tag) in [
-            (&mut kit.styles, "style"),
-            (&mut kit.templates, "template"),
-            (&mut kit.examples, "dfw-examples"),
+            (&mut kit.styles, STYLE_BLOCK),
+            (&mut kit.templates, TEMPLATE_BLOCK),
+            (&mut kit.examples, EXAMPLES_BLOCK),
         ] {
             let b = block(&text, tag);
             if !b.is_empty() {
@@ -334,15 +342,15 @@ pub fn inventory_findings(root: &Path) -> Result<Vec<Value>, DfwError> {
                 names.push((name.to_string(), rel.clone()));
             }
         }
-        let st = block(&text, "style");
-        let tp = block(&text, "template");
-        let ex = block(&text, "dfw-examples");
+        let st = block(&text, STYLE_BLOCK);
+        let tp = block(&text, TEMPLATE_BLOCK);
+        let ex = block(&text, EXAMPLES_BLOCK);
         match (kit.templates.get(&tp), kit.examples.get(&ex)) {
             (Some(from), _) if !st.is_empty() && !tp.is_empty() && kit.styles.contains_key(&st) => {
-                add(Level::Error, "kit-copy", &rel, format!("Master is the starter kit's \"{from}\" copied verbatim. Design it for this product (its job, content, states and the direction's look); the kit is a reference only (\"dfw system ref {from}\")."));
+                add(Level::Error, KIT_COPY, &rel, format!("Master is the starter kit's \"{from}\" copied verbatim. Design it for this product (its job, content, states and the direction's look); the kit is a reference only (\"dfw system ref {from}\")."));
             }
             (_, Some(from)) if !ex.is_empty() => {
-                add(Level::Error, "kit-copy", &rel, format!("Examples are the starter kit's \"{from}\" examples (another product's content). Show this product's real content in every variant and state."));
+                add(Level::Error, KIT_COPY, &rel, format!("Examples are the starter kit's \"{from}\" examples (another product's content). Show this product's real content in every variant and state."));
             }
             _ => {}
         }
@@ -437,13 +445,16 @@ pub fn inventory_findings(root: &Path) -> Result<Vec<Value>, DfwError> {
 mod tests {
     use super::*;
 
+    /// A component of the starter kit.
+    const KIT_BUTTON: &str = "button";
+
     #[test]
     fn blocks_compare_without_comments_and_layout() {
         let a = "<dfw-component name=\"x\">\n<style>\n/* c */ .a {  color: red; }\n</style>\n<template>\n<!-- root -->\n<b>\n x</b>\n</template></dfw-component>";
-        assert_eq!(block(a, "style"), "/* c */ .a { color: red; }");
-        assert_eq!(block(a, "template"), "<b> x</b>");
-        assert_eq!(block(a, "dfw-examples"), "");
-        assert_eq!(block("<template>never closed", "template"), "");
+        assert_eq!(block(a, STYLE_BLOCK), "/* c */ .a { color: red; }");
+        assert_eq!(block(a, TEMPLATE_BLOCK), "<b> x</b>");
+        assert_eq!(block(a, EXAMPLES_BLOCK), "");
+        assert_eq!(block("<template>never closed", TEMPLATE_BLOCK), "");
     }
 
     #[test]
@@ -458,8 +469,8 @@ mod tests {
         let refs = kit_refs().unwrap();
         assert!(refs
             .iter()
-            .any(|r| r.name == "button" && r.states.iter().any(|s| s == "focus-visible")));
-        assert!(kit_ref("button")
+            .any(|r| r.name == KIT_BUTTON && r.states.iter().any(|s| s == "focus-visible")));
+        assert!(kit_ref(KIT_BUTTON)
             .unwrap()
             .contains("<dfw-component name=\"button\""));
         let err = kit_ref("nope").unwrap_err();

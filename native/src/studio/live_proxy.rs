@@ -51,13 +51,16 @@ const LOCAL_HOSTS: [&str; 5] = ["localhost", "127.0.0.1", "::1", "[::1]", "0.0.0
 /// Comment-mode key when nothing else is set.
 pub const DEFAULT_SHORTCUT: &str = "alt+c";
 
+/// The shortcut setting that turns comment mode's key off.
+pub const SHORTCUT_OFF: &str = "off";
+
 /// `normalizeShortcut(raw)`: a review shortcut ("Alt+C", "option+c", "ctrl+shift+k", "c",
 /// "off") in `ctrl+alt+shift+meta+<key>` order. One letter or digit plus optional modifiers;
 /// "off" disables it.
 pub fn normalize_shortcut(raw: &str) -> Result<String, DfwError> {
     let s = js::trim(raw).to_lowercase();
-    if s.is_empty() || s == "off" || s == "none" || s == "false" {
-        return Ok("off".into());
+    if s.is_empty() || s == SHORTCUT_OFF || s == "none" || s == "false" {
+        return Ok(SHORTCUT_OFF.into());
     }
     let modifier = |part: &str| -> Option<&'static str> {
         Some(match part {

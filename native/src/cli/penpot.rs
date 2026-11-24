@@ -5,6 +5,7 @@ use std::path::Path;
 
 use serde_json::{json, Map, Value};
 
+use super::word::{command, sub};
 use super::{Ctx, Handler};
 use crate::core::config::load_config;
 use crate::core::error::exit;
@@ -27,7 +28,7 @@ use crate::workflow::state::load_state;
 
 /// The commands of this group.
 pub fn commands() -> Vec<(&'static str, Handler)> {
-    vec![("penpot", run as Handler)]
+    vec![(command::PENPOT, run as Handler)]
 }
 
 /// A value flag as the Node CLI read it in `a.flag || null`: its text, nothing when it is
@@ -42,9 +43,9 @@ fn flag_text(ctx: &Ctx, key: &str) -> Option<String> {
 fn run(ctx: &Ctx) -> Result<i32, DfwError> {
     let root = ctx.root();
     match ctx.args.pos(1) {
-        Some("export") => export(ctx, &root),
-        Some("import") => import(ctx, &root),
-        Some("plugin") => plugin(&root),
+        Some(sub::EXPORT) => export(ctx, &root),
+        Some(sub::IMPORT) => import(ctx, &root),
+        Some(sub::PLUGIN) => plugin(&root),
         _ => Err(DfwError::new(
             "Usage: dfw penpot export [--page <id>] [--bp <ids>] | plugin | import <changes.json> [--dry-run]",
         )),

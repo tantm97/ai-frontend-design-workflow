@@ -235,24 +235,22 @@ mod tests {
 
     #[test]
     fn a_poll_reports_new_changed_and_removed_files() {
+        /// A file the poll sees removed.
+        const GONE: &str = "gone.css";
         let dir = test_dir("studio-watch-poll");
         fs::create_dir_all(dir.join(file::SCREENS)).unwrap();
         fs::write(dir.join(file::SCREENS).join(HTML_FILE), "a").unwrap();
-        fs::write(dir.join("gone.css"), "x").unwrap();
+        fs::write(dir.join(GONE), "x").unwrap();
         let mut w = Watched::new("design", dir.clone());
         assert!(w.poll().is_empty());
         fs::write(dir.join(file::SCREENS).join(HTML_FILE), "ab").unwrap();
         fs::write(dir.join("new.css"), "x").unwrap();
         fs::write(dir.join("skip.json.1.tmp"), "x").unwrap();
-        fs::remove_file(dir.join("gone.css")).unwrap();
+        fs::remove_file(dir.join(GONE)).unwrap();
         let mut got = w.poll();
         got.sort();
         let a = format!("design:screens{MAIN_SEPARATOR}a.html");
-        let mut want = vec![
-            a,
-            "design:gone.css".to_string(),
-            "design:new.css".to_string(),
-        ];
+        let mut want = vec![a, format!("design:{GONE}"), "design:new.css".to_string()];
         want.sort();
         assert_eq!(got, want);
         fs::remove_dir_all(&dir).unwrap();

@@ -11,6 +11,7 @@ use std::path::Path;
 
 use serde_json::Value;
 
+use super::word::command;
 use super::{Ctx, Handler};
 use crate::core::config::load_config;
 use crate::core::error::DfwError;
@@ -43,7 +44,7 @@ const SUBCOMMANDS: &[(&str, Subcommand)] = &[
 
 /// The command of this file.
 pub fn commands() -> Vec<(&'static str, Handler)> {
-    vec![("__debug", run as Handler)]
+    vec![(command::DEBUG, run as Handler)]
 }
 
 fn run(ctx: &Ctx) -> Result<i32, DfwError> {

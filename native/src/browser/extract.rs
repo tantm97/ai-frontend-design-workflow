@@ -14,7 +14,7 @@ use crate::core::js;
 use crate::core::paths::{rel, resolve};
 use crate::core::util::{ensure_inside, now_iso, to_json_pretty, write_atomic};
 use crate::design::color::{hex_to_oklch, hex_to_rgb, Oklch};
-use crate::design::tokens::relative_path;
+use crate::design::tokens::{relative_path, TYPE_KEY};
 
 /// `collect` of extract.mjs, byte for byte: it runs in the page and counts style values over
 /// visible elements (backgrounds weighted by area).
@@ -119,7 +119,7 @@ fn token(value: Value) -> Map<String, Value> {
 
 fn group(kind: &str) -> Map<String, Value> {
     let mut group = Map::new();
-    group.insert("$type".into(), json!(kind));
+    group.insert(TYPE_KEY.into(), json!(kind));
     group
 }
 
@@ -269,16 +269,19 @@ mod tests {
         let tokens = tokens_from("http://localhost:1/x", &data);
         let text = to_json_pretty(&tokens);
         let color = tokens["color"].as_object().unwrap();
+        // The colours, most used first.
+        const FIRST: &str = "c01";
+        const SECOND: &str = "c02";
         assert_eq!(
             color.keys().collect::<Vec<_>>(),
-            ["$type", "c01", "c02", "c03"]
+            [TYPE_KEY, FIRST, SECOND, "c03"]
         );
         assert_eq!(
-            crate::core::util::to_json_compact(&color["c01"]),
+            crate::core::util::to_json_compact(&color[FIRST]),
             r##"{"$value":{"colorSpace":"srgb","components":[1,1,1],"hex":"#ffffff"},"$extensions":{"dfw.extracted":{"uses":56,"roles":["background","border"]}}}"##
         );
         assert_eq!(
-            crate::core::util::to_json_compact(&color["c02"]["$value"]),
+            crate::core::util::to_json_compact(&color[SECOND]["$value"]),
             r##"{"colorSpace":"srgb","components":[0.051,0.4196,0.4706],"hex":"#0d6b78"}"##
         );
         assert_eq!(
@@ -295,7 +298,7 @@ mod tests {
                 .unwrap()
                 .keys()
                 .collect::<Vec<_>>(),
-            ["$type", "sp1"]
+            [TYPE_KEY, "sp1"]
         );
         assert!(
             text.starts_with("{\n  \"$description\": \"Extracted from http://localhost:1/x on ")
@@ -314,7 +317,8 @@ mod tests {
         let base = crate::core::util::test_dir("extract-link-out");
         let root = base.join("app");
         fs::create_dir_all(root.join(rel::DESIGN)).unwrap();
-        fs::create_dir_all(base.join("victim")).unwrap();
+        let victim = base.join("victim");
+        fs::create_dir_all(&victim).unwrap();
         std::os::unix::fs::symlink("../../victim", root.join(rel::SYSTEM)).unwrap();
         let err = extract_tokens_to_file(&root, "http://127.0.0.1:9/", None).unwrap_err();
         assert!(
@@ -322,7 +326,7 @@ mod tests {
             "{}",
             err.message()
         );
-        assert!(fs::read_dir(base.join("victim")).unwrap().next().is_none());
+        assert!(fs::read_dir(&victim).unwrap().next().is_none());
         fs::remove_dir_all(&base).unwrap();
     }
 }

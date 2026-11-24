@@ -31,6 +31,23 @@ use layout::rel;
 mod fixture;
 use fixture::{APP_COMPONENT, HTML_FILE};
 
+#[path = "../src/core/word.rs"]
+#[allow(dead_code, reason = "each test binary uses a part of the command line")]
+mod word;
+use word::{command, flag, sub};
+
+#[path = "../src/workflow/names.rs"]
+#[allow(
+    dead_code,
+    reason = "each test binary uses a part of the workflow names"
+)]
+mod names;
+
+#[path = "../src/tools/mcp/names.rs"]
+#[allow(dead_code, reason = "each test binary uses a part of the MCP names")]
+mod mcp_names;
+use mcp_names::{key, tool as mcp_tool, SERVER};
+
 const DFW: &str = env!("CARGO_BIN_EXE_dfw");
 
 fn repo() -> PathBuf {
@@ -103,7 +120,7 @@ fn session(dir: &Path, requests: &[(&str, Value)]) -> Vec<Value> {
             input.push_str("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}\n");
         }
     }
-    let out = run(dfw_command(dir, &["mcp"]), &input);
+    let out = run(dfw_command(dir, &[command::MCP]), &input);
     let replies: Vec<Value> = out
         .lines()
         .map(|l| serde_json::from_str(l).unwrap())
@@ -118,7 +135,7 @@ fn session(dir: &Path, requests: &[(&str, Value)]) -> Vec<Value> {
 fn tool(name: &str, arguments: Value) -> (&'static str, Value) {
     (
         "tools/call",
-        json!({ "name": name, "arguments": arguments }),
+        json!({ (key::NAME): name, "arguments": arguments }),
     )
 }
 
@@ -130,7 +147,7 @@ fn mcp_server_initialize_guide_cli_tool_write_gate() {
     fs::create_dir_all(root.join(rel::DFW)).unwrap();
     fs::write(
         root.join(rel::STATE),
-        json!({ "schema": 1, "product": "", "mode": "new-product", "phase": "discovery", "active": true,
+        json!({ "schema": 1, "product": "", "mode": "new-product", "phase": names::phase::DISCOVERY, "active": true,
             "design": { "version": 1, "status": "draft", "locked": false, "approved": [] },
             "gates": { "G1": null, "DS": null, "G2": null, "G3": null, "G4": null }, "waived": {}, "history": [] })
         .to_string(),
@@ -145,39 +162,46 @@ fn mcp_server_initialize_guide_cli_tool_write_gate() {
                 json!({ "protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": { "name": "t", "version": "1" } }),
             ),
             ("tools/list", json!({})),
-            tool("dfw_guide", json!({})),
+            tool(mcp_tool::GUIDE, json!({})),
             tool(
-                "dfw_guide",
+                mcp_tool::GUIDE,
                 json!({ "topic": "references/phase-concepts.md" }),
             ),
-            tool("dfw_guide", json!({ "topic": "../../package.json" })),
-            tool("dfw", json!({ "args": ["status"], "cwd": cwd })),
-            tool("dfw", json!({ "args": ["install"] })),
+            tool(mcp_tool::GUIDE, json!({ "topic": "../../package.json" })),
+            tool(mcp_tool::CLI, json!({ "args": ["status"], "cwd": cwd })),
+            tool(mcp_tool::CLI, json!({ "args": ["install"] })),
             tool(
-                "dfw_can_write",
+                mcp_tool::CAN_WRITE,
                 json!({ "files": [APP_COMPONENT, &rel::screen(HTML_FILE)], "cwd": cwd }),
             ),
             ("nope/method", json!({})),
         ],
     );
-    let text = |i: usize| replies[i]["result"]["content"][0]["text"].as_str().unwrap();
-    let is_error = |i: usize| replies[i]["result"]["isError"].as_bool().unwrap();
+    let text = |i: usize| {
+        replies[i][key::RESULT]["content"][0]["text"]
+            .as_str()
+            .unwrap()
+    };
+    let is_error = |i: usize| replies[i][key::RESULT]["isError"].as_bool().unwrap();
 
-    assert_eq!(replies[0]["result"]["serverInfo"]["name"], "dfw");
-    assert!(replies[0]["result"]["instructions"]
+    assert_eq!(replies[0][key::RESULT]["serverInfo"][key::NAME], SERVER);
+    assert!(replies[0][key::RESULT]["instructions"]
         .as_str()
         .unwrap()
-        .contains("dfw_can_write"));
-    let names: Vec<&str> = replies[1]["result"]["tools"]
+        .contains(mcp_tool::CAN_WRITE));
+    let names: Vec<&str> = replies[1][key::RESULT]["tools"]
         .as_array()
         .unwrap()
         .iter()
-        .map(|t| t["name"].as_str().unwrap())
+        .map(|t| t[key::NAME].as_str().unwrap())
         .collect();
-    assert_eq!(names, ["dfw_guide", "dfw", "dfw_can_write"]);
+    assert_eq!(names, [mcp_tool::GUIDE, mcp_tool::CLI, mcp_tool::CAN_WRITE]);
 
     assert!(!is_error(2));
-    assert!(text(2).contains("dfw_can_write"), "guide rendered for MCP");
+    assert!(
+        text(2).contains(mcp_tool::CAN_WRITE),
+        "guide rendered for MCP"
+    );
     for leftover in [
         "__DFW_SKILL_DIR__",
         "CLAUDE_SKILL_DIR",
@@ -192,7 +216,8 @@ fn mcp_server_initialize_guide_cli_tool_write_gate() {
 
     assert!(!is_error(5), "{}", text(5));
     assert!(
-        text(5).to_lowercase().contains("discovery") || text(5).to_lowercase().contains("phase")
+        text(5).to_lowercase().contains(names::phase::DISCOVERY)
+            || text(5).to_lowercase().contains("phase")
     );
     assert!(is_error(6));
 
@@ -208,7 +233,7 @@ fn mcp_server_initialize_guide_cli_tool_write_gate() {
 fn mcp_server_answers_lines_that_are_not_requests() {
     let dir = tmp_dir("robust");
     let out = run(
-        dfw_command(&dir, &["mcp"]),
+        dfw_command(&dir, &[command::MCP]),
         "null\n42\n[{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}]\n{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"ping\"}\n",
     );
     let replies: Vec<(Value, Value)> = out
@@ -233,27 +258,32 @@ fn mcp_server_answers_lines_that_are_not_requests() {
 /// mcp install CLI writes each tool config and backs up an existing one
 #[test]
 fn mcp_install_cli_writes_each_tool_config_and_backs_up() {
+    /// The word for every tool `dfw mcp install` knows.
+    const ALL_TOOLS: &str = "all";
+    /// Cursor's MCP config and the key of its servers, in the home folder.
+    const CURSOR_CONFIG: &str = ".cursor/mcp.json";
+    const CURSOR_SERVERS: &str = "mcpServers";
+    /// Codex's MCP config and the table of dfw in it.
+    const CODEX_CONFIG: &str = ".codex/config.toml";
+    const CODEX_ENTRY: &str = "[mcp_servers.dfw]";
     let home = tmp_dir("install");
     fs::create_dir_all(home.join(".cursor")).unwrap();
-    fs::write(home.join(".cursor/mcp.json"), "{\"mcpServers\":{}}").unwrap();
+    fs::write(home.join(CURSOR_CONFIG), "{\"mcpServers\":{}}").unwrap();
     let mcp = |args: &[&str]| {
-        let mut all = vec!["mcp"];
+        let mut all = vec![command::MCP];
         all.extend_from_slice(args);
         run(dfw_command(&home, &all), "")
     };
     let read = |rel: &str| fs::read_to_string(home.join(rel)).unwrap();
     let parsed = |rel: &str| serde_json::from_str::<Value>(&read(rel)).unwrap();
 
-    assert!(mcp(&["install", "all", "--print"]).contains("[mcp_servers.dfw]"));
-    assert!(
-        !home.join(".codex/config.toml").exists(),
-        "--print writes nothing"
-    );
-    mcp(&["install", "all"]);
-    assert!(parsed(".config/opencode/opencode.json")["mcp"]["dfw"].is_object());
-    assert!(read(".codex/config.toml").contains("[mcp_servers.dfw]"));
-    assert!(parsed(".cursor/mcp.json")["mcpServers"]["dfw"].is_object());
+    assert!(mcp(&[sub::INSTALL, ALL_TOOLS, flag::PRINT]).contains(CODEX_ENTRY));
+    assert!(!home.join(CODEX_CONFIG).exists(), "--print writes nothing");
+    mcp(&[sub::INSTALL, ALL_TOOLS]);
+    assert!(parsed(".config/opencode/opencode.json")["mcp"][SERVER].is_object());
+    assert!(read(CODEX_CONFIG).contains(CODEX_ENTRY));
+    assert!(parsed(CURSOR_CONFIG)[CURSOR_SERVERS][SERVER].is_object());
     assert!(home.join(".cursor/mcp.json.dfw-backup").exists());
-    mcp(&["uninstall", "cursor"]);
-    assert_eq!(parsed(".cursor/mcp.json")["mcpServers"].get("dfw"), None);
+    mcp(&[sub::UNINSTALL, "cursor"]);
+    assert_eq!(parsed(CURSOR_CONFIG)[CURSOR_SERVERS].get(SERVER), None);
 }

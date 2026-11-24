@@ -37,6 +37,54 @@ use crate::core::paths::{self, project_paths, resolve, to_posix};
 use crate::core::util::{list_files, read_json};
 use crate::design::manifest::Manifest;
 
+/// The rule ids of the findings a test names, as the lint reports them.
+pub(crate) mod rule {
+    /// A page that links neither `tokens.css` nor `<dfw-head>`.
+    pub(crate) const TOKENS_LINK: &str = "tokens-link";
+    /// An `<img>` without `alt`.
+    pub(crate) const IMG_ALT: &str = "img-alt";
+    /// Structural or interactive elements without `data-dfw-id`.
+    pub(crate) const DFW_ID_MISSING: &str = "dfw-id-missing";
+    /// A colour written out instead of a token.
+    pub(crate) const HARDCODED_COLOR: &str = "hardcoded-color";
+    /// A screen that uses no component.
+    pub(crate) const NO_COMPONENTS: &str = "no-components";
+    /// A screen not framed by the shared app-shell.
+    pub(crate) const APP_SHELL: &str = "app-shell";
+    /// An interactive master without its state styles.
+    pub(crate) const COMPONENT_STATES: &str = "component-states";
+    /// An outline removed without a `:focus-visible` replacement.
+    pub(crate) const FOCUS_REMOVED: &str = "focus-removed";
+    /// Lorem ipsum and other filler copy.
+    pub(crate) const FILLER_COPY: &str = "filler-copy";
+    /// Marketing filler that reads as machine-written.
+    pub(crate) const COPY_TELL: &str = "copy-tell";
+    /// An error message that says nothing.
+    pub(crate) const VAGUE_ERROR: &str = "vague-error";
+    /// Three dots instead of the ellipsis character.
+    pub(crate) const ELLIPSIS_CHAR: &str = "ellipsis-char";
+    /// Link text that does not say where it goes.
+    pub(crate) const LINK_TEXT: &str = "link-text";
+    /// An external placeholder image host.
+    pub(crate) const PLACEHOLDER_IMAGE_HOST: &str = "placeholder-image-host";
+    /// A tokens file without tokens.
+    pub(crate) const TOKEN_EMPTY: &str = "token-empty";
+    /// No readable design.json.
+    pub(crate) const MANIFEST_MISSING: &str = "manifest-missing";
+    /// A design.json without a list of screens.
+    pub(crate) const MANIFEST_SCREENS: &str = "manifest-screens";
+}
+
+/// The non-happy states a data surface or a form must design.
+pub(crate) mod state {
+    /// Data on its way.
+    pub(crate) const LOADING: &str = "loading";
+    /// No data.
+    pub(crate) const EMPTY: &str = "empty";
+    /// The data could not be loaded or the form not sent.
+    pub(crate) const ERROR: &str = "error";
+}
+
 /// Reports a finding: level, rule, byte offset in the linted text (`None` is line 1), message.
 type Add<'a> = dyn FnMut(&'static str, &'static str, Option<usize>, String) + 'a;
 
@@ -168,7 +216,7 @@ pub fn lint_html(rel: &str, text: &str) -> Vec<Value> {
     if !TOKENS_LINK.is_match(text) {
         add(
             Level::Warn.as_str(),
-            "tokens-link",
+            rule::TOKENS_LINK,
             None,
             format!(
                 "Screen does not load {}/{}; values may not come from tokens.",
@@ -226,7 +274,7 @@ pub fn lint_html(rel: &str, text: &str) -> Vec<Value> {
         if name.eq_ignore_ascii_case("img") && !HAS_ALT.is_match(attrs) {
             add(
                 Level::Error.as_str(),
-                "img-alt",
+                rule::IMG_ALT,
                 Some(whole.start()),
                 "<img> without alt (WCAG 1.1.1). Use alt=\"\" for decorative images.".into(),
             );
@@ -241,7 +289,7 @@ pub fn lint_html(rel: &str, text: &str) -> Vec<Value> {
         }
     }
     if missing > 0 {
-        add(Level::Warn.as_str(), "dfw-id-missing", first_missing, format!("{missing} structural/interactive element(s) have no data-dfw-id; click-to-comment cannot target them reliably."));
+        add(Level::Warn.as_str(), rule::DFW_ID_MISSING, first_missing, format!("{missing} structural/interactive element(s) have no data-dfw-id; click-to-comment cannot target them reliably."));
     }
 
     // Inline <style> colors outside tokens.
@@ -249,7 +297,7 @@ pub fn lint_html(rel: &str, text: &str) -> Vec<Value> {
         for (at, color) in hardcoded_colors(&block) {
             add(
                 Level::Warn.as_str(),
-                "hardcoded-color",
+                rule::HARDCODED_COLOR,
                 Some(at),
                 format!("Hard-coded color \"{color}\" in <style>; use a token (var(--...))."),
             );
@@ -379,7 +427,8 @@ pub fn lint_screen(
         }
         let instances = &composed.instances;
         if instances.is_empty() && BODY.is_match(text) {
-            add(warn, "no-components", line_of(text, body), no_components());
+            let at = line_of(text, body);
+            add(warn, rule::NO_COMPONENTS, at, no_components());
         }
         let shared = |name: &str| {
             lib.get(Some(name)).is_some()
@@ -393,7 +442,7 @@ pub fn lint_screen(
             add(warn, "page-layout", 1, "Screen does not use the page layout master (<dfw-use c=\"page\" variant=\"task|flow|split\">): paddings, widths and overflow behaviour will drift from other screens.".into());
         }
         if shared("app-shell") {
-            add(warn, "app-shell", 1, "Screen does not use the shared app-shell: every screen should be framed by the same navigation and layout (<dfw-use c=\"app-shell\" current=\"...\">).".into());
+            add(warn, rule::APP_SHELL, 1, "Screen does not use the shared app-shell: every screen should be framed by the same navigation and layout (<dfw-use c=\"app-shell\" current=\"...\">).".into());
         }
     }
     out.extend(state_coverage(root, rel, text)?);
@@ -492,9 +541,9 @@ pub fn state_coverage(root: &Path, rel: &str, text: &str) -> Result<Vec<Value>, 
     let (data, form) = (DATA_SURFACE.is_match(text), FORM.is_match(text));
     let mut need: Vec<&str> = Vec::new();
     if data {
-        need.extend(["loading", "empty", "error"]);
+        need.extend([state::LOADING, state::EMPTY, state::ERROR]);
     } else if form {
-        need.push("error");
+        need.push(state::ERROR);
     }
     let missing: Vec<&str> = need
         .into_iter()
@@ -551,7 +600,7 @@ pub fn lint_component_file(rel: &str, text: &str) -> Vec<Value> {
         for (at, color) in hardcoded_colors(block) {
             add(
                 Level::Error.as_str(),
-                "hardcoded-color",
+                rule::HARDCODED_COLOR,
                 Some(at),
                 format!("Hard-coded color \"{color}\" in a component; use a color token."),
             );
@@ -607,7 +656,7 @@ pub fn lint_component_file(rel: &str, text: &str) -> Vec<Value> {
         .map(|(name, _)| name)
         .collect();
     if !missing.is_empty() {
-        add(Level::Warn.as_str(), "component-states", None, format!("Interactive component has no {} style. Design its state matrix (default, hover, focus-visible, active, disabled, plus loading/selected where they apply).", missing.join(" / ")));
+        add(Level::Warn.as_str(), rule::COMPONENT_STATES, None, format!("Interactive component has no {} style. Design its state matrix (default, hover, focus-visible, active, disabled, plus loading/selected where they apply).", missing.join(" / ")));
     }
     out
 }
@@ -633,7 +682,7 @@ pub fn lint_css(rel: &str, text: &str) -> Vec<Value> {
         }
         add(
             Level::Warn.as_str(),
-            "hardcoded-color",
+            rule::HARDCODED_COLOR,
             Some(m.start()),
             format!(
                 "Hard-coded color \"{}\"; use a token (var(--...)).",
@@ -656,7 +705,7 @@ pub fn lint_css(rel: &str, text: &str) -> Vec<Value> {
     {
         add(
             Level::Error.as_str(),
-            "focus-removed",
+            rule::FOCUS_REMOVED,
             Some(m.start()),
             "Focus outline removed without a :focus-visible replacement (WCAG 2.4.7).".into(),
         );

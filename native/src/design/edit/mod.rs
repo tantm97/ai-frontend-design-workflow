@@ -60,8 +60,50 @@ pub const SPACING_PROPS: [&str; 17] = [
     "margin-inline",
 ];
 
+/// The edit ops `transform` applies: the `op` field of an edit.
+pub mod ops {
+    /// The element's text.
+    pub const TEXT: &str = "text";
+    /// The variant of a component instance.
+    pub const VARIANT: &str = "variant";
+    /// The size of a component instance.
+    pub const SIZE: &str = "size";
+    /// A prop of a component instance.
+    pub const PROP: &str = "prop";
+    /// A gap, padding or margin of the inline style.
+    pub const SPACING: &str = "spacing";
+    /// The element moved next to or into another one.
+    pub const MOVE: &str = "move";
+    /// A resize property in the layout block.
+    pub const LAYOUT: &str = "layout";
+}
+
+/// Where a move drops the element: the `position` field of a move.
+pub mod position {
+    /// Before the other element.
+    pub const BEFORE: &str = "before";
+    /// After the other element.
+    pub const AFTER: &str = "after";
+    /// Into the other element, an empty container.
+    pub const INSIDE: &str = "inside";
+}
+
+/// The properties a resize sets in the layout block.
+pub mod layout_prop {
+    /// The columns a grid item spans.
+    pub const GRID_COLUMN: &str = "grid-column";
+    /// The width: a size token or a percentage.
+    pub const WIDTH: &str = "width";
+    /// The minimum height: a size or space token.
+    pub const MIN_HEIGHT: &str = "min-height";
+}
+
 /// `LAYOUT_PROPS`: what a resize may set in the layout block.
-pub const LAYOUT_PROPS: [&str; 3] = ["grid-column", "width", "min-height"];
+pub const LAYOUT_PROPS: [&str; 3] = [
+    layout_prop::GRID_COLUMN,
+    layout_prop::WIDTH,
+    layout_prop::MIN_HEIGHT,
+];
 
 /// `MAX_JOURNAL`: undo depth; each record holds two full copies of the file.
 pub const MAX_JOURNAL: usize = 200;
@@ -196,12 +238,12 @@ pub fn transform(root: &Path, text: &str, op: &Value) -> Result<String, DfwError
     let value = js::present(field("value")).filter(|v| v.as_str() != Some(""));
     let kind = field("op").and_then(Value::as_str).unwrap_or_default();
     match kind {
-        "text" => edit_text(text, &el, &id, op),
-        "variant" | "size" => edit_choice(root, text, &el, &id, kind, op),
-        "prop" => edit_prop(root, text, &el, &id, value, op),
-        "spacing" => edit_spacing(root, text, &el, value, op),
-        "move" => edit_move(root, text, &el, op),
-        "layout" => edit_layout(root, text, &id, op),
+        ops::TEXT => edit_text(text, &el, &id, op),
+        ops::VARIANT | ops::SIZE => edit_choice(root, text, &el, &id, kind, op),
+        ops::PROP => edit_prop(root, text, &el, &id, value, op),
+        ops::SPACING => edit_spacing(root, text, &el, value, op),
+        ops::MOVE => edit_move(root, text, &el, op),
+        ops::LAYOUT => edit_layout(root, text, &id, op),
         _ => Err(DfwError::new(format!(
             "Unknown edit op \"{}\".",
             shown("op")
@@ -256,7 +298,7 @@ fn edit_choice(
     }
     let def = component_def(root, el)?;
     let name = def.display_name();
-    let allowed = if kind == "variant" {
+    let allowed = if kind == ops::VARIANT {
         &def.variants
     } else {
         &def.sizes
@@ -344,7 +386,9 @@ fn edit_spacing(
 /// Op "move": the element before or after another element, or inside an empty container.
 fn edit_move(root: &Path, text: &str, el: &Located, op: &Value) -> Result<String, DfwError> {
     let position = op.get("position").and_then(Value::as_str);
-    let Some(position) = position.filter(|p| ["before", "after", "inside"].contains(p)) else {
+    let Some(position) =
+        position.filter(|p| [position::BEFORE, position::AFTER, position::INSIDE].contains(p))
+    else {
         return Err(DfwError::new(
             "Move position must be \"before\", \"after\" or \"inside\".",
         ));
@@ -355,10 +399,10 @@ fn edit_move(root: &Path, text: &str, el: &Located, op: &Value) -> Result<String
         ));
     }
     let target = locate_own(root, text, op.get("ref"))?;
-    if position == "inside" {
+    if position == position::INSIDE {
         move_inside(text, el, &target)
     } else {
-        move_source(text, el, &target, position == "before")
+        move_source(text, el, &target, position == position::BEFORE)
     }
 }
 

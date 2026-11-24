@@ -18,7 +18,7 @@ mod type_scale;
 
 pub use audit::audit_colors;
 pub use palette::{build_palette, Names, Seeds, Signature};
-pub use type_scale::{audit_type_scale, type_scale};
+pub use type_scale::{audit_type_scale, type_scale, PRODUCT_SURFACE};
 
 // ------------------------------------------------------------------ conversions
 

@@ -749,13 +749,15 @@ mod tests {
                 )
             })
             .collect();
+        /// The attribute written without a value.
+        const BARE: &str = "disabled";
         assert_eq!(
             got,
             [
                 ("type", Some("text"), Quote::Double),
                 ("name", Some("q"), Quote::Single),
                 ("size", Some("20"), Quote::Bare),
-                ("disabled", None, Quote::Bare),
+                (BARE, None, Quote::Bare),
                 ("data-x", Some("1"), Quote::Double),
                 ("a", Some("&quot;b"), Quote::Bare),
             ]
@@ -763,7 +765,7 @@ mod tests {
         assert_eq!(&src[tag.attrs[1].span.clone()], "name='q'");
         assert_eq!(&src[tag.attrs[4].span.clone()], "data-x = \"1\"");
         assert_eq!(tag.value(src, "a").as_deref(), Some("\"b"));
-        assert_eq!(tag.value(src, "disabled").as_deref(), Some(""));
+        assert_eq!(tag.value(src, BARE).as_deref(), Some(""));
         assert_eq!(tag.value(src, "nope"), None);
         // A repeated attribute: the last one wins, as in the object parseAttrs built.
         let twice = "<i a=1 a=2>";
@@ -805,11 +807,9 @@ mod tests {
         assert_eq!(el.range, 6..src.len());
         assert_eq!(el.inner, 21..src.len());
         // A quote that never closes: not a tag at all.
-        assert_eq!(element_at("<p title=\"x>y</p>", 0), None);
-        assert_eq!(
-            kinds("<p title=\"x>y</p>"),
-            ["text <p title=\"x>y", "close </p>"]
-        );
+        const OPEN_QUOTE: &str = "<p title=\"x>y</p>";
+        assert_eq!(element_at(OPEN_QUOTE, 0), None);
+        assert_eq!(kinds(OPEN_QUOTE), ["text <p title=\"x>y", "close </p>"]);
         assert_eq!(element_at("<p", 0), None);
     }
 
@@ -836,16 +836,20 @@ mod tests {
     #[test]
     fn script_and_style_content_is_raw_text() {
         // As in a browser, the first </script ends the script, also inside a string.
+        /// The tokens of a script's and a style's tags.
+        const SCRIPT_OPEN: &str = "open <script>";
+        const SCRIPT_CLOSE: &str = "close </script>";
+        const STYLE_OPEN: &str = "open <style>";
         let src = "<script>var s = \"<div></script>\"; </script><style>a > b {}</style><p>";
         assert_eq!(
             kinds(src),
             [
-                "open <script>",
+                SCRIPT_OPEN,
                 "raw var s = \"<div>",
-                "close </script>",
+                SCRIPT_CLOSE,
                 "text \"; ",
-                "close </script>",
-                "open <style>",
+                SCRIPT_CLOSE,
+                STYLE_OPEN,
                 "raw a > b {}",
                 "close </style>",
                 "open <p>",
@@ -860,23 +864,18 @@ mod tests {
         let script = element_at(src, 5).unwrap();
         assert_eq!(&src[script.inner.clone()], "document.write('</div><!--')");
         assert_eq!(children(src, &script), [Node::Text(script.inner.clone())]);
-        assert_eq!(
-            kinds("<script></script>"),
-            ["open <script>", "close </script>"]
-        );
-        assert_eq!(kinds("<style>a{}"), ["open <style>", "raw a{}"]);
+        assert_eq!(kinds("<script></script>"), [SCRIPT_OPEN, SCRIPT_CLOSE]);
+        assert_eq!(kinds("<style>a{}"), [STYLE_OPEN, "raw a{}"]);
     }
 
     #[test]
     fn find_by_attribute_value() {
         let src = "<main data-dfw-id=\"m\"><p data-dfw-id='m.t' class=\"x\">a &amp; b</p><!-- <i data-dfw-id=\"c\"> --></main>";
-        let p = find_by_attr(src, "data-dfw-id", "m.t").unwrap();
+        /// The attribute the elements are found by.
+        const ID: &str = "data-dfw-id";
+        let p = find_by_attr(src, ID, "m.t").unwrap();
         assert_eq!(&src[p.inner.clone()], "a &amp; b");
-        assert_eq!(
-            find_by_attr(src, "data-dfw-id", "c"),
-            None,
-            "not inside a comment"
-        );
+        assert_eq!(find_by_attr(src, ID, "c"), None, "not inside a comment");
         assert_eq!(tags_with_attr(src, "class", "x").len(), 1);
         let src = "<a title=\"a &amp; b\">";
         let a = find_by_attr(src, "title", "a & b").unwrap();
@@ -905,8 +904,11 @@ mod tests {
         let set = |name: &str, value: Option<&str>| {
             set_attr(src, &tag, name, value).map(|s| s.apply(src))
         };
+        /// An attribute the tag has, and one it does not have.
+        const CLASS: &str = "class";
+        const TITLE: &str = "title";
         assert_eq!(
-            set("class", Some("b \"c\"")).unwrap(),
+            set(CLASS, Some("b \"c\"")).unwrap(),
             "<p class=\"b &quot;c&quot;\"\n   ID=x hidden>t</p>"
         );
         assert_eq!(
@@ -915,13 +917,13 @@ mod tests {
         );
         assert_eq!(set("hidden", None).unwrap(), "<p  class='a'\n   ID=x>t</p>");
         assert_eq!(
-            set("title", Some("a<b")).unwrap(),
+            set(TITLE, Some("a<b")).unwrap(),
             "<p  class='a'\n   ID=x hidden title=\"a&lt;b\">t</p>"
         );
-        assert_eq!(set("title", None), None);
+        assert_eq!(set(TITLE, None), None);
         let src = "<br />";
         assert_eq!(
-            set_attr(src, &open(src), "class", Some("x"))
+            set_attr(src, &open(src), CLASS, Some("x"))
                 .unwrap()
                 .apply(src),
             "<br class=\"x\" />"

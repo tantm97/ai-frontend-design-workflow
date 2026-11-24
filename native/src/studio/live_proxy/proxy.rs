@@ -34,11 +34,20 @@ use crate::core::paths::{project_paths, to_posix};
 use crate::core::util::to_json_compact;
 use crate::design::tokens::relative_path;
 use crate::review::comments::{add_comment, set_comment_screenshot};
+use crate::studio::http::header;
 use crate::studio::http::{
     drain, error_body, http_version, message, method, node_headers, random_base64, read_body,
     read_head, read_request_head, refusal, spawn_connection, status, url_pathname, write_error,
-    write_head, write_response, BodyError, Connections, Head, MAX_CONNECTIONS,
+    write_head, write_response, BodyError, Connections, Head, LOOPBACK, MAX_CONNECTIONS,
 };
+
+/// The comment fields the proxy fills from what live.js sends: the clicked element and the
+/// source file it came from.
+pub(super) const TARGET: &str = "target";
+pub(super) const SOURCE: &str = "source";
+
+/// The content encoding of a gzip-compressed page.
+pub(super) const GZIP: &str = "gzip";
 use crate::studio::paths;
 use crate::studio::server::json_body;
 use crate::tools::inspector::parse_insp_path;
@@ -137,7 +146,7 @@ impl LiveServer {
     /// redirects, cookies and the CSP source match whether the page was opened as localhost or
     /// 127.0.0.1.
     fn self_of(&self, head: &Head, port: u16) -> String {
-        let h = head.header("host").unwrap_or_default();
+        let h = head.header(header::HOST).unwrap_or_default();
         if loopback(h) {
             format!("http://{}", h.to_lowercase())
         } else {
@@ -151,13 +160,13 @@ impl LiveServer {
     /// only come from the proxy's own origins: a loopback name with this proxy's `port`. Other
     /// loopback ports are other sites.
     fn foreign(&self, head: &Head, port: u16) -> Option<String> {
-        let host = head.header("host").unwrap_or_default();
+        let host = head.header(header::HOST).unwrap_or_default();
         if !loopback(host) {
             let shown = if host.is_empty() { "(none)" } else { host };
             return Some(format!("host {shown} not allowed"));
         }
         let writes = !method::is_read_only(head.method()) || head.is_upgrade();
-        if let Some(from) = head.header("origin").filter(|_| writes) {
+        if let Some(from) = head.header(header::ORIGIN).filter(|_| writes) {
             let own = ["localhost", "127.0.0.1", "[::1]"]
                 .iter()
                 .any(|h| from.eq_ignore_ascii_case(&format!("http://{h}:{port}")));
@@ -263,7 +272,7 @@ impl LiveServer {
 
     /// `postComment`: a comment as live.js posts it, stored like a Studio comment.
     fn post_comment(&self, b: &Value) -> Result<Value, DfwError> {
-        let mut target = js::spread(b.get("target").filter(|t| js::truthy(t)));
+        let mut target = js::spread(b.get(TARGET).filter(|t| js::truthy(t)));
         let insp = target
             .get("insp")
             .and_then(Value::as_str)
@@ -276,7 +285,7 @@ impl LiveServer {
             .as_deref()
             .and_then(|i| parse_insp_path(i, Some(&root)))
             .map_or(Value::Null, |p| json!(p.source));
-        target.insert("source".into(), source);
+        target.insert(SOURCE.into(), source);
         if let Some(i) = insp.as_deref().filter(|i| !i.is_empty()) {
             target.insert("inspPath".into(), json!(i));
         }
@@ -307,7 +316,7 @@ impl LiveServer {
             None => input.insert("breakpoint".into(), Value::Null),
         };
         input.insert("url".into(), json!(route));
-        input.insert("target".into(), Value::Object(target));
+        input.insert(TARGET.into(), Value::Object(target));
         input.insert("provider".into(), json!("dfw-live"));
         let c = add_comment(&self.root, &Value::Object(input))?;
         if let Some(queue) = &self.shot_queue {
@@ -344,7 +353,7 @@ impl LiveServer {
         headers.retain(|(k, _)| {
             !matches!(
                 k.as_str(),
-                "accept-encoding"
+                header::ACCEPT_ENCODING
                     | "content-length"
                     | "transfer-encoding"
                     | "connection"
@@ -353,16 +362,16 @@ impl LiveServer {
         });
         for (k, v) in headers.iter_mut() {
             match k.as_str() {
-                "host" => *v = self.t.host(),
-                "origin" => *v = self.t.origin(),
-                "referer" if v.starts_with(&self_origin) => {
+                header::HOST => *v = self.t.host(),
+                header::ORIGIN => *v = self.t.origin(),
+                header::REFERER if v.starts_with(&self_origin) => {
                     *v = format!("{}{}", self.t.origin(), &v[self_origin.len()..]);
                 }
                 _ => {}
             }
         }
-        if !headers.iter().any(|(k, _)| k == "host") {
-            headers.insert(0, ("host".into(), self.t.host()));
+        if !headers.iter().any(|(k, _)| k == header::HOST) {
+            headers.insert(0, (header::HOST.into(), self.t.host()));
         }
         if had_length || !body.is_empty() {
             headers.push(("content-length".into(), body.len().to_string()));
@@ -385,7 +394,13 @@ impl LiveServer {
                     ),
                     ("Cache-Control".to_string(), "no-store".to_string()),
                 ];
-                let _ = write_response(stream, &method, 502, &headers, page.as_bytes());
+                let _ = write_response(
+                    stream,
+                    &method,
+                    status::BAD_GATEWAY,
+                    &headers,
+                    page.as_bytes(),
+                );
                 return;
             }
         };
@@ -400,7 +415,7 @@ impl LiveServer {
         } = up;
         let mut h = node_headers(&headers);
         h.retain(|(k, _)| k != "connection" && k != "keep-alive");
-        for (k, v) in h.iter_mut().filter(|(k, _)| k == "location") {
+        for (k, v) in h.iter_mut().filter(|(k, _)| k == header::LOCATION) {
             let _ = k;
             for o in &self.target_origins {
                 if v.starts_with(o.as_str()) {
@@ -412,13 +427,13 @@ impl LiveServer {
         let host = host.rsplit_once(':').map_or(host, |(h, _)| h);
         let cookies: Vec<String> = h
             .iter()
-            .filter(|(k, _)| k == "set-cookie")
+            .filter(|(k, _)| k == header::SET_COOKIE)
             .map(|(_, v)| v.clone())
             .collect();
         if !cookies.is_empty() {
             let mut fixed = fix_set_cookie(&cookies, host).into_iter();
             for (k, v) in h.iter_mut() {
-                if k == "set-cookie" {
+                if k == header::SET_COOKIE {
                     *v = fixed.next().unwrap_or_default();
                 }
             }
@@ -426,7 +441,7 @@ impl LiveServer {
         let get = |h: &[(String, String)], k: &str| {
             h.iter().find(|(n, _)| n == k).map(|(_, v)| v.clone())
         };
-        let html = get(&h, "content-type")
+        let html = get(&h, header::CONTENT_TYPE)
             .is_some_and(|t| t.to_ascii_lowercase().contains("text/html"))
             && method == method::GET
             && status == status::OK;
@@ -440,7 +455,7 @@ impl LiveServer {
         let Ok(raw) = body.read_all() else {
             return;
         };
-        let decoded = decode(&raw, get(&h, "content-encoding").as_deref(), MAX_HTML);
+        let decoded = decode(&raw, get(&h, header::CONTENT_ENCODING).as_deref(), MAX_HTML);
         let Some(text) = decoded else {
             // Unknown encoding (or one that does not decode, or decodes too big): the body as
             // the app sent it.
@@ -465,7 +480,7 @@ impl LiveServer {
             !matches!(
                 k.as_str(),
                 "content-length"
-                    | "content-encoding"
+                    | header::CONTENT_ENCODING
                     | "transfer-encoding"
                     | "etag"
                     | "last-modified"
@@ -525,7 +540,7 @@ impl LiveServer {
     }
 }
 
-const JSON: &str = "application/json; charset=utf-8";
+use crate::studio::server::JSON;
 
 /// The app's answer: status, header lines and the body still to read.
 struct Upstream {
@@ -600,7 +615,7 @@ pub(super) fn decode(buf: &[u8], enc: Option<&str>, max: usize) -> Option<Vec<u8
     let cap = max as u64 + 1;
     let ok = match enc.unwrap_or("") {
         "" | "identity" => return Some(buf.to_vec()),
-        "gzip" | "x-gzip" => flate2::read::MultiGzDecoder::new(buf)
+        GZIP | "x-gzip" => flate2::read::MultiGzDecoder::new(buf)
             .take(cap)
             .read_to_end(&mut out),
         "br" => brotli_decompressor::Decompressor::new(buf, 4096)
@@ -756,7 +771,7 @@ pub fn start_live_server(
     port: u16,
 ) -> Result<(Arc<LiveServer>, Vec<TcpListener>, String), DfwError> {
     let mut server = LiveServer::new(opts)?;
-    let v4 = TcpListener::bind(("127.0.0.1", port))?;
+    let v4 = TcpListener::bind((LOOPBACK, port))?;
     let port = v4.local_addr()?.port();
     let mut listeners = vec![v4];
     if server.public_host == "localhost" {
@@ -765,7 +780,7 @@ pub fn start_live_server(
             // No IPv6 loopback: localhost resolves to 127.0.0.1 only, fine. Anything else on
             // [::1]:port could answer "localhost" instead of us: use the 127.0.0.1 URL.
             Err(e) if e.kind() == io::ErrorKind::AddrInUse => {
-                server.public_host = "127.0.0.1".into();
+                server.public_host = LOOPBACK.into();
                 log(&format!("[::1]:{port} is in use; serving http://127.0.0.1:{port}/ (cookies set by the app on localhost will not reach it)"));
             }
             Err(_) => {}

@@ -16,7 +16,7 @@ use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{file, project_paths, rel};
 use crate::core::util::{read_json, write_json_inside};
-use crate::review::status::{self, Status};
+use crate::review::status::{self, by, field, Status};
 
 use super::comments::{all_comments, locked, try_locked};
 
@@ -25,11 +25,11 @@ const MAX_DELIVERED: usize = 2000;
 
 /// What identifies one state of a comment: a change of status or a new thread line is news.
 fn key(c: &Value) -> String {
-    let at = js::truthy_value(c.get("updatedAt")).or(c.get("createdAt"));
+    let at = js::truthy_value(c.get(field::UPDATED_AT)).or(c.get("createdAt"));
     format!(
         "{}:{}:{}",
-        js::to_string(c.get("id")),
-        js::to_string(c.get("status")),
+        js::to_string(c.get(field::ID)),
+        js::to_string(c.get(field::STATUS)),
         js::to_string(at)
     )
 }
@@ -49,7 +49,7 @@ fn read_delivered(root: &Path) -> Result<Vec<Value>, DfwError> {
 }
 
 fn last_of_thread(c: &Value) -> Option<&Value> {
-    c.get("thread").and_then(Value::as_array)?.last()
+    c.get(field::THREAD).and_then(Value::as_array)?.last()
 }
 
 /// `undelivered(root)`: open and reopened comments, and acknowledged ones the user replied to,
@@ -61,7 +61,7 @@ pub fn undelivered(root: &Path) -> Result<Vec<Value>, DfwError> {
     // A follow-up from the user on a comment being worked on (e.g. a reply in its Penpot thread) is news too.
     let follow_up = |c: &Value| {
         status(c) == Some(Status::Acknowledged)
-            && last_of_thread(c).and_then(|l| l.get("by")) == Some(&json!("user"))
+            && last_of_thread(c).and_then(|l| l.get("by")) == Some(&json!(by::USER))
     };
     let active = |c: &Value| matches!(status(c), Some(Status::Open | Status::Reopened));
     // A Studio draft waits for the user's "Send to AI".
@@ -153,7 +153,7 @@ pub fn format_for_claude(comments: &[Value]) -> String {
                         said(l)
                     )
                 }
-                Some(l) if l.get("by") == Some(&json!("user")) => {
+                Some(l) if l.get("by") == Some(&json!(by::USER)) => {
                     format!("\n    follow-up by user: \"{}\"", said(l))
                 }
                 _ => String::new(),
@@ -270,9 +270,9 @@ mod tests {
         root
     }
 
-    fn update(status: &str, message: Option<&str>, by: Option<&str>) -> Update {
+    fn update(status: Status, message: Option<&str>, by: Option<&str>) -> Update {
         Update {
-            status: Some(status.to_string()),
+            status: Some(status.as_str().to_string()),
             message: message.map(Value::from),
             by: by.map(Value::from),
             evidence: None,
@@ -291,25 +291,26 @@ mod tests {
     #[test]
     fn inbox_wait_wakes_on_a_new_comment_and_delivers_each_state_once() {
         let root = project("inbox-wait");
+        const CONFIRM: &str = "slip.confirm";
         let writer = {
             let root = root.clone();
             thread::spawn(move || {
                 thread::sleep(Duration::from_millis(100));
-                add_comment(&root, &json!({ "comment": "Make the confirm button bigger", "screen": "borrow", "target": { "dfwId": "slip.confirm" } })).unwrap();
+                add_comment(&root, &json!({ "comment": "Make the confirm button bigger", "screen": "borrow", "target": { "dfwId": CONFIRM } })).unwrap();
             })
         };
         let got = wait_for_comments(&root, quick(5000.0, 50)).unwrap();
         writer.join().unwrap();
         assert_eq!(got.len(), 1);
-        assert_eq!(got[0]["target"]["dfwId"], "slip.confirm");
+        assert_eq!(got[0][field::TARGET]["dfwId"], CONFIRM);
         assert_eq!(undelivered(&root).unwrap().len(), 0);
-        let id = got[0]["id"].as_str();
-        update_comment(&root, id, &update("acknowledged", None, None)).unwrap();
-        update_comment(&root, id, &update("fixed", Some("lg size"), None)).unwrap();
+        let id = got[0][field::ID].as_str();
+        update_comment(&root, id, &update(Status::Acknowledged, None, None)).unwrap();
+        update_comment(&root, id, &update(Status::Fixed, Some("lg size"), None)).unwrap();
         update_comment(
             &root,
             id,
-            &update("reopened", Some("Still too small"), Some("user")),
+            &update(Status::Reopened, Some("Still too small"), Some(by::USER)),
         )
         .unwrap();
         assert_eq!(
@@ -325,17 +326,14 @@ mod tests {
     fn drafts_are_delivered_only_after_send() {
         use crate::review::comments::send_drafts;
         let root = project("inbox-drafts");
+        const LIVE: &str = "Live one";
         add_comment(&root, &json!({ "comment": "Box the tiles", "draft": true })).unwrap();
         add_comment(&root, &json!({ "comment": "Bigger price", "draft": true })).unwrap();
         // Comments of other providers (dfw review, Penpot) are never drafts.
-        add_comment(
-            &root,
-            &json!({ "comment": "Live one", "provider": "dfw-live" }),
-        )
-        .unwrap();
+        add_comment(&root, &json!({ "comment": LIVE, "provider": "dfw-live" })).unwrap();
         let first = take_undelivered(&root, false).unwrap();
         assert_eq!(first.len(), 1, "drafts are held back");
-        assert_eq!(first[0]["comment"], "Live one");
+        assert_eq!(first[0][field::COMMENT], LIVE);
         assert!(wait_for_comments(&root, quick(60.0, 10))
             .unwrap()
             .is_empty());
@@ -401,21 +399,21 @@ mod tests {
     fn follow_ups_and_reopens_are_news() {
         let root = project("inbox-follow-up");
         let c = add_comment(&root, &json!({ "comment": "Low stock rows", "screen": "items", "variant": "a", "target": { "selector": "tr.low", "component": "table" } })).unwrap();
-        let id = c["id"].as_str();
+        let id = c[field::ID].as_str();
         let list = undelivered(&root).unwrap();
         assert_eq!(
             format_for_claude(&list).lines().nth(1).unwrap(),
             "- fb_001 [open] items / a -> tr.low component table"
         );
         mark_delivered(&root, &list).unwrap();
-        update_comment(&root, id, &update("acknowledged", None, None)).unwrap();
+        update_comment(&root, id, &update(Status::Acknowledged, None, None)).unwrap();
         assert_eq!(undelivered(&root).unwrap().len(), 0);
         update_comment(
             &root,
             id,
             &Update {
                 message: Some("Also the header".into()),
-                by: Some("user".into()),
+                by: Some(by::USER.into()),
                 ..Update::default()
             },
         )
@@ -425,7 +423,7 @@ mod tests {
             text.contains("\n    follow-up by user: \"Also the header\""),
             "{text}"
         );
-        update_comment(&root, id, &update("fixed", Some("Done."), None)).unwrap();
+        update_comment(&root, id, &update(Status::Fixed, Some("Done."), None)).unwrap();
         assert_eq!(
             undelivered(&root).unwrap().len(),
             0,
@@ -434,7 +432,7 @@ mod tests {
         update_comment(
             &root,
             id,
-            &update("reopened", Some("Still too small"), Some("user")),
+            &update(Status::Reopened, Some("Still too small"), Some(by::USER)),
         )
         .unwrap();
         let text = format_for_claude(&undelivered(&root).unwrap());
@@ -446,9 +444,10 @@ mod tests {
 
     #[test]
     fn the_text_for_the_agent_is_the_node_text() {
+        let open = Status::Open.as_str();
         let comments = [
-            json!({ "id": "fb_001", "status": "open", "screen": "home", "breakpoint": "mobile", "theme": "dark", "target": { "dfwId": "home.cta", "source": format!("{}:3", rel::screen(SCREEN_PAGE)) }, "comment": "Bigger" }),
-            json!({ "id": "fb_002", "status": "open", "comment": "x", "provider": "dfw-live" }),
+            json!({ "id": "fb_001", "status": open, "screen": "home", "breakpoint": "mobile", "theme": "dark", "target": { "dfwId": "home.cta", "source": format!("{}:3", rel::screen(SCREEN_PAGE)) }, "comment": "Bigger" }),
+            json!({ "id": "fb_002", "status": open, "comment": "x", "provider": "dfw-live" }),
         ];
         assert_eq!(
             format_for_claude(&comments),

@@ -6,6 +6,7 @@ use std::time::Instant;
 
 use serde_json::{json, Value};
 
+use super::word::{command, hook_name};
 use super::{Ctx, Handler};
 use crate::core::error::DfwError;
 use crate::core::host::{
@@ -21,16 +22,16 @@ use crate::telemetry::events::HookOutcome;
 
 /// The commands of this group: `hook <name>` runs one handler of `hooks/`.
 pub fn commands() -> Vec<(&'static str, Handler)> {
-    vec![("hook", hook as Handler)]
+    vec![(command::HOOK, hook as Handler)]
 }
 
 /// Handler name and the host event its output is formatted for (`HANDLERS`, `HOOK_EVENTS`).
 const HOOKS: [(&str, &str); 5] = [
-    ("session-start", event::SESSION_START),
-    ("pre-tool-use", event::PRE_TOOL_USE),
-    ("post-tool-use", event::POST_TOOL_USE),
-    ("user-prompt-submit", event::USER_PROMPT_SUBMIT),
-    ("stop", event::STOP),
+    (hook_name::SESSION_START, event::SESSION_START),
+    (hook_name::PRE_TOOL_USE, event::PRE_TOOL_USE),
+    (hook_name::POST_TOOL_USE, event::POST_TOOL_USE),
+    (hook_name::USER_PROMPT_SUBMIT, event::USER_PROMPT_SUBMIT),
+    (hook_name::STOP, event::STOP),
 ];
 
 /// All of stdin as it arrived; nothing when stdin is a terminal.
@@ -94,10 +95,10 @@ fn run(
     let host = current_host(ctx.args.get("host"))?;
     let input = normalize_hook_input(payload)?;
     let result: Option<HookResult> = match name {
-        "session-start" => session_start(&input)?,
-        "pre-tool-use" => pre_tool_use(&input)?,
-        "user-prompt-submit" => user_prompt_submit(&input, host)?,
-        "post-tool-use" => post_tool_use(&input, host)?,
+        hook_name::SESSION_START => session_start(&input)?,
+        hook_name::PRE_TOOL_USE => pre_tool_use(&input)?,
+        hook_name::USER_PROMPT_SUBMIT => user_prompt_submit(&input, host)?,
+        hook_name::POST_TOOL_USE => post_tool_use(&input, host)?,
         _ => stop(&input)?,
     };
     let kind = HookOutcome::of(result.as_ref());

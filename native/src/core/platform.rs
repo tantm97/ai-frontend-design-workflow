@@ -2,7 +2,7 @@
 //! names them (`process.platform`, `process.arch`), which release asset names, browser downloads
 //! and messages use.
 
-use super::paths::env_nonempty;
+use super::paths::{env_nonempty, MANIFEST_VERSION};
 use super::util::plugin_manifest;
 
 /// The dfw version: the plugin manifest's version, else `DFW_VERSION`, else the version this
@@ -11,7 +11,7 @@ pub fn dfw_version() -> String {
     let manifest = plugin_manifest(None).ok();
     let from_manifest = manifest
         .as_ref()
-        .and_then(|m| m.get("version"))
+        .and_then(|m| m.get(MANIFEST_VERSION))
         .and_then(|v| v.as_str())
         .filter(|v| !v.is_empty());
     match from_manifest {
@@ -22,11 +22,25 @@ pub fn dfw_version() -> String {
     }
 }
 
+/// Platforms as Node names them (`process.platform`).
+pub mod os {
+    pub const DARWIN: &str = "darwin";
+    pub const LINUX: &str = "linux";
+    pub const WIN32: &str = "win32";
+}
+
+/// Architectures as Node names them (`process.arch`).
+pub mod arch {
+    pub const ARM64: &str = "arm64";
+    pub const X64: &str = "x64";
+    pub const IA32: &str = "ia32";
+}
+
 /// `process.platform` as Node names it.
 pub fn node_platform() -> &'static str {
     match std::env::consts::OS {
-        "macos" => "darwin",
-        "windows" => "win32",
+        "macos" => os::DARWIN,
+        "windows" => os::WIN32,
         other => other,
     }
 }
@@ -34,9 +48,9 @@ pub fn node_platform() -> &'static str {
 /// `process.arch` as Node names it.
 pub fn node_arch() -> &'static str {
     match std::env::consts::ARCH {
-        "aarch64" => "arm64",
-        "x86_64" => "x64",
-        "x86" => "ia32",
+        "aarch64" => arch::ARM64,
+        "x86_64" => arch::X64,
+        "x86" => arch::IA32,
         other => other,
     }
 }
@@ -47,7 +61,7 @@ mod tests {
 
     #[test]
     fn names_are_the_ones_node_uses() {
-        assert!(["darwin", "linux", "win32"].contains(&node_platform()));
-        assert!(["arm64", "x64", "ia32"].contains(&node_arch()));
+        assert!([os::DARWIN, os::LINUX, os::WIN32].contains(&node_platform()));
+        assert!([arch::ARM64, arch::X64, arch::IA32].contains(&node_arch()));
     }
 }

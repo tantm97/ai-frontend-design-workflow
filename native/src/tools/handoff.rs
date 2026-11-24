@@ -281,16 +281,14 @@ mod tests {
 
     #[test]
     fn replacement_patterns_follow_javascript() {
-        assert_eq!(js_replace_all("a {{x}} b {{x}}", "{{x}}", "1"), "a 1 b 1");
-        assert_eq!(
-            js_replace_all("a {{x}} b", "{{x}}", "$$5 $& $1"),
-            "a $5 {{x}} $1 b"
-        );
-        assert_eq!(
-            js_replace_all("a {{x}} b", "{{x}}", "[$`|$']"),
-            "a [a | b] b"
-        );
-        assert_eq!(js_replace_all("{{x}}", "{{x}}", "cost: 5$"), "cost: 5$");
+        /// The placeholder replaced, and a text with one in the middle.
+        const MARK: &str = "{{x}}";
+        const TEXT: &str = "a {{x}} b";
+        assert_eq!(js_replace_all("a {{x}} b {{x}}", MARK, "1"), "a 1 b 1");
+        assert_eq!(js_replace_all(TEXT, MARK, "$$5 $& $1"), "a $5 {{x}} $1 b");
+        assert_eq!(js_replace_all(TEXT, MARK, "[$`|$']"), "a [a | b] b");
+        let price = "cost: 5$";
+        assert_eq!(js_replace_all(MARK, MARK, price), price);
     }
 
     /// A version in the state that is not `v<number>` never names a folder or the handoff file
@@ -309,7 +307,8 @@ mod tests {
             "{}",
             err.message()
         );
-        assert!(!root.join("x.md").exists() && !root.parent().unwrap().join("x.md").exists());
+        let escaped = "x.md";
+        assert!(!root.join(escaped).exists() && !root.parent().unwrap().join(escaped).exists());
         std::fs::remove_dir_all(&root).unwrap();
     }
 }

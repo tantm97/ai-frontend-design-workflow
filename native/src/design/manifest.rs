@@ -26,6 +26,8 @@ pub mod key {
     pub const SECTIONS: &str = "sections";
     pub const NOTES: &str = "notes";
     pub const ID: &str = "id";
+    /// The title of a page.
+    pub const TITLE: &str = "title";
     pub const DESCRIPTION: &str = "description";
     pub const FILE: &str = "file";
     pub const BLUEPRINT: &str = "blueprint";
@@ -151,36 +153,50 @@ impl<'a> Variant<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::fixture::{screen_page, HTML_FILE, SCREEN};
+    use crate::core::paths::file;
     use serde_json::json;
+
+    /// A state the manifest declares for every screen, and the cart's only one.
+    const EMPTY: &str = "empty";
+    /// A second state of every screen.
+    const ERROR: &str = "error";
+    /// A screen with its own states.
+    const CART: &str = "cart";
+    /// A screen kept out of the checks: a direction exploration.
+    const EXPLORATION: &str = "_dir";
+
+    /// The first page of the screen `id`, as the manifest names it (relative to `design/`).
+    fn page_file(id: &str) -> String {
+        rel::join(file::SCREENS, &screen_page(id))
+    }
 
     #[test]
     fn views_read_a_typical_manifest() {
+        let (home_file, cart_file) = (page_file(SCREEN), page_file(CART));
         let v = json!({
-            "states": ["empty", "error"],
+            "states": [EMPTY, ERROR],
             "screens": [
-                { "id": "home", "variants": [{ "file": "screens/home/a.html" }, { "file": "" }] },
-                { "id": "cart", "states": ["empty"], "variants": [{ "file": "screens/cart/a.html" }] },
-                { "id": "_dir", "variants": [] }
+                { "id": SCREEN, "variants": [{ "file": home_file }, { "file": "" }] },
+                { "id": CART, "states": [EMPTY], "variants": [{ "file": cart_file }] },
+                { "id": EXPLORATION, "variants": [] }
             ]
         });
         let m = Manifest(&v);
         let ids: Vec<_> = m.screens().map(Screen::id_text).collect();
-        assert_eq!(ids, ["home", "cart", "_dir"]);
+        assert_eq!(ids, [SCREEN, CART, EXPLORATION]);
         let home = m.screens().next().unwrap();
         let files: Vec<_> = home.variants().filter_map(Variant::file).collect();
-        assert_eq!(files, ["screens/home/a.html", ""]);
+        assert_eq!(files, [home_file.as_str(), ""]);
         assert_eq!(
             home.declared_states_checked(m).unwrap(),
-            &[json!("empty"), json!("error")],
+            &[json!(EMPTY), json!(ERROR)],
             "inherited"
         );
-        let cart = m
-            .screen_of_file_checked("screens/cart/a.html")
-            .unwrap()
-            .unwrap();
+        let cart = m.screen_of_file_checked(&cart_file).unwrap().unwrap();
         assert_eq!(
             cart.declared_states_checked(m).unwrap(),
-            &[json!("empty")],
+            &[json!(EMPTY)],
             "its own"
         );
         assert!(m.screen_of_file_checked("nope.html").unwrap().is_none());
@@ -192,20 +208,20 @@ mod tests {
         let v = json!({ "screens": "home" });
         let m = Manifest(&v);
         assert_eq!(m.screens().count(), 0, "skipped");
-        let err = m.screen_of_file_checked("a.html").unwrap_err();
+        let err = m.screen_of_file_checked(HTML_FILE).unwrap_err();
         assert!(err.message().contains("\"screens\" must be a list"));
         let v = json!({ "screens": [null] });
-        let err = Manifest(&v).screen_of_file_checked("a.html").unwrap_err();
+        let err = Manifest(&v).screen_of_file_checked(HTML_FILE).unwrap_err();
         assert!(err.message().contains("a screen must not be null"));
         let v = json!({ "screens": [{ "id": "x", "states": "empty", "variants": [null] }] });
         let m = Manifest(&v);
         let s = m.screens().next().unwrap();
         assert!(s.declared_states_checked(m).is_err());
-        assert!(m.screen_of_file_checked("a.html").is_err());
+        assert!(m.screen_of_file_checked(HTML_FILE).is_err());
         // A falsy value is an empty list both ways (Node's `value || []`).
         let v = json!({ "screens": false });
         assert!(Manifest(&v)
-            .screen_of_file_checked("a.html")
+            .screen_of_file_checked(HTML_FILE)
             .unwrap()
             .is_none());
     }

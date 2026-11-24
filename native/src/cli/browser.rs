@@ -5,6 +5,7 @@ use std::path::Path;
 
 use serde_json::{json, Value};
 
+use super::word::{command, sub};
 use super::{Ctx, Handler};
 use crate::browser::a11y::{a11y_check, A11yOptions};
 use crate::browser::layout_check::{layout_check, LayoutOptions, LayoutResult};
@@ -22,9 +23,9 @@ use crate::design::tokens::relative_path as relative;
 /// The commands of this group.
 pub fn commands() -> Vec<(&'static str, Handler)> {
     vec![
-        ("shoot", shoot as Handler),
-        ("layout", layout as Handler),
-        ("diff", diff as Handler),
+        (command::SHOOT, shoot as Handler),
+        (command::LAYOUT, layout as Handler),
+        (command::DIFF, diff as Handler),
     ]
 }
 
@@ -94,7 +95,7 @@ fn shoot(ctx: &Ctx) -> Result<i32, DfwError> {
 /// [--no-system] [--json]`: the rendered layout check.
 fn layout(ctx: &Ctx) -> Result<i32, DfwError> {
     let a = &ctx.args;
-    if a.pos(1).filter(|sub| !sub.is_empty()).unwrap_or("check") != "check" {
+    if a.pos(1).filter(|sub| !sub.is_empty()).unwrap_or(sub::CHECK) != sub::CHECK {
         return Err(DfwError::new("Usage: dfw layout check [--screen a,b] [--bp ids] [--states] [--no-stress] [--changed] [--no-system] [--json]"));
     }
     let root = ctx.root();
@@ -225,40 +226,56 @@ pub(super) fn debug_a11y(ctx: &Ctx) -> Result<i32, DfwError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cli::word::flag;
     use crate::core::util::parse_args;
+
+    /// The file `--out` names.
+    const OUT_FILE: &str = "a.png";
+    /// The screen `--screen` names.
+    const SCREEN: &str = "cart";
+    /// The theme `--theme` names.
+    const THEME: &str = "dark";
+    /// The folder paths are made relative to.
+    const BASE: &str = "/a/b";
 
     #[test]
     fn shoot_flags_become_options() {
         let opts = shoot_options(&parse_args(&[
-            "shoot",
-            "--out",
-            "a.png",
+            command::SHOOT,
+            flag::OUT,
+            OUT_FILE,
             "--viewport",
             "--selector",
             "#a",
-            "--screen",
-            "cart",
+            flag::SCREEN,
+            SCREEN,
             "--page",
             "--states",
             "--theme",
-            "dark",
+            THEME,
         ]));
         assert_eq!(
             opts,
             ShootOptions {
-                out: Some("a.png".into()),
+                out: Some(OUT_FILE.into()),
                 viewport: true,
                 selector: Some("#a".into()),
-                screen: Some("cart".into()),
+                screen: Some(SCREEN.into()),
                 // `--page` alone is refused before (`require_flag_values`); here it reads as none.
                 page: None,
                 states: true,
-                theme: Some("dark".into()),
+                theme: Some(THEME.into()),
                 ..ShootOptions::default()
             }
         );
         assert_eq!(
-            shoot_options(&parse_args(&["shoot", "--out", "", "--screen", ""])),
+            shoot_options(&parse_args(&[
+                command::SHOOT,
+                flag::OUT,
+                "",
+                flag::SCREEN,
+                ""
+            ])),
             ShootOptions::default()
         );
     }
@@ -266,13 +283,13 @@ mod tests {
     #[test]
     fn relative_paths() {
         assert_eq!(
-            relative(Path::new("/a/b"), Path::new("/a/b/c/d.png")),
+            relative(Path::new(BASE), Path::new("/a/b/c/d.png")),
             "c/d.png"
         );
         assert_eq!(
-            relative(Path::new("/a/b"), Path::new("/a/x/d.png")),
+            relative(Path::new(BASE), Path::new("/a/x/d.png")),
             "../x/d.png"
         );
-        assert_eq!(relative(Path::new("/a/b"), Path::new("/a/b")), "");
+        assert_eq!(relative(Path::new(BASE), Path::new(BASE)), "");
     }
 }

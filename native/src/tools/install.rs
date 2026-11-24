@@ -22,7 +22,7 @@ use crate::core::util::make_temp_dir;
 use crate::core::util::{out, plugin_manifest, read_json};
 
 /// The marketplace dfw and its skills are installed from.
-pub const MARKET: &str = "dfw-marketplace";
+pub use crate::core::util::MARKETPLACE_NAME as MARKET;
 
 fn dim(s: &str) -> String {
     format!("\x1b[2m{s}\x1b[0m")
@@ -97,6 +97,13 @@ fn has_cli(bin: &str) -> bool {
     spawn_sync(bin, &["--version".to_string()], &[], VERSION_TIMEOUT).status == Some(0)
 }
 
+/// What [`marketplace_action`] says to do with the marketplace.
+pub mod market {
+    pub const ADD: &str = "add";
+    pub const UPDATE: &str = "update";
+    pub const READD: &str = "readd";
+}
+
 /// `marketplaceAction(listOut, source, name)`: what to do with the marketplace in Claude Code,
 /// from "claude plugin marketplace list --json": "add" (not registered), "update" (registered
 /// from this source), "readd" (registered from another source, e.g. GitHub while --source is a
@@ -105,9 +112,9 @@ pub fn marketplace_action(list_out: &str, source: &str, name: &str) -> &'static 
     let Ok(list) = serde_json::from_str::<Value>(list_out) else {
         // Older Claude Code: no --json.
         return if list_out.contains(name) {
-            "update"
+            market::UPDATE
         } else {
-            "add"
+            market::ADD
         };
     };
     let cur = list
@@ -116,7 +123,7 @@ pub fn marketplace_action(list_out: &str, source: &str, name: &str) -> &'static 
         .flatten()
         .find(|m| m.get("name").and_then(Value::as_str) == Some(name));
     let Some(cur) = cur else {
-        return "add";
+        return market::ADD;
     };
     let norm = |v: &str| {
         let v = v.strip_prefix("https://github.com/").unwrap_or(v);
@@ -131,9 +138,9 @@ pub fn marketplace_action(list_out: &str, source: &str, name: &str) -> &'static 
     if known.contains(&norm(source))
         || known.contains(&norm(&resolve(source).display().to_string()))
     {
-        "update"
+        market::UPDATE
     } else {
-        "readd"
+        market::READD
     }
 }
 
@@ -249,7 +256,13 @@ fn step(s: &str) {
 /// Root entries of the dfw plugin folder Copilot installed before one folder served every host
 /// (`plugins/dfw-copilot`): a root `hooks.json` and `agents/`. The one folder has neither (its
 /// Copilot text is under `hosts/copilot/`).
-const OLD_LAYOUT_ENTRIES: [&str; 2] = ["hooks.json", "agents"];
+const OLD_LAYOUT_ENTRIES: [&str; 2] = [OLD_HOOKS, OLD_AGENTS];
+/// The root hooks file and the agents folder of the two-folder layout.
+const OLD_HOOKS: &str = "hooks.json";
+const OLD_AGENTS: &str = "agents";
+
+/// The name of dfw's plugin in a host's plugin listing.
+const PLUGIN: &str = "dfw";
 
 /// The names at the top of a folder; none when it cannot be read (not installed).
 pub fn root_entries(dir: &Path) -> Vec<String> {
@@ -287,7 +300,11 @@ pub fn old_copilot_installs(dfw_dir: &Path, entries: &[String], plugin_list: &st
         .flatten();
     for row in rows {
         let name = row.get("name").and_then(Value::as_str).unwrap_or_default();
-        if name != "dfw" && !name.starts_with("dfw@") {
+        if name != PLUGIN
+            && !name
+                .strip_prefix(PLUGIN)
+                .is_some_and(|r| r.starts_with('@'))
+        {
             continue;
         }
         let mut texts = Vec::new();
@@ -346,14 +363,14 @@ fn install_in_host(
             list = run.run("claude", &["plugin", "marketplace", "list"], true)?;
         }
         let action = marketplace_action(&list.stdout, source, MARKET);
-        if action == "update" {
+        if action == market::UPDATE {
             run.run(
                 "claude",
                 &["plugin", "marketplace", "update", MARKET],
                 false,
             )?;
         } else {
-            if action == "readd" {
+            if action == market::READD {
                 run.run("claude", &["plugin", "marketplace", "remove", MARKET], true)?;
             }
             run.run(
@@ -611,14 +628,16 @@ mod tests {
         } else {
             "/opt/dfw/bin/dfw"
         };
+        let doctor = args(&["doctor"]);
         assert_eq!(
-            spawn_plan(own, &args(&["doctor"])),
-            Some(Spawn::direct(own, args(&["doctor"])))
+            spawn_plan(own, &doctor),
+            Some(Spawn::direct(own, doctor.clone()))
         );
         assert_eq!(spawn_plan("dfw-no-such-host-cli", &[]), None);
         if cfg!(unix) {
-            let sh = spawn_plan("sh", &args(&["a b"])).unwrap();
-            assert!(Path::new(&sh.cmd).is_absolute() && sh.args == args(&["a b"]) && !sh.shell);
+            let spaced = args(&["a b"]);
+            let sh = spawn_plan("sh", &spaced).unwrap();
+            assert!(Path::new(&sh.cmd).is_absolute() && sh.args == spaced && !sh.shell);
         }
     }
 
@@ -627,36 +646,41 @@ mod tests {
     fn marketplace_is_readded_only_from_another_source() {
         let repo = "tantm97/ai-frontend-design-workflow";
         let list = r#"[{"name":"other","source":"github","repo":"a/b"},{"name":"dfw-marketplace","source":"github","repo":"tantm97/ai-frontend-design-workflow"}]"#;
+        use market::{ADD, READD, UPDATE};
+        /// A local clone given as the source.
+        const CLONE: &str = "./my-clone";
         let action = |list: &str, source: &str| marketplace_action(list, source, MARKET);
-        assert_eq!(action(list, repo), "update");
+        assert_eq!(action(list, repo), UPDATE);
         assert_eq!(
             action(
                 list,
                 "https://github.com/tantm97/ai-frontend-design-workflow.git"
             ),
-            "update"
+            UPDATE
         );
-        assert_eq!(action(list, "./my-clone"), "readd");
-        assert_eq!(action("[]", "./my-clone"), "add");
+        assert_eq!(action(list, CLONE), READD);
+        assert_eq!(action("[]", CLONE), ADD);
         let local = serde_json::json!([{ "name": "dfw-marketplace", "source": "directory", "path": resolve("my-clone").display().to_string() }]).to_string();
-        assert_eq!(action(&local, "./my-clone"), "update");
-        assert_eq!(action(&local, repo), "readd");
+        assert_eq!(action(&local, CLONE), UPDATE);
+        assert_eq!(action(&local, repo), READD);
         // Older Claude Code without --json: the text listing.
         assert_eq!(
             action("Configured marketplaces:\n  dfw-marketplace\n", "x"),
-            "update"
+            UPDATE
         );
-        assert_eq!(action("Configured marketplaces:\n", "x"), "add");
-        assert_eq!(action("", "x"), "add");
-        assert_eq!(action("42", "x"), "add");
+        assert_eq!(action("Configured marketplaces:\n", "x"), ADD);
+        assert_eq!(action("", "x"), ADD);
+        assert_eq!(action("42", "x"), ADD);
     }
 
     /// plugin-packaging: what `dfw install --host copilot` replaces
     #[test]
     fn old_copilot_installs_are_found_by_folder_and_by_listing() {
         let dir = Path::new("/home/me/.copilot/installed-plugins/dfw-marketplace/dfw");
+        /// The plugin manifest at the root, in both layouts.
+        const MANIFEST: &str = "plugin.json";
         let names = |list: &[&str]| list.iter().map(|n| n.to_string()).collect::<Vec<_>>();
-        let new_layout = names(&[".claude-plugin", "plugin.json", "hosts", "bin", "dfw.json"]);
+        let new_layout = names(&[".claude-plugin", MANIFEST, "hosts", "bin", "dfw.json"]);
         // Already on the one folder, nothing listed: nothing to replace.
         assert!(old_copilot_installs(dir, &new_layout, "").is_empty());
         assert!(
@@ -665,8 +689,8 @@ mod tests {
         );
         // A root hooks.json or agents/ is the two-folder layout.
         for old in [
-            &["hooks.json", "plugin.json", "skills"][..],
-            &["agents", "plugin.json"],
+            &[OLD_HOOKS, MANIFEST, "skills"][..],
+            &[OLD_AGENTS, MANIFEST],
         ] {
             assert_eq!(
                 old_copilot_installs(dir, &names(old), ""),
@@ -685,13 +709,13 @@ mod tests {
             [r"C:\clone\plugins\dfw-copilot\"]
         );
         let same =
-            serde_json::json!([{ "name": "dfw", "path": dir.display().to_string() }]).to_string();
+            serde_json::json!([{ "name": PLUGIN, "path": dir.display().to_string() }]).to_string();
         assert_eq!(
-            old_copilot_installs(dir, &names(&["agents"]), &same),
+            old_copilot_installs(dir, &names(&[OLD_AGENTS]), &same),
             [dir.display().to_string()]
         );
         // A marketplace install of the one folder, a listing that is not JSON, another plugin.
-        let fine = serde_json::json!([{ "name": "dfw", "path": dir.display().to_string(), "marketplace": "dfw-marketplace" }]).to_string();
+        let fine = serde_json::json!([{ "name": PLUGIN, "path": dir.display().to_string(), "marketplace": "dfw-marketplace" }]).to_string();
         assert!(old_copilot_installs(dir, &new_layout, &fine).is_empty());
         assert!(old_copilot_installs(dir, &new_layout, "dfw  /x/dfw-copilot").is_empty());
         assert!(old_copilot_installs(
@@ -716,11 +740,12 @@ mod tests {
             copilot_plugin_state(&dir),
             (false, "missing (dfw install --host copilot)".to_string())
         );
-        fs::create_dir_all(dir.join("bin")).unwrap();
-        fs::write(dir.join("bin").join("dfw"), "").unwrap();
+        let bin = dir.join("bin");
+        fs::create_dir_all(&bin).unwrap();
+        fs::write(bin.join("dfw"), "").unwrap();
         fs::create_dir_all(dir.join("hosts").join("copilot")).unwrap();
         assert_eq!(copilot_plugin_state(&dir), (true, "installed".to_string()));
-        fs::write(dir.join("hooks.json"), "{}").unwrap();
+        fs::write(dir.join(OLD_HOOKS), "{}").unwrap();
         let (ok, state) = copilot_plugin_state(&dir);
         assert!(!ok);
         assert_eq!(

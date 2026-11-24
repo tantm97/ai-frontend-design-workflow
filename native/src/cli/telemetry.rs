@@ -5,6 +5,7 @@ use std::path::Path;
 
 use serde_json::json;
 
+use super::word::{command, sub};
 use super::{Ctx, Handler};
 use crate::core::config::{set_config_value, Scope};
 use crate::core::error::DfwError;
@@ -18,7 +19,7 @@ const USAGE: &str =
 
 /// The command of this file.
 pub fn commands() -> Vec<(&'static str, Handler)> {
-    vec![("telemetry", telemetry as Handler)]
+    vec![(command::TELEMETRY, telemetry as Handler)]
 }
 
 /// Write one key of the global config (`<dfw home>/config.json`).
@@ -30,8 +31,8 @@ fn set(key: &str, value: serde_json::Value) -> Result<(), DfwError> {
 fn telemetry(ctx: &Ctx) -> Result<i32, DfwError> {
     let a = &ctx.args;
     let dir = spool::dir();
-    match a.pos(1).unwrap_or("status") {
-        "status" => {
+    match a.pos(1).unwrap_or(sub::STATUS) {
+        sub::STATUS => {
             let mut lines = vec![describe(&current(&dir))];
             if let Some(id) = spool::install_id(&dir, false) {
                 lines.push(format!("install id: {id}"));
@@ -44,16 +45,16 @@ fn telemetry(ctx: &Ctx) -> Result<i32, DfwError> {
             }
             out(&lines.join("\n"));
         }
-        "on" => {
+        sub::ON => {
             set("telemetry.enabled", json!(true))?;
             out(&describe(&current(&dir)));
         }
-        "off" => {
+        sub::OFF => {
             set("telemetry.enabled", json!(false))?;
             spool::forget(&dir)?;
             out("Telemetry is off. The install id and the events waiting to be sent were deleted.");
         }
-        "endpoint" => {
+        sub::ENDPOINT => {
             let url = a.pos(2).unwrap_or_default();
             if logs_url(url).is_none() {
                 return Err(DfwError::new(
@@ -63,7 +64,7 @@ fn telemetry(ctx: &Ctx) -> Result<i32, DfwError> {
             set("telemetry.endpoint", json!(url))?;
             out(&describe(&current(&dir)));
         }
-        "show" => {
+        sub::SHOW => {
             let events = spool::pending(&dir);
             let Some(resource) = resource(&dir).filter(|_| !events.is_empty()) else {
                 out("No events are waiting to be sent.");
@@ -79,7 +80,7 @@ fn telemetry(ctx: &Ctx) -> Result<i32, DfwError> {
                 });
             }
         }
-        "flush" => match flush(&dir) {
+        sub::FLUSH => match flush(&dir) {
             Flushed::Off(why) => out(&format!("Nothing sent: telemetry is {why}")),
             Flushed::Nothing => out("No events are waiting to be sent."),
             Flushed::Busy => out("Another flush is sending right now."),

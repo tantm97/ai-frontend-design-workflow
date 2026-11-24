@@ -695,7 +695,11 @@ fn findings_of(results: &[(RenderJob, Result<Measure, String>)]) -> Vec<Finding>
 #[rustfmt::skip]
 mod tests {
     use super::*;
-    use crate::core::fixture::{variant_page, COMPOSED_PAGE, SCREEN_PAGE_B};
+    use crate::core::fixture::{variant_page, COMPOSED_PAGE, SCREEN, SCREEN_PAGE_B};
+
+    /// The breakpoints the jobs render at.
+    const DESKTOP: &str = "desktop";
+    const MOBILE: &str = "mobile";
 
     fn job(screen: &str, variant: &str, bp: &str, width: u32) -> RenderJob {
         RenderJob {
@@ -757,7 +761,11 @@ mod tests {
             { "id": "a", "states": ["error", "loading"], "variants": [{ "id": "v1", "file": "screens/a/v1.html" }] },
             { "id": "b", "variants": [{ "id": "v1", "file": "screens/b/v1.html" }, { "id": "v2", "file": "screens/b/v2.html" }] },
         ] });
-        let bps = [job("", "", "desktop", 1280).bp, job("", "", "mobile", 390).bp];
+        let bps = [job("", "", DESKTOP, 1280).bp, job("", "", MOBILE, 390).bp];
+        // The plain renders of the first variants.
+        const A_DESKTOP: &str = "a/v1@desktop";
+        const A_MOBILE: &str = "a/v1@mobile";
+        const B_DESKTOP: &str = "b/v1@desktop";
         let name = |j: &RenderJob| {
             let mode = if j.reflow { " reflow" } else if j.stress { " stress" } else { "" };
             format!("{}/{}@{}{}{mode}", j.screen, j.variant, j.bp.id, j.state.as_ref().map(|s| format!("[{s}]")).unwrap_or_default())
@@ -765,13 +773,13 @@ mod tests {
         let names = |opts: &LayoutOptions| screen_jobs(&manifest, &bps, opts).iter().map(name).collect::<Vec<_>>();
         let only_a = LayoutOptions { screens: Some(vec!["a".into()]), states: true, ..LayoutOptions::default() };
         assert_eq!(names(&only_a), [
-            "a/v1@reflow reflow", "a/v1@desktop", "a/v1@desktop stress", "a/v1@desktop[error]", "a/v1@desktop[loading]",
-            "a/v1@mobile", "a/v1@mobile stress", "a/v1@mobile[error]", "a/v1@mobile[loading]",
+            "a/v1@reflow reflow", A_DESKTOP, "a/v1@desktop stress", "a/v1@desktop[error]", "a/v1@desktop[loading]",
+            A_MOBILE, "a/v1@mobile stress", "a/v1@mobile[error]", "a/v1@mobile[loading]",
         ]);
         let plain = LayoutOptions { stress: false, ..LayoutOptions::default() };
-        assert_eq!(names(&plain), ["a/v1@desktop", "a/v1@mobile", "b/v1@desktop", "b/v1@mobile", "b/v2@desktop", "b/v2@mobile"]);
+        assert_eq!(names(&plain), [A_DESKTOP, A_MOBILE, B_DESKTOP, "b/v1@mobile", "b/v2@desktop", "b/v2@mobile"]);
         let b_states = LayoutOptions { screens: Some(vec!["b".into()]), states: true, stress: false, ..LayoutOptions::default() };
-        assert_eq!(names(&b_states)[..2], ["b/v1@desktop", "b/v1@desktop[empty]"]);
+        assert_eq!(names(&b_states)[..2], [B_DESKTOP, "b/v1@desktop[empty]"]);
         let none = LayoutOptions { screens: Some(vec![]), ..LayoutOptions::default() };
         assert_eq!(names(&none), Vec::<String>::new());
         assert_eq!(screen_jobs(&manifest, &bps, &plain)[0].rel, rel::screen(&variant_page("a", "v1")));
@@ -779,26 +787,29 @@ mod tests {
 
     #[test]
     fn findings_per_render_carry_the_messages_of_layout_mjs() {
+        /// A tap target found twice, at two sizes.
+        const TINY: &str = "tiny";
         let m = json!({ "vw": 390, "vh": 700, "hOverflow": 24, "blocks": [], "content": null,
             "overlaps": [{ "a": "title", "b": "badge", "area": 1200 }],
             "clipped": [{ "el": "card", "text": "Long text" }],
             "anchors": [{ "name": "save", "top": 720, "bottom": 764, "left": 0, "right": 90, "inView": false }, { "name": "ok", "top": 1, "bottom": 2, "inView": true }],
-            "small": [{ "el": "tiny", "w": 120, "h": 30 }, { "el": "x", "w": 20, "h": 20 }, { "el": "tiny", "w": 121, "h": 31 }],
+            "small": [{ "el": TINY, "w": 120, "h": 30 }, { "el": "x", "w": 20, "h": 20 }, { "el": TINY, "w": 121, "h": 31 }],
             "components": [] });
-        let mut stressed = job("s", "a", "mobile", 390);
+        let anchors = &m["anchors"];
+        let mut stressed = job("s", "a", MOBILE, 390);
         stressed.stress = true;
-        let mut state = job("s", "a", "mobile", 390);
+        let mut state = job("s", "a", MOBILE, 390);
         state.state = Some("empty".into());
         let mut reflow = job("s", "a", "reflow", 320);
         reflow.reflow = true;
-        let mut system = job("_system", "page", "desktop", 1280);
+        let mut system = job("_system", "page", DESKTOP, 1280);
         system.system = true;
         let results = vec![
-            (job("s", "a", "mobile", 390), measured(m.clone())),
-            (stressed, measured(json!({ "vh": 700, "anchors": m["anchors"] }))),
+            (job("s", "a", MOBILE, 390), measured(m.clone())),
+            (stressed, measured(json!({ "vh": 700, "anchors": anchors }))),
             (state, Err("x".repeat(130))),
             (reflow, measured(m.clone())),
-            (system, measured(json!({ "vh": 900, "anchors": m["anchors"], "content": { "x": 0, "w": 1280, "top": 0 }, "blocks": [{ "x": 0, "y": 0, "w": 1280, "h": 300 }] }))),
+            (system, measured(json!({ "vh": 900, "anchors": anchors, "content": { "x": 0, "w": 1280, "top": 0 }, "blocks": [{ "x": 0, "y": 0, "w": 1280, "h": 300 }] }))),
         ];
         let f = &rel::screen(COMPOSED_PAGE);
         assert_eq!(lines(&results), [
@@ -817,16 +828,22 @@ mod tests {
 
     #[test]
     fn findings_across_screens_consistency_and_cosmetic_variants() {
+        /// The signature of the components that render the same everywhere.
+        const SAME: &str = "sig";
+        /// The second screen, and the button padding of each screen.
+        const LIST: &str = "list";
+        const HOME_PAD: &str = "8px";
+        const LIST_PAD: &str = "12px";
         let comps = |pad: &str| json!({ "vh": 700, "components": [
             { "c": "button", "v": "primary", "s": "", "sig": format!("14px 600 normal {pad} 16px 6px") },
-            { "c": "card", "v": "", "s": "", "sig": "sig" },
-            { "c": "stat", "v": "", "s": "", "sig": "sig" },
+            { "c": "card", "v": "", "s": "", "sig": SAME },
+            { "c": "stat", "v": "", "s": "", "sig": SAME },
         ] });
         let results = vec![
-            (job("home", "a", "desktop", 1280), measured(comps("8px"))),
-            (job("home", "b", "desktop", 1280), measured(comps("8px"))),
-            (job("list", "a", "desktop", 1280), measured(comps("12px"))),
-            (job("list", "a", "mobile", 390), measured(comps("12px"))),
+            (job(SCREEN, "a", DESKTOP, 1280), measured(comps(HOME_PAD))),
+            (job(SCREEN, "b", DESKTOP, 1280), measured(comps(HOME_PAD))),
+            (job(LIST, "a", DESKTOP, 1280), measured(comps(LIST_PAD))),
+            (job(LIST, "a", MOBILE, 390), measured(comps(LIST_PAD))),
         ];
         assert_eq!(lines(&results), [
             format!("warn consistency {} Component button/primary/ renders differently across screens (home: 14px 600 normal 8px 16px 6px | list: 14px 600 normal 12px 16px 6px). A screen is overriding the master; fix the master or the screen.", rel::MANIFEST),

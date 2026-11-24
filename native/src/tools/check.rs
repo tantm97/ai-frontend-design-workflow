@@ -42,6 +42,36 @@ pub const UI_EXT: [&str; 11] = [
     ".html", ".htm", ".css", ".scss", ".sass", ".less", ".jsx", ".tsx", ".vue", ".svelte", ".astro",
 ];
 
+/// The tools a check result names; the `tools` option selects the first three external ones by
+/// these names too (copy-lint as `taste`).
+pub mod tool {
+    pub const DFW_LINT: &str = "dfw-lint";
+    pub const DS_AUDIT: &str = "dfw-ds-audit";
+    pub(crate) use crate::review::locate::IMPECCABLE;
+    pub const SLOPLINT: &str = "sloplint";
+    pub const TASTE_COPY_LINT: &str = "taste-copy-lint";
+}
+
+/// What became of a tool: the `status` of its result. Every one but `ran` and `skipped` means
+/// the check did not run, and the report says NOT VERIFIED.
+pub mod outcome {
+    pub const RAN: &str = "ran";
+    pub const SKIPPED: &str = "skipped";
+    pub const UNAVAILABLE: &str = "unavailable";
+    pub const NOT_INSTALLED: &str = "not-installed";
+    pub const UNVERIFIABLE: &str = "unverifiable";
+    pub const TIMEOUT: &str = "timeout";
+    pub const ERROR: &str = "error";
+}
+
+/// The fields of a check result: `{ tool, status, detail?, findings }`.
+pub mod field {
+    pub const TOOL: &str = "tool";
+    pub const STATUS: &str = "status";
+    pub const DETAIL: &str = "detail";
+    pub const FINDINGS: &str = "findings";
+}
+
 /// `path.extname`: from the last dot of the last segment, unless the name starts with it.
 pub fn extname(path: &str) -> &str {
     let name = path.rsplit('/').next().unwrap_or(path);
@@ -58,12 +88,12 @@ fn is_url(target: &str) -> bool {
 /// `{ tool, status, detail, findings }`; `detail` is left out when there is none.
 fn result(tool: &str, status: &str, detail: Option<String>, findings: Vec<Value>) -> Value {
     let mut map = Map::new();
-    map.insert("tool".into(), json!(tool));
-    map.insert("status".into(), json!(status));
+    map.insert(field::TOOL.into(), json!(tool));
+    map.insert(field::STATUS.into(), json!(status));
     if let Some(detail) = detail {
-        map.insert("detail".into(), json!(detail));
+        map.insert(field::DETAIL.into(), json!(detail));
     }
-    map.insert("findings".into(), Value::Array(findings));
+    map.insert(field::FINDINGS.into(), Value::Array(findings));
     Value::Object(map)
 }
 
@@ -173,9 +203,9 @@ pub fn run_sloplint(
     opts: ToolRun,
     lookup: &Lookup,
 ) -> Result<Value, DfwError> {
-    const TOOL: &str = "sloplint";
+    const TOOL: &str = tool::SLOPLINT;
     let Some(script) = (lookup.sloplint)()? else {
-        return Ok(result(TOOL, "unavailable", None, Vec::new()));
+        return Ok(result(TOOL, outcome::UNAVAILABLE, None, Vec::new()));
     };
     // It reads files, not URLs.
     let files: Vec<&String> = targets
@@ -189,13 +219,13 @@ pub fn run_sloplint(
         })
         .collect();
     if files.is_empty() {
-        return Ok(result(TOOL, "skipped", None, Vec::new()));
+        return Ok(result(TOOL, outcome::SKIPPED, None, Vec::new()));
     }
     let scope = sloplint_scope(root)?;
     let Some(node) = (lookup.node)() else {
         return Ok(result(
             TOOL,
-            "unavailable",
+            outcome::UNAVAILABLE,
             Some("needs Node.js on PATH".into()),
             Vec::new(),
         ));
@@ -210,10 +240,15 @@ pub fn run_sloplint(
         opts.timeout_ms,
     );
     if ran.timed_out {
-        return Ok(result(TOOL, "timeout", None, Vec::new()));
+        return Ok(result(TOOL, outcome::TIMEOUT, None, Vec::new()));
     }
     let Some(data) = parse_json_loose(&ran.stdout) else {
-        return Ok(result(TOOL, "error", Some(error_detail(&ran)), Vec::new()));
+        return Ok(result(
+            TOOL,
+            outcome::ERROR,
+            Some(error_detail(&ran)),
+            Vec::new(),
+        ));
     };
     // Hallmark leads marketing pages only. On product UI its Floor is a strong recommendation
     // (precedence level 5), so FAILs do not block approval there.
@@ -230,7 +265,7 @@ pub fn run_sloplint(
         _ => None,
     };
     let findings = data
-        .get("findings")
+        .get(field::FINDINGS)
         .and_then(Value::as_array)
         .map(Vec::as_slice)
         .unwrap_or_default()
@@ -245,11 +280,11 @@ pub fn run_sloplint(
                 "file": finding_file(root, f.get("file")),
                 "line": finding_line(f),
                 "message": with_fix(js::to_string(f.get("evidence")), f),
-                "source": "sloplint",
+                "source": tool::SLOPLINT,
             }))
         })
         .collect();
-    Ok(result(TOOL, "ran", None, findings))
+    Ok(result(TOOL, outcome::RAN, None, findings))
 }
 
 /// `runImpeccable(root, targets, { env, timeoutMs, engine })`. Never downloads (a hook would
@@ -260,19 +295,24 @@ pub fn run_impeccable(
     opts: ToolRun,
     engine: Option<&Engine>,
 ) -> Value {
-    const TOOL: &str = "impeccable";
+    const TOOL: &str = tool::IMPECCABLE;
     let Some(engine) = engine else {
-        return result(TOOL, "unavailable", None, Vec::new());
+        return result(TOOL, outcome::UNAVAILABLE, None, Vec::new());
     };
     let Some(cmd) = engine.cmd.as_ref().filter(|_| engine.ready) else {
-        return result(TOOL, "not-installed", engine.detail.clone(), Vec::new());
+        return result(
+            TOOL,
+            outcome::NOT_INSTALLED,
+            engine.detail.clone(),
+            Vec::new(),
+        );
     };
     let files: Vec<&String> = targets
         .iter()
         .filter(|t| UI_EXT.contains(&extname(t)) || is_url(t))
         .collect();
     if files.is_empty() {
-        return result(TOOL, "skipped", None, Vec::new());
+        return result(TOOL, outcome::SKIPPED, None, Vec::new());
     }
     let mut args: Vec<String> = ["detect", "--json"].map(String::from).to_vec();
     args.extend(files.iter().map(|f| f.to_string()));
@@ -284,10 +324,10 @@ pub fn run_impeccable(
         opts.timeout_ms,
     );
     if ran.timed_out {
-        return result(TOOL, "timeout", None, Vec::new());
+        return result(TOOL, outcome::TIMEOUT, None, Vec::new());
     }
     let Some(Value::Array(data)) = parse_json_loose(&ran.stdout) else {
-        return result(TOOL, "error", Some(error_detail(&ran)), Vec::new());
+        return result(TOOL, outcome::ERROR, Some(error_detail(&ran)), Vec::new());
     };
     let findings = data
         .iter()
@@ -313,11 +353,11 @@ pub fn run_impeccable(
                 "file": finding_file(root, f.get("file")),
                 "line": finding_line(f),
                 "message": format!("{}: {}{snippet}", js::to_string(f.get("name")), js::to_string(f.get("description"))),
-                "source": "impeccable",
+                "source": tool::IMPECCABLE,
             })
         })
         .collect();
-    result(TOOL, "ran", None, findings)
+    result(TOOL, outcome::RAN, None, findings)
 }
 
 /// Variables for a tool, on top of this process's environment.
@@ -406,21 +446,21 @@ pub fn run_taste_copy_lint(
     opts: ToolRun,
     lookup: &Lookup,
 ) -> Result<Value, DfwError> {
-    const TOOL: &str = "taste-copy-lint";
+    const TOOL: &str = tool::TASTE_COPY_LINT;
     let Some(script) = (lookup.taste)()? else {
-        return Ok(result(TOOL, "unavailable", None, Vec::new()));
+        return Ok(result(TOOL, outcome::UNAVAILABLE, None, Vec::new()));
     };
     let files: Vec<&String> = targets
         .iter()
         .filter(|t| has_suffix(t, &[".html", ".md", ".txt"]))
         .collect();
     if files.is_empty() {
-        return Ok(result(TOOL, "skipped", None, Vec::new()));
+        return Ok(result(TOOL, outcome::SKIPPED, None, Vec::new()));
     }
     let Some(node) = (lookup.node)() else {
         return Ok(result(
             TOOL,
-            "unavailable",
+            outcome::UNAVAILABLE,
             Some("needs Node.js on PATH".into()),
             Vec::new(),
         ));
@@ -435,7 +475,12 @@ pub fn run_taste_copy_lint(
         opts.timeout_ms,
     );
     let Some(data) = parse_json_loose(&ran.stdout) else {
-        return Ok(result(TOOL, "error", Some(error_detail(&ran)), Vec::new()));
+        return Ok(result(
+            TOOL,
+            outcome::ERROR,
+            Some(error_detail(&ran)),
+            Vec::new(),
+        ));
     };
     let mut findings = Vec::new();
     let reports = data.get("files").and_then(Value::as_array);
@@ -445,7 +490,7 @@ pub fn run_taste_copy_lint(
         .iter()
         .enumerate()
     {
-        let list = report.get("findings").and_then(Value::as_array);
+        let list = report.get(field::FINDINGS).and_then(Value::as_array);
         for f in list.map(Vec::as_slice).unwrap_or_default() {
             let sev = f.get("sev").and_then(Value::as_str);
             if sev == Some("INFO") {
@@ -459,11 +504,11 @@ pub fn run_taste_copy_lint(
                 "file": files.get(i).map(|f| f.as_str()).unwrap_or_default(),
                 "line": 1,
                 "message": with_fix(js::to_string(text), f),
-                "source": "taste-copy-lint",
+                "source": tool::TASTE_COPY_LINT,
             }));
         }
     }
-    Ok(result(TOOL, "ran", None, findings))
+    Ok(result(TOOL, outcome::RAN, None, findings))
 }
 
 // ---------------------------------------------------------------- all checks
@@ -576,7 +621,7 @@ fn tool_targets(root: &Path, external: Vec<String>) -> Result<(Vec<String>, Comp
 /// Point the findings a tool reported on a composed copy at the design file it was made from.
 fn remap(mut res: Value, composed: &[(String, String)]) -> Value {
     let source_of = |key: &str| composed.iter().find(|(k, _)| k == key).map(|(_, v)| v);
-    let list = res.get_mut("findings").and_then(Value::as_array_mut);
+    let list = res.get_mut(field::FINDINGS).and_then(Value::as_array_mut);
     for f in list.into_iter().flatten() {
         let k = to_posix(
             &f.get("file")
@@ -661,21 +706,24 @@ pub fn run_checks_with(
             Some(list) if list.is_empty() => Vec::new(),
             other => lint_design(root, other.as_deref())?,
         };
-        results.push(result("dfw-lint", "ran", None, findings));
+        results.push(result(tool::DFW_LINT, outcome::RAN, None, findings));
         let system_touched = lint_targets.as_ref().is_none_or(|list| {
             list.iter()
                 .any(|t| rel::under(rel::TOKENS, t) || rel::under(rel::SYSTEM, t))
         });
         if system_touched {
             results.push(result(
-                "dfw-ds-audit",
-                "ran",
+                tool::DS_AUDIT,
+                outcome::RAN,
                 None,
                 audit_design_system(root)?,
             ));
         }
     }
-    if !["impeccable", "sloplint", "taste"].iter().any(|t| want(t)) {
+    if ![tool::IMPECCABLE, tool::SLOPLINT, "taste"]
+        .iter()
+        .any(|t| want(t))
+    {
         return Ok(results);
     }
     // External tools read plain HTML: give them composed copies (components and icons expanded)
@@ -688,7 +736,7 @@ pub fn run_checks_with(
         env: &env,
         timeout_ms: budget,
     };
-    if want("impeccable") && setting("impeccable") != Some(&Value::Bool(false)) {
+    if want(tool::IMPECCABLE) && setting(tool::IMPECCABLE) != Some(&Value::Bool(false)) {
         let engine = (lookup.engine)()?;
         results.push(remap(run_impeccable(
             root,
@@ -697,7 +745,7 @@ pub fn run_checks_with(
             engine.as_ref(),
         )));
     }
-    if want("sloplint") && setting("sloplint") != Some(&Value::Bool(false)) {
+    if want(tool::SLOPLINT) && setting(tool::SLOPLINT) != Some(&Value::Bool(false)) {
         results.push(remap(run_sloplint(root, &tool_targets, run_opts, lookup)?));
     }
     if want("taste") && setting("tasteCopyLint").is_some_and(js::truthy) {

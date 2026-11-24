@@ -5,11 +5,16 @@ use std::net::{TcpListener, TcpStream};
 use std::sync::Arc;
 use std::thread;
 
-use super::proxy::LiveServer;
+use super::proxy::{LiveServer, GZIP, SOURCE, TARGET};
 use super::*;
 use crate::core::paths::rel;
 use crate::core::util::test_dir;
 use crate::review::comments::all_comments;
+use crate::studio::http::{status, status_line};
+
+/// The page of the fake app the review starts on, and the address a comment on it sends.
+const CART: &str = "/cart";
+const CART_URL: &str = "/cart?x=1";
 
 fn tags() -> String {
     live_tags(None, DEFAULT_SHORTCUT)
@@ -69,8 +74,8 @@ fn inject_live_and_assert_local_target() {
 /// review shortcut: normalised combos, Alt+C default, invalid combos refused
 #[test]
 fn review_shortcuts() {
-    assert_eq!(normalize_shortcut("Alt+C").unwrap(), "alt+c");
-    assert_eq!(normalize_shortcut("option+c").unwrap(), "alt+c");
+    assert_eq!(normalize_shortcut("Alt+C").unwrap(), DEFAULT_SHORTCUT);
+    assert_eq!(normalize_shortcut("option+c").unwrap(), DEFAULT_SHORTCUT);
     assert_eq!(normalize_shortcut("shift+ctrl+k").unwrap(), "ctrl+shift+k");
     assert_eq!(normalize_shortcut("cmd+shift+1").unwrap(), "shift+meta+1");
     assert_eq!(
@@ -78,8 +83,8 @@ fn review_shortcuts() {
         "c",
         "a bare key is allowed when the user asks for it"
     );
-    for off in ["off", "none", "", "false"] {
-        assert_eq!(normalize_shortcut(off).unwrap(), "off");
+    for off in [SHORTCUT_OFF, "none", "", "false"] {
+        assert_eq!(normalize_shortcut(off).unwrap(), SHORTCUT_OFF);
     }
     for bad in ["alt", "alt+cc", "alt+c+d", "hyper+c", "ctrl+enter"] {
         let e = normalize_shortcut(bad).unwrap_err();
@@ -89,7 +94,9 @@ fn review_shortcuts() {
         tags().contains("data-shortcut=\"alt+c\""),
         "Alt/Option+C by default, not a bare C"
     );
-    assert!(live_tags(Some("a\"b"), "off").contains("data-shortcut=\"off\" nonce=\"a&quot;b\""));
+    assert!(
+        live_tags(Some("a\"b"), SHORTCUT_OFF).contains("data-shortcut=\"off\" nonce=\"a&quot;b\"")
+    );
 }
 
 /// patchCsp: adds the proxy origin + nonce for the injected scripts and the comment POST, nothing else
@@ -117,9 +124,10 @@ fn patch_csp_adds_only_what_the_injected_scripts_need() {
         patch_csp("script-src-elem 'self'; script-src 'none', connect-src 'self'", o, n),
         "script-src-elem 'self' 'nonce-N0nce'; script-src http://localhost:4700 'nonce-N0nce', connect-src 'self'"
     );
+    let images_only = "img-src 'self'";
     assert_eq!(
-        patch_csp("img-src 'self'", o, n),
-        "img-src 'self'",
+        patch_csp(images_only, o, n),
+        images_only,
         "scripts and fetch not restricted: unchanged"
     );
     assert_eq!(patch_csp("", o, n), "");
@@ -134,23 +142,22 @@ fn patch_csp_adds_only_what_the_injected_scripts_need() {
 /// fixSetCookie: only a Domain naming the other loopback host is dropped
 #[test]
 fn fix_set_cookie_drops_only_the_other_loopback_domain() {
+    /// The cookies that pass as they are: the own host's domain, no domain, another site.
+    const OWN_DOMAIN: &str = "b=2; domain=localhost; HttpOnly";
+    const NO_DOMAIN: &str = "c=3; Path=/";
+    const OTHER_SITE: &str = "d=4; Domain=example.test";
     let cookies: Vec<String> = [
         "a=1; Domain=127.0.0.1; Path=/",
-        "b=2; domain=localhost; HttpOnly",
-        "c=3; Path=/",
-        "d=4; Domain=example.test",
+        OWN_DOMAIN,
+        NO_DOMAIN,
+        OTHER_SITE,
     ]
     .iter()
     .map(|s| s.to_string())
     .collect();
     assert_eq!(
         fix_set_cookie(&cookies, "localhost"),
-        [
-            "a=1; Path=/",
-            "b=2; domain=localhost; HttpOnly",
-            "c=3; Path=/",
-            "d=4; Domain=example.test"
-        ]
+        ["a=1; Path=/", OWN_DOMAIN, NO_DOMAIN, OTHER_SITE]
     );
     assert_eq!(
         fix_set_cookie(&["a=1; Domain=.localhost".into()], "127.0.0.1"),
@@ -274,7 +281,7 @@ fn the_proxy_injects_passes_through_and_stores_comments() {
     let app = fake_app(&abs_root);
     let (port, _server) = proxy_for(&root, &format!("http://127.0.0.1:{app}"));
     let host = format!("127.0.0.1:{port}");
-    let page = get(port, "/cart", &host);
+    let page = get(port, CART, &host);
     let html = body(&page);
     let re = regex::Regex::new(r#"<script defer src="/__dfw/overlay\.js" data-dfw-live nonce="[A-Za-z0-9+/=]+"></script><script defer src="/__dfw/live\.js" data-shortcut="alt\+c" nonce="[A-Za-z0-9+/=]+"></script></head>"#).unwrap();
     assert!(re.is_match(html), "overlay injected: {html}");
@@ -297,7 +304,7 @@ fn the_proxy_injects_passes_through_and_stores_comments() {
         "redirects stay on the proxy"
     );
     for f in ["overlay.js", "live.js"] {
-        assert!(get(port, &format!("/__dfw/{f}"), &host).starts_with("HTTP/1.1 200"));
+        assert!(get(port, &format!("/__dfw/{f}"), &host).starts_with(&status_line(status::OK)));
     }
 
     // WebSocket upgrade (HMR) passthrough.
@@ -315,7 +322,7 @@ fn the_proxy_injects_passes_through_and_stores_comments() {
             pinged = true;
         }
     }
-    assert!(buf.starts_with("HTTP/1.1 101"));
+    assert!(buf.starts_with(&status_line(status::SWITCHING_PROTOCOLS)));
     assert!(
         buf.contains(&format!("X-Seen-Host: 127.0.0.1:{app}")),
         "Host rewritten to the app"
@@ -323,11 +330,11 @@ fn the_proxy_injects_passes_through_and_stores_comments() {
 
     // A comment as live.js posts it: absolute data-insp-path -> project-relative source.
     let abs = format!("{abs_root}/src/components/Summary.tsx:42:7:section");
-    let c = post_comment(port, "", &serde_json::json!({ "comment": "Total should be bold", "screen": "/cart", "url": "/cart?x=1", "viewport": [390, 844], "target": { "selector": "#total > span", "tag": "span", "text": "$12.00", "insp": abs, "source": "evil/should-not-pass.ts:1" } }).to_string());
-    assert!(c.starts_with("HTTP/1.1 201"), "{c}");
+    let c = post_comment(port, "", &serde_json::json!({ "comment": "Total should be bold", "screen": CART, "url": CART_URL, "viewport": [390, 844], "target": { "selector": "#total > span", "tag": "span", "text": "$12.00", "insp": abs, "source": "evil/should-not-pass.ts:1" } }).to_string());
+    assert!(c.starts_with(&status_line(status::CREATED)), "{c}");
     let c: Value = serde_json::from_str(body(&c)).unwrap();
-    assert_eq!(c["target"]["source"], "src/components/Summary.tsx:42:7");
-    assert_eq!(c["target"]["inspPath"], abs);
+    assert_eq!(c[TARGET][SOURCE], "src/components/Summary.tsx:42:7");
+    assert_eq!(c[TARGET]["inspPath"], abs);
     assert_eq!(
         serde_json::json!([
             c["screen"],
@@ -337,7 +344,7 @@ fn the_proxy_injects_passes_through_and_stores_comments() {
             c["provider"],
             c["file"]
         ]),
-        serde_json::json!(["/cart", "live", "/cart?x=1", "mobile", "dfw-live", null])
+        serde_json::json!([CART, "live", CART_URL, "mobile", "dfw-live", null])
     );
     // Without the inspector attribute: selector + text only.
     let c2 = post_comment(
@@ -346,9 +353,10 @@ fn the_proxy_injects_passes_through_and_stores_comments() {
         r##"{"comment":"Make it primary","url":"/cart","target":{"selector":"#plain","text":"No source"}}"##,
     );
     let c2: Value = serde_json::from_str(body(&c2)).unwrap();
-    assert_eq!(c2["target"]["source"], Value::Null);
-    assert_eq!(c2["target"]["selector"], "#plain");
-    assert!(post_comment(port, "", r#"{"comment":"  "}"#).starts_with("HTTP/1.1 400"));
+    assert_eq!(c2[TARGET][SOURCE], Value::Null);
+    assert_eq!(c2[TARGET]["selector"], "#plain");
+    assert!(post_comment(port, "", r#"{"comment":"  "}"#)
+        .starts_with(&status_line(status::BAD_REQUEST)));
     assert_eq!(all_comments(&root).unwrap().len(), 2);
     let _ = std::fs::remove_dir_all(&root);
 }
@@ -360,16 +368,17 @@ fn the_proxy_refuses_foreign_origins_and_hosts() {
     let (port, _server) = proxy_for(&root, "http://127.0.0.1:9");
     let comment = r#"{"comment":"from another site","screen":"home"}"#;
     assert!(
-        post_comment(port, "Origin: https://evil.example\r\n", comment).starts_with("HTTP/1.1 403")
+        post_comment(port, "Origin: https://evil.example\r\n", comment)
+            .starts_with(&status_line(status::FORBIDDEN))
     );
-    assert!(get(port, "/", "evil.example").starts_with("HTTP/1.1 403"));
+    assert!(get(port, "/", "evil.example").starts_with(&status_line(status::FORBIDDEN)));
     assert_eq!(all_comments(&root).unwrap().len(), 0);
     assert!(post_comment(
         port,
         &format!("Origin: http://127.0.0.1:{port}\r\n"),
         comment
     )
-    .starts_with("HTTP/1.1 201"));
+    .starts_with(&status_line(status::CREATED)));
     let _ = std::fs::remove_dir_all(&root);
 }
 
@@ -381,38 +390,44 @@ fn the_proxy_refuses_other_loopback_origins_and_foreign_upgrades() {
     let app = fake_app("");
     let (port, _server) = proxy_for(&root, &format!("http://127.0.0.1:{app}"));
     let comment = r#"{"comment":"from another local site"}"#;
+    let answer = |origin: &str, code: u16| {
+        let r = post_comment(port, &format!("Origin: {origin}\r\n"), comment);
+        assert!(r.starts_with(&status_line(code)), "{origin}: {r}");
+    };
     for origin in [
         "http://localhost:8888",
         "http://127.0.0.1:1",
         "https://localhost:{port}",
     ] {
-        let origin = origin.replace("{port}", &port.to_string());
-        let r = post_comment(port, &format!("Origin: {origin}\r\n"), comment);
-        assert!(r.starts_with("HTTP/1.1 403"), "{origin}: {r}");
+        answer(
+            &origin.replace("{port}", &port.to_string()),
+            status::FORBIDDEN,
+        );
     }
     let pass = call(port, &format!("POST /echo HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nOrigin: http://localhost:8888\r\nContent-Length: 2\r\n\r\nhi"));
-    assert!(pass.starts_with("HTTP/1.1 403"), "{pass}");
+    assert!(pass.starts_with(&status_line(status::FORBIDDEN)), "{pass}");
     assert_eq!(all_comments(&root).unwrap().len(), 0);
     for origin in [
         format!("http://localhost:{port}"),
         format!("http://[::1]:{port}"),
     ] {
-        let r = post_comment(port, &format!("Origin: {origin}\r\n"), comment);
-        assert!(r.starts_with("HTTP/1.1 201"), "{origin}: {r}");
+        answer(&origin, status::CREATED);
     }
     let upgrade = |extra: &str| {
         call(port, &format!("GET /hmr HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n{extra}Upgrade: websocket\r\nConnection: Upgrade\r\n\r\n"))
     };
     let r = upgrade("Origin: https://evil.example\r\n");
-    assert!(r.starts_with("HTTP/1.1 403"), "{r}");
+    assert!(r.starts_with(&status_line(status::FORBIDDEN)), "{r}");
     let r = call(port, "GET /hmr HTTP/1.1\r\nHost: evil.example\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n");
-    assert!(r.starts_with("HTTP/1.1 403"), "{r}");
+    assert!(r.starts_with(&status_line(status::FORBIDDEN)), "{r}");
     // The page's own HMR socket still upgrades.
     let mut s = TcpStream::connect(("127.0.0.1", port)).unwrap();
     s.write_all(format!("GET /hmr HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nOrigin: http://127.0.0.1:{port}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n").as_bytes()).unwrap();
     let mut chunk = [0u8; 256];
     let n = s.read(&mut chunk).unwrap();
-    assert!(String::from_utf8_lossy(&chunk[..n]).starts_with("HTTP/1.1 101"));
+    assert!(
+        String::from_utf8_lossy(&chunk[..n]).starts_with(&status_line(status::SWITCHING_PROTOCOLS))
+    );
     let _ = std::fs::remove_dir_all(&root);
 }
 
@@ -427,22 +442,29 @@ fn the_proxy_answers_requests_over_its_limits() {
     let too_large =
         crate::studio::http::error_body(crate::studio::http::message::TOO_LARGE).to_string();
     assert!(
-        r.starts_with("HTTP/1.1 413") && body(&r) == too_large,
+        r.starts_with(&status_line(status::PAYLOAD_TOO_LARGE)) && body(&r) == too_large,
         "{r}"
     );
     let r = call(port, &format!("POST /__dfw/api/comments HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nTransfer-Encoding: chunked\r\n\r\nffffffffffffffff\r\nabc"));
-    assert!(r.starts_with("HTTP/1.1 413"), "{r}");
+    assert!(
+        r.starts_with(&status_line(status::PAYLOAD_TOO_LARGE)),
+        "{r}"
+    );
     let r = call(port, &format!("POST /app HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nTransfer-Encoding: chunked\r\n\r\nffffffffffffffff\r\nabc"));
-    assert!(r.starts_with("HTTP/1.1 413"), "{r}");
+    assert!(
+        r.starts_with(&status_line(status::PAYLOAD_TOO_LARGE)),
+        "{r}"
+    );
     let r = post_comment(port, "", "{not json");
     assert!(
-        r.starts_with("HTTP/1.1 400")
+        r.starts_with(&status_line(status::BAD_REQUEST))
             && body(&r) == r#"{"error":"The request body is not valid JSON."}"#,
         "{r}"
     );
     let r = call(port, &format!("POST /__dfw/api/comments HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nContent-Length: -1\r\n\r\n"));
-    assert!(r.starts_with("HTTP/1.1 400"), "{r}");
-    assert!(get(port, "/__dfw/api/live", &format!("127.0.0.1:{port}")).starts_with("HTTP/1.1 200"));
+    assert!(r.starts_with(&status_line(status::BAD_REQUEST)), "{r}");
+    assert!(get(port, "/__dfw/api/live", &format!("127.0.0.1:{port}"))
+        .starts_with(&status_line(status::OK)));
     let _ = std::fs::remove_dir_all(&root);
 }
 
@@ -453,9 +475,9 @@ fn decoding_stops_at_the_cap() {
     gz.write_all(&vec![b'a'; 1_000_000]).unwrap();
     let packed = gz.finish().unwrap();
     assert!(packed.len() < 10_000);
-    assert_eq!(super::proxy::decode(&packed, Some("gzip"), 999_999), None);
+    assert_eq!(super::proxy::decode(&packed, Some(GZIP), 999_999), None);
     assert_eq!(
-        super::proxy::decode(&packed, Some("gzip"), 1_000_000).map(|d| d.len()),
+        super::proxy::decode(&packed, Some(GZIP), 1_000_000).map(|d| d.len()),
         Some(1_000_000)
     );
     let mut z = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::best());
@@ -477,7 +499,7 @@ fn the_proxy_answers_502_when_the_app_is_down() {
         .port();
     let (port, _server) = proxy_for(&root, &format!("http://127.0.0.1:{free}"));
     let r = get(port, "/", &format!("127.0.0.1:{port}"));
-    assert!(r.starts_with("HTTP/1.1 502"), "{r}");
+    assert!(r.starts_with(&status_line(status::BAD_GATEWAY)), "{r}");
     assert!(body(&r).contains("not reachable"));
     let _ = std::fs::remove_dir_all(&root);
 }
@@ -637,16 +659,16 @@ fn review_in_a_browser_click_to_comment_carries_the_nearest_insp_path() {
     let comments = all_comments(&root).unwrap();
     let c = &comments[0];
     assert_eq!(
-        c["target"]["source"], "src/components/Summary.tsx:42:7",
+        c[TARGET][SOURCE], "src/components/Summary.tsx:42:7",
         "nearest ancestor with the attribute"
     );
-    assert_eq!(c["target"]["tag"], "span");
-    assert_eq!(c["target"]["text"], "$12.00");
-    assert!(c["target"]["selector"]
+    assert_eq!(c[TARGET]["tag"], "span");
+    assert_eq!(c[TARGET]["text"], "$12.00");
+    assert!(c[TARGET]["selector"]
         .as_str()
         .unwrap()
         .contains("#total > span"));
-    assert_eq!(c["screen"], "/cart");
+    assert_eq!(c["screen"], CART);
     assert_eq!(c["breakpoint"], "desktop");
 }
 
@@ -746,6 +768,8 @@ fn review_in_a_browser_strict_csp_localhost_cookies_and_the_shortcut() {
 #[test]
 fn an_idle_websocket_tunnel_is_closed() {
     use std::time::{Duration, Instant};
+    /// What the client sends through the tunnel.
+    const PING: &[u8; 4] = b"ping";
     // Two socket pairs: (client, proxy side) and (proxy side, app).
     let pair = || {
         let l = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -760,10 +784,10 @@ fn an_idle_websocket_tunnel_is_closed() {
     // Traffic within the deadline passes and keeps the tunnel open.
     for _ in 0..3 {
         thread::sleep(Duration::from_millis(150));
-        client.write_all(b"ping").unwrap();
+        client.write_all(PING).unwrap();
         let mut got = [0u8; 4];
         app.read_exact(&mut got).unwrap();
-        assert_eq!(&got, b"ping");
+        assert_eq!(&got, PING);
     }
     let quiet = Instant::now();
     app.set_read_timeout(Some(Duration::from_secs(5))).unwrap();

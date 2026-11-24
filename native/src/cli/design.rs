@@ -7,6 +7,7 @@ use std::path::Path;
 
 use serde_json::{json, Map, Value};
 
+use super::word::{command, sub};
 use super::{Ctx, Handler};
 use crate::browser::a11y::{a11y_check, A11yOptions};
 use crate::core::config::env_map;
@@ -50,17 +51,17 @@ use crate::tools::lighthouse::run_lighthouse;
 /// The commands of this group.
 pub fn commands() -> Vec<(&'static str, Handler)> {
     vec![
-        ("build", build as Handler),
-        ("tokens", build as Handler),
-        ("lint", check as Handler),
-        ("check", check as Handler),
-        ("system", system as Handler),
-        ("style", style as Handler),
-        ("type", type_scale as Handler),
-        ("palette", palette as Handler),
-        ("icons", icons as Handler),
-        ("fonts", fonts as Handler),
-        ("blueprint", blueprint as Handler),
+        (command::BUILD, build as Handler),
+        (command::TOKENS, build as Handler),
+        (command::LINT, check as Handler),
+        (command::CHECK, check as Handler),
+        (command::SYSTEM, system as Handler),
+        (command::STYLE, style as Handler),
+        (command::TYPE, type_scale as Handler),
+        (command::PALETTE, palette as Handler),
+        (command::ICONS, icons as Handler),
+        (command::FONTS, fonts as Handler),
+        (command::BLUEPRINT, blueprint as Handler),
     ]
 }
 
@@ -154,10 +155,10 @@ fn tokens_extract(ctx: &Ctx) -> Result<i32, DfwError> {
 fn build(ctx: &Ctx) -> Result<i32, DfwError> {
     if ctx.args.pos(0) == Some("tokens") {
         match ctx.args.pos(1) {
-            Some("extract") => return tokens_extract(ctx),
+            Some(sub::EXTRACT) => return tokens_extract(ctx),
             // The Penpot bridge.
-            Some("export") => return super::penpot::tokens_export(ctx),
-            Some("import") => return super::penpot::tokens_import(ctx),
+            Some(sub::EXPORT) => return super::penpot::tokens_export(ctx),
+            Some(sub::IMPORT) => return super::penpot::tokens_import(ctx),
             Some("build") => {}
             _ => return usage("Usage: dfw tokens build | extract --url <u> | export --format penpot [--out <file>] | import <file> [--from penpot] [--dry-run]"),
         }
@@ -224,7 +225,7 @@ const SETUP_PAGE: &str = "<!doctype html><html lang=\"en\"><title>x</title><p>x<
 /// `dfw lint [files...]` (dfw's own lint only) and `dfw check [files...|--url <u>]` (every tool).
 fn check(ctx: &Ctx) -> Result<i32, DfwError> {
     let a = &ctx.args;
-    let is_check = a.pos(0) == Some("check");
+    let is_check = a.pos(0) == Some(command::CHECK);
     let root = ctx.root();
     // `--url` alone never gets here (`require_flag_values`).
     let url = a.text("url").filter(|u| !u.is_empty()).map(str::to_string);
@@ -353,9 +354,9 @@ fn system(ctx: &Ctx) -> Result<i32, DfwError> {
     let a = &ctx.args;
     match sub(ctx, "list").as_str() {
         "presets" => system_presets(),
-        "init" => system_init_cmd(&root, a),
+        sub::INIT => system_init_cmd(&root, a),
         "ref" => system_ref(a),
-        "inventory" => system_inventory(&root, a),
+        sub::INVENTORY => system_inventory(&root, a),
         "options" => {
             let themes = system_options(&root, &rest(ctx), fonts_arg(a))?;
             out(&format!("Option themes: {}. Compare them in the studio (theme menu / \"Themes\" toggle), then: dfw system choose <preset>.", themes.join(", ")));
@@ -396,7 +397,8 @@ fn system_init_cmd(root: &Path, a: &Args) -> Result<i32, DfwError> {
     let r = system_init(
         root,
         &InitOptions {
-            preset: flag(a, "preset").unwrap_or_else(|| "crisp".to_string()),
+            preset: flag(a, "preset")
+                .unwrap_or_else(|| crate::design::system::DEFAULT_PRESET.to_string()),
             style: flag(a, "style"),
             fonts: fonts_arg(a).to_string(),
             force: a.truthy("force"),
@@ -992,7 +994,7 @@ fn icons(ctx: &Ctx) -> Result<i32, DfwError> {
 
 fn fonts(ctx: &Ctx) -> Result<i32, DfwError> {
     let a = &ctx.args;
-    if a.pos(1) != Some("check") || a.positionals.len() < 3 {
+    if a.pos(1) != Some(sub::CHECK) || a.positionals.len() < 3 {
         return usage("Usage: dfw fonts check <family...>  (quote names with spaces)");
     }
     let mut res = Vec::new();

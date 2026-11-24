@@ -395,25 +395,25 @@ mod tests {
         Some(v.to_string())
     }
 
+    /// Where the test's Studio listens.
+    const STUDIO_URL: &str = "http://127.0.0.1:4600/";
+    /// A page whose address does not matter.
+    const ANY_URL: &str = "http://x/";
+
     /// Shots dfw places in the project are written only inside it (a `.dfw/shots` link out of the
     /// project is refused when the PNG is written); a file the user names with --out is theirs.
     #[test]
     fn shots_in_the_project_carry_the_root_and_a_named_out_file_does_not() {
         let root = test_dir("shoot-inside");
         let one = [bp("desktop", 1440, 900)];
-        let default = url_jobs(
-            &root,
-            "http://localhost:3000/",
-            &one,
-            &ShootOptions::default(),
-        )
-        .unwrap();
+        const APP_URL: &str = "http://localhost:3000/";
+        let default = url_jobs(&root, APP_URL, &one, &ShootOptions::default()).unwrap();
         assert_eq!(default[0].inside.as_deref(), Some(root.as_path()));
         let named = ShootOptions {
             out: Some("shot.png".into()),
             ..ShootOptions::default()
         };
-        let named = url_jobs(&root, "http://localhost:3000/", &one, &named).unwrap();
+        let named = url_jobs(&root, APP_URL, &one, &named).unwrap();
         assert_eq!(named[0].inside, None);
     }
 
@@ -432,6 +432,7 @@ mod tests {
                 .map(|j| j.out)
                 .collect()
         };
+        const ONE: &str = "one.png";
         let shot = |name: &str| root.join(rel::join(rel::SHOTS, file::SHOTS_URL)).join(name);
         assert_eq!(
             outs("http://localhost:3000/cart/items?x=1#top", None, &both),
@@ -440,40 +441,36 @@ mod tests {
                 shot("_cart_items__desktop.png")
             ]
         );
-        assert_eq!(
-            outs("http://localhost:3000", None, &both[..1]),
-            [shot("___mobile.png")]
-        );
-        assert_eq!(outs("data:,", None, &both[..1]), [shot("___mobile.png")]);
+        // A URL without a path.
+        let no_path = [shot("___mobile.png")];
+        assert_eq!(outs("http://localhost:3000", None, &both[..1]), no_path);
+        assert_eq!(outs("data:,", None, &both[..1]), no_path);
         assert_eq!(
             outs("about:blank", None, &both[..1]),
             [shot("blank__mobile.png")]
         );
         assert_eq!(
-            outs("http://x/", Some("shot.png"), &both),
+            outs(ANY_URL, Some("shot.png"), &both),
             [resolve("shot__mobile.png"), resolve("shot__desktop.png")]
         );
         assert_eq!(
-            outs("http://x/", Some("a.b/shot"), &both),
+            outs(ANY_URL, Some("a.b/shot"), &both),
             [
                 resolve("a.b/shot__mobile.png"),
                 resolve("a.b/shot__desktop.png")
             ]
         );
         assert_eq!(
-            outs("http://x/", Some("s-{bp}.png"), &both),
+            outs(ANY_URL, Some("s-{bp}.png"), &both),
             [resolve("s-mobile.png"), resolve("s-desktop.png")]
         );
-        assert_eq!(
-            outs("http://x/", Some("one.png"), &both[..1]),
-            [resolve("one.png")]
-        );
+        assert_eq!(outs(ANY_URL, Some(ONE), &both[..1]), [resolve(ONE)]);
         let opts = ShootOptions {
             viewport: true,
             selector: some("#a"),
             ..ShootOptions::default()
         };
-        let job = &url_jobs(&root, "http://x/", &both[..1], &opts).unwrap()[0];
+        let job = &url_jobs(&root, ANY_URL, &both[..1], &opts).unwrap()[0];
         assert_eq!(
             (
                 job.full_page,
@@ -498,9 +495,10 @@ mod tests {
         ] {
             assert_eq!(url_pathname(url).unwrap(), path, "{url}");
         }
-        for bad in ["localhost:3000/x", "/just/a/path", "http://", ""] {
+        const HOST_AS_SCHEME: &str = "localhost:3000/x";
+        for bad in [HOST_AS_SCHEME, "/just/a/path", "http://", ""] {
             // "localhost:3000/x" parses in Node too (scheme "localhost"); the others are invalid.
-            if bad == "localhost:3000/x" {
+            if bad == HOST_AS_SCHEME {
                 assert_eq!(url_pathname(bad).unwrap(), "3000/x");
             } else {
                 assert!(url_pathname(bad).is_err(), "{bad}");
@@ -527,7 +525,7 @@ mod tests {
         // This test process is alive: its pid stands in for the Studio's.
         write_json(
             &p.studio,
-            &json!({ "pid": std::process::id(), "url": "http://127.0.0.1:4600/" }),
+            &json!({ "pid": std::process::id(), "url": STUDIO_URL }),
         )
         .unwrap();
         assert_eq!(
@@ -536,16 +534,20 @@ mod tests {
         );
         write_json(&p.manifest, &json!({ "screens": [] })).unwrap();
         assert!(jobs().unwrap().is_empty());
-        write_json(
-            &p.studio,
-            &json!({ "pid": 0, "url": "http://127.0.0.1:4600/" }),
-        )
-        .unwrap();
+        write_json(&p.studio, &json!({ "pid": 0, "url": STUDIO_URL })).unwrap();
         assert!(jobs().is_err());
     }
 
     /// The shots folder of design version 3.
     const VERSION_3: &str = "v3";
+
+    // The pages, screens, states and theme of the manifest of the Studio jobs.
+    const SHOP: &str = "shop";
+    const BACK: &str = "back";
+    const CART: &str = "cart";
+    const ADMIN_USERS: &str = "admin/users";
+    const EMPTY: &str = "empty";
+    const DARK: &str = "dark";
 
     #[test]
     fn studio_jobs_cover_screens_variants_breakpoints_states_and_themes() {
@@ -556,18 +558,18 @@ mod tests {
         let jobs = |opts: &ShootOptions| studio_jobs(&root, &both, opts);
         write_json(
             &p.studio,
-            &json!({ "pid": std::process::id(), "url": "http://127.0.0.1:4600/" }),
+            &json!({ "pid": std::process::id(), "url": STUDIO_URL }),
         )
         .unwrap();
         write_json(
             &p.manifest,
             &json!({
-                "states": ["empty", "error"],
-                "themes": ["dark"],
-                "pages": [{ "id": "shop", "screens": ["cart"] }],
+                "states": [EMPTY, "error"],
+                "themes": [DARK],
+                "pages": [{ "id": SHOP, "screens": [CART] }],
                 "screens": [
-                    { "id": "cart", "variants": [{ "id": "a", "file": "screens/cart/a.html" }, { "id": "b", "file": "screens/cart/b.html" }] },
-                    { "id": "admin/users", "page": "back", "states": ["loading state"], "variants": [{ "id": "a", "file": "screens/admin/users/a.html" }] },
+                    { "id": CART, "variants": [{ "id": "a", "file": "screens/cart/a.html" }, { "id": "b", "file": "screens/cart/b.html" }] },
+                    { "id": ADMIN_USERS, "page": BACK, "states": ["loading state"], "variants": [{ "id": "a", "file": "screens/admin/users/a.html" }] },
                 ],
             }),
         )
@@ -591,17 +593,14 @@ mod tests {
             all[0],
             (
                 v3("cart__a__mobile.png"),
-                format!(
-                    "http://127.0.0.1:4600/{}",
-                    rel::screen(&screen_page("cart"))
-                )
+                format!("{STUDIO_URL}{}", rel::screen(&screen_page(CART)))
             )
         );
         assert_eq!(all[5].0, v3("admin__users__a__desktop.png"));
         assert_eq!(
             list(ShootOptions {
                 variant: some("b"),
-                ..screen("cart")
+                ..screen(CART)
             })
             .len(),
             2
@@ -610,12 +609,12 @@ mod tests {
             page: some(id),
             ..ShootOptions::default()
         };
-        assert_eq!(list(page("shop")).len(), 4);
-        assert_eq!(list(page("back")).len(), 2);
+        assert_eq!(list(page(SHOP)).len(), 4);
+        assert_eq!(list(page(BACK)).len(), 2);
         let states = list(ShootOptions {
             states: true,
             themes: true,
-            ..screen("admin/users")
+            ..screen(ADMIN_USERS)
         });
         assert_eq!(
             states
@@ -633,17 +632,17 @@ mod tests {
         assert_eq!(
             list(ShootOptions {
                 states: true,
-                ..screen("cart")
+                ..screen(CART)
             })
             .len(),
             2 * 2 * 3
         );
         let one = list(ShootOptions {
             variant: some("a"),
-            state: some("empty"),
-            theme: some("dark"),
+            state: some(EMPTY),
+            theme: some(DARK),
             selector: some("#main > .card[data-x]"),
-            ..screen("cart")
+            ..screen(CART)
         });
         assert_eq!(
             one[0].0,
@@ -657,12 +656,12 @@ mod tests {
             list(system.clone()),
             [(
                 v3("_system__mobile.png"),
-                "http://127.0.0.1:4600/__dfw/system.html".to_string()
+                format!("{STUDIO_URL}__dfw/system.html")
             )]
         );
         assert_eq!(
             list(ShootOptions {
-                screen: some("cart"),
+                screen: some(CART),
                 ..system
             })
             .len(),
@@ -682,9 +681,12 @@ mod tests {
                 .collect()
         };
         assert_eq!(ids(None).len(), 3, "the config defaults");
-        write_json(&project_paths(&root).manifest, &json!({ "breakpoints": [{ "id": "wide", "width": 1920, "height": 1080 }, { "id": "tiny", "width": 320, "height": 480 }] })).unwrap();
-        assert_eq!(ids(None), ["wide", "tiny"]);
-        assert_eq!(ids(Some("tiny,nope")), ["tiny"]);
+        // The design's breakpoints.
+        const WIDE: &str = "wide";
+        const TINY: &str = "tiny";
+        write_json(&project_paths(&root).manifest, &json!({ "breakpoints": [{ "id": WIDE, "width": 1920, "height": 1080 }, { "id": TINY, "width": 320, "height": 480 }] })).unwrap();
+        assert_eq!(ids(None), [WIDE, TINY]);
+        assert_eq!(ids(Some("tiny,nope")), [TINY]);
         assert_eq!(ids(Some("nope")), Vec::<String>::new());
     }
 }

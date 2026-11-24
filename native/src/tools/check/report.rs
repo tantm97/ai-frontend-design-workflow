@@ -7,11 +7,18 @@ use crate::core::error::exit;
 use crate::core::level::{self, Level};
 use serde_json::{json, Value};
 
+use super::{field, outcome};
+
+/// A tool as the first line of the report lists it: `tool=status`.
+pub fn tool_status(tool: &str, status: &str) -> String {
+    format!("{tool}={status}")
+}
+
 /// `flatten(results)`: every finding of every tool.
 pub fn flatten(results: &[Value]) -> Vec<Value> {
     results
         .iter()
-        .filter_map(|r| r.get("findings").and_then(Value::as_array))
+        .filter_map(|r| r.get(field::FINDINGS).and_then(Value::as_array))
         .flatten()
         .cloned()
         .collect()
@@ -103,10 +110,10 @@ pub fn format_report(results: &[Value], max: usize) -> Report {
     });
     let count = |rank: usize| all.iter().filter(|f| level_rank(f) == rank).count();
     let (errors, warnings, infos) = (count(0), count(1), count(2));
-    let status = |r: &Value| text_of(r, "status");
+    let status = |r: &Value| text_of(r, field::STATUS);
     let tools: Vec<String> = results
         .iter()
-        .map(|r| format!("{}={}", text_of(r, "tool"), status(r)))
+        .map(|r| tool_status(&text_of(r, field::TOOL), &status(r)))
         .collect();
     let mut lines = vec![format!(
         "Checks: {errors} must, {warnings} should, {infos} nice. Tools: {}",
@@ -132,16 +139,16 @@ pub fn format_report(results: &[Value], max: usize) -> Report {
     // Fail closed: a check that could not run is reported as NOT VERIFIED, never read as a pass.
     let did_not_run = |r: &&Value| {
         [
-            "unverifiable",
-            "unavailable",
-            "not-installed",
-            "timeout",
-            "error",
+            outcome::UNVERIFIABLE,
+            outcome::UNAVAILABLE,
+            outcome::NOT_INSTALLED,
+            outcome::TIMEOUT,
+            outcome::ERROR,
         ]
         .contains(&status(r).as_str())
     };
     let detail = |r: &Value| {
-        r.get("detail")
+        r.get(field::DETAIL)
             .filter(|d| js::truthy(d))
             .map(|d| js::to_string(Some(d)))
     };
@@ -152,7 +159,7 @@ pub fn format_report(results: &[Value], max: usize) -> Report {
             .map(|r| {
                 format!(
                     "{} ({})",
-                    text_of(r, "tool"),
+                    text_of(r, field::TOOL),
                     detail(r).unwrap_or_else(|| status(r))
                 )
             })
@@ -164,7 +171,7 @@ pub fn format_report(results: &[Value], max: usize) -> Report {
     }
     for r in results.iter().filter(|r| !did_not_run(r)) {
         if let Some(detail) = detail(r) {
-            lines.push(format!("  note: {}: {detail}", text_of(r, "tool")));
+            lines.push(format!("  note: {}: {detail}", text_of(r, field::TOOL)));
         }
     }
     Report {
@@ -172,7 +179,7 @@ pub fn format_report(results: &[Value], max: usize) -> Report {
         errors,
         warnings,
         infos,
-        unverified: unverified.iter().map(|r| text_of(r, "tool")).collect(),
+        unverified: unverified.iter().map(|r| text_of(r, field::TOOL)).collect(),
         findings: all,
     }
 }

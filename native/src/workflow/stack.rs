@@ -57,9 +57,18 @@ const UI_LIBS: [(&str, &str); 16] = [
     ("@skeletonlabs/skeleton", "Skeleton"),
 ];
 
+/// The manifest of a JavaScript project.
+use crate::core::paths::file::PACKAGE_JSON;
+/// The config of shadcn/ui.
+const SHADCN_CONFIG: &str = "components.json";
+const YARN_LOCK: &str = "yarn.lock";
+const DJANGO_MARKER: &str = "manage.py";
+const PYPROJECT: &str = "pyproject.toml";
+const CARGO_TOML: &str = "Cargo.toml";
+
 const LOCK_FILES: [(&str, &str); 5] = [
     ("pnpm-lock.yaml", "pnpm"),
-    ("yarn.lock", "yarn"),
+    (YARN_LOCK, "yarn"),
     ("bun.lockb", "bun"),
     ("bun.lock", "bun"),
     ("package-lock.json", "npm"),
@@ -75,9 +84,9 @@ const OTHER: [(&str, &str, &str); 7] = [
     ("Gemfile", "ruby", "Ruby (check for Rails)"),
     ("go.mod", "go", "Go"),
     ("pubspec.yaml", "dart", "Flutter/Dart"),
-    ("manage.py", "python", "Django"),
-    ("pyproject.toml", "python", "Python"),
-    ("Cargo.toml", "rust", "Rust"),
+    (DJANGO_MARKER, "python", "Django"),
+    (PYPROJECT, "python", "Python"),
+    (CARGO_TOML, "rust", "Rust"),
 ];
 
 /// Every listed package the project depends on, as `{ name, package, version }`.
@@ -106,22 +115,22 @@ pub fn detect_stack(root: &Path) -> Result<Value, DfwError> {
     let mut package_manager = Value::Null;
     let mut evidence: Vec<String> = Vec::new();
 
-    let pkg_path = root.join("package.json");
+    let pkg_path = root.join(PACKAGE_JSON);
     if pkg_path.exists() {
         let pkg = read_json(&pkg_path, Some(json!({})))?;
         let mut deps = js::spread(pkg.get("dependencies"));
         deps.extend(js::spread(pkg.get("devDependencies")));
         kind = "javascript";
-        evidence.push("package.json".into());
+        evidence.push(PACKAGE_JSON.into());
         framework = found(&deps, &FRAMEWORKS)
             .into_iter()
             .next()
             .unwrap_or(Value::Null);
         styling = found(&deps, &STYLING);
         ui_libraries = found(&deps, &UI_LIBS);
-        if root.join("components.json").exists() {
-            ui_libraries.push(json!({ "name": "shadcn/ui", "package": "components.json" }));
-            evidence.push("components.json".into());
+        if root.join(SHADCN_CONFIG).exists() {
+            ui_libraries.push(json!({ "name": "shadcn/ui", "package": SHADCN_CONFIG }));
+            evidence.push(SHADCN_CONFIG.into());
         }
         let typescript = deps.get("typescript").is_some_and(js::truthy);
         language = if typescript || root.join("tsconfig.json").exists() {
@@ -175,7 +184,14 @@ pub fn detect_stack(root: &Path) -> Result<Value, DfwError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::fixture::INDEX_FILE;
     use crate::core::util::{test_dir, to_json_compact};
+
+    // The fields of the detected stack.
+    const KIND: &str = "kind";
+    const FRAMEWORK: &str = "framework";
+    const EVIDENCE: &str = "evidence";
+    const IS_NEW_PROJECT: &str = "isNewProject";
 
     #[test]
     fn an_empty_folder_is_a_new_project() {
@@ -186,37 +202,37 @@ mod tests {
             keys,
             [
                 "detectedAt",
-                "kind",
-                "framework",
+                KIND,
+                FRAMEWORK,
                 "styling",
                 "uiLibraries",
                 "language",
                 "packageManager",
-                "evidence",
-                "isNewProject"
+                EVIDENCE,
+                IS_NEW_PROJECT
             ]
         );
-        assert_eq!(d["kind"], "unknown");
-        assert_eq!(d["isNewProject"], true);
-        assert_eq!(d["framework"], Value::Null);
+        assert_eq!(d[KIND], "unknown");
+        assert_eq!(d[IS_NEW_PROJECT], true);
+        assert_eq!(d[FRAMEWORK], Value::Null);
     }
 
     #[test]
     fn a_javascript_project_names_framework_styling_libraries_and_package_manager() {
         let root = test_dir("stack-js");
         fs::write(
-            root.join("package.json"),
+            root.join(PACKAGE_JSON),
             r#"{"dependencies":{"react":"^19.0.0","next":"15.1.0","@mui/material":"6"},"devDependencies":{"tailwindcss":"4.0.0","sass":"1","typescript":"5.7"}}"#,
         )
         .unwrap();
-        fs::write(root.join("components.json"), "{}").unwrap();
-        fs::write(root.join("yarn.lock"), "").unwrap();
+        fs::write(root.join(SHADCN_CONFIG), "{}").unwrap();
+        fs::write(root.join(YARN_LOCK), "").unwrap();
         fs::write(root.join("package-lock.json"), "{}").unwrap();
-        fs::write(root.join("Cargo.toml"), "").unwrap();
+        fs::write(root.join(CARGO_TOML), "").unwrap();
         let d = detect_stack(&root).unwrap();
-        assert_eq!(d["kind"], "javascript");
+        assert_eq!(d[KIND], "javascript");
         assert_eq!(
-            to_json_compact(&d["framework"]),
+            to_json_compact(&d[FRAMEWORK]),
             r#"{"name":"Next.js (React)","package":"next","version":"15.1.0"}"#
         );
         let names = |key: &str| -> Vec<String> {
@@ -232,29 +248,29 @@ mod tests {
         assert_eq!(d["language"], "TypeScript");
         assert_eq!(d["packageManager"], "yarn");
         assert_eq!(
-            d["evidence"],
-            json!(["package.json", "components.json", "yarn.lock", "Cargo.toml"])
+            d[EVIDENCE],
+            json!([PACKAGE_JSON, SHADCN_CONFIG, YARN_LOCK, CARGO_TOML])
         );
-        assert_eq!(d["isNewProject"], false);
+        assert_eq!(d[IS_NEW_PROJECT], false);
     }
 
     #[test]
     fn other_stacks_and_plain_html() {
         let root = test_dir("stack-other");
-        fs::write(root.join("manage.py"), "").unwrap();
-        fs::write(root.join("pyproject.toml"), "").unwrap();
-        fs::write(root.join("index.html"), "").unwrap();
+        fs::write(root.join(DJANGO_MARKER), "").unwrap();
+        fs::write(root.join(PYPROJECT), "").unwrap();
+        fs::write(root.join(INDEX_FILE), "").unwrap();
         let d = detect_stack(&root).unwrap();
-        assert_eq!(d["kind"], "python");
-        assert_eq!(d["framework"], json!({ "name": "Django" }));
-        assert_eq!(d["evidence"], json!(["manage.py", "pyproject.toml"]));
+        assert_eq!(d[KIND], "python");
+        assert_eq!(d[FRAMEWORK], json!({ "name": "Django" }));
+        assert_eq!(d[EVIDENCE], json!([DJANGO_MARKER, PYPROJECT]));
 
         let site = test_dir("stack-static");
-        fs::write(site.join("index.html"), "").unwrap();
+        fs::write(site.join(INDEX_FILE), "").unwrap();
         let d = detect_stack(&site).unwrap();
-        assert_eq!(d["kind"], "static");
-        assert_eq!(d["framework"], json!({ "name": "Plain HTML/CSS/JS" }));
-        assert_eq!(d["evidence"], json!(["index.html"]));
+        assert_eq!(d[KIND], "static");
+        assert_eq!(d[FRAMEWORK], json!({ "name": "Plain HTML/CSS/JS" }));
+        assert_eq!(d[EVIDENCE], json!([INDEX_FILE]));
         assert_eq!(d["language"], Value::Null);
     }
 }

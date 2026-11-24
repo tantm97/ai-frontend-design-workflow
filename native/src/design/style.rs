@@ -937,8 +937,10 @@ pub fn format_style(g: &Value) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::fixture::SWISS_GRID_STYLE;
     use crate::core::util::test_dir;
     use crate::design::color::{hex_to_oklch, hue_distance};
+    use crate::design::system::DEFAULT_PRESET;
 
     /// style library: every guide has rationale, axes, a generated palette and no MUST audit
     /// (tests/unit/color.test.mjs)
@@ -946,11 +948,13 @@ mod tests {
     fn every_guide_has_rationale_axes_palette_and_no_must_audit() {
         let guides = list_styles().unwrap();
         assert_eq!(guides.len(), 12);
+        /// A guide's generated palette.
+        const PALETTE: &str = "palette";
         for g in guides {
             let id = g["id"].as_str().unwrap();
             assert!(g["rationale"].as_array().unwrap().len() >= 3, "{id}");
             assert_eq!(g["axes"].as_object().unwrap().len(), 7, "{id}");
-            assert!(g["palette"].as_object().unwrap().len() >= 22, "{id}");
+            assert!(g[PALETTE].as_object().unwrap().len() >= 22, "{id}");
             assert!(
                 !g["audit"]
                     .as_array()
@@ -963,7 +967,7 @@ mod tests {
             let acc = if accent.starts_with('#') {
                 accent
             } else {
-                g["palette"][accent]["hex"].as_str().unwrap()
+                g[PALETTE][accent]["hex"].as_str().unwrap()
             };
             let oc = hex_to_oklch(acc);
             if oc.c > 0.05 {
@@ -1003,16 +1007,18 @@ mod tests {
             latin["font"]["family"]["display"]["$value"][0],
             "Bodoni Moda"
         );
-        let shown = format_style(&get_style("swiss-grid").unwrap());
+        /// A guide id the library does not have.
+        const UNKNOWN: &str = "nope";
+        let shown = format_style(&get_style(SWISS_GRID_STYLE).unwrap());
         assert!(
             shown.starts_with("Swiss grid (swiss-grid)\nConcept: International typographic style"),
             "{shown}"
         );
         assert_eq!(
-            get_style("nope").unwrap_err().message(),
-            message::unknown_guide("nope")
+            get_style(UNKNOWN).unwrap_err().message(),
+            message::unknown_guide(UNKNOWN)
         );
-        assert!(is_style("swiss-grid") && is_style("x.json") && !is_style("crisp"));
+        assert!(is_style(SWISS_GRID_STYLE) && is_style("x.json") && !is_style(DEFAULT_PRESET));
     }
 
     #[test]
@@ -1026,6 +1032,8 @@ mod tests {
             fs::read_to_string(&md).unwrap()
         };
         let block = |id: &str| rationale_block(id, &reasons);
+        // The document of the filled and the replaced case, with the block of `id` seeded.
+        let seeded = |id: &str| format!("# D\n{}\n## Next\n", block(id));
         assert!(
             block("a").ends_with("-->\n- one\n- two\n"),
             "{}",
@@ -1039,11 +1047,11 @@ mod tests {
         // An empty heading (with the template's comment): filled.
         assert_eq!(
             seed("# D\n## Rationale\n<!-- why -->\n\n## Next\n", "a"),
-            format!("# D\n{}\n## Next\n", block("a"))
+            seeded("a")
         );
         // The untouched seed of another guide: replaced.
         let other = "# D\n## Rationale\n<!-- Seeded from style guide \"b\". Rewrite -->\n- old\n- older\n\n## Next\n";
-        assert_eq!(seed(other, "a"), format!("# D\n{}\n## Next\n", block("a")));
+        assert_eq!(seed(other, "a"), seeded("a"));
         // The user's own lines: kept.
         let own = "## Rationale\n- mine\n";
         assert_eq!(seed(own, "a"), own);
