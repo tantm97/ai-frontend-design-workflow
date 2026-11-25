@@ -716,6 +716,7 @@ fn slot_content_and_master_ids() {
         ComposeOptions {
             lib: None,
             design_base: None,
+            prop_values: false,
         },
     )
     .unwrap();

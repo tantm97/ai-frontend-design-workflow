@@ -7,6 +7,17 @@ import { inspect } from './tokens.js';
 import { MSG } from '#studio/shared/protocol.js';
 import { MODE } from '#studio/shared/enums.js';
 
+/** The prop values written on an instance's `<dfw-use>` (the Studio composes them into data-dfw-props). */
+function propsOf(/** @type {HTMLElement} */ el) {
+  if (!el.dataset.dfwComponent || !el.dataset.dfwProps) return null;
+  try {
+    const v = JSON.parse(el.dataset.dfwProps);
+    return v && typeof v === 'object' && !Array.isArray(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
 /** What the Studio needs to show a selected element. */
 function selPayload(/** @type {HTMLElement} */ el, /** @type {boolean} */ withInspect) {
   const t = ui.editTarget(el);
@@ -20,6 +31,7 @@ function selPayload(/** @type {HTMLElement} */ el, /** @type {boolean} */ withIn
       comp: el.dataset.dfwComponent || null,
       variant: el.dataset.dfwVariant || null,
       size: el.dataset.dfwSize || null,
+      props: propsOf(el),
     },
     textEditable: !t.error,
     inspect: withInspect ? inspect(el) : null,

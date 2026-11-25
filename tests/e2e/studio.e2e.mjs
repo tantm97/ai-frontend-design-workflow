@@ -57,7 +57,7 @@ fs.writeFileSync(
 <p data-dfw-id="home.lede">Your orders and stock at a glance.</p>
 <button class="cta" data-dfw-id="home.cta">New order</button>
 <p data-dfw-id="home.raw" style="color:#ff00aa">Hard-coded colour</p>
-<dfw-use c="button" variant="primary" id="home.buy">Buy now</dfw-use>
+<dfw-use c="button" variant="primary" id="home.buy" hint="Ships &quot;today&quot; &amp; free">Buy now</dfw-use>
 <a data-dfw-id="home.link" href="../detail/a.html">Order details</a>
 <p class="when-empty" data-dfw-id="home.empty">No orders yet.</p><p class="when-loading" data-dfw-id="home.loading">Loading orders</p><p class="when-error" data-dfw-id="home.error">Orders could not load.</p></main></body></html>`,
 );
@@ -76,7 +76,7 @@ fs.writeFileSync(logoFile, logo('#ff0000'));
 fs.mkdirSync(path.join(tmp, 'design/system/components'), { recursive: true });
 fs.writeFileSync(
   path.join(tmp, 'design/system/components/button.html'),
-  `<dfw-component name="button" variants="primary secondary" sizes="md lg" description="Action button">
+  `<dfw-component name="button" variants="primary secondary" sizes="md lg" props="hint, tone=calm" description="Action button">
 <style>.btn{border:0;border-radius:var(--radius-md);padding:var(--space-2) var(--space-4)} .btn--primary{background:var(--color-accent);color:var(--color-surface)} .btn--secondary{background:var(--color-surface);color:var(--color-ink)}</style>
 <template><button class="btn btn--{{variant}} btn--{{size}}" type="button"><dfw-slot></dfw-slot></button></template>
 <dfw-examples><dfw-use c="button">Primary</dfw-use> <dfw-use c="button" variant="secondary">Secondary</dfw-use></dfw-examples>
@@ -443,8 +443,14 @@ try {
   await frame.locator('[data-dfw-id="home.buy"]').click();
   await page.waitForSelector('#inspector select[data-edit="variant"]');
   assert.equal(await frame.locator('[data-dfw-id="home.buy"]').getAttribute('data-dfw-component'), 'button');
+  // Each prop input shows the value written on the <dfw-use> (not the master's default).
+  assert.equal(await page.inputValue('#inspector input[data-prop="hint"]'), 'Ships "today" & free', 'prop value shown');
+  assert.equal(await page.inputValue('#inspector input[data-prop="tone"]'), '', 'unset prop left empty');
   await page.selectOption('#inspector select[data-edit="variant"]', 'secondary');
-  await waitFile(/<dfw-use c="button" variant="secondary" id="home.buy">Buy now<\/dfw-use>/, 'variant written to source');
+  await waitFile(
+    /<dfw-use c="button" variant="secondary" id="home.buy" hint="Ships &quot;today&quot; &amp; free">Buy now<\/dfw-use>/,
+    'variant written to source',
+  );
   await page.click('#inspector [data-act="master"]');
   await page.waitForSelector('.page-canvas:not([hidden]) iframe[name="system"]');
   assert.match(await page.textContent('#page-list [aria-current="page"]'), /Design System/);

@@ -87,6 +87,7 @@ fn composed(
         ComposeOptions {
             lib: None,
             design_base: compose_base,
+            prop_values: false,
         },
     )
     .unwrap()

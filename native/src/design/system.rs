@@ -481,6 +481,7 @@ mod tests {
             ComposeOptions {
                 lib: None,
                 design_base: base,
+                prop_values: false,
             },
         )
         .unwrap()

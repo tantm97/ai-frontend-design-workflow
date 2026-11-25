@@ -107,6 +107,7 @@ fn base_placeholder_resolves_to_the_page_path() {
             ComposeOptions {
                 lib: None,
                 design_base: Some(base),
+                prop_values: false,
             },
         )
         .unwrap()
@@ -127,6 +128,48 @@ fn base_placeholder_resolves_to_the_page_path() {
             .contains("data-b=\"x\""),
         "a master that declares a \"base\" prop keeps it"
     );
+}
+
+/// compose: with `prop_values` (the Studio), an instance's root carries the prop values written
+/// on its `<dfw-use>` as JSON, escaped, without the master's defaults and with `{{base}}` kept
+/// as written; every other output stays without it
+#[test]
+fn prop_values_reach_the_instance_root_only_when_asked() {
+    /// The master of the instance.
+    const CHIP: &str = "chip";
+    /// What comes right before the props JSON.
+    const PROPS_ATTR: &str = "data-dfw-props=\"";
+    let root = project(&[(
+        &rel::master(CHIP),
+        &master(
+            CHIP,
+            "<b>{{label}}</b>",
+            " props=\"label, note, img, level=h2\"",
+        ),
+    )]);
+    let page = "<dfw-use c=\"chip\" id=\"x.chip\" label=\"Quế &amp; &quot;hoa&quot;\" img=\"{{base}}a.png\" title=\"t\"></dfw-use>";
+    let studio = compose_html(
+        &root,
+        page,
+        ComposeOptions {
+            lib: None,
+            design_base: Some("/design/"),
+            prop_values: true,
+        },
+    )
+    .unwrap()
+    .html;
+    let start = studio.find(PROPS_ATTR).unwrap() + PROPS_ATTR.len();
+    let attr = &studio[start..start + studio[start..].find('"').unwrap()];
+    let decoded = attr.replace("&quot;", "\"").replace("&amp;", "&");
+    let props: Value = serde_json::from_str(&decoded).unwrap();
+    assert_eq!(
+        props,
+        json!({ "label": "Quế & \"hoa\"", "img": "{{base}}a.png" }),
+        "{studio}"
+    );
+    assert!(studio.contains("data-dfw-id=\"x.chip\""), "{studio}");
+    assert!(!compose(&root, page).html.contains(PROPS_ATTR));
 }
 
 /// 1: an unclosed <dfw-use> is reported and does not swallow the page; comments are not
