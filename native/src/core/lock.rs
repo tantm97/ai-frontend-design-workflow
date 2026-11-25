@@ -313,7 +313,8 @@ fn owner_gone(path: &Path) -> bool {
             .and_then(|l| l.trim().parse::<u64>().ok())
     });
     match pid {
-        Some(pid) => !super::process::is_alive(Some(&serde_json::json!(pid))),
+        Some(pid) => !super::process::Pid::from_value(&serde_json::json!(pid))
+            .is_some_and(super::process::is_alive),
         None => true,
     }
 }

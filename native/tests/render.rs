@@ -46,6 +46,9 @@ use wire::event;
 mod word;
 use word::{command, flag, hook_name, sub};
 
+#[path = "support/home.rs"]
+mod home;
+
 const DFW: &str = env!("CARGO_BIN_EXE_dfw");
 
 fn repo() -> PathBuf {
@@ -79,18 +82,8 @@ fn write(root: &Path, rel: &str, text: &str) {
 /// `dfw <args>` in the sandbox's project: (exit code, stdout, stderr).
 fn dfw(sandbox: &Path, args: &[&str], stdin: &str) -> (i32, String, String) {
     let root = sandbox.join("project");
-    let mut cmd = Command::new(DFW);
-    cmd.args(args).current_dir(&root);
-    for name in [
-        "DFW_HOST",
-        "CLAUDE_PROJECT_DIR",
-        "DFW_SESSION_ID",
-        "CLAUDE_ENV_FILE",
-        "XDG_CONFIG_HOME",
-    ] {
-        cmd.env_remove(name);
-    }
-    cmd.env("DFW_HOME", sandbox.join("home"))
+    let mut cmd = home::command(DFW, &root, &sandbox.join("user"), &sandbox.join("home"));
+    cmd.args(args)
         .env("DFW_PROJECT_DIR", &root)
         .env("DFW_PLUGIN_ROOT", repo().join("core"))
         .env("DFW_NOW", "2026-01-02T03:04:05.678Z")

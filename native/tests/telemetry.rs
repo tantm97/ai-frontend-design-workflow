@@ -12,7 +12,7 @@ use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::mpsc::{channel, Receiver};
 use std::thread;
@@ -67,6 +67,9 @@ use telemetry_wire::{attr, event as recorded, file as telemetry_file, otlp};
 )]
 mod fixture;
 use fixture::{APP_MODULE, SCREEN_PAGE, SECRET_COMPONENT};
+
+#[path = "support/home.rs"]
+mod home;
 
 const DFW: &str = env!("CARGO_BIN_EXE_dfw");
 /// What the build script passed on when these tests were compiled (the same build as the binary).
@@ -165,16 +168,10 @@ impl Machine {
     /// `dfw <args>` in the project. Nothing of the session that runs the tests reaches the
     /// binary: not its project, not its telemetry switches, not its proxy.
     fn run_with(&self, args: &[&str], stdin: &str, extra: &[(&str, &str)]) -> Ran {
-        let mut cmd = Command::new(DFW);
-        cmd.args(args).current_dir(&self.project);
+        let user_home = self.home.join("user");
+        let mut cmd = home::command(DFW, &self.project, &user_home, &self.home);
+        cmd.args(args);
         for name in [
-            "DFW_HOST",
-            "DFW_PROJECT_DIR",
-            "CLAUDE_PROJECT_DIR",
-            "DFW_SESSION_ID",
-            "CLAUDE_SESSION_ID",
-            "CLAUDE_ENV_FILE",
-            "XDG_CONFIG_HOME",
             "DO_NOT_TRACK",
             "DFW_TELEMETRY",
             "CI",
@@ -189,8 +186,7 @@ impl Machine {
         ] {
             cmd.env_remove(name);
         }
-        cmd.env("DFW_HOME", &self.home)
-            .env("DFW_PLUGIN_ROOT", repo().join("core"))
+        cmd.env("DFW_PLUGIN_ROOT", repo().join("core"))
             .env("DFW_NOW", "2026-01-02T03:04:05.678Z");
         for (name, value) in &self.env {
             cmd.env(name, value);

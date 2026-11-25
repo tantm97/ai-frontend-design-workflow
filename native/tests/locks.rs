@@ -36,6 +36,9 @@ use fixture::MANY_EDITS_PAGE;
 mod word;
 use word::{command, flag, sub};
 
+#[path = "support/home.rs"]
+mod home;
+
 const DFW: &str = env!("CARGO_BIN_EXE_dfw");
 
 /// A fresh, empty folder (its real path: macOS reaches the temporary directory through a symlink).
@@ -52,23 +55,9 @@ fn tmp_dir(label: &str) -> PathBuf {
 
 /// `dfw <args>` in `root`, nothing of the session that runs the tests reaching the binary.
 fn dfw(root: &Path, args: &[&str]) -> Command {
-    let mut cmd = Command::new(DFW);
-    cmd.args(args).current_dir(root);
-    for name in [
-        "DFW_HOST",
-        "DFW_PROJECT_DIR",
-        "CLAUDE_PROJECT_DIR",
-        "DFW_SESSION_ID",
-        "CLAUDE_SESSION_ID",
-        "CLAUDE_ENV_FILE",
-        "DFW_NOW",
-        "XDG_CONFIG_HOME",
-    ] {
-        cmd.env_remove(name);
-    }
-    cmd.env("DFW_HOME", root.join(".home"))
-        .env("HOME", root.join(".home"))
-        .env("USERPROFILE", root.join(".home"))
+    let home = root.join(".home");
+    let mut cmd = home::command(DFW, root, &home, &home);
+    cmd.args(args)
         .env("DFW_TELEMETRY", "0")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

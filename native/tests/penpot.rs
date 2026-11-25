@@ -9,7 +9,6 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use serde_json::Value;
@@ -31,6 +30,9 @@ use word::{command, flag, sub};
 const DRY_RUN: &str = "Dry run";
 /// The changes file an import reads.
 const CHANGES: &str = "changes.json";
+#[path = "support/home.rs"]
+mod home;
+
 const DFW: &str = env!("CARGO_BIN_EXE_dfw");
 
 fn repo() -> PathBuf {
@@ -74,19 +76,8 @@ fn project(label: &str) -> PathBuf {
 
 /// What a run printed and how it ended: exit code, stdout, stderr.
 fn cli(root: &Path, args: &[&str]) -> (i32, String, String) {
-    let mut cmd = Command::new(DFW);
-    cmd.args(args).current_dir(root);
-    for name in [
-        "DFW_HOST",
-        "DFW_PROJECT_DIR",
-        "CLAUDE_PROJECT_DIR",
-        "DFW_NOW",
-        "XDG_CONFIG_HOME",
-    ] {
-        cmd.env_remove(name);
-    }
-    cmd.env("DFW_HOME", root.join(".home"))
-        .env("DFW_PLUGIN_ROOT", repo().join("core"));
+    let mut cmd = home::command(DFW, root, &root.join(".user"), &root.join(".home"));
+    cmd.args(args).env("DFW_PLUGIN_ROOT", repo().join("core"));
     let out = cmd.output().unwrap();
     (
         out.status.code().unwrap_or(-1),

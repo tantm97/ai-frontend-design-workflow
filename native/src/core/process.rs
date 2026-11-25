@@ -19,6 +19,8 @@ use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
+use crate::core::config::{PRIVACY_ENV, PRIVACY_ON};
+
 /// How to start a program.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Spawn {
@@ -95,8 +97,15 @@ pub fn run_timed(
         use std::os::unix::process::CommandExt;
         child.process_group(0);
     }
+    child.envs(env.iter().map(|(k, v)| (k, v)));
+    // Every external tool runs with telemetry and update checks off (S14); a value the caller
+    // passes (the user's global config) is kept.
+    for name in PRIVACY_ENV {
+        if !env.iter().any(|(k, _)| k == name) {
+            child.env(name, PRIVACY_ON);
+        }
+    }
     child
-        .envs(env.iter().map(|(k, v)| (k, v)))
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -220,23 +229,41 @@ pub fn quote_for_cmd(arg: &str, always: bool) -> String {
     }
 }
 
-/// `Number.isInteger(pid) && pid > 0`: a pid that names one process (`1.0` is an integer too).
-/// 0 and negative numbers address process groups, so they never count. Nor does a number above
-/// `i32::MAX`: `kill` reads it as a negative pid_t, which is a process group again.
-pub fn positive_pid(pid: &Value) -> Option<u64> {
-    const MAX: u64 = i32::MAX as u64;
-    pid.as_u64().filter(|p| (1..=MAX).contains(p)).or_else(|| {
-        pid.as_f64()
-            .filter(|f| *f >= 1.0 && f.fract() == 0.0 && *f <= MAX as f64)
-            .map(|f| f as u64)
-    })
+/// A process id that names one process: 1 to `i32::MAX`. 0 and negative numbers address
+/// process groups, and so does a number above `i32::MAX` (`kill` reads it as a negative pid_t).
+/// Made only by [`Pid::from_value`], so `kill` and `is_alive` never see anything else (P10).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Pid(u32);
+
+impl Pid {
+    /// `Number.isInteger(pid) && pid > 0` up to `i32::MAX` (`1.0` is an integer too).
+    pub fn from_value(pid: &Value) -> Option<Pid> {
+        const MAX: u64 = i32::MAX as u64;
+        pid.as_u64()
+            .filter(|p| (1..=MAX).contains(p))
+            .or_else(|| {
+                pid.as_f64()
+                    .filter(|f| *f >= 1.0 && f.fract() == 0.0 && *f <= MAX as f64)
+                    .map(|f| f as u64)
+            })
+            .and_then(|p| u32::try_from(p).ok())
+            .map(Pid)
+    }
+
+    /// [`Pid::from_value`] of a field that may be missing.
+    pub fn of(pid: Option<&Value>) -> Option<Pid> {
+        pid.and_then(Pid::from_value)
+    }
+}
+
+impl std::fmt::Display for Pid {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
 }
 
 /// `isAlive(pid)`: whether a process with this id exists and may be signalled.
-pub fn is_alive(pid: Option<&Value>) -> bool {
-    let Some(pid) = pid.and_then(positive_pid) else {
-        return false;
-    };
+pub fn is_alive(pid: Pid) -> bool {
     let mut probe = if cfg!(windows) {
         let mut c = Command::new("tasklist");
         c.args(["/NH", "/FI", &format!("PID eq {pid}")]);
@@ -259,11 +286,8 @@ pub fn is_alive(pid: Option<&Value>) -> bool {
     }
 }
 
-/// `process.kill(pid)`: SIGTERM (a forced end on Windows). Nothing for a pid that is not one.
-pub fn kill(pid: Option<&Value>) {
-    let Some(pid) = pid.and_then(positive_pid) else {
-        return;
-    };
+/// `process.kill(pid)`: SIGTERM (a forced end on Windows).
+pub fn kill(pid: Pid) {
     let mut c = if cfg!(windows) {
         let mut c = Command::new("taskkill");
         c.args(["/PID", &pid.to_string(), "/F"]);
@@ -627,9 +651,10 @@ mod tests {
 
     #[test]
     fn only_a_positive_integer_is_a_pid() {
-        assert_eq!(positive_pid(&json!(42)), Some(42));
-        assert_eq!(positive_pid(&json!(42.0)), Some(42));
-        assert_eq!(positive_pid(&json!(2147483647)), Some(2147483647));
+        let pid = |v: Value| Pid::from_value(&v).map(|p| p.to_string());
+        assert_eq!(pid(json!(12)).as_deref(), Some("12"));
+        assert_eq!(pid(json!(12.0)).as_deref(), Some("12"));
+        assert_eq!(pid(json!(2147483647)).as_deref(), Some("2147483647"));
         // Above i32::MAX a pid_t wraps to a negative number: a process group.
         for not in [
             json!(0),
@@ -642,15 +667,16 @@ mod tests {
             json!(u64::MAX),
             json!(4294967295.0),
         ] {
-            assert_eq!(positive_pid(&not), None, "{not}");
+            assert_eq!(Pid::from_value(&not), None, "{not}");
         }
-        assert!(!is_alive(Some(&json!(0))));
-        assert!(!is_alive(None));
+        assert_eq!(Pid::of(None), None);
     }
 
     #[test]
     fn this_process_is_alive() {
-        assert!(is_alive(Some(&json!(std::process::id()))));
+        assert!(is_alive(
+            Pid::from_value(&json!(std::process::id())).unwrap()
+        ));
     }
 
     /// A program past its deadline is killed with what it started: the orphaned `sleep` holds
@@ -664,14 +690,12 @@ mod tests {
         assert!(ran.timed_out && ran.status.is_none(), "{ran:?}");
         assert!(started.elapsed() < Duration::from_secs(3));
         let grandchild: u64 = ran.stdout.trim().parse().unwrap();
+        let pid = Pid::from_value(&json!(grandchild)).unwrap();
         let gone = Instant::now() + Duration::from_secs(2);
-        while is_alive(Some(&json!(grandchild))) && Instant::now() < gone {
+        while is_alive(pid) && Instant::now() < gone {
             thread::sleep(Duration::from_millis(20));
         }
-        assert!(
-            !is_alive(Some(&json!(grandchild))),
-            "sleep {grandchild} outlived the timeout"
-        );
+        assert!(!is_alive(pid), "sleep {grandchild} outlived the timeout");
     }
 
     #[test]
@@ -703,6 +727,45 @@ mod tests {
                 (Some(3), "out\n", "err\n", false)
             );
         }
+    }
+
+    /// The program's environment as `NAME=value` lines (`env`, or `set` through a `.cmd`).
+    fn privacy_switches(env: &[(String, String)]) -> Vec<String> {
+        let plan = if cfg!(windows) {
+            let dir = std::env::temp_dir().join(format!("dfw-privacy-{}", std::process::id()));
+            std::fs::create_dir_all(&dir).unwrap();
+            let shim = dir.join("print-env.cmd");
+            std::fs::write(&shim, "@set\r\n").unwrap();
+            plan_for(&shim.to_string_lossy(), Vec::new(), true)
+        } else {
+            Spawn::direct("env", Vec::new())
+        };
+        let ran = run_timed(&plan, None, env, Duration::from_secs(10));
+        let mut seen: Vec<String> = ran
+            .stdout
+            .lines()
+            .map(str::trim)
+            .filter(|l| PRIVACY_ENV.iter().any(|n| l.starts_with(&format!("{n}="))))
+            .map(str::to_string)
+            .collect();
+        seen.sort();
+        seen
+    }
+
+    /// An external program gets every privacy switch the caller did not set, as on; one the
+    /// caller set (the user's global config) keeps its value (S14).
+    #[test]
+    fn external_programs_get_the_privacy_switches() {
+        let on = |n: &str| format!("{n}={PRIVACY_ON}");
+        let mut all: Vec<String> = PRIVACY_ENV.iter().map(|n| on(n)).collect();
+        all.sort();
+        assert_eq!(privacy_switches(&[]), all);
+        let off = "0";
+        let kept = [(PRIVACY_ENV[0].to_string(), off.to_string())];
+        let mut expected: Vec<String> = PRIVACY_ENV[1..].iter().map(|n| on(n)).collect();
+        expected.push(format!("{}={off}", PRIVACY_ENV[0]));
+        expected.sort();
+        assert_eq!(privacy_switches(&kept), expected);
     }
 
     /// A Windows lookup never takes a program from the current folder or a relative PATH entry,

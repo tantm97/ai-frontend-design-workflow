@@ -33,6 +33,9 @@ use word::{command, flag, sub};
 #[allow(dead_code, reason = "each test binary uses a part of the MCP names")]
 mod mcp_names;
 
+#[path = "support/home.rs"]
+mod home;
+
 const DFW: &str = env!("CARGO_BIN_EXE_dfw");
 
 /// A fresh folder outside the repository (its real path: macOS reaches the temporary directory
@@ -103,25 +106,14 @@ impl Standalone {
     }
 
     fn run(&self, args: &[&str], stdin: &str) -> Output {
-        let mut cmd = Command::new(&self.exe);
-        cmd.args(args).current_dir(&self.project);
-        for name in [
-            "DFW_PLUGIN_ROOT",
-            "DFW_BIN",
-            "DFW_HOST",
-            "DFW_PROJECT_DIR",
-            "CLAUDE_PROJECT_DIR",
-            "DFW_NOW",
-            "DFW_VERSION",
-            "XDG_CONFIG_HOME",
-        ] {
+        let home = self.tmp.join("home");
+        let dfw_home = home.join(".config").join("dfw");
+        let mut cmd = home::command(&self.exe, &self.project, &home, &dfw_home);
+        cmd.args(args);
+        for name in ["DFW_PLUGIN_ROOT", "DFW_BIN", "DFW_VERSION"] {
             cmd.env_remove(name);
         }
-        let home = self.tmp.join("home");
-        cmd.env("HOME", &home)
-            .env("USERPROFILE", &home)
-            .env("DFW_HOME", home.join(".config").join("dfw"))
-            .env("DFW_TELEMETRY", "off");
+        cmd.env("DFW_TELEMETRY", "off");
         // No Node.js either: only the system folders on PATH.
         if cfg!(unix) {
             cmd.env("PATH", "/usr/bin:/bin");

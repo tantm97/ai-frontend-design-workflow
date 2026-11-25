@@ -106,7 +106,10 @@ pub fn global_config_path() -> PathBuf {
 /// tool-specific variables cannot be enumerated. The user's global config may set any variable.
 pub const PROJECT_ENV_ALLOW: [&str; 5] = ["NO_COLOR", "FORCE_COLOR", "TZ", "LANG", "LC_ALL"];
 
-/// `PRIVACY_ENV`: switches a project layer may only keep on (`"1"`).
+/// The value that turns a [`PRIVACY_ENV`] switch on.
+pub const PRIVACY_ON: &str = "1";
+
+/// `PRIVACY_ENV`: switches a project layer may only keep on ([`PRIVACY_ON`]).
 pub const PRIVACY_ENV: [&str; 4] = [
     "DO_NOT_TRACK",
     "IMPECCABLE_NO_UPDATE_CHECK",
@@ -130,7 +133,7 @@ pub fn filter_project_env(mut layer: Value, file: &Path, warn: &mut dyn FnMut(St
         for (k, v) in js::entries(entries) {
             let allowed = v.as_str().is_some_and(|v| {
                 PROJECT_ENV_ALLOW.contains(&k.as_str())
-                    || (PRIVACY_ENV.contains(&k.as_str()) && v == "1")
+                    || (PRIVACY_ENV.contains(&k.as_str()) && v == PRIVACY_ON)
             });
             if allowed {
                 kept.insert(k.clone(), v.clone());

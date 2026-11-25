@@ -33,6 +33,9 @@ use fixture::{SCREEN, SCREEN_PAGE};
 mod word;
 use word::{command, sub};
 
+#[path = "support/home.rs"]
+mod home;
+
 const DFW: &str = env!("CARGO_BIN_EXE_dfw");
 /// The route the Studio answers once it runs (`studio::paths::PING`).
 const PING: &str = "/__dfw/api/ping";
@@ -45,20 +48,8 @@ fn repo() -> PathBuf {
 }
 
 fn cli(root: &Path, args: &[&str]) -> (i32, String, String) {
-    let mut cmd = Command::new(DFW);
-    cmd.args(args).current_dir(root);
-    for name in [
-        "DFW_HOST",
-        "DFW_PROJECT_DIR",
-        "CLAUDE_PROJECT_DIR",
-        "DFW_NOW",
-        "XDG_CONFIG_HOME",
-    ] {
-        cmd.env_remove(name);
-    }
-    cmd.env("HOME", root.join(".home"))
-        .env("USERPROFILE", root.join(".home"))
-        .env("DFW_HOME", root.join(".home/dfw"))
+    let mut cmd = home::command(DFW, root, &root.join(".home"), &root.join(".home/dfw"));
+    cmd.args(args)
         .env("DFW_TELEMETRY", "off")
         .env("DFW_PLUGIN_ROOT", repo().join("core"));
     let out = output_within(cmd, "", Duration::from_secs(60));
