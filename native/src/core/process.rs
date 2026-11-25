@@ -88,6 +88,27 @@ pub fn run_timed(
     env: &[(String, String)],
     timeout: Duration,
 ) -> Ran {
+    run_with(plan, cwd, env, timeout, Privacy::Switches)
+}
+
+/// Whether [`run_with`] adds the privacy switches the caller did not set.
+#[derive(Clone, Copy, PartialEq)]
+enum Privacy {
+    /// An external tool: telemetry and update checks off (S14).
+    Switches,
+    /// dfw starting itself (PowerShell launching a detached dfw on Windows): the started dfw
+    /// reads the user's own settings, so its telemetry is not switched off.
+    #[cfg(not(unix))]
+    Inherited,
+}
+
+fn run_with(
+    plan: &Spawn,
+    cwd: Option<&Path>,
+    env: &[(String, String)],
+    timeout: Duration,
+    privacy: Privacy,
+) -> Ran {
     let mut child = command(plan);
     if let Some(cwd) = cwd {
         child.current_dir(cwd);
@@ -101,7 +122,7 @@ pub fn run_timed(
     // Every external tool runs with telemetry and update checks off (S14); a value the caller
     // passes (the user's global config) is kept.
     for name in PRIVACY_ENV {
-        if !env.iter().any(|(k, _)| k == name) {
+        if privacy == Privacy::Switches && !env.iter().any(|(k, _)| k == name) {
             child.env(name, PRIVACY_ON);
         }
     }
@@ -515,7 +536,13 @@ fn spawn_detached_windows(
         .chain([crate::core::encoding::base64_encode(&utf16)])
         .collect(),
     );
-    let ran = run_timed(&plan, None, &[], Duration::from_secs(30));
+    let ran = run_with(
+        &plan,
+        None,
+        &[],
+        Duration::from_secs(30),
+        Privacy::Inherited,
+    );
     ran.stdout.trim().parse::<u32>().map_err(|_| {
         DfwError::new(format!(
             "PowerShell could not start {}: {}",
