@@ -14,6 +14,7 @@ import { closeComposer, loadComments, openComposer, setTab } from './comments.js
 import { pinsFor, renderPins } from './pins.js';
 import { handleKey } from './keys.js';
 import { renderToolbar } from './toolbar.js';
+import { frameHeight } from './geometry.js';
 import { MSG, SSE } from '#studio/shared/protocol.js';
 import { events, server } from './api.js';
 import { MODE, TAB, EDIT_OP, PHASE, AGENT_PHASE, SYSTEM_SCREEN } from '#studio/shared/enums.js';
@@ -59,7 +60,7 @@ function onReady(/** @type {any} */ f) {
  */
 function onSize(f, d) {
   if (!f.auto || !d.h || f.sizeStop) return;
-  const h = Math.min(20000, Math.max(f.system ? 900 : f.bp.height, Math.ceil(d.h)));
+  const h = frameHeight(d.h, f.system ? 900 : f.bp.height);
   if (Math.abs(h - f.h) <= 1) return;
   const step = h - f.h;
   if (step > 0 && f.lastStep && Math.abs(step - f.lastStep) <= 2) {
