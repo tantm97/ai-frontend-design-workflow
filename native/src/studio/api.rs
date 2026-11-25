@@ -31,7 +31,7 @@ static TOKEN_DECL: LazyLock<Option<regex::Regex>> =
     LazyLock::new(|| with_js_classes(r"(--[\w-]+)\s*:").ok());
 
 /// URL prefix under which `design/` is served.
-pub const DESIGN_BASE: &str = "/design/";
+pub use super::paths::DESIGN_BASE;
 /// The script every design frame gets.
 pub const OVERLAY_TAG: &str = r#"<script src="/__dfw/overlay.js" data-dfw-overlay></script>"#;
 

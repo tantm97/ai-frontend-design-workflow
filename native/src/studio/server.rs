@@ -197,7 +197,7 @@ impl Studio {
         if p == paths::PING {
             return Ok(Response::ok(&json!({ "dfw": "studio" })));
         }
-        if p == "/" || p == "/index.html" {
+        if p == paths::ROOT || p == paths::INDEX {
             return Ok(asset("app.html", HTML).unwrap_or_else(Response::not_found));
         }
         if let Some(rel) = p.strip_prefix(paths::STATIC) {
@@ -211,13 +211,13 @@ impl Studio {
             }
             return Ok(r);
         }
-        if p == "/favicon.ico" {
+        if p == paths::FAVICON {
             return Ok(Response::no_content());
         }
         if p == paths::OVERLAY_JS {
             return Ok(asset("overlay.js", JS).unwrap_or_else(Response::not_found));
         }
-        if let Some(rel) = p.strip_prefix(api::DESIGN_BASE) {
+        if let Some(rel) = p.strip_prefix(paths::DESIGN_BASE) {
             return Ok(match api::design_file(root, rel)? {
                 DesignFile::Found(body, ty) => Response::send(status::OK, body, ty),
                 DesignFile::Missing => Response::not_found(),
@@ -259,7 +259,7 @@ impl Studio {
         if p == paths::STATE {
             let state = load_state(root)?;
             let summary = summarize(state.as_ref())?;
-            let session = current_session(root, false)?
+            let session = current_session(root)?
                 .and_then(|s| s.session.get("id").cloned())
                 .filter(|v| js::truthy(v))
                 .unwrap_or(Value::Null);
@@ -462,6 +462,91 @@ mod tests {
                 .collect(),
             rest: Vec::new(),
         }
+    }
+
+    /// Every file under `.dfw/` and `design/` of `root` with its bytes.
+    fn project_files(root: &Path) -> Vec<(PathBuf, Vec<u8>)> {
+        fn walk(dir: &Path, out: &mut Vec<(PathBuf, Vec<u8>)>) {
+            let Ok(entries) = std::fs::read_dir(dir) else {
+                return;
+            };
+            for e in entries.flatten() {
+                let p = e.path();
+                if p.is_dir() {
+                    walk(&p, out);
+                } else {
+                    out.push((p.clone(), std::fs::read(&p).unwrap_or_default()));
+                }
+            }
+        }
+        let mut out = Vec::new();
+        walk(&root.join(file::DFW), &mut out);
+        walk(&root.join(file::DESIGN), &mut out);
+        out.sort();
+        out
+    }
+
+    /// Every path the Studio answers (`paths::ALL`, `paths::penpot::ALL`) refuses a foreign
+    /// `Host`, and a write from another site or another local port; a GET changes no file
+    /// (S7, §0 rows 17 and 35).
+    #[test]
+    fn every_path_refuses_other_sites() {
+        let root = fixture();
+        let (port, _studio) = start(&root);
+        let own = format!("{LOOPBACK}:{port}");
+        let foreign_host = "evil.example";
+        let other_port = format!("http://{LOOPBACK}:{}", port.wrapping_add(1));
+        let sample = "fb_1";
+        let mut targets: Vec<String> = paths::ALL
+            .iter()
+            .map(|(_, p)| match *p {
+                paths::ROOT => p.to_string(),
+                p if p.ends_with('/') => format!("{p}{sample}"),
+                p => p.to_string(),
+            })
+            .collect();
+        targets.extend(paths::penpot::ALL.iter().map(|(_, r)| penpot(r)));
+        let send = |method: &str, path: &str, host: &str, origin: Option<&str>| {
+            let origin = origin.map_or(String::new(), |o| format!("Origin: {o}\r\n"));
+            let body = if method == method::POST { "{}" } else { "" };
+            format!(
+                "{method} {path} HTTP/1.1\r\nHost: {host}\r\n{origin}Content-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}",
+                body.len()
+            )
+        };
+        let forbidden = status_line(status::FORBIDDEN);
+        let before = project_files(&root);
+        for path in &targets {
+            let refused = [
+                send(method::GET, path, foreign_host, None),
+                send(method::POST, path, foreign_host, None),
+                send(method::POST, path, &own, Some(FOREIGN_ORIGIN)),
+                send(method::POST, path, &own, Some(&other_port)),
+            ];
+            for raw in refused {
+                let r = call_bytes(port, raw.as_bytes());
+                assert!(r.starts_with(&forbidden), "{raw}\n=> {r}");
+            }
+            let get = send(method::GET, path, &own, None);
+            if path == paths::EVENTS {
+                // The event stream stays open: its status line is enough.
+                let mut s = TcpStream::connect((LOOPBACK, port)).unwrap();
+                s.set_read_timeout(Some(std::time::Duration::from_secs(5)))
+                    .unwrap();
+                s.write_all(get.as_bytes()).unwrap();
+                let mut line = [0u8; 12];
+                s.read_exact(&mut line).unwrap();
+                assert!(!line.ends_with(b"403"), "{path}");
+            } else {
+                let r = call_bytes(port, get.as_bytes());
+                assert!(!r.starts_with(&forbidden), "{path}: {r}");
+            }
+        }
+        assert!(
+            before == project_files(&root),
+            "a refused request or a GET changed a project file"
+        );
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -843,7 +928,7 @@ mod tests {
             "x-dfw-bridge: guess\r\n".to_string(),
             format!("{token}Sec-Fetch-Site: cross-site\r\n"),
         ] {
-            for path in [route::SYNC, route::CHANGES, route::EXPORT].map(penpot) {
+            for path in route::WRITES.map(penpot) {
                 let r = raw(method::POST, &path, &extra, sync);
                 assert!(
                     r.starts_with(&status_line(status::FORBIDDEN)),

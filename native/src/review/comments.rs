@@ -22,17 +22,37 @@ use crate::review::status::{self, by, field, Status};
 /// `core::lock`). The Studio server and the CLI (hooks, `dfw comments ...`) change the same
 /// session files from different processes: every read-modify-write runs under this one lock so
 /// no comment or status is lost.
-pub fn locked<T>(root: &Path, f: impl FnOnce() -> Result<T, DfwError>) -> Result<T, DfwError> {
+pub fn locked<T>(root: &Path, f: impl FnOnce(&Held) -> Result<T, DfwError>) -> Result<T, DfwError> {
     locked_with(root, &lock::STANDARD, f)
+}
+
+/// Proof that the reviews lock is held: made only here, while the lock is, and asked for by
+/// every write of `.dfw/reviews/` ([`write_reviews`]), so a write outside the lock does not
+/// compile (`process-and-io.md` P7, §0 row 15).
+pub struct Held {
+    /// Released when the guard is dropped.
+    _lock: lock::Lock,
 }
 
 fn locked_with<T>(
     root: &Path,
     times: &LockTimes,
-    f: impl FnOnce() -> Result<T, DfwError>,
+    f: impl FnOnce(&Held) -> Result<T, DfwError>,
 ) -> Result<T, DfwError> {
-    let _held = lock::acquire(&lock_path(root), times)?;
-    f()
+    let held = Held {
+        _lock: lock::acquire(&lock_path(root), times)?,
+    };
+    f(&held)
+}
+
+/// The one write of a reviews file (a session, `.delivered.json`): under the lock.
+pub(super) fn write_reviews(
+    _held: &Held,
+    root: &Path,
+    file: &Path,
+    value: &Value,
+) -> Result<(), DfwError> {
+    write_json_inside(root, file, value)
 }
 
 /// [`locked`] for a hook: gives up after `give_up` and returns `None` without running `f`
@@ -40,10 +60,10 @@ fn locked_with<T>(
 pub fn try_locked<T>(
     root: &Path,
     give_up: Duration,
-    f: impl FnOnce() -> Result<T, DfwError>,
+    f: impl FnOnce(&Held) -> Result<T, DfwError>,
 ) -> Result<Option<T>, DfwError> {
     match lock::acquire_within(&lock_path(root), &lock::STANDARD, Some(give_up))? {
-        Some(_held) => f().map(Some),
+        Some(lock) => f(&Held { _lock: lock }).map(Some),
         None => Ok(None),
     }
 }
@@ -81,9 +101,8 @@ fn read_session(file: &Path) -> Result<Value, DfwError> {
     read_json(file, None)
 }
 
-/// `currentSession(root, { create })`: the open session; with `create`, a new one when the last
-/// is closed or there is none. Call it under [`locked`] when `create` is set.
-pub fn current_session(root: &Path, create: bool) -> Result<Option<Session>, DfwError> {
+/// `currentSession(root)`: the open session, if there is one. Only reads.
+pub fn current_session(root: &Path) -> Result<Option<Session>, DfwError> {
     if let Some(last) = session_files(root)?.pop() {
         let session = read_session(&last)?;
         if js::truthy_value(session.get("closedAt")).is_none() {
@@ -93,19 +112,31 @@ pub fn current_session(root: &Path, create: bool) -> Result<Option<Session>, Dfw
             }));
         }
     }
-    if !create {
-        return Ok(None);
+    Ok(None)
+}
+
+/// `currentSession(root, { create: true })`: the open session, or a new one when the last is
+/// closed or there is none.
+fn current_or_new_session(held: &Held, root: &Path) -> Result<Session, DfwError> {
+    match current_session(root)? {
+        Some(session) => Ok(session),
+        None => new_session_unlocked(held, root, None),
     }
-    new_session_unlocked(root, None).map(Some)
 }
 
 /// `newSession(root, { designVersion })`: close every open session and start a new one
 /// (`dfw comments new-round`).
 pub fn new_session(root: &Path, design_version: Option<&str>) -> Result<Session, DfwError> {
-    locked(root, || new_session_unlocked(root, design_version))
+    locked(root, |held| {
+        new_session_unlocked(held, root, design_version)
+    })
 }
 
-fn new_session_unlocked(root: &Path, design_version: Option<&str>) -> Result<Session, DfwError> {
+fn new_session_unlocked(
+    held: &Held,
+    root: &Path,
+    design_version: Option<&str>,
+) -> Result<Session, DfwError> {
     // The id is the real time to the second (not DFW_NOW), as in Node. When that file exists,
     // move on one second at a time until the name is free, so a second round in the same second
     // never replaces the first.
@@ -134,7 +165,7 @@ fn new_session_unlocked(root: &Path, design_version: Option<&str>) -> Result<Ses
             if let Value::Object(map) = &mut session {
                 map.insert("closedAt".into(), now_iso().into());
             }
-            write_json_inside(root, &file, &session)?;
+            write_reviews(held, root, &file, &session)?;
         }
     }
     let version = match design_version.filter(|v| !v.is_empty()) {
@@ -155,7 +186,7 @@ fn new_session_unlocked(root: &Path, design_version: Option<&str>) -> Result<Ses
         "comments": [],
     });
     let file = p.reviews.join(format!("{id}.json"));
-    write_json_inside(root, &file, &session)?;
+    write_reviews(held, root, &file, &session)?;
     Ok(Session { file, session })
 }
 
@@ -269,10 +300,10 @@ pub fn locate_source(
 /// `breakpoint`, `state`, `theme`, `file` (relative to `design/`), `target`, `screenshot`,
 /// `provider`, `url`.
 pub fn add_comment(root: &Path, input: &Value) -> Result<Value, DfwError> {
-    locked(root, || add_comment_unlocked(root, input))
+    locked(root, |held| add_comment_unlocked(held, root, input))
 }
 
-fn add_comment_unlocked(root: &Path, input: &Value) -> Result<Value, DfwError> {
+fn add_comment_unlocked(held: &Held, root: &Path, input: &Value) -> Result<Value, DfwError> {
     let text = match input.get(field::COMMENT) {
         None | Some(Value::Null) => "",
         Some(Value::String(text)) => js::trim(text),
@@ -285,9 +316,7 @@ fn add_comment_unlocked(root: &Path, input: &Value) -> Result<Value, DfwError> {
     if text.is_empty() {
         return Err(DfwError::new("A comment needs text."));
     }
-    let Some(Session { file, mut session }) = current_session(root, true)? else {
-        return Err(DfwError::internal("No review session."));
-    };
+    let Session { file, mut session } = current_or_new_session(held, root)?;
     let design_file = input
         .get(field::FILE)
         .and_then(Value::as_str)
@@ -350,7 +379,7 @@ fn add_comment_unlocked(root: &Path, input: &Value) -> Result<Value, DfwError> {
         Some(Value::Array(comments)) => comments.push(c.clone()),
         _ => return Err(not_a_list(&file, "\"comments\"")),
     }
-    write_json_inside(root, &file, &session)?;
+    write_reviews(held, root, &file, &session)?;
     Ok(c)
 }
 
@@ -358,7 +387,7 @@ fn add_comment_unlocked(root: &Path, input: &Value) -> Result<Value, DfwError> {
 /// flag and gets `sentAt`, under the reviews lock; returns the comments sent (the inbox delivers
 /// them from now on).
 pub fn send_drafts(root: &Path) -> Result<Vec<Value>, DfwError> {
-    locked(root, || {
+    locked(root, |held| {
         let mut sent = Vec::new();
         let at = now_iso();
         for file in session_files(root)? {
@@ -380,7 +409,7 @@ pub fn send_drafts(root: &Path) -> Result<Vec<Value>, DfwError> {
                 _ => return Err(not_a_list(&file, "\"comments\"")),
             }
             if changed {
-                write_json_inside(root, &file, &session)?;
+                write_reviews(held, root, &file, &session)?;
             }
         }
         Ok(sent)
@@ -412,8 +441,8 @@ impl Found {
         }
     }
 
-    fn save(mut self) -> Result<Value, DfwError> {
-        write_json_inside(&self.root, &self.file, &self.session)?;
+    fn save(mut self, held: &Held) -> Result<Value, DfwError> {
+        write_reviews(held, &self.root, &self.file, &self.session)?;
         Ok(Value::Object(self.comment()?.clone()))
     }
 }
@@ -445,10 +474,10 @@ fn find_comment(root: &Path, id: Option<&str>) -> Result<Found, DfwError> {
 /// `setCommentScreenshot(root, id, file)`: attach a screenshot taken after the comment was
 /// posted (dfw review shoots asynchronously).
 pub fn set_comment_screenshot(root: &Path, id: &str, file: &str) -> Result<Value, DfwError> {
-    locked(root, || {
+    locked(root, |held| {
         let mut found = find_comment(root, Some(id))?;
         found.comment()?.insert("screenshot".into(), file.into());
-        found.save()
+        found.save(held)
     })
 }
 
@@ -470,10 +499,11 @@ pub struct Update {
 /// and/or add a line to its thread; returns the comment. `id` is `None` when the caller has
 /// none (a Penpot thread whose comment lost its id): the error says so.
 pub fn update_comment(root: &Path, id: Option<&str>, update: &Update) -> Result<Value, DfwError> {
-    locked(root, || update_comment_unlocked(root, id, update))
+    locked(root, |held| update_comment_unlocked(held, root, id, update))
 }
 
 fn update_comment_unlocked(
+    held: &Held,
     root: &Path,
     id: Option<&str>,
     update: &Update,
@@ -549,7 +579,7 @@ fn update_comment_unlocked(
         }
     }
     comment.insert(field::UPDATED_AT.into(), at.into());
-    found.save()
+    found.save(held)
 }
 
 #[cfg(test)]
@@ -917,9 +947,9 @@ mod tests {
     #[test]
     fn a_new_round_closes_the_open_session() {
         let root = project("comments-round");
-        assert!(current_session(&root, false).unwrap().is_none());
+        assert!(current_session(&root).unwrap().is_none());
         add_comment(&root, &json!({ "comment": "first" })).unwrap();
-        let first = current_session(&root, false).unwrap().unwrap();
+        let first = current_session(&root).unwrap().unwrap();
         // A session id is the time to the second: write the first one as an older file.
         let old = root.join(rel::join(rel::REVIEWS, REVIEW_SESSION));
         fs::rename(&first.file, &old).unwrap();
@@ -949,7 +979,7 @@ mod tests {
         add_comment(&root, &json!({ "comment": "after a crash" })).unwrap();
         assert!(!lock.exists());
         // The lock is released when the work under it fails.
-        assert!(locked(&root, || Err::<(), _>(DfwError::new("boom"))).is_err());
+        assert!(locked(&root, |_| Err::<(), _>(DfwError::new("boom"))).is_err());
         assert!(!lock.exists());
     }
 
@@ -972,8 +1002,8 @@ mod tests {
             for i in 0..30 {
                 let root = &root;
                 s.spawn(move || {
-                    locked_with(root, &times, || {
-                        add_comment_unlocked(root, &json!({ "comment": format!("w{i}") }))
+                    locked_with(root, &times, |held| {
+                        add_comment_unlocked(held, root, &json!({ "comment": format!("w{i}") }))
                     })
                     .unwrap();
                 });

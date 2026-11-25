@@ -1119,3 +1119,125 @@ fn tests_name_design_files_from_core_fixture() {
         found.join("\n")
     );
 }
+
+/// A binary test starts dfw only through `tests/support/home.rs` (§0 row 43, `testing.md` T9),
+/// so every home a user-global file could be written to points into the test's folder.
+#[test]
+fn binary_tests_start_dfw_through_the_home_helper() {
+    let mut found = Vec::new();
+    for (rel, lines) in test_sources(&["tests/support/home.rs"]) {
+        if !rel.starts_with("tests/") {
+            continue;
+        }
+        for (i, line) in lines.iter().enumerate() {
+            if ["Command::new(DFW", "Command::new(&self.exe"]
+                .iter()
+                .any(|p| line.contains(p))
+            {
+                found.push(format!("{rel}:{}: {}", i + 1, line.trim()));
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "binary tests start dfw with their own Command; use home::command (tests/support/home.rs):\n{}",
+        found.join("\n")
+    );
+}
+
+/// The Studio's route chain compares only `studio::paths` names, so `paths::ALL` holds every
+/// path it answers and the refusal test reaches each one (S7, §0 rows 17 and 35).
+#[test]
+fn studio_routes_are_named_paths() {
+    let routers = ["src/studio/server.rs", "src/studio/penpot_routes.rs"];
+    let mut found = Vec::new();
+    for (rel, lines) in product_sources(&[]) {
+        if !routers.contains(&rel.as_str()) {
+            continue;
+        }
+        for (i, line) in lines.iter().enumerate() {
+            let t = line.trim_start();
+            let literal_arm = t.starts_with('"') && (t.contains("\" =>") || t.contains("\" if "));
+            if line.contains("== \"/") || line.contains("strip_prefix(\"/") || literal_arm {
+                found.push(format!("{rel}:{}: {}", i + 1, t));
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "a route compared with a literal; name it in studio::paths (and its ALL):\n{}",
+        found.join("\n")
+    );
+}
+
+/// Regular expressions that match HTML tags, in product code (`design-files.md` D1, §0 row 1):
+/// HTML is read with the tokenizer. Each pattern-building call whose literal (on its line, or on
+/// the next when the call's line has none) holds a `<` that is not a named group counts, as
+/// `file:line`; the count may only go down.
+fn html_regexes() -> Vec<String> {
+    const CALLS: [&str; 4] = ["Regex::new(", "js_re!(", "js_regex(", "with_js_classes("];
+    let literal = regex::Regex::new(r##"r#"(.*?)"#|r"([^"]*)"|"((?:[^"\\]|\\.)*)""##).unwrap();
+    let tag = |text: &str| text.replace("(?P<", "").replace("(?<", "").contains('<');
+    let mut out = Vec::new();
+    for (rel, lines) in product_sources(&["src/core/js/regex.rs"]) {
+        for (i, line) in lines.iter().enumerate() {
+            let Some(at) = CALLS.iter().filter_map(|c| line.find(c)).min() else {
+                continue;
+            };
+            let here = &line[at..];
+            let window = if literal.is_match(here) {
+                here.to_string()
+            } else {
+                format!("{here} {}", lines.get(i + 1).map_or("", String::as_str))
+            };
+            let first = literal.captures(&window).and_then(|c| {
+                (1..=3)
+                    .find_map(|g| c.get(g))
+                    .map(|m| m.as_str().to_string())
+            });
+            if first.is_some_and(|text| tag(&text)) {
+                out.push(format!("{rel}:{}", i + 1));
+            }
+        }
+    }
+    out
+}
+
+#[test]
+fn html_regexes_do_not_grow() {
+    compare(
+        "regular expressions with an HTML tag in src/",
+        "html_regex",
+        &html_regexes(),
+    );
+}
+
+/// Every write of `.dfw/reviews/` holds the reviews lock: it goes through `write_reviews`, which
+/// takes the lock's guard (`process-and-io.md` P7, §0 row 15). `Listening::start` writes the
+/// marker of its own process once, without a read before it: the one exception.
+#[test]
+fn reviews_writes_hold_the_lock() {
+    let files = ["src/review/comments.rs", "src/review/inbox.rs"];
+    let allowed = ["fn write_reviews(", "fn start("];
+    let mut found = Vec::new();
+    for (rel, lines) in product_sources(&[]) {
+        if !files.contains(&rel.as_str()) {
+            continue;
+        }
+        let mut inside = "";
+        for (i, line) in lines.iter().enumerate() {
+            if let Some(at) = line.find("fn ") {
+                inside = &line[at..];
+            }
+            if line.contains("write_json_inside(") && !allowed.iter().any(|a| inside.starts_with(a))
+            {
+                found.push(format!("{rel}:{}: {}", i + 1, line.trim()));
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "a reviews file written without the lock's guard; use write_reviews(held, ...):\n{}",
+        found.join("\n")
+    );
+}

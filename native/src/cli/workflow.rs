@@ -17,7 +17,7 @@ use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::level::{self, Level};
 use crate::core::paths::{file, project_paths, rel};
-use crate::core::process::is_alive;
+use crate::core::process::{is_alive, Pid};
 use crate::core::util::{
     append_jsonl_inside, now_iso, out, parse_value, read_json, to_json_compact, to_json_pretty,
     write_atomic_inside, write_json_inside, Args,
@@ -166,7 +166,7 @@ fn status(ctx: &Ctx) -> Result<i32, DfwError> {
     );
     let studio = read_json(&p.studio, Some(Value::Null))?;
     let studio = if js::truthy(&studio) {
-        if is_alive(studio.get("pid")) {
+        if Pid::of(studio.get("pid")).is_some_and(is_alive) {
             studio
         } else {
             Value::Null

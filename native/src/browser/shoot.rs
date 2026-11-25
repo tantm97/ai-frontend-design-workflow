@@ -12,7 +12,7 @@ use crate::core::config::{load_config, studio_breakpoints, Breakpoint};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{file, project_paths, rel, resolve, ProjectPaths};
-use crate::core::process::is_alive;
+use crate::core::process::{is_alive, Pid};
 use crate::core::util::read_json;
 use crate::design::manifest::{self, key};
 use crate::workflow::state::{load_state, state_field_error};
@@ -270,7 +270,7 @@ fn states_and_themes(
 /// The Studio's URL when it runs, and the manifest; the errors `cmdShoot` gives without them.
 fn running_studio(p: &ProjectPaths) -> Result<(Value, Value), DfwError> {
     let info = read_json(&p.studio, Some(Value::Null))?;
-    if !js::truthy(&info) || !is_alive(info.get("pid")) {
+    if !js::truthy(&info) || !Pid::of(info.get("pid")).is_some_and(is_alive) {
         return Err(DfwError::new(
             "Start the studio first (dfw studio start) or pass --url.",
         ));

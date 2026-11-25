@@ -2,6 +2,7 @@
 // "no upstream hooks" invariant, and conflict lint of upstream instructions.
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { REPO_ROOT, RETIRED_PLUGINS, readJson, listFiles, rootDefaults } from './build.mjs';
 import { split, topLevelKeys } from './frontmatter.mjs';
 
@@ -301,4 +302,16 @@ export function layoutCheck({ pluginsRoot = path.join(REPO_ROOT, 'plugins'), roo
     }
   }
   return errors;
+}
+
+/** Local tooling (AGENTS.md, G6): never tracked in this repository. Vendored plugin folders may hold `.claude/`. */
+export const LOCAL_TOOLING_FILES = ['AGENTS.md', 'CLAUDE.md'];
+export const LOCAL_TOOLING_DIRS = ['openspec/', 'docs/', '.claude/', '.agents/'];
+
+/** Tracked files that are local tooling: `git ls-files` must list none of them. */
+export function trackedToolingCheck(root = REPO_ROOT) {
+  const tracked = execFileSync('git', ['-C', root, 'ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);
+  return tracked
+    .filter((f) => LOCAL_TOOLING_FILES.includes(f) || LOCAL_TOOLING_DIRS.some((d) => f.startsWith(d)))
+    .map((f) => `${f}: local tooling is tracked; remove it with git rm --cached and keep it in .git/info/exclude (G6)`);
 }

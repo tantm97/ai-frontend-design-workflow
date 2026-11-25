@@ -42,12 +42,7 @@ const NO_EXPORT: &str =
     "No Penpot export yet: run \"dfw penpot export\", or tick \"Render now\" in the dfw bridge panel.";
 
 /// The routes under [`paths::PENPOT`] the panel reads and writes.
-pub mod route {
-    pub const SESSION: &str = "session.json";
-    pub const EXPORT: &str = "export.json";
-    pub const CHANGES: &str = "changes";
-    pub const SYNC: &str = "sync";
-}
+pub use super::paths::penpot as route;
 
 /// The header that carries the panel's token.
 pub const TOKEN_HEADER: &str = "x-dfw-bridge";
@@ -141,8 +136,8 @@ fn manifest() -> Value {
         "name": "dfw bridge",
         "description": "Build boards from a local dfw design and send designer changes back as dfw comments (local Studio on 127.0.0.1).",
         "version": 3,
-        "code": "plugin.js",
-        "icon": "icon.svg",
+        "code": route::PLUGIN_JS,
+        "icon": route::ICON,
         "permissions": ["content:read", "content:write", "library:read", "library:write", "comment:write", "allow:downloads"],
     })
 }
@@ -156,8 +151,8 @@ pub fn route(studio: &Studio, req: &Request) -> Result<Response, DfwError> {
     }
     let json_type = mime(".json").unwrap_or(JSON);
     Ok(match rel {
-        "manifest.json" => cors(status::OK, to_json_pretty(&manifest()), json_type),
-        "plugin.js" => match studio_text("penpot/plugin.js") {
+        route::MANIFEST => cors(status::OK, to_json_pretty(&manifest()), json_type),
+        route::PLUGIN_JS => match studio_text("penpot/plugin.js") {
             Some(code) => {
                 let origin = format!("http://{LOOPBACK}:{}", studio.port);
                 cors(
@@ -168,11 +163,11 @@ pub fn route(studio: &Studio, req: &Request) -> Result<Response, DfwError> {
             }
             None => Response::not_found(),
         },
-        "icon.svg" => match studio_file("penpot/icon.svg") {
+        route::ICON => match studio_file("penpot/icon.svg") {
             Some(svg) => cors(status::OK, svg.into_owned(), mime(".svg").unwrap_or(JSON)),
             None => Response::not_found(),
         },
-        "ui.html" => match studio_file("penpot/ui.html") {
+        route::UI => match studio_file("penpot/ui.html") {
             Some(html) => {
                 let mut r =
                     Response::send(status::OK, html.into_owned(), mime(".html").unwrap_or(JSON));

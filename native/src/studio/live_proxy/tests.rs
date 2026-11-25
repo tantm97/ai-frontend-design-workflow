@@ -201,16 +201,25 @@ const APP_HTML: &str = "<!doctype html><html lang=\"en\"><head><meta charset=\"u
 /// A tiny "dev server": HTML with data-insp-path, a gzip route, a redirect, a login cookie, a
 /// strict CSP page and a WebSocket-style upgrade echo.
 fn fake_app(root: &str) -> u16 {
+    counted_app(root).0
+}
+
+/// [`fake_app`] and the number of connections it has accepted: what the proxy passed on.
+fn counted_app(root: &str) -> (u16, Arc<std::sync::atomic::AtomicUsize>) {
+    use std::sync::atomic::{AtomicUsize, Ordering};
     let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
     let port = listener.local_addr().unwrap().port();
     let html = APP_HTML.replace("ABS", root);
+    let seen = Arc::new(AtomicUsize::new(0));
+    let counter = Arc::clone(&seen);
     thread::spawn(move || {
         for stream in listener.incoming().flatten() {
+            counter.fetch_add(1, Ordering::SeqCst);
             let html = html.clone();
             thread::spawn(move || app_answer(stream, port, &html));
         }
     });
-    port
+    (port, seen)
 }
 
 fn app_answer(mut s: TcpStream, port: u16, html: &str) {
@@ -364,14 +373,33 @@ fn the_proxy_injects_passes_through_and_stores_comments() {
 /// dfw review refuses comments from another origin and requests for another host
 #[test]
 fn the_proxy_refuses_foreign_origins_and_hosts() {
+    use std::sync::atomic::Ordering;
     let root = test_dir("live-guard");
-    let (port, _server) = proxy_for(&root, "http://127.0.0.1:9");
+    let (app, seen) = counted_app("");
+    let app_origin = format!("http://127.0.0.1:{app}");
+    let foreign_host = "evil.example";
+    let (port, _server) = proxy_for(&root, &app_origin);
     let comment = r#"{"comment":"from another site","screen":"home"}"#;
     assert!(
         post_comment(port, "Origin: https://evil.example\r\n", comment)
             .starts_with(&status_line(status::FORBIDDEN))
     );
-    assert!(get(port, "/", "evil.example").starts_with(&status_line(status::FORBIDDEN)));
+    assert!(get(port, "/", foreign_host).starts_with(&status_line(status::FORBIDDEN)));
+    // Paths the proxy passes on: a refused request never reaches the app, not even from the
+    // app's own port (another origin than the proxy's).
+    for origin in ["https://evil.example".to_string(), app_origin] {
+        let r = call(port, &format!("POST /echo HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nOrigin: {origin}\r\nContent-Length: 2\r\n\r\nhi"));
+        assert!(
+            r.starts_with(&status_line(status::FORBIDDEN)),
+            "{origin}: {r}"
+        );
+    }
+    assert!(get(port, "/echo", foreign_host).starts_with(&status_line(status::FORBIDDEN)));
+    assert_eq!(
+        seen.load(Ordering::SeqCst),
+        0,
+        "a refused request reached the app"
+    );
     assert_eq!(all_comments(&root).unwrap().len(), 0);
     assert!(post_comment(
         port,
@@ -386,8 +414,9 @@ fn the_proxy_refuses_foreign_origins_and_hosts() {
 /// loopback port is another site
 #[test]
 fn the_proxy_refuses_other_loopback_origins_and_foreign_upgrades() {
+    use std::sync::atomic::Ordering;
     let root = test_dir("live-origins");
-    let app = fake_app("");
+    let (app, seen) = counted_app("");
     let (port, _server) = proxy_for(&root, &format!("http://127.0.0.1:{app}"));
     let comment = r#"{"comment":"from another local site"}"#;
     let answer = |origin: &str, code: u16| {
@@ -420,6 +449,11 @@ fn the_proxy_refuses_other_loopback_origins_and_foreign_upgrades() {
     assert!(r.starts_with(&status_line(status::FORBIDDEN)), "{r}");
     let r = call(port, "GET /hmr HTTP/1.1\r\nHost: evil.example\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n");
     assert!(r.starts_with(&status_line(status::FORBIDDEN)), "{r}");
+    assert_eq!(
+        seen.load(Ordering::SeqCst),
+        0,
+        "a refused request reached the app"
+    );
     // The page's own HMR socket still upgrades.
     let mut s = TcpStream::connect(("127.0.0.1", port)).unwrap();
     s.write_all(format!("GET /hmr HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nOrigin: http://127.0.0.1:{port}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n").as_bytes()).unwrap();
@@ -428,6 +462,7 @@ fn the_proxy_refuses_other_loopback_origins_and_foreign_upgrades() {
     assert!(
         String::from_utf8_lossy(&chunk[..n]).starts_with(&status_line(status::SWITCHING_PROTOCOLS))
     );
+    assert_eq!(seen.load(Ordering::SeqCst), 1);
     let _ = std::fs::remove_dir_all(&root);
 }
 

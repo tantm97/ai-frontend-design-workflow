@@ -12,7 +12,7 @@ use crate::core::error::exit;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{project_paths, resolve};
-use crate::core::process::is_alive;
+use crate::core::process::{is_alive, Pid};
 use crate::core::util::{get_path, out, read_json, read_stdin, to_json_compact, to_json_pretty};
 use crate::design::compose::build_system;
 use crate::design::tokens::build_tokens;
@@ -110,7 +110,7 @@ fn plugin(root: &Path) -> Result<i32, DfwError> {
     let info = read_json(&project_paths(root).studio, Some(Value::Null))?;
     let url = info
         .get("url")
-        .filter(|u| js::truthy(Some(u)) && is_alive(info.get("pid")))
+        .filter(|u| js::truthy(Some(u)) && Pid::of(info.get("pid")).is_some_and(is_alive))
         .map(|u| js::to_string(Some(u)));
     let base = match &url {
         Some(url) => url.clone(),

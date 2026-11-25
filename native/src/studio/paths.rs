@@ -1,7 +1,15 @@
-//! Every path the Studio server and the review proxy answer under `/__dfw/`, defined once
-//! (`contracts.md` C8). The browser code has the same table in `core/studio/shared/paths.js`;
+//! Every path the Studio server and the review proxy answer, defined once (`contracts.md` C8):
+//! `ALL` and `penpot::ALL` list them for the tests that send every path a foreign request (S7). The browser code has the same table in `core/studio/shared/paths.js`;
 //! the test below keeps the two equal.
 
+/// The Studio page.
+pub const ROOT: &str = "/";
+/// The Studio page under its file name.
+pub const INDEX: &str = "/index.html";
+/// Answered with 204: the browser asks for it on its own.
+pub const FAVICON: &str = "/favicon.ico";
+/// Files of `design/` (`/design/<file>`), for the frames and the Design System page.
+pub const DESIGN_BASE: &str = "/design/";
 /// The prefix of every dfw path.
 pub const PREFIX: &str = "/__dfw/";
 /// The Design System page shown in its own frame.
@@ -36,8 +44,105 @@ pub const SHOOT: &str = "/__dfw/api/shoot";
 pub const EDIT: &str = "/__dfw/api/edit";
 pub const UNDO: &str = "/__dfw/api/undo";
 
+/// Every path above as `(name, path)`.
+#[cfg(test)]
+pub const ALL: [(&str, &str); 26] = [
+    ("ROOT", ROOT),
+    ("INDEX", INDEX),
+    ("FAVICON", FAVICON),
+    ("DESIGN_BASE", DESIGN_BASE),
+    ("PREFIX", PREFIX),
+    ("SYSTEM_PAGE", SYSTEM_PAGE),
+    ("EVENTS", EVENTS),
+    ("OVERLAY_JS", OVERLAY_JS),
+    ("LIVE_JS", LIVE_JS),
+    ("STATIC", STATIC),
+    ("SHOTS", SHOTS),
+    ("PENPOT", PENPOT),
+    ("PING", PING),
+    ("LIVE", LIVE),
+    ("MANIFEST", MANIFEST),
+    ("STATE", STATE),
+    ("TOKENS", TOKENS),
+    ("COMPONENTS", COMPONENTS),
+    ("COMMENTS", COMMENTS),
+    ("COMMENT", COMMENT),
+    ("COMMENTS_SEND", COMMENTS_SEND),
+    ("LISTENING", LISTENING),
+    ("SESSIONS", SESSIONS),
+    ("SHOOT", SHOOT),
+    ("EDIT", EDIT),
+    ("UNDO", UNDO),
+];
+
+/// The routes under [`PENPOT`]: what the dfw bridge panel reads and writes, and its files.
+pub mod penpot {
+    /// The token and the origins the panel needs before it writes (GET).
+    pub const SESSION: &str = "session.json";
+    /// The last export (GET reads it, POST renders a new one).
+    pub const EXPORT: &str = "export.json";
+    /// Designer changes sent back as comments (POST).
+    pub const CHANGES: &str = "changes";
+    /// The file's comment threads, both ways (POST).
+    pub const SYNC: &str = "sync";
+    /// The plugin manifest Penpot installs.
+    pub const MANIFEST: &str = "manifest.json";
+    pub const PLUGIN_JS: &str = "plugin.js";
+    pub const ICON: &str = "icon.svg";
+    /// The panel page, framed only by Penpot.
+    pub const UI: &str = "ui.html";
+
+    /// The routes that write: each needs the panel's token.
+    #[cfg(test)]
+    pub const WRITES: [&str; 3] = [EXPORT, CHANGES, SYNC];
+
+    /// Every route above as `(name, path)`.
+    #[cfg(test)]
+    pub const ALL: [(&str, &str); 8] = [
+        ("SESSION", SESSION),
+        ("EXPORT", EXPORT),
+        ("CHANGES", CHANGES),
+        ("SYNC", SYNC),
+        ("MANIFEST", MANIFEST),
+        ("PLUGIN_JS", PLUGIN_JS),
+        ("ICON", ICON),
+        ("UI", UI),
+    ];
+}
+
 #[cfg(test)]
 mod tests {
+    /// `(name, value)` of every `pub const NAME: &str = "value";` at this indent of `source`.
+    fn declared(source: &str, indent: &str) -> Vec<(String, String)> {
+        source
+            .lines()
+            .filter_map(|l| l.strip_prefix(indent)?.strip_prefix("pub const "))
+            .filter_map(|l| {
+                let (name, rest) = l.split_once(": &str = \"")?;
+                Some((name.to_string(), rest.strip_suffix("\";")?.to_string()))
+            })
+            .collect()
+    }
+
+    /// `ALL` and `penpot::ALL` name every path of this file under its own name, so the refusal
+    /// tests reach a path added later too.
+    #[test]
+    fn all_lists_every_path() {
+        let source = include_str!("paths.rs");
+        let source = source
+            .split("\n#[cfg(test)]\nmod tests")
+            .next()
+            .unwrap_or_default();
+        let (top, penpot) = source.split_once("pub mod penpot {").unwrap();
+        let listed = |all: &[(&str, &str)]| -> Vec<(String, String)> {
+            all.iter()
+                .map(|(n, v)| (n.to_string(), v.to_string()))
+                .collect()
+        };
+        assert_eq!(declared(top, ""), listed(&super::ALL));
+        assert_eq!(declared(penpot, "    "), listed(&super::penpot::ALL));
+    }
+
     /// Tags written as text name the same paths (a `const` cannot be built from these).
     #[test]
     fn script_tags_use_these_paths() {

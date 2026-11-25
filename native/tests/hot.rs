@@ -58,6 +58,9 @@ use fixture::{
     OTHER_HTML_FILE, SCREEN, SCREEN_PAGE,
 };
 
+#[path = "support/home.rs"]
+mod home;
+
 const DFW: &str = env!("CARGO_BIN_EXE_dfw");
 /// The component the CLI test copies and lists (its master is [`BUTTON_MASTER`]).
 const BUTTON: &str = "button";
@@ -126,28 +129,13 @@ impl Ran {
 /// `dfw <args>` in `root` with a clean environment: nothing of the session that runs the tests
 /// (project folder, host, session id, env file) reaches the binary.
 fn dfw_command(root: &Path, args: &[&str]) -> Command {
-    let mut cmd = Command::new(DFW);
-    cmd.args(args).current_dir(root);
-    for name in [
-        "DFW_HOST",
-        "DFW_PROJECT_DIR",
-        "CLAUDE_PROJECT_DIR",
-        "DFW_SESSION_ID",
-        "CLAUDE_SESSION_ID",
-        "CLAUDE_ENV_FILE",
-        "DFW_NOW",
-        "XDG_CONFIG_HOME",
-        "IMPECCABLE_BIN",
-        "IMPECCABLE_HOME",
-    ] {
+    // An empty user home: no engine or tool the machine has installed is found.
+    let mut cmd = home::command(DFW, root, &root.join(".user"), &root.join(".home"));
+    cmd.args(args);
+    for name in ["IMPECCABLE_BIN", "IMPECCABLE_HOME"] {
         cmd.env_remove(name);
     }
-    // An empty user home: no engine or tool the machine has installed is found.
-    let user_home = root.join(".user");
-    cmd.env("DFW_HOME", root.join(".home"))
-        .env("HOME", &user_home)
-        .env("USERPROFILE", &user_home)
-        .env("DFW_PLUGIN_ROOT", repo().join("core"));
+    cmd.env("DFW_PLUGIN_ROOT", repo().join("core"));
     cmd
 }
 

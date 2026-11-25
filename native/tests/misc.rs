@@ -48,6 +48,9 @@ mod names;
 mod mcp_names;
 use mcp_names::{key, tool as mcp_tool, SERVER};
 
+#[path = "support/home.rs"]
+mod home;
+
 const DFW: &str = env!("CARGO_BIN_EXE_dfw");
 
 fn repo() -> PathBuf {
@@ -71,22 +74,8 @@ fn tmp_dir(label: &str) -> PathBuf {
 
 /// `dfw <args>` in `dir` with a home of its own and nothing of the session that runs the tests.
 fn dfw_command(dir: &Path, args: &[&str]) -> Command {
-    let mut cmd = Command::new(DFW);
-    cmd.args(args).current_dir(dir);
-    for name in [
-        "DFW_HOST",
-        "DFW_PROJECT_DIR",
-        "CLAUDE_PROJECT_DIR",
-        "DFW_NOW",
-    ] {
-        cmd.env_remove(name);
-    }
-    cmd.env("HOME", dir)
-        .env("USERPROFILE", dir)
-        .env("XDG_CONFIG_HOME", dir.join(".config"))
-        .env("CODEX_HOME", dir.join(".codex"))
-        .env("DFW_HOME", dir.join(".home"))
-        .env("DFW_PLUGIN_ROOT", repo().join("core"));
+    let mut cmd = home::command(DFW, dir, dir, &dir.join(".home"));
+    cmd.args(args).env("DFW_PLUGIN_ROOT", repo().join("core"));
     cmd
 }
 

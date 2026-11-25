@@ -10,7 +10,7 @@
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Instant;
 
@@ -39,6 +39,9 @@ mod host_id;
     reason = "each test binary uses a part of the workflow names"
 )]
 mod names;
+
+#[path = "support/home.rs"]
+mod home;
 
 const DFW: &str = env!("CARGO_BIN_EXE_dfw");
 /// A name JavaScript objects already have: never a mode, a hook, a tool or a config key.
@@ -73,20 +76,8 @@ struct Ran {
 
 /// `dfw <args>` in `root` with a clean environment and `stdin`.
 fn dfw(root: &Path, args: &[&str], stdin: &str) -> Ran {
-    let mut cmd = Command::new(DFW);
-    cmd.args(args).current_dir(root);
-    for name in [
-        "DFW_HOST",
-        "DFW_PROJECT_DIR",
-        "DFW_SESSION_ID",
-        "CLAUDE_SESSION_ID",
-        "CLAUDE_ENV_FILE",
-        "DFW_NOW",
-        "XDG_CONFIG_HOME",
-    ] {
-        cmd.env_remove(name);
-    }
-    cmd.env("DFW_HOME", root.join(".home"))
+    let mut cmd = home::command(DFW, root, &root.join(".user"), &root.join(".home"));
+    cmd.args(args)
         .env("CLAUDE_PROJECT_DIR", root)
         .env("DFW_PLUGIN_ROOT", repo().join("core"));
     let mut child = cmd

@@ -15,7 +15,7 @@ use crate::core::config::{load_config, studio_port};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{file, project_paths, resolve};
-use crate::core::process::{is_alive, kill, spawn_detached};
+use crate::core::process::{is_alive, kill, spawn_detached, Pid};
 use crate::core::util::{ensure_inside, now_iso, out, read_json, write_json_inside, Args};
 use crate::studio::live_proxy::{
     assert_local_target, configured_shortcut, start_live_server, LiveOptions,
@@ -105,7 +105,7 @@ fn studio(ctx: &Ctx) -> Result<i32, DfwError> {
     let p = project_paths(&root);
     let sub = a.pos(1).filter(|s| !s.is_empty()).unwrap_or(sub::STATUS);
     let info = read_json(&p.studio, Some(Value::Null))?;
-    let alive = js::truthy(&info) && is_alive(info.get("pid"));
+    let alive = js::truthy(&info) && Pid::of(info.get("pid")).is_some_and(is_alive);
     let text = |k: &str| crate::core::js::to_string(info.get(k));
     match sub {
         sub::STATUS => {
@@ -118,7 +118,9 @@ fn studio(ctx: &Ctx) -> Result<i32, DfwError> {
         }
         "stop" => {
             if alive {
-                kill(info.get("pid"));
+                if let Some(pid) = Pid::of(info.get("pid")) {
+                    kill(pid);
+                }
             }
             if p.studio.exists() {
                 fs::remove_file(&p.studio)?;
@@ -153,7 +155,9 @@ fn studio(ctx: &Ctx) -> Result<i32, DfwError> {
     if wait_for(port, paths::PING).is_none_or(|b| !b.contains(r#""dfw":"studio""#)) {
         // Never leave a server running that no studio.json names: "studio stop" could not
         // reach it.
-        kill(Some(&json!(pid)));
+        if let Some(pid) = Pid::from_value(&json!(pid)) {
+            kill(pid);
+        }
         return Err(DfwError::new(format!(
             "Studio did not start; see {}",
             log.display()
@@ -181,7 +185,7 @@ fn review(ctx: &Ctx) -> Result<i32, DfwError> {
     let file = p.dfw.join(file::REVIEW);
     let sub = a.pos(1).filter(|s| !s.is_empty()).unwrap_or(sub::STATUS);
     let info = read_json(&file, Some(Value::Null))?;
-    let running = js::truthy(&info) && is_alive(info.get("pid"));
+    let running = js::truthy(&info) && Pid::of(info.get("pid")).is_some_and(is_alive);
     let text = |k: &str| crate::core::js::to_string(info.get(k));
     match sub {
         sub::STATUS => {
@@ -199,7 +203,9 @@ fn review(ctx: &Ctx) -> Result<i32, DfwError> {
         }
         "stop" => {
             if running {
-                kill(info.get("pid"));
+                if let Some(pid) = Pid::of(info.get("pid")) {
+                    kill(pid);
+                }
             }
             if file.exists() {
                 fs::remove_file(&file)?;
@@ -228,7 +234,9 @@ fn review(ctx: &Ctx) -> Result<i32, DfwError> {
             ));
             return Ok(0);
         }
-        kill(info.get("pid"));
+        if let Some(pid) = Pid::of(info.get("pid")) {
+            kill(pid);
+        }
     }
     let port = free_from(port_arg(a, 4700)?);
     fs::create_dir_all(&p.dfw)?;
@@ -256,7 +264,9 @@ fn review(ctx: &Ctx) -> Result<i32, DfwError> {
     // Always bound on 127.0.0.1; served as http://localhost:<port>/ for a localhost app (its
     // cookies then reach the proxy).
     let Some(body) = wait_for(port, paths::LIVE) else {
-        kill(Some(&json!(pid)));
+        if let Some(pid) = Pid::from_value(&json!(pid)) {
+            kill(pid);
+        }
         return Err(DfwError::new(format!(
             "dfw review did not start; see {}",
             log.display()

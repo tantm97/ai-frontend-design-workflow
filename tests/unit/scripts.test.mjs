@@ -7,7 +7,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { leftoverCheck, versionMismatch } from '../../scripts/lib/checks.mjs';
+import { execFileSync } from 'node:child_process';
+import { leftoverCheck, versionMismatch, trackedToolingCheck } from '../../scripts/lib/checks.mjs';
 import { blockedTitle, proposeOutcome, issueExists, findReport } from '../../scripts/ci-upstream.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -160,4 +161,21 @@ test('versions: core/manifest.json, package.json, package-lock.json and native/C
   write(path.join(root, 'native/Cargo.toml'), '[package]\nname = "dfw"\nversion = "1.2.4"\n');
   assert.match(versionMismatch(root), /^versions differ: .*native\/Cargo\.toml 1\.2\.4.*Bump them together\.$/);
   assert.equal(versionMismatch(), null);
+});
+
+test('checks: tracked local tooling (AGENTS.md, docs/) is an error; vendored .claude/ folders are not; the repo has none', () => {
+  const repoWith = (files) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dfw-tooling-'));
+    execFileSync('git', ['init', '-q', dir]);
+    for (const f of files) {
+      fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true });
+      fs.writeFileSync(path.join(dir, f), 'x');
+    }
+    execFileSync('git', ['-C', dir, 'add', '--', ...files]);
+    return dir;
+  };
+  assert.equal(trackedToolingCheck(repoWith(['AGENTS.md'])).length, 1);
+  assert.equal(trackedToolingCheck(repoWith(['docs/x.md'])).length, 1);
+  assert.deepEqual(trackedToolingCheck(repoWith(['plugins/x/.claude/skills/s/SKILL.md', '.claude-plugin/marketplace.json'])), []);
+  assert.deepEqual(trackedToolingCheck(), []);
 });

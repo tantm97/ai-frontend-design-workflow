@@ -18,7 +18,7 @@ use crate::core::paths::{file, project_paths, rel};
 use crate::core::util::{read_json, write_json_inside};
 use crate::review::status::{self, by, field, Status};
 
-use super::comments::{all_comments, locked, try_locked};
+use super::comments::{all_comments, locked, try_locked, write_reviews, Held};
 
 /// How many delivery keys are kept.
 const MAX_DELIVERED: usize = 2000;
@@ -80,10 +80,10 @@ pub fn mark_delivered(root: &Path, comments: &[Value]) -> Result<(), DfwError> {
     if comments.is_empty() {
         return Ok(());
     }
-    locked(root, || mark_delivered_unlocked(root, comments))
+    locked(root, |held| mark_delivered_unlocked(held, root, comments))
 }
 
-fn mark_delivered_unlocked(root: &Path, comments: &[Value]) -> Result<(), DfwError> {
+fn mark_delivered_unlocked(held: &Held, root: &Path, comments: &[Value]) -> Result<(), DfwError> {
     let mut seen = read_delivered(root)?;
     for c in comments {
         let k = Value::String(key(c));
@@ -92,7 +92,8 @@ fn mark_delivered_unlocked(root: &Path, comments: &[Value]) -> Result<(), DfwErr
         }
     }
     let skip = seen.len().saturating_sub(MAX_DELIVERED);
-    write_json_inside(
+    write_reviews(
+        held,
         root,
         &delivered_file(root),
         &Value::Array(seen.split_off(skip)),
@@ -108,11 +109,11 @@ const HOOK_LOCK_WAIT: Duration = Duration::from_millis(50);
 /// comments come with the next call (hooks stay fast and fail open). Otherwise it waits as
 /// every writer does.
 pub fn take_undelivered(root: &Path, hook: bool) -> Result<Vec<Value>, DfwError> {
-    let take = || {
+    let take = |held: &Held| {
         let list = undelivered(root)?;
         // Nothing new writes nothing (no empty `.delivered.json` in a project without comments).
         if !list.is_empty() {
-            mark_delivered_unlocked(root, &list)?;
+            mark_delivered_unlocked(held, root, &list)?;
         }
         Ok(list)
     };
@@ -236,7 +237,9 @@ impl Drop for Listening {
 pub fn is_listening(root: &Path) -> bool {
     read_json(&listening_file(root), Some(Value::Null))
         .ok()
-        .is_some_and(|m| crate::core::process::is_alive(m.get("pid")))
+        .is_some_and(|m| {
+            crate::core::process::Pid::of(m.get("pid")).is_some_and(crate::core::process::is_alive)
+        })
 }
 
 /// `waitForComments(root, { timeoutMs, pollMs, settleMs })`: block until undelivered comments

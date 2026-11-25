@@ -108,6 +108,37 @@ m.screens = [
 m.states = ['empty', 'loading', 'error'];
 fs.writeFileSync(manifestFile, JSON.stringify(m, null, 2));
 
+/**
+ * Text set in a monospace font with a weight above 400, in `target`'s own document (not inside its
+ * frames). Mono fonts often ship one weight, so bold renders as faux bold or not at all
+ * (studio-ui.md U2, README §0 row 3). Read from computed styles: the `font` shorthand and
+ * inheritance set weights a CSS scan cannot see. `monoVar` is the custom property of the
+ * document's own mono font.
+ */
+const boldMono = (target, monoVar) =>
+  target.evaluate((monoVar) => {
+    const first = (f) =>
+      f
+        .split(',')[0]
+        .trim()
+        .replace(/^["']|["']$/g, '')
+        .toLowerCase();
+    const monos = new Set(['ui-monospace', 'sfmono-regular', 'menlo', 'consolas', 'monospace']);
+    const own = getComputedStyle(document.documentElement).getPropertyValue(monoVar).trim();
+    if (own) monos.add(first(own));
+    const found = [];
+    for (const el of document.querySelectorAll('body *')) {
+      if (![...el.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim())) continue;
+      const cs = getComputedStyle(el);
+      if (monos.has(first(cs.fontFamily)) && Number(cs.fontWeight) > 400) {
+        found.push(
+          `${el.tagName.toLowerCase()}.${el.className} "${el.textContent.trim().slice(0, 24)}": ${cs.fontFamily} ${cs.fontWeight}`,
+        );
+      }
+    }
+    return found;
+  }, monoVar);
+
 const port = 4700 + Math.floor(Math.random() * 200);
 const started = studio('start', '--port', String(port));
 const url = started.match(/http:\/\/\S+/)[0];
@@ -122,6 +153,7 @@ try {
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(url);
   await page.waitForSelector('.frame iframe');
+  assert.deepEqual(await boldMono(page, '--mono'), [], "no bold text in the Studio's mono font");
   // Steps wait on conditions, not sleeps (testing.md T12). A changed design file reaches the frames
   // through the server's 'design' event (after the watcher's debounce); a frame that took the change
   // (patched in place or reloaded) posts dfw:ready again. Both are counted here.
@@ -343,6 +375,7 @@ try {
   assert.match(insp, /padding-block/);
   assert.equal(await page.$eval('#inspector select[data-space]', (s) => s.value), 'space.3', 'padding-block maps to space.3');
   assert.ok(await page.isVisible('#layers .row[aria-selected="true"]'), 'layer highlighted');
+  assert.deepEqual(await boldMono(page, '--mono'), [], 'no bold text in the mono font of the inspector');
   await frame.locator('[data-dfw-id="home.raw"]').click();
   // Wait for the selection itself: the inspector of home.cta already holds "raw value (no
   // token)", so waiting for that text went on while home.cta was still selected, and the
@@ -799,6 +832,26 @@ try {
   assert.doesNotMatch(fs.readFileSync(boardFile, 'utf8'), /data-dfw-layout/, 'inspector "Reset size to auto" removed the rule');
   const lint = JSON.parse(spawnSync(DFW, ['lint', 'design/screens/board/a.html', '--json'], { cwd: tmp, env, encoding: 'utf8' }).stdout);
   assert.equal(lint.tally.error, 0, `lint clean after layout edits: ${JSON.stringify(lint.results).slice(0, 400)}`);
+
+  // The Design System page of a project with a style guide (palette ramps, used-token chips):
+  // no bold text in its mono font either.
+  // Its own folder: inside the first project, dfw would find that project instead.
+  const dsProject = fs.mkdtempSync(path.join(os.tmpdir(), 'dfw-e2e-ds-'));
+  const inDs = (...a) => execFileSync(DFW, a, { cwd: dsProject, env, encoding: 'utf8' });
+  inDs('init', '--product', 'E2E Palette');
+  inDs('system', 'init', '--style', 'heritage-signboard');
+  const dsPort = port + 200;
+  const dsUrl = inDs('studio', 'start', '--port', String(dsPort)).match(/http:\/\/\S+/)[0];
+  try {
+    const ds = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    await ds.goto(new URL('/__dfw/system.html', dsUrl).href);
+    await ds.waitForSelector('.ds-chip.is-used');
+    assert.deepEqual(await boldMono(ds, '--font-family-mono'), [], "no bold text in the Design System page's mono font");
+    if (shotsDir) await ds.screenshot({ path: path.join(shotsDir, 'studio-12-ds-palette.png'), fullPage: true });
+  } finally {
+    inDs('studio', 'stop');
+    fs.rmSync(dsProject, { recursive: true, force: true });
+  }
 
   assert.deepEqual(errors, [], `no page errors: ${errors.join('; ')}`);
   console.log('PASS studio e2e');
