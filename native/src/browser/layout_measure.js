@@ -2,6 +2,9 @@ function measure(opts) {
   const vw = innerWidth;
   const vh = innerHeight;
   const vis = (el) => {
+    // The content of a closed <details> keeps its box and styles but is skipped by
+    // content-visibility: hidden; checkVisibility() sees that (and display:none ancestors).
+    if (el.checkVisibility && !el.checkVisibility()) return false;
     const cs = getComputedStyle(el);
     if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) === 0) return false;
     const r = el.getBoundingClientRect();
