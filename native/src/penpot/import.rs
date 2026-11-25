@@ -25,7 +25,7 @@ use super::diff::{
 use super::export::{export_file, penpot_dir};
 use super::threads::{continue_thread, thread_key, threads_file};
 use super::tokens::{
-    import_penpot_tokens, nest, read_dfw_tokens, short_value, NestEntry, TokenImport, RESERVED,
+    import_penpot_tokens, key, nest, read_dfw_tokens, short_value, NestEntry, TokenImport, RESERVED,
 };
 use super::wire;
 
@@ -37,6 +37,7 @@ use crate::core::util::{now_iso, read_json, sha256, to_json_compact, write_json_
 use crate::design::compose::{load_components, Library};
 use crate::design::tokens::relative_path;
 use crate::review::comments::add_comment;
+use crate::review::status;
 
 static EXPORT_ID: LazyLock<Regex> = LazyLock::new(|| fixed_regex(r"^px_[0-9A-Za-z_]+$"));
 
@@ -68,21 +69,21 @@ pub fn tokens_from_plugin(t: Option<&Value>) -> Result<Option<Value>, DfwError> 
         return Ok(None);
     };
     // `t.sets.length`: an empty list or anything without a length is no token set at all.
-    let all = match t.get("sets") {
+    let all = match t.get(wire::token::SETS) {
         Some(Value::Array(sets)) if !sets.is_empty() => sets,
         Some(Value::String(s)) if !s.is_empty() => return Err(sets_not_a_list("text")),
-        Some(Value::Object(sets)) if js::truthy(sets.get("length")) => {
+        Some(Value::Object(sets)) if js::truthy(sets.get(wire::token::LENGTH)) => {
             return Err(sets_not_a_list("an object"))
         }
         _ => return Ok(None),
     };
     walkable(Some(&Value::Array(all.clone())), Some(wire::NAME), true)?;
-    walkable(t.get("themes"), Some(wire::NAME), true)?;
+    walkable(t.get(wire::token::THEMES), Some(wire::NAME), true)?;
     for s in all {
-        walkable(s.get("tokens"), Some(wire::NAME), true)?;
+        walkable(s.get(wire::token::TOKENS), Some(wire::NAME), true)?;
     }
-    for th in list(js::truthy_value(t.get("themes"))) {
-        walkable(th.get("sets"), None, true)?;
+    for th in list(js::truthy_value(t.get(wire::token::THEMES))) {
+        walkable(th.get(wire::token::SETS), None, true)?;
     }
     // Set and token names are untrusted: reserved names are left out, as `nest` does for
     // token paths.
@@ -92,44 +93,53 @@ pub fn tokens_from_plugin(t: Option<&Value>) -> Result<Option<Value>, DfwError> 
         .collect();
     let mut doc = Map::new();
     for s in &sets {
-        let entries: Vec<NestEntry> = list(js::truthy_value(s.get("tokens")))
+        let entries: Vec<NestEntry> = list(js::truthy_value(s.get(wire::token::TOKENS)))
             .iter()
             .map(|tok| NestEntry {
                 name: js::to_string(tok.get(wire::NAME)),
-                value: tok.get("value").cloned(),
-                ty: tok.get("type").cloned(),
-                description: tok.get("description").cloned(),
+                value: tok.get(wire::token::VALUE).cloned(),
+                ty: tok.get(wire::token::TYPE).cloned(),
+                description: tok.get(wire::token::DESCRIPTION).cloned(),
             })
             .collect();
         doc.insert(js::to_string(s.get(wire::NAME)), nest(&entries));
     }
     let or_empty = |v: Option<&Value>| js::truthy_value(v).cloned().unwrap_or_else(|| "".into());
-    let themes: Vec<Value> = list(js::truthy_value(t.get("themes")))
+    let themes: Vec<Value> = list(js::truthy_value(t.get(wire::token::THEMES)))
         .iter()
         .map(|th| {
-            let selected: Map<String, Value> = list(js::truthy_value(th.get("sets")))
+            let selected: Map<String, Value> = list(js::truthy_value(th.get(wire::token::SETS)))
                 .iter()
                 .map(|s| (js::to_string(Some(s)), Value::from("enabled")))
                 .collect();
             js::object(vec![
                 (wire::NAME, th.get(wire::NAME).cloned()),
-                ("group", Some(or_empty(th.get("group")))),
-                ("description", Some(or_empty(th.get("description")))),
-                ("isSource", Some(Value::Bool(false))),
-                ("selectedTokenSets", Some(Value::Object(selected))),
+                (
+                    wire::token::GROUP,
+                    Some(or_empty(th.get(wire::token::GROUP))),
+                ),
+                (
+                    wire::token::DESCRIPTION,
+                    Some(or_empty(th.get(wire::token::DESCRIPTION))),
+                ),
+                (wire::token::IS_SOURCE, Some(Value::Bool(false))),
+                (
+                    wire::token::SELECTED_TOKEN_SETS,
+                    Some(Value::Object(selected)),
+                ),
             ])
         })
         .collect();
-    doc.insert("$themes".into(), Value::Array(themes));
+    doc.insert(key::THEMES.into(), Value::Array(themes));
     let names = |active_only: bool| -> Vec<Value> {
         sets.iter()
-            .filter(|s| !active_only || js::truthy(s.get("active")))
+            .filter(|s| !active_only || js::truthy(s.get(wire::token::ACTIVE)))
             .map(|s| s.get(wire::NAME).cloned().unwrap_or(Value::Null))
             .collect()
     };
     doc.insert(
-        "$metadata".into(),
-        json!({ "tokenSetOrder": names(false), "activeSets": names(true) }),
+        key::METADATA.into(),
+        json!({ (wire::token::TOKEN_SET_ORDER): names(false), (wire::token::ACTIVE_SETS): names(true) }),
     );
     Ok(Some(js::key_order(Value::Object(doc))))
 }
@@ -166,22 +176,25 @@ impl ChangeImport {
     /// The result as the object the Node code printed.
     pub fn to_json(&self) -> Value {
         js::object(vec![
-            ("baseline", self.baseline.clone()),
-            ("changes", Some(Value::Array(self.changes.clone()))),
+            (wire::report::BASELINE, self.baseline.clone()),
+            (
+                wire::report::CHANGES,
+                Some(Value::Array(self.changes.clone())),
+            ),
             (wire::COMMENTS, Some(Value::Array(self.comments.clone()))),
             (wire::UPDATED, Some(Value::Array(self.updated.clone()))),
-            ("skipped", Some(self.skipped.into())),
-            ("warnings", Some(json!(self.warnings))),
+            (wire::report::SKIPPED, Some(self.skipped.into())),
+            (wire::report::WARNINGS, Some(json!(self.warnings))),
             (
-                "tokenDiff",
+                wire::report::TOKEN_DIFF,
                 Some(
                     self.token_diff
                         .as_ref()
                         .map_or(Value::Null, TokenImport::to_json),
                 ),
             ),
-            ("tokenFile", Some(json!(self.token_file))),
-            ("frozen", Some(self.frozen.into())),
+            (wire::report::TOKEN_FILE, Some(json!(self.token_file))),
+            (wire::report::FROZEN, Some(self.frozen.into())),
         ])
     }
 }
@@ -228,7 +241,7 @@ fn design_relative(file: &str) -> &str {
 
 /// `bbox` of a comment target: only a box of four numbers, rounded.
 fn rounded_bbox(c: &Value) -> Option<Value> {
-    let bbox = js::truthy_value(c.get("bbox"))?.as_array()?;
+    let bbox = js::truthy_value(c.get(wire::BBOX))?.as_array()?;
     bbox.iter().all(Value::is_number).then(|| {
         Value::Array(
             bbox.iter()
@@ -243,7 +256,7 @@ fn is_comment(c: &Value) -> bool {
 }
 
 fn message_count(c: &Value) -> usize {
-    list(c.get("messages")).len()
+    list(c.get(wire::MESSAGES)).len()
 }
 
 /// The fingerprint of a group of changes on one element. A Penpot thread is the same thread
@@ -258,10 +271,10 @@ fn group_fingerprint(cs: &[Value]) -> String {
     if is_comment(c0) {
         return fingerprint(&js::object(vec![
             (field::TYPE, Some(change_type::COMMENT.into())),
-            ("board", c0.get("board").cloned()),
-            ("comp", comp_key(c0)),
-            ("thread", c0.get("thread").cloned()),
-            ("messages", c0.get("messages").cloned()),
+            (wire::BOARD, c0.get(wire::BOARD).cloned()),
+            (wire::fingerprint::COMP, comp_key(c0)),
+            (wire::THREAD, c0.get(wire::THREAD).cloned()),
+            (wire::MESSAGES, c0.get(wire::MESSAGES).cloned()),
         ]));
     }
     let items: Vec<Value> = cs
@@ -269,17 +282,17 @@ fn group_fingerprint(cs: &[Value]) -> String {
         .map(|c| {
             js::object(vec![
                 (field::TYPE, c.get(field::TYPE).cloned()),
-                ("board", c.get("board").cloned()),
-                ("p", c.get("path").cloned()),
-                ("anchor", c.get("anchor").cloned()),
+                (wire::BOARD, c.get(wire::BOARD).cloned()),
+                (wire::fingerprint::P, c.get(wire::PATH).cloned()),
+                (wire::ANCHOR, c.get(wire::ANCHOR).cloned()),
                 (field::FROM, c.get(field::FROM).cloned()),
                 (field::TO, c.get(field::TO).cloned()),
-                ("messages", c.get("messages").cloned()),
-                ("characters", c.get("characters").cloned()),
-                ("bbox", c.get("bbox").cloned()),
-                ("comp", comp_key(c)),
+                (wire::MESSAGES, c.get(wire::MESSAGES).cloned()),
+                (wire::CHARACTERS, c.get(wire::CHARACTERS).cloned()),
+                (wire::BBOX, c.get(wire::BBOX).cloned()),
+                (wire::fingerprint::COMP, comp_key(c)),
                 (field::SIDES, c.get(field::SIDES).cloned()),
-                ("layer", c.get("layer").cloned()),
+                (wire::LAYER, c.get(wire::LAYER).cloned()),
             ])
         })
         .collect();
@@ -293,8 +306,8 @@ fn group_key(c: &Value) -> String {
     if is_comment(c) {
         return format!(
             "comment|{}|{}|{}",
-            s("board"),
-            s("thread"),
+            s(wire::BOARD),
+            s(wire::THREAD),
             message_count(c)
         );
     }
@@ -302,19 +315,19 @@ fn group_key(c: &Value) -> String {
         return format!(
             "component|{}|{}",
             js::to_string(comp.get(wire::KEY)),
-            s("path")
+            s(wire::PATH)
         );
     }
-    let element = js::truthy_value(c.get("anchor"))
-        .or(js::truthy_value(c.get("path")))
+    let element = js::truthy_value(c.get(wire::ANCHOR))
+        .or(js::truthy_value(c.get(wire::PATH)))
         .map_or(String::new(), |v| js::to_string(Some(v)));
-    format!("{}|{element}", s("board"))
+    format!("{}|{element}", s(wire::BOARD))
 }
 
 /// The feedback input for changes on one element of a screen board.
 fn screen_comment(root: &Path, cs: &[Value], gate_note: &str) -> Value {
     let c0 = &cs[0];
-    let anchor = js::truthy_value(c0.get("anchor"));
+    let anchor = js::truthy_value(c0.get(wire::ANCHOR));
     let header = if is_comment(c0) {
         comment::THREAD_HEADER.to_string()
     } else {
@@ -333,39 +346,40 @@ fn screen_comment(root: &Path, cs: &[Value], gate_note: &str) -> Value {
             .collect::<Vec<_>>()
             .join("\n")
     };
-    let file = js::truthy_value(c0.get("file"));
-    let exact =
-        anchor.is_some() && js::truthy(c0.get("dfwId")) && js::strict_eq(anchor, c0.get("dfwId"));
+    let file = js::truthy_value(c0.get(wire::FILE));
+    let exact = anchor.is_some()
+        && js::truthy(c0.get(wire::DFW_ID))
+        && js::strict_eq(anchor, c0.get(wire::DFW_ID));
     let is_text = c0.get(field::TYPE).and_then(Value::as_str) == Some(change_type::TEXT);
     js::object(vec![
         (
-            "comment",
+            status::field::COMMENT,
             Some(format!("{header}\n{body}{gate_note}").into()),
         ),
-        ("screen", c0.get("screen").cloned()),
-        ("variant", c0.get("variant").cloned()),
-        ("breakpoint", c0.get("breakpoint").cloned()),
+        (wire::SCREEN, c0.get(wire::SCREEN).cloned()),
+        (wire::VARIANT, c0.get(wire::VARIANT).cloned()),
+        (wire::BREAKPOINT, c0.get(wire::BREAKPOINT).cloned()),
         (
-            "file",
+            status::field::FILE,
             Some(file.map_or(Value::Null, |f| {
                 design_relative(&js::to_string(Some(f))).into()
             })),
         ),
-        ("provider", Some(comment::PROVIDER.into())),
+        (status::field::PROVIDER, Some(comment::PROVIDER.into())),
         (
             comment::TARGET,
             Some(js::object(vec![
-                ("dfwId", Some(js::or_null(anchor))),
+                (wire::DFW_ID, Some(js::or_null(anchor))),
                 (
                     comment::SOURCE,
-                    Some(source_line(root, c0.get("file"), anchor)),
+                    Some(source_line(root, c0.get(wire::FILE), anchor)),
                 ),
-                ("exact", Some(exact.into())),
+                (wire::EXACT, Some(exact.into())),
                 (
-                    "selector",
+                    wire::SELECTOR,
                     anchor.map(|a| format!("[data-dfw-id=\"{}\"]", js::to_string(Some(a))).into()),
                 ),
-                ("bbox", rounded_bbox(c0)),
+                (wire::BBOX, rounded_bbox(c0)),
                 (
                     wire::TEXT,
                     is_text.then(|| js::norm(c0.get(field::FROM)).into()),
@@ -391,13 +405,13 @@ fn component_comment(root: &Path, cs: &[Value], lib: Option<&Library>, gate_note
     let loc = location(c0);
     let comment = is_comment(c0);
     let header = if comment {
-        format!("[Penpot comment on master {}]", part("title"))
-    } else if js::truthy(c0.get("isRoot")) {
-        format!("[Penpot master] {}:", part("title"))
+        format!("[Penpot comment on master {}]", part(wire::TITLE))
+    } else if js::truthy(c0.get(wire::IS_ROOT)) {
+        format!("[Penpot master] {}:", part(wire::TITLE))
     } else {
         format!(
             "[Penpot master] {} > {}:",
-            part("title"),
+            part(wire::TITLE),
             js::to_string(c0.get(wire::NAME))
         )
     };
@@ -424,30 +438,30 @@ fn component_comment(root: &Path, cs: &[Value], lib: Option<&Library>, gate_note
         "Change the master {} (component \"{}\"{}{}): it affects every screen using it. Do not patch single screens.",
         loc.file,
         part(wire::NAME),
-        named("variant", "variant"),
-        named("size", "size")
+        named(wire::VARIANT, "variant"),
+        named(wire::SIZE, "size")
     );
     let is_text = c0.get(field::TYPE).and_then(Value::as_str) == Some(change_type::TEXT);
     js::object(vec![
         (
-            "comment",
+            status::field::COMMENT,
             Some(format!("{header}\n{body}\n{master_note}{gate_note}").into()),
         ),
-        ("screen", Some(Value::Null)),
-        ("variant", Some(Value::Null)),
-        ("breakpoint", Some(Value::Null)),
-        ("file", Some(design_relative(&loc.file).into())),
-        ("provider", Some(comment::PROVIDER.into())),
+        (wire::SCREEN, Some(Value::Null)),
+        (wire::VARIANT, Some(Value::Null)),
+        (wire::BREAKPOINT, Some(Value::Null)),
+        (status::field::FILE, Some(design_relative(&loc.file).into())),
+        (status::field::PROVIDER, Some(comment::PROVIDER.into())),
         (
             comment::TARGET,
             Some(js::object(vec![
-                ("dfwId", Some(Value::Null)),
+                (wire::DFW_ID, Some(Value::Null)),
                 (
                     field::COMPONENT,
                     Some(js::object(vec![
                         (wire::NAME, comp.get(wire::NAME).cloned()),
-                        ("variant", comp.get("variant").cloned()),
-                        ("size", comp.get("size").cloned()),
+                        (wire::VARIANT, comp.get(wire::VARIANT).cloned()),
+                        (wire::SIZE, comp.get(wire::SIZE).cloned()),
                     ])),
                 ),
                 (
@@ -459,14 +473,17 @@ fn component_comment(root: &Path, cs: &[Value], lib: Option<&Library>, gate_note
                             .into(),
                     ),
                 ),
-                ("layer", c0.get("path").filter(|_| !comment).cloned()),
                 (
-                    "tag",
-                    js::truthy_value(c0.get("tag"))
+                    wire::LAYER,
+                    c0.get(wire::PATH).filter(|_| !comment).cloned(),
+                ),
+                (
+                    wire::TAG,
+                    js::truthy_value(c0.get(wire::TAG))
                         .filter(|_| !comment)
                         .cloned(),
                 ),
-                ("bbox", rounded_bbox(c0)),
+                (wire::BBOX, rounded_bbox(c0)),
                 (
                     wire::TEXT,
                     is_text.then(|| js::norm(c0.get(field::FROM)).into()),
@@ -538,21 +555,21 @@ fn token_lines(diff: &TokenImport) -> Vec<String> {
     let mut lines = Vec::new();
     for (set, d) in &diff.diff {
         for c in &d.changed {
-            if !js::truthy(c.get("descriptionOnly")) {
+            if !js::truthy(c.get(wire::token::DESCRIPTION_ONLY)) {
                 lines.push(format!(
                     "- {set} {}: {} -> {}",
-                    s(c, "token"),
-                    short_value(c.get("from")),
-                    short_value(c.get("to"))
+                    s(c, wire::token::TOKEN),
+                    short_value(c.get(wire::token::FROM)),
+                    short_value(c.get(wire::token::TO))
                 ));
             }
         }
         for c in &d.added {
             lines.push(format!(
                 "- {set} {} added ({}): {}",
-                s(c, "token"),
-                s(c, "type"),
-                short_value(c.get("value"))
+                s(c, wire::token::TOKEN),
+                s(c, wire::token::TYPE),
+                short_value(c.get(wire::token::VALUE))
             ));
         }
     }
@@ -601,7 +618,7 @@ pub fn import_changes(
             .iter()
             .map(|p| {
                 let mut c = Map::new();
-                c.insert("id".into(), "(dry run)".into());
+                c.insert(status::field::ID.into(), "(dry run)".into());
                 c.extend(js::spread(Some(&p.input)));
                 Value::Object(c)
             })
@@ -651,7 +668,7 @@ fn compare_with_export(
         .unwrap_or_default();
     let diff = diff_changes(&baseline, changes, &dims)?;
     let mut warnings = diff.warnings;
-    let baseline_id = baseline.get("id");
+    let baseline_id = baseline.get(wire::ID);
     if let Some(id) = &export_id {
         if baseline_id.and_then(Value::as_str) != Some(id) {
             warnings.push(format!(
@@ -660,12 +677,12 @@ fn compare_with_export(
             ));
         }
     }
-    let design = opts.state.and_then(|s| s.get("design"));
+    let design = opts.state.and_then(|s| s.get(wire::state::DESIGN));
     Ok(ChangeImport {
         baseline: baseline_id.cloned(),
         changes: diff.changes,
         warnings,
-        frozen: js::truthy(design.and_then(|d| d.get("locked"))),
+        frozen: js::truthy(design.and_then(|d| d.get(wire::state::LOCKED))),
         ..ChangeImport::default()
     })
 }
@@ -682,9 +699,9 @@ fn add_token_diff(
     let token_doc = if opts.live {
         None
     } else {
-        tokens_from_plugin(changes.get("tokens"))?.or_else(|| {
+        tokens_from_plugin(changes.get(wire::TOKENS))?.or_else(|| {
             changes
-                .get("tokenFile")
+                .get(wire::TOKEN_FILE)
                 .filter(|f| f.is_object() || f.is_array())
                 .cloned()
         })
@@ -732,11 +749,11 @@ fn read_ledger(ledger_file: &Path) -> Result<Vec<Value>, DfwError> {
 
 /// The note every comment carries while the design is frozen.
 fn gate_note(opts: &ImportOptions, frozen: bool) -> String {
-    let design = opts.state.and_then(|s| s.get("design"));
+    let design = opts.state.and_then(|s| s.get(wire::state::DESIGN));
     if frozen {
         format!(
             "\n(Design v{} is approved and frozen: discuss with the user; applying this needs \"dfw reopen\".)",
-            js::to_string(design.and_then(|d| d.get("version")))
+            js::to_string(design.and_then(|d| d.get(wire::state::VERSION)))
         )
     } else {
         String::new()
@@ -763,7 +780,7 @@ fn plan_comments(
         let fp = group_fingerprint(cs);
         // A thread already linked to a dfw comment continues that comment (new messages,
         // resolve, reopen).
-        let thread = js::present(c0.get("thread"))
+        let thread = js::present(c0.get(wire::THREAD))
             .filter(|_| is_comment(c0))
             .map(|seq| thread_key(changes.get(wire::FILE_ID), Some(seq)));
         if let Some(tk) = &thread {
@@ -772,7 +789,7 @@ fn plan_comments(
                 continue;
             }
         }
-        if ledger_has(ledger, &fp) || (is_comment(c0) && js::truthy(c0.get("resolved"))) {
+        if ledger_has(ledger, &fp) || (is_comment(c0) && js::truthy(c0.get(wire::RESOLVED))) {
             *skipped += 1;
             continue;
         }
@@ -809,12 +826,12 @@ fn token_comment(result: &ChangeImport, gate_note: &str) -> Option<Pending> {
     Some(Pending {
         fingerprint: fp,
         input: json!({
-            "comment": format!(
+            (status::field::COMMENT): format!(
                 "[Penpot] Token values changed in Penpot:\n{}{more}\nReview with \"dfw tokens import {file} --dry-run\"; apply only with the user's agreement (the import is refused while the design is frozen).{gate_note}",
                 shown.join("\n")
             ),
-            "provider": comment::PROVIDER,
-            "target": {},
+            (status::field::PROVIDER): comment::PROVIDER,
+            (comment::TARGET): {},
         }),
         thread: None,
         seen: 0,
@@ -838,10 +855,10 @@ fn write_comments(
             links.insert(
                 tk.clone(),
                 js::object(vec![
-                    ("comment", c.get("id").cloned()),
-                    ("seen", Some(p.seen.into())),
-                    ("resolved", Some(Value::Bool(false))),
-                    ("posted", Some(json!([]))),
+                    (wire::link::COMMENT, c.get(status::field::ID).cloned()),
+                    (wire::link::SEEN, Some(p.seen.into())),
+                    (wire::link::RESOLVED, Some(Value::Bool(false))),
+                    (wire::link::POSTED, Some(json!([]))),
                 ]),
             );
         }
@@ -914,7 +931,11 @@ pub fn format_import_changes(r: &ChangeImport, dry_run: bool) -> String {
     for c in &r.comments {
         let target = c.get(comment::TARGET);
         let component = js::truthy_value(target.and_then(|t| t.get(field::COMPONENT)));
-        let mut place = joined(vec![c.get("screen"), c.get("variant"), c.get("breakpoint")]);
+        let mut place = joined(vec![
+            c.get(wire::SCREEN),
+            c.get(wire::VARIANT),
+            c.get(wire::BREAKPOINT),
+        ]);
         if place.is_empty() {
             place = if component.is_some() {
                 "master"
@@ -924,21 +945,21 @@ pub fn format_import_changes(r: &ChangeImport, dry_run: bool) -> String {
             .to_string();
         }
         let element = match (
-            js::truthy_value(target.and_then(|t| t.get("dfwId"))),
+            js::truthy_value(target.and_then(|t| t.get(wire::DFW_ID))),
             component,
         ) {
             (Some(id), _) => js::to_string(Some(id)),
             (None, Some(comp)) => joined(vec![
                 comp.get(wire::NAME),
-                comp.get("variant"),
-                comp.get("size"),
+                comp.get(wire::VARIANT),
+                comp.get(wire::SIZE),
             ]),
             (None, None) => "?".to_string(),
         };
         lines.push(format!(
             "{} {place} -> {element}\n    {}",
-            js::to_string(c.get("id")),
-            js::to_string(c.get("comment"))
+            js::to_string(c.get(status::field::ID)),
+            js::to_string(c.get(status::field::COMMENT))
                 .split('\n')
                 .collect::<Vec<_>>()
                 .join("\n    ")

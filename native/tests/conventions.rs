@@ -43,12 +43,24 @@ fn allows() -> Vec<String> {
     for f in files {
         let rel = f.strip_prefix(native()).unwrap().display().to_string();
         let text = fs::read_to_string(&f).unwrap();
-        for (i, line) in text.lines().enumerate() {
+        let lines: Vec<&str> = text.lines().collect();
+        for (i, line) in lines.iter().enumerate() {
             let t = line.trim_start();
+            // A `cfg_attr` is read up to its closing `)]`: its `allow(` may be on a later line.
+            let cfg_attr = || {
+                let mut whole = String::new();
+                for l in &lines[i..] {
+                    whole.push_str(l);
+                    if l.trim_end().ends_with(")]") {
+                        break;
+                    }
+                }
+                whole
+            };
             let attr = t.starts_with("#[allow(")
                 || t.starts_with("#![allow(")
                 || (t.starts_with("#[cfg_attr(") || t.starts_with("#![cfg_attr("))
-                    && t.contains("allow(");
+                    && cfg_attr().contains("allow(");
             let test_exemption = rel.ends_with("main.rs") && t.starts_with("#![cfg_attr(");
             if attr && !test_exemption {
                 out.push(format!("{rel}:{}", i + 1));
@@ -1239,5 +1251,59 @@ fn reviews_writes_hold_the_lock() {
         found.is_empty(),
         "a reviews file written without the lock's guard; use write_reviews(held, ...):\n{}",
         found.join("\n")
+    );
+}
+
+/// The keys of the files dfw and the dfw bridge plugin exchange (the export, the change file,
+/// the live sync, the threads ledger) are named once, in `penpot::wire` (`mod.rs`), and read
+/// and written through those names (the token files are `penpot::tokens`' own). A key
+/// spelled as a literal compiles even when it is misspelled. Refused, in product code: a
+/// literal read (`.get("…")`, `.get_mut("…")`), write (`insert("…"`, `shift_remove("…")`)
+/// or `json!` object key (`"…":`). A literal that is a value does not match.
+#[test]
+fn penpot_keys_are_penpot_wire() {
+    let call = regex::Regex::new(r#"(?:\.get|\.get_mut|insert|shift_remove)\("((?:[^"\\]|\\.)*)""#)
+        .unwrap();
+    let literal = regex::Regex::new(r#""((?:[^"\\]|\\.)*)""#).unwrap();
+    let mut found = Vec::new();
+    for (rel, lines) in product_sources(&["src/penpot/mod.rs"]) {
+        if !rel.starts_with("src/penpot/") || rel.starts_with("src/penpot/tokens/") {
+            continue;
+        }
+        for (i, line) in lines.iter().enumerate() {
+            let object_keys = literal.captures_iter(line).filter(|c| {
+                let rest = line[c.get(0).unwrap().end()..].trim_start();
+                rest.starts_with(':') && !rest.starts_with("::")
+            });
+            for c in call.captures_iter(line).chain(object_keys) {
+                found.push(format!("{rel}:{}: \"{}\"", i + 1, &c[1]));
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "JSON keys spelled as literals in src/penpot/; name them in penpot::wire (mod.rs):\n{}",
+        found.join("\n")
+    );
+}
+
+/// Untyped JSON reads by a literal key (`.get("…")`, `.get_mut("…")`) in product code of
+/// `src/`, once per read as `file:line`: the JSON debt that later changes name or type. The
+/// count may only go down (`"json_key_literals"` in the baseline).
+#[test]
+fn json_key_literals_do_not_grow() {
+    let read = regex::Regex::new(r#"\.get(?:_mut)?\("(?:[^"\\]|\\.)*"\)"#).unwrap();
+    let mut found = Vec::new();
+    for (rel, lines) in product_sources(&[]) {
+        for (i, line) in lines.iter().enumerate() {
+            for _ in read.find_iter(line) {
+                found.push(format!("{rel}:{}", i + 1));
+            }
+        }
+    }
+    compare(
+        "JSON reads by a literal key in src/",
+        "json_key_literals",
+        &found,
     );
 }

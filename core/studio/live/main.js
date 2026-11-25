@@ -35,7 +35,8 @@ function main() {
 *{box-sizing:border-box}
 .box{position:fixed;border:2px solid #2f6fed;background:rgba(47,111,237,.08);border-radius:2px;pointer-events:none}
 .tag{position:absolute;left:-2px;top:-22px;background:#2f6fed;color:#fff;font-size:11px;padding:2px 6px;border-radius:3px;white-space:nowrap;max-width:60vw;overflow:hidden;text-overflow:ellipsis}
-.bar{position:fixed;right:16px;bottom:16px;display:flex;gap:6px;align-items:center;pointer-events:auto;background:#111;color:#fff;border-radius:999px;padding:4px 4px 4px 12px;box-shadow:0 4px 16px rgba(0,0,0,.25)}
+.bar{position:fixed;right:16px;bottom:16px;display:flex;gap:6px;align-items:center;pointer-events:auto;
+background:#111;color:#fff;border-radius:999px;padding:4px 4px 4px 12px;box-shadow:0 4px 16px rgba(0,0,0,.25)}
 .bar b{font-weight:600;letter-spacing:.02em}
 button{font:inherit;border:0;border-radius:999px;padding:6px 12px;cursor:pointer;background:#333;color:#fff}
 button:focus-visible,textarea:focus-visible{outline:2px solid #7aa7ff;outline-offset:2px}

@@ -46,26 +46,12 @@ pub struct Host {
     pub status: Status,
     /// The host's command line program.
     pub cli: Option<&'static str>,
-    /// Folder under `adapters/`.
-    // Read by the build scripts' twin of this table (host.mjs); kept so the rows match.
-    #[allow(
-        dead_code,
-        reason = "Read by the build scripts' twin of this table (host.mjs); kept so the rows match"
-    )]
-    pub adapter: Option<&'static str>,
     /// Hook events the host fires and whether a hook can add model context there.
     pub context: Option<&'static [(&'static str, bool)]>,
     /// Values of the `{{PLACEHOLDER}}`s in skill, reference and agent text.
     pub text: Option<&'static [(&'static str, &'static str)]>,
     /// Skills are named `plugin:skill` (else by the bare skill name).
     pub qualified_skill_names: bool,
-    /// Reached through the dfw MCP server.
-    // Read by the build scripts' twin of this table (host.mjs); kept so the rows match.
-    #[allow(
-        dead_code,
-        reason = "Read by the build scripts' twin of this table (host.mjs); kept so the rows match"
-    )]
-    pub mcp: bool,
 }
 
 const fn planned(id: &'static str, name: &'static str, cli: &'static str) -> Host {
@@ -74,11 +60,9 @@ const fn planned(id: &'static str, name: &'static str, cli: &'static str) -> Hos
         name,
         status: Status::Planned,
         cli: Some(cli),
-        adapter: None,
         context: None,
         text: None,
         qualified_skill_names: false,
-        mcp: true,
     }
 }
 
@@ -89,7 +73,6 @@ pub static HOSTS: [Host; 6] = [
         name: "Claude Code",
         status: Status::Supported,
         cli: Some("claude"),
-        adapter: Some("claude-code"),
         context: Some(&[(event::SESSION_START, true), (event::USER_PROMPT_SUBMIT, true), (event::POST_TOOL_USE, true)]),
         text: Some(&[
             ("HOST_NAME", "Claude Code"),
@@ -101,14 +84,12 @@ pub static HOSTS: [Host; 6] = [
             ("INVOKE_SKILL", "Invoke skills with the Skill tool by their full `plugin:skill` name."),
         ]),
         qualified_skill_names: true,
-        mcp: false,
     },
     Host {
         id: id::COPILOT,
         name: "GitHub Copilot",
         status: Status::Supported,
         cli: Some("copilot"),
-        adapter: Some("copilot"),
         // Copilot ignores additionalContext on userPromptSubmitted: comments ride on PostToolUse and Stop.
         context: Some(&[(event::SESSION_START, true), (event::USER_PROMPT_SUBMIT, false), (event::POST_TOOL_USE, true)]),
         text: Some(&[
@@ -124,7 +105,6 @@ pub static HOSTS: [Host; 6] = [
             ("INVOKE_SKILL", "Load a skill by its name (for example `impeccable`, `frontend-design`); custom agents by their name (for example `screen-builder`)."),
         ]),
         qualified_skill_names: false,
-        mcp: false,
     },
     // Text rendering only: the guide served by "dfw mcp" to tools without a dfw plugin.
     Host {
@@ -132,7 +112,6 @@ pub static HOSTS: [Host; 6] = [
         name: "MCP",
         status: Status::Internal,
         cli: None,
-        adapter: None,
         context: None,
         text: Some(&[
             ("HOST_NAME", "your AI coding tool (through the dfw MCP server)"),
@@ -150,7 +129,6 @@ pub static HOSTS: [Host; 6] = [
             ),
         ]),
         qualified_skill_names: false,
-        mcp: false,
     },
     // Planned plugins (hooks): same core, new adapter. Until then they use "dfw mcp install <tool>".
     planned(id::OPENCODE, "OpenCode", "opencode"),
@@ -658,26 +636,22 @@ mod tests {
         assert_eq!(ids, [CLAUDE, COPILOT, MCP, OPENCODE, id::CODEX, CURSOR]);
         let copilot = get_host(Some(COPILOT)).unwrap();
         assert_eq!(
-            (copilot.name, copilot.cli, copilot.adapter),
-            ("GitHub Copilot", Some(COPILOT), Some(COPILOT))
+            (copilot.name, copilot.cli),
+            ("GitHub Copilot", Some(COPILOT))
         );
         assert_eq!(copilot.context(USER_PROMPT_SUBMIT), Some(false));
         assert_eq!(copilot.context(STOP), None);
         assert_eq!(copilot.text(SKILL_DIR), Some("."));
         let claude = get_host(Some(CLAUDE)).unwrap();
-        assert_eq!(claude.adapter, Some("claude-code"));
         assert!(claude.installed_plugin_dirs().is_empty());
         assert_eq!(claude.dfw_plugin_dir(), None);
         let mcp = get_host(Some(MCP)).unwrap();
-        assert_eq!(
-            (mcp.status, mcp.cli, mcp.mcp),
-            (Status::Internal, None, false)
-        );
+        assert_eq!((mcp.status, mcp.cli), (Status::Internal, None));
         assert_eq!(mcp.text(SKILL_DIR), Some("__DFW_SKILL_DIR__"));
         let cursor = get_host(Some(CURSOR)).unwrap();
         assert_eq!(
-            (cursor.name, cursor.cli, cursor.mcp, cursor.text("ASK_TOOL")),
-            ("Cursor", Some("cursor-agent"), true, None)
+            (cursor.name, cursor.cli, cursor.text("ASK_TOOL")),
+            ("Cursor", Some("cursor-agent"), None)
         );
     }
 

@@ -1,7 +1,7 @@
 // Host text for the build (scripts/lib/build.mjs): the placeholder values and `<!-- host:id -->`
 // blocks rendered into SKILL.md, references and agents of each host plugin.
 // The binary holds the same table in native/src/core/host.rs (it renders the MCP guide at run
-// time). tests/golden/core.golden.mjs renders every file of core/workflow with this module and
+// time). tests/golden/host-text.golden.mjs renders every file of core/workflow with this module and
 // with the binary (`dfw __debug host-render <host>`) and fails when they differ: change both.
 
 export const HOSTS = {

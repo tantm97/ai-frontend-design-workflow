@@ -43,13 +43,13 @@ pub fn thread_replies(root: &Path, file_id: &str) -> Result<Vec<Value>, DfwError
         let Some(c) = comments
             .iter()
             .rev()
-            .find(|c| js::strict_eq(c.get("id"), link.get("comment")))
+            .find(|c| js::strict_eq(c.get(status::field::ID), link.get(wire::link::COMMENT)))
         else {
             continue;
         };
-        let posted = list(js::truthy_value(link.get("posted")));
+        let posted = list(js::truthy_value(link.get(wire::link::POSTED)));
         let seq = js::num(js::str_to_number(number));
-        let id = js::to_string(c.get("id"));
+        let id = js::to_string(c.get(status::field::ID));
         let mut events: Vec<(String, String)> = Vec::new();
         if status::of(c) == Some(Status::Acknowledged) {
             events.push((
@@ -57,7 +57,7 @@ pub fn thread_replies(root: &Path, file_id: &str) -> Result<Vec<Value>, DfwError
                 // its last change (a reply would post it again).
                 format!(
                     "ack:{}",
-                    list(c.get("thread"))
+                    list(c.get(status::field::THREAD))
                         .iter()
                         .filter(|e| status::of(e) == Some(Status::Reopened))
                         .count()
@@ -65,11 +65,12 @@ pub fn thread_replies(root: &Path, file_id: &str) -> Result<Vec<Value>, DfwError
                 format!("[dfw] {id} seen, working on it."),
             ));
         }
-        for e in list(js::truthy_value(c.get("thread"))) {
-            let message = js::truthy_value(e.get("message"));
-            let (Some(message), false) =
-                (message, e.get("by").and_then(Value::as_str) == Some("user"))
-            else {
+        for e in list(js::truthy_value(c.get(status::field::THREAD))) {
+            let message = js::truthy_value(e.get(wire::line::MESSAGE));
+            let (Some(message), false) = (
+                message,
+                e.get(wire::line::BY).and_then(Value::as_str) == Some("user"),
+            ) else {
                 continue;
             };
             let message = js::to_string(Some(message));
@@ -78,13 +79,16 @@ pub fn thread_replies(root: &Path, file_id: &str) -> Result<Vec<Value>, DfwError
                 Some(Status::Dismissed) => format!("[dfw] {id} dismissed: {message}\nReply here to reopen."),
                 _ => format!("[dfw] {id}: {message}"),
             };
-            let status = js::truthy_value(e.get("status"))
+            let status = js::truthy_value(e.get(wire::line::STATUS))
                 .map_or("reply".to_string(), |s| js::to_string(Some(s)));
-            events.push((format!("{status}:{}", js::to_string(e.get("at"))), text));
+            events.push((
+                format!("{status}:{}", js::to_string(e.get(wire::line::AT))),
+                text,
+            ));
         }
         for (key, text) in events {
             if !posted.iter().any(|p| p.as_str() == Some(&key)) {
-                out.push(json!({ "seq": seq, "key": key, "text": text }));
+                out.push(json!({ (wire::SEQ): seq, (wire::KEY): key, (wire::TEXT): text }));
             }
         }
     }
@@ -100,7 +104,7 @@ pub fn mark_posted(root: &Path, file_id: &str, posted: Option<&Value>) -> Result
     let mut threads = read_json(&threads_file(root), Some(json!({})))?;
     let mut changed = false;
     for p in posted {
-        let tk = thread_key(Some(&file_id.into()), p.get("seq"));
+        let tk = thread_key(Some(&file_id.into()), p.get(wire::SEQ));
         let Some(link) = threads.get_mut(&tk).filter(|l| js::truthy(Some(l))) else {
             continue;
         };
@@ -108,7 +112,7 @@ pub fn mark_posted(root: &Path, file_id: &str, posted: Option<&Value>) -> Result
         else {
             continue;
         };
-        let slot = link.entry("posted").or_insert(Value::Null);
+        let slot = link.entry(wire::link::POSTED).or_insert(Value::Null);
         if !js::truthy(&*slot) {
             *slot = json!([]);
         }
@@ -199,7 +203,7 @@ pub fn export_stale(root: &Path) -> Result<bool, DfwError> {
         &penpot_dir(root).join(file::PENPOT_EXPORT),
         Some(Value::Null),
     )?;
-    let generated_at = js::truthy_value(doc.get("generatedAt")).and_then(Value::as_str);
+    let generated_at = js::truthy_value(doc.get(wire::GENERATED_AT)).and_then(Value::as_str);
     let Some(at) = generated_at.and_then(parse_iso_ms).filter(|at| *at != 0.0) else {
         return Ok(false);
     };
@@ -232,14 +236,14 @@ pub fn sync_threads(
         .get(wire::FILE_ID)
         .and_then(Value::as_str)
         .map_or(String::new(), |id| js::slice16(id, 0, 80));
-    mark_posted(root, &file_id, payload.get("posted"))?;
-    let threads: Vec<Value> = list(payload.get("threads"))
+    mark_posted(root, &file_id, payload.get(wire::POSTED))?;
+    let threads: Vec<Value> = list(payload.get(wire::THREADS))
         .iter()
         .take(500)
         .cloned()
         .collect();
     let mut changes = js::object(vec![
-        ("schema", Some(CHANGES_SCHEMA.into())),
+        (wire::SCHEMA, Some(CHANGES_SCHEMA.into())),
         (wire::EXPORT_ID, payload.get(wire::EXPORT_ID).cloned()),
         (wire::FILE_ID, Some(file_id.as_str().into())),
         (wire::COMMENTS, Some(Value::Array(threads))),
@@ -258,14 +262,14 @@ pub fn sync_threads(
     let ids: Vec<Value> = r
         .comments
         .iter()
-        .map(|c| c.get("id").cloned().unwrap_or(Value::Null))
+        .map(|c| c.get(status::field::ID).cloned().unwrap_or(Value::Null))
         .collect();
     Ok(json!({
         wire::COMMENTS: ids,
         wire::UPDATED: r.updated,
         wire::REPLIES: thread_replies(root, &file_id)?,
-        "stale": export_stale(root)?,
-        "warnings": r.warnings,
+        (wire::report::STALE): export_stale(root)?,
+        (wire::report::WARNINGS): r.warnings,
     }))
 }
 

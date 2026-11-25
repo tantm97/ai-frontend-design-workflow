@@ -7,9 +7,13 @@ use std::cell::{Cell, RefCell};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use serde_json::{json, Value};
+use serde_json::json;
+#[cfg(unix)]
+use serde_json::Value;
 
-use super::report::{flatten, locale_compare, tool_status};
+#[cfg(unix)]
+use super::report::tool_status;
+use super::report::{flatten, locale_compare};
 use super::*;
 use crate::core::config::load_config;
 use crate::core::fixture::{
@@ -20,6 +24,7 @@ use crate::core::fixture::{
 use crate::core::fixture::{APP_MODULE, CHIP_MASTER, DESIGN_PAGE};
 use crate::core::fixture::{HTML_FILE_B, OUTSIDE_PAGE};
 use crate::core::util::test_dir;
+#[cfg(unix)]
 use field::STATUS;
 #[cfg(unix)]
 use field::{DETAIL, FINDINGS};
@@ -55,7 +60,7 @@ fn strings(list: &[&str]) -> Vec<String> {
     list.iter().map(|s| s.to_string()).collect()
 }
 
-#[cfg_attr(not(unix), allow(dead_code, reason = "used by the Unix-only tests"))]
+#[cfg(unix)]
 fn no_env() -> ToolRun<'static> {
     ToolRun {
         env: &[],
@@ -74,12 +79,12 @@ fn nothing<'a>() -> Lookup<'a> {
 }
 
 /// The scripts are sh scripts, so "Node.js" is sh in these tests.
-#[cfg_attr(not(unix), allow(dead_code, reason = "used by the Unix-only tests"))]
+#[cfg(unix)]
 fn sh() -> Option<String> {
     Some("/bin/sh".to_string())
 }
 
-#[cfg_attr(not(unix), allow(dead_code, reason = "used by the Unix-only tests"))]
+#[cfg(unix)]
 fn ready(cmd: &Path, env: &[(&str, &str)]) -> Engine {
     Engine {
         ready: true,
@@ -102,7 +107,7 @@ fn not_ready(unverified: &[&str]) -> Engine {
     }
 }
 
-#[cfg_attr(not(unix), allow(dead_code, reason = "used by the Unix-only tests"))]
+#[cfg(unix)]
 fn statuses(results: &[Value]) -> Vec<String> {
     results
         .iter()

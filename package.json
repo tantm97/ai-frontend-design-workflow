@@ -28,7 +28,7 @@
     "format": "prettier --write core/studio scripts tests/e2e tests/unit tests/golden/*.mjs tests/bench/*.mjs eslint.config.js types",
     "lint:eslint": "eslint core/studio scripts tests/e2e tests/unit tests/golden/*.mjs tests/bench/*.mjs eslint.config.js",
     "lint:format": "prettier --check core/studio scripts tests/e2e tests/unit tests/golden/*.mjs tests/bench/*.mjs eslint.config.js types",
-    "lint:types": "tsc -p tsconfig.json",
+    "lint:types": "tsc -p tsconfig.json && tsc -p tsconfig.penpot.json",
     "build:overlay": "node scripts/build-overlay.mjs"
   },
   "bin": {

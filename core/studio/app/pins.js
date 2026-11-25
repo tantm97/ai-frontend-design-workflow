@@ -109,11 +109,18 @@ export function renderPop() {
   const where =
     c.screen === SYSTEM_SCREEN ? TEXT.label.designSystem : [c.screen, c.variant, c.breakpoint, c.state].filter(Boolean).join(' / ');
   const thread = (c.thread || []).slice(-3);
+  const status = `<span class="status" data-s="${esc(isDraft(c) ? 'draft' : c.status)}">${esc(commentLabel(c))}</span>`;
+  const close = `<button type="button" class="pop-x" aria-label="${TEXT.label.close}">✕</button>`;
+  const lines = thread
+    .map(
+      (/** @type {any} */ t) => `<li><span class="by">${esc(t.by)} · ${esc(new Date(t.at).toLocaleString())}</span>${esc(t.message)}</li>`,
+    )
+    .join('');
   pop.innerHTML = `
-    <div class="pop-head"><span class="num">#${esc(c.id.replace('fb_', ''))}</span><span class="status" data-s="${esc(isDraft(c) ? 'draft' : c.status)}">${esc(commentLabel(c))}</span><button type="button" class="pop-x" aria-label="${TEXT.label.close}">✕</button></div>
+    <div class="pop-head"><span class="num">#${esc(c.id.replace('fb_', ''))}</span>${status}${close}</div>
     <p class="pop-text">${esc(c.comment)}</p>
     <p class="pop-where">${esc(where)} · <code>${esc(c.target?.dfwId || c.target?.selector || TEXT.areaTarget)}</code></p>
-    ${thread.length ? `<ul class="thread">${thread.map((/** @type {any} */ t) => `<li><span class="by">${esc(t.by)} · ${esc(new Date(t.at).toLocaleString())}</span>${esc(t.message)}</li>`).join('')}</ul>` : ''}
+    ${thread.length ? `<ul class="thread">${lines}</ul>` : ''}
     <div class="comment-actions"></div>`;
   $('.pop-x', pop).onclick = closePop;
   ui.commentActions(c, $('.comment-actions', pop));

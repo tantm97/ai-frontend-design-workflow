@@ -55,27 +55,31 @@ pub(super) fn penpot_dir(root: &Path) -> PathBuf {
 /* ------------------------------------------------------------------ normalising snapshots */
 
 fn style<'a>(n: &'a Value, key: &str) -> Option<&'a Value> {
-    n.get("style").and_then(|s| s.get(key))
+    n.get(wire::STYLE).and_then(|s| s.get(key))
 }
 
 fn painted(n: &Value) -> bool {
-    ["fill", "borders", "shadows"]
-        .iter()
-        .any(|k| js::truthy(style(n, k)))
+    [
+        wire::style::FILL,
+        wire::style::BORDERS,
+        wire::style::SHADOWS,
+    ]
+    .iter()
+    .any(|k| js::truthy(style(n, k)))
 }
 
 fn is_wrapper(n: &Value) -> bool {
     n.get(wire::KIND).and_then(Value::as_str) == Some(wire::kind::FRAME)
-        && !js::truthy(n.get("dfwId"))
-        && !js::truthy(n.get("component"))
+        && !js::truthy(n.get(wire::DFW_ID))
+        && !js::truthy(n.get(wire::COMPONENT))
         && !painted(n)
-        && !js::truthy(style(n, "clip"))
-        && style(n, "opacity").is_none()
-        && !js::truthy(style(n, "backgroundImage"))
+        && !js::truthy(style(n, wire::style::CLIP))
+        && style(n, wire::style::OPACITY).is_none()
+        && !js::truthy(style(n, wire::style::BACKGROUND_IMAGE))
 }
 
 fn has_children(n: &Value) -> bool {
-    n.get("children")
+    n.get(wire::CHILDREN)
         .and_then(Value::as_array)
         .is_some_and(|c| !c.is_empty())
 }
@@ -85,7 +89,7 @@ fn has_children(n: &Value) -> bool {
 pub fn simplify(nodes: Vec<Value>) -> Vec<Value> {
     let mut out = Vec::new();
     for mut n in nodes {
-        if let Some(children) = n.get_mut("children").filter(|c| js::truthy(Some(c))) {
+        if let Some(children) = n.get_mut(wire::CHILDREN).filter(|c| js::truthy(Some(c))) {
             let kids = match children.take() {
                 Value::Array(kids) => kids,
                 _ => Vec::new(),
@@ -93,13 +97,13 @@ pub fn simplify(nodes: Vec<Value>) -> Vec<Value> {
             *children = Value::Array(simplify(kids));
         }
         if is_wrapper(&n) {
-            if let Some(Value::Array(kids)) = n.get_mut("children").map(Value::take) {
+            if let Some(Value::Array(kids)) = n.get_mut(wire::CHILDREN).map(Value::take) {
                 out.extend(kids);
             }
         } else if n.get(wire::KIND).and_then(Value::as_str) == Some(wire::kind::FRAME)
             && !has_children(&n)
-            && !js::truthy(n.get("dfwId"))
-            && !js::truthy(n.get("component"))
+            && !js::truthy(n.get(wire::DFW_ID))
+            && !js::truthy(n.get(wire::COMPONENT))
             && !painted(&n)
         {
             continue;
@@ -175,8 +179,8 @@ fn color_token_index(tree: Option<&Value>) -> Vec<ColorToken> {
             + name.split('.').count() as f64 * 0.1;
         out.push(ColorToken {
             name: name.to_string(),
-            hex: js::to_string(c.get("hex")),
-            opacity: js::present(c.get("alpha")).map_or(1.0, |a| js::to_number(Some(a))),
+            hex: js::to_string(c.get(super::tokens::key::HEX)),
+            opacity: js::present(c.get(wire::dtcg::ALPHA)).map_or(1.0, |a| js::to_number(Some(a))),
             score,
         });
     }
@@ -192,9 +196,9 @@ fn radius_token_index(tree: Option<&Value>) -> Vec<(String, Value)> {
         .filter(|(name, t)| {
             t.type_name() == Some("dimension")
                 && RADIUS_NAME.is_match(name)
-                && t.value.get("unit").and_then(Value::as_str) == Some("px")
+                && t.value.get(wire::dtcg::UNIT).and_then(Value::as_str) == Some("px")
         })
-        .filter_map(|(name, t)| Some((name.to_string(), t.value.get("value")?.clone())))
+        .filter_map(|(name, t)| Some((name.to_string(), t.value.get(wire::dtcg::VALUE)?.clone())))
         .collect()
 }
 
@@ -204,8 +208,8 @@ fn find_color_token(index: &[ColorToken], c: Option<&Value>, text_role: bool) ->
         return Value::Null;
     };
     let (hex, opacity) = (
-        c.get("hex").and_then(Value::as_str),
-        js::to_number(c.get("opacity")),
+        c.get(wire::HEX).and_then(Value::as_str),
+        js::to_number(c.get(wire::OPACITY)),
     );
     let hits: Vec<&ColorToken> = index
         .iter()
@@ -241,27 +245,31 @@ impl Linker<'_> {
         let mut l = Map::new();
         put(&mut l, wire::KIND, n.get(wire::KIND).cloned());
         put(&mut l, wire::NAME, n.get(wire::NAME).cloned());
-        put(&mut l, "path", Some(path.into()));
-        put(&mut l, "dfwId", Some(js::or_null(n.get("dfwId"))));
-        put(&mut l, "anchor", Some(js::or_null(n.get("anchor"))));
-        for key in ["x", "y", "w", "h"] {
+        put(&mut l, wire::PATH, Some(path.into()));
+        put(&mut l, wire::DFW_ID, Some(js::or_null(n.get(wire::DFW_ID))));
+        put(&mut l, wire::ANCHOR, Some(js::or_null(n.get(wire::ANCHOR))));
+        for key in [wire::X, wire::Y, wire::W, wire::H] {
             put(&mut l, key, n.get(key).cloned());
         }
-        put(&mut l, "tag", js::truthy_value(n.get("tag")).cloned());
+        put(
+            &mut l,
+            wire::TAG,
+            js::truthy_value(n.get(wire::TAG)).cloned(),
+        );
         self.put_paint(&mut l, n);
         self.put_content(&mut l, n, kind);
-        if let Some(children) = n.get("children").and_then(Value::as_array) {
+        if let Some(children) = n.get(wire::CHILDREN).and_then(Value::as_array) {
             if !children.is_empty() {
                 let kids = children
                     .iter()
                     .enumerate()
                     .map(|(i, c)| self.layer(c, &format!("{path}.{i}")))
                     .collect();
-                put(&mut l, "children", Some(Value::Array(kids)));
+                put(&mut l, wire::CHILDREN, Some(Value::Array(kids)));
             }
         }
         let mut l = Value::Object(l);
-        if l.get("children").is_some() || kind == Some(wire::kind::FRAME) {
+        if l.get(wire::CHILDREN).is_some() || kind == Some(wire::kind::FRAME) {
             l[wire::SIG] = signature(&l).into();
         }
         l
@@ -271,25 +279,25 @@ impl Linker<'_> {
     /// a note on a background image.
     fn put_paint(&self, l: &mut Map<String, Value>, n: &Value) {
         let st = |key: &str| style(n, key);
-        if let Some(fill) = js::truthy_value(st("fill")) {
+        if let Some(fill) = js::truthy_value(st(wire::style::FILL)) {
             put(
                 l,
-                "fills",
+                wire::FILLS,
                 Some(json!([js::object(vec![
-                    ("color", fill.get("hex").cloned()),
-                    ("opacity", fill.get("opacity").cloned()),
+                    (wire::COLOR, fill.get(wire::HEX).cloned()),
+                    (wire::OPACITY, fill.get(wire::OPACITY).cloned()),
                     (
-                        "token",
+                        wire::TOKEN,
                         Some(find_color_token(self.colors, Some(fill), false))
                     ),
                 ])])),
             );
         }
-        if let Some(borders) = js::truthy_value(st("borders")) {
+        if let Some(borders) = js::truthy_value(st(wire::style::BORDERS)) {
             self.put_borders(l, borders);
         }
-        if let Some(radius) = js::truthy_value(st("radius")) {
-            put(l, "radius", Some(radius.clone()));
+        if let Some(radius) = js::truthy_value(st(wire::style::RADIUS)) {
+            put(l, wire::RADIUS, Some(radius.clone()));
             let corners: &[Value] = radius.as_array().map_or(&[], Vec::as_slice);
             let first = corners.first();
             if corners.iter().all(|x| js::strict_eq(Some(x), first)) {
@@ -300,36 +308,39 @@ impl Linker<'_> {
                     .filter(|(name, _)| !name.is_empty());
                 put(
                     l,
-                    "radiusToken",
+                    wire::RADIUS_TOKEN,
                     token.map(|(name, _)| name.as_str().into()),
                 );
             }
         }
-        if let Some(shadows) = js::truthy_value(st("shadows")).and_then(Value::as_array) {
+        if let Some(shadows) = js::truthy_value(st(wire::style::SHADOWS)).and_then(Value::as_array)
+        {
             let list: Vec<Value> = shadows
                 .iter()
                 .map(|s| {
                     let mut shadow = js::spread(Some(s));
-                    let color = js::truthy_value(s.get("color"))
+                    let color = js::truthy_value(s.get(wire::COLOR))
                         .cloned()
-                        .unwrap_or_else(|| json!({ "hex": "#000000", "opacity": 0.25 }));
-                    shadow.insert("color".into(), color);
+                        .unwrap_or_else(
+                            || json!({ (wire::HEX): "#000000", (wire::OPACITY): 0.25 }),
+                        );
+                    shadow.insert(wire::COLOR.into(), color);
                     Value::Object(shadow)
                 })
                 .collect();
-            put(l, "shadows", Some(Value::Array(list)));
+            put(l, wire::SHADOWS, Some(Value::Array(list)));
         }
-        put(l, "opacity", st("opacity").cloned());
+        put(l, wire::OPACITY, st(wire::style::OPACITY).cloned());
         put(
             l,
-            "clip",
-            js::truthy(st("clip")).then_some(Value::Bool(true)),
+            wire::CLIP,
+            js::truthy(st(wire::style::CLIP)).then_some(Value::Bool(true)),
         );
-        if let Some(image) = js::truthy_value(st("backgroundImage")) {
+        if let Some(image) = js::truthy_value(st(wire::style::BACKGROUND_IMAGE)) {
             let shown = js::slice16(&js::to_string(Some(image)), 0, 60);
             put(
                 l,
-                "note",
+                wire::NOTE,
                 Some(format!("background-image not exported ({shown})").into()),
             );
         }
@@ -340,41 +351,56 @@ impl Linker<'_> {
         let sides: &[Value] = borders.as_array().map_or(&[], Vec::as_slice);
         let top = sides.first();
         fn hex(b: Option<&Value>) -> Option<&Value> {
-            b.and_then(|b| b.get("color")).and_then(|c| c.get("hex"))
+            b.and_then(|b| b.get(wire::COLOR))
+                .and_then(|c| c.get(wire::HEX))
         }
         let uniform = !sides.is_empty()
             && sides.iter().all(|x| {
                 js::truthy(Some(x))
-                    && js::strict_eq(x.get("w"), top.and_then(|t| t.get("w")))
+                    && js::strict_eq(
+                        x.get(wire::border::W),
+                        top.and_then(|t| t.get(wire::border::W)),
+                    )
                     && js::strict_eq(hex(Some(x)), hex(top))
             });
         if uniform {
-            let color = top.and_then(|t| t.get("color"));
-            let line = top.and_then(|t| t.get("style")).and_then(Value::as_str);
+            let color = top.and_then(|t| t.get(wire::COLOR));
+            let line = top
+                .and_then(|t| t.get(wire::border::STYLE))
+                .and_then(Value::as_str);
             let line = line
                 .filter(|s| matches!(*s, "dashed" | "dotted"))
                 .unwrap_or("solid");
             put(
                 l,
-                "strokes",
+                wire::STROKES,
                 Some(json!([js::object(vec![
-                    ("color", hex(top).cloned()),
-                    ("opacity", color.and_then(|c| c.get("opacity")).cloned()),
-                    ("width", top.and_then(|t| t.get("w")).cloned()),
-                    ("style", Some(line.into())),
-                    ("token", Some(find_color_token(self.colors, color, false))),
+                    (wire::COLOR, hex(top).cloned()),
+                    (
+                        wire::OPACITY,
+                        color.and_then(|c| c.get(wire::OPACITY)).cloned()
+                    ),
+                    (
+                        wire::WIDTH,
+                        top.and_then(|t| t.get(wire::border::W)).cloned()
+                    ),
+                    (wire::border::STYLE, Some(line.into())),
+                    (
+                        wire::TOKEN,
+                        Some(find_color_token(self.colors, color, false))
+                    ),
                 ])])),
             );
         } else {
             // Penpot strokes are uniform: these are drawn as thin rectangles.
             put(
                 l,
-                "sideBorders",
+                wire::SIDE_BORDERS,
                 Some(js::object(vec![
-                    ("top", sides.first().cloned()),
-                    ("right", sides.get(1).cloned()),
-                    ("bottom", sides.get(2).cloned()),
-                    ("left", sides.get(3).cloned()),
+                    (wire::side::TOP, sides.first().cloned()),
+                    (wire::side::RIGHT, sides.get(1).cloned()),
+                    (wire::side::BOTTOM, sides.get(2).cloned()),
+                    (wire::side::LEFT, sides.get(3).cloned()),
                 ])),
             );
         }
@@ -383,41 +409,41 @@ impl Linker<'_> {
     /// What a node holds by kind (text, svg, image) and the component it is an instance of.
     fn put_content(&self, l: &mut Map<String, Value>, n: &Value, kind: Option<&str>) {
         if kind == Some(wire::kind::TEXT) {
-            put(l, "characters", n.get("characters").cloned());
-            let text = n.get("text");
-            let color = text.and_then(|t| t.get("color"));
+            put(l, wire::CHARACTERS, n.get(wire::CHARACTERS).cloned());
+            let text = n.get(wire::TEXT_STYLE);
+            let color = text.and_then(|t| t.get(wire::COLOR));
             let mut t = js::spread(text);
             match color {
                 Some(c) => {
-                    t.insert("color".into(), c.clone());
+                    t.insert(wire::COLOR.into(), c.clone());
                 }
                 None => {
-                    t.shift_remove("color");
+                    t.shift_remove(wire::COLOR);
                 }
             }
             t.insert(
-                "colorToken".into(),
+                wire::COLOR_TOKEN.into(),
                 find_color_token(self.colors, color, true),
             );
-            put(l, "text", Some(Value::Object(t)));
+            put(l, wire::TEXT_STYLE, Some(Value::Object(t)));
             put(
                 l,
-                "placeholder",
-                js::truthy(n.get("placeholder")).then_some(Value::Bool(true)),
+                wire::PLACEHOLDER,
+                js::truthy(n.get(wire::PLACEHOLDER)).then_some(Value::Bool(true)),
             );
         }
         if kind == Some("svg") {
-            put(l, "svg", n.get("svg").cloned());
-            put(l, "icon", js::truthy_value(n.get("icon")).cloned());
+            put(l, wire::SVG, n.get(wire::SVG).cloned());
+            put(l, wire::ICON, js::truthy_value(n.get(wire::ICON)).cloned());
         }
         if kind == Some("image") {
-            put(l, "alt", n.get("alt").cloned());
-            put(l, "src", Some(self.image_src(n.get("src"))));
+            put(l, wire::ALT, n.get(wire::ALT).cloned());
+            put(l, wire::SRC, Some(self.image_src(n.get(wire::SRC))));
         }
-        if let Some(component) = js::truthy_value(n.get("component")) {
+        if let Some(component) = js::truthy_value(n.get(wire::COMPONENT)) {
             let mut c = js::spread(Some(component));
             c.insert(wire::KEY.into(), component_key(component).into());
-            put(l, "component", Some(Value::Object(c)));
+            put(l, wire::COMPONENT, Some(Value::Object(c)));
         }
     }
 
@@ -460,8 +486,8 @@ fn component_key(c: &Value) -> String {
     };
     [
         name,
-        part("variant").unwrap_or_default(),
-        part("size").unwrap_or_default(),
+        part(wire::VARIANT).unwrap_or_default(),
+        part(wire::SIZE).unwrap_or_default(),
     ]
     .join("|")
 }
@@ -469,12 +495,12 @@ fn component_key(c: &Value) -> String {
 /// `signature`: the structure of a layer (kinds, names, child structure; not text, positions
 /// or colours).
 pub fn signature(l: &Value) -> String {
-    let own = match js::truthy_value(l.get("component")) {
+    let own = match js::truthy_value(l.get(wire::COMPONENT)) {
         Some(c) => js::to_string(c.get(wire::KEY)),
         None => js::to_string(l.get(wire::NAME)),
     };
     let children: Vec<String> = l
-        .get("children")
+        .get(wire::CHILDREN)
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
@@ -501,11 +527,11 @@ fn rebase(l: &Value, ox: f64, oy: f64) -> Value {
     let moved = |v: Option<&Value>, origin: f64| {
         js::num(js::round((js::to_number(v) - origin) * 100.0) / 100.0)
     };
-    c.insert("x".into(), moved(l.get("x"), ox));
-    c.insert("y".into(), moved(l.get("y"), oy));
-    if let Some(children) = js::truthy_value(l.get("children")).and_then(Value::as_array) {
+    c.insert(wire::X.into(), moved(l.get(wire::X), ox));
+    c.insert(wire::Y.into(), moved(l.get(wire::Y), oy));
+    if let Some(children) = js::truthy_value(l.get(wire::CHILDREN)).and_then(Value::as_array) {
         let kids = children.iter().map(|ch| rebase(ch, ox, oy)).collect();
-        c.insert("children".into(), Value::Array(kids));
+        c.insert(wire::CHILDREN.into(), Value::Array(kids));
     }
     Value::Object(c)
 }
@@ -542,21 +568,21 @@ pub fn build_export(input: &ExportInput) -> Value {
     let pages = Value::Array(pages);
     let id = export_id(&input.generated_at, &pages);
     json!({
-        "schema": EXPORT_SCHEMA,
-        "id": id,
-        "generatedAt": input.generated_at,
-        "product": input.product,
-        "designVersion": input.design_version,
-        "tokens": token_file.as_ref().map_or(Value::Null, |(doc, _)| doc.clone()),
-        "tokenReport": token_file.as_ref().map_or(Value::Null, |(_, report)| {
-            json!({ "unsupported": report.unsupported, "lossy": report.lossy })
+        (wire::SCHEMA): EXPORT_SCHEMA,
+        (wire::ID): id,
+        (wire::GENERATED_AT): input.generated_at,
+        (wire::PRODUCT): input.product,
+        (wire::DESIGN_VERSION): input.design_version,
+        (wire::TOKENS): token_file.as_ref().map_or(Value::Null, |(doc, _)| doc.clone()),
+        (wire::TOKEN_REPORT): token_file.as_ref().map_or(Value::Null, |(_, report)| {
+            json!({ (wire::UNSUPPORTED): report.unsupported, (wire::LOSSY): report.lossy })
         }),
-        "colors": colors
+        (wire::COLORS): colors
             .iter()
-            .map(|c| json!({ "name": c.name, "hex": c.hex, "opacity": js::num(c.opacity) }))
+            .map(|c| json!({ (wire::NAME): c.name, (wire::HEX): c.hex, (wire::OPACITY): js::num(c.opacity) }))
             .collect::<Vec<_>>(),
-        "components": components.into_iter().map(|(_, c)| c).collect::<Vec<_>>(),
-        "pages": pages,
+        (wire::COMPONENTS): components.into_iter().map(|(_, c)| c).collect::<Vec<_>>(),
+        (wire::PAGES): pages,
     })
 }
 
@@ -570,14 +596,15 @@ fn pages_of_renders(
 ) -> Vec<Value> {
     let mut pages: Vec<(String, Map<String, Value>, Vec<Value>)> = Vec::new();
     for r in renders {
-        let page = r.get("page");
-        let page_id = page.and_then(|p| p.get("id"));
+        let page = r.get(wire::PAGE);
+        let page_id = page.and_then(|p| p.get(wire::ID));
         let page_key = js::stringify(page_id);
         if !pages.iter().any(|(k, _, _)| *k == page_key) {
-            let title = js::truthy_value(page.and_then(|p| p.get("title"))).or(page_id);
-            let Value::Object(head) =
-                js::object(vec![("id", page_id.cloned()), ("title", title.cloned())])
-            else {
+            let title = js::truthy_value(page.and_then(|p| p.get(wire::TITLE))).or(page_id);
+            let Value::Object(head) = js::object(vec![
+                (wire::ID, page_id.cloned()),
+                (wire::TITLE, title.cloned()),
+            ]) else {
                 continue;
             };
             pages.push((page_key.clone(), head, Vec::new()));
@@ -599,25 +626,25 @@ fn pages_of_renders(
 
 /// The board of one render: its layers with token links, size and background.
 fn board_of_render(linker: &Linker, r: &Value, components: &mut Vec<(String, Value)>) -> Value {
-    let snapshot = r.get("snapshot");
+    let snapshot = r.get(wire::SNAPSHOT);
     let nodes = snapshot
-        .and_then(|s| s.get("children"))
+        .and_then(|s| s.get(wire::CHILDREN))
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
     let layers = linker.layers(&simplify(nodes));
-    let breakpoint = r.get("breakpoint");
+    let breakpoint = r.get(wire::BREAKPOINT);
     let bp = |key: &str| breakpoint.and_then(|b| b.get(key));
-    let background = snapshot.and_then(|s| s.get("background"));
+    let background = snapshot.and_then(|s| s.get(wire::BACKGROUND));
     let key = format!(
         "{}|{}|{}",
-        js::to_string(r.get("screen")),
-        js::to_string(r.get("variant")),
-        js::to_string(bp("id"))
+        js::to_string(r.get(wire::SCREEN)),
+        js::to_string(r.get(wire::VARIANT)),
+        js::to_string(bp(key::ID))
     );
     let height = js::max(
-        js::to_number(bp("height")),
-        js::to_number(snapshot.and_then(|s| s.get("height"))).ceil(),
+        js::to_number(bp(wire::HEIGHT)),
+        js::to_number(snapshot.and_then(|s| s.get(wire::HEIGHT))).ceil(),
     );
     for l in &layers {
         visit_components(l, &key, components);
@@ -629,30 +656,33 @@ fn board_of_render(linker: &Linker, r: &Value, components: &mut Vec<(String, Val
             Some(
                 format!(
                     "{} / {} @ {}",
-                    js::to_string(r.get("screen")),
-                    js::to_string(r.get("variant")),
-                    js::to_string(bp("id"))
+                    js::to_string(r.get(wire::SCREEN)),
+                    js::to_string(r.get(wire::VARIANT)),
+                    js::to_string(bp(key::ID))
                 )
                 .into(),
             ),
         ),
-        ("screen", r.get("screen").cloned()),
-        ("variant", r.get("variant").cloned()),
-        ("breakpoint", bp("id").cloned()),
-        ("file", r.get("file").cloned()),
-        ("width", bp("width").cloned()),
-        ("height", Some(js::num(height))),
-        ("viewportHeight", bp("height").cloned()),
+        (wire::SCREEN, r.get(wire::SCREEN).cloned()),
+        (wire::VARIANT, r.get(wire::VARIANT).cloned()),
+        (wire::BREAKPOINT, bp(key::ID).cloned()),
+        (wire::FILE, r.get(wire::FILE).cloned()),
+        (wire::WIDTH, bp(wire::WIDTH).cloned()),
+        (wire::HEIGHT, Some(js::num(height))),
+        (wire::VIEWPORT_HEIGHT, bp(wire::HEIGHT).cloned()),
         (
-            "background",
+            wire::BACKGROUND,
             Some(js::object(vec![
-                ("color", background.and_then(|b| b.get("hex")).cloned()),
                 (
-                    "opacity",
-                    background.and_then(|b| b.get("opacity")).cloned(),
+                    wire::COLOR,
+                    background.and_then(|b| b.get(wire::HEX)).cloned(),
                 ),
                 (
-                    "token",
+                    wire::OPACITY,
+                    background.and_then(|b| b.get(wire::OPACITY)).cloned(),
+                ),
+                (
+                    wire::TOKEN,
                     Some(find_color_token(linker.colors, background, false)),
                 ),
             ])),
@@ -676,10 +706,10 @@ fn export_id(generated_at: &str, pages: &Value) -> String {
 
 /// The first instance of every component becomes its main, rebased to its own origin.
 fn visit_components(l: &Value, board_key: &str, components: &mut Vec<(String, Value)>) {
-    if let Some(component) = js::truthy_value(l.get("component")) {
+    if let Some(component) = js::truthy_value(l.get(wire::COMPONENT)) {
         let key = js::stringify(component.get(wire::KEY));
         if !components.iter().any(|(k, _)| *k == key) {
-            let name: Vec<String> = [wire::NAME, "variant", "size"]
+            let name: Vec<String> = [wire::NAME, wire::VARIANT, wire::SIZE]
                 .iter()
                 .filter_map(|k| js::truthy_value(component.get(*k)))
                 .map(|v| js::to_string(Some(v)))
@@ -687,20 +717,20 @@ fn visit_components(l: &Value, board_key: &str, components: &mut Vec<(String, Va
             let main = js::object(vec![
                 (wire::KEY, component.get(wire::KEY).cloned()),
                 (wire::NAME, Some(name.join(" / ").into())),
-                ("component", component.get(wire::NAME).cloned()),
-                ("variant", component.get("variant").cloned()),
-                ("size", component.get("size").cloned()),
+                (wire::COMPONENT, component.get(wire::NAME).cloned()),
+                (wire::VARIANT, component.get(wire::VARIANT).cloned()),
+                (wire::SIZE, component.get(wire::SIZE).cloned()),
                 (wire::SIG, l.get(wire::SIG).cloned()),
                 (
-                    "from",
-                    Some(format!("{board_key}#{}", js::to_string(l.get("path"))).into()),
+                    wire::FROM,
+                    Some(format!("{board_key}#{}", js::to_string(l.get(wire::PATH))).into()),
                 ),
                 (
-                    "root",
+                    wire::ROOT,
                     Some(rebase(
                         l,
-                        js::to_number(l.get("x")),
-                        js::to_number(l.get("y")),
+                        js::to_number(l.get(wire::X)),
+                        js::to_number(l.get(wire::Y)),
                     )),
                 ),
             ]);
@@ -708,7 +738,7 @@ fn visit_components(l: &Value, board_key: &str, components: &mut Vec<(String, Va
         }
     }
     for c in l
-        .get("children")
+        .get(wire::CHILDREN)
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
@@ -720,7 +750,7 @@ fn visit_components(l: &Value, board_key: &str, components: &mut Vec<(String, Va
 fn lay_out(boards: &mut [Value]) {
     let mut rows: Vec<String> = Vec::new();
     for b in boards.iter() {
-        let bp = js::stringify(b.get("breakpoint"));
+        let bp = js::stringify(b.get(wire::BREAKPOINT));
         if !rows.contains(&bp) {
             rows.push(bp);
         }
@@ -730,14 +760,14 @@ fn lay_out(boards: &mut [Value]) {
         let (mut x, mut row_height) = (0.0, 0.0);
         for b in boards
             .iter_mut()
-            .filter(|b| js::stringify(b.get("breakpoint")) == bp)
+            .filter(|b| js::stringify(b.get(wire::BREAKPOINT)) == bp)
         {
             let (width, height) = (
-                js::to_number(b.get("width")),
-                js::to_number(b.get("height")),
+                js::to_number(b.get(wire::WIDTH)),
+                js::to_number(b.get(wire::HEIGHT)),
             );
-            b["x"] = js::num(x);
-            b["y"] = js::num(y);
+            b[wire::X] = js::num(x);
+            b[wire::Y] = js::num(y);
             x += width + BOARD_GAP_X;
             row_height = js::max(row_height, height);
         }
@@ -752,15 +782,15 @@ fn lay_out(boards: &mut [Value]) {
 fn screen_pages(manifest: &Value) -> Vec<(String, Value, Vec<String>)> {
     studio_pages(manifest)
         .into_iter()
-        .filter(|p| !js::truthy(p.get("system")) && !js::truthy(p.get("flow")))
+        .filter(|p| !js::truthy(p.get(wire::SYSTEM)) && !js::truthy(p.get(wire::FLOW)))
         .map(|p| {
             let screens = manifest::items(p.get(key::SCREENS))
                 .iter()
                 .map(js::to_string)
                 .collect();
             (
-                js::to_string(p.get("id")),
-                p.get("title").cloned().unwrap_or(Value::Null),
+                js::to_string(p.get(key::ID)),
+                p.get(key::TITLE).cloned().unwrap_or(Value::Null),
                 screens,
             )
         })
@@ -792,7 +822,7 @@ fn select_renders(
             all_bps
                 .iter()
                 .filter(|b| {
-                    b.get("id")
+                    b.get(key::ID)
                         .and_then(Value::as_str)
                         .is_some_and(|id| wanted.contains(&id))
                 })
@@ -804,7 +834,7 @@ fn select_renders(
     if bps.is_empty() {
         let have: Vec<Value> = all_bps
             .iter()
-            .map(|b| b.get("id").cloned().unwrap_or(Value::Null))
+            .map(|b| b.get(key::ID).cloned().unwrap_or(Value::Null))
             .collect();
         return Err(DfwError::new(format!(
             "No breakpoint matches --bp {} (have: {}).",
@@ -831,17 +861,20 @@ fn select_renders(
             let screen = screens
                 .iter()
                 .rev()
-                .find(|s| s.get("id").and_then(Value::as_str) == Some(sid));
+                .find(|s| s.get(key::ID).and_then(Value::as_str) == Some(sid));
             for v in list(screen.and_then(|s| js::truthy_value(s.get(key::VARIANTS)))) {
                 for b in &bps {
                     jobs.push(js::object(vec![
-                        ("page", Some(json!({ "id": id, "title": title }))),
-                        ("screen", Some(sid.as_str().into())),
-                        ("variant", v.get("id").cloned()),
-                        ("breakpoint", Some(b.clone())),
                         (
-                            "file",
-                            Some(rel::design(&js::to_string(v.get("file"))).into()),
+                            wire::PAGE,
+                            Some(json!({ (wire::ID): id, (wire::TITLE): title })),
+                        ),
+                        (wire::SCREEN, Some(sid.as_str().into())),
+                        (wire::VARIANT, v.get(key::ID).cloned()),
+                        (wire::BREAKPOINT, Some(b.clone())),
+                        (
+                            wire::FILE,
+                            Some(rel::design(&js::to_string(v.get(key::FILE))).into()),
                         ),
                     ]));
                 }
@@ -864,19 +897,19 @@ pub struct ExportOptions {
 
 fn snapshot(renderer: &Renderer, job: &Value, file: Option<&PathBuf>) -> Result<Value, DfwError> {
     let size = |key: &str| {
-        let n = js::to_number(job.get("breakpoint").and_then(|b| b.get(key)));
+        let n = js::to_number(job.get(wire::BREAKPOINT).and_then(|b| b.get(key)));
         if n.is_finite() && n >= 0.0 {
             n as u32
         } else {
             0
         }
     };
-    let page = renderer.page(size("width"), size("height"), 1.0)?;
+    let page = renderer.page(size(wire::WIDTH), size(wire::HEIGHT), 1.0)?;
     let result = (|| {
         let file = file.ok_or_else(|| {
             DfwError::new(format!(
                 "Could not prepare {} for rendering. Check that the variant's \"file\" in {} names an HTML file under {}/.",
-                js::to_string(job.get("file")),
+                js::to_string(job.get(wire::FILE)),
                 rel::MANIFEST,
                 rel::DESIGN
             ))
@@ -909,14 +942,14 @@ pub fn export_penpot(root: &Path, opts: &ExportOptions) -> Result<(PathBuf, Valu
     build_system(root)?;
     let mut rels: Vec<String> = Vec::new();
     for job in &jobs {
-        let rel = js::to_string(job.get("file"));
+        let rel = js::to_string(job.get(wire::FILE));
         if !rels.contains(&rel) {
             rels.push(rel);
         }
     }
     let files = build_composed(root, &rels)?;
     let file_of = |job: &Value| {
-        let rel = js::to_string(job.get("file"));
+        let rel = js::to_string(job.get(wire::FILE));
         files.iter().find(|f| f.rel == rel).map(|f| &f.out)
     };
     let renderer = open_renderer()?;
@@ -949,25 +982,29 @@ pub fn export_penpot(root: &Path, opts: &ExportOptions) -> Result<(PathBuf, Valu
         match result {
             Ok(snapshot) => {
                 let mut render = js::spread(Some(job));
-                render.insert("snapshot".into(), snapshot);
+                render.insert(wire::SNAPSHOT.into(), snapshot);
                 renders.push(Value::Object(render));
             }
             Err(err) => errors.push(Value::String(format!(
                 "{}/{}@{}: {}",
-                js::to_string(job.get("screen")),
-                js::to_string(job.get("variant")),
-                js::to_string(job.get("breakpoint").and_then(|b| b.get("id"))),
+                js::to_string(job.get(wire::SCREEN)),
+                js::to_string(job.get(wire::VARIANT)),
+                js::to_string(job.get(wire::BREAKPOINT).and_then(|b| b.get(wire::ID))),
                 err.message()
             ))),
         }
     }
     let tokens = read_dfw_tokens(root, false).ok();
     let state = read_json(&project_paths(root).state, Some(json!({})))?;
-    let version = js::present(state.get("design").and_then(|d| d.get("version")));
+    let version = js::present(
+        state
+            .get(wire::state::DESIGN)
+            .and_then(|d| d.get(wire::state::VERSION)),
+    );
     let mut doc = build_export(&ExportInput {
         renders: &renders,
         tokens: tokens.as_ref(),
-        product: js::truthy_value(manifest.get("product"))
+        product: js::truthy_value(manifest.get(wire::PRODUCT))
             .cloned()
             .unwrap_or_else(|| "".into()),
         design_version: format!(
@@ -977,12 +1014,12 @@ pub fn export_penpot(root: &Path, opts: &ExportOptions) -> Result<(PathBuf, Valu
         project_root: Some(root),
         generated_at: now_iso(),
     });
-    doc["errors"] = Value::Array(errors);
+    doc[wire::ERRORS] = Value::Array(errors);
     let dir = penpot_dir(root);
     write_json_inside(
         root,
         &dir.join(file::PENPOT_EXPORTS)
-            .join(export_file(&js::to_string(doc.get("id")))),
+            .join(export_file(&js::to_string(doc.get(wire::ID)))),
         &doc,
     )?;
     prune_exports(&dir, KEEP_EXPORTS)?;
@@ -999,7 +1036,7 @@ pub fn export_penpot(root: &Path, opts: &ExportOptions) -> Result<(PathBuf, Valu
             file
         }
     };
-    if let Some(tokens) = js::truthy_value(doc.get("tokens")) {
+    if let Some(tokens) = js::truthy_value(doc.get(wire::TOKENS)) {
         write_json_inside(root, &dir.join(file::PENPOT_TOKENS), tokens)?;
     }
     Ok((file, doc))
@@ -1044,7 +1081,7 @@ pub fn export_structure(doc: &Value) -> Vec<String> {
         }
     }
     let token_or = |v: Option<&Value>, other: &str| {
-        let token = js::truthy_value(v.and_then(|v| v.get("token")));
+        let token = js::truthy_value(v.and_then(|v| v.get(wire::TOKEN)));
         js::to_string(token.or(v.and_then(|v| v.get(other))))
     };
     fn row(
@@ -1054,29 +1091,29 @@ pub fn export_structure(doc: &Value) -> Vec<String> {
         token_or: &dyn Fn(Option<&Value>, &str) -> String,
     ) {
         let mut bits = vec![
-            bit(l.get("kind")),
-            bit(l.get("name")),
-            format!("path={}", js::to_string(l.get("path"))),
+            bit(l.get(wire::KIND)),
+            bit(l.get(wire::NAME)),
+            format!("path={}", js::to_string(l.get(wire::PATH))),
         ];
-        if let Some(anchor) = js::truthy_value(l.get("anchor")) {
-            if !js::strict_eq(Some(anchor), l.get("name")) {
+        if let Some(anchor) = js::truthy_value(l.get(wire::ANCHOR)) {
+            if !js::strict_eq(Some(anchor), l.get(wire::NAME)) {
                 bits.push(format!("anchor={}", js::to_string(Some(anchor))));
             }
         }
-        if let Some(c) = js::truthy_value(l.get("component")) {
-            bits.push(format!("component={}", js::to_string(c.get("key"))));
+        if let Some(c) = js::truthy_value(l.get(wire::COMPONENT)) {
+            bits.push(format!("component={}", js::to_string(c.get(wire::KEY))));
         }
-        if let Some(characters) = js::truthy_value(l.get("characters")) {
+        if let Some(characters) = js::truthy_value(l.get(wire::CHARACTERS)) {
             bits.push(to_json_compact(characters));
         }
         let first = |key: &str| js::truthy_value(l.get(key).and_then(|v| v.get(0)));
-        if let Some(fill) = first("fills") {
-            bits.push(format!("fill={}", token_or(Some(fill), "color")));
+        if let Some(fill) = first(wire::FILLS) {
+            bits.push(format!("fill={}", token_or(Some(fill), wire::COLOR)));
         }
-        if let Some(stroke) = first("strokes") {
-            bits.push(format!("stroke={}", token_or(Some(stroke), "color")));
+        if let Some(stroke) = first(wire::STROKES) {
+            bits.push(format!("stroke={}", token_or(Some(stroke), wire::COLOR)));
         }
-        if let Some(Value::Object(sides)) = js::truthy_value(l.get("sideBorders")) {
+        if let Some(Value::Object(sides)) = js::truthy_value(l.get(wire::SIDE_BORDERS)) {
             let present: Vec<&str> = js::entries(sides)
                 .into_iter()
                 .filter(|(_, v)| js::truthy(Some(v)))
@@ -1084,45 +1121,45 @@ pub fn export_structure(doc: &Value) -> Vec<String> {
                 .collect();
             bits.push(format!("borders={}", present.join("+")));
         }
-        if let Some(token) = js::truthy_value(l.get("radiusToken")) {
+        if let Some(token) = js::truthy_value(l.get(wire::RADIUS_TOKEN)) {
             bits.push(format!("radius={}", js::to_string(Some(token))));
         }
-        if let Some(text) = js::truthy_value(l.get("text")) {
-            let token = js::truthy_value(text.get("colorToken"));
-            let hex = text.get("color").and_then(|c| c.get("hex"));
+        if let Some(text) = js::truthy_value(l.get(wire::TEXT_STYLE)) {
+            let token = js::truthy_value(text.get(wire::COLOR_TOKEN));
+            let hex = text.get(wire::COLOR).and_then(|c| c.get(wire::HEX));
             bits.push(format!("color={}", js::to_string(token.or(hex))));
         }
         lines.push(format!("{indent}{}", bits.join(" ")));
-        for c in list(l.get("children")) {
+        for c in list(l.get(wire::CHILDREN)) {
             row(c, &format!("{indent}  "), lines, token_or);
         }
     }
     let mut lines = Vec::new();
-    for p in list(doc.get("pages")) {
+    for p in list(doc.get(wire::PAGES)) {
         lines.push(format!(
             "page {} \"{}\"",
-            js::to_string(p.get("id")),
-            js::to_string(p.get("title"))
+            js::to_string(p.get(wire::ID)),
+            js::to_string(p.get(wire::TITLE))
         ));
-        for b in list(p.get("boards")) {
+        for b in list(p.get(wire::BOARDS)) {
             lines.push(format!(
                 "  board \"{}\" key={} {}w background={}",
-                js::to_string(b.get("name")),
-                js::to_string(b.get("key")),
-                js::to_string(b.get("width")),
-                token_or(b.get("background"), "color")
+                js::to_string(b.get(wire::NAME)),
+                js::to_string(b.get(wire::KEY)),
+                js::to_string(b.get(wire::WIDTH)),
+                token_or(b.get(wire::BACKGROUND), wire::COLOR)
             ));
-            for l in list(b.get("layers")) {
+            for l in list(b.get(wire::LAYERS)) {
                 row(l, "    ", &mut lines, &token_or);
             }
         }
     }
-    for c in list(doc.get("components")) {
+    for c in list(doc.get(wire::COMPONENTS)) {
         lines.push(format!(
             "component \"{}\" key={} sig={}",
-            js::to_string(c.get("name")),
-            js::to_string(c.get("key")),
-            js::to_string(c.get("sig"))
+            js::to_string(c.get(wire::NAME)),
+            js::to_string(c.get(wire::KEY)),
+            js::to_string(c.get(wire::SIG))
         ));
     }
     lines
@@ -1132,34 +1169,34 @@ pub fn export_structure(doc: &Value) -> Vec<String> {
 pub fn export_summary(doc: &Value, file: &Path, root: &Path) -> String {
     fn count(l: &Value) -> usize {
         1 + l
-            .get("children")
+            .get(wire::CHILDREN)
             .and_then(Value::as_array)
             .map_or(0, |c| c.iter().map(count).sum())
     }
     let list = |v: Option<&Value>| v.and_then(Value::as_array).cloned().unwrap_or_default();
-    let pages = list(doc.get("pages"));
+    let pages = list(doc.get(wire::PAGES));
     let (mut boards, mut layers) = (0, 0);
     for p in &pages {
-        for b in list(p.get("boards")) {
+        for b in list(p.get(wire::BOARDS)) {
             boards += 1;
-            layers += list(b.get("layers")).iter().map(count).sum::<usize>();
+            layers += list(b.get(wire::LAYERS)).iter().map(count).sum::<usize>();
         }
     }
     let mut lines = vec![
         format!(
             "Wrote {} ({}): {} page(s), {boards} board(s), {layers} layer(s), {} component(s).",
             relative_path(root, file),
-            js::to_string(doc.get("id")),
+            js::to_string(doc.get(wire::ID)),
             pages.len(),
-            list(doc.get("components")).len()
+            list(doc.get(wire::COMPONENTS)).len()
         ),
-        if js::truthy(doc.get("tokens")) {
+        if js::truthy(doc.get(wire::TOKENS)) {
             format!("Tokens for Penpot: {} (Tokens panel > Tools > Import, before building the boards, so colours link to tokens).", rel::PENPOT_TOKENS)
         } else {
             format!("No {}: colours are not linked to tokens.", rel::TOKENS_JSON)
         },
     ];
-    for e in list(doc.get("errors")) {
+    for e in list(doc.get(wire::ERRORS)) {
         lines.push(format!("Render failed: {}", js::to_string(Some(&e))));
     }
     lines.push("In Penpot: start the Studio (dfw studio start), open Plugins (Ctrl+Alt+P), install the manifest from \"dfw penpot plugin\", run \"dfw bridge\" > Build boards.".to_string());

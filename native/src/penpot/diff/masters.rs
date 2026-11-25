@@ -33,8 +33,10 @@ pub fn dimension_token_index(tree: Option<&Value>) -> Vec<Dim> {
             continue;
         }
         let value = resolve_alias(&flat, name).map(|r| &r.value);
-        let unit = value.and_then(|v| v.get("unit")).and_then(Value::as_str);
-        let amount = value.and_then(|v| v.get("value"));
+        let unit = value
+            .and_then(|v| v.get(wire::dtcg::UNIT))
+            .and_then(Value::as_str);
+        let amount = value.and_then(|v| v.get(wire::dtcg::VALUE));
         let px = match unit {
             Some("px") => amount.and_then(Value::as_f64),
             Some("rem") => Some(js::to_number(amount) * 16.0),
@@ -86,10 +88,10 @@ pub(super) fn components_of(baseline: &Value) -> HashMap<String, &Value> {
 pub(super) fn comp_info(c: &Value) -> Value {
     js::object(vec![
         (wire::KEY, c.get(wire::KEY).cloned()),
-        (wire::NAME, c.get("component").cloned()),
-        ("variant", Some(js::or_null(c.get("variant")))),
-        ("size", Some(js::or_null(c.get("size")))),
-        ("title", c.get(wire::NAME).cloned()),
+        (wire::NAME, c.get(wire::COMPONENT).cloned()),
+        (wire::VARIANT, Some(js::or_null(c.get(wire::VARIANT)))),
+        (wire::SIZE, Some(js::or_null(c.get(wire::SIZE)))),
+        (wire::TITLE, c.get(wire::NAME).cloned()),
     ])
 }
 
@@ -106,10 +108,10 @@ fn insets(parent: &Value, kids: &[&Value]) -> [Option<f64>; 4] {
     };
     let has_boxes = !boxes.is_empty();
     [
-        Some(min("y") - n(parent, "y")),
-        has_boxes.then(|| n(parent, "x") + n(parent, "w") - far("x", "w")),
-        has_boxes.then(|| n(parent, "y") + n(parent, "h") - far("y", "h")),
-        Some(min("x") - n(parent, "x")),
+        Some(min(wire::Y) - n(parent, wire::Y)),
+        has_boxes.then(|| n(parent, wire::X) + n(parent, wire::W) - far(wire::X, wire::W)),
+        has_boxes.then(|| n(parent, wire::Y) + n(parent, wire::H) - far(wire::Y, wire::H)),
+        Some(min(wire::X) - n(parent, wire::X)),
     ]
 }
 
@@ -127,7 +129,7 @@ pub(super) fn diff_components(
     warnings: &mut Vec<String>,
 ) -> Result<Vec<Value>, DfwError> {
     let comps = components_of(baseline);
-    let baseline_id = js::to_string(baseline.get("id"));
+    let baseline_id = js::to_string(baseline.get(wire::ID));
     let mut out = Vec::new();
     let mut seen: Vec<String> = Vec::new();
     walkable(changes.get(wire::COMPONENTS), Some(wire::KEY), false)?;
@@ -142,8 +144,8 @@ pub(super) fn diff_components(
             continue;
         };
         seen.push(js::stringify(c.get(wire::KEY)));
-        walkable(cc.get(wire::LAYERS), Some("root"), false)?;
-        walkable(cc.get(wire::ADDED), Some("x"), false)?;
+        walkable(cc.get(wire::LAYERS), Some(wire::ROOT), false)?;
+        walkable(cc.get(wire::ADDED), Some(wire::X), false)?;
         diff_component(c, cc, baseline, dims, &mut out, warnings);
     }
     for key in list(changes.get(wire::MISSING_COMPONENTS)) {
@@ -151,15 +153,18 @@ pub(super) fn diff_components(
         let Some(c) = comps.get(&key).filter(|_| !seen.contains(&key)) else {
             continue;
         };
-        let root = c.get("root");
+        let root = c.get(wire::ROOT);
         let mut pairs = nowhere();
         pairs.extend([
             (field::COMPONENT, Some(comp_info(c))),
-            ("path", root.and_then(|r| r.get("path")).cloned()),
+            (wire::PATH, root.and_then(|r| r.get(wire::PATH)).cloned()),
             (wire::NAME, c.get(wire::NAME).cloned()),
             (wire::KIND, root.and_then(|r| r.get(wire::KIND)).cloned()),
-            ("isRoot", Some(Value::Bool(true))),
-            ("tag", Some(js::or_null(root.and_then(|r| r.get("tag"))))),
+            (wire::IS_ROOT, Some(Value::Bool(true))),
+            (
+                wire::TAG,
+                Some(js::or_null(root.and_then(|r| r.get(wire::TAG)))),
+            ),
         ]);
         out.push(change(change_type::COMPONENT_REMOVED, vec![pairs]));
     }
@@ -176,10 +181,10 @@ fn diff_component(
     warnings: &mut Vec<String>,
 ) {
     let null = Value::Null;
-    let root = c.get("root").unwrap_or(&null);
+    let root = c.get(wire::ROOT).unwrap_or(&null);
     let roots = json!([root]);
     let flat = Layers::of(Some(&roots));
-    let root_path = root.get("path");
+    let root_path = root.get(wire::PATH);
     let (sent, added) = sent_layers(c, cc, root_path, &flat, warnings);
     let master = Master {
         c,
@@ -190,7 +195,7 @@ fn diff_component(
     };
     master.rename_master(cc, root, out);
     for l in &flat.order {
-        if let Some(n) = master.sent_layer(l.get("path")) {
+        if let Some(n) = master.sent_layer(l.get(wire::PATH)) {
             master.layer_changes(l, n, out);
         }
     }
@@ -211,16 +216,17 @@ fn sent_layers(
     let mut sent: Vec<(String, Value)> = Vec::new();
     let mut added: Vec<Value> = list(js::truthy_value(cc.get(wire::ADDED))).to_vec();
     for n in list(cc.get(wire::LAYERS)) {
-        let path: Value = if js::truthy(n.get("root")) {
+        let path: Value = if js::truthy(n.get(wire::ROOT)) {
             root_path.cloned().unwrap_or(Value::Null)
         } else {
-            let raw = js::present(n.get("path")).map_or(String::new(), |p| js::to_string(Some(p)));
+            let raw =
+                js::present(n.get(wire::PATH)).map_or(String::new(), |p| js::to_string(Some(p)));
             MAIN_PREFIX.replace(&raw, "").into_owned().into()
         };
         // The baseline's own layers are borrowed from `roots`, not from `c`: look them up by key.
         if flat.has(Some(&path)) {
             let mut layer = js::spread(Some(n));
-            layer.insert("path".into(), path.clone());
+            layer.insert(wire::PATH.into(), path.clone());
             let key = js::stringify(Some(&path));
             match sent.iter_mut().find(|(k, _)| *k == key) {
                 Some(slot) => slot.1 = Value::Object(layer),
@@ -230,7 +236,7 @@ fn sent_layers(
             warnings.push(format!(
                 "{}: layer path {} unknown in the export; treated as added.",
                 js::to_string(c.get(wire::NAME)),
-                js::to_string(n.get("path"))
+                js::to_string(n.get(wire::PATH))
             ));
             added.push(n.clone());
         }
@@ -254,7 +260,7 @@ impl Master<'_> {
     }
 
     fn is_root(&self, l: &Value) -> bool {
-        js::strict_eq(l.get("path"), self.root_path)
+        js::strict_eq(l.get(wire::PATH), self.root_path)
     }
 
     fn location(&self) -> Pairs {
@@ -267,7 +273,7 @@ impl Master<'_> {
         if self.is_root(l) {
             self.c.get(wire::NAME).cloned()
         } else if is_text(l) {
-            let shown = js::slice16(&js::norm(l.get("characters")), 0, 40);
+            let shown = js::slice16(&js::norm(l.get(wire::CHARACTERS)), 0, 40);
             Some(format!("text \"{shown}\"").into())
         } else {
             l.get(wire::NAME).cloned()
@@ -276,12 +282,12 @@ impl Master<'_> {
 
     fn target(&self, l: &Value) -> Pairs {
         vec![
-            ("path", l.get("path").cloned()),
+            (wire::PATH, l.get(wire::PATH).cloned()),
             (wire::NAME, self.label(l)),
             (wire::KIND, l.get(wire::KIND).cloned()),
-            ("tag", Some(js::or_null(l.get("tag")))),
-            ("isRoot", Some(self.is_root(l).into())),
-            ("bbox", Some(bbox(l))),
+            (wire::TAG, Some(js::or_null(l.get(wire::TAG)))),
+            (wire::IS_ROOT, Some(self.is_root(l).into())),
+            (wire::BBOX, Some(bbox(l))),
         ]
     }
 
@@ -331,16 +337,16 @@ impl Master<'_> {
 
     fn text_change(&self, l: &Value, n: &Value, out: &mut Vec<Value>) {
         if is_text(l)
-            && n.get("characters").is_some()
-            && js::norm(n.get("characters")) != js::norm(l.get("characters"))
+            && n.get(wire::CHARACTERS).is_some()
+            && js::norm(n.get(wire::CHARACTERS)) != js::norm(l.get(wire::CHARACTERS))
         {
             self.push(
                 out,
                 change_type::TEXT,
                 l,
                 vec![
-                    (field::FROM, l.get("characters").cloned()),
-                    (field::TO, n.get("characters").cloned()),
+                    (field::FROM, l.get(wire::CHARACTERS).cloned()),
+                    (field::TO, n.get(wire::CHARACTERS).cloned()),
                 ],
             );
         }
@@ -348,15 +354,16 @@ impl Master<'_> {
 
     /// Fill (text colour for text layers): changed, added or removed.
     fn fill_change(&self, l: &Value, n: &Value, out: &mut Vec<Value>) {
-        let fill = l.get("fills").and_then(|f| f.get(0));
+        let fill = l.get(wire::FILLS).and_then(|f| f.get(0));
         let before = js::truthy_value(if is_text(l) {
-            l.get("text").and_then(|t| t.get("color"))
+            l.get(wire::TEXT_STYLE).and_then(|t| t.get(wire::COLOR))
         } else {
             fill
         });
-        let after = first_of(n.get("fills"));
+        let after = first_of(n.get(wire::FILLS));
         let after = after.as_ref();
-        let before_color = before.and_then(|b| js::truthy_value(b.get("hex")).or(b.get("color")));
+        let before_color =
+            before.and_then(|b| js::truthy_value(b.get(wire::HEX)).or(b.get(wire::COLOR)));
         let fill_changed = match (after, before) {
             (Some(_), None) => !is_text(l),
             (Some(after), Some(before)) => paint_differs(after, before_color, before),
@@ -365,13 +372,14 @@ impl Master<'_> {
         if let (Some(after), true) = (after, fill_changed) {
             let from = before.map_or(Value::Null, |before| {
                 let token = if is_text(l) {
-                    l.get("text").and_then(|t| t.get("colorToken"))
+                    l.get(wire::TEXT_STYLE)
+                        .and_then(|t| t.get(wire::COLOR_TOKEN))
                 } else {
                     before.get(field::TOKEN)
                 };
                 js::object(vec![
-                    ("color", before_color.cloned()),
-                    ("opacity", Some(or_one(before.get("opacity")))),
+                    (wire::COLOR, before_color.cloned()),
+                    (wire::OPACITY, Some(or_one(before.get(wire::OPACITY)))),
                     (field::TOKEN, token.cloned()),
                 ])
             });
@@ -384,15 +392,15 @@ impl Master<'_> {
                     (
                         field::TO,
                         Some(json!({
-                            "color": lower(after.get("color")),
-                            "opacity": or_one(after.get("opacity")),
-                            "token": color_token(self.baseline, after),
+                            (wire::COLOR): lower(after.get(wire::COLOR)),
+                            (wire::OPACITY): or_one(after.get(wire::OPACITY)),
+                            (field::TOKEN): color_token(self.baseline, after),
                         })),
                     ),
                 ],
             );
         } else if let (None, Some(before), false, true) =
-            (after, before, is_text(l), n.get("fills").is_some())
+            (after, before, is_text(l), n.get(wire::FILLS).is_some())
         {
             self.push(
                 out,
@@ -402,8 +410,8 @@ impl Master<'_> {
                     (
                         field::FROM,
                         Some(js::object(vec![
-                            ("color", before.get("color").cloned()),
-                            ("opacity", Some(or_one(before.get("opacity")))),
+                            (wire::COLOR, before.get(wire::COLOR).cloned()),
+                            (wire::OPACITY, Some(or_one(before.get(wire::OPACITY)))),
                             (field::TOKEN, before.get(field::TOKEN).cloned()),
                         ])),
                     ),
@@ -416,16 +424,16 @@ impl Master<'_> {
     /// Stroke (border): colour, width, added or removed.
     fn stroke_change(&self, l: &Value, n: &Value, out: &mut Vec<Value>) {
         let sb = stroke_before(l);
-        let sa = first_of(n.get("strokes"));
+        let sa = first_of(n.get(wire::STROKES));
         let sa = sa.as_ref();
-        if !(n.get("strokes").is_some() && (sb.is_some() || sa.is_some())) {
+        if !(n.get(wire::STROKES).is_some() && (sb.is_some() || sa.is_some())) {
             return;
         }
-        let width = |s: &Value| js::to_number(Some(&or_one(s.get("width"))));
+        let width = |s: &Value| js::to_number(Some(&or_one(s.get(wire::WIDTH))));
         let changed = match (sb, sa) {
             (Some(sb), Some(sa)) => {
-                paint_differs(sa, sb.get("color"), sb)
-                    || (width(sa) - js::to_number(sb.get("width"))).abs() > 0.25
+                paint_differs(sa, sb.get(wire::COLOR), sb)
+                    || (width(sa) - js::to_number(sb.get(wire::WIDTH))).abs() > 0.25
             }
             _ => true,
         };
@@ -435,24 +443,24 @@ impl Master<'_> {
         let number = |v: Option<&Value>| v.and_then(Value::as_f64);
         let from = sb.map_or(Value::Null, |sb| {
             js::object(vec![
-                ("color", sb.get("color").cloned()),
-                ("opacity", Some(or_one(sb.get("opacity")))),
-                ("width", sb.get("width").cloned()),
+                (wire::COLOR, sb.get(wire::COLOR).cloned()),
+                (wire::OPACITY, Some(or_one(sb.get(wire::OPACITY)))),
+                (wire::WIDTH, sb.get(wire::WIDTH).cloned()),
                 (field::TOKEN, Some(js::or_null(sb.get(field::TOKEN)))),
                 (
-                    "widthToken",
-                    Some(find_dim(self.dims, "border", number(sb.get("width")))),
+                    wire::WIDTH_TOKEN,
+                    Some(find_dim(self.dims, "border", number(sb.get(wire::WIDTH)))),
                 ),
             ])
         });
         let to = sa.map_or(Value::Null, |sa| {
-            let w = or_one(sa.get("width"));
+            let w = or_one(sa.get(wire::WIDTH));
             json!({
-                "color": lower(sa.get("color")),
-                "opacity": or_one(sa.get("opacity")),
-                "width": w,
-                "token": color_token(self.baseline, sa),
-                "widthToken": find_dim(self.dims, "border", w.as_f64()),
+                (wire::COLOR): lower(sa.get(wire::COLOR)),
+                (wire::OPACITY): or_one(sa.get(wire::OPACITY)),
+                (wire::WIDTH): w,
+                (field::TOKEN): color_token(self.baseline, sa),
+                (wire::WIDTH_TOKEN): find_dim(self.dims, "border", w.as_f64()),
             })
         });
         self.push(
@@ -465,11 +473,12 @@ impl Master<'_> {
 
     /// Corner radius (not for text).
     fn radius_change(&self, l: &Value, n: &Value, out: &mut Vec<Value>) {
-        let (Some(radius), false) = (n.get("radius").and_then(Value::as_array), is_text(l)) else {
+        let (Some(radius), false) = (n.get(wire::RADIUS).and_then(Value::as_array), is_text(l))
+        else {
             return;
         };
         let zeros = json!([0, 0, 0, 0]);
-        let rb = js::truthy_value(l.get("radius")).unwrap_or(&zeros);
+        let rb = js::truthy_value(l.get(wire::RADIUS)).unwrap_or(&zeros);
         let or_zero =
             |v: Option<&Value>| js::truthy_value(v).map_or(0.0, |v| js::to_number(Some(v)));
         let differs = radius
@@ -504,11 +513,11 @@ impl Master<'_> {
             vec![
                 (
                     field::FROM,
-                    Some(json!({ "radius": rb, "token": js::or_null(l.get("radiusToken")) })),
+                    Some(json!({ (wire::RADIUS): rb, (field::TOKEN): js::or_null(l.get(wire::RADIUS_TOKEN)) })),
                 ),
                 (
                     field::TO,
-                    Some(json!({ "radius": corners, "token": token })),
+                    Some(json!({ (wire::RADIUS): corners, (field::TOKEN): token })),
                 ),
             ],
         );
@@ -517,7 +526,7 @@ impl Master<'_> {
     /// Size (not for text: Penpot's font metrics differ).
     fn size_change(&self, l: &Value, n: &Value, out: &mut Vec<Value>) {
         let grew = |k: &str| (js::to_number(n.get(k)) - js::to_number(l.get(k))).abs() > TOL;
-        if is_text(l) || !(grew("w") || grew("h")) {
+        if is_text(l) || !(grew(wire::W) || grew(wire::H)) {
             return;
         }
         let token = |k: &str| {
@@ -532,34 +541,45 @@ impl Master<'_> {
             change_type::SIZE,
             l,
             vec![
-                (field::FROM, Some(pair(l.get("w"), l.get("h")))),
-                (field::TO, Some(pair(n.get("w"), n.get("h")))),
-                ("tokens", Some(json!({ "w": token("w"), "h": token("h") }))),
+                (field::FROM, Some(pair(l.get(wire::W), l.get(wire::H)))),
+                (field::TO, Some(pair(n.get(wire::W), n.get(wire::H)))),
+                (
+                    wire::SIZE_TOKENS,
+                    Some(json!({ (wire::W): token(wire::W), (wire::H): token(wire::H) })),
+                ),
             ],
         );
     }
 
     /// Spacing: the insets of the children inside this frame (padding), compared side by side.
     fn spacing_change(&self, l: &Value, n: &Value, out: &mut Vec<Value>) {
-        let kids: Vec<&Value> = list(l.get("children"))
+        let kids: Vec<&Value> = list(l.get(wire::CHILDREN))
             .iter()
-            .filter(|k| self.sent_layer(k.get("path")).is_some())
+            .filter(|k| self.sent_layer(k.get(wire::PATH)).is_some())
             .collect();
         if kids.is_empty() {
             return;
         }
         let now: Vec<&Value> = kids
             .iter()
-            .filter_map(|k| self.sent_layer(k.get("path")))
+            .filter_map(|k| self.sent_layer(k.get(wire::PATH)))
             .collect();
         let sb = stroke_before(l);
         let (ib, ia) = (insets(l, &kids), insets(n, &now));
         let sw = sb.map_or(json!(0), |sb| {
-            sb.get("width").cloned().unwrap_or(Value::Null)
+            sb.get(wire::WIDTH).cloned().unwrap_or(Value::Null)
         });
         let border = js::to_number(Some(&sw));
         let mut sides = Vec::new();
-        for (i, side) in ["top", "right", "bottom", "left"].into_iter().enumerate() {
+        for (i, side) in [
+            wire::side::TOP,
+            wire::side::RIGHT,
+            wire::side::BOTTOM,
+            wire::side::LEFT,
+        ]
+        .into_iter()
+        .enumerate()
+        {
             let (Some(from), Some(to)) = (ib[i], ia[i]) else {
                 continue;
             };
@@ -570,19 +590,22 @@ impl Master<'_> {
                 };
                 sides.push((
                     side,
-                    Some(json!({ "from": js::num(from), "to": js::num(to), "token": token })),
+                    Some(json!({ (field::FROM): js::num(from), (field::TO): js::num(to), (field::TOKEN): token })),
                 ));
             }
         }
         if !sides.is_empty() {
             // The stroke of a layer that has one always carries a width; without it the
             // Node object held `undefined` and JSON dropped the key.
-            let border = sb.map_or(Some(json!(0)), |sb| sb.get("width").cloned());
+            let border = sb.map_or(Some(json!(0)), |sb| sb.get(wire::WIDTH).cloned());
             self.push(
                 out,
                 change_type::SPACING,
                 l,
-                vec![(field::SIDES, Some(js::object(sides))), ("border", border)],
+                vec![
+                    (field::SIDES, Some(js::object(sides))),
+                    (wire::BORDER, border),
+                ],
             );
         }
     }
@@ -590,11 +613,11 @@ impl Master<'_> {
     /// Removed: topmost layers of the master the plugin did not send.
     fn removed_layers(&self, flat: &Layers, out: &mut Vec<Value>) {
         for l in &flat.order {
-            if self.sent_layer(l.get("path")).is_some() {
+            if self.sent_layer(l.get(wire::PATH)).is_some() {
                 continue;
             }
             let parent = l
-                .get("path")
+                .get(wire::PATH)
                 .and_then(Value::as_str)
                 .and_then(parent_path)
                 .map(Value::from);
@@ -607,7 +630,7 @@ impl Master<'_> {
                 out,
                 change_type::REMOVED,
                 l,
-                vec![(wire::TEXT, l.get("characters").cloned())],
+                vec![(wire::TEXT, l.get(wire::CHARACTERS).cloned())],
             );
         }
     }
@@ -633,9 +656,9 @@ impl Master<'_> {
                             .or(a.get(field::TYPE))
                             .cloned(),
                     ),
-                    ("layer", a.get(wire::NAME).cloned()),
-                    ("bbox", Some(bbox(a))),
-                    ("characters", a.get("characters").cloned()),
+                    (wire::LAYER, a.get(wire::NAME).cloned()),
+                    (wire::BBOX, Some(bbox(a))),
+                    (wire::CHARACTERS, a.get(wire::CHARACTERS).cloned()),
                 ],
             );
         }
@@ -644,5 +667,5 @@ impl Master<'_> {
 
 /// The first stroke of a layer as exported, when it has one.
 fn stroke_before(l: &Value) -> Option<&Value> {
-    js::truthy_value(l.get("strokes").and_then(|s| s.get(0)))
+    js::truthy_value(l.get(wire::STROKES).and_then(|s| s.get(0)))
 }
