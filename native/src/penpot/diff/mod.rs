@@ -121,7 +121,7 @@ fn lower(v: Option<&Value>) -> String {
 /// `[l.x, l.y, l.w, l.h]`: a missing number is `null` in JSON.
 fn bbox(l: &Value) -> Value {
     Value::Array(
-        ["x", "y", "w", "h"]
+        [wire::X, wire::Y, wire::W, wire::H]
             .iter()
             .map(|k| l.get(*k).cloned().unwrap_or(Value::Null))
             .collect(),
@@ -139,15 +139,15 @@ impl<'a> Layers<'a> {
         fn walk<'a>(layers: Option<&'a Value>, out: &mut Layers<'a>) {
             for l in list(layers) {
                 // The key keeps the type of the path: only the same string finds a layer.
-                match out.index.get(&js::stringify(l.get("path"))) {
+                match out.index.get(&js::stringify(l.get(wire::PATH))) {
                     Some(i) => out.order[*i] = l,
                     None => {
                         out.index
-                            .insert(js::stringify(l.get("path")), out.order.len());
+                            .insert(js::stringify(l.get(wire::PATH)), out.order.len());
                         out.order.push(l);
                     }
                 }
-                walk(l.get("children"), out);
+                walk(l.get(wire::CHILDREN), out);
             }
         }
         let mut out = Layers {
@@ -192,21 +192,21 @@ fn js_add(a: Option<&Value>, b: Option<&Value>) -> f64 {
 
 fn contains(l: &Value, x: f64, y: f64) -> bool {
     let n = |k: &str| js::to_number(l.get(k));
-    x >= n("x")
-        && x <= js_add(l.get("x"), l.get("w"))
-        && y >= n("y")
-        && y <= js_add(l.get("y"), l.get("h"))
+    x >= n(wire::X)
+        && x <= js_add(l.get(wire::X), l.get(wire::W))
+        && y >= n(wire::Y)
+        && y <= js_add(l.get(wire::Y), l.get(wire::H))
 }
 
 fn area(l: &Value) -> f64 {
-    js::to_number(l.get("w")) * js::to_number(l.get("h"))
+    js::to_number(l.get(wire::W)) * js::to_number(l.get(wire::H))
 }
 
 /// The smallest layer with an id (its own or its nearest ancestor's) under a point.
 fn deepest_at<'a>(layers: impl Iterator<Item = &'a Value>, x: f64, y: f64) -> Option<&'a Value> {
     let mut best: Option<&Value> = None;
     for l in layers {
-        if !(js::truthy(l.get("anchor")) || js::truthy(l.get("dfwId"))) {
+        if !(js::truthy(l.get(wire::ANCHOR)) || js::truthy(l.get(wire::DFW_ID))) {
             continue;
         }
         if contains(l, x, y) && best.is_none_or(|b| area(l) <= area(b)) {
@@ -230,14 +230,16 @@ fn centre(a: &Value) -> (f64, f64) {
             js::to_number(a.get(pos)) + half
         }
     };
-    (middle("x", "w"), middle("y", "h"))
+    (middle(wire::X, wire::W), middle(wire::Y, wire::H))
 }
 
 /// `host?.anchor || host?.dfwId || null`.
 fn anchor_of(host: Option<&Value>) -> Value {
-    host.and_then(|h| js::truthy_value(h.get("anchor")).or(js::truthy_value(h.get("dfwId"))))
-        .cloned()
-        .unwrap_or(Value::Null)
+    host.and_then(|h| {
+        js::truthy_value(h.get(wire::ANCHOR)).or(js::truthy_value(h.get(wire::DFW_ID)))
+    })
+    .cloned()
+    .unwrap_or(Value::Null)
 }
 
 /// Replies the plugin posted for dfw (`[dfw] ...`) are not designer messages.
@@ -251,21 +253,21 @@ pub(super) fn is_dfw_reply(content: Option<&Value>) -> bool {
 
 /// The token of the export with exactly this colour.
 fn color_token(baseline: &Value, c: &Value) -> Value {
-    let hex = lower(c.get("color"));
-    let opacity = js::to_number(Some(&or_one(c.get("opacity"))));
-    list(baseline.get("colors"))
+    let hex = lower(c.get(wire::COLOR));
+    let opacity = js::to_number(Some(&or_one(c.get(wire::OPACITY))));
+    list(baseline.get(wire::COLORS))
         .iter()
         .find(|t| {
-            t.get("hex").and_then(Value::as_str) == Some(&hex)
-                && (js::to_number(t.get("opacity")) - opacity).abs() < 0.01
+            t.get(wire::HEX).and_then(Value::as_str) == Some(&hex)
+                && (js::to_number(t.get(wire::OPACITY)) - opacity).abs() < 0.01
         })
         .map_or(Value::Null, |t| js::or_null(t.get(wire::NAME)))
 }
 
 /// Whether two paints differ: another colour, or an opacity more than 1% apart.
 fn paint_differs(after: &Value, before_color: Option<&Value>, before: &Value) -> bool {
-    let opacity = |v: &Value| js::to_number(Some(&or_one(v.get("opacity"))));
-    lower(after.get("color")) != lower(before_color)
+    let opacity = |v: &Value| js::to_number(Some(&or_one(v.get(wire::OPACITY))));
+    lower(after.get(wire::COLOR)) != lower(before_color)
         || (opacity(after) - opacity(before)).abs() > 0.01
 }
 

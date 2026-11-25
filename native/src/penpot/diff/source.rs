@@ -60,7 +60,7 @@ fn first_element(text: &str) -> Option<usize> {
 /// tag/class), else the component tag. `None` when the change is not on a component.
 pub fn master_source(root: &Path, change: &Value, lib: Option<&Library>) -> Option<MasterSource> {
     let comp = js::truthy_value(change.get(field::COMPONENT))?;
-    let comp_name = comp.get("name").and_then(Value::as_str);
+    let comp_name = comp.get(wire::NAME).and_then(Value::as_str);
     let loaded;
     let lib = match lib {
         Some(lib) => Some(lib),
@@ -82,7 +82,7 @@ pub fn master_source(root: &Path, change: &Value, lib: Option<&Library>) -> Opti
     let start = master_start(&text, def);
     let block = &text[..find_from(&text, "</dfw-component>", start).unwrap_or(text.len())];
     let name =
-        js::truthy_value(change.get("name")).map_or(String::new(), |n| js::to_string(Some(n)));
+        js::truthy_value(change.get(wire::NAME)).map_or(String::new(), |n| js::to_string(Some(n)));
     let cls = CLASS_NAME.captures(&name).map(|m| m[1].to_string());
     let offset = match css_rule_offset(block, start, change, comp, cls.as_deref())? {
         Some(i) => i,
@@ -99,7 +99,7 @@ pub fn master_source(root: &Path, change: &Value, lib: Option<&Library>) -> Opti
 fn master_file(def: Option<&ComponentDef>, comp: &Value) -> String {
     match def.map(|d| d.file.as_str()).filter(|f| !f.is_empty()) {
         Some(file) => file.to_string(),
-        None => rel::master(&js::to_string(comp.get("name"))),
+        None => rel::master(&js::to_string(comp.get(wire::NAME))),
     }
 }
 
@@ -147,7 +147,7 @@ fn css_rule_offset(
             .ok()
         })
     };
-    let (variant, size) = (named(comp.get("variant")), named(comp.get("size")));
+    let (variant, size) = (named(comp.get(wire::VARIANT)), named(comp.get(wire::SIZE)));
     let mut best: Option<(i32, usize)> = None;
     for m in CSS_RULE.captures_iter(css) {
         let (whole, selector) = (m.get(0)?, js::trim(m.get(1)?.as_str()));
@@ -191,8 +191,8 @@ fn template_offset(block: &str, start: usize, change: &Value, cls: Option<&str>)
             return Some(tpl_at + slot);
         }
     }
-    if !js::truthy(change.get("isRoot")) {
-        let tag = js::truthy_value(change.get("tag")).map(|t| js::to_string(Some(t)));
+    if !js::truthy(change.get(wire::IS_ROOT)) {
+        let tag = js::truthy_value(change.get(wire::TAG)).map(|t| js::to_string(Some(t)));
         let re = match (cls, tag) {
             (Some(cls), _) => Regex::new(&format!(
                 r#"(?i)<[a-z][0-9A-Za-z_-]*[^>]*class="[^"]*(?-u:\b){}(?-u:\b)"#,

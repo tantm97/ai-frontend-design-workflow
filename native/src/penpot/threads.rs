@@ -8,6 +8,7 @@ use serde_json::Value;
 
 use super::diff::list;
 use super::export::penpot_dir;
+use super::wire;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::file;
@@ -41,7 +42,7 @@ pub(crate) fn continue_thread(
     let comments = all_comments(root)?;
     let Some(cur) = comments
         .iter()
-        .find(|c| js::strict_eq(c.get("id"), link.get("comment")))
+        .find(|c| js::strict_eq(c.get(status::field::ID), link.get(wire::link::COMMENT)))
     else {
         // The dfw comment is gone: the thread is imported as new next time.
         if let Value::Object(links) = threads {
@@ -49,8 +50,8 @@ pub(crate) fn continue_thread(
         }
         return Ok(());
     };
-    let messages = list(c0.get("messages"));
-    let seen = js::truthy_value(link.get("seen")).map_or(0.0, |s| js::to_number(Some(s)));
+    let messages = list(c0.get(wire::MESSAGES));
+    let seen = js::truthy_value(link.get(wire::link::SEEN)).map_or(0.0, |s| js::to_number(Some(s)));
     let from = if seen.is_nan() {
         0
     } else if seen < 0.0 {
@@ -61,7 +62,7 @@ pub(crate) fn continue_thread(
     let fresh = &messages[from..];
     let contents: Vec<Value> = fresh
         .iter()
-        .map(|m| m.get("content").cloned().unwrap_or(Value::Null))
+        .map(|m| m.get(wire::CONTENT).cloned().unwrap_or(Value::Null))
         .collect();
     let text = js::join(&contents, "\n");
     let status = status::of(cur);
@@ -70,8 +71,8 @@ pub(crate) fn continue_thread(
         Some(Status::Fixed | Status::Resolved | Status::Dismissed)
     );
     let (thread_resolved, link_resolved) = (
-        js::truthy(c0.get("resolved")),
-        js::truthy(link.get("resolved")),
+        js::truthy(c0.get(wire::RESOLVED)),
+        js::truthy(link.get(wire::link::RESOLVED)),
     );
     let or = |fallback: &str| {
         if text.is_empty() {
@@ -105,7 +106,7 @@ pub(crate) fn continue_thread(
         (None, text.clone())
     };
     if to.is_some() || !message.is_empty() {
-        let id = cur.get("id").and_then(Value::as_str);
+        let id = cur.get(status::field::ID).and_then(Value::as_str);
         let update = Update {
             status: to.map(str::to_string),
             message: Some(message.into()),
@@ -114,20 +115,20 @@ pub(crate) fn continue_thread(
         };
         match update_comment(root, id, &update) {
             Ok(c) => updated.push(js::object(vec![
-                ("id", c.get("id").cloned()),
-                ("status", c.get("status").cloned()),
+                (status::field::ID, c.get(status::field::ID).cloned()),
+                (status::field::STATUS, c.get(status::field::STATUS).cloned()),
             ])),
             Err(err) => warnings.push(format!(
                 "Thread #{} ({}): {}",
-                js::to_string(c0.get("thread")),
-                js::to_string(cur.get("id")),
+                js::to_string(c0.get(wire::THREAD)),
+                js::to_string(cur.get(status::field::ID)),
                 err.message()
             )),
         }
     }
     if let Some(Value::Object(link)) = threads.get_mut(tk) {
-        link.insert("seen".into(), messages.len().into());
-        link.insert("resolved".into(), thread_resolved.into());
+        link.insert(wire::link::SEEN.into(), messages.len().into());
+        link.insert(wire::link::RESOLVED.into(), thread_resolved.into());
     }
     Ok(())
 }
