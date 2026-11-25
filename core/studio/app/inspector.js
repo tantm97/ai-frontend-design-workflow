@@ -22,6 +22,8 @@ function frameInfoHtml(/** @type {any} */ f) {
   if (f.system)
     return `<div class="isec"><div class="ihead">${TEXT.label.designSystem}</div><p class="note">${TEXT.systemFrameHtml}</p></div>`;
   const s = f.screen;
+  const openStyle = 'display:inline-flex;align-items:center;text-decoration:none;color:inherit';
+  const open = `<a class="btn" href="${esc(f.src)}" target="_blank" rel="noopener" style="${openStyle}">${TEXT.openInNewTab} ↗</a>`;
   return `<div class="isec"><div class="ihead">${esc(s.title || s.id)}</div>${s.description ? `<p class="note">${esc(s.description)}</p>` : ''}</div>
   <div class="isec"><h3>${TEXT.label.frame}</h3><dl class="kv">
     <dt>${TEXT.label.screen}</dt><dd>${esc(s.id)}</dd>
@@ -29,23 +31,29 @@ function frameInfoHtml(/** @type {any} */ f) {
     <dt>${TEXT.label.breakpoint}</dt><dd>${esc(f.bp.label || f.bp.id)} · ${esc(f.bp.width)}×${esc(f.bp.height)}</dd>
     <dt>${TEXT.label.state}</dt><dd>${esc(f.state || TEXT.label.default)}</dd>
     <dt>${TEXT.label.file}</dt><dd><code>design/${esc(f.file)}</code></dd>
-  </dl><div class="btn-row"><a class="btn" href="${esc(f.src)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;text-decoration:none;color:inherit">${TEXT.openInNewTab} ↗</a></div></div>`;
+  </dl><div class="btn-row">${open}</div></div>`;
 }
 
 /** The element section: id, tag, size, role, and the text and layout edit hints. */
 function elementHtml(/** @type {any} */ f, /** @type {any} */ sel, /** @type {boolean} */ editable) {
   const own = sel.own || {};
   const scope = layoutScopeOf(f).scope;
+  const editText =
+    sel.textEditable && editable
+      ? `<div class="btn-row"><button type="button" class="btn" data-act="edit-text">${TEXT.editText}</button>` +
+        `<span class="note" style="margin:0;align-self:center">${TEXT.orDoubleClick}</span></div>`
+      : '';
+  const reset = `<button type="button" class="btn small" data-act="layout-reset" title="${esc(TEXT.layoutResetTitle(scope))}">`;
+  const layout =
+    editable && own.id
+      ? `<p class="note">${TEXT.layoutHelpHtml(scope ? esc(scope) : '')}</p><div class="btn-row">${reset}${esc(TEXT.layoutReset(scope))}</button></div>`
+      : '';
   return `<div class="isec"><h3>${TEXT.label.element}</h3><dl class="kv">
     <dt>dfw-id</dt><dd>${own.id ? `<code>${esc(own.id)}</code>` : `<span class="muted">${TEXT.label.none}${sel.target.dfwId ? ` (${TEXT.inside} ${esc(sel.target.dfwId)})` : ''}</span>`}</dd>
     <dt>${TEXT.label.tag}</dt><dd><code>&lt;${esc(sel.target.tag)}&gt;</code></dd>
     <dt>${TEXT.label.size}</dt><dd>${Math.round(sel.rect[2])} × ${Math.round(sel.rect[3])}</dd>
     ${sel.target.a11y?.role ? `<dt>${TEXT.label.role}</dt><dd>${esc(sel.target.a11y.role)}${sel.target.a11y.name ? ` “${esc(sel.target.a11y.name.slice(0, 60))}”` : ''}</dd>` : ''}
-  </dl>${sel.textEditable && editable ? `<div class="btn-row"><button type="button" class="btn" data-act="edit-text">${TEXT.editText}</button><span class="note" style="margin:0;align-self:center">${TEXT.orDoubleClick}</span></div>` : ''}${
-    editable && own.id
-      ? `<p class="note">${TEXT.layoutHelpHtml(scope ? esc(scope) : '')}</p><div class="btn-row"><button type="button" class="btn small" data-act="layout-reset" title="${esc(TEXT.layoutResetTitle(scope))}">${esc(TEXT.layoutReset(scope))}</button></div>`
-      : ''
-  }</div>`;
+  </dl>${editText}${layout}</div>`;
 }
 
 /** The component section of an instance: variant, size and props (editable when it has an id). */
@@ -59,11 +67,14 @@ function componentHtml(/** @type {any} */ own, /** @type {boolean} */ editable) 
     const v = own.props ? ownKey(own.props, p) : undefined;
     return esc(typeof v === 'string' ? v : '');
   };
+  const input = (/** @type {string} */ p) =>
+    `<input data-edit="prop" data-prop="${esc(p)}" value="${val(p)}" placeholder="${TEXT.emptyValue}">`;
+  const props = (def?.props || []).map((/** @type {string} */ p) => `<dt>${esc(p)}</dt><dd>${can ? input(p) : val(p)}</dd>`).join('');
   return `<div class="isec"><h3>${TEXT.label.component} <span class="sp"></span><button type="button" class="btn small comp" data-act="master">${TEXT.goToMaster}</button></h3><dl class="kv">
       <dt>${TEXT.label.component}</dt><dd>${esc(own.comp)}</dd>
       ${def?.variants?.length ? `<dt>${TEXT.label.variant}</dt><dd>${can ? `<select data-edit="variant">${opt(def.variants, own.variant)}</select>` : esc(own.variant)}</dd>` : ''}
       ${def?.sizes?.length ? `<dt>${TEXT.label.size}</dt><dd>${can ? `<select data-edit="size">${opt(def.sizes, own.size)}</select>` : esc(own.size)}</dd>` : ''}
-      ${(def?.props || []).map((/** @type {string} */ p) => `<dt>${esc(p)}</dt><dd>${can ? `<input data-edit="prop" data-prop="${esc(p)}" value="${val(p)}" placeholder="${TEXT.emptyValue}">` : val(p)}</dd>`).join('')}
+      ${props}
     </dl>${!own.id && editable ? '<p class="note">Give the instance an id to edit it here.</p>' : ''}${def?.description ? `<p class="note">${esc(def.description)}</p>` : ''}</div>`;
 }
 
@@ -77,7 +88,12 @@ function tokensHtml(/** @type {any} */ sel, /** @type {boolean} */ canSpace) {
       let v;
       if (SPACING.has(r.group) && canSpace && st.length) {
         const cur = has ? r.tokens.find((/** @type {string} */ t) => t.startsWith('space.')) : null;
-        v = `<select data-space="${i}" title="Set ${esc(r.prop)} to a space token (writes var(--space-*) into the element's inline style)">${cur ? '' : `<option value="" selected>raw ${esc(r.value)}</option>`}${st.map((t) => `<option value="${esc(t.name)}" ${t.name === cur ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select>${has ? '' : '<span class="none">raw value (no token)</span>'}`;
+        const title = `Set ${esc(r.prop)} to a space token (writes var(--space-*) into the element's inline style)`;
+        const raw = cur ? '' : `<option value="" selected>raw ${esc(r.value)}</option>`;
+        const options = st
+          .map((t) => `<option value="${esc(t.name)}" ${t.name === cur ? 'selected' : ''}>${esc(t.name)}</option>`)
+          .join('');
+        v = `<select data-space="${i}" title="${title}">${raw}${options}</select>${has ? '' : '<span class="none">raw value (no token)</span>'}`;
       } else {
         v = has
           ? `<span class="name" title="${esc(r.tokens.join(', '))}">${sw}${esc(r.tokens[0])}${r.tokens.length > 1 ? ` <span class="muted">+${r.tokens.length - 1}</span>` : ''}</span>`
@@ -113,7 +129,8 @@ export function renderInspector() {
   const canSpace = editable && own.id && !own.comp;
   const tokRows = tokensHtml(sel, canSpace);
   parts.push(
-    `<div class="isec"><h3>Design tokens in use</h3>${tokRows || '<p class="note">No styles to report.</p>'}${canSpace ? '<p class="note">Spacing is editable here; colours and typography are design-system decisions.</p>' : ''}</div>`,
+    `<div class="isec"><h3>Design tokens in use</h3>${tokRows || '<p class="note">No styles to report.</p>'}` +
+      `${canSpace ? '<p class="note">Spacing is editable here; colours and typography are design-system decisions.</p>' : ''}</div>`,
   );
   parts.push(
     `<div class="isec"><div class="btn-row" style="margin:0"><button type="button" class="btn" data-act="comment">Comment on this</button></div></div>`,

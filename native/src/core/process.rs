@@ -555,10 +555,7 @@ fn spawn_detached_windows(
 /// A PowerShell string literal: single quotes, each single quote doubled (PowerShell also reads
 /// the typographic single quotes as quotes).
 // Used on Windows only; its tests run everywhere.
-#[cfg_attr(
-    unix,
-    allow(dead_code, reason = "Used on Windows only; its tests run everywhere")
-)]
+#[cfg(any(windows, test))]
 pub fn quote_for_powershell(text: &str) -> String {
     let mut out = String::from("'");
     for c in text.chars() {
@@ -576,10 +573,7 @@ pub fn quote_for_powershell(text: &str) -> String {
 /// `""`, which also keeps cmd.exe's own quote state balanced, so `&`, `|`, `<`, `>` and `^`
 /// stay inside the quotes for it. cmd.exe still expands a `%NAME%` that names a variable.
 // Used on Windows only; its tests run everywhere.
-#[cfg_attr(
-    unix,
-    allow(dead_code, reason = "Used on Windows only; its tests run everywhere")
-)]
+#[cfg(any(windows, test))]
 pub fn quote_windows_arg(arg: &str) -> String {
     let mut out = String::from("\"");
     let mut backslashes = 0;
@@ -606,10 +600,7 @@ pub fn quote_windows_arg(arg: &str) -> String {
 /// The PowerShell script of [`spawn_detached`] on Windows: `Start-Process` (ShellExecute: no
 /// handle inheritance, the environment of this process), hidden, and the pid it prints.
 // Used on Windows only; its tests run everywhere.
-#[cfg_attr(
-    unix,
-    allow(dead_code, reason = "Used on Windows only; its tests run everywhere")
-)]
+#[cfg(any(windows, test))]
 fn detached_script(
     exe: &Path,
     args: &[String],

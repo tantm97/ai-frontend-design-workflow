@@ -58,3 +58,26 @@ test('conventions: every eslint-disable and @ts-ignore in the code says why', ()
   }
   assert.deepEqual(found, [], `add " -- <reason>" (eslint) or a reason after @ts-…:\n${found.join('\n')}`);
 });
+
+/** Lines over this many characters in the Studio's own JavaScript (javascript.md J13). */
+const MAX_LINE = 200;
+
+/** `file:line (length)` of every line over MAX_LINE in `text`. */
+function longLines(rel, text) {
+  return text
+    .split('\n')
+    .map((l, i) => [l.length, i + 1])
+    .filter(([n]) => n > MAX_LINE)
+    .map(([n, line]) => `${rel}:${line} (${n})`);
+}
+
+test('conventions: the long-line check itself', () => {
+  assert.deepEqual(longLines('a.js', `${'x'.repeat(MAX_LINE)}\n${'y'.repeat(MAX_LINE + 1)}`), ['a.js:2 (201)']);
+});
+
+test('conventions: no line of the Studio JavaScript is over 200 characters (J13)', () => {
+  const studio = files().filter((f) => f.startsWith('core/studio/') && f.endsWith('.js'));
+  assert.ok(studio.length > 10, 'the Studio sources are found');
+  const long = studio.flatMap((f) => longLines(f, fs.readFileSync(path.join(REPO, f), 'utf8')));
+  assert.deepEqual(long, [], 'split these lines (the generated overlay.js and live.js are skipped)');
+});

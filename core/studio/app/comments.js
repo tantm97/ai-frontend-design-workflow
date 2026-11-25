@@ -28,11 +28,20 @@ export function renderComments() {
     const where = [c.screen, c.variant, c.breakpoint, c.state].filter(Boolean).join(' / ');
     const target = c.target?.dfwId || c.target?.selector || TEXT.areaTarget;
     const last = c.thread?.slice(-2) || [];
+    const num = c.id.replace('fb_', '');
+    const open = `<button type="button" class="num open" aria-label="${esc(TEXT.showOnCanvas(num))}">#${esc(num)}</button>`;
+    const status = `<span class="status" data-s="${esc(isDraft(c) ? 'draft' : c.status)}">${esc(commentLabel(c))}</span>`;
+    const lines = last
+      .map(
+        (/** @type {any} */ t) =>
+          `<li><span class="by">${esc(t.by)} · ${esc(new Date(t.at).toLocaleString())}</span>${esc(t.message)}</li>`,
+      )
+      .join('');
     li.innerHTML = `
-      <div class="comment-top"><button type="button" class="num open" aria-label="${esc(TEXT.showOnCanvas(c.id.replace('fb_', '')))}">#${esc(c.id.replace('fb_', ''))}</button><span>${esc(where)}</span><span class="status" data-s="${esc(isDraft(c) ? 'draft' : c.status)}">${esc(commentLabel(c))}</span></div>
+      <div class="comment-top">${open}<span>${esc(where)}</span>${status}</div>
       <div class="comment-target">${esc(target)}${c.target?.source ? ` · ${esc(c.target.source)}` : ''}</div>
       <p class="comment-text">${esc(c.comment)}</p>
-      ${last.length ? `<ul class="thread">${last.map((/** @type {any} */ t) => `<li><span class="by">${esc(t.by)} · ${esc(new Date(t.at).toLocaleString())}</span>${esc(t.message)}</li>`).join('')}</ul>` : ''}
+      ${last.length ? `<ul class="thread">${lines}</ul>` : ''}
       <div class="comment-actions"></div>`;
     commentActions(c, $('.comment-actions', li));
     // The whole card is the mouse target; the "#n" button is the same action from the keyboard (studio-ui.md U7).

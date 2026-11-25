@@ -481,7 +481,7 @@ mod tests {
     }
 
     /// One HTTP response per connection, for as many connections as there are bodies.
-    #[cfg_attr(not(unix), allow(dead_code, reason = "used by the Unix-only tests"))]
+    #[cfg(unix)]
     fn serve(responses: Vec<(u16, Vec<u8>)>) -> String {
         use std::io::{Read, Write};
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();

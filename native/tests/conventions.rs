@@ -43,12 +43,24 @@ fn allows() -> Vec<String> {
     for f in files {
         let rel = f.strip_prefix(native()).unwrap().display().to_string();
         let text = fs::read_to_string(&f).unwrap();
-        for (i, line) in text.lines().enumerate() {
+        let lines: Vec<&str> = text.lines().collect();
+        for (i, line) in lines.iter().enumerate() {
             let t = line.trim_start();
+            // A `cfg_attr` is read up to its closing `)]`: its `allow(` may be on a later line.
+            let cfg_attr = || {
+                let mut whole = String::new();
+                for l in &lines[i..] {
+                    whole.push_str(l);
+                    if l.trim_end().ends_with(")]") {
+                        break;
+                    }
+                }
+                whole
+            };
             let attr = t.starts_with("#[allow(")
                 || t.starts_with("#![allow(")
                 || (t.starts_with("#[cfg_attr(") || t.starts_with("#![cfg_attr("))
-                    && t.contains("allow(");
+                    && cfg_attr().contains("allow(");
             let test_exemption = rel.ends_with("main.rs") && t.starts_with("#![cfg_attr(");
             if attr && !test_exemption {
                 out.push(format!("{rel}:{}", i + 1));

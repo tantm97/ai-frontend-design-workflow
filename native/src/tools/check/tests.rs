@@ -55,7 +55,7 @@ fn strings(list: &[&str]) -> Vec<String> {
     list.iter().map(|s| s.to_string()).collect()
 }
 
-#[cfg_attr(not(unix), allow(dead_code, reason = "used by the Unix-only tests"))]
+#[cfg(unix)]
 fn no_env() -> ToolRun<'static> {
     ToolRun {
         env: &[],
@@ -74,12 +74,12 @@ fn nothing<'a>() -> Lookup<'a> {
 }
 
 /// The scripts are sh scripts, so "Node.js" is sh in these tests.
-#[cfg_attr(not(unix), allow(dead_code, reason = "used by the Unix-only tests"))]
+#[cfg(unix)]
 fn sh() -> Option<String> {
     Some("/bin/sh".to_string())
 }
 
-#[cfg_attr(not(unix), allow(dead_code, reason = "used by the Unix-only tests"))]
+#[cfg(unix)]
 fn ready(cmd: &Path, env: &[(&str, &str)]) -> Engine {
     Engine {
         ready: true,
@@ -102,7 +102,7 @@ fn not_ready(unverified: &[&str]) -> Engine {
     }
 }
 
-#[cfg_attr(not(unix), allow(dead_code, reason = "used by the Unix-only tests"))]
+#[cfg(unix)]
 fn statuses(results: &[Value]) -> Vec<String> {
     results
         .iter()

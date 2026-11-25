@@ -110,7 +110,8 @@ export const TEXT = Object.freeze({
   alreadyAt: (/** @type {string} */ label) => `Already ${label}.`,
   elementNotFound: (/** @type {string} */ what) => `Element ${what} not found in this frame.`,
   layoutConflict: (/** @type {string} */ id, /** @type {string} */ prop, /** @type {string | null} */ by) =>
-    `Saved, but ${id} did not change: ${by ? `"${by}"` : 'another rule'} still sets ${prop}${by === 'style attribute' ? '' : ' with higher priority'}. Remove ${prop} there (or ask the AI), then resize again.`,
+    `Saved, but ${id} did not change: ${by ? `"${by}"` : 'another rule'} still sets ${prop}${by === 'style attribute' ? '' : ' with higher priority'}. ` +
+    `Remove ${prop} there (or ask the AI), then resize again.`,
   // Live review (in the running app)
   liveToggleTitle: (/** @type {string} */ shortcut) => `Comment on an element${shortcut ? ` (${shortcut})` : ''}`,
   liveSent: (/** @type {string} */ n) => `Sent to AI · comment #${n}`,
@@ -143,7 +144,9 @@ export const TEXT = Object.freeze({
   systemFrameHtml: 'Generated from design/system/ and the tokens. Edit masters in <code>design/system/components/</code>.',
   /** @param {string} scopeHtml the breakpoint scope, already escaped, or '' */
   layoutHelpHtml: (scopeHtml) =>
-    `Layout: drag to reorder among flex/grid siblings or into an empty flex/grid container (<kbd>Alt</kbd>+arrows); drag the handles to resize (<kbd>Alt</kbd><kbd>Shift</kbd>+arrows), snapped to grid columns or tokens${scopeHtml ? `. Resizes here apply at ${scopeHtml}` : ''}. Double-click a handle or press <kbd>Alt</kbd><kbd>Shift</kbd><kbd>0</kbd> to reset.`,
+    'Layout: drag to reorder among flex/grid siblings or into an empty flex/grid container (<kbd>Alt</kbd>+arrows); ' +
+    'drag the handles to resize (<kbd>Alt</kbd><kbd>Shift</kbd>+arrows), snapped to grid columns or tokens' +
+    `${scopeHtml ? `. Resizes here apply at ${scopeHtml}` : ''}. Double-click a handle or press <kbd>Alt</kbd><kbd>Shift</kbd><kbd>0</kbd> to reset.`,
   layoutResetTitle: (/** @type {string} */ scope) =>
     `Remove this element's Studio layout rule${scope ? ` at ${scope}` : ''} (back to the screen's own layout)`,
   layoutReset: (/** @type {string} */ scope) => `Reset size to auto${scope ? ` (${scope})` : ''}`,

@@ -57,7 +57,8 @@ export function skipReason() {
   const bin = nativeBinary();
   if (fs.existsSync(bin)) return false;
   const why = `no dfw binary at ${bin}: build it (cd native && cargo build) or set DFW_BIN`;
-  if (process.env.CI || process.env.DFW_REQUIRE_BIN === '1') throw new Error(`${why} (the binary is required: CI or DFW_REQUIRE_BIN=1 is set)`);
+  if (process.env.CI || process.env.DFW_REQUIRE_BIN === '1')
+    throw new Error(`${why} (the binary is required: CI or DFW_REQUIRE_BIN=1 is set)`);
   return why;
 }
 
@@ -89,14 +90,19 @@ export function suite(name) {
       const file = caseFile(name, t.fullName ?? title);
       const recorded = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')).results : null;
       current = { file, fullName: t.fullName ?? title, results: UPDATE ? [] : recorded, next: 0 };
-      if (!UPDATE && !recorded) assert.fail(`no recorded results for "${current.fullName}" (${path.relative(REPO, file)}): run once with DFW_GOLDEN_UPDATE=1 and review the new file`);
+      if (!UPDATE && !recorded)
+        assert.fail(
+          `no recorded results for "${current.fullName}" (${path.relative(REPO, file)}): run once with DFW_GOLDEN_UPDATE=1 and review the new file`,
+        );
       try {
         await fn(t);
         if (UPDATE) {
           fs.mkdirSync(path.dirname(file), { recursive: true });
           fs.writeFileSync(file, `${JSON.stringify({ test: current.fullName, results: current.results }, null, 2)}\n`);
         } else if (current.next !== current.results.length) {
-          assert.fail(`"${current.fullName}" used ${current.next} of its ${current.results.length} recorded results: the test changed; run it with DFW_GOLDEN_UPDATE=1 and review the diff`);
+          assert.fail(
+            `"${current.fullName}" used ${current.next} of its ${current.results.length} recorded results: the test changed; run it with DFW_GOLDEN_UPDATE=1 and review the diff`,
+          );
         }
       } finally {
         current = null;
@@ -122,7 +128,10 @@ export function expected(actual) {
     current.results.push(asJson(actual));
     return actual;
   }
-  if (current.next >= current.results.length) assert.fail(`"${current.fullName}" has no recorded result #${current.next + 1}: the test changed; run it with DFW_GOLDEN_UPDATE=1 and review the diff`);
+  if (current.next >= current.results.length)
+    assert.fail(
+      `"${current.fullName}" has no recorded result #${current.next + 1}: the test changed; run it with DFW_GOLDEN_UPDATE=1 and review the diff`,
+    );
   return current.results[current.next++];
 }
 
@@ -189,7 +198,13 @@ export function runWith(cmd, cmdArgs, args, opts = {}) {
       DFW_PLUGIN_ROOT: path.join(REPO, 'core'),
       ...opts.env,
     });
-    const r = spawnSync(cmd, [...cmdArgs, ...args], { cwd: root, env, input: opts.stdin ?? '', encoding: 'utf8', timeout: opts.timeout ?? 180_000 });
+    const r = spawnSync(cmd, [...cmdArgs, ...args], {
+      cwd: root,
+      env,
+      input: opts.stdin ?? '',
+      encoding: 'utf8',
+      timeout: opts.timeout ?? 180_000,
+    });
     if (r.error) throw r.error;
 
     // Temp paths differ per run and the checkout differs per machine; JSON output carries them
@@ -197,7 +212,12 @@ export function runWith(cmd, cmdArgs, args, opts = {}) {
     const escaped = (p) => JSON.stringify(p).slice(1, -1);
     const normalize = (text) => {
       let t = text;
-      for (const [from, to] of [[root, '<root>'], [tmp, '<tmp>'], [REPO, '<repo>']]) t = t.split(escaped(from)).join(to).split(from).join(to);
+      for (const [from, to] of [
+        [root, '<root>'],
+        [tmp, '<tmp>'],
+        [REPO, '<repo>'],
+      ])
+        t = t.split(escaped(from)).join(to).split(from).join(to);
       // The one line that names the runtime: "dfw 0.5.1 (node 22.1.0)" / "(binary)" / "(native)".
       t = t.replace(/^(dfw \S+) \((?:node [^)]+|binary|native)\)$/m, '$1 (<runtime>)');
       t = maskVersion(t);
@@ -209,7 +229,12 @@ export function runWith(cmd, cmdArgs, args, opts = {}) {
     const after = snapshot(root);
     for (const [rel, buf] of after) if (!before.get(rel)?.equals(buf)) files[name(rel)] = normalize(printable(buf));
     for (const rel of before.keys()) if (!after.has(rel)) files[name(rel)] = null; // deleted
-    return { code: r.status, stdout: normalize(r.stdout), stderr: normalize(r.stderr), files: Object.fromEntries(Object.entries(files).sort(([a], [b]) => (a < b ? -1 : 1))) };
+    return {
+      code: r.status,
+      stdout: normalize(r.stdout),
+      stderr: normalize(r.stderr),
+      files: Object.fromEntries(Object.entries(files).sort(([a], [b]) => (a < b ? -1 : 1))),
+    };
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
@@ -242,14 +267,21 @@ function firstDifference(label, a, b) {
   const [x, y] = [String(a).split('\n'), String(b).split('\n')];
   let i = 0;
   while (i < x.length && i < y.length && x[i] === y[i]) i++;
-  const show = (lines, mark) => lines.slice(i, i + 6).map((l) => `    ${mark} ${JSON.stringify(l)}`).join('\n') || `    ${mark} (nothing)`;
+  const show = (lines, mark) =>
+    lines
+      .slice(i, i + 6)
+      .map((l) => `    ${mark} ${JSON.stringify(l)}`)
+      .join('\n') || `    ${mark} (nothing)`;
   return `${label}: first difference at line ${i + 1}\n${show(x, 'expected')}\n${show(y, 'binary  ')}`;
 }
 
 /** Fail with a readable diff unless exit code, stdout and written files are the recorded ones. */
 export function assertSame({ expected: want, native }, { stderr = false } = {}) {
   const problems = [];
-  if (want.code !== native.code) problems.push(`exit code: expected ${want.code}, binary ${native.code}\n    expected stderr: ${JSON.stringify(want.stderr.slice(0, 400))}\n    binary stderr:   ${JSON.stringify(native.stderr.slice(0, 400))}`);
+  if (want.code !== native.code)
+    problems.push(
+      `exit code: expected ${want.code}, binary ${native.code}\n    expected stderr: ${JSON.stringify(want.stderr.slice(0, 400))}\n    binary stderr:   ${JSON.stringify(native.stderr.slice(0, 400))}`,
+    );
   if (want.stdout !== native.stdout) problems.push(firstDifference('stdout', want.stdout, native.stdout));
   if (stderr && want.stderr !== native.stderr) problems.push(firstDifference('stderr', want.stderr, native.stderr));
   for (const rel of new Set([...Object.keys(want.files), ...Object.keys(native.files)])) {

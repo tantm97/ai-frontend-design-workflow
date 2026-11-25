@@ -22,7 +22,7 @@ const LAYERS: &[(&str, Option<u8>)] = &[
     ("browser", Some(2)),
     ("penpot", Some(3)),
     ("tools", Some(3)),
-    ("hooks", Some(3)),
+    ("hooks", Some(4)),
     ("studio", Some(4)),
     ("cli", Some(5)),
     ("telemetry", Some(5)),
@@ -31,11 +31,7 @@ const LAYERS: &[(&str, Option<u8>)] = &[
 ];
 
 /// Edges A2 lists under "Known exceptions", each with its reason.
-const KNOWN_EXCEPTIONS: &[(&str, &str, &str)] = &[(
-    "hooks",
-    "tools",
-    "hooks/post_tool_use.rs runs tools::check, a module of the same layer; tools never uses hooks",
-)];
+const KNOWN_EXCEPTIONS: &[(&str, &str, &str)] = &[];
 
 fn layer(group: &str) -> Option<Option<u8>> {
     LAYERS.iter().find(|(g, _)| *g == group).map(|(_, l)| *l)

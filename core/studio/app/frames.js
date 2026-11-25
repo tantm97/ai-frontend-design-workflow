@@ -161,7 +161,8 @@ function addFrame(spec, pageId, canvas, before) {
   const el = document.createElement('div');
   el.className = 'frame';
   el.dataset.key = f.key;
-  el.innerHTML = `<div class="frame-title" title="${esc(TEXT.frameTitleHint(f.title))}">${esc(f.title)}<a href="${esc(f.src)}" target="_blank" rel="noopener" title="${TEXT.openInNewTab}">↗</a></div><div class="placeholder">${esc(f.title)}</div>`;
+  const open = `<a href="${esc(f.src)}" target="_blank" rel="noopener" title="${TEXT.openInNewTab}">↗</a>`;
+  el.innerHTML = `<div class="frame-title" title="${esc(TEXT.frameTitleHint(f.title))}">${esc(f.title)}${open}</div><div class="placeholder">${esc(f.title)}</div>`;
   const t = $('.frame-title', el);
   t.addEventListener('mousedown', (/** @type {MouseEvent} */ e) => {
     if (/** @type {HTMLElement} */ (e.target).tagName === 'A' || e.button !== 0 || S.mode === MODE.HAND || S.space) return;
@@ -335,7 +336,10 @@ export function renderPages() {
     ).length;
     const li = document.createElement('li');
     const inAll = S.page === ALL;
-    li.innerHTML = `<button type="button" data-page="${esc(p.id)}" ${p.id === S.page ? 'aria-current="page"' : ''} title="${inAll ? TEXT.pageInAllHint : ''}"><span>${esc(p.title)}</span>${open ? `<span class="c" title="${TEXT.openComments}">${open}</span>` : ''}<span class="n">${n}</span></button>`;
+    const count = open ? `<span class="c" title="${TEXT.openComments}">${open}</span>` : '';
+    li.innerHTML =
+      `<button type="button" data-page="${esc(p.id)}" ${p.id === S.page ? 'aria-current="page"' : ''} title="${inAll ? TEXT.pageInAllHint : ''}">` +
+      `<span>${esc(p.title)}</span>${count}<span class="n">${n}</span></button>`;
     const b = $('button', li);
     b.onclick = () => (S.page === ALL ? ui.zoomToSection(p.id) : setPage(p.id));
     b.ondblclick = () => setPage(p.id);
