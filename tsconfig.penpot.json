@@ -1,0 +1,7 @@
+{
+  "$comment": "Type check of the Penpot plugin (javascript.md J13) against types/penpot-plugin.d.ts. The plugin is served byte for byte as written (a golden case records it), so it is checked here instead of through a // @ts-check line.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "checkJs": true },
+  "include": ["core/studio/penpot/plugin.js", "types/penpot-plugin.d.ts"],
+  "exclude": []
+}

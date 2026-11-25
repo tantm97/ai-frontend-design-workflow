@@ -1,4 +1,3 @@
-// @ts-check
 // dfw bridge: a Penpot plugin (runs inside Penpot's plugin sandbox, Penpot plugin API).
 // Served by the local dfw Studio (127.0.0.1) at /__dfw/penpot/plugin.js; its UI (ui.html) is served
 // by the same Studio, so the UI's data calls never leave the machine.
