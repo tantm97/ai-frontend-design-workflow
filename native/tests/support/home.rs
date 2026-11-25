@@ -40,8 +40,12 @@ pub fn command(exe: impl AsRef<OsStr>, cwd: &Path, user_home: &Path, dfw_home: &
     for name in SESSION {
         cmd.env_remove(name);
     }
+    // The folders exist, as a user's do: on Windows a process started with a USERPROFILE that is
+    // missing (PowerShell, which starts the detached telemetry flush) fails to start.
     for (name, sub) in HOMES {
-        cmd.env(name, user_home.join(sub));
+        let dir = user_home.join(sub);
+        let _ = std::fs::create_dir_all(&dir);
+        cmd.env(name, dir);
     }
     cmd.env(DFW_HOME, dfw_home);
     cmd
