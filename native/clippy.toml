@@ -10,4 +10,6 @@ disallowed-methods = [
   { path = "std::fs::write", reason = "write through core::util::write_atomic_inside for project files, write_atomic otherwise (§0 39, D2)" },
   { path = "std::fs::File::create", reason = "write through core::util::write_atomic_inside for project files, write_atomic otherwise (§0 39, D2)" },
   { path = "std::net::TcpStream::connect", reason = "connect through core::http::connect, which gives up at a deadline (§0 21, P4)" },
+  { path = "std::thread::spawn", reason = "start threads with std::thread::Builder::spawn and handle its error: thread::spawn panics when the system has no thread left; a server connection goes through studio::http::spawn_connection (§0 36, P13)" },
+  { path = "zip::ZipArchive::new", reason = "archives are read by browser::download::unpack only, which refuses links and entries outside its folder (§0 41, S11)" },
 ]

@@ -1286,3 +1286,147 @@ fn json_keys_are_named() {
         found.join("\n")
     );
 }
+
+/* ------------------------------------------------ servers, threads, downloads (§0 36, 41, 19, 2) */
+
+/// The lines of product code that hold `needle`, as `file:line: text`, but the files of
+/// `homes` (each with the reason it may).
+fn product_lines_with(needle: &str, homes: &[(&str, &str)]) -> Vec<String> {
+    let mut found = Vec::new();
+    for (rel, lines) in product_sources(&[]) {
+        if homes.iter().any(|(home, _)| *home == rel) {
+            continue;
+        }
+        for (i, line) in lines.iter().enumerate() {
+            if line.contains(needle) {
+                found.push(format!("{rel}:{}: {}", i + 1, line.trim()));
+            }
+        }
+    }
+    found
+}
+
+/// Threads start with `thread::Builder::spawn` and a handled error (§0 row 36, P13):
+/// `thread::spawn` panics when the system has no thread left. clippy.toml refuses it too; this
+/// also covers a module that allows `disallowed_methods` as a whole (`core::process`).
+#[test]
+fn threads_start_through_the_builder() {
+    let homes = [(
+        "src/core/util.rs",
+        "serve_routes is a #[cfg(test)] fixture server before the test module",
+    )];
+    let found = product_lines_with("thread::spawn", &homes);
+    assert!(
+        found.is_empty(),
+        "thread::spawn in product code; use std::thread::Builder::new().spawn and handle its error:\n{}",
+        found.join("\n")
+    );
+}
+
+/// Every accept loop of a server hands its connections to `studio::http::spawn_connection`
+/// (§0 row 36, P13): the connection cap, a 503 above it and no panic without a thread.
+#[test]
+fn accept_loops_go_through_spawn_connection() {
+    /// How many lines after `.incoming()` the hand-over may be.
+    const BODY: usize = 4;
+    let mut found = Vec::new();
+    let mut loops = 0;
+    for (rel, lines) in product_sources(&[]) {
+        for (i, line) in lines.iter().enumerate() {
+            if !line.contains(".incoming()") {
+                continue;
+            }
+            loops += 1;
+            let body = lines.iter().skip(i).take(BODY + 1);
+            if !body.into_iter().any(|l| l.contains("spawn_connection(")) {
+                found.push(format!("{rel}:{}: {}", i + 1, line.trim()));
+            }
+        }
+    }
+    assert!(
+        loops >= 2,
+        "the Studio and the review proxy accept loops were not found"
+    );
+    assert!(
+        found.is_empty(),
+        "an accept loop that does not use studio::http::spawn_connection:\n{}",
+        found.join("\n")
+    );
+}
+
+/// Archives are read by `browser::download::unpack` only (§0 row 41, S11), which refuses links
+/// and entries that climb out of its folder. clippy.toml refuses `zip::ZipArchive::new` too;
+/// this also covers a module that allows `disallowed_methods` as a whole.
+#[test]
+fn archives_are_read_by_unpack_only() {
+    let homes = [("src/browser/download.rs", "unpack, the one archive reader")];
+    let found = product_lines_with("ZipArchive", &homes);
+    assert!(
+        found.is_empty(),
+        "an archive read outside browser::download::unpack:\n{}",
+        found.join("\n")
+    );
+}
+
+/// What dfw fetches from a fixed host goes through `core::http::download` (§0 row 19, S11):
+/// https on the source's host, also after redirects, verified before use. The other clients,
+/// each with its reason.
+#[test]
+fn downloads_go_through_core_http_download() {
+    let homes = [
+        ("src/core/http.rs", "the one home of the HTTP client"),
+        (
+            "src/browser/cdp.rs",
+            "the font proxy fetches the fonts a rendered page names, from any host, and only hands them to that page",
+        ),
+        (
+            "src/studio/live_proxy/proxy.rs",
+            "the review proxy forwards the browser's requests to the user's own dev server",
+        ),
+        (
+            "src/telemetry/flush.rs",
+            "the telemetry POST to the compiled-in collector (native/README-telemetry.md)",
+        ),
+    ];
+    let mut found = product_lines_with("http::get(", &homes);
+    found.extend(product_lines_with("ureq::", &homes));
+    assert!(
+        found.is_empty(),
+        "an HTTP request outside core::http; fetch through core::http::download(&Source, ...):\n{}",
+        found.join("\n")
+    );
+}
+
+/// Anything that reacts to file changes polls (§0 row 2, P6): no crate of an OS file watcher,
+/// direct or pulled in by another crate.
+#[test]
+fn no_os_file_watcher_crate() {
+    const WATCHERS: [&str; 6] = [
+        "notify",
+        "inotify",
+        "fsevent",
+        "kqueue",
+        "hotwatch",
+        "watchexec",
+    ];
+    let mut found = Vec::new();
+    for file in ["Cargo.toml", "Cargo.lock"] {
+        let text = fs::read_to_string(native().join(file)).unwrap();
+        for (i, line) in text.lines().enumerate() {
+            let line = line.split('#').next().unwrap_or_default();
+            // `name = "x"` in the lock, `x = ...` in a dependency table of the manifest.
+            let name = match line.trim().strip_prefix("name = ") {
+                Some(quoted) => quoted.trim_matches('"'),
+                None => line.split('=').next().unwrap_or_default().trim(),
+            };
+            if WATCHERS.iter().any(|w| name.starts_with(w)) {
+                found.push(format!("{file}:{}: {}", i + 1, line.trim()));
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "an OS file watcher crate; the Studio polls (studio::watch, P6):\n{}",
+        found.join("\n")
+    );
+}

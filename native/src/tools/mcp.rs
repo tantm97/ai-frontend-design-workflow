@@ -142,13 +142,14 @@ fn base_dir(cwd: Option<&Value>, what: &str) -> Result<PathBuf, ToolError> {
     }
 }
 
-/// Everything a pipe of the child delivers, appended to the shared output as it arrives.
+/// Everything a pipe of the child delivers, appended to the shared output as it arrives. An
+/// error when the reading thread cannot start.
 fn collect(
     pipe: Option<impl Read + Send + 'static>,
     output: &Arc<Mutex<Vec<u8>>>,
-) -> thread::JoinHandle<()> {
+) -> std::io::Result<thread::JoinHandle<()>> {
     let output = Arc::clone(output);
-    thread::spawn(move || {
+    thread::Builder::new().spawn(move || {
         let Some(mut pipe) = pipe else { return };
         let mut chunk = [0u8; 8192];
         while let Ok(n) = pipe.read(&mut chunk) {
@@ -232,10 +233,23 @@ fn run_dfw(args: Option<&Value>, cwd: Option<&Value>) -> Result<ToolResult, Tool
         }
     };
     let output = Arc::new(Mutex::new(Vec::<u8>::new()));
-    let readers = [
-        collect(child.stdout.take(), &output),
-        collect(child.stderr.take(), &output),
-    ];
+    let readers = collect(child.stdout.take(), &output)
+        .and_then(|out| Ok([out, collect(child.stderr.take(), &output)?]));
+    let readers = match readers {
+        Ok(readers) => readers,
+        // No thread to read the output with (the system is out of them): the child is ended,
+        // never left to block on a full pipe, and the call is an error.
+        Err(err) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Ok(ToolResult {
+                text: format!(
+                    "dfw could not start a thread to read its output ({err}); try again."
+                ),
+                is_error: true,
+            });
+        }
+    };
     let started = Instant::now();
     let mut pause = Duration::from_millis(1);
     let mut killed = false;

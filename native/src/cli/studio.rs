@@ -357,7 +357,14 @@ fn review_server(ctx: &Ctx) -> Result<i32, DfwError> {
     let first = listeners.remove(0);
     for extra in listeners {
         let s = std::sync::Arc::clone(&server);
-        std::thread::spawn(move || s.serve(extra));
+        let address = extra
+            .local_addr()
+            .map_or_else(|_| "another address".to_string(), |a| a.to_string());
+        // No thread for it (the system is out of them): the proxy still answers on the first
+        // address, and says which one it does not listen on.
+        if let Err(err) = std::thread::Builder::new().spawn(move || s.serve(extra)) {
+            eprintln!("dfw review: not listening on {address} ({err}); open {url} instead.");
+        }
     }
     server.serve(first);
     Ok(0)
