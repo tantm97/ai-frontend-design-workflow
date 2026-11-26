@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 
-use super::launch::browser_dir;
+use super::launch::{browser_dir, current, status};
 use crate::core::error::DfwError;
 use crate::core::http;
 use crate::core::platform::{node_arch, node_platform};
@@ -22,6 +22,30 @@ const ZIP_TIMEOUT_S: u64 = 20 * 60;
 /// Size caps: the index is a few hundred kB, an archive about 100 MB.
 const INDEX_LIMIT: u64 = 16 << 20;
 const ZIP_LIMIT: u64 = 1 << 30;
+
+/// The keys of the Chrome for Testing index dfw reads:
+/// `{ channels: { Stable: { version, downloads: { chrome-headless-shell: [{ platform, url }] } } } }`.
+mod index {
+    pub const CHANNELS: &str = "channels";
+    pub const STABLE: &str = "Stable";
+    pub const VERSION: &str = "version";
+    pub const DOWNLOADS: &str = "downloads";
+    pub const HEADLESS_SHELL: &str = "chrome-headless-shell";
+    /// Chrome for Testing's name of the platform (`mac-arm64`).
+    pub const PLATFORM: &str = "platform";
+    pub const URL: &str = "url";
+}
+
+/// The keys of `archive.json` next to the unpacked shell: what was downloaded, since Chrome for
+/// Testing publishes no checksum.
+mod archive {
+    /// The URL dfw asked for.
+    pub const URL: &str = "url";
+    /// The URL the download ended at, after redirects.
+    pub const LANDED: &str = "landed";
+    pub const BYTES: &str = "bytes";
+    pub const SHA256: &str = "sha256";
+}
 
 /// Chrome for Testing's name of this platform, or `None` when it has no build for it.
 fn cft_platform() -> Option<&'static str> {
@@ -114,21 +138,27 @@ fn install_from(
     log: &dyn Fn(&str),
 ) -> Result<Value, DfwError> {
     let index: Value = serde_json::from_slice(&fetch(index_url, 30, INDEX_LIMIT)?.1)?;
-    let stable = index.get("channels").and_then(|c| c.get("Stable"));
+    let stable = index
+        .get(index::CHANNELS)
+        .and_then(|c| c.get(index::STABLE));
     let dl = stable
-        .and_then(|s| s.get("downloads")?.get("chrome-headless-shell")?.as_array())
+        .and_then(|s| {
+            s.get(index::DOWNLOADS)?
+                .get(index::HEADLESS_SHELL)?
+                .as_array()
+        })
         .and_then(|list| {
             list.iter()
-                .find(|d| d.get("platform").and_then(Value::as_str) == Some(plat))
+                .find(|d| d.get(index::PLATFORM).and_then(Value::as_str) == Some(plat))
         })
         .ok_or_else(|| {
             DfwError::new(format!(
                 "Chrome for Testing has no headless shell for {plat}."
             ))
         })?;
-    let from = check(dl.get("url").unwrap_or(&Value::Null))?;
+    let from = check(dl.get(index::URL).unwrap_or(&Value::Null))?;
     let version = stable
-        .and_then(|s| s.get("version"))
+        .and_then(|s| s.get(index::VERSION))
         .unwrap_or(&Value::Null);
     // The version becomes a folder name: digits and dots only.
     let version = version
@@ -169,7 +199,7 @@ fn install_from(
         crate::core::util::write_atomic(
             &dir.join("archive.json"),
             to_json_pretty(
-                &json!({ "url": from, "landed": landed, "bytes": zip.len(), "sha256": sha256(&zip) }),
+                &json!({ (archive::URL): from, (archive::LANDED): landed, (archive::BYTES): zip.len(), (archive::SHA256): sha256(&zip) }),
             ),
         )?;
         let extracted = unpack(&zip, &dir);
@@ -185,9 +215,13 @@ fn install_from(
     let exe_text = exe.display().to_string();
     crate::core::util::write_atomic(
         &browser_dir.join("current.json"),
-        to_json_pretty(&json!({ "version": version, "platform": plat, "path": exe_text })),
+        to_json_pretty(
+            &json!({ (current::VERSION): version, (current::PLATFORM): plat, (current::PATH): exe_text }),
+        ),
     )?;
-    Ok(json!({ "installed": true, "path": exe_text, "source": "downloaded", "version": version }))
+    Ok(
+        json!({ (status::INSTALLED): true, (status::PATH): exe_text, (status::SOURCE): "downloaded", (status::VERSION): version }),
+    )
 }
 
 /// GET a URL: the URL it ended at (after redirects) and the body. `HTTP <status>` is an error.

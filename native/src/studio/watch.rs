@@ -15,7 +15,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde_json::{json, Value};
 
-use super::sse::{presence_event, Clients};
+use super::sse::{data, presence_event, Clients};
 use crate::core::paths::{env_nonempty, file};
 use crate::design::compose::build_system;
 
@@ -133,7 +133,7 @@ pub fn flush(root: &Path, clients: &Clients, files: &[String]) {
         }
     }
     if !design.is_empty() {
-        clients.broadcast("design", &json!({ "files": design }));
+        clients.broadcast("design", &json!({ (data::FILES): design }));
     }
     if files.iter().any(|f| f.starts_with("reviews:")) {
         clients.broadcast("comments", &json!({}));

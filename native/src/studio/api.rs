@@ -35,6 +35,39 @@ pub use super::paths::DESIGN_BASE;
 /// The script every design frame gets.
 pub const OVERLAY_TAG: &str = r#"<script src="/__dfw/overlay.js" data-dfw-overlay></script>"#;
 
+/// The keys of an entry of the token list (`/__dfw/api/tokens`): `{ name, var, type }`.
+mod token_entry {
+    /// The token's path (`color.brand`).
+    pub const NAME: &str = "name";
+    /// The CSS custom property (`--color-brand`).
+    pub const VAR: &str = "var";
+    /// The DTCG type, `null` for a variable only tokens.css declares.
+    pub const TYPE: &str = "type";
+}
+
+/// The keys of the body of `/__dfw/api/shoot`: `{ frames: [{ src, name, w, h }], fullPage }`.
+mod shoot {
+    pub const FRAMES: &str = "frames";
+    pub const FULL_PAGE: &str = "fullPage";
+    /// The frame's address in the Studio (a design file or the Design System page).
+    pub const SRC: &str = "src";
+    pub const NAME: &str = "name";
+    pub const W: &str = "w";
+    pub const H: &str = "h";
+}
+
+/// The keys of an entry of the answer of `/__dfw/api/shoot`: `{ name, ok, error?, file, url }`.
+mod shot {
+    /// The PNG's file name.
+    pub const NAME: &str = "name";
+    pub const OK: &str = "ok";
+    pub const ERROR: &str = "error";
+    /// The PNG, relative to the project root.
+    pub const FILE: &str = "file";
+    /// Where the Studio serves it, `null` when it failed.
+    pub const URL: &str = "url";
+}
+
 /// Content types by file extension (`MIME` of server.mjs).
 pub fn mime(ext: &str) -> Option<&'static str> {
     Some(match ext {
@@ -98,8 +131,8 @@ pub fn manifest(root: &Path, config: &Value) -> Result<Value, DfwError> {
     if let Some(bps) = get_path(config, "studio.breakpoints") {
         base.insert(key::BREAKPOINTS.into(), bps.clone());
     }
-    base.insert("themes".into(), json!([]));
-    base.insert("states".into(), json!([]));
+    base.insert(key::THEMES.into(), json!([]));
+    base.insert(key::STATES.into(), json!([]));
     if js::truthy(&m) {
         let mut out = base.clone();
         for (k, v) in js::spread(Some(&m)) {
@@ -127,7 +160,7 @@ pub fn manifest(root: &Path, config: &Value) -> Result<Value, DfwError> {
         for s in &screens {
             for v in manifest::items(s.get(key::VARIANTS)).iter() {
                 let Some(file) = v
-                    .get("file")
+                    .get(key::FILE)
                     .and_then(Value::as_str)
                     .filter(|f| !f.is_empty())
                 else {
@@ -164,8 +197,7 @@ pub fn manifest(root: &Path, config: &Value) -> Result<Value, DfwError> {
         } else {
             (stem.to_string(), "a".to_string())
         };
-        let entry =
-            json!({ "id": variant, "label": variant, "file": format!("{}/{rel}", file::SCREENS) });
+        let entry = json!({ (key::ID): variant, (key::LABEL): variant, (key::FILE): format!("{}/{rel}", file::SCREENS) });
         match screens.iter_mut().find(|(sid, _)| *sid == id) {
             Some((_, variants)) => variants.push(entry),
             None => screens.push((id, vec![entry])),
@@ -176,11 +208,11 @@ pub fn manifest(root: &Path, config: &Value) -> Result<Value, DfwError> {
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default();
-    out.insert("product".into(), json!(product));
-    out.insert("inferred".into(), json!(true));
+    out.insert(key::PRODUCT.into(), json!(product));
+    out.insert(key::INFERRED.into(), json!(true));
     let screens: Vec<Value> = screens
         .into_iter()
-        .map(|(id, variants)| json!({ "id": id, "title": id, "variants": variants }))
+        .map(|(id, variants)| json!({ (key::ID): id, (key::TITLE): id, (key::VARIANTS): variants }))
         .collect();
     out.insert(key::SCREENS.into(), Value::Array(screens));
     let pages = studio_pages(&Value::Object(out.clone()));
@@ -196,10 +228,10 @@ fn mark_designed_states(
     out: &mut Map<String, Value>,
     files: &HashMap<String, String>,
 ) -> Result<(), DfwError> {
-    let top_states = out.get("states").cloned().unwrap_or(json!([]));
+    let top_states = out.get(key::STATES).cloned().unwrap_or(json!([]));
     if let Some(Value::Array(list)) = out.get_mut(key::SCREENS) {
         for s in list.iter_mut() {
-            let declared: Vec<String> = match s.get("states") {
+            let declared: Vec<String> = match s.get(key::STATES) {
                 Some(Value::Array(own)) if !own.is_empty() => own.clone(),
                 _ => top_states.as_array().cloned().unwrap_or_default(),
             }
@@ -211,7 +243,7 @@ fn mark_designed_states(
             };
             for v in variants.iter_mut() {
                 let text = v
-                    .get("file")
+                    .get(key::FILE)
                     .and_then(Value::as_str)
                     .and_then(|f| files.get(f));
                 let (Some(text), Value::Object(map)) = (text, v) else {
@@ -243,7 +275,7 @@ pub fn token_list(root: &Path) -> Result<Value, DfwError> {
         if t.is_type("typography") && object {
             for (k, sub) in SUB {
                 if t.value.get(k).is_some() {
-                    out.push(json!({ "name": format!("{}.{sub}", t.name), "var": format!("{var}-{sub}"), "type": "typography" }));
+                    out.push(json!({ (token_entry::NAME): format!("{}.{sub}", t.name), (token_entry::VAR): format!("{var}-{sub}"), (token_entry::TYPE): "typography" }));
                 }
             }
         } else {
@@ -251,11 +283,11 @@ pub fn token_list(root: &Path) -> Result<Value, DfwError> {
                 t.ty.clone()
                     .filter(|v| js::truthy(v))
                     .unwrap_or(Value::Null);
-            out.push(json!({ "name": t.name, "var": var, "type": ty }));
+            out.push(json!({ (token_entry::NAME): t.name, (token_entry::VAR): var, (token_entry::TYPE): ty }));
         }
     }
     for x in &out {
-        seen.push(js::to_string(x.get("var")));
+        seen.push(js::to_string(x.get(token_entry::VAR)));
     }
     let css = project_paths(root).tokens_css;
     if css.exists() {
@@ -271,7 +303,7 @@ pub fn token_list(root: &Path) -> Result<Value, DfwError> {
                 continue;
             }
             seen.push(name.to_string());
-            out.push(json!({ "name": name[2..].replace('-', "."), "var": name, "type": null }));
+            out.push(json!({ (token_entry::NAME): name[2..].replace('-', "."), (token_entry::VAR): name, (token_entry::TYPE): null }));
         }
     }
     Ok(Value::Array(out))
@@ -422,16 +454,16 @@ pub fn design_file(root: &Path, rel: &str) -> Result<DesignFile, DfwError> {
 pub fn shoot_frames(root: &Path, port: u16, body: &Value) -> Result<Value, DfwError> {
     let p = project_paths(root);
     let frames = body
-        .get("frames")
+        .get(shoot::FRAMES)
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
     // `fullPage = true` as a default parameter: only a missing value becomes true.
-    let full_page = body.get("fullPage").is_none_or(js::truthy);
+    let full_page = body.get(shoot::FULL_PAGE).is_none_or(js::truthy);
     let list: Vec<&Value> = frames
         .iter()
         .filter(|f| {
-            f.get("src")
+            f.get(shoot::SRC)
                 .and_then(Value::as_str)
                 .is_some_and(|s| s.starts_with(DESIGN_BASE) || s == paths::SYSTEM_PAGE)
         })
@@ -450,14 +482,17 @@ pub fn shoot_frames(root: &Path, port: u16, body: &Value) -> Result<Value, DfwEr
         .iter()
         .map(|f| {
             let name = js::to_string(
-                f.get("name")
+                f.get(shoot::NAME)
                     .filter(|n| js::truthy(n))
                     .or(Some(&json!("frame"))),
             );
             Job {
-                url: format!("http://127.0.0.1:{port}{}", js::to_string(f.get("src"))),
-                width: size(f.get("w"), 1440.0),
-                height: size(f.get("h"), 900.0),
+                url: format!(
+                    "http://127.0.0.1:{port}{}",
+                    js::to_string(f.get(shoot::SRC))
+                ),
+                width: size(f.get(shoot::W), 1440.0),
+                height: size(f.get(shoot::H), 900.0),
                 out: dir.join(format!("{}.png", frame_name(&name))),
                 full_page,
                 selector: None,
@@ -473,16 +508,16 @@ pub fn shoot_frames(root: &Path, port: u16, body: &Value) -> Result<Value, DfwEr
             let rel = to_posix(&relative_path(&p.dfw, &r.out));
             let mut m = Map::new();
             m.insert(
-                "name".into(),
+                shot::NAME.into(),
                 json!(r.out.file_name().map(|n| n.to_string_lossy().into_owned())),
             );
-            m.insert("ok".into(), json!(r.ok));
+            m.insert(shot::OK.into(), json!(r.ok));
             if let Some(e) = &r.error {
-                m.insert("error".into(), json!(e));
+                m.insert(shot::ERROR.into(), json!(e));
             }
-            m.insert("file".into(), json!(relative_path(root, &r.out)));
+            m.insert(shot::FILE.into(), json!(relative_path(root, &r.out)));
             m.insert(
-                "url".into(),
+                shot::URL.into(),
                 if r.ok {
                     json!(format!("{}{rel}", paths::PREFIX))
                 } else {

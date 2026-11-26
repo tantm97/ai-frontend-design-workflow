@@ -18,6 +18,29 @@ const EVENT_WRITE_TIMEOUT: Duration = Duration::from_secs(5);
 /// Events waiting for one page; a page that falls this far behind is dropped.
 const QUEUE: usize = 64;
 
+/// The keys of the data of the events the Studio sends.
+pub mod data {
+    /// `design`: the design files that changed, relative to `design/`.
+    pub const FILES: &str = "files";
+    /// `comments`: the comment that was added or changed.
+    pub const ID: &str = "id";
+    /// `comments`: how many drafts were sent.
+    pub const SENT: &str = "sent";
+    /// `presence`: the file and the element the agent is about to edit, as the note names them.
+    pub use super::presence::{DFW_ID, FILE};
+}
+
+/// The keys of `.dfw/presence.json`, the note the pre-tool-use hook writes:
+/// `{ file, dfwId, at }`.
+mod presence {
+    /// The design file, relative to `design/`.
+    pub const FILE: &str = "file";
+    /// The `data-dfw-id` of the element.
+    pub const DFW_ID: &str = "dfwId";
+    /// When the note was written (ISO time).
+    pub const AT: &str = "at";
+}
+
 /// The connected pages (`clients` in server.mjs): one queue per page. Each page's own
 /// connection thread writes its events, so a page that never reads cannot hold up a broadcast
 /// (the list lock is only held to put events in the queues).
@@ -89,13 +112,16 @@ fn write_events(stream: &mut TcpStream, rx: &Receiver<Arc<str>>) {
 /// is recent (under 10 s by the real clock, as `Date.now() - Date.parse(p.at)` in Node).
 pub fn presence_event(text: &str, now_ms: i64) -> Option<Value> {
     let p: Value = serde_json::from_str(text).ok()?;
-    let file = p.get("file")?.as_str()?;
-    let at = p.get("at").and_then(Value::as_str).and_then(parse_iso_ms)?;
+    let file = p.get(presence::FILE)?.as_str()?;
+    let at = p
+        .get(presence::AT)
+        .and_then(Value::as_str)
+        .and_then(parse_iso_ms)?;
     if now_ms - at >= 10_000 {
         return None;
     }
-    let dfw_id = p.get("dfwId").and_then(Value::as_str);
-    Some(serde_json::json!({ "file": file, "dfwId": dfw_id }))
+    let dfw_id = p.get(presence::DFW_ID).and_then(Value::as_str);
+    Some(serde_json::json!({ (data::FILE): file, (data::DFW_ID): dfw_id }))
 }
 
 /// `Date.parse` of an ISO time `YYYY-MM-DDTHH:MM:SS[.sss](Z|±HH:MM)` in milliseconds.

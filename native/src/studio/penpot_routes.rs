@@ -23,6 +23,8 @@ use crate::core::util::{get_path, read_json, to_json_pretty};
 use crate::penpot::export::{export_penpot, ExportOptions};
 use crate::penpot::import::{format_import_changes, import_changes, ImportOptions};
 use crate::penpot::live::sync_threads;
+use crate::penpot::wire;
+use crate::review::status::field as comment;
 use crate::studio::paths;
 use crate::workflow::state::load_state;
 
@@ -46,6 +48,35 @@ pub use super::paths::penpot as route;
 
 /// The header that carries the panel's token.
 pub const TOKEN_HEADER: &str = "x-dfw-bridge";
+
+/// The keys of the plugin manifest, as Penpot reads it.
+mod plugin_manifest {
+    pub const NAME: &str = "name";
+    pub const DESCRIPTION: &str = "description";
+    pub const VERSION: &str = "version";
+    /// The plugin's script.
+    pub const CODE: &str = "code";
+    pub const ICON: &str = "icon";
+    pub const PERMISSIONS: &str = "permissions";
+}
+
+/// The keys of the session the panel reads first: `{ token, origins }`.
+mod session {
+    /// The token the panel sends in [`TOKEN_HEADER`](super::TOKEN_HEADER).
+    pub const TOKEN: &str = "token";
+    /// The Penpot origins the Studio answers.
+    pub const ORIGINS: &str = "origins";
+}
+
+/// The keys of the answer to a change file: `{ summary, comments, changes }`.
+mod changes_answer {
+    /// The import report as `dfw penpot import` prints it.
+    pub const SUMMARY: &str = "summary";
+    /// The ids of the comments the changes became.
+    pub const COMMENTS: &str = "comments";
+    /// How many changes the file held.
+    pub const CHANGES: &str = "changes";
+}
 
 /// `penpot.origins` of the user's global config (`~/.config/dfw/config.json`; a project cannot
 /// choose who may drive its Studio): a list of origins such as `https://penpot.example.com`
@@ -133,12 +164,12 @@ fn cors(code: u16, body: impl Into<Vec<u8>>, content_type: &str) -> Response {
 /// The plugin manifest Penpot installs.
 fn manifest() -> Value {
     json!({
-        "name": "dfw bridge",
-        "description": "Build boards from a local dfw design and send designer changes back as dfw comments (local Studio on 127.0.0.1).",
-        "version": 3,
-        "code": route::PLUGIN_JS,
-        "icon": route::ICON,
-        "permissions": ["content:read", "content:write", "library:read", "library:write", "comment:write", "allow:downloads"],
+        (plugin_manifest::NAME): "dfw bridge",
+        (plugin_manifest::DESCRIPTION): "Build boards from a local dfw design and send designer changes back as dfw comments (local Studio on 127.0.0.1).",
+        (plugin_manifest::VERSION): 3,
+        (plugin_manifest::CODE): route::PLUGIN_JS,
+        (plugin_manifest::ICON): route::ICON,
+        (plugin_manifest::PERMISSIONS): ["content:read", "content:write", "library:read", "library:write", "comment:write", "allow:downloads"],
     })
 }
 
@@ -183,7 +214,7 @@ pub fn route(studio: &Studio, req: &Request) -> Result<Response, DfwError> {
             }
             Response::json(
                 status::OK,
-                &json!({ "token": studio.penpot_token, "origins": studio.penpot_origins }),
+                &json!({ (session::TOKEN): studio.penpot_token, (session::ORIGINS): studio.penpot_origins }),
             )
         }
         // A GET only reads the last export: rendering (files written, a browser started) is a
@@ -223,11 +254,11 @@ pub fn route(studio: &Studio, req: &Request) -> Result<Response, DfwError> {
             let ids: Vec<Value> = r
                 .comments
                 .iter()
-                .map(|c| c.get("id").cloned().unwrap_or(Value::Null))
+                .map(|c| c.get(comment::ID).cloned().unwrap_or(Value::Null))
                 .collect();
             Response::json(
                 status::OK,
-                &json!({ "summary": format_import_changes(&r, false), "comments": ids, "changes": r.changes.len() }),
+                &json!({ (changes_answer::SUMMARY): format_import_changes(&r, false), (changes_answer::COMMENTS): ids, (changes_answer::CHANGES): r.changes.len() }),
             )
         }
         // Live comments: the plugin panel sends the file's threads every few seconds and posts
@@ -239,7 +270,7 @@ pub fn route(studio: &Studio, req: &Request) -> Result<Response, DfwError> {
             let state = load_state(&studio.root)?;
             let r = sync_threads(&studio.root, &req.json()?, state.as_ref())?;
             let count = |k: &str| r.get(k).and_then(Value::as_array).map_or(0, Vec::len);
-            if count("comments") > 0 || count("updated") > 0 {
+            if count(wire::COMMENTS) > 0 || count(wire::UPDATED) > 0 {
                 studio.clients.broadcast("comments", &json!({}));
             }
             Response::json(status::OK, &r)

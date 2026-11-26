@@ -52,6 +52,28 @@ pub struct FoundBrowser {
     pub version: Option<String>,
 }
 
+/// The keys of the status of a tool dfw installs (`dfw setup`, `dfw doctor`):
+/// `{ installed, path, source, version }`, or `{ installed, detail }` when it is missing.
+pub mod status {
+    pub const INSTALLED: &str = "installed";
+    pub const PATH: &str = "path";
+    /// Where it came from (`downloaded`).
+    pub const SOURCE: &str = "source";
+    pub const VERSION: &str = "version";
+    /// Why it is missing.
+    pub const DETAIL: &str = "detail";
+}
+
+/// The keys of `current.json` in the browser folder: `{ version, platform, path }` of the
+/// headless shell `dfw setup --browser` downloaded.
+pub(crate) mod current {
+    pub const VERSION: &str = "version";
+    /// Chrome for Testing's name of the platform.
+    pub const PLATFORM: &str = "platform";
+    /// The executable.
+    pub const PATH: &str = "path";
+}
+
 /// Where `dfw setup --browser` keeps the headless shell (`browserDir()`).
 pub(crate) fn browser_dir() -> PathBuf {
     global_dir().join("browser")
@@ -61,12 +83,12 @@ pub(crate) fn browser_dir() -> PathBuf {
 fn downloaded_browser() -> Option<FoundBrowser> {
     let text = fs::read_to_string(browser_dir().join("current.json")).ok()?;
     let cur: Value = serde_json::from_str(&text).ok()?;
-    let path = PathBuf::from(cur.get("path")?.as_str().filter(|p| !p.is_empty())?);
+    let path = PathBuf::from(cur.get(current::PATH)?.as_str().filter(|p| !p.is_empty())?);
     path.exists().then(|| FoundBrowser {
         path,
         source: "downloaded",
         version: cur
-            .get("version")
+            .get(current::VERSION)
             .and_then(Value::as_str)
             .map(str::to_string),
     })

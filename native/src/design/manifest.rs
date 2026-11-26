@@ -24,7 +24,11 @@ pub mod key {
     pub const PRODUCT: &str = "product";
     pub const BREAKPOINTS: &str = "breakpoints";
     pub const STATES: &str = "states";
+    /// The themes the design declares (`data-theme` values).
+    pub const THEMES: &str = "themes";
     pub const PAGES: &str = "pages";
+    /// The canvas page a screen names as its own.
+    pub const PAGE: &str = "page";
     pub const FLOWS: &str = "flows";
     pub const SCREENS: &str = "screens";
     pub const VARIANTS: &str = "variants";
@@ -34,6 +38,8 @@ pub mod key {
     /// The title of a page.
     pub const TITLE: &str = "title";
     pub const DESCRIPTION: &str = "description";
+    /// The label of a variant.
+    pub const LABEL: &str = "label";
     pub const FILE: &str = "file";
     pub const BLUEPRINT: &str = "blueprint";
     /// What the product is: `product` (app screens, the default) or `marketing`.
@@ -60,6 +66,9 @@ pub mod key {
     pub const DESIGNED_STATES: &str = "designedStates";
     /// Added by the Studio's manifest API: the canvas pages.
     pub const STUDIO_PAGES: &str = "studioPages";
+    /// Added by the Studio's manifest API: `true` when there is no `design.json` and the
+    /// screens were read from `design/screens/**`.
+    pub const INFERRED: &str = "inferred";
 }
 
 /// The keys of a screen's [`key::BLUEPRINT`]: the plan of the screen before it is drawn.

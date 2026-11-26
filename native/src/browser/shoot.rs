@@ -228,13 +228,13 @@ fn shots_version(root: &Path) -> Result<String, DfwError> {
 fn screens_of_page(m: &Value, screens: &[&Value], page: &str) -> Vec<String> {
     let listed = manifest::items(m.get(key::PAGES))
         .iter()
-        .find(|pg| text(pg, "id") == page)
+        .find(|pg| text(pg, key::ID) == page)
         .map(|pg| strings(pg.get(key::SCREENS)))
         .unwrap_or_default();
     let tagged = screens
         .iter()
-        .filter(|s| text(s, "page") == page)
-        .map(|s| text(s, "id").to_string());
+        .filter(|s| text(s, key::PAGE) == page)
+        .map(|s| text(s, key::ID).to_string());
     listed.into_iter().chain(tagged).collect()
 }
 
@@ -246,9 +246,9 @@ fn states_and_themes(
 ) -> (Vec<Option<String>>, Vec<Option<String>>) {
     let states = if opts.states {
         let own = screen
-            .get("states")
+            .get(key::STATES)
             .filter(|v| js::truthy(v))
-            .or(m.get("states"));
+            .or(m.get(key::STATES));
         std::iter::once(None)
             .chain(strings(own).into_iter().map(Some))
             .collect()
@@ -256,7 +256,7 @@ fn states_and_themes(
         vec![opts.state.clone()]
     };
     let themes = if opts.themes {
-        let all = strings(m.get("themes"));
+        let all = strings(m.get(key::THEMES));
         if all.is_empty() {
             vec![None]
         } else {
@@ -298,7 +298,7 @@ pub fn studio_jobs(
         .page
         .as_deref()
         .map(|page| screens_of_page(&m, &screens_all, page));
-    let studio_url = text(&info, "url");
+    let studio_url = text(&info, record::URL);
     let shots_dir = p.shots.join(version);
     let name = |parts: &[&str]| {
         let kept: Vec<&str> = parts.iter().copied().filter(|s| !s.is_empty()).collect();
@@ -331,7 +331,7 @@ pub fn studio_jobs(
         format!("el-{cleaned}")
     });
     for s in screens {
-        let id = text(s, "id");
+        let id = text(s, key::ID);
         if screen.as_deref().is_some_and(|only| only != id) {
             continue;
         }
@@ -343,7 +343,10 @@ pub fn studio_jobs(
         }
         let (states, themes) = states_and_themes(&m, s, opts);
         for v in manifest::items(s.get(key::VARIANTS)).iter() {
-            if variant.as_deref().is_some_and(|only| only != text(v, "id")) {
+            if variant
+                .as_deref()
+                .is_some_and(|only| only != text(v, key::ID))
+            {
                 continue;
             }
             for bp in bps {
@@ -352,12 +355,12 @@ pub fn studio_jobs(
                         let q = query(th.as_deref(), st.as_deref());
                         let q = if q.is_empty() { q } else { format!("?{q}") };
                         jobs.push(Job {
-                            url: format!("{studio_url}{}{q}", rel::design(text(v, "file"))),
+                            url: format!("{studio_url}{}{q}", rel::design(text(v, key::FILE))),
                             width: bp.width,
                             height: bp.height,
                             out: shots_dir.join(name(&[
                                 &id.replace('/', "__"),
-                                text(v, "id"),
+                                text(v, key::ID),
                                 &bp.id,
                                 th.as_deref().unwrap_or(""),
                                 st.as_deref().unwrap_or(""),

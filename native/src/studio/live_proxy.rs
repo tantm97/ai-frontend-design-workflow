@@ -386,6 +386,12 @@ pub fn inject_live(html: &str, nonce: Option<&str>, shortcut: &str) -> String {
     tags + html
 }
 
+/// The keys of a breakpoint (design.json's or the config's) that [`nearest_breakpoint`] reads.
+mod breakpoint {
+    pub const ID: &str = "id";
+    pub const WIDTH: &str = "width";
+}
+
 /// `nearestBreakpoint(root, width)`: the id of the breakpoint closest to a viewport width
 /// (design.json's, else the config's); `None` without breakpoints.
 pub fn nearest_breakpoint(root: &Path, width: f64) -> Result<Option<Value>, DfwError> {
@@ -406,7 +412,7 @@ pub fn nearest_breakpoint(root: &Path, width: f64) -> Result<Option<Value>, DfwE
     if list.is_empty() || width == 0.0 || width.is_nan() {
         return Ok(None);
     }
-    let dist = |b: &Value| (crate::core::js::to_number(b.get("width")) - width).abs();
+    let dist = |b: &Value| (crate::core::js::to_number(b.get(breakpoint::WIDTH)) - width).abs();
     let mut best = &list[0];
     for b in &list[1..] {
         // NaN compares false, as in the reduce of live.mjs.
@@ -414,7 +420,7 @@ pub fn nearest_breakpoint(root: &Path, width: f64) -> Result<Option<Value>, DfwE
             best = b;
         }
     }
-    Ok(best.get("id").cloned())
+    Ok(best.get(breakpoint::ID).cloned())
 }
 
 /// The shortcut a proxy uses: `--shortcut`, else `review.shortcut` in the config, else Alt+C.

@@ -41,7 +41,7 @@ impl Level {
     }
 }
 
-/// The keys of a finding record that code reads by name (the others are not named yet).
+/// The keys of a finding record: `{ level, rule, file, line, source, message }`.
 pub mod finding {
     /// The finding's [`Level`](super::Level), by its name.
     pub const LEVEL: &str = "level";
