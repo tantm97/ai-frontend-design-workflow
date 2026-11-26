@@ -1254,20 +1254,17 @@ fn reviews_writes_hold_the_lock() {
     );
 }
 
-/// The keys of the files dfw and the dfw bridge plugin exchange (the export, the change file,
-/// the live sync, the threads ledger) are named once, in `penpot::wire` (`mod.rs`), and read
-/// and written through those names (the token files are `penpot::tokens`' own). A key
-/// spelled as a literal compiles even when it is misspelled. Refused, in product code: a
-/// literal read (`.get("…")`, `.get_mut("…")`), write (`insert("…"`, `shift_remove("…")`)
-/// or `json!` object key (`"…":`). A literal that is a value does not match.
-#[test]
-fn penpot_keys_are_penpot_wire() {
+/// The JSON keys spelled as literals in the product code of the files `checked` picks (all but
+/// `skip`), as `file:line: "key"`: a literal read (`.get("…")`, `.get_mut("…")`), write
+/// (`insert("…"`, `shift_remove("…")`) or `json!` object key (`"…":`). A literal that is a
+/// value does not match.
+fn literal_keys(skip: &[&str], checked: impl Fn(&str) -> bool) -> Vec<String> {
     let call = regex::Regex::new(r#"(?:\.get|\.get_mut|insert|shift_remove)\("((?:[^"\\]|\\.)*)""#)
         .unwrap();
     let literal = regex::Regex::new(r#""((?:[^"\\]|\\.)*)""#).unwrap();
     let mut found = Vec::new();
-    for (rel, lines) in product_sources(&["src/penpot/mod.rs"]) {
-        if !rel.starts_with("src/penpot/") || rel.starts_with("src/penpot/tokens/") {
+    for (rel, lines) in product_sources(skip) {
+        if !checked(&rel) {
             continue;
         }
         for (i, line) in lines.iter().enumerate() {
@@ -1280,9 +1277,41 @@ fn penpot_keys_are_penpot_wire() {
             }
         }
     }
+    found
+}
+
+/// The keys of the files dfw and the dfw bridge plugin exchange (the export, the change file,
+/// the live sync, the threads ledger) are named once, in `penpot::wire` (`mod.rs`), and read
+/// and written through those names (the token files are `penpot::tokens`' own). A key
+/// spelled as a literal compiles even when it is misspelled ([`literal_keys`]).
+#[test]
+fn penpot_keys_are_penpot_wire() {
+    let found = literal_keys(&["src/penpot/mod.rs"], |rel| {
+        rel.starts_with("src/penpot/") && !rel.starts_with("src/penpot/tokens/")
+    });
     assert!(
         found.is_empty(),
         "JSON keys spelled as literals in src/penpot/; name them in penpot::wire (mod.rs):\n{}",
+        found.join("\n")
+    );
+}
+
+/// The keys of the workflow files (`.dfw/state.json` and its gate records and history,
+/// `decisions.jsonl`, `stack.json`, a snapshot's `approval.lock.json`, `studio.json`,
+/// `review.json`) are named once, by the module that owns the file (`workflow::state::field`,
+/// `decisions::field`, `stack::field`, `freeze::field`, `server::field`). A misspelt key reads
+/// nothing: for `design.locked` that opens the frozen-design check. Refused in `src/workflow/`,
+/// `src/cli/workflow.rs` and `src/cli/studio.rs`: a literal key ([`literal_keys`]).
+#[test]
+fn workflow_keys_are_named() {
+    let found = literal_keys(&[], |rel| {
+        rel.starts_with("src/workflow/")
+            || rel == "src/cli/workflow.rs"
+            || rel == "src/cli/studio.rs"
+    });
+    assert!(
+        found.is_empty(),
+        "JSON keys spelled as literals; name them in the module that owns the file (workflow::state::field, ...):\n{}",
         found.join("\n")
     );
 }

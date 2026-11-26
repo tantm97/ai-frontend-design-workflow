@@ -17,6 +17,7 @@ use crate::core::lock::{self, LockTimes};
 use crate::core::paths::{file, project_paths, rel};
 use crate::core::util::{iso_from_millis, now_iso, read_json, write_json_inside};
 use crate::review::status::{self, by, field, Status};
+use crate::workflow::state::field as state_key;
 
 /// `locked(root, fn)`: run `f` holding the reviews lock (`.dfw/reviews/.lock`, see
 /// `core::lock`). The Studio server and the CLI (hooks, `dfw comments ...`) change the same
@@ -172,8 +173,8 @@ fn new_session_unlocked(
         Some(v) => v.to_string(),
         None => {
             let v = state
-                .get("design")
-                .and_then(|d| d.get("version"))
+                .get(state_key::DESIGN)
+                .and_then(|d| d.get(state_key::VERSION))
                 .filter(|v| !v.is_null());
             format!("v{}", v.map_or("1".to_string(), |v| js::to_string(Some(v))))
         }

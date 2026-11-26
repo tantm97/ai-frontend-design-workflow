@@ -11,11 +11,13 @@ use serde_json::{json, Map, Value};
 use super::word::{command, sub};
 use super::{Ctx, Handler};
 use crate::browser::a11y::{a11y_check, A11yOptions};
-use crate::core::config::{get_config_value, load_config, set_config_value, Scope};
+use crate::core::config::{
+    get_config_value, key as config_key, load_config, set_config_value, Scope,
+};
 use crate::core::error::exit;
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::level::{self, Level};
+use crate::core::level::{self, finding as finding_key, Level};
 use crate::core::paths::{file, project_paths, rel};
 use crate::core::process::{is_alive, Pid};
 use crate::core::util::{
@@ -25,18 +27,22 @@ use crate::core::util::{
 use crate::design::compose::{build_system, load_components};
 use crate::design::dsaudit::audit_design_system;
 use crate::design::inventory::DS_GATE_RULES;
+use crate::design::manifest::key as manifest_key;
 use crate::design::tokens::{build_tokens, dir_names, option};
 use crate::review::comments::{add_comment, all_comments};
-use crate::review::status::{self, Status};
-use crate::tools::check::{format_report, run_checks, CheckOptions};
+use crate::review::status::{self, field as comment, Status};
+use crate::tools::check::{field as check, format_report, run_checks, CheckOptions};
+use crate::workflow::decisions::field as decision;
 use crate::workflow::decisions::{decide, format_decisions, read_decisions};
 use crate::workflow::freeze::{freeze_design, reopen_design, verify_snapshot};
 use crate::workflow::lang::{language_status, set_language};
+use crate::workflow::server::field as record;
 use crate::workflow::stack::detect_stack;
+use crate::workflow::stack::field as stack_key;
 use crate::workflow::state::{
-    approve_gate, arg_raw, arg_truthy, current_approval, gate_title, load_state, mode_info,
-    new_state, push_history, require_state, save_state, set_field, set_mode, set_phase,
-    state_field_error, summarize, type_error,
+    approve_gate, approved_versions, arg_raw, arg_truthy, current_approval, field, gate,
+    gate_title, load_state, mode_info, new_state, push_history, require_state, save_state,
+    set_field, set_mode, set_phase, state_field_error, summarize, type_error,
 };
 
 /// The commands of this group.
@@ -76,14 +82,14 @@ fn init(ctx: &Ctx) -> Result<i32, DfwError> {
     let mode = arg_truthy(a, "mode").map_or("new-product".to_string(), |m| js::to_string(Some(&m)));
     let product = arg_truthy(a, "product").unwrap_or_else(|| "".into());
     let mut state = new_state(&mode, product)?;
-    let mode = js::to_string(state.get("mode"));
+    let mode = js::to_string(state.get(field::MODE));
     if mode_info(&mode).is_some_and(|m| m.requires_approved_design) {
         return Err(DfwError::new(format!("Mode \"{mode}\" needs an existing approved design; initialize with another mode first.")));
     }
     save_state(&root, &mut state)?;
     fs::create_dir_all(&p.reviews)?;
     if !p.config.exists() {
-        write_json_inside(&root, &p.config, &json!({ "schema": 1 }))?;
+        write_json_inside(&root, &p.config, &json!({ (config_key::SCHEMA): 1 }))?;
     }
     if !p.decisions.exists() {
         write_atomic_inside(&root, &p.decisions, "")?;
@@ -113,7 +119,7 @@ fn init(ctx: &Ctx) -> Result<i32, DfwError> {
     if !p.design.exists() {
         crate::assets::copy_templates(&root, "design", &p.design)?;
         let mut m = read_json(&p.manifest, None)?;
-        let product = js::truthy_value(state.get("product"))
+        let product = js::truthy_value(state.get(field::PRODUCT))
             .cloned()
             .unwrap_or_else(|| {
                 Value::String(
@@ -123,7 +129,7 @@ fn init(ctx: &Ctx) -> Result<i32, DfwError> {
                 )
             });
         if let Value::Object(map) = &mut m {
-            map.insert("product".into(), product);
+            map.insert(manifest_key::PRODUCT.into(), product);
         }
         write_json_inside(&root, &p.manifest, &m)?;
         created.push(format!("{}/", rel::DESIGN));
@@ -141,6 +147,22 @@ fn init(ctx: &Ctx) -> Result<i32, DfwError> {
         summarize(Some(&state))?
     ));
     Ok(0)
+}
+
+/// The keys of `dfw status --json`.
+mod status_key {
+    pub const ROOT: &str = "root";
+    pub const STATE: &str = "state";
+    /// The current approved design, `null` while the latest version is a draft.
+    pub const APPROVED: &str = "approved";
+    /// `{ active, fixed, resolved }`: how many review comments are in each group.
+    pub const COMMENTS: &str = "comments";
+    pub const ACTIVE: &str = "active";
+    pub const FIXED: &str = "fixed";
+    pub const RESOLVED: &str = "resolved";
+    /// The running Studio's record, `null` when it does not run.
+    pub const STUDIO: &str = "studio";
+    pub const STACK: &str = "stack";
 }
 
 fn status(ctx: &Ctx) -> Result<i32, DfwError> {
@@ -166,7 +188,7 @@ fn status(ctx: &Ctx) -> Result<i32, DfwError> {
     );
     let studio = read_json(&p.studio, Some(Value::Null))?;
     let studio = if js::truthy(&studio) {
-        if Pid::of(studio.get("pid")).is_some_and(is_alive) {
+        if Pid::of(studio.get(record::PID)).is_some_and(is_alive) {
             studio
         } else {
             Value::Null
@@ -181,19 +203,23 @@ fn status(ctx: &Ctx) -> Result<i32, DfwError> {
     };
     if as_json {
         return print_json(&json!({
-            "root": root.to_string_lossy(),
-            "state": state,
-            "approved": approved,
-            "comments": { "active": active, "fixed": fixed, "resolved": resolved },
-            "studio": studio,
-            "stack": stack,
+            (status_key::ROOT): root.to_string_lossy(),
+            (status_key::STATE): state,
+            (status_key::APPROVED): approved,
+            (status_key::COMMENTS): {
+                (status_key::ACTIVE): active,
+                (status_key::FIXED): fixed,
+                (status_key::RESOLVED): resolved,
+            },
+            (status_key::STUDIO): studio,
+            (status_key::STACK): stack,
         }));
     }
     let mut lines = vec![summarize(state.as_ref())?];
     if let Some(state) = &state {
         let gates = state
-            .get("gates")
-            .ok_or_else(|| state_field_error("gates", "an object"))?;
+            .get(field::GATES)
+            .ok_or_else(|| state_field_error(field::GATES, "an object"))?;
         let gate = |g: &str| js::truthy_value(gates.get(g)).is_some();
         lines.push(format!(
             "comments: {active} active, {fixed} awaiting user verification, {resolved} resolved"
@@ -203,17 +229,21 @@ fn status(ctx: &Ctx) -> Result<i32, DfwError> {
             if studio.is_null() {
                 "not running".to_string()
             } else {
-                js::to_string(studio.get("url"))
+                js::to_string(studio.get(record::URL))
             }
         ));
         lines.push(format!(
             "stack: {}",
             if js::truthy(&stack) {
-                let name = js::truthy_value(stack.get("framework").and_then(|f| f.get("name")));
+                let name = js::truthy_value(
+                    stack
+                        .get(stack_key::FRAMEWORK)
+                        .and_then(|f| f.get(stack_key::NAME)),
+                );
                 format!(
                     "{}{}",
                     name.map_or("?".to_string(), |n| js::to_string(Some(n))),
-                    if gate("G3") {
+                    if gate(gate::G3) {
                         " (approved)"
                     } else {
                         " (proposed)"
@@ -226,9 +256,9 @@ fn status(ctx: &Ctx) -> Result<i32, DfwError> {
         let next = next_step(
             state,
             Gates {
-                g1: gate("G1"),
-                ds: gate("DS"),
-                g3: gate("G3"),
+                g1: gate(gate::G1),
+                ds: gate(gate::DS),
+                g3: gate(gate::G3),
             },
             load_components(&root)?.len(),
             (active, fixed),
@@ -260,7 +290,7 @@ fn next_step(
 ) -> Option<String> {
     let Gates { g1, ds, g3 } = gates;
     let (active, fixed) = comments;
-    let step = match state.get("phase").and_then(Value::as_str)? {
+    let step = match state.get(field::PHASE).and_then(Value::as_str)? {
         "discovery" => "finish discovery (PRODUCT.md), then \"dfw phase direction\"",
         "direction" if g1 => "\"dfw phase system\"",
         "direction" => "present directions; record the choice with \"dfw approve G1 --note ...\"",
@@ -330,13 +360,15 @@ fn approve_ds(root: &Path, a: &Args) -> Result<(), DfwError> {
     let mut results = run_checks(root, Some(&targets), &config, opts)?;
     let mut audit = audit_design_system(root)?;
     for finding in &mut audit {
-        let rule = finding.get("rule").and_then(Value::as_str);
+        let rule = finding.get(finding_key::RULE).and_then(Value::as_str);
         let must = rule.is_some_and(|r| r == "rationale" || DS_GATE_RULES.contains(&r));
         if let (true, Value::Object(map)) = (must, finding) {
-            map.insert("level".into(), Level::Error.as_str().into());
+            map.insert(finding_key::LEVEL.into(), Level::Error.as_str().into());
         }
     }
-    results.push(json!({ "tool": "dfw-ds-audit", "status": "ran", "findings": audit }));
+    results.push(
+        json!({ (check::TOOL): "dfw-ds-audit", (check::STATUS): "ran", (check::FINDINGS): audit }),
+    );
     let report = format_report(&results, 30);
     if report.errors > 0 && !a.truthy("accept-findings") {
         return Err(DfwError::new(format!(
@@ -384,20 +416,18 @@ fn approve_g2(root: &Path, a: &Args, state: &mut Value, note: Value) -> Result<i
     let open: Vec<String> = all_comments(root)?
         .iter()
         .filter(|c| status::of(c).is_some_and(|s| s.is_active() || s == Status::Fixed))
-        .map(|c| js::to_string(c.get("id")))
+        .map(|c| js::to_string(c.get(comment::ID)))
         .collect();
     if !open.is_empty() && !a.truthy("accept-open-comments") {
         return Err(DfwError::new(format!("G2 blocked: {} review comment(s) are not resolved or dismissed ({}). Resolve them with the user, or pass --accept-open-comments if the user says so.", open.len(), open.join(", "))));
     }
     freeze_design(root, state, Some(note))?;
-    let last = state
-        .get("design")
-        .and_then(|d| d.get("approved"))
+    let last = approved_versions(state)
         .and_then(Value::as_array)
         .and_then(|list| list.last())
         .ok_or_else(|| type_error("version"))?;
-    let hash = js::to_string(last.get("hash"));
-    let version = js::to_string(last.get("version"));
+    let hash = js::to_string(last.get(field::HASH));
+    let version = js::to_string(last.get(field::VERSION));
     // Recorded only once the design is frozen: a refusal after the checks records nothing.
     if report.errors > 0 {
         let musts: Vec<Value> = report
@@ -411,12 +441,12 @@ fn approve_g2(root: &Path, a: &Args, state: &mut Value, note: Value) -> Result<i
             root,
             &project_paths(root).decisions,
             &json!({
-                "at": now_iso(),
-                "level": 1,
-                "topic": "gate:G2:accepted-findings",
-                "decision": format!("User accepted {} MUST finding(s) at freeze.", report.errors),
-                "findings": musts,
-                "by": "user",
+                (decision::AT): now_iso(),
+                (decision::LEVEL): 1,
+                (decision::TOPIC): "gate:G2:accepted-findings",
+                (decision::DECISION): format!("User accepted {} MUST finding(s) at freeze.", report.errors),
+                (decision::FINDINGS): musts,
+                (decision::BY): "user",
             }),
         )?;
     }
@@ -425,12 +455,12 @@ fn approve_g2(root: &Path, a: &Args, state: &mut Value, note: Value) -> Result<i
             root,
             &project_paths(root).decisions,
             &json!({
-                "at": now_iso(),
-                "level": 1,
-                "topic": "gate:G2:accepted-unverified",
-                "decision": format!("User accepted freezing {version} with {} check(s) not run: {}.", report.unverified.len(), report.unverified.join(", ")),
-                "unverified": report.unverified,
-                "by": "user",
+                (decision::AT): now_iso(),
+                (decision::LEVEL): 1,
+                (decision::TOPIC): "gate:G2:accepted-unverified",
+                (decision::DECISION): format!("User accepted freezing {version} with {} check(s) not run: {}.", report.unverified.len(), report.unverified.join(", ")),
+                (decision::UNVERIFIED): report.unverified,
+                (decision::BY): "user",
             }),
         )?;
     }
@@ -452,15 +482,15 @@ fn approve(ctx: &Ctx) -> Result<i32, DfwError> {
     let Some(note) = arg_truthy(a, "note") else {
         return Err(DfwError::new("Approvals record what the user approved: pass --note \"<summary of what was approved>\"."));
     };
-    if gate == "DS" {
+    if gate == gate::DS {
         approve_ds(&root, a)?;
     }
-    if gate == "G2" {
+    if gate == gate::G2 {
         return approve_g2(&root, a, &mut state, note);
     }
     let file = project_paths(&root).stack;
     let mut stack = Value::Null;
-    if gate == "G3" {
+    if gate == gate::G3 {
         stack = read_json(&file, Some(Value::Null))?;
         if file.exists() && !stack.is_object() {
             return Err(DfwError::new(format!("G3 needs a stack proposal: {} must hold a JSON object (run: dfw stack set ... or dfw stack detect --write).", rel::STACK)));
@@ -469,8 +499,8 @@ fn approve(ctx: &Ctx) -> Result<i32, DfwError> {
     approve_gate(&root, &mut state, &gate, Some(note), Map::new())?;
     // The stack is marked approved only once the gate is recorded.
     if let Value::Object(map) = &mut stack {
-        map.insert("status".into(), "approved".into());
-        map.insert("approvedAt".into(), now_iso().into());
+        map.insert(stack_key::STATUS.into(), "approved".into());
+        map.insert(stack_key::APPROVED_AT.into(), now_iso().into());
         write_json_inside(&root, &file, &stack)?;
     }
     out(&format!(
@@ -494,13 +524,13 @@ fn pause_resume(ctx: &Ctx) -> Result<i32, DfwError> {
     let cmd = ctx.args.pos(0).unwrap_or_default();
     let resume = cmd == "resume";
     let mut state = require_state(&root)?;
-    set_field(&mut state, "active", Some(resume.into()))?;
+    set_field(&mut state, field::ACTIVE, Some(resume.into()))?;
     push_history(
         &mut state,
         js::object(vec![
-            ("at", Some(now_iso().into())),
-            ("event", Some(cmd.into())),
-            ("reason", arg_raw(&ctx.args, "reason")),
+            (field::AT, Some(now_iso().into())),
+            (field::EVENT, Some(cmd.into())),
+            (field::REASON, arg_raw(&ctx.args, "reason")),
         ]),
     )?;
     save_state(&root, &mut state)?;
@@ -599,7 +629,7 @@ fn verify_snapshot_cmd(ctx: &Ctx) -> Result<i32, DfwError> {
     let root = ctx.root();
     let state = require_state(&root)?;
     let version_of = |v: Option<&Value>| {
-        js::truthy_value(v.and_then(|v| v.get("version"))).map(|v| js::to_string(Some(v)))
+        js::truthy_value(v.and_then(|v| v.get(field::VERSION))).map(|v| js::to_string(Some(v)))
     };
     let named = ctx
         .args
@@ -609,9 +639,7 @@ fn verify_snapshot_cmd(ctx: &Ctx) -> Result<i32, DfwError> {
     let version = match named.or(version_of(current_approval(&state)?.as_ref())) {
         Some(v) => Some(v),
         None => {
-            let approved = state
-                .get("design")
-                .and_then(|d| d.get("approved"))
+            let approved = approved_versions(&state)
                 .and_then(Value::as_array)
                 .ok_or_else(|| state_field_error("design.approved", "a list"))?;
             version_of(approved.last())
@@ -645,7 +673,7 @@ pub(super) fn debug_hot(ctx: &Ctx) -> Result<i32, DfwError> {
             let tag = a.pos(4).unwrap_or_default();
             let count: usize = a.pos(5).and_then(|n| n.parse().ok()).unwrap_or(1);
             for i in 0..count {
-                add_comment(&root, &json!({ "comment": format!("{tag}{i}") }))?;
+                add_comment(&root, &json!({ (comment::COMMENT): format!("{tag}{i}") }))?;
             }
             Ok(0)
         }

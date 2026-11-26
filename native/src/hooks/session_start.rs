@@ -13,7 +13,7 @@ use crate::core::paths::env_nonempty;
 use crate::review::comments::all_comments;
 use crate::review::status::{self, Status};
 use crate::workflow::lang::prune_sessions;
-use crate::workflow::state::{load_state, summarize};
+use crate::workflow::state::{field, load_state, summarize};
 
 use super::pre_tool_use::root_from;
 
@@ -36,7 +36,7 @@ pub fn session_start(input: &HookInput) -> Result<Option<HookResult>, DfwError> 
     let Some(state) = load_state(&root)? else {
         return Ok(None);
     };
-    if state.get("active") == Some(&Value::Bool(false)) {
+    if state.get(field::ACTIVE) == Some(&Value::Bool(false)) {
         return Ok(None);
     }
     let comments = all_comments(&root)?;

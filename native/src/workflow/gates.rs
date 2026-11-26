@@ -14,7 +14,7 @@ use crate::core::js;
 use crate::core::paths::{self, resolve};
 use crate::core::util::matches_any;
 
-use super::state::{current_approval, gate_passed};
+use super::state::{current_approval, design_lock, field, gate, gate_passed};
 
 /// The text of the gate's refusals and errors, named once (the golden tests record it).
 pub mod message {
@@ -163,7 +163,7 @@ pub fn decide_write(
     let Some(state) = state else {
         return Ok(Decision::allow());
     };
-    if state.get("active") == Some(&Value::Bool(false)) {
+    if state.get(field::ACTIVE) == Some(&Value::Bool(false)) {
         return Ok(Decision::allow());
     }
     let (rel, resolved) = match real_relative(root, abs_file) {
@@ -198,18 +198,13 @@ fn decide_rel(
     if matches_any(rel, &gate_allow(config)) {
         return Ok(Decision::allow());
     }
-    if state.get("mode").and_then(Value::as_str) == Some("review-only") {
+    if state.get(field::MODE).and_then(Value::as_str) == Some("review-only") {
         return Ok(Decision::deny(message::review_only()));
     }
     let design_paths = gate_design_paths(config);
-    let design = state.get("design");
     // A locked design is refused under any case of its name; an open one is allowed as written.
-    if js::truthy_value(design.and_then(|d| d.get("locked"))).is_some()
-        && matches(rel, &design_paths, fold)
-    {
-        return Ok(Decision::deny(message::locked(&js::to_string(
-            design.and_then(|d| d.get("version")),
-        ))));
+    if let Some(version) = design_lock(state).filter(|_| matches(rel, &design_paths, fold)) {
+        return Ok(Decision::deny(message::locked(&version)));
     }
     if matches_any(rel, &design_paths) {
         return Ok(Decision::allow());
@@ -220,10 +215,10 @@ fn decide_rel(
     if current_approval(state)?.is_none() {
         missing.push(message::MISSING_G2.into());
     }
-    if !gate_passed(state, "G3") {
+    if !gate_passed(state, gate::G3) {
         missing.push(message::MISSING_G3.into());
     }
-    let phase = state.get("phase");
+    let phase = state.get(field::PHASE);
     if !matches!(
         phase.and_then(Value::as_str),
         Some("implement" | "verify" | "done")

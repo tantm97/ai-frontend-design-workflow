@@ -162,8 +162,10 @@ use crate::core::util::{now_iso, write_json_inside};
 use crate::tools::handoff::write_handoff;
 use crate::tools::mcp::serve_mcp;
 use crate::tools::mcp_install::{mcp_install, which_tool};
-use crate::workflow::stack::detect_stack;
-use crate::workflow::state::{load_state, push_history, save_state, state_field_error};
+use crate::workflow::stack::{detect_stack, field as stack_key};
+use crate::workflow::state::{
+    field, gate, load_state, push_history, save_state, state_field_error,
+};
 
 /// `dfw mcp`: the server on stdio; `dfw mcp install|uninstall <tool|all> [--print]`.
 fn mcp(ctx: &Ctx) -> Result<i32, DfwError> {
@@ -198,8 +200,8 @@ fn stack(ctx: &Ctx) -> Result<i32, DfwError> {
             let detected = detect_stack(&root)?;
             if a.truthy("write") {
                 let mut data = js::spread(Some(&detected));
-                data.insert("status".into(), json!("proposed"));
-                data.insert("source".into(), json!("detected"));
+                data.insert(stack_key::STATUS.into(), json!("proposed"));
+                data.insert(stack_key::SOURCE.into(), json!("detected"));
                 write_json_inside(&root, &file, &Value::Object(data))?;
             }
             out(&to_json_pretty(&detected));
@@ -214,19 +216,19 @@ fn stack(ctx: &Ctx) -> Result<i32, DfwError> {
                 _ => json!({}),
             };
             let mut data = js::spread(Some(&given));
-            data.insert("status".into(), json!("proposed"));
-            data.insert("proposedAt".into(), json!(now_iso()));
+            data.insert(stack_key::STATUS.into(), json!("proposed"));
+            data.insert(stack_key::PROPOSED_AT.into(), json!(now_iso()));
             write_json_inside(&root, &file, &Value::Object(data))?;
             if let Some(mut state) = load_state(&root)? {
                 let gates = state
-                    .get_mut("gates")
+                    .get_mut(field::GATES)
                     .filter(|g| !g.is_null())
-                    .ok_or_else(|| state_field_error("gates", "an object"))?;
-                if js::truthy_value(gates.get("G3")).is_some() {
-                    gates["G3"] = Value::Null;
+                    .ok_or_else(|| state_field_error(field::GATES, "an object"))?;
+                if js::truthy_value(gates.get(gate::G3)).is_some() {
+                    gates[gate::G3] = Value::Null;
                     push_history(
                         &mut state,
-                        json!({ "at": now_iso(), "event": "stack-changed", "note": "G3 invalidated by a new stack proposal" }),
+                        json!({ (field::AT): now_iso(), (field::EVENT): "stack-changed", (field::NOTE): "G3 invalidated by a new stack proposal" }),
                     )?;
                     save_state(&root, &mut state)?;
                 }

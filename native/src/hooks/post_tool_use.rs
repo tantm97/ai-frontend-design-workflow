@@ -19,7 +19,7 @@ use crate::design::compose::build_system;
 use crate::design::tokens::build_tokens;
 use crate::tools::check::{extname, format_report, run_checks, CheckOptions, UI_EXT};
 use crate::workflow::gates::relative;
-use crate::workflow::state::load_state;
+use crate::workflow::state::{field, load_state};
 
 use super::pre_tool_use::{root_from, tool_files};
 use super::user_prompt_submit::{delivers_on_prompt, inbox_for};
@@ -64,7 +64,7 @@ fn edited(input: &HookInput) -> Result<Option<Edited>, DfwError> {
     let Some(state) = load_state(&root)? else {
         return Ok(None);
     };
-    if state.get("active") == Some(&Value::Bool(false)) {
+    if state.get(field::ACTIVE) == Some(&Value::Bool(false)) {
         return Ok(None);
     }
     let config = load_config(Some(&root))?;

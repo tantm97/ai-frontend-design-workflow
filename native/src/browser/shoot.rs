@@ -15,7 +15,8 @@ use crate::core::paths::{file, project_paths, rel, resolve, ProjectPaths};
 use crate::core::process::{is_alive, Pid};
 use crate::core::util::read_json;
 use crate::design::manifest::{self, key};
-use crate::workflow::state::{load_state, state_field_error};
+use crate::workflow::server::field as record;
+use crate::workflow::state::{field, load_state, state_field_error};
 
 /// What to shoot, as the flags of `dfw shoot` give it. A text flag given alone reads `"true"`,
 /// as in cli.mjs.
@@ -214,9 +215,9 @@ fn shots_version(root: &Path) -> Result<String, DfwError> {
             "v{}",
             js::to_string(
                 state
-                    .get("design")
-                    .ok_or_else(|| state_field_error("design", "an object"))?
-                    .get("version")
+                    .get(field::DESIGN)
+                    .ok_or_else(|| state_field_error(field::DESIGN, "an object"))?
+                    .get(field::VERSION)
             )
         ),
         None => "v1".to_string(),
@@ -270,7 +271,7 @@ fn states_and_themes(
 /// The Studio's URL when it runs, and the manifest; the errors `cmdShoot` gives without them.
 fn running_studio(p: &ProjectPaths) -> Result<(Value, Value), DfwError> {
     let info = read_json(&p.studio, Some(Value::Null))?;
-    if !js::truthy(&info) || !Pid::of(info.get("pid")).is_some_and(is_alive) {
+    if !js::truthy(&info) || !Pid::of(info.get(record::PID)).is_some_and(is_alive) {
         return Err(DfwError::new(
             "Start the studio first (dfw studio start) or pass --url.",
         ));

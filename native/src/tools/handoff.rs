@@ -14,10 +14,11 @@ use crate::core::paths::{file, in_design, project_paths, rel};
 use crate::core::util::{get_path, list_files, read_json, write_atomic_inside};
 use crate::design::manifest::key;
 use crate::review::comments::all_comments;
-use crate::review::status::{self, Status};
+use crate::review::status::{self, field as comment, Status};
 use crate::workflow::freeze::check_snapshot_name;
 use crate::workflow::gates::relative;
-use crate::workflow::state::{current_approval, require_state};
+use crate::workflow::stack::field as stack_key;
+use crate::workflow::state::{current_approval, field, gate, require_state};
 
 /// `text.replaceAll(needle, replacement)` with a string pattern: `$$`, `$&`, `` $` `` and `$'`
 /// in the replacement mean what JavaScript says, so a product name or a comment with a dollar
@@ -69,7 +70,7 @@ fn names(value: Option<&Value>, what: &str) -> Result<String, DfwError> {
     let parts: Vec<String> = items(value, what)?
         .iter()
         .map(
-            |item| match js::truthy_value(item.get("name")).unwrap_or(item) {
+            |item| match js::truthy_value(item.get(stack_key::NAME)).unwrap_or(item) {
                 Value::Null => String::new(),
                 other => js::to_string(Some(other)),
             },
@@ -141,13 +142,22 @@ fn stack_line(stack: &Value, state: &Value) -> Result<String, DfwError> {
             text
         }
     };
-    let approved = js::truthy_value(state.get("gates").and_then(|g| g.get("G3"))).is_some();
+    let approved =
+        js::truthy_value(state.get(field::GATES).and_then(|g| g.get(gate::G3))).is_some();
     Ok(format!(
         "{}; styling: {}; UI libraries: {} ({})",
-        text_or(stack.get("framework").and_then(|f| f.get("name")), "TBD"),
-        or(names(stack.get("styling"), "stack.styling")?, "TBD"),
+        text_or(
+            stack
+                .get(stack_key::FRAMEWORK)
+                .and_then(|f| f.get(stack_key::NAME)),
+            "TBD"
+        ),
         or(
-            names(stack.get("uiLibraries"), "stack.uiLibraries")?,
+            names(stack.get(stack_key::STYLING), "stack.styling")?,
+            "TBD"
+        ),
+        or(
+            names(stack.get(stack_key::UI_LIBRARIES), "stack.uiLibraries")?,
             "none"
         ),
         if approved {
@@ -168,7 +178,7 @@ pub fn write_handoff(root: &Path) -> Result<String, DfwError> {
             "Handoff is generated from an approved design (G2).",
         ));
     };
-    let version = js::to_string(appr.get("version"));
+    let version = js::to_string(appr.get(field::VERSION));
     // The state is the user's file: its version names folders and files only in the form
     // freeze writes (`v<number>`), never `../x`.
     check_snapshot_name(&version).map_err(|_| {
@@ -199,7 +209,8 @@ pub fn write_handoff(root: &Path) -> Result<String, DfwError> {
     let resolved: Vec<Value> = all_comments(root)?
         .into_iter()
         .filter(|c| {
-            status::of(c) == Some(Status::Resolved) && c.get("designVersion") == appr.get("version")
+            status::of(c) == Some(Status::Resolved)
+                && c.get(comment::DESIGN_VERSION) == appr.get(field::VERSION)
         })
         .collect();
     let file = p.handoff.join(format!("{version}.md"));
@@ -254,14 +265,14 @@ pub fn write_handoff(root: &Path) -> Result<String, DfwError> {
             )
         })
         .collect();
-    let product =
-        js::truthy_value(m.get("product")).or_else(|| js::truthy_value(state.get("product")));
+    let product = js::truthy_value(m.get(key::PRODUCT))
+        .or_else(|| js::truthy_value(state.get(field::PRODUCT)));
     let mut body = tpl;
     for (mark, value) in [
         ("{{version}}", version.clone()),
-        ("{{hash}}", js::to_string(appr.get("hash"))),
+        ("{{hash}}", js::to_string(appr.get(field::HASH))),
         ("{{product}}", text_or(product, "")),
-        ("{{approvedAt}}", js::to_string(appr.get("at"))),
+        ("{{approvedAt}}", js::to_string(appr.get(field::AT))),
         ("{{stack}}", stack_text),
         ("{{screens}}", or_text(screens, "| | | | |")),
         ("{{components}}", or_text(components, "- (none extracted)")),

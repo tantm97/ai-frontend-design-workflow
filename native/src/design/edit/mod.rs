@@ -19,6 +19,7 @@ mod style;
 #[cfg(test)]
 mod tests;
 
+use crate::core::state::{design_lock, field};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -169,17 +170,15 @@ pub fn resolve_design_file(root: &Path, file: Option<&Value>) -> Result<DesignFi
 /// and locked (G2), or in review-only mode.
 pub fn assert_editable(root: &Path) -> Result<(), DfwError> {
     let state = read_json(&project_paths(root).state, Some(Value::Null))?;
-    if !js::truthy(Some(&state)) || state.get("active") == Some(&Value::Bool(false)) {
+    if !js::truthy(Some(&state)) || state.get(field::ACTIVE) == Some(&Value::Bool(false)) {
         return Ok(());
     }
-    let design = state.get("design");
-    if js::truthy(design.and_then(|d| d.get("locked"))) {
+    if let Some(version) = design_lock(&state) {
         return Err(DfwError::new(format!(
-            "Design v{} is approved and locked (G2); Studio edits are refused. Changing it needs your approval and \"dfw reopen --reason <why>\".",
-            js::to_string(design.and_then(|d| d.get("version")))
+            "Design v{version} is approved and locked (G2); Studio edits are refused. Changing it needs your approval and \"dfw reopen --reason <why>\".",
         )));
     }
-    if state.get("mode").and_then(Value::as_str) == Some("review-only") {
+    if state.get(field::MODE).and_then(Value::as_str) == Some("review-only") {
         return Err(DfwError::new(
             "This project is in review-only mode; Studio edits are refused. Leave a comment instead.",
         ));

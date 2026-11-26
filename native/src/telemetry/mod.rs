@@ -25,7 +25,7 @@ use crate::core::config::global_config_path;
 use crate::core::host::current_host;
 use crate::core::process::spawn_detached;
 use crate::core::util::{get_path, read_json, ArgValue};
-use crate::workflow::state::load_state;
+use crate::workflow::state::{field, load_state};
 use events::{
     CommandName, DurationBucket, Event, GateId, HookName, HookOutcome, HostId, ModeName, PhaseName,
     Spooled,
@@ -325,8 +325,8 @@ fn workflow_event(root: &Path) -> Option<Event> {
     let state = load_state(root).ok()??;
     let name = |key: &str| state.get(key).and_then(Value::as_str);
     Some(Event::Workflow {
-        mode: ModeName::new(name("mode")?)?,
-        phase: PhaseName::new(name("phase")?)?,
+        mode: ModeName::new(name(field::MODE)?)?,
+        phase: PhaseName::new(name(field::PHASE)?)?,
     })
 }
 

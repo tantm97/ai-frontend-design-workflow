@@ -6,7 +6,7 @@ use serde_json::Value;
 use crate::core::error::DfwError;
 use crate::core::host::{event, HookInput, HookResult, Host};
 use crate::review::inbox::{format_for_claude, take_undelivered};
-use crate::workflow::state::load_state;
+use crate::workflow::state::{field, load_state};
 
 use super::pre_tool_use::root_from;
 
@@ -18,7 +18,7 @@ pub fn inbox_for(input: &HookInput) -> Result<Option<String>, DfwError> {
     let Some(state) = load_state(&root)? else {
         return Ok(None);
     };
-    if state.get("active") == Some(&Value::Bool(false)) {
+    if state.get(field::ACTIVE) == Some(&Value::Bool(false)) {
         return Ok(None);
     }
     let list = take_undelivered(&root, true)?;
