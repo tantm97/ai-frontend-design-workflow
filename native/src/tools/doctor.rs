@@ -111,6 +111,14 @@ fn version_of(bin: &str) -> (bool, String, String) {
     (ran.status == Some(0), ran.stdout, ran.stderr)
 }
 
+/// The keys of Claude Code's `installed_plugins.json`.
+mod installed {
+    /// The installed plugins, by id (`<plugin>@<marketplace>`).
+    pub const PLUGINS: &str = "plugins";
+    /// The id dfw is installed under.
+    pub const DFW: &str = "dfw@dfw-marketplace";
+}
+
 /// Claude Code's list of installed plugins.
 fn installed_plugins_file() -> PathBuf {
     claude_dir().join("plugins").join("installed_plugins.json")
@@ -211,7 +219,7 @@ fn check_browser_tools(report: &mut Report) {
 /// Duplicate installs of the same upstream skills from other marketplaces load twice.
 fn check_duplicate_installs(report: &mut Report) -> Result<(), DfwError> {
     let installed = read_json(&installed_plugins_file(), Some(Value::Null))?;
-    let Some(plugins) = installed.get("plugins").filter(|p| js::truthy(p)) else {
+    let Some(plugins) = installed.get(installed::PLUGINS).filter(|p| js::truthy(p)) else {
         report.add(
             "duplicate install check",
             true,
@@ -299,8 +307,8 @@ fn check_host(report: &mut Report, h: &Host) -> Result<(), DfwError> {
     }
     let (plugin, state) = if h.id == host::id::CLAUDE {
         let installed = read_json(&installed_plugins_file(), Some(json!({})))?
-            .get("plugins")
-            .and_then(|p| p.get("dfw@dfw-marketplace"))
+            .get(installed::PLUGINS)
+            .and_then(|p| p.get(installed::DFW))
             .is_some_and(js::truthy);
         let state = if installed {
             "installed".to_string()

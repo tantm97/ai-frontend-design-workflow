@@ -17,7 +17,7 @@ use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{project_paths, rel, resolve};
 use crate::core::util::{ensure_inside, read_json, to_json_pretty, write_atomic_inside};
-use crate::workflow::stack::{detect_stack, field as stack_key};
+use crate::workflow::stack::{detect_stack, field as stack_key, package_json};
 use crate::workflow::state::{gate, gate_passed, load_state};
 
 /// The npm package.
@@ -59,6 +59,15 @@ pub struct InspPath {
     pub tag: Option<String>,
     /// "file:line:col" (or "file:line").
     pub source: String,
+}
+
+/// The keys of an [`InspPath`] as JSON (`__debug insp-path`), one per field.
+pub mod insp_key {
+    pub const FILE: &str = "file";
+    pub const LINE: &str = "line";
+    pub const COLUMN: &str = "column";
+    pub const TAG: &str = "tag";
+    pub const SOURCE: &str = "source";
 }
 
 fn all_digits(s: &str) -> bool {
@@ -189,9 +198,32 @@ pub mod next_mode {
 /// The keys of the plan ([`inspector_plan`]) that its callers read.
 pub mod plan_key {
     pub const SUPPORTED: &str = "supported";
+    /// The dependency to approve at G3, as `.dfw/stack.json` lists it.
     pub const DEPENDENCY: &str = "dependency";
+    /// The same, as `name@version`.
     pub const DEV_DEPENDENCY: &str = "devDependency";
     pub const FRAMEWORK: &str = "framework";
+    /// The bundler that serves the app in development ([`super::bundler`]).
+    pub const BUNDLER: &str = "bundler";
+    /// The bundler's config file, project-relative.
+    pub const CONFIG_FILE: &str = "configFile";
+    /// Whether the project has a `package.json`.
+    pub const PACKAGE_JSON: &str = "packageJson";
+    /// The `next` dependency as written, for Next.js.
+    pub const NEXT_VERSION: &str = "nextVersion";
+    /// How Next.js serves in development ([`super::next_mode`]).
+    pub const NEXT_MODE: &str = "nextMode";
+    pub const PACKAGE_MANAGER: &str = "packageManager";
+    /// The install command to run after the setup.
+    pub const INSTALL: &str = "install";
+    /// Why the setup must be done by hand, and how.
+    pub const MANUAL: &str = "manual";
+    /// The config file's text with the plugin added.
+    pub const PATCHED: &str = "patched";
+    /// Whether the config file already loads the plugin.
+    pub const ALREADY_CONFIGURED: &str = "alreadyConfigured";
+    /// Added by `dfw inspector setup --json`: the files written.
+    pub const WRITTEN: &str = "written";
 }
 
 /// The file of the app's dependencies.
@@ -283,8 +315,8 @@ pub struct Bundler {
 /// `detectBundler(root)`: which bundler serves the app in development, and its config file.
 pub fn detect_bundler(root: &Path) -> Result<Bundler, DfwError> {
     let pkg = read_json(&root.join(PACKAGE_JSON), Some(json!({})))?;
-    let mut deps = js::spread(pkg.get("dependencies"));
-    deps.extend(js::spread(pkg.get("devDependencies")));
+    let mut deps = js::spread(pkg.get(package_json::DEPENDENCIES));
+    deps.extend(js::spread(pkg.get(package_json::DEV_DEPENDENCIES)));
     let has = |d: &str| deps.get(d).is_some_and(js::truthy);
     let order = [
         (bundler::NEXT, has(bundler::NEXT)),
@@ -326,7 +358,10 @@ pub fn detect_bundler(root: &Path) -> Result<Bundler, DfwError> {
     };
     if bundler == Some(bundler::NEXT) {
         let v = major(&js::or_empty(deps.get(bundler::NEXT)));
-        let dev = js::or_empty(pkg.get("scripts").and_then(|s| s.get("dev")));
+        let dev = js::or_empty(
+            pkg.get(package_json::SCRIPTS)
+                .and_then(|s| s.get(package_json::DEV_SCRIPT)),
+        );
         let turbo = is_match(r"--turbo(pack)?(?-u:\b)", &dev);
         out.next_version = deps.get(bundler::NEXT).cloned();
         // Next 16 develops with Turbopack by default; 15.3+ with --turbopack; otherwise webpack.
@@ -560,18 +595,18 @@ pub fn inspector_plan(root: &Path) -> Result<Value, DfwError> {
     let manager = js::or_empty(stack.get(stack_key::PACKAGE_MANAGER));
     let b = detect_bundler(root)?;
     let mut plan = Map::new();
-    plan.insert("bundler".into(), json!(b.bundler));
-    plan.insert("configFile".into(), json!(b.config_file));
-    plan.insert("packageJson".into(), json!(b.package_json));
+    plan.insert(plan_key::BUNDLER.into(), json!(b.bundler));
+    plan.insert(plan_key::CONFIG_FILE.into(), json!(b.config_file));
+    plan.insert(plan_key::PACKAGE_JSON.into(), json!(b.package_json));
     if b.bundler == Some(bundler::NEXT) {
         if let Some(v) = &b.next_version {
-            plan.insert("nextVersion".into(), v.clone());
+            plan.insert(plan_key::NEXT_VERSION.into(), v.clone());
         }
-        plan.insert("nextMode".into(), json!(b.next_mode));
+        plan.insert(plan_key::NEXT_MODE.into(), json!(b.next_mode));
     }
     plan.insert(
         plan_key::DEPENDENCY.into(),
-        json!({ "name": PACKAGE, "version": VERSION, "dev": true, "license": LICENSE, "purpose": PURPOSE }),
+        json!({ (stack_key::NAME): PACKAGE, (stack_key::VERSION): VERSION, (stack_key::DEV): true, (stack_key::LICENSE): LICENSE, (stack_key::PURPOSE): PURPOSE }),
     );
     plan.insert(plan_key::FRAMEWORK.into(), framework);
     let manager = if manager.is_empty() {
@@ -579,21 +614,21 @@ pub fn inspector_plan(root: &Path) -> Result<Value, DfwError> {
     } else {
         manager
     };
-    plan.insert("packageManager".into(), json!(manager));
+    plan.insert(plan_key::PACKAGE_MANAGER.into(), json!(manager));
     // `INSTALL[plan.packageManager] || 'npm install'`.
     let install = match manager.as_str() {
         "npm" | "pnpm" | "yarn" | "bun" => format!("{manager} install"),
         _ => "npm install".into(),
     };
     plan.insert(
-        "install".into(),
+        plan_key::INSTALL.into(),
         json!(format!(
             "{install} (after adding \"{PACKAGE}\": \"{VERSION}\" to devDependencies)"
         )),
     );
     let unsupported = |plan: &mut Map<String, Value>, why: String| {
         plan.insert(plan_key::SUPPORTED.into(), json!(false));
-        plan.insert("manual".into(), json!(why));
+        plan.insert(plan_key::MANUAL.into(), json!(why));
     };
     if !b.package_json {
         unsupported(&mut plan, "No package.json: code-inspector-plugin needs a JavaScript bundler (Vite, webpack, Rspack, esbuild, Turbopack...). Live review still works without it (comments carry selector + text, no file:line).".into());
@@ -610,8 +645,8 @@ pub fn inspector_plan(root: &Path) -> Result<Value, DfwError> {
                 Patch::Manual(why) => unsupported(&mut plan, why),
                 Patch::Text { text, changed } => {
                     plan.insert(plan_key::SUPPORTED.into(), json!(true));
-                    plan.insert("patched".into(), json!(text));
-                    plan.insert("alreadyConfigured".into(), json!(!changed));
+                    plan.insert(plan_key::PATCHED.into(), json!(text));
+                    plan.insert(plan_key::ALREADY_CONFIGURED.into(), json!(!changed));
                 }
             }
         }
@@ -645,31 +680,34 @@ fn text_of<'a>(plan: &'a Value, key: &str) -> &'a str {
 
 /// `formatPlan(plan)`: the plan as "dfw inspector setup" prints it.
 pub fn format_plan(plan: &Value) -> String {
-    let bundler = Some(text_of(plan, "bundler"))
+    let bundler = Some(text_of(plan, plan_key::BUNDLER))
         .filter(|b| !b.is_empty())
         .unwrap_or("unknown");
-    let mode = Some(text_of(plan, "nextMode"))
+    let mode = Some(text_of(plan, plan_key::NEXT_MODE))
         .filter(|m| !m.is_empty())
         .map(|m| format!(" ({m})"))
         .unwrap_or_default();
-    let config = text_of(plan, "configFile");
+    let config = text_of(plan, plan_key::CONFIG_FILE);
     let config_note = if config.is_empty() {
         String::new()
     } else {
         format!(", config: {config}")
     };
-    let install = text_of(plan, "install")
+    let install = text_of(plan, plan_key::INSTALL)
         .split(" (")
         .next()
         .unwrap_or_default();
     let step = if plan.get(plan_key::SUPPORTED) == Some(&json!(true)) {
-        if plan.get("alreadyConfigured") == Some(&json!(true)) {
+        if plan.get(plan_key::ALREADY_CONFIGURED) == Some(&json!(true)) {
             format!("2. {config} already loads the plugin.")
         } else {
-            format!("2. {config} becomes:\n\n{}", text_of(plan, "patched"))
+            format!(
+                "2. {config} becomes:\n\n{}",
+                text_of(plan, plan_key::PATCHED)
+            )
         }
     } else {
-        format!("2. by hand: {}", text_of(plan, "manual"))
+        format!("2. by hand: {}", text_of(plan, plan_key::MANUAL))
     };
     [
         format!("code-inspector-plugin {VERSION} ({LICENSE}, {REPO})"),
@@ -688,14 +726,14 @@ pub fn format_plan(plan: &Value) -> String {
 /// `stackApproves(stackJson)`: true when .dfw/stack.json lists code-inspector-plugin
 /// (dependencies or devDependencies).
 pub fn stack_approves(stack: &Value) -> bool {
-    ["dependencies", "devDependencies"]
+    [stack_key::DEPENDENCIES, stack_key::DEV_DEPENDENCIES]
         .iter()
         .any(|key| match stack.get(key) {
             Some(Value::Array(list)) => list.iter().any(|d| match d {
                 Value::String(s) => {
                     s.split('@').next().filter(|n| !n.is_empty()).unwrap_or(s) == PACKAGE
                 }
-                other => other.get("name").and_then(Value::as_str) == Some(PACKAGE),
+                other => other.get(stack_key::NAME).and_then(Value::as_str) == Some(PACKAGE),
             }),
             Some(Value::Object(map)) => map.contains_key(PACKAGE),
             _ => false,
@@ -743,12 +781,12 @@ pub fn inspector_setup(root: &Path, write: bool) -> Result<(Value, Vec<String>),
     if plan.get(plan_key::SUPPORTED) != Some(&json!(true)) {
         return Err(DfwError::new(format!(
             "dfw cannot edit this project's bundler config automatically: {}",
-            text_of(&plan, "manual")
+            text_of(&plan, plan_key::MANUAL)
         )));
     }
     let mut written = Vec::new();
-    if plan.get("alreadyConfigured") != Some(&json!(true)) {
-        let config = text_of(&plan, "configFile");
+    if plan.get(plan_key::ALREADY_CONFIGURED) != Some(&json!(true)) {
+        let config = text_of(&plan, plan_key::CONFIG_FILE);
         let file = root.join(config);
         let mut backup = file.clone().into_os_string();
         backup.push(BACKUP_SUFFIX);
@@ -757,21 +795,21 @@ pub fn inspector_setup(root: &Path, write: bool) -> Result<(Value, Vec<String>),
         if !Path::new(&backup).exists() {
             fs::copy(&file, &backup)?; // the user's original, kept once
         }
-        write_atomic_inside(root, &file, text_of(&plan, "patched"))?;
+        write_atomic_inside(root, &file, text_of(&plan, plan_key::PATCHED))?;
         written.push(config.to_string());
     }
     let pkg_file = root.join(PACKAGE_JSON);
     let raw = fs::read_to_string(&pkg_file)?;
     let mut pkg: Value = serde_json::from_str(&raw)?;
     let pinned = pkg
-        .get("devDependencies")
+        .get(package_json::DEV_DEPENDENCIES)
         .and_then(|d| d.get(PACKAGE))
         .and_then(Value::as_str)
         == Some(VERSION);
     if let (false, Some(top)) = (pinned, pkg.as_object_mut()) {
-        let mut dev = js::spread(top.get("devDependencies"));
+        let mut dev = js::spread(top.get(package_json::DEV_DEPENDENCIES));
         dev.insert(PACKAGE.into(), json!(VERSION));
-        top.insert("devDependencies".into(), Value::Object(dev));
+        top.insert(package_json::DEV_DEPENDENCIES.into(), Value::Object(dev));
         // The file's own indentation: the first indented line that starts a key.
         let indent = re(r#"(?m)^([ \t]+)""#)
             .and_then(|r| r.captures(&raw))

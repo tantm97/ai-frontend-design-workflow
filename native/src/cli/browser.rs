@@ -19,6 +19,21 @@ use crate::core::paths::resolve;
 use crate::core::util::{out, sha256, to_json_pretty, Args};
 use crate::design::layout_cache::{changed_screens, mark_checked};
 use crate::design::tokens::relative_path as relative;
+use crate::tools::check::field as result_key;
+
+/// The keys of what `dfw layout --json` prints, besides the check result's.
+mod layout_key {
+    /// The number of pages rendered.
+    pub const RENDERS: &str = "renders";
+}
+
+/// The keys of what `__debug png-info` prints.
+mod png_key {
+    pub const WIDTH: &str = "width";
+    pub const HEIGHT: &str = "height";
+    /// The SHA-256 of the decoded RGBA pixels.
+    pub const SHA256: &str = "sha256";
+}
 
 /// The commands of this group.
 pub fn commands() -> Vec<(&'static str, Handler)> {
@@ -136,7 +151,7 @@ fn layout(ctx: &Ctx) -> Result<i32, DfwError> {
     if a.truthy("json") {
         let findings: Vec<Value> = findings.iter().map(|f| f.to_json()).collect();
         out(&to_json_pretty(
-            &json!({ "status": "ran", "findings": findings, "renders": renders }),
+            &json!({ (result_key::STATUS): "ran", (result_key::FINDINGS): findings, (layout_key::RENDERS): renders }),
         ));
         return Ok(code);
     }
@@ -204,7 +219,7 @@ fn diff(ctx: &Ctx) -> Result<i32, DfwError> {
 pub(super) fn debug_png_info(ctx: &Ctx) -> Result<i32, DfwError> {
     let file = ctx.args.pos(2).unwrap_or_default();
     let image = decode_rgba(Path::new(file)).map_err(DfwError::new)?;
-    out(&json!({ "width": image.w, "height": image.h, "sha256": sha256(&image.rgba) }).to_string());
+    out(&json!({ (png_key::WIDTH): image.w, (png_key::HEIGHT): image.h, (png_key::SHA256): sha256(&image.rgba) }).to_string());
     Ok(0)
 }
 

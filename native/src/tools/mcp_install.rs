@@ -41,6 +41,22 @@ use crate::core::word::command::MCP as SUBCOMMAND;
 /// The key of OpenCode's config that holds the servers.
 const OPENCODE_KEY: &str = "mcp";
 
+/// The keys of an MCP config file that dfw writes.
+mod conf {
+    /// The servers, by name, in every JSON format but OpenCode's ([`super::OPENCODE_KEY`]).
+    pub const MCP_SERVERS: &str = "mcpServers";
+    /// The JSON schema an OpenCode config names.
+    pub const SCHEMA: &str = "$schema";
+    /// Of a server: `local` (OpenCode).
+    pub const TYPE: &str = "type";
+    /// Of a server: the program, or (OpenCode) the program and its arguments.
+    pub const COMMAND: &str = "command";
+    /// Of a server: the arguments.
+    pub const ARGS: &str = "args";
+    /// Of a server: on (OpenCode).
+    pub const ENABLED: &str = "enabled";
+}
+
 /// The header of dfw's table in Codex's `config.toml`.
 const TOML_HEADER: &str = "[mcp_servers.dfw]";
 
@@ -270,7 +286,11 @@ pub fn mcp_config_text(
         })?
     };
     let opencode = format == Format::Opencode;
-    let key = if opencode { OPENCODE_KEY } else { "mcpServers" };
+    let key = if opencode {
+        OPENCODE_KEY
+    } else {
+        conf::MCP_SERVERS
+    };
     match &mut data {
         Value::Object(map) => {
             let mut servers = js::spread(js::truthy_value(map.get(key)));
@@ -279,17 +299,20 @@ pub fn mcp_config_text(
             } else if opencode {
                 servers.insert(
                     SERVER.into(),
-                    json!({ "type": "local", "command": cmd, "enabled": true }),
+                    json!({ (conf::TYPE): "local", (conf::COMMAND): cmd, (conf::ENABLED): true }),
                 );
             } else {
                 servers.insert(
                     SERVER.into(),
-                    json!({ "command": cmd[0], "args": cmd[1..] }),
+                    json!({ (conf::COMMAND): cmd[0], (conf::ARGS): cmd[1..] }),
                 );
             }
             map.insert(key.into(), Value::Object(servers));
-            if opencode && js::truthy_value(map.get("$schema")).is_none() {
-                map.insert("$schema".into(), json!("https://opencode.ai/config.json"));
+            if opencode && js::truthy_value(map.get(conf::SCHEMA)).is_none() {
+                map.insert(
+                    conf::SCHEMA.into(),
+                    json!("https://opencode.ai/config.json"),
+                );
             }
         }
         Value::Null => {
@@ -314,7 +337,7 @@ fn installed_in(format: Format, file: &Path) -> bool {
     let key = if format == Format::Opencode {
         OPENCODE_KEY
     } else {
-        "mcpServers"
+        conf::MCP_SERVERS
     };
     serde_json::from_str::<Value>(&text)
         .ok()

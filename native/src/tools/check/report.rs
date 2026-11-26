@@ -7,7 +7,7 @@ use crate::core::error::exit;
 use crate::core::level::{self, Level};
 use serde_json::{json, Value};
 
-use super::{field, outcome};
+use super::{field, finding_key as finding, outcome};
 
 /// A tool as the first line of the report lists it: `tool=status`.
 pub fn tool_status(tool: &str, status: &str) -> String {
@@ -95,13 +95,13 @@ pub fn format_report(results: &[Value], max: usize) -> Report {
     let text_of = |f: &Value, key: &str| js::to_string(f.get(key));
     // A line that is not a number sorts last (Node's comparison gives no order for it).
     let line_key = |f: &Value| {
-        let n = js::to_number(f.get("line"));
+        let n = js::to_number(f.get(finding::LINE));
         (n.is_nan(), if n.is_nan() { 0.0 } else { n })
     };
     all.sort_by(|a, b| {
         level_rank(a)
             .cmp(&level_rank(b))
-            .then_with(|| locale_compare(&text_of(a, "file"), &text_of(b, "file")))
+            .then_with(|| locale_compare(&text_of(a, finding::FILE), &text_of(b, finding::FILE)))
             .then_with(|| {
                 let (ka, kb) = (line_key(a), line_key(b));
                 ka.0.cmp(&kb.0)
@@ -123,11 +123,11 @@ pub fn format_report(results: &[Value], max: usize) -> Report {
         let label = report_label(level_rank(f));
         lines.push(format!(
             "- [{label}] {}:{} ({}/{}) {}",
-            text_of(f, "file"),
-            text_of(f, "line"),
-            text_of(f, "source"),
-            text_of(f, "rule"),
-            text_of(f, "message")
+            text_of(f, finding::FILE),
+            text_of(f, finding::LINE),
+            text_of(f, finding::SOURCE),
+            text_of(f, finding::RULE),
+            text_of(f, finding::MESSAGE)
         ));
     }
     if all.len() > max {

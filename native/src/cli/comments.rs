@@ -2,6 +2,7 @@
 
 use serde_json::Value;
 
+use super::flag_key;
 use super::word::{command, sub};
 use super::{Ctx, Handler};
 use crate::core::error::DfwError;
@@ -12,6 +13,18 @@ use crate::review::inbox::{
     format_for_claude, take_undelivered, undelivered, wait_for_comments, WaitOptions,
 };
 use crate::review::status::{self, field, Status};
+
+/// The keys of a comment record read here that `review::status::field` does not name yet.
+mod comment_key {
+    /// Inside the target: the `data-dfw-id` of the element.
+    pub const DFW_ID: &str = "dfwId";
+    /// Inside the target: a CSS selector of the element.
+    pub const SELECTOR: &str = "selector";
+    /// Of a thread line: who wrote it.
+    pub const BY: &str = "by";
+    /// Of a thread line: its text.
+    pub const MESSAGE: &str = "message";
+}
 use crate::workflow::state::arg_truthy;
 
 /// The commands of this group: every subcommand runs here.
@@ -47,7 +60,7 @@ fn comments(ctx: &Ctx) -> Result<i32, DfwError> {
         "show" => {
             let found = all_comments(&root)?
                 .into_iter()
-                .find(|c| id.is_some() && c.get("id").and_then(Value::as_str) == id);
+                .find(|c| id.is_some() && c.get(field::ID).and_then(Value::as_str) == id);
             match found {
                 Some(c) => print_json(&c),
                 None => Err(DfwError::new(format!(
@@ -99,7 +112,7 @@ fn comments(ctx: &Ctx) -> Result<i32, DfwError> {
         }),
         sub::ADD => {
             // `JSON.parse(a.json)`: the flag alone is `true`, a missing flag is not JSON.
-            let input: Value = match a.get("json") {
+            let input: Value = match a.get(flag_key::JSON) {
                 Some(ArgValue::Flag) => Value::Bool(true),
                 Some(ArgValue::Text(text)) => serde_json::from_str(text)?,
                 None => return Err(DfwError::internal("\"undefined\" is not valid JSON")),
@@ -159,29 +172,29 @@ fn list(ctx: &Ctx) -> Result<i32, DfwError> {
                 .filter_map(|k| js::truthy_value(c.get(k)))
                 .map(|v| js::to_string(Some(v)))
                 .collect();
-            let of_target = |k: &str| js::truthy_value(c.get("target").and_then(|t| t.get(k)));
-            let target = of_target("dfwId")
-                .or(of_target("selector"))
+            let of_target = |k: &str| js::truthy_value(c.get(field::TARGET).and_then(|t| t.get(k)));
+            let target = of_target(comment_key::DFW_ID)
+                .or(of_target(comment_key::SELECTOR))
                 .map_or("?".to_string(), |t| js::to_string(Some(t)));
-            let source = of_target("source")
+            let source = of_target(field::SOURCE)
                 .map_or(String::new(), |s| format!(" ({})", js::to_string(Some(s))));
             let last = c
-                .get("thread")
+                .get(field::THREAD)
                 .and_then(Value::as_array)
                 .and_then(|t| t.last());
             let last = last.map_or(String::new(), |l| {
                 format!(
                     "\n    last: {}: {}",
-                    js::to_string(l.get("by")),
-                    js::to_string(l.get("message"))
+                    js::to_string(l.get(comment_key::BY)),
+                    js::to_string(l.get(comment_key::MESSAGE))
                 )
             });
             format!(
                 "{} [{}] {} -> {target}{source}\n    \"{}\"{last}",
-                js::to_string(c.get("id")),
-                js::to_string(c.get("status")),
+                js::to_string(c.get(field::ID)),
+                js::to_string(c.get(field::STATUS)),
                 place.join("/"),
-                js::to_string(c.get("comment")),
+                js::to_string(c.get(field::COMMENT)),
             )
         })
         .collect();

@@ -33,10 +33,40 @@ pub mod key {
     pub const DESCRIPTION: &str = "description";
     pub const FILE: &str = "file";
     pub const BLUEPRINT: &str = "blueprint";
+    /// What the product is: `marketing` for a marketing site, else a product UI.
+    pub const SURFACE: &str = "surface";
+    /// The id of the variant a screen's approval chose.
+    pub const APPROVED_VARIANT: &str = "approvedVariant";
+    /// A variant the agent recommends.
+    pub const RECOMMENDED: &str = "recommended";
+    /// The app route a screen becomes.
+    pub const ROUTE: &str = "route";
+    /// The width of a breakpoint, in px.
+    pub const WIDTH: &str = "width";
     /// Added by the Studio's manifest API: the states a variant designs.
     pub const DESIGNED_STATES: &str = "designedStates";
     /// Added by the Studio's manifest API: the canvas pages.
     pub const STUDIO_PAGES: &str = "studioPages";
+}
+
+/// The keys of a screen's [`key::BLUEPRINT`]: the plan of the screen before it is drawn.
+pub mod blueprint {
+    /// The layout pattern.
+    pub const LAYOUT: &str = "layout";
+    /// What the user comes to the screen to do.
+    pub const GOAL: &str = "goal";
+    pub const PRIMARY_ACTION: &str = "primaryAction";
+    /// What must show without scrolling.
+    pub const ABOVE_FOLD: &str = "aboveFold";
+    /// The regions of the screen: `{ priority, name, content }`.
+    pub const REGIONS: &str = "regions";
+    pub const PRIORITY: &str = "priority";
+    pub const NAME: &str = "name";
+    pub const CONTENT: &str = "content";
+    /// How the screen looks with no, typical and the most data: `{ empty, typical, max }`.
+    pub const DATA: &str = "data";
+    /// How the screen answers the user's actions.
+    pub const FEEDBACK: &str = "feedback";
 }
 
 /// A `design.json` value of the wrong type, as `dfw lint` reports it.

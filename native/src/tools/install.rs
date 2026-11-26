@@ -21,6 +21,9 @@ use crate::core::process::{find_executable, plan_for, run_timed, Ran, Spawn};
 use crate::core::util::make_temp_dir;
 use crate::core::util::{out, plugin_manifest, read_json};
 
+/// The key of the plugin manifest that lists the plugins dfw depends on.
+const MANIFEST_DEPENDENCIES: &str = "dependencies";
+
 /// The marketplace dfw and its skills are installed from.
 pub use crate::core::util::MARKETPLACE_NAME as MARKET;
 
@@ -39,7 +42,11 @@ fn bold(s: &str) -> String {
 
 /// `pluginList()`: plugins to install: dfw first, then the design skills it depends on.
 pub fn plugin_list() -> Result<Vec<String>, DfwError> {
-    let listed = |v: &Value| v.get("dependencies").filter(|d| !d.is_null()).cloned();
+    let listed = |v: &Value| {
+        v.get(MANIFEST_DEPENDENCIES)
+            .filter(|d| !d.is_null())
+            .cloned()
+    };
     let deps = match plugin_root() {
         Some(root) => match listed(&read_json(&root.join("dfw.json"), Some(Value::Null))?) {
             Some(deps) => Some(deps),
@@ -97,6 +104,15 @@ fn has_cli(bin: &str) -> bool {
     spawn_sync(bin, &["--version".to_string()], &[], VERSION_TIMEOUT).status == Some(0)
 }
 
+/// The keys of the hosts' JSON listings that are read: a row of
+/// `claude plugin marketplace list --json` and of `copilot plugin list --json`.
+mod listing {
+    /// The name of a marketplace or a plugin.
+    pub const NAME: &str = "name";
+    /// The rows of a Copilot listing that wraps them in an object.
+    pub const PLUGINS: &str = "plugins";
+}
+
 /// What [`marketplace_action`] says to do with the marketplace.
 pub mod market {
     pub const ADD: &str = "add";
@@ -121,7 +137,7 @@ pub fn marketplace_action(list_out: &str, source: &str, name: &str) -> &'static 
         .as_array()
         .into_iter()
         .flatten()
-        .find(|m| m.get("name").and_then(Value::as_str) == Some(name));
+        .find(|m| m.get(listing::NAME).and_then(Value::as_str) == Some(name));
     let Some(cur) = cur else {
         return market::ADD;
     };
@@ -295,11 +311,14 @@ pub fn old_copilot_installs(dfw_dir: &Path, entries: &[String], plugin_list: &st
     let list: Value = serde_json::from_str(plugin_list).unwrap_or(Value::Null);
     let rows = list
         .as_array()
-        .or_else(|| list.get("plugins").and_then(Value::as_array))
+        .or_else(|| list.get(listing::PLUGINS).and_then(Value::as_array))
         .into_iter()
         .flatten();
     for row in rows {
-        let name = row.get("name").and_then(Value::as_str).unwrap_or_default();
+        let name = row
+            .get(listing::NAME)
+            .and_then(Value::as_str)
+            .unwrap_or_default();
         if name != PLUGIN
             && !name
                 .strip_prefix(PLUGIN)

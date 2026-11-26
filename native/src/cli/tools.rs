@@ -13,7 +13,9 @@ use crate::core::paths::{project_paths, rel, resolve};
 use crate::core::util::{out, read_json, to_json_compact, to_json_pretty, ArgValue, Args};
 use crate::tools::binary::{install_binary, RELEASE_REPO};
 use crate::tools::doctor::doctor_checks;
-use crate::tools::inspector::{format_plan, inspector_setup, parse_insp_path, PACKAGE, VERSION};
+use crate::tools::inspector::{
+    format_plan, insp_key, inspector_setup, parse_insp_path, plan_key, PACKAGE, VERSION,
+};
 use crate::tools::install::{install, uninstall, InstallOptions};
 
 /// The commands of this group. `mcp`, `stack` and `handoff` are at the end of the file.
@@ -50,7 +52,7 @@ fn inspector(ctx: &Ctx) -> Result<i32, DfwError> {
     let (mut plan, written) = inspector_setup(&ctx.root(), write)?;
     if a.truthy("json") {
         if let Some(map) = plan.as_object_mut() {
-            map.insert("written".into(), json!(written));
+            map.insert(plan_key::WRITTEN.into(), json!(written));
         }
         out(&to_json_pretty(&plan));
     } else if !write {
@@ -59,7 +61,7 @@ fn inspector(ctx: &Ctx) -> Result<i32, DfwError> {
         out(&format!("{PACKAGE}@{VERSION} is already set up."));
     } else {
         let pm = plan
-            .get("packageManager")
+            .get(plan_key::PACKAGE_MANAGER)
             .and_then(Value::as_str)
             .filter(|p| !p.is_empty())
             .unwrap_or("npm");
@@ -124,7 +126,7 @@ fn setup(ctx: &Ctx) -> Result<i32, DfwError> {
 pub(super) fn debug_insp_path(ctx: &Ctx) -> Result<i32, DfwError> {
     let parsed = parse_insp_path(ctx.args.pos(2).unwrap_or_default(), ctx.args.pos(3));
     out(&to_json_compact(&parsed.map_or(Value::Null, |p| {
-        json!({ "file": p.file, "line": p.line, "column": p.column, "tag": p.tag, "source": p.source })
+        json!({ (insp_key::FILE): p.file, (insp_key::LINE): p.line, (insp_key::COLUMN): p.column, (insp_key::TAG): p.tag, (insp_key::SOURCE): p.source })
     })));
     Ok(0)
 }
@@ -208,7 +210,10 @@ fn stack(ctx: &Ctx) -> Result<i32, DfwError> {
         }
         Some("set") => {
             // `--file` alone never gets here (`require_flag_values`).
-            let given = match (a.text("file").filter(|f| !f.is_empty()), a.get("json")) {
+            let given = match (
+                a.text("file").filter(|f| !f.is_empty()),
+                a.get(super::flag_key::JSON),
+            ) {
                 (Some(f), _) => read_json(&resolve(f), None)?,
                 // `--json` alone is `true`, and JSON.parse(true) is true.
                 (None, Some(ArgValue::Flag)) => json!(true),
