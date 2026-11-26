@@ -56,6 +56,14 @@ pub mod finding {
     pub const SOURCE: &str = "source";
 }
 
+/// The keys of a check result: `{ tool, status, detail?, findings }` (every check, axe included).
+pub mod result {
+    pub const TOOL: &str = "tool";
+    pub const STATUS: &str = "status";
+    pub const DETAIL: &str = "detail";
+    pub const FINDINGS: &str = "findings";
+}
+
 /// The level of a finding record (`None` when missing or unknown).
 pub fn of(record: &serde_json::Value) -> Option<Level> {
     record

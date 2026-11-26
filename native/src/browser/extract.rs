@@ -34,11 +34,11 @@ mod counted {
 }
 
 /// The keys of the token seed (DTCG): its groups, the token words and the extension each token
-/// carries. The DTCG words are named here until `design::tokens` names them.
+/// carries. The DTCG words are `design::tokens::key`'s.
 mod key {
-    pub const DESCRIPTION: &str = "$description";
-    pub const VALUE: &str = "$value";
-    pub const EXTENSIONS: &str = "$extensions";
+    pub use crate::design::tokens::key::{
+        AMOUNT, COLOR_SPACE, COMPONENTS, DESCRIPTION, EXTENSIONS, HEX, UNIT, VALUE,
+    };
     /// The extension of an extracted token: `{ uses, roles? }`.
     pub const EXTRACTED: &str = "dfw.extracted";
     pub const USES: &str = "uses";
@@ -53,16 +53,6 @@ mod key {
     pub const SIZE: &str = "size";
     pub const RADIUS: &str = "radius";
     pub const SPACE: &str = "space";
-
-    /* --------------------------------------------------------------------- the values */
-
-    /// A colour value: `{ colorSpace, components, hex }`.
-    pub const COLOR_SPACE: &str = "colorSpace";
-    pub const COMPONENTS: &str = "components";
-    pub const HEX: &str = "hex";
-    /// A dimension value: `{ value, unit }`.
-    pub const DIMENSION_VALUE: &str = "value";
-    pub const UNIT: &str = "unit";
 }
 
 /// One counted value: how often it was seen and in which roles.
@@ -190,7 +180,7 @@ fn dim(bag: Option<&Value>, n: usize, prefix: &str) -> Value {
     uses.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
     let mut g = group("dimension");
     for (i, (v, n)) in uses.iter().enumerate() {
-        let value = json!({ (key::DIMENSION_VALUE): js::num(*v), (key::UNIT): "px" });
+        let value = json!({ (key::AMOUNT): js::num(*v), (key::UNIT): "px" });
         g.insert(
             format!("{prefix}{}", i + 1),
             with_source(token(value), *n, None),

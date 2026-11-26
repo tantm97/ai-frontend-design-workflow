@@ -56,8 +56,6 @@ pub mod key {
     pub const RECOMMENDED: &str = "recommended";
     /// The app route a screen becomes.
     pub const ROUTE: &str = "route";
-    /// The width of a breakpoint, in px.
-    pub const WIDTH: &str = "width";
     /// Added by the Studio's manifest API: the states a variant designs.
     pub const DESIGNED_STATES: &str = "designedStates";
     /// Added by the Studio's manifest API: the canvas pages.

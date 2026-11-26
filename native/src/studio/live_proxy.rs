@@ -22,6 +22,7 @@ use serde_json::Value;
 
 pub use proxy::{start_live_server, LiveOptions};
 
+use crate::core::config::key::breakpoint;
 use crate::core::config::{load_config, review_shortcut};
 use crate::core::error::DfwError;
 use crate::core::js;
@@ -384,12 +385,6 @@ pub fn inject_live(html: &str, nonce: Option<&str>, shortcut: &str) -> String {
         return format!("{}{tags}{}", &html[..m.end()], &html[m.end()..]);
     }
     tags + html
-}
-
-/// The keys of a breakpoint (design.json's or the config's) that [`nearest_breakpoint`] reads.
-mod breakpoint {
-    pub const ID: &str = "id";
-    pub const WIDTH: &str = "width";
 }
 
 /// `nearestBreakpoint(root, width)`: the id of the breakpoint closest to a viewport width

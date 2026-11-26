@@ -113,6 +113,10 @@ pub mod input {
     pub const EVENT: &str = "event";
     /// Tool arguments that were text but not JSON (a raw apply_patch body), as dfw wraps them.
     pub const RAW_INPUT: &str = "input";
+    /// The list of replacements of a MultiEdit call, inside [`TOOL_INPUT`].
+    pub const EDITS: &str = "edits";
+    /// The text an Edit call (or one of [`EDITS`]) replaces.
+    pub const OLD_STRING: &str = "old_string";
 }
 
 /// The keys of the neutral result of a hook handler: `{ context }`, `{ deny }` or `{ block }`.

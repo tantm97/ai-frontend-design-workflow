@@ -39,13 +39,13 @@ pub(crate) const ENABLED: &str = "enabled";
 
 /// The `$` keys of a DTCG tree and of a Penpot token file.
 pub(crate) mod key {
-    pub(crate) const VALUE: &str = "$value";
-    pub(crate) const TYPE: &str = crate::design::tokens::TYPE_KEY;
-    pub(crate) const DESCRIPTION: &str = "$description";
+    /// The DTCG words, named once in `design::tokens::key`.
+    pub(crate) use crate::design::tokens::key::{
+        ALPHA, AMOUNT, BLUR, COLOR, COLOR_SPACE, COMPONENTS, DESCRIPTION, HEX, OFFSET_X, OFFSET_Y,
+        SPREAD, TYPE, UNIT, VALUE,
+    };
     pub(crate) const THEMES: &str = "$themes";
     pub(crate) const METADATA: &str = "$metadata";
-    /// The sRGB fallback of a DTCG colour object.
-    pub(crate) const HEX: &str = "hex";
 
     /* ------------------------------------- a Tokens Studio token of the legacy form (no `$`) */
 
@@ -53,27 +53,8 @@ pub(crate) mod key {
     pub(crate) const LEGACY_TYPE: &str = "type";
     pub(crate) const LEGACY_DESCRIPTION: &str = "description";
 
-    /* ------------------------------------------------------------ a DTCG colour object */
+    /* ------------------------------------------- a Penpot shadow layer (the DTCG ones above) */
 
-    /// The colour space of a DTCG colour object (`srgb`, `oklch`, ...).
-    pub(crate) const COLOR_SPACE: &str = "colorSpace";
-    /// The channels of a DTCG colour object, in its colour space.
-    pub(crate) const COMPONENTS: &str = "components";
-    pub(crate) const ALPHA: &str = "alpha";
-
-    /* ---------------------------------------------- a DTCG dimension or duration `{ value, unit }` */
-
-    /// The number of a DTCG dimension or duration (not the `$value` of a token).
-    pub(crate) const AMOUNT: &str = "value";
-    pub(crate) const UNIT: &str = "unit";
-
-    /* --------------------------------------------------- a shadow layer (DTCG and Penpot) */
-
-    pub(crate) const COLOR: &str = "color";
-    pub(crate) const OFFSET_X: &str = "offsetX";
-    pub(crate) const OFFSET_Y: &str = "offsetY";
-    pub(crate) const BLUR: &str = "blur";
-    pub(crate) const SPREAD: &str = "spread";
     pub(crate) const INSET: &str = "inset";
     /// The Penpot spelling of `offsetX`.
     pub(crate) const X: &str = "x";

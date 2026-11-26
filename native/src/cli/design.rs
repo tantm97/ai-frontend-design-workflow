@@ -16,6 +16,7 @@ use crate::core::error::exit;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::level::{self, Level};
+use crate::core::level::{finding, result as result_key};
 use crate::core::paths::{file, project_paths, rel, resolve};
 use crate::core::util::{
     out, to_json_compact, to_json_pretty, write_atomic_inside, write_json_inside, ArgValue, Args,
@@ -44,8 +45,7 @@ use crate::review::locate::impeccable_engine;
 use crate::telemetry;
 use crate::telemetry::events::{CheckCount, CheckTool, Event};
 use crate::tools::check::{
-    check_exit_code, field as result_key, finding_key as finding, format_report, launch,
-    run_checks, setup_engine, CheckOptions,
+    check_exit_code, format_report, launch, run_checks, setup_engine, CheckOptions,
 };
 use crate::tools::lighthouse::run_lighthouse;
 
@@ -90,15 +90,10 @@ mod style_key {
 
 /// The DTCG keys and token groups `dfw type scale --write` writes in `design/tokens.json`.
 mod token_key {
+    pub use crate::design::tokens::key::{AMOUNT, DESCRIPTION, TYPE, UNIT, VALUE};
     /// The font group, and its size group under it.
     pub const FONT: &str = "font";
     pub const SIZE: &str = "size";
-    pub const TYPE: &str = "$type";
-    pub const VALUE: &str = "$value";
-    pub const DESCRIPTION: &str = "$description";
-    /// Of a dimension value: the number and its unit.
-    pub const AMOUNT: &str = "value";
-    pub const UNIT: &str = "unit";
 }
 
 /// The keys of what `__debug color` prints and reads for an OKLCH colour and a type scale.

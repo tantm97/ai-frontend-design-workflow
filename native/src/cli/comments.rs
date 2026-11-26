@@ -14,17 +14,6 @@ use crate::review::inbox::{
 };
 use crate::review::status::{self, field, Status};
 
-/// The keys of a comment record read here that `review::status::field` does not name yet.
-mod comment_key {
-    /// Inside the target: the `data-dfw-id` of the element.
-    pub const DFW_ID: &str = "dfwId";
-    /// Inside the target: a CSS selector of the element.
-    pub const SELECTOR: &str = "selector";
-    /// Of a thread line: who wrote it.
-    pub const BY: &str = "by";
-    /// Of a thread line: its text.
-    pub const MESSAGE: &str = "message";
-}
 use crate::workflow::state::arg_truthy;
 
 /// The commands of this group: every subcommand runs here.
@@ -173,8 +162,8 @@ fn list(ctx: &Ctx) -> Result<i32, DfwError> {
                 .map(|v| js::to_string(Some(v)))
                 .collect();
             let of_target = |k: &str| js::truthy_value(c.get(field::TARGET).and_then(|t| t.get(k)));
-            let target = of_target(comment_key::DFW_ID)
-                .or(of_target(comment_key::SELECTOR))
+            let target = of_target(field::DFW_ID)
+                .or(of_target(field::SELECTOR))
                 .map_or("?".to_string(), |t| js::to_string(Some(t)));
             let source = of_target(field::SOURCE)
                 .map_or(String::new(), |s| format!(" ({})", js::to_string(Some(s))));
@@ -185,8 +174,8 @@ fn list(ctx: &Ctx) -> Result<i32, DfwError> {
             let last = last.map_or(String::new(), |l| {
                 format!(
                     "\n    last: {}: {}",
-                    js::to_string(l.get(comment_key::BY)),
-                    js::to_string(l.get(comment_key::MESSAGE))
+                    js::to_string(l.get(field::BY)),
+                    js::to_string(l.get(field::MESSAGE))
                 )
             });
             format!(

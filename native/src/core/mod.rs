@@ -12,6 +12,7 @@ pub mod level;
 pub mod lock;
 pub mod paths;
 pub mod platform;
+pub mod presence;
 pub mod process;
 pub mod state;
 pub mod util;

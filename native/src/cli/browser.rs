@@ -14,12 +14,12 @@ use crate::browser::screenshot::{screenshot, CONCURRENCY};
 use crate::browser::shoot::{shoot_breakpoints, studio_jobs, url_jobs, ShootOptions};
 use crate::core::error::exit;
 use crate::core::error::DfwError;
+use crate::core::level::result as result_key;
 use crate::core::level::Level;
 use crate::core::paths::resolve;
 use crate::core::util::{out, sha256, to_json_pretty, Args};
 use crate::design::layout_cache::{changed_screens, mark_checked};
 use crate::design::tokens::relative_path as relative;
-use crate::tools::check::field as result_key;
 
 /// The keys of what `dfw layout --json` prints, besides the check result's.
 mod layout_key {

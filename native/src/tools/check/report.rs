@@ -7,7 +7,8 @@ use crate::core::error::exit;
 use crate::core::level::{self, Level};
 use serde_json::{json, Value};
 
-use super::{field, finding_key as finding, outcome};
+use super::outcome;
+use crate::core::level::{finding, result as field};
 
 /// A tool as the first line of the report lists it: `tool=status`.
 pub fn tool_status(tool: &str, status: &str) -> String {

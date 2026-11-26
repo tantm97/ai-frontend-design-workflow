@@ -10,6 +10,7 @@ use std::time::Duration;
 use serde_json::Value;
 
 use super::http::write_head;
+use crate::core::presence::key as presence;
 use crate::core::util::to_json_compact;
 
 /// How long one event may take to reach a page; a page that does not read is dropped.
@@ -27,18 +28,7 @@ pub mod data {
     /// `comments`: how many drafts were sent.
     pub const SENT: &str = "sent";
     /// `presence`: the file and the element the agent is about to edit, as the note names them.
-    pub use super::presence::{DFW_ID, FILE};
-}
-
-/// The keys of `.dfw/presence.json`, the note the pre-tool-use hook writes:
-/// `{ file, dfwId, at }`.
-mod presence {
-    /// The design file, relative to `design/`.
-    pub const FILE: &str = "file";
-    /// The `data-dfw-id` of the element.
-    pub const DFW_ID: &str = "dfwId";
-    /// When the note was written (ISO time).
-    pub const AT: &str = "at";
+    pub use crate::core::presence::key::{DFW_ID, FILE};
 }
 
 /// The connected pages (`clients` in server.mjs): one queue per page. Each page's own

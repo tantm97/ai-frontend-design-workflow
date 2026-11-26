@@ -20,7 +20,7 @@ use std::time::Duration;
 use serde_json::{json, Map, Value};
 
 pub use self::report::{check_exit_code, format_report};
-use crate::core::config::env_map;
+use crate::core::config::{env_map, key as config_key};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{canonicalize, file, project_paths, rel, resolve, to_posix};
@@ -31,13 +31,13 @@ use crate::design::dsaudit::audit_design_system;
 use crate::design::manifest::key as manifest_key;
 
 use crate::core::level::Level;
+use crate::core::level::{finding, result as field};
 use crate::core::platform::node_platform;
 use crate::design::lint::lint_design;
 use crate::design::tokens::relative_path;
 use crate::review::locate::{
     impeccable_engine, launcher_command, sloplint_script, taste_copy_lint_script, Engine,
 };
-use finding_key as finding;
 
 /// `UI_EXT`: the files the checks look at.
 pub const UI_EXT: [&str; 11] = [
@@ -64,27 +64,6 @@ pub mod outcome {
     pub const UNVERIFIABLE: &str = "unverifiable";
     pub const TIMEOUT: &str = "timeout";
     pub const ERROR: &str = "error";
-}
-
-/// The keys of a finding record besides `core::level::finding`'s `level` and `rule`:
-/// `{ level, rule, file, line, message, source }`.
-pub mod finding_key {
-    pub use crate::core::level::finding::{LEVEL, RULE};
-    /// The file it is in, project-relative (or the URL checked).
-    pub const FILE: &str = "file";
-    /// The line in that file, from 1.
-    pub const LINE: &str = "line";
-    pub const MESSAGE: &str = "message";
-    /// The tool that reported it.
-    pub const SOURCE: &str = "source";
-}
-
-/// The fields of a check result: `{ tool, status, detail?, findings }`.
-pub mod field {
-    pub const TOOL: &str = "tool";
-    pub const STATUS: &str = "status";
-    pub const DETAIL: &str = "detail";
-    pub const FINDINGS: &str = "findings";
 }
 
 /// The keys of the external tools' JSON output that are read. Hallmark's sloplint gives
@@ -123,19 +102,6 @@ mod output {
     pub const SEV: &str = "sev";
     /// Copy-lint: the message.
     pub const MSG: &str = "msg";
-}
-
-/// The project config keys the checks read (`checks.<setting>`).
-mod config_key {
-    pub const CHECKS: &str = "checks";
-    /// The settings of [`CHECKS`] read by name; `impeccable` and `sloplint` are read by
-    /// their tool's name.
-    pub mod checks {
-        /// The budget of each external tool, in milliseconds.
-        pub const TIMEOUT_MS: &str = "timeoutMs";
-        /// Whether Taste's copy-lint runs (off by default).
-        pub const TASTE_COPY_LINT: &str = "tasteCopyLint";
-    }
 }
 
 /// `path.extname`: from the last dot of the last segment, unless the name starts with it.
@@ -733,7 +699,7 @@ pub fn run_checks_with(
     let checks = config.get(config_key::CHECKS);
     let setting = |key: &str| checks.and_then(|c| c.get(key));
     let env = env_map(config);
-    let configured = setting(config_key::checks::TIMEOUT_MS)
+    let configured = setting(config_key::TIMEOUT_MS)
         .and_then(Value::as_f64)
         .filter(|n| *n >= 1.0)
         .map(|n| n as u64);
@@ -817,7 +783,7 @@ pub fn run_checks_with(
     if want(tool::SLOPLINT) && setting(tool::SLOPLINT) != Some(&Value::Bool(false)) {
         results.push(remap(run_sloplint(root, &tool_targets, run_opts, lookup)?));
     }
-    if want("taste") && setting(config_key::checks::TASTE_COPY_LINT).is_some_and(js::truthy) {
+    if want("taste") && setting(config_key::TASTE_COPY_LINT).is_some_and(js::truthy) {
         results.push(remap(run_taste_copy_lint(
             root,
             &tool_targets,

@@ -15,8 +15,8 @@ use crate::review::status::{self, Status};
 use crate::workflow::lang::prune_sessions;
 use crate::workflow::state::{field, load_state, summarize};
 
-use super::payload;
 use super::pre_tool_use::root_from;
+use crate::core::host::input as payload;
 
 /// `sessionStart(input)`: the status lines as context; nothing when there is no active workflow.
 pub fn session_start(input: &HookInput) -> Result<Option<HookResult>, DfwError> {

@@ -7,6 +7,7 @@ use std::path::Path;
 use regex::Regex;
 use serde_json::{json, Value};
 
+use crate::core::config::key::breakpoint;
 use crate::core::config::load_config;
 use crate::core::error::DfwError;
 use crate::core::js;
@@ -19,14 +20,6 @@ use crate::workflow::freeze::check_snapshot_name;
 use crate::workflow::gates::relative;
 use crate::workflow::stack::field as stack_key;
 use crate::workflow::state::{current_approval, field, gate, require_state};
-
-/// The keys of a comment record read here that `review::status::field` does not name yet.
-mod comment_key {
-    /// How a fixed comment was fixed: `{ at, by, note, evidence }`.
-    pub const RESOLUTION: &str = "resolution";
-    /// Of a resolution: what was changed.
-    pub const NOTE: &str = "note";
-}
 
 /// `text.replaceAll(needle, replacement)` with a string pattern: `$$`, `$&`, `` $` `` and `$'`
 /// in the replacement mean what JavaScript says, so a product name or a comment with a dollar
@@ -243,8 +236,8 @@ pub fn write_handoff(root: &Path) -> Result<String, DfwError> {
         .map(|b| {
             format!(
                 "{} {}px",
-                js::to_string(b.get(key::ID)),
-                js::to_string(b.get(key::WIDTH))
+                js::to_string(b.get(breakpoint::ID)),
+                js::to_string(b.get(breakpoint::WIDTH))
             )
         })
         .collect();
@@ -270,8 +263,8 @@ pub fn write_handoff(root: &Path) -> Result<String, DfwError> {
                 js::to_string(c.get(comment::ID)),
                 js::to_string(c.get(comment::COMMENT)),
                 text_or(
-                    c.get(comment_key::RESOLUTION)
-                        .and_then(|r| r.get(comment_key::NOTE)),
+                    c.get(comment::RESOLUTION)
+                        .and_then(|r| r.get(comment::NOTE)),
                     ""
                 )
             )

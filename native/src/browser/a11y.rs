@@ -27,7 +27,7 @@ use crate::core::config::load_config;
 use crate::core::error::DfwError;
 use crate::core::http;
 use crate::core::js;
-use crate::core::level::{finding, Level};
+use crate::core::level::{finding, result, Level};
 use crate::core::paths::file_url;
 use crate::core::paths::{global_dir, project_paths, rel};
 use crate::core::util::read_json;
@@ -52,15 +52,6 @@ const SET_STATE_AND_THEME: &str = "(a) => {
           }";
 
 const CONCURRENCY: usize = 6;
-
-/// The keys of the check result: `{ tool, status, detail?, findings }`, the record
-/// `tools::check::field` names for the other checks (a lower layer cannot read that one).
-mod result {
-    pub const TOOL: &str = "tool";
-    pub const STATUS: &str = "status";
-    pub const DETAIL: &str = "detail";
-    pub const FINDINGS: &str = "findings";
-}
 
 /// The keys of a violation axe reports (`a11y_run_axe.js` returns them as axe names them).
 mod violation {

@@ -12,8 +12,9 @@ use serde_json::{json, Value};
 use crate::browser::launch::find_browser;
 use crate::core::js;
 use crate::core::level::Level;
+use crate::core::level::{finding, result as field};
 use crate::core::process::{node_executable, run_timed, Spawn};
-use crate::tools::check::{field, finding_key as finding, outcome};
+use crate::tools::check::outcome;
 
 const LIGHTHOUSE_VERSION: &str = "13.6.0";
 
@@ -212,7 +213,7 @@ pub fn lighthouse_report(stdout: Option<&str>, url: &str, error_detail: &str) ->
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tools::check::field::{DETAIL, FINDINGS, STATUS};
+    use crate::core::level::result::{DETAIL, FINDINGS, STATUS};
 
     /// The app Lighthouse is run against.
     const URL: &str = "http://localhost:3000";
