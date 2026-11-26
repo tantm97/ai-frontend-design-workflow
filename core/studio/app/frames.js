@@ -181,7 +181,7 @@ function addFrame(spec, pageId, canvas, before) {
 
 /** Place sections, gutters and frames from their current sizes (a frame grows to its content). */
 export function positionFrames() {
-  S.secBounds = {};
+  S.secBounds = new Map();
   const sizes = S.sections.map((/** @type {any} */ sec) => ({
     headH: sec.headH,
     headW: sec.head.offsetWidth,
@@ -203,7 +203,7 @@ export function positionFrames() {
     });
     const [x, y, w, h] = place.bounds;
     sec.el.style.cssText = `left:${x}px;top:${y}px;width:${w}px;height:${h}px`;
-    S.secBounds[sec.id] = place.bounds;
+    S.secBounds.set(sec.id, place.bounds);
   });
   drawFlow();
 }
@@ -317,7 +317,7 @@ export function loadFrame(/** @type {any} */ f) {
 }
 
 /** World rectangle around every section of the canvas. */
-export const pageBounds = () => boundsOf(Object.values(S.secBounds || {}));
+export const pageBounds = () => boundsOf([...S.secBounds.values()]);
 
 /** The page list in the left pane, with frame and open-comment counts. */
 export function renderPages() {
@@ -355,14 +355,15 @@ export function renderPages() {
 export function setPage(id, { fit = false } = {}) {
   if (id !== ALL && !S.pages.some((p) => p.id === id))
     id = S.pages.find((p) => !p.system && !p.flow && p.screens.length)?.id || SYSTEM_SCREEN;
-  S.cams[S.page] = { ...S.cam };
+  S.cams.set(S.page, { ...S.cam });
   S.page = id;
   store.set('page', id);
   S.sel = null;
   S.selKey = null;
   buildPage();
-  if (S.cams[id] && !fit) {
-    S.cam = { ...S.cams[id] };
+  const cam = S.cams.get(id);
+  if (cam && !fit) {
+    S.cam = { ...cam };
     ui.applyCam();
   } else ui.zoomToFit({ initial: true });
 }

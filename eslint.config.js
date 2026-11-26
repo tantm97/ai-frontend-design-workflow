@@ -18,6 +18,17 @@ const USER_TEXT = [
   `CallExpression[callee.property.name='setAttribute'][arguments.0.value=/^(${TEXT_ATTRS})$/] > ${WORDS}.arguments:nth-child(2)`,
 ].join(', ');
 
+// security-privacy.md S4: a key from design data or a message (a page or section id, a token name)
+// written into a plain object can be `__proto__` or shadow an inherited name. Id-keyed tables are
+// `Map`s. Not refused: `el.style[...]` (a CSSStyleDeclaration) and a number literal index. An array
+// by a variable index or an `Object.create(null)` table says so with an eslint-disable and a reason.
+const COMPUTED_WRITE = {
+  selector: ['AssignmentExpression > MemberExpression.left[computed=true]', 'UpdateExpression > MemberExpression.argument[computed=true]']
+    .map((s) => `${s}:not([object.property.name='style']):not([property.type='Literal'][property.raw=/^[0-9]+$/])`)
+    .join(', '),
+  message: 'A key from data written into a plain object can be __proto__: use a Map (security-privacy.md S4).',
+};
+
 export default [
   {
     ignores: [
@@ -42,6 +53,7 @@ export default [
   {
     files: ['core/studio/**/*.js'],
     languageOptions: { globals: globals.browser },
+    rules: { 'no-restricted-syntax': ['error', COMPUTED_WRITE] },
   },
   {
     // docs/conventions/javascript.md J14 (G15: corrections become checks). The Studio page (app/)
@@ -52,6 +64,8 @@ export default [
     rules: {
       'no-restricted-syntax': [
         'error',
+        // Repeated here: this block's list replaces the one above for these files.
+        COMPUTED_WRITE,
         {
           selector: 'Literal[value=/^dfw:/]',
           message: 'Message names live in core/studio/shared/protocol.js: use MSG.<NAME> (J14).',
