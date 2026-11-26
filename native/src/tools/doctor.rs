@@ -254,10 +254,7 @@ fn check_project(report: &mut Report, root: &Path) -> Result<(), DfwError> {
     let Some(state) = &state else {
         return Ok(());
     };
-    let approved = state
-        .get("design")
-        .and_then(|d| d.get("approved"))
-        .and_then(Value::as_array);
+    let approved = crate::workflow::state::approved_versions(state).and_then(Value::as_array);
     for ap in approved.into_iter().flatten() {
         let version = ap
             .get("version")

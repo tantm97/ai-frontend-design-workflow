@@ -14,7 +14,7 @@ use crate::core::js;
 use crate::core::paths::{self, resolve};
 use crate::core::util::matches_any;
 
-use super::state::{current_approval, gate_passed};
+use super::state::{current_approval, design_lock, gate_passed};
 
 /// The text of the gate's refusals and errors, named once (the golden tests record it).
 pub mod message {
@@ -202,14 +202,9 @@ fn decide_rel(
         return Ok(Decision::deny(message::review_only()));
     }
     let design_paths = gate_design_paths(config);
-    let design = state.get("design");
     // A locked design is refused under any case of its name; an open one is allowed as written.
-    if js::truthy_value(design.and_then(|d| d.get("locked"))).is_some()
-        && matches(rel, &design_paths, fold)
-    {
-        return Ok(Decision::deny(message::locked(&js::to_string(
-            design.and_then(|d| d.get("version")),
-        ))));
+    if let Some(version) = design_lock(state).filter(|_| matches(rel, &design_paths, fold)) {
+        return Ok(Decision::deny(message::locked(&version)));
     }
     if matches_any(rel, &design_paths) {
         return Ok(Decision::allow());

@@ -114,11 +114,10 @@ pub fn import_penpot_tokens(
     dry_run: bool,
     prune: bool,
 ) -> Result<TokenImport, DfwError> {
-    let design = state.and_then(|s| s.get("design"));
-    if !dry_run && js::truthy(design.and_then(|d| d.get("locked"))) {
+    let lock = state.and_then(crate::workflow::state::design_lock);
+    if let Some(version) = lock.filter(|_| !dry_run) {
         return Err(DfwError::new(format!(
-            "Design v{} is approved and frozen (G2): token changes from Penpot are not applied. Show them with --dry-run, and if the user wants them, run \"dfw reopen --reason <why>\" first.",
-            js::to_string(design.and_then(|d| d.get("version")))
+            "Design v{version} is approved and frozen (G2): token changes from Penpot are not applied. Show them with --dry-run, and if the user wants them, run \"dfw reopen --reason <why>\" first.",
         )));
     }
     if !dry_run && state.and_then(|s| s.get("mode")).and_then(Value::as_str) == Some("review-only")

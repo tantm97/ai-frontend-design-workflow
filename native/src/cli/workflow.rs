@@ -34,8 +34,8 @@ use crate::workflow::freeze::{freeze_design, reopen_design, verify_snapshot};
 use crate::workflow::lang::{language_status, set_language};
 use crate::workflow::stack::detect_stack;
 use crate::workflow::state::{
-    approve_gate, arg_raw, arg_truthy, current_approval, gate_title, load_state, mode_info,
-    new_state, push_history, require_state, save_state, set_field, set_mode, set_phase,
+    approve_gate, approved_versions, arg_raw, arg_truthy, current_approval, gate_title, load_state,
+    mode_info, new_state, push_history, require_state, save_state, set_field, set_mode, set_phase,
     state_field_error, summarize, type_error,
 };
 
@@ -390,9 +390,7 @@ fn approve_g2(root: &Path, a: &Args, state: &mut Value, note: Value) -> Result<i
         return Err(DfwError::new(format!("G2 blocked: {} review comment(s) are not resolved or dismissed ({}). Resolve them with the user, or pass --accept-open-comments if the user says so.", open.len(), open.join(", "))));
     }
     freeze_design(root, state, Some(note))?;
-    let last = state
-        .get("design")
-        .and_then(|d| d.get("approved"))
+    let last = approved_versions(state)
         .and_then(Value::as_array)
         .and_then(|list| list.last())
         .ok_or_else(|| type_error("version"))?;
@@ -609,9 +607,7 @@ fn verify_snapshot_cmd(ctx: &Ctx) -> Result<i32, DfwError> {
     let version = match named.or(version_of(current_approval(&state)?.as_ref())) {
         Some(v) => Some(v),
         None => {
-            let approved = state
-                .get("design")
-                .and_then(|d| d.get("approved"))
+            let approved = approved_versions(&state)
                 .and_then(Value::as_array)
                 .ok_or_else(|| state_field_error("design.approved", "a list"))?;
             version_of(approved.last())

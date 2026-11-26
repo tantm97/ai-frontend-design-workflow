@@ -32,6 +32,8 @@ pub mod field {
     pub const VERSION: &str = "version";
     /// `design.approved`: the list of approved versions.
     pub const APPROVED: &str = "approved";
+    /// `design.locked`: the design is approved and frozen (G2).
+    pub const LOCKED: &str = "locked";
 }
 
 use self::mode_name::*;
@@ -205,6 +207,20 @@ pub fn set_field(state: &mut Value, key: &str, value: Option<Value>) -> Result<(
 pub fn load_state(root: &Path) -> Result<Option<Value>, DfwError> {
     let state = read_json(&project_paths(root).state, Some(Value::Null))?;
     Ok(Some(state).filter(|v| js::truthy(v)))
+}
+
+/// The design version, as a refusal prints it (`String(design.version)`: `undefined` when
+/// missing), when the design is locked (approved and frozen, G2): `design.locked` read by
+/// JavaScript truthiness (`"0"` and `[]` lock, `0` and `""` do not). The one test every writer
+/// of design files uses: the write gate, Studio edits, Penpot token import (AGENTS.md rule 1).
+pub fn design_lock(state: &Value) -> Option<String> {
+    let design = state.get(field::DESIGN)?;
+    js::truthy(design.get(field::LOCKED)).then(|| js::to_string(design.get(field::VERSION)))
+}
+
+/// `design.approved` as found: callers check its type with their own error.
+pub fn approved_versions(state: &Value) -> Option<&Value> {
+    state.get(field::DESIGN)?.get(field::APPROVED)
 }
 
 /// `requireState(root)`: the state, or the error that says to run `dfw init`.
@@ -531,6 +547,36 @@ pub fn summarize(state: Option<&Value>) -> Result<String, DfwError> {
 mod tests {
     use super::*;
     use crate::core::util::test_dir;
+
+    /// `design.locked` is read as JavaScript reads it, the same for every writer (rule 1).
+    #[test]
+    fn design_lock_reads_locked_as_javascript_does() {
+        let version = Some("3".to_string());
+        let state = |locked: Option<Value>| {
+            let mut design = json!({ (field::VERSION): 3 });
+            if let Some(v) = locked {
+                design[field::LOCKED] = v;
+            }
+            json!({ (field::DESIGN): design })
+        };
+        for locked in [json!(true), json!(1), json!("0"), json!([]), json!({})] {
+            assert_eq!(
+                design_lock(&state(Some(locked.clone()))),
+                version,
+                "{locked}"
+            );
+        }
+        for open in [json!(false), json!(0), json!(""), Value::Null] {
+            assert_eq!(design_lock(&state(Some(open.clone()))), None, "{open}");
+        }
+        assert_eq!(design_lock(&state(None)), None);
+        assert_eq!(design_lock(&json!({})), None);
+        let no_version = json!({ (field::DESIGN): { (field::LOCKED): true } });
+        assert_eq!(
+            design_lock(&no_version),
+            Some(js::to_string(None::<&Value>))
+        );
+    }
 
     fn fresh(mode: &str) -> Value {
         new_state(mode, Value::String(String::new())).unwrap()

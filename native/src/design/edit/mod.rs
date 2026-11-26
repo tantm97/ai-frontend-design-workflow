@@ -172,11 +172,9 @@ pub fn assert_editable(root: &Path) -> Result<(), DfwError> {
     if !js::truthy(Some(&state)) || state.get("active") == Some(&Value::Bool(false)) {
         return Ok(());
     }
-    let design = state.get("design");
-    if js::truthy(design.and_then(|d| d.get("locked"))) {
+    if let Some(version) = crate::workflow::state::design_lock(&state) {
         return Err(DfwError::new(format!(
-            "Design v{} is approved and locked (G2); Studio edits are refused. Changing it needs your approval and \"dfw reopen --reason <why>\".",
-            js::to_string(design.and_then(|d| d.get("version")))
+            "Design v{version} is approved and locked (G2); Studio edits are refused. Changing it needs your approval and \"dfw reopen --reason <why>\".",
         )));
     }
     if state.get("mode").and_then(Value::as_str) == Some("review-only") {
