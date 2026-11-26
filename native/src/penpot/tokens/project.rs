@@ -120,7 +120,11 @@ pub fn import_penpot_tokens(
             "Design v{version} is approved and frozen (G2): token changes from Penpot are not applied. Show them with --dry-run, and if the user wants them, run \"dfw reopen --reason <why>\" first.",
         )));
     }
-    if !dry_run && state.and_then(|s| s.get("mode")).and_then(Value::as_str) == Some("review-only")
+    if !dry_run
+        && state
+            .and_then(|s| s.get(crate::workflow::state::field::MODE))
+            .and_then(Value::as_str)
+            == Some("review-only")
     {
         return Err(DfwError::new(
             "This project is in review-only mode: use --dry-run to report token differences.",

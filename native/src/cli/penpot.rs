@@ -24,6 +24,7 @@ use crate::penpot::live::sync_threads;
 use crate::penpot::tokens::{
     export_penpot_tokens, format_export, format_import, import_penpot_tokens, DfwTokens,
 };
+use crate::workflow::server::field as record;
 use crate::workflow::state::load_state;
 
 /// The commands of this group.
@@ -109,8 +110,8 @@ fn import(ctx: &Ctx, root: &Path) -> Result<i32, DfwError> {
 fn plugin(root: &Path) -> Result<i32, DfwError> {
     let info = read_json(&project_paths(root).studio, Some(Value::Null))?;
     let url = info
-        .get("url")
-        .filter(|u| js::truthy(Some(u)) && Pid::of(info.get("pid")).is_some_and(is_alive))
+        .get(record::URL)
+        .filter(|u| js::truthy(Some(u)) && Pid::of(info.get(record::PID)).is_some_and(is_alive))
         .map(|u| js::to_string(Some(u)));
     let base = match &url {
         Some(url) => url.clone(),

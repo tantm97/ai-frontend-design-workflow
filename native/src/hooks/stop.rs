@@ -11,7 +11,7 @@ use crate::core::error::DfwError;
 use crate::core::host::{HookInput, HookResult};
 use crate::core::level::Level;
 use crate::design::layout_cache::{changed_screens, mark_checked};
-use crate::workflow::state::load_state;
+use crate::workflow::state::{field, load_state};
 
 use super::pre_tool_use::root_from;
 use super::user_prompt_submit::inbox_for;
@@ -29,10 +29,10 @@ pub fn stop(input: &HookInput) -> Result<Option<HookResult>, DfwError> {
         return Ok(None);
     };
     let designing = matches!(
-        state.get("phase").and_then(Value::as_str),
+        state.get(field::PHASE).and_then(Value::as_str),
         Some("system" | "concepts")
     );
-    if state.get("active") == Some(&Value::Bool(false)) || !designing {
+    if state.get(field::ACTIVE) == Some(&Value::Bool(false)) || !designing {
         return Ok(None);
     }
     if !checks_layout_on_stop(&load_config(Some(&root))?) || !browser_status().installed() {

@@ -14,6 +14,21 @@ use crate::core::js;
 use crate::core::paths::{self, env_nonempty, file, global_dir};
 use crate::core::util::{now_iso, read_json, write_json};
 
+/// The keys of a session file (`sessions/<id>.json` in the dfw home: `{ language, setAt }`), of
+/// the config's `language` section that this module writes (`lastUsed`) and of what
+/// `dfw lang status|set` prints (`{ session, chosen, language, lastUsed }`).
+pub mod field {
+    /// The language chosen for the session.
+    pub const LANGUAGE: &str = "language";
+    pub const SET_AT: &str = "setAt";
+    /// The language offered as the default to the next session.
+    pub const LAST_USED: &str = "lastUsed";
+    /// The session id, `null` when none is known.
+    pub const SESSION: &str = "session";
+    /// Whether the session has chosen a language.
+    pub const CHOSEN: &str = "chosen";
+}
+
 const SESSION_TTL_DAYS: u64 = 30;
 
 /// `sessionId(explicit)`: the given id, else `DFW_SESSION_ID`, else `CLAUDE_SESSION_ID`.
@@ -47,7 +62,11 @@ fn empty() -> Value {
 
 fn last_used_in(home: &Path) -> Result<Value, DfwError> {
     let config = read_json(&home.join(file::CONFIG), Some(empty()))?;
-    let last = js::truthy_value(config.get(key::LANGUAGE).and_then(|l| l.get("lastUsed")));
+    let last = js::truthy_value(
+        config
+            .get(key::LANGUAGE)
+            .and_then(|l| l.get(field::LAST_USED)),
+    );
     Ok(last.cloned().unwrap_or_else(|| "en".into()))
 }
 
@@ -59,15 +78,17 @@ pub fn language_status(explicit_session: Option<&str>) -> Result<Value, DfwError
 fn language_status_in(home: &Path, id: Option<&str>) -> Result<Value, DfwError> {
     let last = last_used_in(home)?;
     let Some(id) = id else {
-        return Ok(json!({ "session": null, "chosen": false, "language": null, "lastUsed": last }));
+        return Ok(
+            json!({ (field::SESSION): null, (field::CHOSEN): false, (field::LANGUAGE): null, (field::LAST_USED): last }),
+        );
     };
     let session = read_json(&session_file(home, id), Some(Value::Null))?;
-    let language = js::truthy_value(session.get("language")).cloned();
+    let language = js::truthy_value(session.get(field::LANGUAGE)).cloned();
     Ok(json!({
-        "session": id,
-        "chosen": language.is_some(),
-        "language": language,
-        "lastUsed": last,
+        (field::SESSION): id,
+        (field::CHOSEN): language.is_some(),
+        (field::LANGUAGE): language,
+        (field::LAST_USED): last,
     }))
 }
 
@@ -86,18 +107,18 @@ fn set_language_in(home: &Path, code: Option<&str>, id: Option<&str>) -> Result<
     if let Some(id) = id {
         write_json(
             &session_file(home, id),
-            &json!({ "language": lang, "setAt": now_iso() }),
+            &json!({ (field::LANGUAGE): lang, (field::SET_AT): now_iso() }),
         )?;
     }
     let file = home.join(paths::file::CONFIG);
     let mut config = read_json(&file, Some(empty()))?;
     if let Value::Object(map) = &mut config {
         let mut language = js::spread(js::truthy_value(map.get(key::LANGUAGE)));
-        language.insert("lastUsed".into(), lang.clone().into());
+        language.insert(field::LAST_USED.into(), lang.clone().into());
         map.insert(key::LANGUAGE.into(), Value::Object(language));
     }
     write_json(&file, &config)?;
-    Ok(json!({ "session": id, "language": lang }))
+    Ok(json!({ (field::SESSION): id, (field::LANGUAGE): lang }))
 }
 
 /// `pruneSessions()`: delete session files not touched for 30 days.

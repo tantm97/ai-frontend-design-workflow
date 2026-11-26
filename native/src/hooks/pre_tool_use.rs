@@ -15,7 +15,7 @@ use crate::core::paths::{env_nonempty, file, find_project_root, project_paths, r
 use crate::core::util::{now_iso, write_json_inside};
 use crate::design::html::{Attr, Quote, Token, Tokenizer};
 use crate::workflow::gates::{decide_write, files_from_tool_input, relative};
-use crate::workflow::state::load_state;
+use crate::workflow::state::{field, load_state};
 
 /// An element id as the regular expression of Node found it
 /// (`(?:data-dfw-id|<dfw-use\b[^>]*?\bid)=(?:"([^"']+)"|'([^"']+)')`): where that match
@@ -125,7 +125,7 @@ pub fn pre_tool_use(input: &HookInput) -> Result<Option<HookResult>, DfwError> {
             return Ok(Some(HookResult::Deny(decision.reason.unwrap_or_default())));
         }
     }
-    if state.get("active") != Some(&Value::Bool(false)) {
+    if state.get(field::ACTIVE) != Some(&Value::Bool(false)) {
         // Presence is a nicety: it never blocks an edit.
         let _ = note_presence(&root, &input.tool_input, &files[0]);
     }

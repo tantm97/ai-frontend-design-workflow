@@ -17,6 +17,8 @@ use crate::core::paths::rel;
 
 /// `design/design.json` keys.
 pub mod key {
+    /// The product name.
+    pub const PRODUCT: &str = "product";
     pub const BREAKPOINTS: &str = "breakpoints";
     pub const STATES: &str = "states";
     pub const PAGES: &str = "pages";

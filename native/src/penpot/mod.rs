@@ -283,9 +283,7 @@ pub(crate) mod wire {
 
     /// The keys of `.dfw/state.json` the bridge reads.
     pub(crate) mod state {
-        pub(crate) use crate::workflow::state::field::{DESIGN, VERSION};
-        /// `design.locked`: the design is frozen.
-        pub(crate) const LOCKED: &str = "locked";
+        pub(crate) use crate::workflow::state::field::{DESIGN, LOCKED, VERSION};
     }
 
     /// The keys only the fingerprint of a change has (the ledger compares fingerprints).

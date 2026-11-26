@@ -23,7 +23,7 @@ use crate::tools::binary::binary_status;
 use crate::tools::install::copilot_plugin_state;
 use crate::tools::mcp_install::mcp_installed;
 use crate::workflow::freeze::verify_snapshot;
-use crate::workflow::state::load_state;
+use crate::workflow::state::{approved_versions, field, load_state};
 
 /// One line of the report: what was checked, whether it is fine, and what was found.
 pub struct Check {
@@ -246,18 +246,18 @@ fn check_project(report: &mut Report, root: &Path) -> Result<(), DfwError> {
         .map_or("not initialized here".to_string(), |s| {
             format!(
                 "{}/{}",
-                js::to_string(s.get("mode")),
-                js::to_string(s.get("phase"))
+                js::to_string(s.get(field::MODE)),
+                js::to_string(s.get(field::PHASE))
             )
         });
     report.add("project workflow", true, &detail);
     let Some(state) = &state else {
         return Ok(());
     };
-    let approved = crate::workflow::state::approved_versions(state).and_then(Value::as_array);
+    let approved = approved_versions(state).and_then(Value::as_array);
     for ap in approved.into_iter().flatten() {
         let version = ap
-            .get("version")
+            .get(field::VERSION)
             .and_then(Value::as_str)
             .unwrap_or_default();
         let problems = verify_snapshot(root, version)?;

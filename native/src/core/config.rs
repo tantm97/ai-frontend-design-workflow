@@ -21,6 +21,8 @@ use super::util::{deep_merge, get_path, read_json, set_path, write_json, write_j
 
 /// The sections of the config the code reads by name, and the dotted keys of single values.
 pub mod key {
+    /// The format of a config file (`1`).
+    pub const SCHEMA: &str = "schema";
     pub const LANGUAGE: &str = "language";
     pub const GATE: &str = "gate";
     #[cfg(test)]
@@ -34,7 +36,7 @@ pub mod key {
 /// `DEFAULTS`: the plugin's own layer.
 pub fn defaults() -> Value {
     json!({
-        "schema": 1,
+        (key::SCHEMA): 1,
         "language": {
             // "session": ask on the first /dfw run in every session (user decision 2026-11-13).
             "askPolicy": "session",

@@ -17,8 +17,8 @@ use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{project_paths, rel, resolve};
 use crate::core::util::{ensure_inside, read_json, to_json_pretty, write_atomic_inside};
-use crate::workflow::stack::detect_stack;
-use crate::workflow::state::{gate_passed, load_state};
+use crate::workflow::stack::{detect_stack, field as stack_key};
+use crate::workflow::state::{gate, gate_passed, load_state};
 
 /// The npm package.
 pub const PACKAGE: &str = "code-inspector-plugin";
@@ -552,8 +552,12 @@ fn manual_for(bundler: Option<&str>) -> String {
 /// in the order Node built them.
 pub fn inspector_plan(root: &Path) -> Result<Value, DfwError> {
     let stack = detect_stack(root)?;
-    let framework = js::or_null(stack.get("framework").and_then(|f| f.get("name")));
-    let manager = js::or_empty(stack.get("packageManager"));
+    let framework = js::or_null(
+        stack
+            .get(stack_key::FRAMEWORK)
+            .and_then(|f| f.get(stack_key::NAME)),
+    );
+    let manager = js::or_empty(stack.get(stack_key::PACKAGE_MANAGER));
     let b = detect_bundler(root)?;
     let mut plan = Map::new();
     plan.insert("bundler".into(), json!(b.bundler));
@@ -721,7 +725,7 @@ pub fn inspector_setup(root: &Path, write: bool) -> Result<(Value, Vec<String>),
     }
     let stack = read_json(&project_paths(root).stack, Some(Value::Null))?;
     let mut missing = Vec::new();
-    if !load_state(root)?.is_some_and(|state| gate_passed(&state, "G3")) {
+    if !load_state(root)?.is_some_and(|state| gate_passed(&state, gate::G3)) {
         missing.push("G3 (technology stack) is not approved".to_string());
     }
     if !stack_approves(&stack) {

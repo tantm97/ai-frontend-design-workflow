@@ -10,15 +10,34 @@ use crate::core::js;
 use crate::core::paths::{project_paths, rel};
 use crate::core::util::{append_jsonl_inside, now_iso, read_jsonl};
 
+/// The keys of an entry of `.dfw/decisions.jsonl`:
+/// `{ at, level, topic, decision, by, overrides? }`, and what a G2 freeze adds.
+pub mod field {
+    pub const AT: &str = "at";
+    /// Who decided: 1 the user .. 5 an external skill's recommendation.
+    pub const LEVEL: &str = "level";
+    pub const TOPIC: &str = "topic";
+    /// The decision's text.
+    pub const DECISION: &str = "decision";
+    /// `user` or `orchestrator`.
+    pub const BY: &str = "by";
+    /// The earlier decision this one overrides.
+    pub const OVERRIDES: &str = "overrides";
+    /// The MUST findings the user accepted at G2.
+    pub const FINDINGS: &str = "findings";
+    /// The checks that did not run when the user accepted freezing at G2.
+    pub const UNVERIFIED: &str = "unverified";
+}
+
 /// The entry `approveGate` appends: a level 1 (user) decision named after the gate.
 pub fn gate_entry(at: &str, gate: &str, title: &str, note: Option<&Value>) -> Value {
     let note = note.map_or(String::new(), |n| format!(" - {}", js::to_string(Some(n))));
     json!({
-        "at": at,
-        "level": 1,
-        "topic": format!("gate:{gate}"),
-        "decision": format!("{title}{note}"),
-        "by": "user",
+        (field::AT): at,
+        (field::LEVEL): 1,
+        (field::TOPIC): format!("gate:{gate}"),
+        (field::DECISION): format!("{title}{note}"),
+        (field::BY): "user",
     })
 }
 
@@ -42,15 +61,18 @@ pub fn decide(
         return Err(DfwError::new("Decision text is required."));
     };
     let entry = js::object(vec![
-        ("at", Some(Value::String(now_iso()))),
-        ("level", Some(Value::from(level))),
-        ("topic", Some(topic.unwrap_or_else(|| "general".into()))),
-        ("decision", Some(text)),
+        (field::AT, Some(Value::String(now_iso()))),
+        (field::LEVEL, Some(Value::from(level))),
         (
-            "by",
+            field::TOPIC,
+            Some(topic.unwrap_or_else(|| "general".into())),
+        ),
+        (field::DECISION, Some(text)),
+        (
+            field::BY,
             Some(if level == 1.0 { "user" } else { "orchestrator" }.into()),
         ),
-        ("overrides", overrides),
+        (field::OVERRIDES, overrides),
     ]);
     append_jsonl_inside(root, &project_paths(root).decisions, &entry)?;
     Ok(entry)
@@ -69,7 +91,7 @@ pub fn format_decisions(list: &[Value]) -> Result<String, DfwError> {
     let lines: Result<Vec<String>, DfwError> = list
         .iter()
         .map(|d| {
-            let at = d.get("at").and_then(Value::as_str).ok_or_else(|| {
+            let at = d.get(field::AT).and_then(Value::as_str).ok_or_else(|| {
                 DfwError::new(format!(
                     "{}: a decision has no \"at\" time. Fix or remove that line.",
                     rel::DECISIONS
@@ -80,9 +102,9 @@ pub fn format_decisions(list: &[Value]) -> Result<String, DfwError> {
             Ok(format!(
                 "{} L{} [{}] {}",
                 String::from_utf16_lossy(&units),
-                js::to_string(d.get("level")),
-                js::to_string(d.get("topic")),
-                js::to_string(d.get("decision"))
+                js::to_string(d.get(field::LEVEL)),
+                js::to_string(d.get(field::TOPIC)),
+                js::to_string(d.get(field::DECISION))
             ))
         })
         .collect();

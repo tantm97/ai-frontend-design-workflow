@@ -22,6 +22,8 @@ use crate::studio::live_proxy::{
 };
 use crate::studio::paths;
 use crate::studio::server;
+/// The keys of `.dfw/studio.json` and `.dfw/review.json`, which this module writes.
+use crate::workflow::server::field as record;
 
 /// The commands of this group.
 pub fn commands() -> Vec<(&'static str, Handler)> {
@@ -105,12 +107,16 @@ fn studio(ctx: &Ctx) -> Result<i32, DfwError> {
     let p = project_paths(&root);
     let sub = a.pos(1).filter(|s| !s.is_empty()).unwrap_or(sub::STATUS);
     let info = read_json(&p.studio, Some(Value::Null))?;
-    let alive = js::truthy(&info) && Pid::of(info.get("pid")).is_some_and(is_alive);
+    let alive = js::truthy(&info) && Pid::of(info.get(record::PID)).is_some_and(is_alive);
     let text = |k: &str| crate::core::js::to_string(info.get(k));
     match sub {
         sub::STATUS => {
             out(&if alive {
-                format!("studio running: {} (pid {})", text("url"), text("pid"))
+                format!(
+                    "studio running: {} (pid {})",
+                    text(record::URL),
+                    text(record::PID)
+                )
             } else {
                 "studio not running".into()
             });
@@ -118,7 +124,7 @@ fn studio(ctx: &Ctx) -> Result<i32, DfwError> {
         }
         "stop" => {
             if alive {
-                if let Some(pid) = Pid::of(info.get("pid")) {
+                if let Some(pid) = Pid::of(info.get(record::PID)) {
                     kill(pid);
                 }
             }
@@ -132,7 +138,7 @@ fn studio(ctx: &Ctx) -> Result<i32, DfwError> {
         _ => return Err(DfwError::new("Usage: dfw studio start|stop|status")),
     }
     if alive {
-        out(&format!("studio already running: {}", text("url")));
+        out(&format!("studio already running: {}", text(record::URL)));
         return Ok(0);
     }
     let config = load_config(Some(&root))?;
@@ -166,7 +172,7 @@ fn studio(ctx: &Ctx) -> Result<i32, DfwError> {
     write_json_inside(
         &root,
         &p.studio,
-        &json!({ "pid": pid, "port": port, "url": url, "startedAt": now_iso() }),
+        &json!({ (record::PID): pid, (record::PORT): port, (record::URL): url, (record::STARTED_AT): now_iso() }),
     )?;
     out(&format!("studio running: {url}"));
     Ok(0)
@@ -185,16 +191,16 @@ fn review(ctx: &Ctx) -> Result<i32, DfwError> {
     let file = p.dfw.join(file::REVIEW);
     let sub = a.pos(1).filter(|s| !s.is_empty()).unwrap_or(sub::STATUS);
     let info = read_json(&file, Some(Value::Null))?;
-    let running = js::truthy(&info) && Pid::of(info.get("pid")).is_some_and(is_alive);
+    let running = js::truthy(&info) && Pid::of(info.get(record::PID)).is_some_and(is_alive);
     let text = |k: &str| crate::core::js::to_string(info.get(k));
     match sub {
         sub::STATUS => {
             out(&if running {
                 format!(
                     "review running: {} -> {} (pid {})",
-                    text("url"),
-                    text("target"),
-                    text("pid")
+                    text(record::URL),
+                    text(record::TARGET),
+                    text(record::PID)
                 )
             } else {
                 "review not running".into()
@@ -203,7 +209,7 @@ fn review(ctx: &Ctx) -> Result<i32, DfwError> {
         }
         "stop" => {
             if running {
-                if let Some(pid) = Pid::of(info.get("pid")) {
+                if let Some(pid) = Pid::of(info.get(record::PID)) {
                     kill(pid);
                 }
             }
@@ -227,14 +233,14 @@ fn review(ctx: &Ctx) -> Result<i32, DfwError> {
     // Alt/Option+C ("off": button only).
     let shortcut = configured_shortcut(&root, shortcut_flag(a).as_deref())?;
     if running {
-        if info.get("target").and_then(Value::as_str) == Some(target.as_str()) {
+        if info.get(record::TARGET).and_then(Value::as_str) == Some(target.as_str()) {
             out(&format!(
                 "review already running: {} -> {target}",
-                text("url")
+                text(record::URL)
             ));
             return Ok(0);
         }
-        if let Some(pid) = Pid::of(info.get("pid")) {
+        if let Some(pid) = Pid::of(info.get(record::PID)) {
             kill(pid);
         }
     }
@@ -274,13 +280,13 @@ fn review(ctx: &Ctx) -> Result<i32, DfwError> {
     };
     let url = serde_json::from_str::<Value>(&body)
         .ok()
-        .and_then(|v| v.get("url").and_then(Value::as_str).map(str::to_string))
+        .and_then(|v| v.get(record::URL)?.as_str().map(str::to_string))
         .filter(|u| !u.is_empty())
         .unwrap_or_else(|| format!("http://127.0.0.1:{port}/"));
     write_json_inside(
         &root,
         &file,
-        &json!({ "pid": pid, "port": port, "url": url, "target": target, "shortcut": shortcut, "startedAt": now_iso() }),
+        &json!({ (record::PID): pid, (record::PORT): port, (record::URL): url, (record::TARGET): target, (record::SHORTCUT): shortcut, (record::STARTED_AT): now_iso() }),
     )?;
     let label: Vec<String> = shortcut
         .split('+')

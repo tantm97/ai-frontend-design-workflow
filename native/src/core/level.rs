@@ -41,10 +41,18 @@ impl Level {
     }
 }
 
+/// The keys of a finding record that code reads by name (the others are not named yet).
+pub mod finding {
+    /// The finding's [`Level`](super::Level), by its name.
+    pub const LEVEL: &str = "level";
+    /// The id of the rule that found it.
+    pub const RULE: &str = "rule";
+}
+
 /// The level of a finding record (`None` when missing or unknown).
-pub fn of(finding: &serde_json::Value) -> Option<Level> {
-    finding
-        .get("level")
+pub fn of(record: &serde_json::Value) -> Option<Level> {
+    record
+        .get(finding::LEVEL)
         .and_then(serde_json::Value::as_str)
         .and_then(Level::parse)
 }

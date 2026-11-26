@@ -10,6 +10,46 @@ use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::util::{iso_from_millis, read_json};
 
+/// The keys of `.dfw/stack.json`: what [`detect_stack`] finds, and what `dfw stack` and
+/// `dfw approve G3` add.
+pub mod field {
+    pub const DETECTED_AT: &str = "detectedAt";
+    /// `javascript`, `static`, `php`, ... or `unknown`.
+    pub const KIND: &str = "kind";
+    /// `{ name, package?, version? }`.
+    pub const FRAMEWORK: &str = "framework";
+    /// A list of `{ name, package, version }`.
+    pub const STYLING: &str = "styling";
+    /// A list of `{ name, package, version? }`.
+    pub const UI_LIBRARIES: &str = "uiLibraries";
+    pub const LANGUAGE: &str = "language";
+    pub const PACKAGE_MANAGER: &str = "packageManager";
+    /// The files the detection read.
+    pub const EVIDENCE: &str = "evidence";
+    pub const IS_NEW_PROJECT: &str = "isNewProject";
+    /// The display name of a framework or library.
+    pub const NAME: &str = "name";
+    /// The package (or the file) a framework or library was found by.
+    pub const PACKAGE: &str = "package";
+    /// The version range the project asks for.
+    pub const VERSION: &str = "version";
+    /// `proposed`, then `approved` (G3).
+    pub const STATUS: &str = "status";
+    /// `detected` for a proposal from `dfw stack detect --write`.
+    pub const SOURCE: &str = "source";
+    pub const PROPOSED_AT: &str = "proposedAt";
+    pub const APPROVED_AT: &str = "approvedAt";
+}
+
+/// The keys of `package.json` the detection reads.
+mod package_json {
+    pub const DEPENDENCIES: &str = "dependencies";
+    pub const DEV_DEPENDENCIES: &str = "devDependencies";
+}
+
+/// The package whose presence makes a project TypeScript (with `tsconfig.json`).
+const TYPESCRIPT: &str = "typescript";
+
 const FRAMEWORKS: [(&str, &str); 13] = [
     ("next", "Next.js (React)"),
     ("nuxt", "Nuxt (Vue)"),
@@ -95,7 +135,7 @@ fn found(deps: &Map<String, Value>, table: &[(&str, &str)]) -> Vec<Value> {
         .iter()
         .filter_map(|(dep, name)| {
             let version = deps.get(*dep).filter(|v| js::truthy(v))?;
-            Some(json!({ "name": name, "package": dep, "version": version }))
+            Some(json!({ (field::NAME): name, (field::PACKAGE): dep, (field::VERSION): version }))
         })
         .collect()
 }
@@ -118,8 +158,8 @@ pub fn detect_stack(root: &Path) -> Result<Value, DfwError> {
     let pkg_path = root.join(PACKAGE_JSON);
     if pkg_path.exists() {
         let pkg = read_json(&pkg_path, Some(json!({})))?;
-        let mut deps = js::spread(pkg.get("dependencies"));
-        deps.extend(js::spread(pkg.get("devDependencies")));
+        let mut deps = js::spread(pkg.get(package_json::DEPENDENCIES));
+        deps.extend(js::spread(pkg.get(package_json::DEV_DEPENDENCIES)));
         kind = "javascript";
         evidence.push(PACKAGE_JSON.into());
         framework = found(&deps, &FRAMEWORKS)
@@ -129,10 +169,11 @@ pub fn detect_stack(root: &Path) -> Result<Value, DfwError> {
         styling = found(&deps, &STYLING);
         ui_libraries = found(&deps, &UI_LIBS);
         if root.join(SHADCN_CONFIG).exists() {
-            ui_libraries.push(json!({ "name": "shadcn/ui", "package": SHADCN_CONFIG }));
+            ui_libraries
+                .push(json!({ (field::NAME): "shadcn/ui", (field::PACKAGE): SHADCN_CONFIG }));
             evidence.push(SHADCN_CONFIG.into());
         }
-        let typescript = deps.get("typescript").is_some_and(js::truthy);
+        let typescript = deps.get(TYPESCRIPT).is_some_and(js::truthy);
         language = if typescript || root.join("tsconfig.json").exists() {
             "TypeScript"
         } else {
@@ -149,7 +190,7 @@ pub fn detect_stack(root: &Path) -> Result<Value, DfwError> {
             evidence.push(file.into());
             if kind == "unknown" {
                 kind = other_kind;
-                framework = json!({ "name": name });
+                framework = json!({ (field::NAME): name });
             }
         }
     }
@@ -163,21 +204,21 @@ pub fn detect_stack(root: &Path) -> Result<Value, DfwError> {
         }
         if !html.is_empty() {
             kind = "static";
-            framework = json!({ "name": "Plain HTML/CSS/JS" });
+            framework = json!({ (field::NAME): "Plain HTML/CSS/JS" });
             evidence.extend(html.into_iter().take(3));
         }
     }
     let is_new_project = evidence.is_empty();
     Ok(json!({
-        "detectedAt": iso_from_millis(now),
-        "kind": kind,
-        "framework": framework,
-        "styling": styling,
-        "uiLibraries": ui_libraries,
-        "language": language,
-        "packageManager": package_manager,
-        "evidence": evidence,
-        "isNewProject": is_new_project,
+        (field::DETECTED_AT): iso_from_millis(now),
+        (field::KIND): kind,
+        (field::FRAMEWORK): framework,
+        (field::STYLING): styling,
+        (field::UI_LIBRARIES): ui_libraries,
+        (field::LANGUAGE): language,
+        (field::PACKAGE_MANAGER): package_manager,
+        (field::EVIDENCE): evidence,
+        (field::IS_NEW_PROJECT): is_new_project,
     }))
 }
 
