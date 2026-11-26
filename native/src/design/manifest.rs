@@ -24,11 +24,7 @@ pub mod key {
     pub const PRODUCT: &str = "product";
     pub const BREAKPOINTS: &str = "breakpoints";
     pub const STATES: &str = "states";
-    /// The themes the design declares (`data-theme` values).
-    pub const THEMES: &str = "themes";
     pub const PAGES: &str = "pages";
-    /// The canvas page a screen names as its own.
-    pub const PAGE: &str = "page";
     pub const FLOWS: &str = "flows";
     pub const SCREENS: &str = "screens";
     pub const VARIANTS: &str = "variants";

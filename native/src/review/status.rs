@@ -94,12 +94,6 @@ pub mod field {
     pub const THREAD: &str = "thread";
     /// Who posted the comment (`dfw-studio`, `dfw-live`, a Penpot bridge).
     pub const PROVIDER: &str = "provider";
-    /// Where the comment is: the screen, variant and breakpoint ids.
-    pub const SCREEN: &str = "screen";
-    pub const VARIANT: &str = "variant";
-    pub const BREAKPOINT: &str = "breakpoint";
-    /// The route of a live comment (`dfw review`).
-    pub const URL: &str = "url";
     /// The `data-insp-path` of a live comment's element, inside [`TARGET`].
     pub const INSP_PATH: &str = "inspPath";
     pub const UPDATED_AT: &str = "updatedAt";
