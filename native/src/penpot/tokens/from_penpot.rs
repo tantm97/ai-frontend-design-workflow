@@ -36,9 +36,9 @@ fn srgb(r: f64, g: f64, b: f64, a: f64) -> Value {
             .collect::<String>()
     );
     if a == 1.0 {
-        json!({ "colorSpace": color_space::SRGB, "components": components, "hex": hex })
+        json!({ (key::COLOR_SPACE): color_space::SRGB, (key::COMPONENTS): components, (key::HEX): hex })
     } else {
-        json!({ "colorSpace": color_space::SRGB, "components": components, "alpha": js::num(round4(a)), "hex": hex })
+        json!({ (key::COLOR_SPACE): color_space::SRGB, (key::COMPONENTS): components, (key::ALPHA): js::num(round4(a)), (key::HEX): hex })
     }
 }
 
@@ -90,14 +90,14 @@ pub fn parse_color(text: &str) -> Option<Value> {
 /// px); `None` when it is an expression.
 pub fn parse_dimension(value: Option<&Value>) -> Option<Value> {
     if let Some(n @ Value::Number(_)) = value {
-        return Some(json!({ "value": n, "unit": unit::PX }));
+        return Some(json!({ (key::AMOUNT): n, (key::UNIT): unit::PX }));
     }
     let text = js::to_string(value);
     let m = DIMENSION.captures(&text)?;
     let unit = m
         .get(2)
         .map_or(unit::PX.to_string(), |u| u.as_str().to_lowercase());
-    Some(json!({ "value": js::num(js::str_to_number(&m[1])), "unit": unit }))
+    Some(json!({ (key::AMOUNT): js::num(js::str_to_number(&m[1])), (key::UNIT): unit }))
 }
 
 fn parse_number(value: Option<&Value>) -> Option<Value> {
@@ -279,7 +279,7 @@ pub fn token_from_penpot(
             ),
             Some(n) if wants_duration => res(
                 dtcg::DURATION,
-                json!({ "value": n, "unit": unit::MS }),
+                json!({ (key::AMOUNT): n, (key::UNIT): unit::MS }),
                 description,
             ),
             Some(n) => {
@@ -334,22 +334,22 @@ fn shadow_in(s: &Value) -> Result<Value, DfwError> {
             parse_dimension(Some(x)).unwrap_or_else(|| x.clone())
         }
     };
-    let color = s.get("color");
+    let color = s.get(key::COLOR);
     let color = if is_alias(color) {
         color.cloned()
     } else {
         parse_color(&js::to_string(color)).or_else(|| color.cloned())
     };
     let either = |a: &str, b: &str| js::present(s.get(a)).or(s.get(b));
-    let inset =
-        js::truthy(s.get("inset")) || s.get("type").and_then(Value::as_str) == Some("innerShadow");
+    let inset = js::truthy(s.get(key::INSET))
+        || s.get(key::SHADOW_TYPE).and_then(Value::as_str) == Some("innerShadow");
     Ok(js::object(vec![
-        ("color", color),
-        ("offsetX", Some(d(either("offsetX", "x")))),
-        ("offsetY", Some(d(either("offsetY", "y")))),
-        ("blur", Some(d(s.get("blur")))),
-        ("spread", Some(d(s.get("spread")))),
-        ("inset", inset.then_some(Value::Bool(true))),
+        (key::COLOR, color),
+        (key::OFFSET_X, Some(d(either(key::OFFSET_X, key::X)))),
+        (key::OFFSET_Y, Some(d(either(key::OFFSET_Y, key::Y)))),
+        (key::BLUR, Some(d(s.get(key::BLUR)))),
+        (key::SPREAD, Some(d(s.get(key::SPREAD)))),
+        (key::INSET, inset.then_some(Value::Bool(true))),
     ]))
 }
 
@@ -357,51 +357,51 @@ fn typography_in(value: &Value, warn: Note) -> Value {
     let pick = |keys: &[&str]| keys.iter().find_map(|k| value.get(*k));
     let or_self = |parsed: Option<Value>, raw: &Value| parsed.unwrap_or_else(|| raw.clone());
     let mut v = Map::new();
-    if let Some(fam) = pick(&["fontFamilies", "fontFamily", "font-family"]) {
+    if let Some(fam) = pick(&[key::FONT_FAMILIES, key::FONT_FAMILY, key::CSS_FONT_FAMILY]) {
         let out = if is_alias(Some(fam)) {
             fam.clone()
         } else {
             split_families(fam)
         };
-        v.insert("fontFamily".into(), out);
+        v.insert(key::FONT_FAMILY.into(), out);
     }
-    if let Some(size) = pick(&["fontSizes", "fontSize", "font-size"]) {
+    if let Some(size) = pick(&[key::FONT_SIZES, key::FONT_SIZE, key::CSS_FONT_SIZE]) {
         let out = if is_alias(Some(size)) {
             size.clone()
         } else {
             or_self(parse_dimension(Some(size)), size)
         };
-        v.insert("fontSize".into(), out);
+        v.insert(key::FONT_SIZE.into(), out);
     }
-    if let Some(w) = pick(&["fontWeights", "fontWeight", "font-weight"]) {
+    if let Some(w) = pick(&[key::FONT_WEIGHTS, key::FONT_WEIGHT, key::CSS_FONT_WEIGHT]) {
         let out = if is_alias(Some(w)) {
             w.clone()
         } else {
             or_self(parse_weight(Some(w), warn), w)
         };
-        v.insert("fontWeight".into(), out);
+        v.insert(key::FONT_WEIGHT.into(), out);
     }
-    if let Some(ls) = pick(&["letterSpacing", "letter-spacing"]) {
+    if let Some(ls) = pick(&[key::LETTER_SPACING, key::CSS_LETTER_SPACING]) {
         let out = if is_alias(Some(ls)) {
             ls.clone()
         } else {
             or_self(parse_dimension(Some(ls)), ls)
         };
-        v.insert("letterSpacing".into(), out);
+        v.insert(key::LETTER_SPACING.into(), out);
     }
-    if let Some(lh) = pick(&["lineHeights", "lineHeight", "line-height"]) {
+    if let Some(lh) = pick(&[key::LINE_HEIGHTS, key::LINE_HEIGHT, key::CSS_LINE_HEIGHT]) {
         let out = if is_alias(Some(lh)) {
             lh.clone()
         } else {
             or_self(parse_number(Some(lh)), lh)
         };
-        v.insert("lineHeight".into(), out);
+        v.insert(key::LINE_HEIGHT.into(), out);
     }
-    if let Some(tc) = pick(&["textCase", "text-case"]) {
-        v.insert("textCase".into(), tc.clone());
+    if let Some(tc) = pick(&[key::TEXT_CASE, key::CSS_TEXT_CASE]) {
+        v.insert(key::TEXT_CASE.into(), tc.clone());
     }
-    if let Some(td) = pick(&["textDecoration", "text-decoration"]) {
-        v.insert("textDecoration".into(), td.clone());
+    if let Some(td) = pick(&[key::TEXT_DECORATION, key::CSS_TEXT_DECORATION]) {
+        v.insert(key::TEXT_DECORATION.into(), td.clone());
     }
     Value::Object(v)
 }

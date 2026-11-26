@@ -25,7 +25,7 @@ const MAX_DELIVERED: usize = 2000;
 
 /// What identifies one state of a comment: a change of status or a new thread line is news.
 fn key(c: &Value) -> String {
-    let at = js::truthy_value(c.get(field::UPDATED_AT)).or(c.get("createdAt"));
+    let at = js::truthy_value(c.get(field::UPDATED_AT)).or(c.get(field::CREATED_AT));
     format!(
         "{}:{}:{}",
         js::to_string(c.get(field::ID)),
@@ -61,11 +61,11 @@ pub fn undelivered(root: &Path) -> Result<Vec<Value>, DfwError> {
     // A follow-up from the user on a comment being worked on (e.g. a reply in its Penpot thread) is news too.
     let follow_up = |c: &Value| {
         status(c) == Some(Status::Acknowledged)
-            && last_of_thread(c).and_then(|l| l.get("by")) == Some(&json!(by::USER))
+            && last_of_thread(c).and_then(|l| l.get(field::BY)) == Some(&json!(by::USER))
     };
     let active = |c: &Value| matches!(status(c), Some(Status::Open | Status::Reopened));
     // A Studio draft waits for the user's "Send to AI".
-    let draft = |c: &Value| c.get("draft") == Some(&Value::Bool(true));
+    let draft = |c: &Value| c.get(field::DRAFT) == Some(&Value::Bool(true));
     Ok(all_comments(root)?
         .into_iter()
         .filter(|c| (active(c) || follow_up(c)) && !draft(c) && !seen.contains(key(c).as_str()))
@@ -129,53 +129,59 @@ pub fn format_for_claude(comments: &[Value]) -> String {
     let lines: Vec<String> = comments
         .iter()
         .map(|c| {
-            let place: Vec<String> = ["screen", "variant", "breakpoint", "state", "theme"]
-                .iter()
-                .filter_map(|k| js::truthy_value(c.get(k)))
-                .map(|v| js::to_string(Some(v)))
-                .collect();
+            let place: Vec<String> = [
+                field::SCREEN,
+                field::VARIANT,
+                field::BREAKPOINT,
+                field::STATE,
+                field::THEME,
+            ]
+            .iter()
+            .filter_map(|k| js::truthy_value(c.get(k)))
+            .map(|v| js::to_string(Some(v)))
+            .collect();
             let place = place.join(" / ");
             let place = if place.is_empty() {
                 "design system"
             } else {
                 &place
             };
-            let of_target = |k: &str| js::truthy_value(c.get("target").and_then(|t| t.get(k)));
-            let target = of_target("dfwId")
-                .or(of_target("selector"))
+            let of_target = |k: &str| js::truthy_value(c.get(field::TARGET).and_then(|t| t.get(k)));
+            let target = of_target(field::DFW_ID)
+                .or(of_target(field::SELECTOR))
                 .map_or("?".to_string(), |t| js::to_string(Some(t)));
             let last = last_of_thread(c);
-            let said = |l: &Value| js::to_string(l.get("message"));
+            let said = |l: &Value| js::to_string(l.get(field::MESSAGE));
             let reopened = match last {
-                Some(l) if c.get("status") == Some(&json!("reopened")) => {
+                Some(l) if c.get(field::STATUS) == Some(&json!("reopened")) => {
                     format!(
                         "\n    reopened by {}: \"{}\"",
-                        js::to_string(l.get("by")),
+                        js::to_string(l.get(field::BY)),
                         said(l)
                     )
                 }
-                Some(l) if l.get("by") == Some(&json!(by::USER)) => {
+                Some(l) if l.get(field::BY) == Some(&json!(by::USER)) => {
                     format!("\n    follow-up by user: \"{}\"", said(l))
                 }
                 _ => String::new(),
             };
             format!(
                 "- {} [{}] {place} -> {target}{}{}\n    \"{}\"{reopened}",
-                js::to_string(c.get("id")),
-                js::to_string(c.get("status")),
-                of_target("source")
+                js::to_string(c.get(field::ID)),
+                js::to_string(c.get(field::STATUS)),
+                of_target(field::SOURCE)
                     .map_or(String::new(), |s| format!(" ({})", js::to_string(Some(s)))),
-                of_target("component").map_or(String::new(), |s| format!(
+                of_target(field::COMPONENT).map_or(String::new(), |s| format!(
                     " component {}",
                     js::to_string(Some(s))
                 )),
-                js::to_string(c.get("comment")),
+                js::to_string(c.get(field::COMMENT)),
             )
         })
         .collect();
     let live = if comments
         .iter()
-        .any(|c| c.get("provider") == Some(&json!("dfw-live")))
+        .any(|c| c.get(field::PROVIDER) == Some(&json!("dfw-live")))
     {
         "\nComments marked \"live\" are on the running app (dfw review): open target.source (file:line:col) and fix the implementation there; without a source, find the element by its selector and text (phase-verify)."
     } else {
@@ -219,7 +225,7 @@ struct Listening(PathBuf);
 impl Listening {
     fn start(root: &Path) -> Result<Self, DfwError> {
         let file = listening_file(root);
-        let marker = json!({ "pid": std::process::id(), "since": crate::core::util::now_iso() });
+        let marker = json!({ (status::listening::PID): std::process::id(), (status::listening::SINCE): crate::core::util::now_iso() });
         write_json_inside(root, &file, &marker)?;
         Ok(Listening(file))
     }
@@ -238,7 +244,8 @@ pub fn is_listening(root: &Path) -> bool {
     read_json(&listening_file(root), Some(Value::Null))
         .ok()
         .is_some_and(|m| {
-            crate::core::process::Pid::of(m.get("pid")).is_some_and(crate::core::process::is_alive)
+            crate::core::process::Pid::of(m.get(status::listening::PID))
+                .is_some_and(crate::core::process::is_alive)
         })
 }
 

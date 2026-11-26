@@ -95,6 +95,60 @@ pub mod field {
     /// Who posted the comment (`dfw-studio`, `dfw-live`, a Penpot bridge).
     pub const PROVIDER: &str = "provider";
     pub const UPDATED_AT: &str = "updatedAt";
+    pub const CREATED_AT: &str = "createdAt";
+    /// Where on the canvas the comment was made: screen, variant, breakpoint, state, theme.
+    pub const SCREEN: &str = "screen";
+    pub const VARIANT: &str = "variant";
+    pub const BREAKPOINT: &str = "breakpoint";
+    pub const STATE: &str = "state";
+    pub const THEME: &str = "theme";
+    /// The screenshot file of the comment, relative to the project.
+    pub const SCREENSHOT: &str = "screenshot";
+    /// How the comment was closed: `{ at, by, note, evidence }`.
+    pub const RESOLUTION: &str = "resolution";
+    /// `true` while a Studio draft waits for the user's "Send to AI".
+    pub const DRAFT: &str = "draft";
+    /// When a draft was sent.
+    pub const SENT_AT: &str = "sentAt";
+    /// The page of the running app a live comment is on.
+    pub const URL: &str = "url";
+    /// The id of the review session a comment was posted in (in what the commands print).
+    pub const SESSION: &str = "session";
+
+    /* inside [`TARGET`] */
+    /// The `data-dfw-id` of the element.
+    pub const DFW_ID: &str = "dfwId";
+    /// A CSS selector of the element, when it has no dfw id.
+    pub const SELECTOR: &str = "selector";
+    /// The component master the element is an instance of.
+    pub const COMPONENT: &str = "component";
+
+    /* one line of [`THREAD`], and the [`RESOLUTION`] */
+    pub const AT: &str = "at";
+    /// Who wrote the line ([`super::by`]).
+    pub const BY: &str = "by";
+    pub const MESSAGE: &str = "message";
+    /// The message of a resolution.
+    pub const NOTE: &str = "note";
+    /// What shows the fix (a screenshot, a check).
+    pub const EVIDENCE: &str = "evidence";
+
+    /* a review session file */
+    /// The format of the session file (`1`).
+    pub const SCHEMA: &str = "schema";
+    pub const STARTED_AT: &str = "startedAt";
+    /// When the session ended; a session without it is the open one.
+    pub const CLOSED_AT: &str = "closedAt";
+    /// The comments of the session, oldest first.
+    pub const COMMENTS: &str = "comments";
+}
+
+/// The keys of `.dfw/reviews/listening.json`, the marker of a running `dfw comments wait`.
+pub mod listening {
+    /// The process id of the wait.
+    pub const PID: &str = "pid";
+    /// When the wait started.
+    pub const SINCE: &str = "since";
 }
 
 /// Who changes a comment (`by` of a thread line). Only [`by::USER`] resolves.

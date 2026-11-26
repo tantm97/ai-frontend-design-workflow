@@ -23,7 +23,7 @@ use super::paths::env_nonempty;
 use super::util::{ArgValue, MARKETPLACE_NAME};
 
 mod wire;
-pub use self::wire::{event, patch, reply, tool};
+pub use self::wire::{event, input, patch, reply, result, tool};
 
 pub mod id;
 
@@ -184,6 +184,16 @@ pub fn copilot_plugin_dirs() -> CopilotPluginDirs {
     copilot_plugin_dirs_in(&home)
 }
 
+/// The keys of Copilot's `settings.json` that name a local marketplace:
+/// `{ extraKnownMarketplaces: { <name>: { source: { source: "directory", path } } } }`.
+mod copilot_settings {
+    pub const EXTRA_KNOWN_MARKETPLACES: &str = "extraKnownMarketplaces";
+    /// Where a marketplace comes from; inside it, the kind of source (`directory`).
+    pub const SOURCE: &str = "source";
+    /// The folder of a `directory` source.
+    pub const PATH: &str = "path";
+}
+
 /// [`copilot_plugin_dirs`] for a given Copilot home, so tests need no environment variable.
 fn copilot_plugin_dirs_in(home: &Path) -> CopilotPluginDirs {
     // An unreadable or broken settings file means "not a local marketplace", as in Node.
@@ -191,13 +201,13 @@ fn copilot_plugin_dirs_in(home: &Path) -> CopilotPluginDirs {
         .ok()
         .and_then(|text| serde_json::from_str(&text).ok());
     let source = settings.as_ref().and_then(|s| {
-        s.get("extraKnownMarketplaces")?
+        s.get(copilot_settings::EXTRA_KNOWN_MARKETPLACES)?
             .get(MARKETPLACE_NAME)?
-            .get("source")
+            .get(copilot_settings::SOURCE)
     });
     let local = source
-        .filter(|s| s.get("source").and_then(Value::as_str) == Some("directory"))
-        .and_then(|s| s.get("path")?.as_str())
+        .filter(|s| s.get(copilot_settings::SOURCE).and_then(Value::as_str) == Some("directory"))
+        .and_then(|s| s.get(copilot_settings::PATH)?.as_str())
         .filter(|p| !p.is_empty());
     if let Some(dir) = local {
         let root = Path::new(dir).join("plugins");
@@ -287,7 +297,7 @@ fn parse_maybe_json(v: Option<Value>) -> Value {
     match v {
         // e.g. a raw apply_patch body
         Some(Value::String(text)) => {
-            serde_json::from_str(&text).unwrap_or_else(|_| json!({ "input": text }))
+            serde_json::from_str(&text).unwrap_or_else(|_| json!({ (input::RAW_INPUT): text }))
         }
         Some(other) if js::truthy(&other) => other,
         _ => json!({}),
@@ -309,28 +319,38 @@ pub fn normalize_hook_input(raw: &Value) -> Result<HookInput, DfwError> {
         _ => src.get(b).cloned(),
     };
     // Only a string names a tool; the alias table is read by own key ("toString" is not an alias).
-    let tool = either("tool_name", "toolName")
+    let tool = either(input::TOOL_NAME, input::TOOL_NAME_CAMEL)
         .and_then(|tool| tool.as_str().filter(|t| !t.is_empty()).map(str::to_string))
         .map(|name| {
             let alias = TOOL_ALIASES.iter().find(|(from, _)| *from == name);
             Value::String(alias.map_or(name.clone(), |(_, to)| to.to_string()))
         });
     let fields = [
-        ("event", either("hook_event_name", "hookEventName")),
-        ("session_id", either("session_id", "sessionId")),
-        ("cwd", src.get("cwd").cloned()),
-        ("tool_name", tool),
         (
-            "tool_input",
-            Some(parse_maybe_json(either("tool_input", "toolArgs"))),
+            input::EVENT,
+            either(input::HOOK_EVENT_NAME, input::HOOK_EVENT_NAME_CAMEL),
         ),
         (
-            "stop_hook_active",
+            input::SESSION_ID,
+            either(input::SESSION_ID, input::SESSION_ID_CAMEL),
+        ),
+        (input::CWD, src.get(input::CWD).cloned()),
+        (input::TOOL_NAME, tool),
+        (
+            input::TOOL_INPUT,
+            Some(parse_maybe_json(either(
+                input::TOOL_INPUT,
+                input::TOOL_ARGS,
+            ))),
+        ),
+        (
+            input::STOP_HOOK_ACTIVE,
             Some(Value::Bool(
-                either("stop_hook_active", "stopHookActive").is_some_and(|v| js::truthy(&v)),
+                either(input::STOP_HOOK_ACTIVE, input::STOP_HOOK_ACTIVE_CAMEL)
+                    .is_some_and(|v| js::truthy(&v)),
             )),
         ),
-        ("prompt", src.get("prompt").cloned()),
+        (input::PROMPT, src.get(input::PROMPT).cloned()),
     ];
     let mut out = src.clone();
     for (key, value) in fields {
@@ -346,13 +366,16 @@ pub fn normalize_hook_input(raw: &Value) -> Result<HookInput, DfwError> {
     }
     let text = |key: &str| out.get(key).and_then(Value::as_str).map(str::to_string);
     Ok(HookInput {
-        event: text("event"),
-        session_id: text("session_id"),
-        cwd: text("cwd"),
-        tool_name: text("tool_name"),
-        tool_input: out.get("tool_input").cloned().unwrap_or_else(|| json!({})),
-        stop_hook_active: out.get("stop_hook_active") == Some(&Value::Bool(true)),
-        prompt: text("prompt"),
+        event: text(input::EVENT),
+        session_id: text(input::SESSION_ID),
+        cwd: text(input::CWD),
+        tool_name: text(input::TOOL_NAME),
+        tool_input: out
+            .get(input::TOOL_INPUT)
+            .cloned()
+            .unwrap_or_else(|| json!({})),
+        stop_hook_active: out.get(input::STOP_HOOK_ACTIVE) == Some(&Value::Bool(true)),
+        prompt: text(input::PROMPT),
         raw: Value::Object(out),
     })
 }
@@ -372,9 +395,9 @@ impl HookResult {
     /// The neutral object of Node: `{ context }`, `{ deny }` or `{ block }`.
     pub fn to_value(&self) -> Value {
         match self {
-            HookResult::Context(text) => json!({ "context": text }),
-            HookResult::Deny(text) => json!({ "deny": text }),
-            HookResult::Block(text) => json!({ "block": text }),
+            HookResult::Context(text) => json!({ (result::CONTEXT): text }),
+            HookResult::Deny(text) => json!({ (result::DENY): text }),
+            HookResult::Block(text) => json!({ (result::BLOCK): text }),
         }
     }
 }
@@ -391,19 +414,19 @@ pub fn format_hook_output(
     }
     let host = get_host(Some(host_id))?;
     let field = |key: &str| result.get(key).filter(|v| js::truthy(v));
-    if let Some(block) = field("block") {
+    if let Some(block) = field(result::BLOCK) {
         return Ok(Some(
             json!({ (reply::DECISION): reply::BLOCK, (reply::REASON): block }),
         ));
     }
-    if let Some(deny) = field("deny") {
+    if let Some(deny) = field(result::DENY) {
         return Ok(Some(if host.id == id::CLAUDE {
             json!({ (reply::HOOK_SPECIFIC_OUTPUT): { (reply::HOOK_EVENT_NAME): event, (reply::PERMISSION_DECISION): reply::DENY, (reply::PERMISSION_DECISION_REASON): deny } })
         } else {
             json!({ (reply::PERMISSION_DECISION): reply::DENY, (reply::PERMISSION_DECISION_REASON): deny })
         }));
     }
-    if let Some(context) = field("context") {
+    if let Some(context) = field(result::CONTEXT) {
         // A host without a context table (mcp, planned hosts) gets the generic form.
         if host.context(event) == Some(false) {
             return Ok(None);

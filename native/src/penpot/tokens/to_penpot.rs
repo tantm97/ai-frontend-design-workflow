@@ -47,10 +47,10 @@ fn color_out(v: Option<&Value>, note: Note) -> Result<Value, String> {
         Some(v @ (Value::Object(_) | Value::Array(_))) => v,
         other => return Err(format!("not a colour: {}", js::stringify(other))),
     };
-    let alpha = js::present(v.get("alpha"));
+    let alpha = js::present(v.get(key::ALPHA));
     let opaque = alpha.is_none_or(|a| a.as_f64() == Some(1.0));
-    let space = v.get("colorSpace").and_then(Value::as_str);
-    let components = v.get("components");
+    let space = v.get(key::COLOR_SPACE).and_then(Value::as_str);
+    let components = v.get(key::COMPONENTS);
     let hex = js::truthy_value(v.get(key::HEX));
     let numbers = |list: &Vec<Value>| list.iter().all(Value::is_number);
     let rgb: Vec<f64> = if let Some(list) = components
@@ -90,7 +90,7 @@ fn color_out(v: Option<&Value>, note: Note) -> Result<Value, String> {
 
 /// The last two branches of `colorOut`: another colour space goes through its `hex`.
 fn hex_fallback(v: &Value, hex: Option<&Value>, opaque: bool, note: Note) -> Result<Value, String> {
-    let space = js::to_string(v.get("colorSpace"));
+    let space = js::to_string(v.get(key::COLOR_SPACE));
     let Some(hex) = hex else {
         return Err(format!(
             "colour space \"{space}\" has no sRGB form (add a \"hex\" fallback)"
@@ -106,7 +106,7 @@ fn hex_fallback(v: &Value, hex: Option<&Value>, opaque: bool, note: Note) -> Res
     Ok(Value::String(rgb_text(
         &hex_channels(hex),
         opaque,
-        js::present(v.get("alpha")),
+        js::present(v.get(key::ALPHA)),
     )))
 }
 
@@ -141,12 +141,12 @@ pub(super) fn is_expression(value: &Value) -> bool {
 fn dim_out(v: Option<&Value>, note: Note, bare: bool) -> Result<String, String> {
     match v {
         Some(Value::String(_) | Value::Number(_)) => Ok(uncalc(&js::to_string(v))),
-        Some(Value::Object(map)) if map.get("value").is_some_and(Value::is_number) => {
-            let value = fmt(js::to_number(map.get("value")));
-            if map.get("unit").and_then(Value::as_str) == Some(unit::PX) {
+        Some(Value::Object(map)) if map.get(key::AMOUNT).is_some_and(Value::is_number) => {
+            let value = fmt(js::to_number(map.get(key::AMOUNT)));
+            if map.get(key::UNIT).and_then(Value::as_str) == Some(unit::PX) {
                 return Ok(if bare { value } else { format!("{value}px") });
             }
-            let unit = js::to_string(map.get("unit"));
+            let unit = js::to_string(map.get(key::UNIT));
             note(format!(
                 "unit \"{unit}\": Penpot works in px; check the value after import"
             ));
@@ -163,19 +163,19 @@ fn shadow_out(v: &Value, note: Note) -> Result<Value, String> {
             Value::Null => return Err("a shadow layer is empty (null)".to_string()),
             _ => {}
         }
-        let zero = json!({ "value": 0, "unit": "px" });
-        let color = color_out(s.get("color"), note)?;
-        let offset_x = dim_out(s.get("offsetX"), note, true)?;
-        let offset_y = dim_out(s.get("offsetY"), note, true)?;
-        let blur = dim_out(s.get("blur"), note, true)?;
-        let spread = dim_out(js::present(s.get("spread")).or(Some(&zero)), note, true)?;
+        let zero = json!({ (key::AMOUNT): 0, (key::UNIT): "px" });
+        let color = color_out(s.get(key::COLOR), note)?;
+        let offset_x = dim_out(s.get(key::OFFSET_X), note, true)?;
+        let offset_y = dim_out(s.get(key::OFFSET_Y), note, true)?;
+        let blur = dim_out(s.get(key::BLUR), note, true)?;
+        let spread = dim_out(js::present(s.get(key::SPREAD)).or(Some(&zero)), note, true)?;
         Ok(json!({
-            "color": color,
-            "offsetX": offset_x,
-            "offsetY": offset_y,
-            "blur": blur,
-            "spread": spread,
-            "inset": js::truthy(s.get("inset")),
+            (key::COLOR): color,
+            (key::OFFSET_X): offset_x,
+            (key::OFFSET_Y): offset_y,
+            (key::BLUR): blur,
+            (key::SPREAD): spread,
+            (key::INSET): js::truthy(s.get(key::INSET)),
         }))
     }
     match v {
@@ -192,13 +192,13 @@ fn shadow_out(v: &Value, note: Note) -> Result<Value, String> {
 }
 
 const TYPO_OUT: [(&str, &str); 7] = [
-    ("fontFamily", "fontFamilies"),
-    ("fontSize", "fontSizes"),
-    ("fontWeight", "fontWeights"),
-    ("letterSpacing", "letterSpacing"),
-    ("lineHeight", "lineHeights"),
-    ("textCase", "textCase"),
-    ("textDecoration", "textDecoration"),
+    (key::FONT_FAMILY, key::FONT_FAMILIES),
+    (key::FONT_SIZE, key::FONT_SIZES),
+    (key::FONT_WEIGHT, key::FONT_WEIGHTS),
+    (key::LETTER_SPACING, key::LETTER_SPACING),
+    (key::LINE_HEIGHT, key::LINE_HEIGHTS),
+    (key::TEXT_CASE, key::TEXT_CASE),
+    (key::TEXT_DECORATION, key::TEXT_DECORATION),
 ];
 const TEXT_CASES: [&str; 4] = ["none", "uppercase", "lowercase", "capitalize"];
 const TEXT_DECORATIONS: [&str; 3] = ["underline", "strike-through", "line-through"];
@@ -208,7 +208,7 @@ const TEXT_DECORATIONS: [&str; 3] = ["underline", "strike-through", "line-throug
 pub fn penpot_dimension_type(name: &str, value: &Value) -> &'static str {
     let n = name.to_lowercase();
     let px = match value {
-        Value::Object(map) => map.get("unit").and_then(Value::as_str) == Some(unit::PX),
+        Value::Object(map) => map.get(key::UNIT).and_then(Value::as_str) == Some(unit::PX),
         Value::Array(_) => false,
         _ => true,
     };
@@ -288,7 +288,7 @@ impl Converted {
                 ("value", Some(value.clone())),
                 ("description", description.clone()),
             ]),
-            Converted::Unsupported(reason) => json!({ "unsupported": reason }),
+            Converted::Unsupported(reason) => json!({ (key::report::UNSUPPORTED): reason }),
         }
     }
 }
@@ -366,8 +366,8 @@ fn to_penpot(name: &str, token: &Token, note: Note) -> Result<Converted, String>
                         .to_string(),
                 ),
                 Value::Object(_) | Value::Array(_) => {
-                    let n = js::to_number(value.get("value"));
-                    let seconds = value.get("unit").and_then(Value::as_str) == Some(unit::S);
+                    let n = js::to_number(value.get(key::AMOUNT));
+                    let seconds = value.get(key::UNIT).and_then(Value::as_str) == Some(unit::S);
                     done(
                         penpot_type::NUMBER,
                         fmt(if seconds { n * 1000.0 } else { n }).into(),
@@ -501,11 +501,11 @@ impl ExportReport {
     /// The report as the object the Node code printed.
     pub fn to_json(&self) -> Value {
         json!({
-            "exported": self.exported,
-            "sets": self.sets,
-            "unsupported": self.unsupported,
-            "lossy": self.lossy,
-            "skippedThemes": self.skipped_themes,
+            (key::report::EXPORTED): self.exported,
+            (key::report::SETS): self.sets,
+            (key::report::UNSUPPORTED): self.unsupported,
+            (key::report::LOSSY): self.lossy,
+            (key::report::SKIPPED_THEMES): self.skipped_themes,
         })
     }
 }
@@ -533,14 +533,14 @@ pub fn dfw_to_penpot(base: Option<&Value>, themes: &Map<String, Value>) -> (Valu
             for note in notes {
                 report
                     .lossy
-                    .push(json!({ "set": set, "token": name, "note": note }));
+                    .push(json!({ (key::report::SET): set, (key::report::TOKEN): name, (key::report::NOTE): note }));
             }
             match converted {
                 Converted::Unsupported(reason) => report.unsupported.push(js::object(vec![
-                    ("set", Some(set.as_str().into())),
-                    ("token", Some(name.into())),
-                    ("type", token.ty.clone()),
-                    ("reason", Some(reason.into())),
+                    (key::report::SET, Some(set.as_str().into())),
+                    (key::report::TOKEN, Some(name.into())),
+                    (key::report::TYPE, token.ty.clone()),
+                    (key::report::REASON, Some(reason.into())),
                 ])),
                 Converted::Token {
                     ty,
@@ -561,28 +561,28 @@ pub fn dfw_to_penpot(base: Option<&Value>, themes: &Map<String, Value>) -> (Valu
     }
     report.sets = sets.iter().map(|(s, _)| s.clone()).collect();
     let mut penpot_themes = vec![json!({
-        "name": "default",
-        "group": THEME_GROUP,
-        "description": format!("dfw base tokens ({})", rel::TOKENS_JSON),
-        "isSource": false,
-        "selectedTokenSets": { BASE_SET: ENABLED },
+        (key::NAME): "default",
+        (key::GROUP): THEME_GROUP,
+        (key::THEME_DESCRIPTION): format!("dfw base tokens ({})", rel::TOKENS_JSON),
+        (key::IS_SOURCE): false,
+        (key::SELECTED_TOKEN_SETS): { BASE_SET: ENABLED },
     })];
     for name in &theme_names {
         penpot_themes.push(json!({
-            "name": name,
-            "group": THEME_GROUP,
-            "description": format!("dfw theme {}/{name}.json over the base", rel::THEMES),
-            "isSource": false,
-            "selectedTokenSets": { BASE_SET: ENABLED, format!("{THEME_PREFIX}{name}"): ENABLED },
+            (key::NAME): name,
+            (key::GROUP): THEME_GROUP,
+            (key::THEME_DESCRIPTION): format!("dfw theme {}/{name}.json over the base", rel::THEMES),
+            (key::IS_SOURCE): false,
+            (key::SELECTED_TOKEN_SETS): { BASE_SET: ENABLED, format!("{THEME_PREFIX}{name}"): ENABLED },
         }));
     }
     doc.insert(key::THEMES.into(), Value::Array(penpot_themes));
     doc.insert(
         key::METADATA.into(),
         json!({
-            "tokenSetOrder": report.sets,
-            "activeThemes": [format!("{THEME_GROUP}/default")],
-            "activeSets": [BASE_SET],
+            (key::TOKEN_SET_ORDER): report.sets,
+            (key::ACTIVE_THEMES): [format!("{THEME_GROUP}/default")],
+            (key::ACTIVE_SETS): [BASE_SET],
         }),
     );
     (Value::Object(doc), report)

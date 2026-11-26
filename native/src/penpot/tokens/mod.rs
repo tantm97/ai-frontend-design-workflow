@@ -46,6 +46,122 @@ pub(crate) mod key {
     pub(crate) const METADATA: &str = "$metadata";
     /// The sRGB fallback of a DTCG colour object.
     pub(crate) const HEX: &str = "hex";
+
+    /* ------------------------------------- a Tokens Studio token of the legacy form (no `$`) */
+
+    pub(crate) const LEGACY_VALUE: &str = "value";
+    pub(crate) const LEGACY_TYPE: &str = "type";
+    pub(crate) const LEGACY_DESCRIPTION: &str = "description";
+
+    /* ------------------------------------------------------------ a DTCG colour object */
+
+    /// The colour space of a DTCG colour object (`srgb`, `oklch`, ...).
+    pub(crate) const COLOR_SPACE: &str = "colorSpace";
+    /// The channels of a DTCG colour object, in its colour space.
+    pub(crate) const COMPONENTS: &str = "components";
+    pub(crate) const ALPHA: &str = "alpha";
+
+    /* ---------------------------------------------- a DTCG dimension or duration `{ value, unit }` */
+
+    /// The number of a DTCG dimension or duration (not the `$value` of a token).
+    pub(crate) const AMOUNT: &str = "value";
+    pub(crate) const UNIT: &str = "unit";
+
+    /* --------------------------------------------------- a shadow layer (DTCG and Penpot) */
+
+    pub(crate) const COLOR: &str = "color";
+    pub(crate) const OFFSET_X: &str = "offsetX";
+    pub(crate) const OFFSET_Y: &str = "offsetY";
+    pub(crate) const BLUR: &str = "blur";
+    pub(crate) const SPREAD: &str = "spread";
+    pub(crate) const INSET: &str = "inset";
+    /// The Penpot spelling of `offsetX`.
+    pub(crate) const X: &str = "x";
+    /// The Penpot spelling of `offsetY`.
+    pub(crate) const Y: &str = "y";
+    /// The kind of a Penpot shadow layer (`innerShadow` is an inset one).
+    pub(crate) const SHADOW_TYPE: &str = "type";
+
+    /* ------------------------------------------------------- a typography value (DTCG) */
+
+    pub(crate) const FONT_FAMILY: &str = "fontFamily";
+    pub(crate) const FONT_SIZE: &str = "fontSize";
+    pub(crate) const FONT_WEIGHT: &str = "fontWeight";
+    pub(crate) const LETTER_SPACING: &str = "letterSpacing";
+    pub(crate) const LINE_HEIGHT: &str = "lineHeight";
+    pub(crate) const TEXT_CASE: &str = "textCase";
+    pub(crate) const TEXT_DECORATION: &str = "textDecoration";
+
+    /* ---------------------------------------- the other spellings of a Penpot typography value */
+
+    pub(crate) const FONT_FAMILIES: &str = "fontFamilies";
+    pub(crate) const FONT_SIZES: &str = "fontSizes";
+    pub(crate) const FONT_WEIGHTS: &str = "fontWeights";
+    pub(crate) const LINE_HEIGHTS: &str = "lineHeights";
+    pub(crate) const CSS_FONT_FAMILY: &str = "font-family";
+    pub(crate) const CSS_FONT_SIZE: &str = "font-size";
+    pub(crate) const CSS_FONT_WEIGHT: &str = "font-weight";
+    pub(crate) const CSS_LETTER_SPACING: &str = "letter-spacing";
+    pub(crate) const CSS_LINE_HEIGHT: &str = "line-height";
+    pub(crate) const CSS_TEXT_CASE: &str = "text-case";
+    pub(crate) const CSS_TEXT_DECORATION: &str = "text-decoration";
+
+    /* --------------------------------------------------------- `$metadata` of a Penpot file */
+
+    /// The order of the sets in a Penpot file.
+    pub(crate) const TOKEN_SET_ORDER: &str = "tokenSetOrder";
+    pub(crate) const ACTIVE_THEMES: &str = "activeThemes";
+    pub(crate) const ACTIVE_SETS: &str = "activeSets";
+
+    /* ------------------------------------------------------ one theme of `$themes` (Penpot) */
+
+    pub(crate) const NAME: &str = "name";
+    pub(crate) const GROUP: &str = "group";
+    pub(crate) const THEME_DESCRIPTION: &str = "description";
+    /// Whether the theme's sets are a source (Penpot); dfw writes `false`.
+    pub(crate) const IS_SOURCE: &str = "isSource";
+    /// The sets a theme turns on: `{ <set>: "enabled" }`.
+    pub(crate) const SELECTED_TOKEN_SETS: &str = "selectedTokenSets";
+
+    /// The keys of the export and import reports dfw prints.
+    pub(crate) mod report {
+        /// The export report: how many tokens went out.
+        pub(crate) const EXPORTED: &str = "exported";
+        /// The export report: the Penpot sets written.
+        pub(crate) const SETS: &str = "sets";
+        /// The tokens left out: `{ set, token, type, reason }`.
+        pub(crate) const UNSUPPORTED: &str = "unsupported";
+        /// The tokens converted with a loss: `{ set, token, note }`.
+        pub(crate) const LOSSY: &str = "lossy";
+        pub(crate) const SKIPPED_THEMES: &str = "skippedThemes";
+        /// The token files an import wrote.
+        pub(crate) const WRITTEN: &str = "written";
+        /// The import report: one set diff per set.
+        pub(crate) const DIFF: &str = "diff";
+        /// The import notes: `{ set, token, note }`.
+        pub(crate) const WARNINGS: &str = "warnings";
+        pub(crate) const SKIPPED_SETS: &str = "skippedSets";
+        /* one set diff */
+        pub(crate) const ADDED: &str = "added";
+        pub(crate) const CHANGED: &str = "changed";
+        pub(crate) const REMOVED: &str = "removed";
+        /// In dfw, missing in Penpot, kept.
+        pub(crate) const KEPT: &str = "kept";
+        /* one line of a report */
+        pub(crate) const SET: &str = "set";
+        /// The dotted token name.
+        pub(crate) const TOKEN: &str = "token";
+        /// The DTCG type of the token.
+        pub(crate) const TYPE: &str = "type";
+        pub(crate) const VALUE: &str = "value";
+        pub(crate) const REASON: &str = "reason";
+        pub(crate) const NOTE: &str = "note";
+        /// A changed token: its value before and after.
+        pub(crate) const FROM: &str = "from";
+        pub(crate) const TO: &str = "to";
+        /// A changed token whose description alone changed.
+        pub(crate) const DESCRIPTION_ONLY: &str = "descriptionOnly";
+    }
 }
 
 /// The colour spaces a DTCG colour object names (`colorSpace`).

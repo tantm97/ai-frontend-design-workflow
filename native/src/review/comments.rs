@@ -106,7 +106,7 @@ fn read_session(file: &Path) -> Result<Value, DfwError> {
 pub fn current_session(root: &Path) -> Result<Option<Session>, DfwError> {
     if let Some(last) = session_files(root)?.pop() {
         let session = read_session(&last)?;
-        if js::truthy_value(session.get("closedAt")).is_none() {
+        if js::truthy_value(session.get(field::CLOSED_AT)).is_none() {
             return Ok(Some(Session {
                 file: last,
                 session,
@@ -162,9 +162,9 @@ fn new_session_unlocked(
     }
     for file in session_files(root)? {
         let mut session = read_session(&file)?;
-        if js::truthy_value(session.get("closedAt")).is_none() {
+        if js::truthy_value(session.get(field::CLOSED_AT)).is_none() {
             if let Value::Object(map) = &mut session {
-                map.insert("closedAt".into(), now_iso().into());
+                map.insert(field::CLOSED_AT.into(), now_iso().into());
             }
             write_reviews(held, root, &file, &session)?;
         }
@@ -180,11 +180,11 @@ fn new_session_unlocked(
         }
     };
     let session = json!({
-        "schema": 1,
-        "id": id,
-        "startedAt": now_iso(),
-        "designVersion": version,
-        "comments": [],
+        (field::SCHEMA): 1,
+        (field::ID): id,
+        (field::STARTED_AT): now_iso(),
+        (field::DESIGN_VERSION): version,
+        (field::COMMENTS): [],
     });
     let file = p.reviews.join(format!("{id}.json"));
     write_reviews(held, root, &file, &session)?;
@@ -204,7 +204,7 @@ fn session_stamp(millis: i64) -> String {
 
 fn comments_of<'a>(file: &Path, session: &'a Value) -> Result<&'a Vec<Value>, DfwError> {
     session
-        .get("comments")
+        .get(field::COMMENTS)
         .and_then(Value::as_array)
         .ok_or_else(|| not_a_list(file, "\"comments\""))
 }
@@ -232,12 +232,12 @@ pub fn all_comments(root: &Path) -> Result<Vec<Value>, DfwError> {
         let session = read_session(&file)?;
         for c in comments_of(&file, &session)? {
             let mut c = js::spread(Some(c));
-            match session.get("id") {
+            match session.get(field::ID) {
                 Some(id) => {
-                    c.insert("session".into(), id.clone());
+                    c.insert(field::SESSION.into(), id.clone());
                 }
                 None => {
-                    c.shift_remove("session");
+                    c.shift_remove(field::SESSION);
                 }
             }
             out.push(Value::Object(c));
@@ -249,7 +249,7 @@ pub fn all_comments(root: &Path) -> Result<Vec<Value>, DfwError> {
 fn next_id(root: &Path) -> Result<String, DfwError> {
     let mut max = 0.0_f64;
     for c in all_comments(root)? {
-        let id = js::to_string(c.get("id"));
+        let id = js::to_string(c.get(field::ID));
         let n = js::str_to_number(id.strip_prefix("fb_").unwrap_or(&id));
         if n > max {
             max = n;
@@ -324,7 +324,7 @@ fn add_comment_unlocked(held: &Held, root: &Path, input: &Value) -> Result<Value
         .filter(|f| safe_design_file(f));
     let mut target = js::spread(js::truthy_value(input.get(field::TARGET)));
     if js::truthy_value(target.get(field::SOURCE)).is_none() {
-        let dfw_id = js::truthy_value(target.get("dfwId")).map(|id| js::to_string(Some(id)));
+        let dfw_id = js::truthy_value(target.get(field::DFW_ID)).map(|id| js::to_string(Some(id)));
         let source = locate_source(root, design_file, dfw_id.as_deref())?;
         target.insert(
             field::SOURCE.into(),
@@ -338,26 +338,26 @@ fn add_comment_unlocked(held: &Held, root: &Path, input: &Value) -> Result<Value
     };
     let mut c = js::object(vec![
         (field::ID, Some(next_id(root)?.into())),
-        ("createdAt", Some(now_iso().into())),
+        (field::CREATED_AT, Some(now_iso().into())),
         (
             field::DESIGN_VERSION,
             session.get(field::DESIGN_VERSION).cloned(),
         ),
-        ("screen", Some(or_null("screen"))),
-        ("variant", Some(or_null("variant"))),
-        ("breakpoint", Some(or_null("breakpoint"))),
-        ("state", Some(or_null("state"))),
-        ("theme", Some(or_null("theme"))),
+        (field::SCREEN, Some(or_null(field::SCREEN))),
+        (field::VARIANT, Some(or_null(field::VARIANT))),
+        (field::BREAKPOINT, Some(or_null(field::BREAKPOINT))),
+        (field::STATE, Some(or_null(field::STATE))),
+        (field::THEME, Some(or_null(field::THEME))),
         (
             field::FILE,
             Some(design_file.map_or(Value::Null, |f| rel::design(f).into())),
         ),
         (field::TARGET, Some(Value::Object(target))),
         (field::COMMENT, Some(text.into())),
-        ("screenshot", Some(or_null("screenshot"))),
+        (field::SCREENSHOT, Some(or_null(field::SCREENSHOT))),
         (field::STATUS, Some(Status::Open.as_str().into())),
         (field::THREAD, Some(json!([]))),
-        ("resolution", Some(Value::Null)),
+        (field::RESOLUTION, Some(Value::Null)),
         (
             field::PROVIDER,
             Some(
@@ -369,14 +369,14 @@ fn add_comment_unlocked(held: &Held, root: &Path, input: &Value) -> Result<Value
     ]);
     // A Studio comment is a draft until the user sends the drafts to Claude (send_drafts): the
     // inbox does not deliver it before that.
-    if input.get("draft") == Some(&Value::Bool(true)) {
-        c["draft"] = Value::Bool(true);
+    if input.get(field::DRAFT) == Some(&Value::Bool(true)) {
+        c[field::DRAFT] = Value::Bool(true);
     }
     // Comments on the running app (dfw review) carry the page they were made on.
-    if let Some(url) = js::truthy_value(input.get("url")) {
-        c["url"] = js::to_string(Some(url)).into();
+    if let Some(url) = js::truthy_value(input.get(field::URL)) {
+        c[field::URL] = js::to_string(Some(url)).into();
     }
-    match session.get_mut("comments") {
+    match session.get_mut(field::COMMENTS) {
         Some(Value::Array(comments)) => comments.push(c.clone()),
         _ => return Err(not_a_list(&file, "\"comments\"")),
     }
@@ -394,13 +394,13 @@ pub fn send_drafts(root: &Path) -> Result<Vec<Value>, DfwError> {
         for file in session_files(root)? {
             let mut session = read_session(&file)?;
             let mut changed = false;
-            match session.get_mut("comments") {
+            match session.get_mut(field::COMMENTS) {
                 Some(Value::Array(comments)) => {
                     for c in comments.iter_mut() {
                         if let Value::Object(map) = c {
-                            if map.get("draft") == Some(&Value::Bool(true)) {
-                                map.shift_remove("draft");
-                                map.insert("sentAt".into(), at.clone().into());
+                            if map.get(field::DRAFT) == Some(&Value::Bool(true)) {
+                                map.shift_remove(field::DRAFT);
+                                map.insert(field::SENT_AT.into(), at.clone().into());
                                 sent.push(Value::Object(map.clone()));
                                 changed = true;
                             }
@@ -429,7 +429,7 @@ impl Found {
     fn comment(&mut self) -> Result<&mut Map<String, Value>, DfwError> {
         match self
             .session
-            .get_mut("comments")
+            .get_mut(field::COMMENTS)
             .and_then(|c| c.get_mut(self.index))
         {
             Some(Value::Object(comment)) => Ok(comment),
@@ -453,7 +453,7 @@ fn find_comment(root: &Path, id: Option<&str>) -> Result<Found, DfwError> {
         let session = read_session(&file)?;
         let index = comments_of(&file, &session)?
             .iter()
-            .position(|c| id.is_some() && c.get("id").and_then(Value::as_str) == id);
+            .position(|c| id.is_some() && c.get(field::ID).and_then(Value::as_str) == id);
         if let Some(index) = index {
             return Ok(Found {
                 root: root.to_path_buf(),
@@ -477,7 +477,9 @@ fn find_comment(root: &Path, id: Option<&str>) -> Result<Found, DfwError> {
 pub fn set_comment_screenshot(root: &Path, id: &str, file: &str) -> Result<Value, DfwError> {
     locked(root, |held| {
         let mut found = find_comment(root, Some(id))?;
-        found.comment()?.insert("screenshot".into(), file.into());
+        found
+            .comment()?
+            .insert(field::SCREENSHOT.into(), file.into());
         found.save(held)
     })
 }
@@ -557,17 +559,17 @@ fn update_comment_unlocked(
         if status == Status::Fixed {
             let evidence = update.evidence.clone().filter(|v| js::truthy(v));
             comment.insert(
-                "resolution".into(),
-                json!({ "at": at, "by": by, "note": message, "evidence": evidence }),
+                field::RESOLUTION.into(),
+                json!({ (field::AT): at, (field::BY): by, (field::NOTE): message, (field::EVIDENCE): evidence }),
             );
         }
     }
     if let Some(message) = message {
         let line = js::object(vec![
-            ("at", Some(at.clone().into())),
-            ("by", Some(by)),
-            ("message", Some(message)),
-            ("status", status.map(Value::from)),
+            (field::AT, Some(at.clone().into())),
+            (field::BY, Some(by)),
+            (field::MESSAGE, Some(message)),
+            (field::STATUS, status.map(Value::from)),
         ]);
         match comment.get_mut(field::THREAD) {
             Some(Value::Array(thread)) => thread.push(line),
