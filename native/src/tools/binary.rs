@@ -3,7 +3,7 @@
 //! verifies it against the release's SHA256SUMS; the plugin launcher (bin/dfw) runs it.
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use regex::Regex;
@@ -27,8 +27,13 @@ pub fn asset_name(version: &str, platform: &str, arch: &str) -> String {
 
 /// `binaryPath(version)`: where the binary of a version is installed.
 pub fn binary_path(version: &str) -> PathBuf {
+    binary_path_in(&global_dir().join("bin"), version)
+}
+
+/// Where the binary of a version goes under the `bin` folder `bins`.
+fn binary_path_in(bins: &Path, version: &str) -> PathBuf {
     let exe = if cfg!(windows) { "dfw.exe" } else { "dfw" };
-    global_dir().join("bin").join(version).join(exe)
+    bins.join(version).join(exe)
 }
 
 /// `binaryStatus()`.
@@ -114,13 +119,15 @@ fn wanted_sum(sums: &str, name: &str) -> Option<String> {
 pub fn install_binary(log: &dyn Fn(&str)) -> Result<Value, DfwError> {
     let version = dfw_version();
     let base = format!("https://github.com/{RELEASE_REPO}/releases/download/v{version}");
-    install_binary_from(&GITHUB, &base, &version, log)
+    install_binary_from(&GITHUB, &base, &global_dir().join("bin"), &version, log)
 }
 
-/// [`install_binary`] from a given release folder URL on `release`'s hosts.
+/// [`install_binary`] from a given release folder URL on `release`'s hosts, into the `bin`
+/// folder `bins` (a test's own folder, never the user's).
 fn install_binary_from(
     release: &Release,
     base: &str,
+    bins: &Path,
     version: &str,
     log: &dyn Fn(&str),
 ) -> Result<Value, DfwError> {
@@ -143,7 +150,7 @@ fn install_binary_from(
     // Refused unless its SHA-256 is the listed one.
     let buf = get(&release.asset, &format!("{base}/{name}"), Some(&want))?;
     let got = sha256(&buf);
-    let dest = binary_path(version);
+    let dest = binary_path_in(bins, version);
     if let Some(dir) = dest.parent() {
         fs::create_dir_all(dir)?;
     }
@@ -226,6 +233,7 @@ fn remove_node_binaries_in(bin: &std::path::Path) -> Vec<String> {
 mod tests {
     use super::*;
     use crate::core::util::serve_routes as serve;
+    use crate::core::util::test_dir;
     use std::collections::HashMap;
 
     #[test]
@@ -270,8 +278,7 @@ mod tests {
     }
 
     /// The download against a local server: wrong checksum, missing asset, missing release.
-    /// The good path writes under the global dir, so it is covered by the golden test
-    /// (its own DFW_HOME), not here.
+    /// Everything goes into the test's own folder, never the user's dfw home (T9).
     #[test]
     fn download_is_verified_before_anything_is_installed() {
         /// The release the local server offers.
@@ -291,6 +298,7 @@ mod tests {
             ),
         ]));
         let quiet = |_: &str| {};
+        let bins = test_dir("binary-install");
         /// The fixture server, as the release's hosts.
         const LOCAL: Release = Release {
             sums: Source {
@@ -305,16 +313,16 @@ mod tests {
             },
         };
         let install =
-            |at: &str| install_binary_from(&LOCAL, &format!("{base}/{at}"), RELEASE, &quiet);
+            |at: &str| install_binary_from(&LOCAL, &format!("{base}/{at}"), &bins, RELEASE, &quiet);
         // GitHub's hosts refuse the fixture server before anything is asked.
-        let err =
-            install_binary_from(&GITHUB, &format!("{base}/bad"), RELEASE, &quiet).unwrap_err();
+        let err = install_binary_from(&GITHUB, &format!("{base}/bad"), &bins, RELEASE, &quiet)
+            .unwrap_err();
         assert!(
             err.message()
                 .contains("refusing to download http://127.0.0.1:"),
             "{err}"
         );
-        assert!(!binary_path(RELEASE).exists());
+        assert!(!binary_path_in(&bins, RELEASE).exists());
         let err = install("bad").unwrap_err();
         assert_eq!(
             err.message(),
@@ -324,7 +332,7 @@ mod tests {
                 sha256(BINARY)
             )
         );
-        assert!(!binary_path(RELEASE).exists());
+        assert!(!binary_path_in(&bins, RELEASE).exists());
         let err = install("other").unwrap_err();
         assert_eq!(
             err.message(),
