@@ -19,7 +19,7 @@ use super::http::{
     refusal, spawn_connection, status, url_pathname, write_error, write_response, BodyError,
     Connections, Head, LOOPBACK, MAX_CONNECTIONS,
 };
-use super::sse::Clients;
+use super::sse::{data, Clients};
 use super::{penpot_routes, watch};
 use crate::assets::studio_file;
 use crate::core::config::{load_config, studio_port};
@@ -39,6 +39,26 @@ use crate::workflow::state::{load_state, summarize};
 
 /// Largest request body the Studio reads (edits, comments and Penpot changes are far smaller).
 const MAX_BODY: usize = 64 * 1024 * 1024;
+
+/// The keys of the Studio API bodies the route table reads and answers itself.
+mod key {
+    /// The answer to a ping: `{ dfw: "studio" }`, what `dfw studio start` waits for.
+    pub const DFW: &str = "dfw";
+    /// The answer of the state route: `{ state, summary, session }`.
+    pub const STATE: &str = "state";
+    pub const SUMMARY: &str = "summary";
+    /// The id of the current review session, `null` without one.
+    pub const SESSION: &str = "session";
+    /// Whether an agent listens for comments (the listening route, `comments/send`).
+    pub const LISTENING: &str = "listening";
+    /// How many drafts `comments/send` sent.
+    pub const SENT: &str = "sent";
+    /// The body of a PATCH of a comment: `{ status, message }`.
+    pub const STATUS: &str = "status";
+    pub const MESSAGE: &str = "message";
+    /// The id of a review session and of a comment.
+    pub const ID: &str = "id";
+}
 
 /// A running Studio: the project, its config and the connected pages.
 pub struct Studio {
@@ -195,7 +215,7 @@ impl Studio {
         let root = self.root.as_path();
         // Readiness for `dfw studio start`: answers whatever state design/ is in.
         if p == paths::PING {
-            return Ok(Response::ok(&json!({ "dfw": "studio" })));
+            return Ok(Response::ok(&json!({ (key::DFW): "studio" })));
         }
         if p == paths::ROOT || p == paths::INDEX {
             return Ok(asset("app.html", HTML).unwrap_or_else(Response::not_found));
@@ -260,29 +280,32 @@ impl Studio {
             let state = load_state(root)?;
             let summary = summarize(state.as_ref())?;
             let session = current_session(root)?
-                .and_then(|s| s.session.get("id").cloned())
+                .and_then(|s| s.session.get(key::ID).cloned())
                 .filter(|v| js::truthy(v))
                 .unwrap_or(Value::Null);
-            let body = json!({ "state": state, "summary": summary, "session": session });
+            let body =
+                json!({ (key::STATE): state, (key::SUMMARY): summary, (key::SESSION): session });
             return Ok(Response::ok(&body));
         }
         if p == paths::COMMENTS && method == method::GET {
             return Ok(Response::ok(&Value::Array(all_comments(root)?)));
         }
         if p == paths::LISTENING && method == method::GET {
-            return Ok(Response::ok(&json!({ "listening": is_listening(root) })));
+            return Ok(Response::ok(
+                &json!({ (key::LISTENING): is_listening(root) }),
+            ));
         }
         if p == paths::COMMENTS_SEND && method == method::POST {
             let sent = send_drafts(root)?;
             self.clients
-                .broadcast("comments", &json!({ "sent": sent.len() }));
-            let body = json!({ "sent": sent.len(), "listening": is_listening(root) });
+                .broadcast("comments", &json!({ (data::SENT): sent.len() }));
+            let body = json!({ (key::SENT): sent.len(), (key::LISTENING): is_listening(root) });
             return Ok(Response::ok(&body));
         }
         if p == paths::COMMENTS && method == method::POST {
             let c = add_comment(root, &req.json()?)?;
             self.clients
-                .broadcast("comments", &json!({ "id": c.get("id") }));
+                .broadcast("comments", &json!({ (data::ID): c.get(key::ID) }));
             return Ok(Response::created(&c));
         }
         if let Some(id) = comment_id(p).filter(|_| method == method::PATCH) {
@@ -290,16 +313,16 @@ impl Studio {
             // Requests from the studio UI are the user's own actions.
             let update = Update {
                 status: b
-                    .get("status")
+                    .get(key::STATUS)
                     .filter(|s| js::truthy(s))
                     .map(|s| js::to_string(Some(s))),
-                message: b.get("message").cloned(),
+                message: b.get(key::MESSAGE).cloned(),
                 by: Some(json!("user")),
                 evidence: None,
             };
             let c = update_comment(root, Some(id), &update)?;
             self.clients
-                .broadcast("comments", &json!({ "id": c.get("id") }));
+                .broadcast("comments", &json!({ (data::ID): c.get(key::ID) }));
             return Ok(Response::ok(&c));
         }
         if p == paths::SESSIONS && method == method::POST {

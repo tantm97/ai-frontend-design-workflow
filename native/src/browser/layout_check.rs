@@ -24,7 +24,7 @@ use super::launch::{
 use crate::core::config::{load_config, studio_breakpoints, Breakpoint};
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::level::Level;
+use crate::core::level::{finding, Level};
 use crate::core::paths::{file_url, project_paths, rel, resolve, to_posix};
 use crate::core::util::read_json;
 use crate::design::compose::{
@@ -38,6 +38,14 @@ use crate::design::tokens::relative_path;
 const MEASURE: &str = include_str!("layout_measure.js");
 const SET_STATE: &str = "(st) => document.documentElement.setAttribute('data-state', st)";
 const ENLARGE_TEXT: &str = "() => (document.documentElement.style.fontSize = '125%')";
+
+/// The keys of the argument of `MEASURE`: `{ stress, touch }`.
+mod measure_arg {
+    /// The page holds stress content (long text): only overflow and clipping count.
+    pub const STRESS: &str = "stress";
+    /// Measure touch targets too (a narrow breakpoint).
+    pub const TOUCH: &str = "touch";
+}
 
 /// Pages measured at the same time.
 const CONCURRENCY: usize = 6;
@@ -58,7 +66,7 @@ pub struct Finding {
 impl Finding {
     /// The finding as layout.mjs writes it (`line` is always 1).
     pub fn to_json(&self) -> Value {
-        json!({ "level": self.level, "rule": self.rule, "file": self.file, "line": 1, "message": self.message, "source": self.source })
+        json!({ (finding::LEVEL): self.level, (finding::RULE): self.rule, (finding::FILE): self.file, (finding::LINE): 1, (finding::MESSAGE): self.message, (finding::SOURCE): self.source })
     }
 }
 
@@ -268,8 +276,8 @@ fn list<'a>(value: &'a Value, key: &str) -> impl Iterator<Item = &'a Value> {
 
 /// `s.states || m.states || []`, as text.
 pub(crate) fn states_of(screen: &Value, manifest: &Value) -> Vec<String> {
-    let own = screen.get("states").filter(|v| js::truthy(v));
-    let states = own.or_else(|| manifest.get("states").filter(|v| js::truthy(v)));
+    let own = screen.get(key::STATES).filter(|v| js::truthy(v));
+    let states = own.or_else(|| manifest.get(key::STATES).filter(|v| js::truthy(v)));
     states
         .and_then(Value::as_array)
         .into_iter()
@@ -294,7 +302,7 @@ pub(crate) fn manifest_breakpoints(manifest: &Value, config: &Value) -> Vec<Brea
 fn screen_jobs(manifest: &Value, bps: &[Breakpoint], opts: &LayoutOptions) -> Vec<RenderJob> {
     let mut jobs = Vec::new();
     for s in list(manifest, key::SCREENS) {
-        let id = js::to_string(s.get("id"));
+        let id = js::to_string(s.get(key::ID));
         if opts
             .screens
             .as_ref()
@@ -310,8 +318,8 @@ fn screen_jobs(manifest: &Value, bps: &[Breakpoint], opts: &LayoutOptions) -> Ve
             let job =
                 |bp: &Breakpoint, state: Option<String>, stress: bool, reflow: bool| RenderJob {
                     screen: id.clone(),
-                    variant: js::to_string(v.get("id")),
-                    rel: rel::design(&js::to_string(v.get("file"))),
+                    variant: js::to_string(v.get(key::ID)),
+                    rel: rel::design(&js::to_string(v.get(key::FILE))),
                     bp: bp.clone(),
                     state,
                     stress,
@@ -531,7 +539,7 @@ fn measure(renderer: &Renderer, job: &RenderJob, file: Option<&Path>) -> Result<
         fonts_ready(&page, 3000)?;
         page.wait_for_timeout(40);
         let touch = !job.stress && !job.reflow && !job.system && job.bp.width < 1024;
-        let arg = json!({ "stress": job.stress, "touch": touch });
+        let arg = json!({ (measure_arg::STRESS): job.stress, (measure_arg::TOUCH): touch });
         let raw = page.evaluate(MEASURE.trim_end(), Some(&arg))?;
         serde_json::from_value(raw).map_err(|e| DfwError::internal(e.to_string()))
     })();

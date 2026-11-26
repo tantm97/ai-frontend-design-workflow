@@ -36,7 +36,7 @@ use crate::core::js;
 use crate::core::lock;
 use crate::core::paths::{self, project_paths, real_path, resolve, to_posix};
 use crate::core::util::{ensure_inside, now_iso, read_json, to_json_compact, write_atomic_inside};
-use crate::design::compose::{load_components, ComponentDef};
+use crate::design::compose::{attr, load_components, ComponentDef};
 use crate::design::html::{escape_text, set_attr, Splice};
 use crate::design::tokens::{dir_names, relative_path};
 
@@ -60,6 +60,54 @@ pub const SPACING_PROPS: [&str; 17] = [
     "margin-block",
     "margin-inline",
 ];
+
+/// The keys of an edit op, as the Studio sends it.
+pub mod key {
+    /// The design file, relative to the project.
+    pub const FILE: &str = "file";
+    /// What to do: one of [`ops`](super::ops).
+    pub const OP: &str = "op";
+    /// The element: its `data-dfw-id` (or the id of an instance).
+    pub const ID: &str = "id";
+    /// The new text, variant, size, prop value, token or length.
+    pub const VALUE: &str = "value";
+    /// The prop, style property or layout property to set.
+    pub const PROP: &str = "prop";
+    /// The element a move drops next to (or into).
+    pub const REF: &str = "ref";
+    /// Where a move drops: one of [`position`](super::position).
+    pub const POSITION: &str = "position";
+    /// The breakpoint of a layout edit (`0` for every width).
+    pub const MAX_WIDTH: &str = "maxWidth";
+}
+
+/// The keys of a record of the undo journal (`.dfw/edits/*.json`).
+pub mod record {
+    /// When the edit was made.
+    pub const AT: &str = "at";
+    /// The design file, relative to the project.
+    pub const FILE: &str = "file";
+    /// The edit op as it was applied (its keys of [`key`](super::key) but the file).
+    pub const OP: &str = "op";
+    /// The text of the file before the edit.
+    pub const BEFORE: &str = "before";
+    /// The text of the file after the edit.
+    pub const AFTER: &str = "after";
+}
+
+/// The keys of what an edit or an undo sends back to the Studio.
+pub mod reply {
+    /// The design file, relative to the project.
+    pub const FILE: &str = "file";
+    /// The edit changed the file.
+    pub const CHANGED: &str = "changed";
+    /// The line of the element after the edit.
+    pub const LINE: &str = "line";
+    /// The op an undo reverted, as journaled.
+    pub const OP: &str = "op";
+    /// The records left in the journal after an undo.
+    pub const REMAINING: &str = "remaining";
+}
 
 /// The edit ops `transform` applies: the `op` field of an edit.
 pub mod ops {
@@ -187,7 +235,7 @@ pub fn assert_editable(root: &Path) -> Result<(), DfwError> {
 }
 
 fn component_def(root: &Path, el: &Located) -> Result<ComponentDef, DfwError> {
-    let name = el.attrs.nonempty("c").or(el.attrs.get("component"));
+    let name = el.attrs.nonempty("c").or(el.attrs.get(attr::COMPONENT));
     load_components(root)?.get(name).cloned().ok_or_else(|| {
         DfwError::new(format!(
             "Unknown component \"{}\".",
@@ -231,11 +279,11 @@ fn with_attr(text: &str, el: &Located, name: &str, value: Option<&str>) -> Strin
 pub fn transform(root: &Path, text: &str, op: &Value) -> Result<String, DfwError> {
     let field = |key: &str| op.get(key);
     let shown = |key: &str| js::to_string(field(key));
-    let el = locate_own(root, text, field("id"))?;
-    let id = shown("id");
+    let el = locate_own(root, text, field(key::ID))?;
+    let id = shown(key::ID);
     // `value == null || value === ''`
-    let value = js::present(field("value")).filter(|v| v.as_str() != Some(""));
-    let kind = field("op").and_then(Value::as_str).unwrap_or_default();
+    let value = js::present(field(key::VALUE)).filter(|v| v.as_str() != Some(""));
+    let kind = field(key::OP).and_then(Value::as_str).unwrap_or_default();
     match kind {
         ops::TEXT => edit_text(text, &el, &id, op),
         ops::VARIANT | ops::SIZE => edit_choice(root, text, &el, &id, kind, op),
@@ -245,7 +293,7 @@ pub fn transform(root: &Path, text: &str, op: &Value) -> Result<String, DfwError
         ops::LAYOUT => edit_layout(root, text, &id, op),
         _ => Err(DfwError::new(format!(
             "Unknown edit op \"{}\".",
-            shown("op")
+            shown(key::OP)
         ))),
     }
 }
@@ -268,8 +316,9 @@ fn edit_text(text: &str, el: &Located, id: &str, op: &Value) -> Result<String, D
             "\"{id}\" contains child elements in the source; edit it in code or leave a comment."
         )));
     }
-    let value =
-        one_line(&js::present(op.get("value")).map_or(String::new(), |v| js::to_string(Some(v))));
+    let value = one_line(
+        &js::present(op.get(key::VALUE)).map_or(String::new(), |v| js::to_string(Some(v))),
+    );
     if value.is_empty() {
         return Err(DfwError::new("Text cannot be empty."));
     }
@@ -307,11 +356,11 @@ fn edit_choice(
             "Component \"{name}\" has no {kind}s."
         )));
     }
-    match op.get("value").and_then(Value::as_str) {
+    match op.get(key::VALUE).and_then(Value::as_str) {
         Some(v) if allowed.iter().any(|a| a == v) => Ok(with_attr(text, el, kind, Some(v))),
         _ => Err(DfwError::new(format!(
             "Component \"{name}\" has no {kind} \"{}\" ({}).",
-            js::to_string(op.get("value")),
+            js::to_string(op.get(key::VALUE)),
             allowed.join(", ")
         ))),
     }
@@ -330,13 +379,13 @@ fn edit_prop(
         return Err(not_an_instance(id));
     }
     let def = component_def(root, el)?;
-    let prop = op.get("prop").and_then(Value::as_str);
+    let prop = op.get(key::PROP).and_then(Value::as_str);
     let Some(prop) = prop.filter(|p| def.props.iter().any(|d| d == p)) else {
         let declared = def.props.join(", ");
         return Err(DfwError::new(format!(
             "Component \"{}\" has no prop \"{}\" ({}).",
             def.display_name(),
-            js::to_string(op.get("prop")),
+            js::to_string(op.get(key::PROP)),
             if declared.is_empty() {
                 "none"
             } else {
@@ -362,11 +411,11 @@ fn edit_spacing(
             "Spacing of a component instance is defined by its master; change the component or leave a comment.",
         ));
     }
-    let prop = op.get("prop").and_then(Value::as_str);
+    let prop = op.get(key::PROP).and_then(Value::as_str);
     let Some(prop) = prop.filter(|p| SPACING_PROPS.contains(p)) else {
         return Err(DfwError::new(format!(
             "\"{}\" is not editable here; only gap, padding and margin.",
-            js::to_string(op.get("prop"))
+            js::to_string(op.get(key::PROP))
         )));
     };
     let decl = match value {
@@ -374,17 +423,17 @@ fn edit_spacing(
         None => None,
     };
     let style = set_style_prop(
-        el.attrs.get("style").unwrap_or_default(),
+        el.attrs.get(attr::STYLE).unwrap_or_default(),
         prop,
         decl.as_deref(),
     );
     let style = Some(style.as_str()).filter(|s| !s.is_empty());
-    Ok(with_attr(text, el, "style", style))
+    Ok(with_attr(text, el, attr::STYLE, style))
 }
 
 /// Op "move": the element before or after another element, or inside an empty container.
 fn edit_move(root: &Path, text: &str, el: &Located, op: &Value) -> Result<String, DfwError> {
-    let position = op.get("position").and_then(Value::as_str);
+    let position = op.get(key::POSITION).and_then(Value::as_str);
     let Some(position) =
         position.filter(|p| [position::BEFORE, position::AFTER, position::INSIDE].contains(p))
     else {
@@ -392,12 +441,12 @@ fn edit_move(root: &Path, text: &str, el: &Located, op: &Value) -> Result<String
             "Move position must be \"before\", \"after\" or \"inside\".",
         ));
     };
-    if !js::truthy(op.get("ref")) || op.get("ref") == op.get("id") {
+    if !js::truthy(op.get(key::REF)) || op.get(key::REF) == op.get(key::ID) {
         return Err(DfwError::new(
             "Move needs another element to drop next to (or a container to drop into).",
         ));
     }
-    let target = locate_own(root, text, op.get("ref"))?;
+    let target = locate_own(root, text, op.get(key::REF))?;
     if position == position::INSIDE {
         move_inside(text, el, &target)
     } else {
@@ -410,13 +459,13 @@ fn edit_move(root: &Path, text: &str, el: &Located, op: &Value) -> Result<String
 fn edit_layout(root: &Path, text: &str, id: &str, op: &Value) -> Result<String, DfwError> {
     let shown = |key: &str| js::to_string(op.get(key));
     // No prop: reset the element's whole rule at this breakpoint scope.
-    let prop = match js::present(op.get("prop")) {
+    let prop = match js::present(op.get(key::PROP)) {
         None => None,
         Some(Value::String(p)) if LAYOUT_PROPS.contains(&p.as_str()) => Some(p.as_str()),
         Some(_) => {
             return Err(DfwError::new(format!(
                 "\"{}\" is not resizable here; only {}.",
-                shown("prop"),
+                shown(key::PROP),
                 LAYOUT_PROPS.join(", ")
             )))
         }
@@ -426,18 +475,18 @@ fn edit_layout(root: &Path, text: &str, id: &str, op: &Value) -> Result<String, 
             "\"{id}\" cannot be used in a layout rule."
         )));
     }
-    let max_width = match js::present(op.get("maxWidth")) {
+    let max_width = match js::present(op.get(key::MAX_WIDTH)) {
         Some(v) if v.as_str() != Some("") => js::to_number(Some(v)),
         _ => 0.0,
     };
     if max_width.fract() != 0.0 || !(0.0..=10000.0).contains(&max_width) {
         return Err(DfwError::new(format!(
             "Invalid breakpoint width \"{}\".",
-            shown("maxWidth")
+            shown(key::MAX_WIDTH)
         )));
     }
     let css = match prop {
-        Some(prop) => layout_value(root, prop, op.get("value"))?,
+        Some(prop) => layout_value(root, prop, op.get(key::VALUE))?,
         None => None,
     };
     set_layout_rule(text, id, prop, css.as_deref(), max_width)
@@ -529,7 +578,7 @@ pub struct EditResult {
 impl EditResult {
     /// The object the Studio sends back: `{file, changed, line}`.
     pub fn to_json(&self) -> Value {
-        json!({ "file": self.file, "changed": self.changed, "line": self.line })
+        json!({ (reply::FILE): self.file, (reply::CHANGED): self.changed, (reply::LINE): self.line })
     }
 }
 
@@ -538,11 +587,11 @@ impl EditResult {
 pub fn apply_edit(root: &Path, op: &Value) -> Result<EditResult, DfwError> {
     let _held = edit_lock(root)?;
     assert_editable(root)?;
-    let DesignFile { abs, rel } = resolve_design_file(root, op.get("file"))?;
+    let DesignFile { abs, rel } = resolve_design_file(root, op.get(key::FILE))?;
     let before = js::read_text(&abs)?;
     let after = transform(root, &before, op)?;
     if after == before {
-        let line = line_at(&before, locate_value(&before, op.get("id"))?.start);
+        let line = line_at(&before, locate_value(&before, op.get(key::ID))?.start);
         return Ok(EditResult {
             file: rel,
             changed: false,
@@ -551,13 +600,20 @@ pub fn apply_edit(root: &Path, op: &Value) -> Result<EditResult, DfwError> {
     }
     write_atomic_inside(root, &abs, &after)?;
     let mut kept = Map::new();
-    for key in ["op", "id", "prop", "value", "ref", "position", "maxWidth"] {
-        if let Some(v) = op.get(key) {
-            kept.insert(key.to_string(), v.clone());
+    for name in [
+        key::OP,
+        key::ID,
+        key::PROP,
+        key::VALUE,
+        key::REF,
+        key::POSITION,
+        key::MAX_WIDTH,
+    ] {
+        if let Some(v) = op.get(name) {
+            kept.insert(name.to_string(), v.clone());
         }
     }
-    let record =
-        json!({ "at": now_iso(), "file": rel, "op": kept, "before": before, "after": after });
+    let record = json!({ (record::AT): now_iso(), (record::FILE): rel, (record::OP): kept, (record::BEFORE): before, (record::AFTER): after });
     let dir = edits_dir(root);
     write_record(root, &record)?;
     let records = journal(root)?;
@@ -567,7 +623,7 @@ pub fn apply_edit(root: &Path, op: &Value) -> Result<EditResult, DfwError> {
             _ => {}
         }
     }
-    let line = line_at(&after, locate_value(&after, op.get("id"))?.start);
+    let line = line_at(&after, locate_value(&after, op.get(key::ID))?.start);
     Ok(EditResult {
         file: rel,
         changed: true,
@@ -590,11 +646,11 @@ impl UndoResult {
     /// The object the Studio sends back: `{file, op, remaining}`.
     pub fn to_json(&self) -> Value {
         let mut map = Map::new();
-        map.insert("file".into(), json!(self.file));
+        map.insert(reply::FILE.into(), json!(self.file));
         if let Some(op) = &self.op {
-            map.insert("op".into(), op.clone());
+            map.insert(reply::OP.into(), op.clone());
         }
-        map.insert("remaining".into(), json!(self.remaining));
+        map.insert(reply::REMAINING.into(), json!(self.remaining));
         Value::Object(map)
     }
 }
@@ -613,9 +669,12 @@ pub fn undo_edit(root: &Path) -> Result<UndoResult, DfwError> {
         };
         let rec_file = dir.join(name);
         let rec: Value = serde_json::from_str(&js::read_text(&rec_file)?)?;
-        let file = rec.get("file").and_then(Value::as_str).ok_or_else(|| {
-            DfwError::internal(format!("{}: no file in the record", rec_file.display()))
-        })?;
+        let file = rec
+            .get(record::FILE)
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                DfwError::internal(format!("{}: no file in the record", rec_file.display()))
+            })?;
         // `path.join(root, file)`: the name is taken as relative even when it starts with `/`.
         if resolve(root.join(file.trim_start_matches('/'))).exists() {
             break (rec_file, rec);
@@ -624,22 +683,26 @@ pub fn undo_edit(root: &Path) -> Result<UndoResult, DfwError> {
         files.pop();
     };
     let (rec_file, rec) = found;
-    let file = rec.get("file").and_then(Value::as_str).unwrap_or_default();
-    let target = resolve_design_file(root, rec.get("file"))?;
-    if Some(js::read_text(&target.abs)?.as_str()) != rec.get("after").and_then(Value::as_str) {
+    let file = rec
+        .get(record::FILE)
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let target = resolve_design_file(root, rec.get(record::FILE))?;
+    if Some(js::read_text(&target.abs)?.as_str()) != rec.get(record::AFTER).and_then(Value::as_str)
+    {
         return Err(DfwError::new(format!(
             "{file} changed after that edit (by the AI or an editor); undo refused to avoid losing work."
         )));
     }
     let before = rec
-        .get("before")
+        .get(record::BEFORE)
         .and_then(Value::as_str)
         .ok_or_else(|| DfwError::internal(format!("{}: no text to restore", rec_file.display())))?;
     write_atomic_inside(root, &target.abs, before)?;
     fs::remove_file(&rec_file)?;
     Ok(UndoResult {
         file: file.to_string(),
-        op: rec.get("op").cloned(),
+        op: rec.get(record::OP).cloned(),
         remaining: files.len() - 1,
     })
 }

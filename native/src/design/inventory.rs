@@ -10,11 +10,12 @@ use std::path::{Path, PathBuf};
 use serde_json::{json, Value};
 
 use super::html::{Quote, Tag, Token, Tokenizer};
+use super::manifest::key as manifest_key;
 use super::tokens::{dir_names, relative_path};
 use crate::assets::{self, Folder};
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::level::Level;
+use crate::core::level::{finding, Level};
 use crate::core::paths::{file, project_paths, rel};
 use crate::core::util::write_json_inside;
 
@@ -53,6 +54,30 @@ const SKELETON_COMMENT: &str = "Component inventory (dfw system phase). One entr
 /// The starter kit's masters (`KIT_COMPONENTS`), a folder of the embedded kits.
 const KIT_COMPONENTS: &str = "base/components";
 
+/// The keys of the component inventory (`design/system/inventory.json`), of its entries and of
+/// a kit reference ([`KitRef::to_json`]).
+pub mod key {
+    /// The note at the top of the skeleton.
+    pub const COMMENT: &str = "$comment";
+    /// The list of entries.
+    pub const COMPONENTS: &str = "components";
+    /// The component's name: its master file name.
+    pub const NAME: &str = "name";
+    /// The job the component does in this product (an entry).
+    pub const PURPOSE: &str = "purpose";
+    /// The pages and screens that need it (an entry).
+    pub const USED_BY: &str = "usedBy";
+
+    /* ------------------------------------------------------------- a kit reference */
+
+    pub const GROUP: &str = "group";
+    pub const DESCRIPTION: &str = "description";
+    pub const VARIANTS: &str = "variants";
+    pub const SIZES: &str = "sizes";
+    /// The states its CSS covers.
+    pub const STATES: &str = "states";
+}
+
 /// The file names of the kit's masters, in byte order.
 fn kit_files() -> Vec<String> {
     assets::file_names(Folder::Kits, KIT_COMPONENTS)
@@ -84,7 +109,7 @@ pub fn load_inventory(root: &Path) -> Result<Option<Value>, DfwError> {
         return Ok(None);
     }
     let inv = js::read_json(&f, Some(Value::Null))?;
-    if !inv.get("components").is_some_and(Value::is_array) {
+    if !inv.get(key::COMPONENTS).is_some_and(Value::is_array) {
         return Err(DfwError::new(format!(
             "{}: expected {{\"components\": [...]}}",
             relative_path(root, &f)
@@ -102,7 +127,7 @@ pub fn ensure_inventory(root: &Path) -> Result<bool, DfwError> {
     write_json_inside(
         root,
         &f,
-        &json!({ "$comment": SKELETON_COMMENT, "components": [] }),
+        &json!({ (key::COMMENT): SKELETON_COMMENT, (key::COMPONENTS): [] }),
     )?;
     Ok(true)
 }
@@ -196,7 +221,7 @@ pub struct KitRef {
 impl KitRef {
     /// The object the Node CLI printed with `--json`.
     pub fn to_json(&self) -> Value {
-        json!({ "name": self.name, "group": self.group, "description": self.description, "variants": self.variants, "sizes": self.sizes, "states": self.states })
+        json!({ (key::NAME): self.name, (key::GROUP): self.group, (key::DESCRIPTION): self.description, (key::VARIANTS): self.variants, (key::SIZES): self.sizes, (key::STATES): self.states })
     }
 }
 
@@ -323,7 +348,7 @@ pub fn inventory_findings(root: &Path) -> Result<Vec<Value>, DfwError> {
     let dir = &p.components;
     let mut findings = Vec::new();
     let mut add = |level: Level, rule: &str, file: &str, message: String| {
-        findings.push(json!({ "level": level.as_str(), "rule": rule, "file": file, "line": 1, "message": message, "source": "dfw-ds" }));
+        findings.push(json!({ (finding::LEVEL): level.as_str(), (finding::RULE): rule, (finding::FILE): file, (finding::LINE): 1, (finding::MESSAGE): message, (finding::SOURCE): "dfw-ds" }));
     };
     let mut masters = html_files(dir)?;
     masters.sort_by(|a, b| js::cmp_utf16(a, b));
@@ -369,7 +394,7 @@ pub fn inventory_findings(root: &Path) -> Result<Vec<Value>, DfwError> {
     };
     let entries: Vec<Value> = inv
         .as_ref()
-        .and_then(|i| i.get("components"))
+        .and_then(|i| i.get(key::COMPONENTS))
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
@@ -381,7 +406,7 @@ pub fn inventory_findings(root: &Path) -> Result<Vec<Value>, DfwError> {
     }
     let built = |name: &Value| names.iter().any(|(n, _)| name.as_str() == Some(n));
     for c in &entries {
-        let name = c.get("name").filter(|n| js::truthy(Some(n)));
+        let name = c.get(key::NAME).filter(|n| js::truthy(Some(n)));
         match name {
             None => add(
                 Level::Warn,
@@ -391,10 +416,10 @@ pub fn inventory_findings(root: &Path) -> Result<Vec<Value>, DfwError> {
             ),
             Some(name) => {
                 let used_by = c
-                    .get("usedBy")
+                    .get(key::USED_BY)
                     .and_then(Value::as_array)
                     .is_some_and(|u| !u.is_empty());
-                if !js::truthy(c.get("purpose")) || !used_by {
+                if !js::truthy(c.get(key::PURPOSE)) || !used_by {
                     add(Level::Warn, "inventory-invalid", INVENTORY, format!("Inventory entry \"{}\" needs a purpose and at least one usedBy page/screen: a component nobody needs does not belong in the system.", js::to_string(Some(name))));
                 }
                 if !built(name) {
@@ -415,7 +440,7 @@ pub fn inventory_findings(root: &Path) -> Result<Vec<Value>, DfwError> {
     for (name, rel) in &names {
         let listed = entries
             .iter()
-            .any(|c| c.get("name").and_then(Value::as_str) == Some(name));
+            .any(|c| c.get(key::NAME).and_then(Value::as_str) == Some(name));
         if !listed {
             add(Level::Warn, "inventory-orphan", rel, format!("Master \"{name}\" is not in {INVENTORY}. Add it with the screens that need it, or delete it."));
         }
@@ -423,12 +448,12 @@ pub fn inventory_findings(root: &Path) -> Result<Vec<Value>, DfwError> {
     // A malformed design.json is reported by lint (manifest-json).
     let manifest = js::read_json(&p.manifest, Some(json!({}))).unwrap_or_else(|_| json!({}));
     let real_screens = manifest
-        .get("screens")
+        .get(manifest_key::SCREENS)
         .and_then(Value::as_array)
         .is_some_and(|screens| {
             screens
                 .iter()
-                .any(|s| !js::to_string(s.get("id")).starts_with('_'))
+                .any(|s| !js::to_string(s.get(manifest_key::ID)).starts_with('_'))
         });
     if real_screens {
         let used = usages(root)?;

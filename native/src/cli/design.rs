@@ -16,6 +16,7 @@ use crate::core::error::exit;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::level::{self, Level};
+use crate::core::level::{finding, result as result_key};
 use crate::core::paths::{file, project_paths, rel, resolve};
 use crate::core::util::{
     out, to_json_compact, to_json_pretty, write_atomic_inside, write_json_inside, ArgValue, Args,
@@ -31,7 +32,7 @@ use crate::design::inventory::{inventory_findings, kit_ref, kit_refs, load_inven
 use crate::design::lint::{
     lint_component_file, lint_css, lint_html, lint_screen, lint_tokens, state_coverage,
 };
-use crate::design::manifest::{self, key};
+use crate::design::manifest::{self, blueprint as plan, key};
 use crate::design::style::{
     apply_style, format_style, get_style, list_styles, match_styles, search_styles, AXES,
     MOTIF_FILE,
@@ -47,6 +48,65 @@ use crate::tools::check::{
     check_exit_code, format_report, launch, run_checks, setup_engine, CheckOptions,
 };
 use crate::tools::lighthouse::run_lighthouse;
+
+use super::flag_key;
+
+/// The keys of what `dfw check --json` prints.
+mod check_key {
+    /// The result of each tool ([`super::result_key`]).
+    pub const RESULTS: &str = "results";
+    /// The number of findings of each level.
+    pub const TALLY: &str = "tally";
+    /// The tools that did not run.
+    pub const UNVERIFIED: &str = "unverified";
+}
+
+/// The keys of what `dfw system inventory --json` prints.
+mod inventory_out {
+    /// `design/system/inventory.json` as read.
+    pub const INVENTORY: &str = "inventory";
+    pub const FINDINGS: &str = "findings";
+}
+
+/// The keys of the component inventory (`design/system/inventory.json`) and of the component
+/// summary (`dfw system list`) that are read here.
+mod component {
+    /// The components, a list.
+    pub const COMPONENTS: &str = "components";
+    pub const NAME: &str = "name";
+    /// The screens that use a component.
+    pub const USED_BY: &str = "usedBy";
+    /// What a component is for.
+    pub const PURPOSE: &str = "purpose";
+}
+
+/// The keys of the design brief and of a style guide that are read here.
+mod style_key {
+    /// The brief's wanted personality: a value per axis.
+    pub const PERSONALITY: &str = "personality";
+    /// The guide's decorative motifs.
+    pub const MOTIFS: &str = "motifs";
+}
+
+/// The DTCG keys and token groups `dfw type scale --write` writes in `design/tokens.json`.
+mod token_key {
+    /// The font group, and its size group under it.
+    pub use crate::design::style::group::{FONT, SIZE};
+    pub use crate::design::tokens::key::{AMOUNT, DESCRIPTION, TYPE, UNIT, VALUE};
+}
+
+/// The keys of what `__debug color` prints and reads for an OKLCH colour and a type scale.
+mod debug_key {
+    pub const L: &str = "l";
+    pub const C: &str = "c";
+    pub const H: &str = "h";
+    /// The UI and display steps of a type scale.
+    pub const UI: &str = "ui";
+    pub const DISPLAY: &str = "display";
+    pub const RATIO: &str = "ratio";
+    pub const DISPLAY_RATIO: &str = "displayRatio";
+    pub const BASE: &str = "base";
+}
 
 /// The commands of this group.
 pub fn commands() -> Vec<(&'static str, Handler)> {
@@ -204,8 +264,8 @@ fn system_audit(root: &Path, a: &Args) -> Result<i32, DfwError> {
             format!(
                 "- [{}] ({}) {}",
                 level_label(f),
-                js::to_string(f.get("rule")),
-                js::to_string(f.get("message"))
+                js::to_string(f.get(finding::RULE)),
+                js::to_string(f.get(finding::MESSAGE))
             )
         })
         .collect();
@@ -231,7 +291,7 @@ fn check(ctx: &Ctx) -> Result<i32, DfwError> {
     let url = a.text("url").filter(|u| !u.is_empty()).map(str::to_string);
     let mut files: Vec<String> = a.positionals.iter().skip(1).cloned().collect();
     // "--strict <file>": the file is a target, not the flag's value.
-    if let Some(ArgValue::Text(file)) = a.get("strict") {
+    if let Some(ArgValue::Text(file)) = a.get(flag_key::STRICT) {
         files.push(file.clone());
     }
     let targets: Option<Vec<String>> = match url.clone() {
@@ -282,7 +342,7 @@ fn check(ctx: &Ctx) -> Result<i32, DfwError> {
     let report = format_report(&results, num_or(a, "max", 60.0) as usize);
     if a.truthy("json") {
         out(&to_json_pretty(
-            &json!({ "results": results, "tally": report.tally(), "unverified": report.unverified }),
+            &json!({ (check_key::RESULTS): results, (check_key::TALLY): report.tally(), (check_key::UNVERIFIED): report.unverified }),
         ));
     } else {
         out(&report.text);
@@ -296,9 +356,9 @@ pub(super) fn record_checks(results: &[Value]) {
     let tools = results
         .iter()
         .filter_map(|r| {
-            let tool = CheckTool::new(r.get("tool").and_then(Value::as_str)?)?;
+            let tool = CheckTool::new(r.get(result_key::TOOL).and_then(Value::as_str)?)?;
             let findings = r
-                .get("findings")
+                .get(result_key::FINDINGS)
                 .and_then(Value::as_array)
                 .map_or(0, Vec::len);
             Some(CheckCount {
@@ -476,7 +536,7 @@ fn system_list(root: &Path, a: &Args) -> Result<i32, DfwError> {
             }
             format!(
                 "{} {}",
-                js::pad_end(&js::to_string(c.get("name")), 14),
+                js::pad_end(&js::to_string(c.get(component::NAME)), 14),
                 parts.join("  ")
             )
         })
@@ -511,13 +571,13 @@ fn system_inventory(root: &Path, a: &Args) -> Result<i32, DfwError> {
     let findings = inventory_findings(root)?;
     if a.truthy("json") {
         out(&to_json_pretty(
-            &json!({ "inventory": inv, "findings": findings }),
+            &json!({ (inventory_out::INVENTORY): inv, (inventory_out::FINDINGS): findings }),
         ));
         return Ok(0);
     }
     let components = inv
         .as_ref()
-        .and_then(|i| i.get("components"))
+        .and_then(|i| i.get(component::COMPONENTS))
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
@@ -525,16 +585,16 @@ fn system_inventory(root: &Path, a: &Args) -> Result<i32, DfwError> {
         .iter()
         .map(|c| {
             let used_by = c
-                .get("usedBy")
+                .get(component::USED_BY)
                 .and_then(Value::as_array)
                 .map_or(String::new(), |u| js::join(u, ", "));
             let purpose = c
-                .get("purpose")
+                .get(component::PURPOSE)
                 .filter(|p| js::truthy(Some(p)))
                 .map_or(String::new(), |p| js::to_string(Some(p)));
             format!(
                 "{} {} {purpose}",
-                js::pad_end(&js::to_string(c.get("name")), 16),
+                js::pad_end(&js::to_string(c.get(component::NAME)), 16),
                 js::pad_end(&used_by, 28)
             )
         })
@@ -553,9 +613,9 @@ fn system_inventory(root: &Path, a: &Args) -> Result<i32, DfwError> {
                 format!(
                     "- [{}] ({}) {}: {}",
                     level_label(x),
-                    js::to_string(x.get("rule")),
-                    js::to_string(x.get("file")),
-                    js::to_string(x.get("message"))
+                    js::to_string(x.get(finding::RULE)),
+                    js::to_string(x.get(finding::FILE)),
+                    js::to_string(x.get(finding::MESSAGE))
                 )
             })
             .collect();
@@ -623,7 +683,7 @@ fn style(ctx: &Ctx) -> Result<i32, DfwError> {
                 return Ok(0);
             }
             let wanted: Vec<String> = brief
-                .get("personality")
+                .get(style_key::PERSONALITY)
                 .and_then(Value::as_object)
                 .map(js::entries)
                 .unwrap_or_default()
@@ -666,7 +726,7 @@ fn style(ctx: &Ctx) -> Result<i32, DfwError> {
             build_system(&root)?;
             // The argument, not the guide's own id: a project guide file is not in the library.
             let has_motifs = get_style(id)?
-                .get("motifs")
+                .get(style_key::MOTIFS)
                 .and_then(Value::as_array)
                 .is_some_and(|m| !m.is_empty());
             out(&format!("Applied style \"{}\" (fonts: {} / {} / {}). Wrote {}, {}, {}{}.",
@@ -702,13 +762,16 @@ fn type_scale(ctx: &Ctx) -> Result<i32, DfwError> {
     if write {
         let file = project_paths(&root).tokens_json;
         let mut t = js::read_json(&file, None)?;
-        let old_font = t.get("font").filter(|f| js::truthy(Some(f))).cloned();
+        let old_font = t
+            .get(token_key::FONT)
+            .filter(|f| js::truthy(Some(f)))
+            .cloned();
         let mut font = old_font
             .and_then(|f| f.as_object().cloned())
             .unwrap_or_default();
         let mut size = Map::new();
-        size.insert("$type".into(), json!("dimension"));
-        if let Some(old) = font.get("size").and_then(Value::as_object) {
+        size.insert(token_key::TYPE.into(), json!("dimension"));
+        if let Some(old) = font.get(token_key::SIZE).and_then(Value::as_object) {
             for (k, v) in js::entries(old) {
                 size.insert(k.clone(), v.clone());
             }
@@ -716,18 +779,18 @@ fn type_scale(ctx: &Ctx) -> Result<i32, DfwError> {
         for (k, v) in ts.ui.iter().chain(&ts.display) {
             size.insert(
                 (*k).into(),
-                json!({ "$value": { "value": js::num(*v), "unit": "px" } }),
+                json!({ (token_key::VALUE): { (token_key::AMOUNT): js::num(*v), (token_key::UNIT): "px" } }),
             );
         }
-        size["md"]["$description"] = json!(format!(
+        size["md"][token_key::DESCRIPTION] = json!(format!(
             "Body. Scale: base {}, UI ratio {}, display ratio {}.",
             js::number(ts.base),
             js::number(ts.ratio),
             js::number(ts.display_ratio)
         ));
-        font.insert("size".into(), Value::Object(size));
+        font.insert(token_key::SIZE.into(), Value::Object(size));
         match t.as_object_mut() {
-            Some(tree) => tree.insert("font".into(), Value::Object(font)),
+            Some(tree) => tree.insert(token_key::FONT.into(), Value::Object(font)),
             None => {
                 return Err(DfwError::internal(format!(
                     "{} is not a JSON object.",
@@ -768,8 +831,8 @@ fn palette(ctx: &Ctx) -> Result<i32, DfwError> {
         neutral_hue: num(a, "neutral-hue"),
         neutral_tint: Some(num(a, "tint").unwrap_or(0.01)),
         accent_from: a
-            .get("accent")
-            .map(|_| flag(a, "accent").unwrap_or_default()),
+            .get(flag_key::ACCENT)
+            .map(|_| flag(a, flag_key::ACCENT).unwrap_or_default()),
         dark: a.truthy("dark"),
         warm_surface: a.truthy("warm-surface"),
         ..Seeds::default()
@@ -785,7 +848,7 @@ fn palette(ctx: &Ctx) -> Result<i32, DfwError> {
         }
     }
     let chroma = num(a, "signature-chroma");
-    if a.get("signature").is_some() {
+    if a.get(flag_key::SIGNATURE).is_some() {
         seeds.signature = Some(Signature {
             hue: num(a, "signature"),
             chroma,
@@ -851,8 +914,8 @@ fn blueprint(ctx: &Ctx) -> Result<i32, DfwError> {
     let screens: Vec<&Value> = manifest::items(m.get(key::SCREENS))
         .iter()
         .filter(|x| match wanted {
-            Some(id) => x.get("id").and_then(Value::as_str) == Some(id),
-            None => !js::to_string(x.get("id")).starts_with('_'),
+            Some(id) => x.get(key::ID).and_then(Value::as_str) == Some(id),
+            None => !js::to_string(x.get(key::ID)).starts_with('_'),
         })
         .collect();
     if a.truthy("json") {
@@ -860,7 +923,7 @@ fn blueprint(ctx: &Ctx) -> Result<i32, DfwError> {
             .iter()
             .map(|x| {
                 let mut item = Map::new();
-                for key in ["id", "title"] {
+                for key in [key::ID, key::TITLE] {
                     if let Some(v) = x.get(key) {
                         item.insert(key.into(), v.clone());
                     }
@@ -893,7 +956,7 @@ fn blueprint_text(x: &Value) -> String {
         v.filter(|v| js::truthy(Some(v)))
             .map_or(fallback.to_string(), |v| js::to_string(Some(v)))
     };
-    let id = s(x.get("id"));
+    let id = s(x.get(key::ID));
     let Some(b) = x.get(key::BLUEPRINT).filter(|b| js::truthy(Some(b))) else {
         return format!("{id}: NO BLUEPRINT");
     };
@@ -903,28 +966,31 @@ fn blueprint_text(x: &Value) -> String {
             .cloned()
             .unwrap_or_default()
     };
-    let data = |key: &str| or(b.get("data").and_then(|d| d.get(key)), "?");
+    let data = |key: &str| or(b.get(plan::DATA).and_then(|d| d.get(key)), "?");
     let mut lines = vec![
         format!(
             "{id} · {} · layout {}",
-            or(x.get("title"), ""),
-            s(b.get("layout"))
+            or(x.get(key::TITLE), ""),
+            s(b.get(plan::LAYOUT))
         ),
-        format!("  goal: {}", s(b.get("goal"))),
+        format!("  goal: {}", s(b.get(plan::GOAL))),
     ];
-    if js::truthy(b.get("primaryAction")) {
-        lines.push(format!("  primary action: {}", s(b.get("primaryAction"))));
+    if js::truthy(b.get(plan::PRIMARY_ACTION)) {
+        lines.push(format!(
+            "  primary action: {}",
+            s(b.get(plan::PRIMARY_ACTION))
+        ));
     }
     lines.push(format!(
         "  above the fold: {}",
-        js::join(&list("aboveFold"), "; ")
+        js::join(&list(plan::ABOVE_FOLD), "; ")
     ));
-    for r in list("regions") {
-        let priority = js::present(r.get("priority")).map_or(String::new(), |p| s(Some(p)));
+    for r in list(plan::REGIONS) {
+        let priority = js::present(r.get(plan::PRIORITY)).map_or(String::new(), |p| s(Some(p)));
         lines.push(format!(
             "  region {priority} {}: {}",
-            s(r.get("name")),
-            s(r.get("content"))
+            s(r.get(plan::NAME)),
+            s(r.get(plan::CONTENT))
         ));
     }
     lines.push(format!(
@@ -933,7 +999,7 @@ fn blueprint_text(x: &Value) -> String {
         data("typical"),
         data("max")
     ));
-    lines.push(format!("  feedback: {}", s(b.get("feedback"))));
+    lines.push(format!("  feedback: {}", s(b.get(plan::FEEDBACK))));
     lines.join("\n")
 }
 
@@ -1125,12 +1191,12 @@ pub(super) fn debug_color(ctx: &Ctx) -> Result<i32, DfwError> {
         }
         "hexToOklch" => {
             let o = color::hex_to_oklch(&text(0));
-            json!({ "l": js::num(o.l), "c": js::num(o.c), "h": js::num(o.h) })
+            json!({ (debug_key::L): js::num(o.l), (debug_key::C): js::num(o.c), (debug_key::H): js::num(o.h) })
         }
         "oklchToHex" => json!(color::oklch_to_hex(Oklch {
-            l: number(field(0, "l")),
-            c: number(field(0, "c")),
-            h: number(field(0, "h")),
+            l: number(field(0, debug_key::L)),
+            c: number(field(0, debug_key::C)),
+            h: number(field(0, debug_key::H)),
         })),
         "luminance" => js::num(color::luminance(&text(0))),
         "contrast" => js::num(color::contrast(&text(0), &text(1))),
@@ -1178,7 +1244,7 @@ pub(super) fn debug_color(ctx: &Ctx) -> Result<i32, DfwError> {
                 field_or(0, "displayRatio", 1.333),
                 field(0, "displayFrom").map(|v| number(Some(v))),
             );
-            json!({ "ui": steps(&ts.ui), "display": steps(&ts.display), "ratio": js::num(ts.ratio), "displayRatio": js::num(ts.display_ratio), "base": js::num(ts.base) })
+            json!({ (debug_key::UI): steps(&ts.ui), (debug_key::DISPLAY): steps(&ts.display), (debug_key::RATIO): js::num(ts.ratio), (debug_key::DISPLAY_RATIO): js::num(ts.display_ratio), (debug_key::BASE): js::num(ts.base) })
         }
         "auditTypeScale" => {
             let surface = field(1, "surface").map_or("product".to_string(), |v| js::to_string(Some(v)));

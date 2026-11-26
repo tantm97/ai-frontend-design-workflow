@@ -6,6 +6,7 @@ use serde_json::Value;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::js::regex::with_js_classes;
+use crate::design::tokens::key as dtcg_key;
 
 /// `.` of a JavaScript regular expression: anything but a line terminator.
 pub(super) const DOT: &str = r"[^\n\r\x{2028}\x{2029}]";
@@ -143,10 +144,10 @@ pub(super) fn alias(value: &Value) -> Option<&str> {
 /// `dim`: a dimension `{value, unit}` as `16px`, anything else as text.
 pub(super) fn dim(v: &Value) -> String {
     match v {
-        Value::Object(map) if map.contains_key("value") => format!(
+        Value::Object(map) if map.contains_key(dtcg_key::AMOUNT) => format!(
             "{}{}",
-            js::to_string(map.get("value")),
-            js::to_string(map.get("unit"))
+            js::to_string(map.get(dtcg_key::AMOUNT)),
+            js::to_string(map.get(dtcg_key::UNIT))
         ),
         other => js::to_string(Some(other)),
     }
@@ -154,7 +155,7 @@ pub(super) fn dim(v: &Value) -> String {
 
 /// `value?.hex || null`.
 pub(super) fn hex_field(value: &Value) -> Option<String> {
-    let hex = value.as_object().and_then(|o| o.get("hex"));
+    let hex = value.as_object().and_then(|o| o.get(dtcg_key::HEX));
     js::truthy(hex).then(|| js::to_string(hex))
 }
 

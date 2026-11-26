@@ -2,7 +2,7 @@
 //! `<dfw-icon>`, `<dfw-head>`, and the instances and issues found on the way.
 
 use super::*;
-use crate::core::level::Level as FindingLevel;
+use crate::core::level::{finding, Level as FindingLevel};
 use crate::core::paths::file;
 
 struct RawInstance {
@@ -38,7 +38,7 @@ fn expand_icon(
     issues: &mut Vec<RawIssue>,
     at: usize,
 ) -> Result<String, DfwError> {
-    let name = attrs.get("name");
+    let name = attrs.get(attr::NAME);
     let shown = name.unwrap_or("undefined");
     let Some(svg) = load_icon(root, shown)? else {
         issues.push(RawIssue {
@@ -62,7 +62,10 @@ fn expand_icon(
             if label { None } else { some("true") },
         ),
         ("role".into(), if label { some("img") } else { None }),
-        ("aria-label".into(), attrs.get("label").map(str::to_string)),
+        (
+            "aria-label".into(),
+            attrs.get(attr::LABEL).map(str::to_string),
+        ),
         ("data-dfw-icon".into(), name.map(str::to_string)),
     ];
     for (from, to) in [("stroke-width", "stroke-width"), ("id", "data-dfw-id")] {
@@ -192,21 +195,21 @@ impl Composed {
             .map(|i| {
                 let mut map = Map::new();
                 if let Some(component) = &i.component {
-                    map.insert("component".into(), json!(component));
+                    map.insert(key::COMPONENT.into(), json!(component));
                 }
-                map.insert("variant".into(), json!(i.variant));
-                map.insert("size".into(), json!(i.size));
-                map.insert("id".into(), json!(i.id));
-                map.insert("line".into(), json!(i.line));
+                map.insert(key::VARIANT.into(), json!(i.variant));
+                map.insert(key::SIZE.into(), json!(i.size));
+                map.insert(key::ID.into(), json!(i.id));
+                map.insert(key::LINE.into(), json!(i.line));
                 Value::Object(map)
             })
             .collect();
         let issues: Vec<Value> = self
             .issues
             .iter()
-            .map(|i| json!({ "level": i.level, "rule": i.rule, "message": i.message, "line": i.line }))
+            .map(|i| json!({ (finding::LEVEL): i.level, (finding::RULE): i.rule, (finding::MESSAGE): i.message, (finding::LINE): i.line }))
             .collect();
-        json!({ "html": self.html, "instances": instances, "issues": issues })
+        json!({ (key::HTML): self.html, (key::INSTANCES): instances, (key::ISSUES): issues })
     }
 }
 
@@ -397,11 +400,11 @@ fn expand_use(
         }
     }
     let (mut slots, rest) = take_fills(inner);
-    if slots.get("default").is_none() {
-        slots.set("default", rest);
+    if slots.get(DEFAULT_SLOT).is_none() {
+        slots.set(DEFAULT_SLOT, rest);
     }
     let body = fill_template(def, &props, &slots);
-    let id = attrs.get("id");
+    let id = attrs.get(attr::ID);
     set_extra(&mut extra, "data-dfw-id", id.map(str::to_string));
     set_extra(&mut extra, "data-dfw-component", name.map(str::to_string));
     set_extra(
@@ -421,7 +424,7 @@ fn expand_use(
             .replace("{{", "\\u007b\\u007b");
         set_extra(&mut extra, "data-dfw-props", Some(text));
     }
-    let body = annotate_root(&body, &extra, attrs.get("class"));
+    let body = annotate_root(&body, &extra, attrs.get(attr::CLASS));
     level.instances.push(RawInstance {
         component: name.map(str::to_string),
         variant,

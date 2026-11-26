@@ -8,6 +8,7 @@ use crate::core::js;
 use crate::core::js::regex::js_re;
 use crate::core::level::Level;
 use crate::design::color::{hex_to_oklch, Oklch};
+use crate::design::tokens::key as dtcg_key;
 
 /// The `$type` of a colour token.
 pub(crate) use crate::design::tokens::dtcg::COLOR as COLOR_TYPE;
@@ -90,10 +91,10 @@ fn walk<'a>(
     leaves: &mut Vec<Leaf<'a>>,
     out: &mut Vec<Value>,
 ) {
-    let own = node.get("$type").filter(|t| js::truthy(Some(t)));
+    let own = node.get(dtcg_key::TYPE).filter(|t| js::truthy(Some(t)));
     let kind = own.or(inherited);
     if let Value::Object(map) = node {
-        if map.contains_key("$value") {
+        if map.contains_key(dtcg_key::VALUE) {
             let name = trail.join(".");
             let leaf = Leaf {
                 name: name.clone(),
@@ -138,7 +139,10 @@ fn walk<'a>(
 
 /// The names of the tokens under `node`.
 fn names(node: &Value, trail: &mut Vec<String>, known: &mut Vec<String>) {
-    if node.as_object().is_some_and(|m| m.contains_key("$value")) {
+    if node
+        .as_object()
+        .is_some_and(|m| m.contains_key(dtcg_key::VALUE))
+    {
         known.push(trail.join("."));
         return;
     }
@@ -165,7 +169,7 @@ pub fn lint_tokens(rel: &str, json: &Value, base: Option<&Value>) -> Vec<Value> 
 
     for leaf in &leaves {
         let mut texts = Vec::new();
-        strings(leaf.node.get("$value"), &mut texts);
+        strings(leaf.node.get(dtcg_key::VALUE), &mut texts);
         for text in texts {
             for m in ALIAS.captures_iter(text) {
                 if !known.iter().any(|k| k == &m[1]) {
@@ -189,9 +193,9 @@ pub fn lint_tokens(rel: &str, json: &Value, base: Option<&Value>) -> Vec<Value> 
         .iter()
         .filter(|l| l.is_color)
         .filter_map(|l| {
-            let hex = match l.node.get("$value") {
+            let hex = match l.node.get(dtcg_key::VALUE) {
                 Some(Value::String(s)) => Some(s.as_str()),
-                Some(Value::Object(o)) => o.get("hex").and_then(Value::as_str),
+                Some(Value::Object(o)) => o.get(dtcg_key::HEX).and_then(Value::as_str),
                 _ => None,
             }?;
             HEX6.is_match(hex)
@@ -215,7 +219,7 @@ pub fn lint_tokens(rel: &str, json: &Value, base: Option<&Value>) -> Vec<Value> 
     }
     for leaf in &leaves {
         let mut texts = Vec::new();
-        strings(leaf.node.get("$value"), &mut texts);
+        strings(leaf.node.get(dtcg_key::VALUE), &mut texts);
         for s in texts {
             if let Some(what) = ai_default_lookup(&js::trim(s).to_lowercase()) {
                 out.push(finding(Level::Warn.as_str(), "ai-default-color", rel, 1, format!("Token \"{}\" is {s} ({what}), a colour AI-generated UIs default to. Derive the palette from the brand (dfw palette build); keep it only if the brand requires it (dfw decide).", leaf.name)));

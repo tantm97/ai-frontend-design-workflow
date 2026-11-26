@@ -7,7 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::{json, Map, Value};
 
-use crate::core::config::{allow_unverified_engine, global_config_path};
+use crate::core::config::{allow_unverified_engine, global_config_path, key as config_key};
 use crate::core::error::DfwError;
 use crate::core::host::HOSTS;
 use crate::core::js;
@@ -87,7 +87,7 @@ fn plugin_root_in(
     // 3. Marketplace repo recorded in global config.
     let config = read_json(&global.join(file::CONFIG), Some(json!({})))?;
     if let Some(repo) = config
-        .get("marketplaceRepo")
+        .get(config_key::MARKETPLACE_REPO)
         .and_then(Value::as_str)
         .filter(|r| !r.is_empty())
     {
@@ -201,6 +201,16 @@ fn json_number(n: f64) -> Value {
     }
 }
 
+/// The keys of one entry of the engine stamp file (by engine path): what was verified.
+mod stamp {
+    /// The size of the engine in bytes.
+    pub const SIZE: &str = "size";
+    /// Its modification time in milliseconds since the epoch.
+    pub const MTIME_MS: &str = "mtimeMs";
+    /// Its SHA-256 digest (one of the pinned ones).
+    pub const SHA256: &str = "sha256";
+}
+
 /// `verifyEngine(file, digests, stampFile)`: true when `file` has one of the pinned SHA-256
 /// digests. A passing result is remembered in `stamp_file` under path + size + mtime, so a hook
 /// does not hash the 19 MB engine on every edit.
@@ -219,10 +229,10 @@ pub fn verify_engine(file: &Path, digests: &[String], stamp_file: &Path) -> bool
     };
     let key = file.to_string_lossy().into_owned();
     if let Some(s) = stamps.get(&key) {
-        let same = s.get("size").and_then(Value::as_u64) == Some(size)
-            && s.get("mtimeMs").and_then(Value::as_f64) == mtime;
+        let same = s.get(stamp::SIZE).and_then(Value::as_u64) == Some(size)
+            && s.get(stamp::MTIME_MS).and_then(Value::as_f64) == mtime;
         let pinned = s
-            .get("sha256")
+            .get(stamp::SHA256)
             .and_then(Value::as_str)
             .is_some_and(|d| digests.iter().any(|x| x == d));
         if same && pinned {
@@ -238,7 +248,7 @@ pub fn verify_engine(file: &Path, digests: &[String], stamp_file: &Path) -> bool
     }
     stamps.insert(
         key,
-        json!({ "size": size, "mtimeMs": mtime.map_or(Value::Null, json_number), "sha256": digest }),
+        json!({ (stamp::SIZE): size, (stamp::MTIME_MS): mtime.map_or(Value::Null, json_number), (stamp::SHA256): digest }),
     );
     // A read-only dfw home: verified now, hashed again next time.
     let _ = write_json(stamp_file, &Value::Object(stamps));

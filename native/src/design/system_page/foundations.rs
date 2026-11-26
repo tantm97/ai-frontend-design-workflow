@@ -12,8 +12,11 @@ use crate::core::js::regex::with_js_classes;
 use crate::design::color::contrast;
 use crate::design::compose::ComponentDef;
 use crate::design::html::escape_html as esc;
-use crate::design::tokens::css_var_name;
 use crate::design::tokens::TokenEntry;
+use crate::design::tokens::{css_var_name, key as dtcg_key};
+
+/// The token of the eyebrow label size.
+const EYEBROW_SIZE: &str = "font.eyebrow.size";
 
 const ROLE_GROUPS: [(&str, &[&str]); 5] = [
     (
@@ -317,8 +320,8 @@ fn text_style_row(v: &str, label: &str, usage: &str, tokens: &Tokens, sample: &s
         "body-sm" | "mono" => tokens.size_of("sm"),
         "caption" => tokens.size_of("xs"),
         "eyebrow" => tokens
-            .get("font.eyebrow.size")
-            .and_then(|t| t.value.get("value")),
+            .get(EYEBROW_SIZE)
+            .and_then(|t| t.value.get(dtcg_key::AMOUNT)),
         _ => None,
     };
     let size = if js::truthy(size) {
@@ -352,7 +355,7 @@ fn dimension<'a>(all: &'a [TokenEntry], prefix: &str) -> Vec<&'a TokenEntry> {
 pub(super) fn spacing(all: &[TokenEntry]) -> String {
     let mut spaces = dimension(all, "space.");
     let amount = |t: &TokenEntry| {
-        let v = t.value.get("value");
+        let v = t.value.get(dtcg_key::AMOUNT);
         if js::truthy(v) {
             js::to_number(v)
         } else {

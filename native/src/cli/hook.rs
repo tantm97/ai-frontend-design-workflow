@@ -6,6 +6,7 @@ use std::time::Instant;
 
 use serde_json::{json, Value};
 
+use super::flag_key;
 use super::word::{command, hook_name};
 use super::{Ctx, Handler};
 use crate::core::error::DfwError;
@@ -79,7 +80,7 @@ fn hook(ctx: &Ctx) -> Result<i32, DfwError> {
         eprintln!("dfw hook {name} error: {}", err.message());
     }
     // After the host has its answer; telemetry cannot change it or the exit code.
-    crate::telemetry::hook_finished(name, ctx.args.get("host"), started, kind);
+    crate::telemetry::hook_finished(name, ctx.args.get(flag_key::HOST), started, kind);
     Ok(0)
 }
 
@@ -92,7 +93,7 @@ fn run(
     payload: &Value,
 ) -> Result<(HookOutcome, Option<Value>), DfwError> {
     require_flag_values(&ctx.args)?;
-    let host = current_host(ctx.args.get("host"))?;
+    let host = current_host(ctx.args.get(flag_key::HOST))?;
     let input = normalize_hook_input(payload)?;
     let result: Option<HookResult> = match name {
         hook_name::SESSION_START => session_start(&input)?,

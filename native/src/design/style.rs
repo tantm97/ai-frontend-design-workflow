@@ -17,10 +17,135 @@ use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{project_paths, resolve};
 use crate::core::util::{write_atomic_inside, write_json_inside};
-use crate::design::tokens::option;
+use crate::design::tokens::{extension, key as dtcg_key, option};
 
 /// `STYLES_DIR`: the guides shipped with dfw, a folder of the embedded kits.
 const STYLES_DIR: &str = "styles";
+
+/// The keys of a style guide (`kits/styles/*.json`, a project's own guide file), of its
+/// records and of a search hit.
+pub mod key {
+    pub const ID: &str = "id";
+    pub const NAME: &str = "name";
+    /// One sentence on the idea of the style.
+    pub const CONCEPT: &str = "concept";
+    pub const TAGS: &str = "tags";
+    /// The kinds of product the style fits.
+    pub const FITS: &str = "fits";
+    /// The status colours (`ok`, `warn`, ...), by name.
+    pub const STATUS: &str = "status";
+    /// The text colour on status fills.
+    pub const ON_FILL: &str = "onFill";
+    /// The font set (`display`, `body`, `mono`, `note`, `displayWeights`), Vietnamese-capable.
+    pub const FONTS: &str = "fonts";
+    /// The English-only font set, when the guide has one.
+    pub const FONTS_LATIN: &str = "fontsLatin";
+    /// The named colours, each `{ hex, usage }`.
+    pub const PALETTE: &str = "palette";
+    /// The semantic colour roles: a palette name or a hex colour.
+    pub const ROLES: &str = "roles";
+    /// The display face (in a font set) or the display sizes (in [`TYPE`]).
+    pub const DISPLAY: &str = "display";
+    /// The body face of a font set.
+    pub const BODY: &str = "body";
+    /// A remark on the font set.
+    pub const NOTE: &str = "note";
+    /// `compact`, `large` or the default control heights.
+    pub const DENSITY: &str = "density";
+    /// The kit preset the guide is based on.
+    pub const BASE: &str = "base";
+    /// The colour of a palette entry.
+    pub const HEX: &str = "hex";
+    /// What a palette entry is for.
+    pub const USAGE: &str = "usage";
+    /// The type scale: `base`, `ratio`, `displayRatio`, `ui`, `display`, `eyebrow`.
+    pub const TYPE: &str = "type";
+    /// The eyebrow labels, inside [`TYPE`].
+    pub const EYEBROW: &str = "eyebrow";
+    /// The corner radii, by name.
+    pub const RADIUS: &str = "radius";
+    /// The colour the shadows are tinted with.
+    pub const SHADOW_TINT: &str = "shadowTint";
+    /// The style has a hard offset shadow.
+    pub const HARD_SHADOW: &str = "hardShadow";
+    /// The signature motifs, each `{ name, use, css }`.
+    pub const MOTIFS: &str = "motifs";
+    /// What a motif is for.
+    pub const USE: &str = "use";
+    /// The palette seeds.
+    pub const SEEDS: &str = "seeds";
+    /// The contrast pairs the guide was checked with.
+    pub const CONTRASTS: &str = "contrasts";
+    /// The reasons for the style's choices, one line each.
+    pub const RATIONALE: &str = "rationale";
+    /// The personality of the style, 1 to 5 per axis of [`AXES`](super::AXES).
+    pub const AXES: &str = "axes";
+    /// The style is dark first.
+    pub const DARK: &str = "dark";
+    /// The layout and grid note.
+    pub const LAYOUT: &str = "layout";
+    /// How well a search hit matches the query.
+    pub const SCORE: &str = "score";
+    /// How well a match hit fits the brief, 0 to 100.
+    pub const FIT: &str = "fit";
+    /// The brief's keywords among the guide's tags (a match hit).
+    pub const MATCHES: &str = "matches";
+    /// The axes far from the brief (a match hit).
+    pub const MISMATCHES: &str = "mismatches";
+    /// The constraints the guide misses (a match hit).
+    pub const NOTES: &str = "notes";
+}
+
+/// The keys of a brief that [`match_styles`] ranks the guides against.
+pub mod brief {
+    /// The wanted personality, 1 to 5 per axis of [`AXES`](super::AXES).
+    pub const PERSONALITY: &str = "personality";
+    /// The weight of each axis (1 when missing).
+    pub const WEIGHTS: &str = "weights";
+    /// `{ dark }`: what the product must have.
+    pub const CONSTRAINTS: &str = "constraints";
+    /// Inside [`CONSTRAINTS`]: the product must be dark (or light) first.
+    pub const DARK: &str = "dark";
+    /// Words matched against the guides' tags.
+    pub const KEYWORDS: &str = "keywords";
+}
+
+/// The token groups and token names a guide writes into the token tree.
+pub mod group {
+    pub const COLOR: &str = "color";
+    /// The named colours, under [`COLOR`].
+    pub const PALETTE: &str = "palette";
+    /// The status colours, under [`COLOR`].
+    pub const STATUS: &str = "status";
+    /// Text on status fills, under [`COLOR`].
+    pub const ON_FILL: &str = "on-fill";
+    /// Text on the warn fill, under [`COLOR`].
+    pub const ON_WARN: &str = "on-warn";
+    /// The font group: stacks, sizes, weights.
+    pub const FONT: &str = "font";
+    /// The font stacks, under [`FONT`].
+    pub const FAMILY: &str = "family";
+    /// The eyebrow label tokens, under `font`.
+    pub const EYEBROW: &str = "eyebrow";
+    pub const RADIUS: &str = "radius";
+    /// The spacing scale.
+    pub const SPACE: &str = "space";
+    /// The fully rounded radius.
+    pub const PILL: &str = "pill";
+    pub const SHADOW: &str = "shadow";
+    pub const SM: &str = "sm";
+    pub const MD: &str = "md";
+    pub const LG: &str = "lg";
+    /// The display face or the display step of a font group.
+    pub const DISPLAY: &str = "display";
+    pub const BODY: &str = "body";
+    pub const MONO: &str = "mono";
+    pub const SIZE: &str = "size";
+    pub const WEIGHT: &str = "weight";
+    pub const TRACKING: &str = "tracking";
+    /// The text-transform of eyebrows.
+    pub const CASE: &str = "case";
+}
 
 /// The motif master a guide brings, in `design/system/components/`.
 pub const MOTIF_FILE: &str = "motif.html";
@@ -96,13 +221,13 @@ pub fn get_style(id: &str) -> Result<Value, DfwError> {
         }
         let mut guide = Map::new();
         guide.insert(
-            "status".into(),
+            key::STATUS.into(),
             get_style("swiss-grid")?
-                .get("status")
+                .get(key::STATUS)
                 .cloned()
                 .unwrap_or(Value::Null),
         );
-        guide.insert("onFill".into(), json!("#ffffff"));
+        guide.insert(key::ON_FILL.into(), json!("#ffffff"));
         for key in [
             "motifs",
             "contrasts",
@@ -136,7 +261,7 @@ pub fn style_name(id: &str) -> Result<String, DfwError> {
                 .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
     };
     if let Some(own) = get_style(id)?
-        .get("id")
+        .get(key::ID)
         .and_then(Value::as_str)
         .filter(|s| plain(s))
     {
@@ -163,12 +288,12 @@ pub fn search_styles(query: &str) -> Result<Vec<Value>, DfwError> {
     let words = js::words(&query.to_lowercase());
     let mut hits: Vec<(f64, String, Value)> = Vec::new();
     for g in list_styles()? {
-        let tags = strings(g.get("tags"));
+        let tags = strings(g.get(key::TAGS));
         let hay = format!(
             "{} {} {}",
-            text(g.get("name")),
-            text(g.get("concept")),
-            strings(g.get("fits")).join(" ")
+            text(g.get(key::NAME)),
+            text(g.get(key::CONCEPT)),
+            strings(g.get(key::FITS)).join(" ")
         )
         .to_lowercase();
         let mut score = 0.0;
@@ -184,18 +309,21 @@ pub fn search_styles(query: &str) -> Result<Vec<Value>, DfwError> {
         }
         if score > 0.0 || words.is_empty() {
             let mut hit = Map::new();
-            for (key, value) in [("id", g.get("id")), ("name", g.get("name"))] {
+            for (name, value) in [(key::ID, g.get(key::ID)), (key::NAME, g.get(key::NAME))] {
                 if let Some(value) = value {
-                    hit.insert(key.into(), value.clone());
+                    hit.insert(name.into(), value.clone());
                 }
             }
-            hit.insert("score".into(), json!(score));
-            for (key, value) in [("tags", g.get("tags")), ("concept", g.get("concept"))] {
+            hit.insert(key::SCORE.into(), json!(score));
+            for (name, value) in [
+                (key::TAGS, g.get(key::TAGS)),
+                (key::CONCEPT, g.get(key::CONCEPT)),
+            ] {
                 if let Some(value) = value {
-                    hit.insert(key.into(), value.clone());
+                    hit.insert(name.into(), value.clone());
                 }
             }
-            hits.push((score, text(g.get("id")), Value::Object(hit)));
+            hits.push((score, text(g.get(key::ID)), Value::Object(hit)));
         }
     }
     // `a.id.localeCompare(b.id)`: ids are lower-case ASCII words joined by "-", which collate as
@@ -223,11 +351,11 @@ fn hex_comp(hex: &str) -> Value {
 fn col(hex: &str, description: Option<&str>) -> Value {
     let mut token = Map::new();
     token.insert(
-        "$value".into(),
-        json!({ "colorSpace": "srgb", "components": hex_comp(hex), "hex": hex.to_lowercase() }),
+        dtcg_key::VALUE.into(),
+        json!({ (dtcg_key::COLOR_SPACE): "srgb", (dtcg_key::COMPONENTS): hex_comp(hex), (dtcg_key::HEX): hex.to_lowercase() }),
     );
     if let Some(d) = description.filter(|d| !d.is_empty()) {
-        token.insert("$description".into(), json!(d));
+        token.insert(dtcg_key::DESCRIPTION.into(), json!(d));
     }
     Value::Object(token)
 }
@@ -236,10 +364,10 @@ fn col(hex: &str, description: Option<&str>) -> Value {
 fn px(value: Option<&Value>) -> Value {
     let mut dimension = Map::new();
     if let Some(v) = value {
-        dimension.insert("value".into(), v.clone());
+        dimension.insert(dtcg_key::AMOUNT.into(), v.clone());
     }
-    dimension.insert("unit".into(), json!("px"));
-    json!({ "$value": dimension })
+    dimension.insert(dtcg_key::UNIT.into(), json!("px"));
+    json!({ (dtcg_key::VALUE): dimension })
 }
 
 fn role_description(role: &str) -> &'static str {
@@ -282,21 +410,21 @@ fn shadows(tint: &str, hard: bool) -> Value {
     let c = hex_comp(tint);
     let layer = |x: i32, y: i32, b: i32, s: i32, a: f64| {
         json!({
-            "color": { "colorSpace": "srgb", "components": c, "alpha": a },
-            "offsetX": { "value": x, "unit": "px" },
-            "offsetY": { "value": y, "unit": "px" },
-            "blur": { "value": b, "unit": "px" },
-            "spread": { "value": s, "unit": "px" },
+            (dtcg_key::COLOR): { (dtcg_key::COLOR_SPACE): "srgb", (dtcg_key::COMPONENTS): c, (dtcg_key::ALPHA): a },
+            (dtcg_key::OFFSET_X): { (dtcg_key::AMOUNT): x, (dtcg_key::UNIT): "px" },
+            (dtcg_key::OFFSET_Y): { (dtcg_key::AMOUNT): y, (dtcg_key::UNIT): "px" },
+            (dtcg_key::BLUR): { (dtcg_key::AMOUNT): b, (dtcg_key::UNIT): "px" },
+            (dtcg_key::SPREAD): { (dtcg_key::AMOUNT): s, (dtcg_key::UNIT): "px" },
         })
     };
     let mut out = json!({
-        "$type": "shadow",
-        "sm": { "$value": [layer(0, 1, 2, 0, 0.08)], "$description": format!("Tinted with {tint}, not black.") },
-        "md": { "$value": [layer(0, 2, 6, -1, 0.08), layer(0, 12, 28, -8, 0.16)] },
-        "lg": { "$value": [layer(0, 4, 10, -2, 0.1), layer(0, 24, 56, -12, 0.24)] },
+        (dtcg_key::TYPE): "shadow",
+        (group::SM): { (dtcg_key::VALUE): [layer(0, 1, 2, 0, 0.08)], (dtcg_key::DESCRIPTION): format!("Tinted with {tint}, not black.") },
+        (group::MD): { (dtcg_key::VALUE): [layer(0, 2, 6, -1, 0.08), layer(0, 12, 28, -8, 0.16)] },
+        (group::LG): { (dtcg_key::VALUE): [layer(0, 4, 10, -2, 0.1), layer(0, 24, 56, -12, 0.24)] },
     });
     if hard {
-        out["hard"] = json!({ "$value": [layer(4, 4, 0, 0, 1.0)], "$description": "Hard offset shadow (signature of this style)." });
+        out["hard"] = json!({ (dtcg_key::VALUE): [layer(4, 4, 0, 0, 1.0)], (dtcg_key::DESCRIPTION): "Hard offset shadow (signature of this style)." });
     }
     out
 }
@@ -304,11 +432,11 @@ fn shadows(tint: &str, hard: bool) -> Value {
 /// The font set of a guide: the English-only one when asked for and present.
 fn fonts_for<'a>(g: &'a Value, which: &str) -> Option<&'a Value> {
     match g
-        .get("fontsLatin")
+        .get(key::FONTS_LATIN)
         .filter(|f| which == "latin" && js::truthy(Some(f)))
     {
         Some(latin) => Some(latin),
-        None => g.get("fonts"),
+        None => g.get(key::FONTS),
     }
 }
 
@@ -358,7 +486,7 @@ pub fn head_for(g: &Value, which: &str) -> String {
     };
     format!(
         "<!-- Fonts for style \"{}\" ({kind}; SIL OFL). Self-host for production. -->\n<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n<link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>\n<link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?{}&display=swap\">\n",
-        text(g.get("id")),
+        text(g.get(key::ID)),
         query.join("&")
     )
 }
@@ -387,15 +515,15 @@ fn group<'a>(tree: &'a mut Value, path: &[&str]) -> Result<&'a mut Map<String, V
 /// of the tokens.json users diff.
 pub fn style_tokens(g: &Value, fonts: &str) -> Result<Value, DfwError> {
     let mut t = base_preset(g)?;
-    group(&mut t, &[])?.insert("color".into(), color_tokens(g));
-    let display = text(fonts_for(g, fonts).and_then(|f| f.get("display")));
-    group(&mut t, &["font"])?.insert("family".into(), font_families(g, fonts, &display));
+    group(&mut t, &[])?.insert(group::COLOR.into(), color_tokens(g));
+    let display = text(fonts_for(g, fonts).and_then(|f| f.get(key::DISPLAY)));
+    group(&mut t, &[group::FONT])?.insert(group::FAMILY.into(), font_families(g, fonts, &display));
     write_font_sizes(&mut t, g)?;
     write_display_font(&mut t, &display)?;
-    group(&mut t, &["font"])?.insert("eyebrow".into(), eyebrow_tokens(g));
-    group(&mut t, &[])?.insert("radius".into(), radius_tokens(g));
+    group(&mut t, &[group::FONT])?.insert(group::EYEBROW.into(), eyebrow_tokens(g));
+    group(&mut t, &[])?.insert(group::RADIUS.into(), radius_tokens(g));
     let sizes = group(&mut t, &["size"])?;
-    for (k, v) in density(g.get("density").and_then(Value::as_str)) {
+    for (k, v) in density(g.get(key::DENSITY).and_then(Value::as_str)) {
         sizes.insert(k.into(), px(Some(&json!(v))));
     }
     write_guide_meta(&mut t, g, fonts)?;
@@ -404,7 +532,7 @@ pub fn style_tokens(g: &Value, fonts: &str) -> Result<Value, DfwError> {
 
 /// The kit preset a guide is based on (`base`), as a token tree.
 fn base_preset(g: &Value) -> Result<Value, DfwError> {
-    let base = text(g.get("base"));
+    let base = text(g.get(key::BASE));
     assets::json(Folder::Kits, &format!("base/presets/{base}.tokens.json"))?
         .ok_or_else(|| DfwError::new(message::unknown_base_preset(&base)))
 }
@@ -414,20 +542,23 @@ fn base_preset(g: &Value) -> Result<Value, DfwError> {
 fn color_tokens(g: &Value) -> Value {
     let hex_of = |v: &Value| text(Some(v));
     let mut palette = Map::new();
-    for (k, v) in entries(g.get("palette")) {
+    for (k, v) in entries(g.get(key::PALETTE)) {
         palette.insert(
             k.clone(),
-            col(&text(v.get("hex")), v.get("usage").and_then(Value::as_str)),
+            col(
+                &text(v.get(key::HEX)),
+                v.get(key::USAGE).and_then(Value::as_str),
+            ),
         );
     }
     let mut status = Map::new();
-    for (k, v) in entries(g.get("status")) {
+    for (k, v) in entries(g.get(key::STATUS)) {
         status.insert(k.clone(), col(&hex_of(v), None));
     }
     let mut color = Map::new();
-    color.insert("$type".into(), json!("color"));
-    color.insert("palette".into(), Value::Object(palette));
-    for (k, v) in entries(g.get("roles")) {
+    color.insert(dtcg_key::TYPE.into(), json!("color"));
+    color.insert(group::PALETTE.into(), Value::Object(palette));
+    for (k, v) in entries(g.get(key::ROLES)) {
         let v = hex_of(v);
         let value = if v.starts_with('#') {
             col(&v, None)["$value"].clone()
@@ -436,22 +567,22 @@ fn color_tokens(g: &Value) -> Value {
         };
         color.insert(
             k.clone(),
-            json!({ "$value": value, "$description": role_description(k) }),
+            json!({ (dtcg_key::VALUE): value, (dtcg_key::DESCRIPTION): role_description(k) }),
         );
     }
     let on_fill = g
-        .get("onFill")
+        .get(key::ON_FILL)
         .filter(|f| js::truthy(Some(f)))
         .map_or("#ffffff".to_string(), hex_of);
     color.insert(
-        "on-fill".into(),
+        group::ON_FILL.into(),
         col(&on_fill, Some("Text on ok/err/info fills.")),
     );
     color.insert(
-        "on-warn".into(),
+        group::ON_WARN.into(),
         col("#111518", Some("Text on the warn fill.")),
     );
-    color.insert("status".into(), Value::Object(status));
+    color.insert(group::STATUS.into(), Value::Object(status));
     Value::Object(color)
 }
 
@@ -470,24 +601,24 @@ fn font_families(g: &Value, fonts: &str, display: &str) -> Value {
         .chain(&["Lora", "Merriweather"])
         .any(|s| display.contains(s));
     let note = g
-        .get("fonts")
-        .and_then(|f| f.get("note"))
+        .get(key::FONTS)
+        .and_then(|f| f.get(key::NOTE))
         .filter(|n| js::truthy(Some(n)))
         .cloned()
         .unwrap_or(json!(""));
     json!({
-        "$type": "fontFamily",
-        "body": { "$value": stack(font_name("body"), &sans) },
-        "display": { "$value": stack(font_name("display"), if serif_stack { &["Georgia", "serif"] } else { &sans }), "$description": note },
-        "mono": { "$value": stack(font_name("mono"), &["Consolas", "monospace"]) },
+        (dtcg_key::TYPE): "fontFamily",
+        (group::BODY): { (dtcg_key::VALUE): stack(font_name("body"), &sans) },
+        (group::DISPLAY): { (dtcg_key::VALUE): stack(font_name("display"), if serif_stack { &["Georgia", "serif"] } else { &sans }), (dtcg_key::DESCRIPTION): note },
+        (group::MONO): { (dtcg_key::VALUE): stack(font_name("mono"), &["Consolas", "monospace"]) },
     })
 }
 
 /// The `font.size` group: the guide's UI sizes (when it has them), then the display sizes.
 fn write_font_sizes(t: &mut Value, g: &Value) -> Result<(), DfwError> {
-    let ty = g.get("type");
+    let ty = g.get(key::TYPE);
     let type_of = |key: &str| ty.and_then(|t| t.get(key));
-    let size = group(t, &["font", "size"])?;
+    let size = group(t, &[group::FONT, group::SIZE])?;
     if js::truthy(type_of("ui")) {
         for (k, v) in entries(type_of("ui")) {
             let mut token = px(Some(v));
@@ -520,47 +651,48 @@ fn write_display_font(t: &mut Value, display: &str) -> Result<(), DfwError> {
         ("leading", json!(if serif { 1.05 } else { 1.02 })),
         (
             "tracking",
-            json!({ "value": if serif { -0.01 } else { -0.025 }, "unit": "em" }),
+            json!({ (dtcg_key::AMOUNT): if serif { -0.01 } else { -0.025 }, (dtcg_key::UNIT): "em" }),
         ),
     ] {
-        group(t, &["font", name])?.insert("display".into(), json!({ "$value": value }));
+        group(t, &[group::FONT, name])?
+            .insert(group::DISPLAY.into(), json!({ (dtcg_key::VALUE): value }));
     }
     Ok(())
 }
 
 /// The `font.eyebrow` group: size, weight, tracking and case of eyebrow labels.
 fn eyebrow_tokens(g: &Value) -> Value {
-    let eyebrow = g.get("type").and_then(|t| t.get("eyebrow"));
+    let eyebrow = g.get(key::TYPE).and_then(|t| t.get(key::EYEBROW));
     let eye = |key: &str| eyebrow.and_then(|e| e.get(key));
     let dimension = |value: Option<Value>, unit: &str| {
         let mut d = Map::new();
         if let Some(v) = value {
-            d.insert("value".into(), v);
+            d.insert(dtcg_key::AMOUNT.into(), v);
         }
-        d.insert("unit".into(), json!(unit));
+        d.insert(dtcg_key::UNIT.into(), json!(unit));
         Value::Object(d)
     };
     let mut weight = Map::new();
-    weight.insert("$type".into(), json!("fontWeight"));
+    weight.insert(dtcg_key::TYPE.into(), json!("fontWeight"));
     if let Some(w) = eye("weight") {
-        weight.insert("$value".into(), w.clone());
+        weight.insert(dtcg_key::VALUE.into(), w.clone());
     }
     json!({
-        "size": { "$type": "dimension", "$value": dimension(eye("size").cloned(), "px") },
-        "weight": weight,
-        "tracking": { "$type": "dimension", "$value": dimension(Some(js::num(js::parse_float(&text(eye("tracking"))))), "em") },
-        "case": { "$type": "string", "$value": if js::truthy(eye("upper")) { "uppercase" } else { "none" }, "$description": "text-transform for eyebrows (dfw string token)" },
+        (group::SIZE): { (dtcg_key::TYPE): "dimension", (dtcg_key::VALUE): dimension(eye("size").cloned(), "px") },
+        (group::WEIGHT): weight,
+        (group::TRACKING): { (dtcg_key::TYPE): "dimension", (dtcg_key::VALUE): dimension(Some(js::num(js::parse_float(&text(eye("tracking"))))), "em") },
+        (group::CASE): { (dtcg_key::TYPE): "string", (dtcg_key::VALUE): if js::truthy(eye("upper")) { "uppercase" } else { "none" }, (dtcg_key::DESCRIPTION): "text-transform for eyebrows (dfw string token)" },
     })
 }
 
 /// The `radius` group: the guide's radii and the pill.
 fn radius_tokens(g: &Value) -> Value {
     let mut radius = Map::new();
-    radius.insert("$type".into(), json!("dimension"));
-    for (k, v) in entries(g.get("radius")) {
+    radius.insert(dtcg_key::TYPE.into(), json!("dimension"));
+    for (k, v) in entries(g.get(key::RADIUS)) {
         radius.insert(k.clone(), px(Some(v)));
     }
-    radius.insert("pill".into(), px(Some(&json!(999))));
+    radius.insert(group::PILL.into(), px(Some(&json!(999))));
     Value::Object(radius)
 }
 
@@ -568,31 +700,34 @@ fn radius_tokens(g: &Value) -> Value {
 fn write_guide_meta(t: &mut Value, g: &Value, fonts: &str) -> Result<(), DfwError> {
     let root = group(t, &[])?;
     root.insert(
-        "shadow".into(),
-        shadows(&text(g.get("shadowTint")), js::truthy(g.get("hardShadow"))),
+        group::SHADOW.into(),
+        shadows(
+            &text(g.get(key::SHADOW_TINT)),
+            js::truthy(g.get(key::HARD_SHADOW)),
+        ),
     );
     root.insert(
-        "$description".into(),
+        dtcg_key::DESCRIPTION.into(),
         json!(format!(
             "Style guide \"{}\" ({}): {}",
-            text(g.get("name")),
-            text(g.get("id")),
-            text(g.get("concept"))
+            text(g.get(key::NAME)),
+            text(g.get(key::ID)),
+            text(g.get(key::CONCEPT))
         )),
     );
     let mut dfw = Map::new();
-    if let Some(id) = g.get("id") {
-        dfw.insert("style".into(), id.clone());
+    if let Some(id) = g.get(key::ID) {
+        dfw.insert(extension::STYLE.into(), id.clone());
     }
-    dfw.insert("fonts".into(), json!(fonts));
-    root.insert("$extensions".into(), json!({ "dfw": dfw }));
+    dfw.insert(extension::FONTS.into(), json!(fonts));
+    root.insert(dtcg_key::EXTENSIONS.into(), json!({ (dtcg_key::DFW): dfw }));
     Ok(())
 }
 
 /// `motifComponent`: the motif master of a guide (one component with a variant per motif), or
 /// `None` when the guide has no motif.
 pub fn motif_component(g: &Value) -> Option<String> {
-    let motifs = list(g.get("motifs"));
+    let motifs = list(g.get(key::MOTIFS));
     if motifs.is_empty() {
         return None;
     }
@@ -604,7 +739,7 @@ pub fn motif_component(g: &Value) -> Option<String> {
         .collect();
     let css: Vec<String> = motifs.iter().map(|m| field(m, "css")).collect();
     let examples: Vec<String> = names.iter().map(|n| format!("<div style=\"min-width:240px\"><dfw-use c=\"motif\" variant=\"{n}\">{n}</dfw-use></div>")).collect();
-    let (id, name) = (text(g.get("id")), text(g.get("name")));
+    let (id, name) = (text(g.get(key::ID)), text(g.get(key::NAME)));
     Some(format!(
         "<dfw-component name=\"motif\" group=\"Signature\" variants=\"{variants}\" props=\"as=div\"
   description=\"Signature motifs of the {name} style. {desc}\">
@@ -708,14 +843,14 @@ pub fn apply_style(root: &Path, id: &str, fonts: &str) -> Result<AppliedStyle, D
         }
     };
     let or_empty = |key: &str| Some(g.get(key).cloned().unwrap_or(json!([])));
-    let ty = g.get("type");
+    let ty = g.get(key::TYPE);
     let mut type_summary = Map::new();
     for key in ["base", "ratio", "displayRatio"] {
         if let Some(v) = ty.and_then(|t| t.get(key)) {
             type_summary.insert(key.into(), v.clone());
         }
     }
-    let motifs: Vec<Value> = list(g.get("motifs"))
+    let motifs: Vec<Value> = list(g.get(key::MOTIFS))
         .iter()
         .map(|m| {
             let mut motif = Map::new();
@@ -731,22 +866,22 @@ pub fn apply_style(root: &Path, id: &str, fonts: &str) -> Result<AppliedStyle, D
         put(key, g.get(key).cloned());
     }
     put("rationale", or_empty("rationale"));
-    put("seeds", g.get("seeds").cloned());
+    put("seeds", g.get(key::SEEDS).cloned());
     put("type", Some(Value::Object(type_summary)));
     for key in ["fits", "avoid", "layout", "components", "do", "dont"] {
         put(key, g.get(key).cloned());
     }
     put("motifs", Some(Value::Array(motifs)));
-    put("roles", g.get("roles").cloned());
-    put("contrasts", g.get("contrasts").cloned());
+    put("roles", g.get(key::ROLES).cloned());
+    put("contrasts", g.get(key::CONTRASTS).cloned());
     put("audit", or_empty("audit"));
     put("paletteNotes", or_empty("paletteNotes"));
     put("fonts", font_set.clone());
     put("fontsVariant", Some(json!(fonts)));
     write_json_inside(root, &p.style, &js::key_order(Value::Object(style)))?;
-    let id = text(g.get("id"));
+    let id = text(g.get(key::ID));
     let design_md = root.join("DESIGN.md");
-    let rationale = strings(g.get("rationale"));
+    let rationale = strings(g.get(key::RATIONALE));
     if design_md.exists() && !rationale.is_empty() {
         seed_rationale(root, &design_md, &id, &rationale)?;
     }
@@ -770,12 +905,12 @@ pub const AXES: [(&str, [&str; 2]); 7] = [
 /// `matchStyles`: guides ranked against a brief's personality (1-5 per axis) and constraints, as
 /// `{ id, name, fit, matches, mismatches, notes, concept }`, best fit first.
 pub fn match_styles(brief: &Value) -> Result<Vec<Value>, DfwError> {
-    let want = brief.get("personality");
-    let weights = brief.get("weights");
+    let want = brief.get(brief::PERSONALITY);
+    let weights = brief.get(brief::WEIGHTS);
     let mut ranked: Vec<(f64, Value)> = Vec::new();
     for g in list_styles()? {
-        let axes = g.get("axes");
-        let tags = strings(g.get("tags"));
+        let axes = g.get(key::AXES);
+        let tags = strings(g.get(key::TAGS));
         let mut dist = 0.0;
         let mut total = 0.0;
         let mut diffs = Vec::new();
@@ -807,35 +942,39 @@ pub fn match_styles(brief: &Value) -> Result<Vec<Value>, DfwError> {
             0.0
         };
         let mut notes = Vec::new();
-        let dark = js::present(brief.get("constraints").and_then(|c| c.get("dark")));
+        let dark = js::present(
+            brief
+                .get(brief::CONSTRAINTS)
+                .and_then(|c| c.get(brief::DARK)),
+        );
         if let Some(dark) = dark {
-            if js::truthy(g.get("dark")) != js::truthy(Some(dark)) {
+            if js::truthy(g.get(key::DARK)) != js::truthy(Some(dark)) {
                 fit -= 25.0;
-                notes.push(json!(if js::truthy(g.get("dark")) {
+                notes.push(json!(if js::truthy(g.get(key::DARK)) {
                     "dark-first style"
                 } else {
                     "light-first style"
                 }));
             }
         }
-        let keywords: Vec<Value> = list(brief.get("keywords"))
+        let keywords: Vec<Value> = list(brief.get(brief::KEYWORDS))
             .iter()
             .filter(|k| tags.contains(&text(Some(k)).to_lowercase()))
             .cloned()
             .collect();
         fit = js::min(100.0, fit + keywords.len() as f64 * 3.0);
         let mut hit = Map::new();
-        for (key, value) in [
-            ("id", g.get("id").cloned()),
-            ("name", g.get("name").cloned()),
-            ("fit", Some(js::num(fit))),
-            ("matches", Some(Value::Array(keywords))),
-            ("mismatches", Some(Value::Array(diffs))),
-            ("notes", Some(Value::Array(notes))),
-            ("concept", g.get("concept").cloned()),
+        for (name, value) in [
+            (key::ID, g.get(key::ID).cloned()),
+            (key::NAME, g.get(key::NAME).cloned()),
+            (key::FIT, Some(js::num(fit))),
+            (key::MATCHES, Some(Value::Array(keywords))),
+            (key::MISMATCHES, Some(Value::Array(diffs))),
+            (key::NOTES, Some(Value::Array(notes))),
+            (key::CONCEPT, g.get(key::CONCEPT).cloned()),
         ] {
             if let Some(value) = value {
-                hit.insert(key.into(), value);
+                hit.insert(name.into(), value);
             }
         }
         ranked.push((fit, Value::Object(hit)));
@@ -875,7 +1014,7 @@ pub fn format_style(g: &Value) -> String {
             t(&["fonts", "display"]),
             t(&["fonts", "body"]),
             t(&["fonts", "mono"]),
-            latin.map_or(String::new(), |l| format!(" · English-only alt: {} / {}", text(l.get("display")), text(l.get("body"))))
+            latin.map_or(String::new(), |l| format!(" · English-only alt: {} / {}", text(l.get(key::DISPLAY)), text(l.get(key::BODY))))
         ),
         format!(
             "Type: base {}, UI ratio {}, display ratio {} -> display {} px · radius {} · density {}{}",
@@ -920,7 +1059,7 @@ pub fn format_style(g: &Value) -> String {
     lines.extend(
         list(get(&["motifs"]))
             .iter()
-            .map(|m| format!("  {}: {}", text(m.get("name")), text(m.get("use")))),
+            .map(|m| format!("  {}: {}", text(m.get(key::NAME)), text(m.get(key::USE)))),
     );
     lines.push(format!("Layout: {}", t(&["layout"])));
     lines.push("Components:".to_string());

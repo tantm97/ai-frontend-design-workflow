@@ -217,9 +217,7 @@ pub(crate) mod wire {
 
     /// The value of a DTCG colour or dimension token, as `penpot::tokens` flattens it.
     pub(crate) mod dtcg {
-        pub(crate) const ALPHA: &str = "alpha";
-        pub(crate) const VALUE: &str = "value";
-        pub(crate) const UNIT: &str = "unit";
+        pub(crate) use crate::design::tokens::key::{ALPHA, AMOUNT as VALUE, UNIT};
     }
 
     /// The token sets and themes the plugin sends (`tokens` of a change file), and a token
@@ -257,12 +255,9 @@ pub(crate) mod wire {
         pub(crate) const POSTED: &str = "posted";
     }
 
-    /// A line of a dfw comment's `thread`, as the live sync reads it.
+    /// A line of a dfw comment's `thread`, as the live sync reads it (the comment record's keys).
     pub(crate) mod line {
-        pub(crate) const MESSAGE: &str = "message";
-        pub(crate) const BY: &str = "by";
-        pub(crate) const STATUS: &str = "status";
-        pub(crate) const AT: &str = "at";
+        pub(crate) use crate::review::status::field::{AT, BY, MESSAGE, STATUS};
     }
 
     /// What an import returns (`--json`) besides `comments` and `updated`, and the live sync's

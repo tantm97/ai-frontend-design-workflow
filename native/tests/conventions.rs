@@ -1254,19 +1254,22 @@ fn reviews_writes_hold_the_lock() {
     );
 }
 
-/// The JSON keys spelled as literals in the product code of the files `checked` picks (all but
-/// `skip`), as `file:line: "key"`: a literal read (`.get("…")`, `.get_mut("…")`), write
-/// (`insert("…"`, `shift_remove("…")`) or `json!` object key (`"…":`). A literal that is a
-/// value does not match.
-fn literal_keys(skip: &[&str], checked: impl Fn(&str) -> bool) -> Vec<String> {
-    let call = regex::Regex::new(r#"(?:\.get|\.get_mut|insert|shift_remove)\("((?:[^"\\]|\\.)*)""#)
-        .unwrap();
+/// Every JSON key in product code is a named constant, in the module that owns the document
+/// it belongs to (design.md of name-all-json-keys: `penpot::wire`, `core::state::field`,
+/// `design::manifest::key`, `browser::cdp::key`, ...). A key spelled as a literal compiles even
+/// when it is misspelt and then reads or writes nothing. Refused anywhere in `src/`: a literal
+/// key of a read (`.get("…")`, `.get_mut("…")`), a write or removal (`insert("…"`,
+/// `remove("…"`, `shift_remove("…"`, `contains_key("…"`, `entry("…"`) or a `json!` object key
+/// (`"…":`). A literal that is a value does not match.
+#[test]
+fn json_keys_are_named() {
+    let call = regex::Regex::new(
+        r#"(?:\.get|\.get_mut|insert|remove|shift_remove|contains_key|entry)\("((?:[^"\\]|\\.)*)""#,
+    )
+    .unwrap();
     let literal = regex::Regex::new(r#""((?:[^"\\]|\\.)*)""#).unwrap();
     let mut found = Vec::new();
-    for (rel, lines) in product_sources(skip) {
-        if !checked(&rel) {
-            continue;
-        }
+    for (rel, lines) in product_sources(&[]) {
         for (i, line) in lines.iter().enumerate() {
             let object_keys = literal.captures_iter(line).filter(|c| {
                 let rest = line[c.get(0).unwrap().end()..].trim_start();
@@ -1277,62 +1280,9 @@ fn literal_keys(skip: &[&str], checked: impl Fn(&str) -> bool) -> Vec<String> {
             }
         }
     }
-    found
-}
-
-/// The keys of the files dfw and the dfw bridge plugin exchange (the export, the change file,
-/// the live sync, the threads ledger) are named once, in `penpot::wire` (`mod.rs`), and read
-/// and written through those names (the token files are `penpot::tokens`' own). A key
-/// spelled as a literal compiles even when it is misspelled ([`literal_keys`]).
-#[test]
-fn penpot_keys_are_penpot_wire() {
-    let found = literal_keys(&["src/penpot/mod.rs"], |rel| {
-        rel.starts_with("src/penpot/") && !rel.starts_with("src/penpot/tokens/")
-    });
     assert!(
         found.is_empty(),
-        "JSON keys spelled as literals in src/penpot/; name them in penpot::wire (mod.rs):\n{}",
+        "JSON keys spelled as literals; name them in the module that owns the document:\n{}",
         found.join("\n")
-    );
-}
-
-/// The keys of the workflow files (`.dfw/state.json` and its gate records and history,
-/// `decisions.jsonl`, `stack.json`, a snapshot's `approval.lock.json`, `studio.json`,
-/// `review.json`) are named once, by the module that owns the file (`workflow::state::field`,
-/// `decisions::field`, `stack::field`, `freeze::field`, `server::field`). A misspelt key reads
-/// nothing: for `design.locked` that opens the frozen-design check. Refused in `src/workflow/`,
-/// `src/cli/workflow.rs` and `src/cli/studio.rs`: a literal key ([`literal_keys`]).
-#[test]
-fn workflow_keys_are_named() {
-    let found = literal_keys(&[], |rel| {
-        rel.starts_with("src/workflow/")
-            || rel == "src/cli/workflow.rs"
-            || rel == "src/cli/studio.rs"
-    });
-    assert!(
-        found.is_empty(),
-        "JSON keys spelled as literals; name them in the module that owns the file (workflow::state::field, ...):\n{}",
-        found.join("\n")
-    );
-}
-
-/// Untyped JSON reads by a literal key (`.get("…")`, `.get_mut("…")`) in product code of
-/// `src/`, once per read as `file:line`: the JSON debt that later changes name or type. The
-/// count may only go down (`"json_key_literals"` in the baseline).
-#[test]
-fn json_key_literals_do_not_grow() {
-    let read = regex::Regex::new(r#"\.get(?:_mut)?\("(?:[^"\\]|\\.)*"\)"#).unwrap();
-    let mut found = Vec::new();
-    for (rel, lines) in product_sources(&[]) {
-        for (i, line) in lines.iter().enumerate() {
-            for _ in read.find_iter(line) {
-                found.push(format!("{rel}:{}", i + 1));
-            }
-        }
-    }
-    compare(
-        "JSON reads by a literal key in src/",
-        "json_key_literals",
-        &found,
     );
 }

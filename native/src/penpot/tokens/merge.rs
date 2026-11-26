@@ -143,7 +143,7 @@ pub struct SetDiff {
 
 impl SetDiff {
     pub(super) fn to_json(&self) -> Value {
-        json!({ "added": self.added, "changed": self.changed, "removed": self.removed, "kept": self.kept })
+        json!({ (key::report::ADDED): self.added, (key::report::CHANGED): self.changed, (key::report::REMOVED): self.removed, (key::report::KEPT): self.kept })
     }
 
     pub(super) fn writes(&self) -> bool {
@@ -185,7 +185,7 @@ pub fn merge_set(
     let mut unsupported: Vec<Value> = reserved
         .into_iter()
         .map(|token| {
-            json!({ "set": set, "token": token, "reason": "reserved name (__proto__, constructor, prototype)" })
+            json!({ (key::report::SET): set, (key::report::TOKEN): token, (key::report::REASON): "reserved name (__proto__, constructor, prototype)" })
         })
         .collect();
     let mut warnings = Vec::new();
@@ -206,11 +206,11 @@ pub fn merge_set(
                     pt.description.as_ref(),
                 );
                 diff.changed.push(js::object(vec![
-                    ("token", Some(name.into())),
-                    ("type", c.ty.clone()),
-                    ("from", Some(c.value.clone())),
-                    ("to", Some(c.value.clone())),
-                    ("descriptionOnly", Some(Value::Bool(true))),
+                    (key::report::TOKEN, Some(name.into())),
+                    (key::report::TYPE, c.ty.clone()),
+                    (key::report::FROM, Some(c.value.clone())),
+                    (key::report::TO, Some(c.value.clone())),
+                    (key::report::DESCRIPTION_ONLY, Some(Value::Bool(true))),
                 ]));
                 continue;
             }
@@ -220,7 +220,7 @@ pub fn merge_set(
             notes.push(w)
         })?;
         for note in notes {
-            warnings.push(json!({ "set": set, "token": name, "note": note }));
+            warnings.push(json!({ (key::report::SET): set, (key::report::TOKEN): name, (key::report::NOTE): note }));
         }
         let (ty, value, description) = match converted {
             Converted::Token {
@@ -230,10 +230,10 @@ pub fn merge_set(
             } => (ty, value, description),
             Converted::Unsupported(reason) => {
                 unsupported.push(js::object(vec![
-                    ("set", Some(set.into())),
-                    ("token", Some(name.into())),
-                    ("type", pt.ty.clone()),
-                    ("reason", Some(reason.into())),
+                    (key::report::SET, Some(set.into())),
+                    (key::report::TOKEN, Some(name.into())),
+                    (key::report::TYPE, pt.ty.clone()),
+                    (key::report::REASON, Some(reason.into())),
                 ]));
                 continue;
             }
@@ -250,10 +250,10 @@ pub fn merge_set(
         match c {
             Some(c) => diff
                 .changed
-                .push(json!({ "token": name, "type": ty, "from": c.value, "to": value })),
+                .push(json!({ (key::report::TOKEN): name, (key::report::TYPE): ty, (key::report::FROM): c.value, (key::report::TO): value })),
             None => diff
                 .added
-                .push(json!({ "token": name, "type": ty, "value": value })),
+                .push(json!({ (key::report::TOKEN): name, (key::report::TYPE): ty, (key::report::VALUE): value })),
         }
     }
     for (name, c) in cur.iter() {
@@ -266,9 +266,9 @@ pub fn merge_set(
         }
         let entry = |with_value: bool| {
             js::object(vec![
-                ("token", Some(name.into())),
-                ("type", c.ty.clone()),
-                ("value", with_value.then(|| c.value.clone())),
+                (key::report::TOKEN, Some(name.into())),
+                (key::report::TYPE, c.ty.clone()),
+                (key::report::VALUE, with_value.then(|| c.value.clone())),
             ])
         };
         if prune {

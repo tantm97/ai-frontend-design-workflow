@@ -22,9 +22,11 @@ pub(super) fn walk_set(tree: &Value, reserved: &mut Vec<String>) -> Flat {
             return;
         };
         let ty = js::truthy_value(map.get(key::TYPE))
-            .or_else(|| js::truthy_value(map.get("type")))
+            .or_else(|| js::truthy_value(map.get(key::LEGACY_TYPE)))
             .or(ty);
-        let legacy = map.contains_key("value") && map.contains_key("type") && !trail.is_empty();
+        let legacy = map.contains_key(key::LEGACY_VALUE)
+            && map.contains_key(key::LEGACY_TYPE)
+            && !trail.is_empty();
         if map.contains_key(key::VALUE) || legacy {
             out.set(
                 name,
@@ -32,11 +34,11 @@ pub(super) fn walk_set(tree: &Value, reserved: &mut Vec<String>) -> Flat {
                     ty: ty.cloned(),
                     value: map
                         .get(key::VALUE)
-                        .or_else(|| map.get("value"))
+                        .or_else(|| map.get(key::LEGACY_VALUE))
                         .cloned()
                         .unwrap_or(Value::Null),
                     description: js::present(map.get(key::DESCRIPTION))
-                        .or_else(|| map.get("description"))
+                        .or_else(|| map.get(key::LEGACY_DESCRIPTION))
                         .cloned(),
                 },
             );
@@ -239,7 +241,7 @@ impl SetMap {
 /// is skipped. A theme name that starts with a dot (`..`, `.`, `.env`) is skipped too: it would
 /// name a hidden file under design/tokens/themes/.
 pub fn map_sets(parsed: &PenpotFile) -> Result<SetMap, DfwError> {
-    let listed: Vec<String> = match js::truthy_value(parsed.metadata.get("tokenSetOrder")) {
+    let listed: Vec<String> = match js::truthy_value(parsed.metadata.get(key::TOKEN_SET_ORDER)) {
         None => Vec::new(),
         Some(Value::Array(items)) => items
             .iter()

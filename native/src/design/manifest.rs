@@ -15,6 +15,9 @@ use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::rel;
 
+/// The property Node's `x?.length` reads: an object with a truthy `length` passed that test.
+const JS_LENGTH: &str = "length";
+
 /// `design/design.json` keys.
 pub mod key {
     /// The product name.
@@ -31,12 +34,55 @@ pub mod key {
     /// The title of a page.
     pub const TITLE: &str = "title";
     pub const DESCRIPTION: &str = "description";
+    /// The label of a variant.
+    pub const LABEL: &str = "label";
     pub const FILE: &str = "file";
     pub const BLUEPRINT: &str = "blueprint";
+    /// What the product is: `product` (app screens, the default) or `marketing`.
+    pub const SURFACE: &str = "surface";
+    /// The token themes the Studio offers (`dark`, the option themes `opt-<name>`).
+    pub const THEMES: &str = "themes";
+    /// A screen left out of the canvas.
+    pub const ARCHIVED: &str = "archived";
+    /// The canvas page a screen names for itself.
+    pub const PAGE: &str = "page";
+    /// The screen a flow (or a link between screens) starts from.
+    pub const FROM: &str = "from";
+    /// The screen a flow (or a link between screens) goes to.
+    pub const TO: &str = "to";
+    /// The id of the variant a screen's approval chose.
+    pub const APPROVED_VARIANT: &str = "approvedVariant";
+    /// A variant the agent recommends.
+    pub const RECOMMENDED: &str = "recommended";
+    /// The app route a screen becomes.
+    pub const ROUTE: &str = "route";
     /// Added by the Studio's manifest API: the states a variant designs.
     pub const DESIGNED_STATES: &str = "designedStates";
     /// Added by the Studio's manifest API: the canvas pages.
     pub const STUDIO_PAGES: &str = "studioPages";
+    /// Added by the Studio's manifest API: `true` when there is no `design.json` and the
+    /// screens were read from `design/screens/**`.
+    pub const INFERRED: &str = "inferred";
+}
+
+/// The keys of a screen's [`key::BLUEPRINT`]: the plan of the screen before it is drawn.
+pub mod blueprint {
+    /// The layout pattern.
+    pub const LAYOUT: &str = "layout";
+    /// What the user comes to the screen to do.
+    pub const GOAL: &str = "goal";
+    pub const PRIMARY_ACTION: &str = "primaryAction";
+    /// What must show without scrolling.
+    pub const ABOVE_FOLD: &str = "aboveFold";
+    /// The regions of the screen: `{ priority, name, content }`.
+    pub const REGIONS: &str = "regions";
+    pub const PRIORITY: &str = "priority";
+    pub const NAME: &str = "name";
+    pub const CONTENT: &str = "content";
+    /// How the screen looks with no, typical and the most data: `{ empty, typical, max }`.
+    pub const DATA: &str = "data";
+    /// How the screen answers the user's actions.
+    pub const FEEDBACK: &str = "feedback";
 }
 
 /// A `design.json` value of the wrong type, as `dfw lint` reports it.
@@ -128,7 +174,7 @@ impl<'a> Screen<'a> {
             Some(Value::String(text)) if !text.is_empty() => {
                 return Err(malformed("\"states\" of a screen must be a list"));
             }
-            Some(Value::Object(map)) if js::truthy(map.get("length")) => {
+            Some(Value::Object(map)) if js::truthy(map.get(JS_LENGTH)) => {
                 return Err(malformed("\"states\" of a screen must be a list"));
             }
             _ => {}

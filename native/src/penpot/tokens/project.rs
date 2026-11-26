@@ -96,11 +96,11 @@ impl TokenImport {
             .map(|(set, d)| (set.clone(), d.to_json()))
             .collect();
         json!({
-            "written": self.written,
-            "diff": diff,
-            "unsupported": self.unsupported,
-            "warnings": self.warnings,
-            "skippedSets": self.skipped_sets,
+            (key::report::WRITTEN): self.written,
+            (key::report::DIFF): diff,
+            (key::report::UNSUPPORTED): self.unsupported,
+            (key::report::WARNINGS): self.warnings,
+            (key::report::SKIPPED_SETS): self.skipped_sets,
         })
     }
 }
@@ -187,10 +187,10 @@ pub fn import_penpot_tokens(
 /// `shortValue`: a token value on one line of at most 60 characters.
 pub fn short_value(v: Option<&Value>) -> String {
     let object = v.and_then(Value::as_object);
-    let hex = object.and_then(|m| js::truthy_value(m.get("hex")).filter(|_| m.len() <= 4));
+    let hex = object.and_then(|m| js::truthy_value(m.get(key::HEX)).filter(|_| m.len() <= 4));
     let s = match (v, object, hex) {
         (Some(Value::String(s)), _, _) => s.clone(),
-        (_, Some(m), Some(hex)) => match m.get("alpha") {
+        (_, Some(m), Some(hex)) => match m.get(key::ALPHA) {
             Some(alpha) => format!(
                 "{}/{}",
                 js::to_string(Some(hex)),
@@ -198,11 +198,11 @@ pub fn short_value(v: Option<&Value>) -> String {
             ),
             None => js::to_string(Some(hex)),
         },
-        (_, Some(m), None) if m.contains_key("unit") => {
+        (_, Some(m), None) if m.contains_key(key::UNIT) => {
             format!(
                 "{}{}",
-                js::to_string(m.get("value")),
-                js::to_string(m.get("unit"))
+                js::to_string(m.get(key::AMOUNT)),
+                js::to_string(m.get(key::UNIT))
             )
         }
         _ => js::stringify(v),
@@ -243,30 +243,30 @@ pub fn format_import(r: &TokenImport, dry_run: bool) -> String {
         };
         lines.push(format!("{set}: {counts}{kept}"));
         for c in &d.changed {
-            lines.push(if js::truthy(c.get("descriptionOnly")) {
+            lines.push(if js::truthy(c.get(key::report::DESCRIPTION_ONLY)) {
                 format!(
                     "  ~ {}: description changed (value kept)",
-                    field(c, "token")
+                    field(c, key::report::TOKEN)
                 )
             } else {
                 format!(
                     "  ~ {}: {} -> {}",
-                    field(c, "token"),
-                    short_value(c.get("from")),
-                    short_value(c.get("to"))
+                    field(c, key::report::TOKEN),
+                    short_value(c.get(key::report::FROM)),
+                    short_value(c.get(key::report::TO))
                 )
             });
         }
         for c in &d.added {
             lines.push(format!(
                 "  + {} ({}): {}",
-                field(c, "token"),
-                field(c, "type"),
-                short_value(c.get("value"))
+                field(c, key::report::TOKEN),
+                field(c, key::report::TYPE),
+                short_value(c.get(key::report::VALUE))
             ));
         }
         for c in &d.removed {
-            lines.push(format!("  - {}", field(c, "token")));
+            lines.push(format!("  - {}", field(c, key::report::TOKEN)));
         }
     }
     if !r.skipped_sets.is_empty() {

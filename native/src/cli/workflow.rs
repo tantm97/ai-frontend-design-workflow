@@ -17,6 +17,7 @@ use crate::core::config::{
 use crate::core::error::exit;
 use crate::core::error::DfwError;
 use crate::core::js;
+use crate::core::level::result as check;
 use crate::core::level::{self, finding as finding_key, Level};
 use crate::core::paths::{file, project_paths, rel};
 use crate::core::process::{is_alive, Pid};
@@ -31,7 +32,7 @@ use crate::design::manifest::key as manifest_key;
 use crate::design::tokens::{build_tokens, dir_names, option};
 use crate::review::comments::{add_comment, all_comments};
 use crate::review::status::{self, field as comment, Status};
-use crate::tools::check::{field as check, format_report, run_checks, CheckOptions};
+use crate::tools::check::{format_report, run_checks, CheckOptions};
 use crate::workflow::decisions::field as decision;
 use crate::workflow::decisions::{decide, format_decisions, read_decisions};
 use crate::workflow::freeze::{freeze_design, reopen_design, verify_snapshot};

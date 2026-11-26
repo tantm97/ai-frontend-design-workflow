@@ -25,32 +25,99 @@ pub mod key {
     pub const SCHEMA: &str = "schema";
     pub const LANGUAGE: &str = "language";
     pub const GATE: &str = "gate";
-    #[cfg(test)]
     pub const CHECKS: &str = "checks";
+    pub const STUDIO: &str = "studio";
+    pub const REVIEW: &str = "review";
+    pub const ACCESSIBILITY: &str = "accessibility";
     pub const SKILLS: &str = "skills";
     pub const ENV: &str = "env";
     pub const STUDIO_PORT: &str = "studio.port";
     pub const REVIEW_SHORTCUT: &str = "review.shortcut";
+    /// The marketplace clone `dfw install --repo` recorded (global config only).
+    pub const MARKETPLACE_REPO: &str = "marketplaceRepo";
+
+    /* `language` */
+    /// When dfw asks for the language (`session`: on the first run of every session).
+    pub const ASK_POLICY: &str = "askPolicy";
+    /// The language used until one is chosen.
+    pub const DEFAULT: &str = "default";
+
+    /* `gate` */
+    /// Globs always writable, whatever the gates say.
+    pub const ALLOW: &str = "allow";
+    /// Globs of the design workspace (writable before G2, locked after).
+    pub const DESIGN_PATHS: &str = "designPaths";
+    /// Globs the agent's own tools may never write.
+    pub const IMMUTABLE: &str = "immutable";
+
+    /* `checks` */
+    /// The checks after an edit: `"fast"`, `"full"` or `false`.
+    pub const ON_EDIT: &str = "onEdit";
+    pub const TIMEOUT_MS: &str = "timeoutMs";
+    pub const IMPECCABLE: &str = "impeccable";
+    pub const SLOPLINT: &str = "sloplint";
+    pub const TASTE_COPY_LINT: &str = "tasteCopyLint";
+    pub const MAX_FINDINGS: &str = "maxFindings";
+
+    /* `studio` */
+    pub const PORT: &str = "port";
+    pub const BREAKPOINTS: &str = "breakpoints";
+
+    /* `review` */
+    /// The key that toggles comment mode on the running app.
+    pub const SHORTCUT: &str = "shortcut";
+
+    /* `accessibility` */
+    pub const STANDARD: &str = "standard";
+    pub const LEVEL: &str = "level";
+
+    /* `skills` */
+    /// The optional skills: `{ <skill>: true }`.
+    pub const OPTIONAL: &str = "optional";
+    /// The skills a project turned off (a union across layers).
+    pub const DISABLED: &str = "disabled";
+
+    /// The keys of one breakpoint: `{ id, label, width, height }` (also in `design/design.json`).
+    pub mod breakpoint {
+        pub const ID: &str = "id";
+        pub const LABEL: &str = "label";
+        pub const WIDTH: &str = "width";
+        pub const HEIGHT: &str = "height";
+    }
+
+    /// The optional skills of `skills.optional`.
+    pub mod skill {
+        pub const HALLMARK: &str = "hallmark";
+        pub const TASTE_REFERENCE: &str = "taste-reference";
+    }
+
+    /// The variables of `env` dfw sets for every external tool.
+    pub mod env {
+        pub const DO_NOT_TRACK: &str = "DO_NOT_TRACK";
+        pub const IMPECCABLE_NO_UPDATE_CHECK: &str = "IMPECCABLE_NO_UPDATE_CHECK";
+        pub const IMPECCABLE_HOOK_DISABLED: &str = "IMPECCABLE_HOOK_DISABLED";
+        pub const IMPECCABLE_NO_TELEMETRY: &str = "IMPECCABLE_NO_TELEMETRY";
+    }
 }
 
 /// `DEFAULTS`: the plugin's own layer.
 pub fn defaults() -> Value {
     json!({
         (key::SCHEMA): 1,
-        "language": {
+        (key::LANGUAGE): {
             // "session": ask on the first /dfw run in every session (user decision 2026-11-13).
-            "askPolicy": "session",
-            "default": "en",
+            (key::ASK_POLICY): "session",
+            (key::DEFAULT): "en",
         },
-        "gate": {
+        (key::GATE): {
             // Paths (globs, relative to project root) always writable regardless of gates.
-            "allow": [all_under(rel::DFW), all_under(rel::HANDOFF)],
+            (key::ALLOW): [all_under(rel::DFW), all_under(rel::HANDOFF)],
             // Paths that belong to the design workspace (writable before G2, locked after).
-            "designPaths": [all_under(rel::DESIGN), rel::PRODUCT_DOC, rel::DESIGN_DOC],
+            (key::DESIGN_PATHS): [all_under(rel::DESIGN), rel::PRODUCT_DOC, rel::DESIGN_DOC],
             // Frozen snapshots are never writable, nor (by the agent's own tools) the files that
             // hold the gates, approvals, decisions, settings and review comments: dfw commands
             // write those directly. A union across layers: a project cannot drop one.
-            "immutable": [
+            (key::IMMUTABLE): [
                 all_under(rel::APPROVED),
                 rel::STATE,
                 rel::CONFIG,
@@ -60,39 +127,39 @@ pub fn defaults() -> Value {
                 all_under(rel::REVIEWS),
             ],
         },
-        "checks": {
+        (key::CHECKS): {
             // PostToolUse checks: "fast" (dfw lint), "full" (all tools) or false.
-            "onEdit": "fast",
-            "timeoutMs": 8000,
-            "impeccable": true,
-            "sloplint": true,
-            "tasteCopyLint": false,
-            "maxFindings": 12,
+            (key::ON_EDIT): "fast",
+            (key::TIMEOUT_MS): 8000,
+            (key::IMPECCABLE): true,
+            (key::SLOPLINT): true,
+            (key::TASTE_COPY_LINT): false,
+            (key::MAX_FINDINGS): 12,
         },
-        "studio": {
-            "port": 4600,
-            "breakpoints": [
-                { "id": "desktop", "label": "Desktop", "width": 1440, "height": 900 },
-                { "id": "tablet", "label": "Tablet", "width": 834, "height": 1112 },
-                { "id": "mobile", "label": "Mobile", "width": 390, "height": 844 },
+        (key::STUDIO): {
+            (key::PORT): 4600,
+            (key::BREAKPOINTS): [
+                { (key::breakpoint::ID): "desktop", (key::breakpoint::LABEL): "Desktop", (key::breakpoint::WIDTH): 1440, (key::breakpoint::HEIGHT): 900 },
+                { (key::breakpoint::ID): "tablet", (key::breakpoint::LABEL): "Tablet", (key::breakpoint::WIDTH): 834, (key::breakpoint::HEIGHT): 1112 },
+                { (key::breakpoint::ID): "mobile", (key::breakpoint::LABEL): "Mobile", (key::breakpoint::WIDTH): 390, (key::breakpoint::HEIGHT): 844 },
             ],
         },
-        "review": {
+        (key::REVIEW): {
             // dfw review: key that toggles comment mode on the running app ("off": the Comment button only).
             // Alt/Option+C rather than C, so the app's own single-key shortcuts keep working.
-            "shortcut": "alt+c",
+            (key::SHORTCUT): "alt+c",
         },
-        "accessibility": { "standard": "WCAG 2.2", "level": "AA" },
-        "skills": {
+        (key::ACCESSIBILITY): { (key::STANDARD): "WCAG 2.2", (key::LEVEL): "AA" },
+        (key::SKILLS): {
             // Optional skills that must be enabled per project.
-            "optional": { "hallmark": true, "taste-reference": true },
-            "disabled": [],
+            (key::OPTIONAL): { (key::skill::HALLMARK): true, (key::skill::TASTE_REFERENCE): true },
+            (key::DISABLED): [],
         },
-        "env": {
+        (key::ENV): {
             // Applied to every external tool dfw launches.
-            "DO_NOT_TRACK": "1",
-            "IMPECCABLE_NO_UPDATE_CHECK": "1",
-            "IMPECCABLE_HOOK_DISABLED": "1",
+            (key::env::DO_NOT_TRACK): "1",
+            (key::env::IMPECCABLE_NO_UPDATE_CHECK): "1",
+            (key::env::IMPECCABLE_HOOK_DISABLED): "1",
         },
     })
 }
@@ -113,10 +180,10 @@ pub const PRIVACY_ON: &str = "1";
 
 /// `PRIVACY_ENV`: switches a project layer may only keep on ([`PRIVACY_ON`]).
 pub const PRIVACY_ENV: [&str; 4] = [
-    "DO_NOT_TRACK",
-    "IMPECCABLE_NO_UPDATE_CHECK",
-    "IMPECCABLE_HOOK_DISABLED",
-    "IMPECCABLE_NO_TELEMETRY",
+    key::env::DO_NOT_TRACK,
+    key::env::IMPECCABLE_NO_UPDATE_CHECK,
+    key::env::IMPECCABLE_HOOK_DISABLED,
+    key::env::IMPECCABLE_NO_TELEMETRY,
 ];
 
 /// `filterProjectEnv(layer, file, warn)`: a project layer without the `env` entries it may not
@@ -201,11 +268,11 @@ fn load_config_from(
     // defaults without accidentally dropping them.
     let union = |group: &str, key: &str| union_of(layers.iter(), group, key);
     let mut skills = js::spread(merged.get(key::SKILLS));
-    skills.insert("disabled".into(), union(key::SKILLS, "disabled"));
+    skills.insert(key::DISABLED.into(), union(key::SKILLS, key::DISABLED));
     merged.insert(key::SKILLS.into(), Value::Object(skills));
     let mut gate = js::spread(merged.get(key::GATE));
-    gate.insert("allow".into(), union(key::GATE, "allow"));
-    gate.insert("immutable".into(), union(key::GATE, "immutable"));
+    gate.insert(key::ALLOW.into(), union(key::GATE, key::ALLOW));
+    gate.insert(key::IMMUTABLE.into(), union(key::GATE, key::IMMUTABLE));
     merged.insert(key::GATE.into(), Value::Object(gate));
     Ok(Value::Object(merged))
 }
@@ -362,13 +429,13 @@ impl Breakpoint {
                 .map(|n| n as u32)
         };
         Some(Breakpoint {
-            id: value.get("id")?.as_str()?.to_string(),
+            id: value.get(key::breakpoint::ID)?.as_str()?.to_string(),
             label: value
-                .get("label")
+                .get(key::breakpoint::LABEL)
                 .and_then(Value::as_str)
                 .map(str::to_string),
-            width: size("width")?,
-            height: size("height")?,
+            width: size(key::breakpoint::WIDTH)?,
+            height: size(key::breakpoint::HEIGHT)?,
         })
     }
 }

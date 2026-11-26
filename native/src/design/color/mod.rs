@@ -16,9 +16,9 @@ mod palette;
 mod tests;
 mod type_scale;
 
-pub use audit::audit_colors;
+pub use audit::{audit_colors, key as audit_key};
 pub use palette::{build_palette, Names, Seeds, Signature};
-pub use type_scale::{audit_type_scale, type_scale, PRODUCT_SURFACE};
+pub use type_scale::{audit_type_scale, key as type_scale_key, type_scale, PRODUCT_SURFACE};
 
 // ------------------------------------------------------------------ conversions
 

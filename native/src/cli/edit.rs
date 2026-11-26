@@ -14,6 +14,15 @@ use crate::design::edit::{apply_edit, undo_edit};
 use crate::design::layout_cache::{changed_screens, mark_checked};
 use crate::design::system_page::render_system_page;
 
+/// The keys of what `__debug changed-screens` prints.
+mod changed_key {
+    /// The screens whose layout must be checked again.
+    pub const SCREENS: &str = "screens";
+    /// The component masters changed since the last check.
+    pub const CHANGED_COMPS: &str = "changedComps";
+    pub const TOKENS_CHANGED: &str = "tokensChanged";
+}
+
 fn root_of(ctx: &Ctx, usage: &str) -> Result<PathBuf, DfwError> {
     ctx.args
         .pos(2)
@@ -50,9 +59,9 @@ pub(super) fn debug_changed_screens(ctx: &Ctx) -> Result<i32, DfwError> {
     let root = root_of(ctx, "changed-screens <root>")?;
     let changed = changed_screens(&root)?;
     out(&to_json_compact(&json!({
-        "screens": changed.screens,
-        "changedComps": changed.changed_comps,
-        "tokensChanged": changed.tokens_changed,
+        (changed_key::SCREENS): changed.screens,
+        (changed_key::CHANGED_COMPS): changed.changed_comps,
+        (changed_key::TOKENS_CHANGED): changed.tokens_changed,
     })));
     Ok(0)
 }

@@ -9,6 +9,7 @@ use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::js::regex::with_js_classes;
 use crate::design::html::escape_html as esc;
+use crate::design::style::key as style_key;
 
 /// The strings of a JSON array (`(list || []).map(...)`); anything else is no list.
 fn items(value: Option<&Value>) -> Vec<String> {
@@ -39,10 +40,10 @@ pub(super) fn concept(style: &Value, md: &str, inline: &Inline) -> Result<String
     let lead = if !direction.is_empty() && !direction.starts_with("TODO") {
         inline.md(direction)
     } else {
-        esc(&js::to_string(style.get("concept")))
+        esc(&js::to_string(style.get(style_key::CONCEPT)))
     };
     let why: Vec<String> = if project_why.is_empty() {
-        items(style.get("rationale"))
+        items(style.get(style_key::RATIONALE))
     } else {
         project_why.iter().map(|s| s.to_string()).collect()
     };
@@ -66,16 +67,16 @@ pub(super) fn concept(style: &Value, md: &str, inline: &Inline) -> Result<String
             if project_why.is_empty() { " (style guide)" } else { " (DESIGN.md)" }
         )
     };
-    let layout = if js::truthy(style.get("layout")) {
+    let layout = if js::truthy(style.get(style_key::LAYOUT)) {
         format!(
             "<div class=\"ds-card\"><h4>Layout and grid</h4><p>{}</p></div>",
-            esc(&js::to_string(style.get("layout")))
+            esc(&js::to_string(style.get(style_key::LAYOUT)))
         )
     } else {
         String::new()
     };
     let motifs = style
-        .get("motifs")
+        .get(style_key::MOTIFS)
         .and_then(Value::as_array)
         .filter(|list| !list.is_empty())
         .map_or(String::new(), |list| {
@@ -84,8 +85,8 @@ pub(super) fn concept(style: &Value, md: &str, inline: &Inline) -> Result<String
                 .map(|m| {
                     format!(
                         "<dt>{}</dt><dd>{}</dd>",
-                        esc(&js::to_string(m.get("name"))),
-                        esc(&js::to_string(m.get("use")))
+                        esc(&js::to_string(m.get(style_key::NAME))),
+                        esc(&js::to_string(m.get(style_key::USE)))
                     )
                 })
                 .collect();

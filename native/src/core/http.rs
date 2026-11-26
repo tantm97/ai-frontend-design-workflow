@@ -66,7 +66,7 @@ pub fn get(
     let mut res = request.call()?;
     let content_type = res
         .headers()
-        .get("content-type")
+        .get(ureq::http::header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
         .map(str::to_string);
     let landed = res.get_uri().to_string();

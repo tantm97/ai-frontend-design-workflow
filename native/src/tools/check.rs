@@ -20,7 +20,7 @@ use std::time::Duration;
 use serde_json::{json, Map, Value};
 
 pub use self::report::{check_exit_code, format_report};
-use crate::core::config::env_map;
+use crate::core::config::{env_map, key as config_key};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{canonicalize, file, project_paths, rel, resolve, to_posix};
@@ -28,8 +28,10 @@ use crate::core::process::{node_executable, plan_for, run_timed, Ran, Spawn};
 use crate::core::util::read_json;
 use crate::design::compose::{build_composed, build_system};
 use crate::design::dsaudit::audit_design_system;
+use crate::design::manifest::key as manifest_key;
 
 use crate::core::level::Level;
+use crate::core::level::{finding, result as field};
 use crate::core::platform::node_platform;
 use crate::design::lint::lint_design;
 use crate::design::tokens::relative_path;
@@ -64,12 +66,42 @@ pub mod outcome {
     pub const ERROR: &str = "error";
 }
 
-/// The fields of a check result: `{ tool, status, detail?, findings }`.
-pub mod field {
-    pub const TOOL: &str = "tool";
-    pub const STATUS: &str = "status";
-    pub const DETAIL: &str = "detail";
-    pub const FINDINGS: &str = "findings";
+/// The keys of the external tools' JSON output that are read. Hallmark's sloplint gives
+/// `{ findings: [{ grade, gate, file, line, evidence, fix }] }`, Impeccable's detect
+/// `[{ antipattern, name, description, severity, advisory, snippet, file, line }]`, Taste's
+/// copy-lint `{ files: [{ findings: [{ id, sev, msg, fix }] }] }`.
+mod output {
+    /// The file a finding is in (sloplint, Impeccable).
+    pub const FILE: &str = "file";
+    /// Its line (sloplint, Impeccable).
+    pub const LINE: &str = "line";
+    /// How to fix it (sloplint, copy-lint).
+    pub const FIX: &str = "fix";
+    /// Sloplint: `FAIL`, `REFLEX` or `WARN`.
+    pub const GRADE: &str = "grade";
+    /// Sloplint: the number of the Hallmark gate that failed.
+    pub const GATE: &str = "gate";
+    /// Sloplint: what was found.
+    pub const EVIDENCE: &str = "evidence";
+    /// Impeccable: the id of the anti-pattern.
+    pub const ANTIPATTERN: &str = "antipattern";
+    /// Impeccable: the anti-pattern's display name.
+    pub const NAME: &str = "name";
+    pub const DESCRIPTION: &str = "description";
+    /// Impeccable: `error`, `critical`, `warn`, `info` or `advisory`.
+    pub const SEVERITY: &str = "severity";
+    /// Impeccable: a finding that only advises.
+    pub const ADVISORY: &str = "advisory";
+    /// Impeccable: the code it was found in.
+    pub const SNIPPET: &str = "snippet";
+    /// Copy-lint: one report per file, in the order the files were given.
+    pub const FILES: &str = "files";
+    /// Copy-lint: the id of the rule.
+    pub const ID: &str = "id";
+    /// Copy-lint: `FAIL`, `WARN` or `INFO`.
+    pub const SEV: &str = "sev";
+    /// Copy-lint: the message.
+    pub const MSG: &str = "msg";
 }
 
 /// `path.extname`: from the last dot of the last segment, unless the name starts with it.
@@ -152,7 +184,7 @@ fn finding_file(root: &Path, file: Option<&Value>) -> String {
 /// `f.line || 1`.
 fn finding_line(finding: &Value) -> Value {
     finding
-        .get("line")
+        .get(output::LINE)
         .filter(|l| js::truthy(l))
         .cloned()
         .unwrap_or_else(|| json!(1))
@@ -160,7 +192,7 @@ fn finding_line(finding: &Value) -> Value {
 
 /// `${value}${fix ? ` | fix: ${fix}` : ''}`.
 fn with_fix(text: String, finding: &Value) -> String {
-    match finding.get("fix").filter(|f| js::truthy(f)) {
+    match finding.get(output::FIX).filter(|f| js::truthy(f)) {
         Some(fix) => format!("{text} | fix: {}", js::to_string(Some(fix))),
         None => text,
     }
@@ -188,7 +220,7 @@ fn sloplint_scope(root: &Path) -> Result<&'static str, DfwError> {
         ));
     }
     Ok(
-        if manifest.get("surface").and_then(Value::as_str) == Some("marketing") {
+        if manifest.get(manifest_key::SURFACE).and_then(Value::as_str) == Some("marketing") {
             "page"
         } else {
             "app"
@@ -252,7 +284,7 @@ pub fn run_sloplint(
     };
     // Hallmark leads marketing pages only. On product UI its Floor is a strong recommendation
     // (precedence level 5), so FAILs do not block approval there.
-    let grade = |f: &Value| match f.get("grade").and_then(Value::as_str) {
+    let grade = |f: &Value| match f.get(output::GRADE).and_then(Value::as_str) {
         Some("FAIL") => Some(
             if scope == "page" {
                 Level::Error
@@ -272,15 +304,15 @@ pub fn run_sloplint(
         .iter()
         .filter_map(|f| {
             // Gate 20 is Hallmark's own stamp requirement; it only applies to pages Hallmark built.
-            let gate = js::to_string(f.get("gate"));
+            let gate = js::to_string(f.get(output::GATE));
             let level = grade(f).filter(|_| gate != "20")?;
             Some(json!({
-                "level": level,
-                "rule": format!("hallmark-{gate}"),
-                "file": finding_file(root, f.get("file")),
-                "line": finding_line(f),
-                "message": with_fix(js::to_string(f.get("evidence")), f),
-                "source": tool::SLOPLINT,
+                (finding::LEVEL): level,
+                (finding::RULE): format!("hallmark-{gate}"),
+                (finding::FILE): finding_file(root, f.get(output::FILE)),
+                (finding::LINE): finding_line(f),
+                (finding::MESSAGE): with_fix(js::to_string(f.get(output::EVIDENCE)), f),
+                (finding::SOURCE): tool::SLOPLINT,
             }))
         })
         .collect();
@@ -332,28 +364,28 @@ pub fn run_impeccable(
     let findings = data
         .iter()
         .map(|f| {
-            let severity = match f.get("severity").and_then(Value::as_str) {
+            let severity = match f.get(output::SEVERITY).and_then(Value::as_str) {
                 Some("error" | "critical") => Level::Error.as_str(),
                 Some("info" | "advisory") => Level::Info.as_str(),
                 _ => Level::Warn.as_str(),
             };
-            let level = if f.get("advisory").is_some_and(js::truthy) {
+            let level = if f.get(output::ADVISORY).is_some_and(js::truthy) {
                 Level::Info.as_str()
             } else {
                 severity
             };
             let snippet = f
-                .get("snippet")
+                .get(output::SNIPPET)
                 .filter(|s| js::truthy(s))
                 .map(|s| format!(" [{}]", js::slice16(&js::to_string(Some(s)), 0, 80)))
                 .unwrap_or_default();
             json!({
-                "level": level,
-                "rule": format!("impeccable-{}", js::to_string(f.get("antipattern"))),
-                "file": finding_file(root, f.get("file")),
-                "line": finding_line(f),
-                "message": format!("{}: {}{snippet}", js::to_string(f.get("name")), js::to_string(f.get("description"))),
-                "source": tool::IMPECCABLE,
+                (finding::LEVEL): level,
+                (finding::RULE): format!("impeccable-{}", js::to_string(f.get(output::ANTIPATTERN))),
+                (finding::FILE): finding_file(root, f.get(output::FILE)),
+                (finding::LINE): finding_line(f),
+                (finding::MESSAGE): format!("{}: {}{snippet}", js::to_string(f.get(output::NAME)), js::to_string(f.get(output::DESCRIPTION))),
+                (finding::SOURCE): tool::IMPECCABLE,
             })
         })
         .collect();
@@ -483,7 +515,7 @@ pub fn run_taste_copy_lint(
         ));
     };
     let mut findings = Vec::new();
-    let reports = data.get("files").and_then(Value::as_array);
+    let reports = data.get(output::FILES).and_then(Value::as_array);
     for (i, report) in reports
         .map(Vec::as_slice)
         .unwrap_or_default()
@@ -492,19 +524,22 @@ pub fn run_taste_copy_lint(
     {
         let list = report.get(field::FINDINGS).and_then(Value::as_array);
         for f in list.map(Vec::as_slice).unwrap_or_default() {
-            let sev = f.get("sev").and_then(Value::as_str);
+            let sev = f.get(output::SEV).and_then(Value::as_str);
             if sev == Some("INFO") {
                 continue;
             }
-            let text = f.get("msg").filter(|m| js::truthy(m)).or(f.get("id"));
+            let text = f
+                .get(output::MSG)
+                .filter(|m| js::truthy(m))
+                .or(f.get(output::ID));
             findings.push(json!({
                 // Reference-mode skill: never a hard blocker.
-                "level": if sev == Some("FAIL") { Level::Warn } else { Level::Info }.as_str(),
-                "rule": format!("taste-{}", js::to_string(f.get("id"))),
-                "file": files.get(i).map(|f| f.as_str()).unwrap_or_default(),
-                "line": 1,
-                "message": with_fix(js::to_string(text), f),
-                "source": tool::TASTE_COPY_LINT,
+                (finding::LEVEL): if sev == Some("FAIL") { Level::Warn } else { Level::Info }.as_str(),
+                (finding::RULE): format!("taste-{}", js::to_string(f.get(output::ID))),
+                (finding::FILE): files.get(i).map(|f| f.as_str()).unwrap_or_default(),
+                (finding::LINE): 1,
+                (finding::MESSAGE): with_fix(js::to_string(text), f),
+                (finding::SOURCE): tool::TASTE_COPY_LINT,
             }));
         }
     }
@@ -624,7 +659,7 @@ fn remap(mut res: Value, composed: &[(String, String)]) -> Value {
     let list = res.get_mut(field::FINDINGS).and_then(Value::as_array_mut);
     for f in list.into_iter().flatten() {
         let k = to_posix(
-            &f.get("file")
+            &f.get(finding::FILE)
                 .filter(|v| js::truthy(v))
                 .map(|v| js::to_string(Some(v)))
                 .unwrap_or_default(),
@@ -635,7 +670,7 @@ fn remap(mut res: Value, composed: &[(String, String)]) -> Value {
             .filter(|i| !k[..*i].contains(['\n', '\r', '\u{2028}', '\u{2029}']));
         let hit = source_of(&k).or_else(|| tail.and_then(|i| source_of(&k[i..])));
         if let (Some(hit), Value::Object(map)) = (hit, f) {
-            map.insert("file".into(), json!(hit));
+            map.insert(finding::FILE.into(), json!(hit));
         }
     }
     res
@@ -661,10 +696,10 @@ pub fn run_checks_with(
     lookup: &Lookup,
 ) -> Result<Vec<Value>, DfwError> {
     let p = project_paths(root);
-    let checks = config.get("checks");
+    let checks = config.get(config_key::CHECKS);
     let setting = |key: &str| checks.and_then(|c| c.get(key));
     let env = env_map(config);
-    let configured = setting("timeoutMs")
+    let configured = setting(config_key::TIMEOUT_MS)
         .and_then(Value::as_f64)
         .filter(|n| *n >= 1.0)
         .map(|n| n as u64);
@@ -748,7 +783,7 @@ pub fn run_checks_with(
     if want(tool::SLOPLINT) && setting(tool::SLOPLINT) != Some(&Value::Bool(false)) {
         results.push(remap(run_sloplint(root, &tool_targets, run_opts, lookup)?));
     }
-    if want("taste") && setting("tasteCopyLint").is_some_and(js::truthy) {
+    if want("taste") && setting(config_key::TASTE_COPY_LINT).is_some_and(js::truthy) {
         results.push(remap(run_taste_copy_lint(
             root,
             &tool_targets,

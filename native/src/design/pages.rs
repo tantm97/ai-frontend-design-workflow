@@ -37,13 +37,24 @@ pub(crate) mod page {
     pub const EXPLORATIONS: &str = "explorations";
 }
 
+/// The keys of a canvas page and of a link between screens that `design.json` does not have
+/// (the others are [`key`]).
+pub(crate) mod field {
+    /// `true` on the Design System page.
+    pub const SYSTEM: &str = "system";
+    /// `true` on the Flow page.
+    pub const FLOW: &str = "flow";
+    /// The text of the control a link between screens starts from.
+    pub const LABEL: &str = "label";
+}
+
 fn screens_of(manifest: &Value) -> Vec<&Value> {
     manifest
         .get(key::SCREENS)
         .and_then(Value::as_array)
         .map(|list| {
             list.iter()
-                .filter(|s| !js::truthy(s.get("archived")))
+                .filter(|s| !js::truthy(s.get(key::ARCHIVED)))
                 .collect()
         })
         .unwrap_or_default()
@@ -58,7 +69,7 @@ fn variants_of(screen: &Value) -> &[Value] {
 }
 
 fn id_of(screen: &Value) -> Value {
-    screen.get("id").cloned().unwrap_or(Value::Null)
+    screen.get(key::ID).cloned().unwrap_or(Value::Null)
 }
 
 /// The text of a link with tags turned into spaces, spaces collapsed, at most 40 UTF-16 units.
@@ -134,7 +145,7 @@ pub fn screen_flows(manifest: &Value, files: &HashMap<String, String>) -> Vec<Va
     let mut by_file: HashMap<String, Value> = HashMap::new();
     for s in &screens {
         for v in variants_of(s) {
-            by_file.insert(js::to_string(v.get("file")), id_of(s));
+            by_file.insert(js::to_string(v.get(key::FILE)), id_of(s));
         }
     }
     let ids: Vec<Value> = screens.iter().map(|s| id_of(s)).collect();
@@ -142,7 +153,7 @@ pub fn screen_flows(manifest: &Value, files: &HashMap<String, String>) -> Vec<Va
     for s in &screens {
         let sid = id_of(s);
         for v in variants_of(s) {
-            let Some(file) = v.get("file").and_then(Value::as_str) else {
+            let Some(file) = v.get(key::FILE).and_then(Value::as_str) else {
                 continue;
             };
             let Some(html) = files.get(file).filter(|h| !h.is_empty()) else {
@@ -176,7 +187,7 @@ pub fn screen_flows(manifest: &Value, files: &HashMap<String, String>) -> Vec<Va
                 if !edges.iter().any(|(k, _)| *k == key) {
                     edges.push((
                         key,
-                        json!({ "from": sid, "to": to, "label": link_label(inner) }),
+                        json!({ (key::FROM): sid, (key::TO): to, (field::LABEL): link_label(inner) }),
                     ));
                 }
             }
@@ -201,7 +212,11 @@ struct Pages<'a> {
 impl Pages<'_> {
     /// The index of the page `id`, made (with `title`, else the id) when there is none yet.
     fn ensure(&mut self, id: &Value, title: Option<&Value>) -> usize {
-        if let Some(i) = self.pages.iter().position(|p| p.map.get("id") == Some(id)) {
+        if let Some(i) = self
+            .pages
+            .iter()
+            .position(|p| p.map.get(key::ID) == Some(id))
+        {
             return i;
         }
         let title = title
@@ -209,7 +224,7 @@ impl Pages<'_> {
             .cloned()
             .unwrap_or_else(|| id.clone());
         let mut map = Map::new();
-        map.insert("id".into(), id.clone());
+        map.insert(key::ID.into(), id.clone());
         map.insert(key::TITLE.into(), title);
         map.insert(key::SCREENS.into(), Value::Null);
         self.pages.push(Page {
@@ -255,12 +270,12 @@ fn place_declared_pages(manifest: &Value, pages: &mut Pages<'_>) -> Map<String, 
         .cloned()
         .unwrap_or_default();
     for p in &declared {
-        if !js::truthy(Some(p)) || !js::truthy(p.get("id")) {
+        if !js::truthy(Some(p)) || !js::truthy(p.get(key::ID)) {
             continue;
         }
-        let pid = p.get("id").cloned().unwrap_or(Value::Null);
+        let pid = p.get(key::ID).cloned().unwrap_or(Value::Null);
         if pid == json!(page::SYSTEM) {
-            for key in ["description", "notes"] {
+            for key in [key::DESCRIPTION, key::NOTES] {
                 if let Some(v) = p.get(key) {
                     system_extra.insert(key.into(), v.clone());
                 }
@@ -292,7 +307,7 @@ fn place_declared_pages(manifest: &Value, pages: &mut Pages<'_>) -> Map<String, 
 fn place_by_screen_page(screens: &[&Value], pages: &mut Pages<'_>) {
     for s in screens {
         if let Some(page_id) = s
-            .get("page")
+            .get(key::PAGE)
             .filter(|p| js::truthy(Some(p)) && **p != json!(page::SYSTEM))
         {
             let page = pages.ensure(page_id, Some(page_id));
@@ -305,7 +320,7 @@ fn place_by_screen_page(screens: &[&Value], pages: &mut Pages<'_>) {
 /// empty "Screens" page when there would be no page at all.
 fn place_unassigned(screens: &[&Value], pages: &mut Pages<'_>) {
     let starts_with_underscore = |s: &Value| {
-        s.get("id")
+        s.get(key::ID)
             .and_then(Value::as_str)
             .is_some_and(|id| id.starts_with('_'))
     };
@@ -343,7 +358,7 @@ fn place_unassigned(screens: &[&Value], pages: &mut Pages<'_>) {
 fn flow_screens(manifest: &Value, by_id: &[Value]) -> Vec<Value> {
     let mut flow_screens: Vec<Value> = Vec::new();
     for e in manifest::items(manifest.get(key::FLOWS)).iter() {
-        for key in ["from", "to"] {
+        for key in [key::FROM, key::TO] {
             let id = e.get(key).cloned().unwrap_or(Value::Null);
             if !flow_screens.contains(&id) {
                 flow_screens.push(id);
@@ -363,7 +378,7 @@ fn page_list(
     let mut system = Map::new();
     system.insert(key::ID.into(), json!(page::SYSTEM));
     system.insert(key::TITLE.into(), json!("Design System"));
-    system.insert("system".into(), json!(true));
+    system.insert(field::SYSTEM.into(), json!(true));
     system.insert(key::SCREENS.into(), json!([]));
     for (k, v) in system_extra {
         system.insert(k, v);
@@ -371,11 +386,11 @@ fn page_list(
     let mut out = vec![Value::Object(system)];
     if !flow_screens.is_empty() {
         out.push(json!({
-            "id": page::FLOW,
-            "title": "Flow",
-            "flow": true,
-            "description": "How screens link to each other (buttons and links with data-dfw-goto or href). Arrows carry the control text.",
-            "screens": flow_screens,
+            (key::ID): page::FLOW,
+            (key::TITLE): "Flow",
+            (field::FLOW): true,
+            (key::DESCRIPTION): "How screens link to each other (buttons and links with data-dfw-goto or href). Arrows carry the control text.",
+            (key::SCREENS): flow_screens,
         }));
     }
     for Page { mut map, screens } in pages {

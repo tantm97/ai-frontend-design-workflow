@@ -14,6 +14,13 @@ use crate::core::paths::{in_design, project_paths, resolve, ProjectPaths};
 use crate::core::util::{read_json, sha256, write_json_inside};
 use crate::design::manifest::Manifest;
 
+/// The keys of `.dfw/layout-cache.json` that are not built from a file name (those are
+/// `c:<master>`, `f:<shared file>` and `s:<screen file>`).
+mod key {
+    /// The hash of `design/tokens/tokens.json`.
+    pub const TOKENS: &str = "t:tokens";
+}
+
 /// Files every screen loads besides the tokens.
 const SHARED: [&str; 2] = [in_design::BASE_CSS, in_design::HEAD];
 
@@ -94,7 +101,7 @@ pub fn changed_screens(root: &Path) -> Result<Changed, DfwError> {
         }
     }
     // tokens_changed also covers the other files every screen loads (base styles, shared head).
-    let tokens_changed = differs(&hash_of(&p.tokens_json), cache.get("t:tokens"))
+    let tokens_changed = differs(&hash_of(&p.tokens_json), cache.get(key::TOKENS))
         || SHARED.iter().any(|f| {
             let cached = js::present(cache.get(format!("f:{f}"))).unwrap_or(&Value::Null);
             differs(&hash_of(&p.design.join(f)), Some(cached))
@@ -131,7 +138,7 @@ pub fn mark_checked(root: &Path) -> Result<(), DfwError> {
     for f in dir_names(comp_dir)? {
         cache.insert(format!("c:{f}"), value(hash_of(&comp_dir.join(&f))));
     }
-    cache.insert("t:tokens".into(), value(hash_of(&p.tokens_json)));
+    cache.insert(key::TOKENS.into(), value(hash_of(&p.tokens_json)));
     for f in SHARED {
         cache.insert(format!("f:{f}"), value(hash_of(&p.design.join(f))));
     }

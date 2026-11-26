@@ -32,10 +32,10 @@ use super::tokens::relative_path;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::js::regex::{blank_css_comments, js_re, js_regex};
-use crate::core::level::Level;
+use crate::core::level::{finding, Level};
 use crate::core::paths::{self, project_paths, resolve, to_posix};
 use crate::core::util::{list_files, read_json};
-use crate::design::manifest::Manifest;
+use crate::design::manifest::{key as manifest_key, Manifest};
 
 /// The rule ids of the findings a test names, as the lint reports them.
 pub(crate) mod rule {
@@ -90,7 +90,7 @@ type Add<'a> = dyn FnMut(&'static str, &'static str, Option<usize>, String) + 'a
 
 /// A finding of dfw's own lint, with the keys in the order the Node code wrote them.
 fn finding(level: &str, rule: &str, file: &str, line: usize, message: String) -> Value {
-    json!({ "level": level, "rule": rule, "file": file, "line": line, "message": message, "source": "dfw" })
+    json!({ (finding::LEVEL): level, (finding::RULE): rule, (finding::FILE): file, (finding::LINE): line, (finding::MESSAGE): message, (finding::SOURCE): "dfw" })
 }
 
 js_re!(STYLE_BLOCK, r"<style[^>]*>([\s\S]*?)<\/style>", "i");
@@ -534,8 +534,8 @@ pub fn state_coverage(root: &Path, rel: &str, text: &str) -> Result<Vec<Value>, 
         let undesigned: Vec<&String> = names.iter().filter(|s| !designed.contains(s)).collect();
         (!undesigned.is_empty()).then(|| {
             let list: Vec<&str> = undesigned.iter().map(|s| s.as_str()).collect();
-            let message = format!("Screen \"{}\" shows state {} but nothing in it changes for {}: the Studio does not draw those frames (they would repeat the default screen). Design each one (a .when-<state> block, e.g. a skeleton for loading, a message with an action for empty, what went wrong and how to recover for error), or remove it from the screen's \"states\" (a screen without its own \"states\" inherits the ones at the top of design.json).", js::to_string(screen.get("id")), list.join("/"), if list.len() > 1 { "them" } else { "it" });
-            json!({ "level": Level::Warn.as_str(), "rule": "state-undesigned", "file": rel, "line": 1, "source": "dfw", "message": message })
+            let message = format!("Screen \"{}\" shows state {} but nothing in it changes for {}: the Studio does not draw those frames (they would repeat the default screen). Design each one (a .when-<state> block, e.g. a skeleton for loading, a message with an action for empty, what went wrong and how to recover for error), or remove it from the screen's \"states\" (a screen without its own \"states\" inherits the ones at the top of design.json).", js::to_string(screen.get(manifest_key::ID)), list.join("/"), if list.len() > 1 { "them" } else { "it" });
+            json!({ (finding::LEVEL): Level::Warn.as_str(), (finding::RULE): "state-undesigned", (finding::FILE): rel, (finding::LINE): 1, (finding::SOURCE): "dfw", (finding::MESSAGE): message })
         })
     };
     let (data, form) = (DATA_SURFACE.is_match(text), FORM.is_match(text));
@@ -553,9 +553,9 @@ pub fn state_coverage(root: &Path, rel: &str, text: &str) -> Result<Vec<Value>, 
         return Ok(undesigned_finding.into_iter().collect());
     }
     let what = if data { "a data surface" } else { "a form" };
-    let message = format!("Screen \"{}\" has {what} but no {} state. Add them to its \"states\" in design.json and design each (.when-<state> blocks): empty needs a headline, explanation and primary action; error says what happened and how to recover, keeping user input. Also check edge content (very long text, missing optional fields, large counts).", js::to_string(screen.get("id")), missing.join("/"));
+    let message = format!("Screen \"{}\" has {what} but no {} state. Add them to its \"states\" in design.json and design each (.when-<state> blocks): empty needs a headline, explanation and primary action; error says what happened and how to recover, keeping user input. Also check edge content (very long text, missing optional fields, large counts).", js::to_string(screen.get(manifest_key::ID)), missing.join("/"));
     let mut out = vec![
-        json!({ "level": Level::Warn.as_str(), "rule": "state-coverage", "file": rel, "line": 1, "source": "dfw", "message": message }),
+        json!({ (finding::LEVEL): Level::Warn.as_str(), (finding::RULE): "state-coverage", (finding::FILE): rel, (finding::LINE): 1, (finding::SOURCE): "dfw", (finding::MESSAGE): message }),
     ];
     out.extend(undesigned_finding);
     Ok(out)

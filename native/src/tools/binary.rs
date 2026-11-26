@@ -127,8 +127,18 @@ fn install_binary_from(base: &str, version: &str, log: &dyn Fn(&str)) -> Result<
     }
     fs::rename(&tmp, &dest)?;
     Ok(
-        json!({ "installed": true, "path": dest.display().to_string(), "version": version, "sha256": got }),
+        json!({ (key::INSTALLED): true, (key::PATH): dest.display().to_string(), (key::VERSION): version, (key::SHA256): got }),
     )
+}
+
+/// The keys of what [`install_binary`] returns (`dfw setup --binary` prints it).
+pub mod key {
+    pub const INSTALLED: &str = "installed";
+    /// Where the binary was put.
+    pub const PATH: &str = "path";
+    pub const VERSION: &str = "version";
+    /// The SHA-256 of the binary, as checked against the release's `SHA256SUMS`.
+    pub const SHA256: &str = "sha256";
 }
 
 /// What the binary installer says.

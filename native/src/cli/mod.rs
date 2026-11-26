@@ -23,6 +23,16 @@ use crate::core::platform::dfw_version;
 use crate::core::util::{out, Args};
 use word::{command, sub};
 
+/// The flags by the key the commands read them with: the name without its dashes.
+pub(crate) mod flag_key {
+    pub const HOST: &str = "host";
+    pub const GLOBAL: &str = "global";
+    pub const JSON: &str = "json";
+    pub const STRICT: &str = "strict";
+    pub const ACCENT: &str = "accent";
+    pub const SIGNATURE: &str = "signature";
+}
+
 /// What a command handler receives.
 pub struct Ctx {
     /// The arguments as typed, without the program name.
@@ -158,7 +168,7 @@ fn strict_form(args: &Args) -> Option<(&'static [&'static str], usize)> {
         (command::TELEMETRY, Some(sub::ENDPOINT)) => (&[], 2),
         (command::TELEMETRY, Some(sub::SHOW)) => (&["raw"], 1),
         (command::TELEMETRY, Some(_)) => (&[], 1),
-        (command::CONFIG, _) if args.get("global").is_some() => {
+        (command::CONFIG, _) if args.get(flag_key::GLOBAL).is_some() => {
             (&["global", "project", "local", "root"], 3)
         }
         _ => return None,

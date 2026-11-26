@@ -87,3 +87,44 @@ pub mod reply {
     /// The value of [`DECISION`] that keeps the agent from stopping.
     pub const BLOCK: &str = "block";
 }
+
+/// The keys of a hook payload: each field by the name Claude Code (and Copilot's PascalCase
+/// format) gives it, then by the name of Copilot's camelCase format. `core::host` reads either
+/// and writes the first.
+pub mod input {
+    /// The hook event ([`super::event`]).
+    pub const HOOK_EVENT_NAME: &str = "hook_event_name";
+    pub const HOOK_EVENT_NAME_CAMEL: &str = "hookEventName";
+    pub const SESSION_ID: &str = "session_id";
+    pub const SESSION_ID_CAMEL: &str = "sessionId";
+    /// The project folder the host runs in.
+    pub const CWD: &str = "cwd";
+    pub const TOOL_NAME: &str = "tool_name";
+    pub const TOOL_NAME_CAMEL: &str = "toolName";
+    /// The arguments of the tool call (an object, or JSON text in the camelCase format).
+    pub const TOOL_INPUT: &str = "tool_input";
+    pub const TOOL_ARGS: &str = "toolArgs";
+    /// Whether the agent is already stopping because a Stop hook held it back once.
+    pub const STOP_HOOK_ACTIVE: &str = "stop_hook_active";
+    pub const STOP_HOOK_ACTIVE_CAMEL: &str = "stopHookActive";
+    /// The text the user submitted (UserPromptSubmit).
+    pub const PROMPT: &str = "prompt";
+    /// The event of the normalized payload (dfw's own key).
+    pub const EVENT: &str = "event";
+    /// Tool arguments that were text but not JSON (a raw apply_patch body), as dfw wraps them.
+    pub const RAW_INPUT: &str = "input";
+    /// The list of replacements of a MultiEdit call, inside [`TOOL_INPUT`].
+    pub const EDITS: &str = "edits";
+    /// The text an Edit call (or one of [`EDITS`]) replaces.
+    pub const OLD_STRING: &str = "old_string";
+}
+
+/// The keys of the neutral result of a hook handler: `{ context }`, `{ deny }` or `{ block }`.
+pub mod result {
+    /// Text added to the model's context.
+    pub const CONTEXT: &str = "context";
+    /// The reason a tool call is refused.
+    pub const DENY: &str = "deny";
+    /// The reason the agent may not stop yet.
+    pub const BLOCK: &str = "block";
+}

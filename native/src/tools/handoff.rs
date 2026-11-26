@@ -7,6 +7,7 @@ use std::path::Path;
 use regex::Regex;
 use serde_json::{json, Value};
 
+use crate::core::config::key::breakpoint;
 use crate::core::config::load_config;
 use crate::core::error::DfwError;
 use crate::core::js;
@@ -104,27 +105,27 @@ fn screen_rows(m: &Value, version: &str) -> Result<Vec<String>, DfwError> {
                 DfwError::new(format!(
                     "{}: screen \"{}\" has no \"variants\" list. The snapshot is frozen: run \"dfw verify-snapshot {version}\", and if it was edited restore it from version control.",
                     rel::join(&rel::approved(version), file::MANIFEST),
-                    js::to_string(s.get("id"))
+                    js::to_string(s.get(key::ID))
                 ))
             })?;
         // `v.id === s.approvedVariant` also holds when both are missing.
         let chosen = variants
             .iter()
-            .find(|v| v.get("id") == s.get("approvedVariant"))
+            .find(|v| v.get(key::ID) == s.get(key::APPROVED_VARIANT))
             .or_else(|| {
                 variants
                     .iter()
-                    .find(|v| js::truthy_value(v.get("recommended")).is_some())
+                    .find(|v| js::truthy_value(v.get(key::RECOMMENDED)).is_some())
             })
             .or_else(|| variants.first());
         screens.push(format!(
             "| `{}` | {} | `{}` (`{}/{}`) | {} |",
-            js::to_string(s.get("id")),
-            text_or(s.get("title"), ""),
-            js::to_string(chosen.and_then(|c| c.get("id"))),
+            js::to_string(s.get(key::ID)),
+            text_or(s.get(key::TITLE), ""),
+            js::to_string(chosen.and_then(|c| c.get(key::ID))),
             rel::approved(version),
-            js::to_string(chosen.and_then(|c| c.get("file"))),
-            text_or(s.get("route"), "TBD"),
+            js::to_string(chosen.and_then(|c| c.get(key::FILE))),
+            text_or(s.get(key::ROUTE), "TBD"),
         ));
     }
     Ok(screens)
@@ -235,8 +236,8 @@ pub fn write_handoff(root: &Path) -> Result<String, DfwError> {
         .map(|b| {
             format!(
                 "{} {}px",
-                js::to_string(b.get("id")),
-                js::to_string(b.get("width"))
+                js::to_string(b.get(breakpoint::ID)),
+                js::to_string(b.get(breakpoint::WIDTH))
             )
         })
         .collect();
@@ -259,9 +260,13 @@ pub fn write_handoff(root: &Path) -> Result<String, DfwError> {
         .map(|c| {
             format!(
                 "- {}: {} -> {}",
-                js::to_string(c.get("id")),
-                js::to_string(c.get("comment")),
-                text_or(c.get("resolution").and_then(|r| r.get("note")), "")
+                js::to_string(c.get(comment::ID)),
+                js::to_string(c.get(comment::COMMENT)),
+                text_or(
+                    c.get(comment::RESOLUTION)
+                        .and_then(|r| r.get(comment::NOTE)),
+                    ""
+                )
             )
         })
         .collect();

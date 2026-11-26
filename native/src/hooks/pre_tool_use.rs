@@ -12,10 +12,13 @@ use crate::core::error::DfwError;
 use crate::core::host::{HookInput, HookResult};
 use crate::core::js;
 use crate::core::paths::{env_nonempty, file, find_project_root, project_paths, rel, resolve};
+use crate::core::presence::key as presence;
 use crate::core::util::{now_iso, write_json_inside};
 use crate::design::html::{Attr, Quote, Token, Tokenizer};
 use crate::workflow::gates::{decide_write, files_from_tool_input, relative};
 use crate::workflow::state::{field, load_state};
+
+use crate::core::host::input as payload;
 
 /// An element id as the regular expression of Node found it
 /// (`(?:data-dfw-id|<dfw-use\b[^>]*?\bid)=(?:"([^"']+)"|'([^"']+)')`): where that match
@@ -76,7 +79,7 @@ fn element_ids(src: &str) -> Vec<IdAt> {
 /// The session's working directory from the payload, else the process's. A `cwd` that is not
 /// text is an error (the hook fails open with it on stderr).
 fn session_cwd(input: &HookInput) -> Result<PathBuf, DfwError> {
-    match js::truthy_value(input.raw.get("cwd")) {
+    match js::truthy_value(input.raw.get(payload::CWD)) {
         Some(Value::String(cwd)) => Ok(PathBuf::from(cwd)),
         Some(other) => Err(DfwError::new(format!(
             "the host sent a \"cwd\" that is not a path ({}); the write gate could not check this call. Update the host CLI or report it to the dfw maintainers.",
@@ -132,9 +135,6 @@ pub fn pre_tool_use(input: &HookInput) -> Result<Option<HookResult>, DfwError> {
     Ok(None)
 }
 
-/// The key of the presence note that names the element (`data-dfw-id`).
-pub(crate) const DFW_ID: &str = "dfwId";
-
 /// `notePresence(root, input, absFile)`: tell the Studio what the agent is about to edit
 /// (`.dfw/presence.json`), so it can show a cursor on that element before the change lands.
 /// Only for design files; the element is the `data-dfw-id` inside the text being replaced, or
@@ -151,10 +151,10 @@ pub fn note_presence(
         return Ok(None);
     }
     let first_edit = tool_input
-        .get("edits")
+        .get(payload::EDITS)
         .and_then(|e| e.get(0))
-        .and_then(|e| e.get("old_string"));
-    let old = js::truthy_value(tool_input.get("old_string"))
+        .and_then(|e| e.get(payload::OLD_STRING));
+    let old = js::truthy_value(tool_input.get(payload::OLD_STRING))
         .or(js::truthy_value(first_edit))
         .map(|o| js::to_string(Some(o)))
         .unwrap_or_default();
@@ -171,7 +171,8 @@ pub fn note_presence(
                 .map(|m| m.id.clone());
         }
     }
-    let note = json!({ "file": rel, DFW_ID: dfw_id, "at": now_iso() });
+    let note =
+        json!({ (presence::FILE): rel, (presence::DFW_ID): dfw_id, (presence::AT): now_iso() });
     write_json_inside(root, &p.presence, &note)?;
     Ok(Some(note))
 }
@@ -196,21 +197,25 @@ mod tests {
         const TITLE: &str = "demo.title";
         let title = at("<h1 data-dfw-id=\"demo.title\">Hello</h1>");
         assert_eq!(title["file"], "screens/demo/a.html");
-        assert_eq!(title[DFW_ID], TITLE);
+        assert_eq!(title[presence::DFW_ID], TITLE);
         assert_eq!(
-            at("Plain line")[DFW_ID],
+            at("Plain line")[presence::DFW_ID],
             TITLE,
             "nearest id before the text"
         );
-        assert_eq!(at("After")[DFW_ID], "demo.cta", "an instance id counts");
-        assert_eq!(at("not in the file")[DFW_ID], Value::Null);
         assert_eq!(
-            note(json!({ "edits": [{ "old_string": "Hello" }] }), &file).unwrap()[DFW_ID],
+            at("After")[presence::DFW_ID],
+            "demo.cta",
+            "an instance id counts"
+        );
+        assert_eq!(at("not in the file")[presence::DFW_ID], Value::Null);
+        assert_eq!(
+            note(json!({ "edits": [{ "old_string": "Hello" }] }), &file).unwrap()[presence::DFW_ID],
             TITLE,
             "MultiEdit: the first edit"
         );
         assert_eq!(
-            note(json!({}), &file).unwrap()[DFW_ID],
+            note(json!({}), &file).unwrap()[presence::DFW_ID],
             Value::Null,
             "Write: the file only"
         );
@@ -241,7 +246,7 @@ mod tests {
         let at = |old: &str| {
             note_presence(&root, &json!({ "old_string": old }), &file)
                 .unwrap()
-                .unwrap()[DFW_ID]
+                .unwrap()[presence::DFW_ID]
                 .clone()
         };
         const HERO: &str = "hero";

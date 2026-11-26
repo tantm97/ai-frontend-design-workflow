@@ -63,6 +63,87 @@ mod fulfill {
     pub const RESPONSE_CODE: &str = "responseCode";
     pub const BODY: &str = "body";
 }
+/// The keys of the protocol messages, commands and replies dfw sends and reads, as the DevTools
+/// protocol names them.
+pub mod key {
+    /* ------------------------------------------------------------------- the envelope */
+
+    /// The number of a command; its reply carries the same.
+    pub const ID: &str = "id";
+    pub const PARAMS: &str = "params";
+    /// The flattened session a command or an event belongs to.
+    pub const SESSION_ID: &str = "sessionId";
+    /// The reply of a command that worked.
+    pub const RESULT: &str = "result";
+    /// The reply of a command that failed: `{ message }`.
+    pub const ERROR: &str = "error";
+    pub const MESSAGE: &str = "message";
+
+    /* ----------------------------------------------------------------------- targets */
+
+    pub const BROWSER_CONTEXT_ID: &str = "browserContextId";
+    pub const DISPOSE_ON_DETACH: &str = "disposeOnDetach";
+    pub const TARGET_ID: &str = "targetId";
+    pub const FLATTEN: &str = "flatten";
+    /// The URL a target opens, a page navigates to or a paused request asked for.
+    pub const URL: &str = "url";
+
+    /* ------------------------------------------------------------------------- pages */
+
+    /// `Page.navigate`'s reply when the page could not be opened.
+    pub const ERROR_TEXT: &str = "errorText";
+    pub const WIDTH: &str = "width";
+    pub const HEIGHT: &str = "height";
+    pub const DEVICE_SCALE_FACTOR: &str = "deviceScaleFactor";
+    pub const MOBILE: &str = "mobile";
+    /// The two sizes of `Page.getLayoutMetrics`, the first one preferred.
+    pub const CSS_CONTENT_SIZE: &str = "cssContentSize";
+    pub const CONTENT_SIZE: &str = "contentSize";
+    /// `Page.captureScreenshot`: `{ format, clip?, captureBeyondViewport? }`, the image in `data`.
+    pub const FORMAT: &str = "format";
+    pub const CLIP: &str = "clip";
+    pub const CAPTURE_BEYOND_VIEWPORT: &str = "captureBeyondViewport";
+    pub const DATA: &str = "data";
+    /// The rectangle of a clip: `{ x, y, width, height, scale }`.
+    pub const X: &str = "x";
+    pub const Y: &str = "y";
+    pub const SCALE: &str = "scale";
+
+    /* ----------------------------------------------------------------------- runtime */
+
+    pub const EXPRESSION: &str = "expression";
+    pub const AWAIT_PROMISE: &str = "awaitPromise";
+    pub const RETURN_BY_VALUE: &str = "returnByValue";
+    pub const USER_GESTURE: &str = "userGesture";
+    /// A thrown exception: `{ exception: { description }, text }`.
+    pub const EXCEPTION_DETAILS: &str = "exceptionDetails";
+    pub const EXCEPTION: &str = "exception";
+    pub const DESCRIPTION: &str = "description";
+    pub const TEXT: &str = "text";
+    /// The value of `result` with `returnByValue`; also the value of a response header.
+    pub const VALUE: &str = "value";
+
+    /* ------------------------------------------------------------------------- fetch */
+
+    /// `Fetch.enable`: `{ patterns: [{ urlPattern }] }`.
+    pub const PATTERNS: &str = "patterns";
+    pub const URL_PATTERN: &str = "urlPattern";
+    pub const REQUEST_ID: &str = "requestId";
+    /// The paused request: `{ url, headers }`.
+    pub const REQUEST: &str = "request";
+    pub const HEADERS: &str = "headers";
+    pub const ERROR_REASON: &str = "errorReason";
+    /// The headers of a fulfilled request: `[{ name, value }]`.
+    pub const RESPONSE_HEADERS: &str = "responseHeaders";
+    pub const NAME: &str = "name";
+}
+
+/// The record of a cached font next to its bytes (`<sha1>.json`).
+mod font_meta {
+    pub const URL: &str = "url";
+    pub const CONTENT_TYPE: &str = "contentType";
+}
+
 /// The response header that says what a fulfilled font is.
 const CONTENT_TYPE: &str = "Content-Type";
 
@@ -111,25 +192,28 @@ impl Shared {
         let Ok(m) = serde_json::from_str::<Value>(raw) else {
             return;
         };
-        if let Some(id) = m.get("id").filter(|id| !id.is_null()) {
+        if let Some(id) = m.get(key::ID).filter(|id| !id.is_null()) {
             let id = id.as_u64().unwrap_or_default();
             let Some(p) = lock(&self.pending).remove(&id) else {
                 return;
             };
-            let result = match m.get("error").filter(|e| !e.is_null()) {
+            let result = match m.get(key::ERROR).filter(|e| !e.is_null()) {
                 Some(e) => {
-                    let msg = e.get("message").and_then(Value::as_str).unwrap_or_default();
+                    let msg = e
+                        .get(key::MESSAGE)
+                        .and_then(Value::as_str)
+                        .unwrap_or_default();
                     Err(format!("{}: {msg}", p.method))
                 }
-                None => Ok(object_or_empty(m.get("result"))),
+                None => Ok(object_or_empty(m.get(key::RESULT))),
             };
             // The caller may have given up (timeout): nobody to tell.
             let _ = p.tx.send(Incoming::Reply { id, result });
             return;
         }
-        let session = m.get("sessionId").and_then(Value::as_str).unwrap_or("");
+        let session = m.get(key::SESSION_ID).and_then(Value::as_str).unwrap_or("");
         let method = m.get(METHOD).and_then(Value::as_str).unwrap_or("");
-        let params = object_or_empty(m.get("params"));
+        let params = object_or_empty(m.get(key::PARAMS));
         // A listener whose receiver is gone is removed on the way.
         lock(&self.listeners).retain(|l| {
             l.session != session
@@ -337,11 +421,11 @@ impl Connection {
         }
         let id = self.seq.fetch_add(1, Ordering::SeqCst) + 1;
         let mut message = Map::new();
-        message.insert("id".into(), json!(id));
+        message.insert(key::ID.into(), json!(id));
         message.insert(METHOD.into(), json!(method));
-        message.insert("params".into(), params);
+        message.insert(key::PARAMS.into(), params);
         if let Some(session) = session.filter(|s| !s.is_empty()) {
-            message.insert("sessionId".into(), json!(session));
+            message.insert(key::SESSION_ID.into(), json!(session));
         }
         lock(&self.shared.pending).insert(
             id,
@@ -458,12 +542,12 @@ fn font_cache_dir() -> PathBuf {
 
 /// `serveFont`: answer one paused font request from the disk cache, filling it on a miss.
 fn serve_font(conn: &Connection, session: &str, dir: &Path, params: &Value) {
-    let request_id = params.get("requestId").cloned().unwrap_or(Value::Null);
-    if cached_or_fetched(conn, session, dir, &request_id, params.get("request")).is_err() {
+    let request_id = params.get(key::REQUEST_ID).cloned().unwrap_or(Value::Null);
+    if cached_or_fetched(conn, session, dir, &request_id, params.get(key::REQUEST)).is_err() {
         // Offline or blocked: the page falls back to its system font stack.
         let _ = conn.send(
             method::FETCH_FAIL_REQUEST,
-            json!({ "requestId": request_id, "errorReason": "InternetDisconnected" }),
+            json!({ (key::REQUEST_ID): request_id, (key::ERROR_REASON): "InternetDisconnected" }),
             Some(session),
         );
     }
@@ -477,7 +561,7 @@ fn cached_or_fetched(
     request: Option<&Value>,
 ) -> Result<(), DfwError> {
     let url = request
-        .and_then(|r| r.get("url"))
+        .and_then(|r| r.get(key::URL))
         .and_then(Value::as_str)
         .ok_or_else(|| DfwError::internal("font request without a url"))?;
     let key = sha1_hex(url.as_bytes());
@@ -487,12 +571,12 @@ fn cached_or_fetched(
         conn.send(
             method::FETCH_FULFILL_REQUEST,
             json!({
-                "requestId": request_id,
+                (key::REQUEST_ID): request_id,
                 (fulfill::RESPONSE_CODE): 200,
-                "responseHeaders": [
-                    { "name": CONTENT_TYPE, "value": content_type },
-                    { "name": "Access-Control-Allow-Origin", "value": "*" },
-                    { "name": "Cache-Control", "value": "public, max-age=31536000" },
+                (key::RESPONSE_HEADERS): [
+                    { (key::NAME): CONTENT_TYPE, (key::VALUE): content_type },
+                    { (key::NAME): "Access-Control-Allow-Origin", (key::VALUE): "*" },
+                    { (key::NAME): "Cache-Control", (key::VALUE): "public, max-age=31536000" },
                 ],
                 (fulfill::BODY): base64_encode(buf),
             }),
@@ -503,14 +587,14 @@ fn cached_or_fetched(
     if body.exists() && meta.exists() {
         let info: Value = serde_json::from_str(&fs::read_to_string(&meta)?)?;
         let content_type = info
-            .get("contentType")
+            .get(font_meta::CONTENT_TYPE)
             .and_then(Value::as_str)
             .unwrap_or_default();
         return fulfill(&fs::read(&body)?, content_type);
     }
     // Same headers as the browser (Google Fonts picks the font format from the User-Agent).
     let headers = request
-        .and_then(|r| r.get("headers"))
+        .and_then(|r| r.get(key::HEADERS))
         .and_then(Value::as_object);
     let skip = ["host", "connection", "content-length", "accept-encoding"];
     let forwarded: Vec<(&str, &str)> = headers
@@ -532,7 +616,9 @@ fn cached_or_fetched(
         crate::core::util::write_atomic(&body, &buf)?;
         crate::core::util::write_atomic(
             &meta,
-            to_json_compact(&json!({ "url": url, "contentType": content_type })),
+            to_json_compact(
+                &json!({ (font_meta::URL): url, (font_meta::CONTENT_TYPE): content_type }),
+            ),
         )?;
     }
     // As in Node, a failed upstream answer is still handed to the page as a 200.
@@ -613,7 +699,7 @@ impl Page {
         self.height = height;
         self.send(
             method::EMULATION_SET_DEVICE_METRICS_OVERRIDE,
-            json!({ "width": width, "height": height, "deviceScaleFactor": self.scale, "mobile": false }),
+            json!({ (key::WIDTH): width, (key::HEIGHT): height, (key::DEVICE_SCALE_FACTOR): self.scale, (key::MOBILE): false }),
         )?;
         Ok(())
     }
@@ -627,7 +713,7 @@ impl Page {
         let _events = self.conn.listen(&self.session_id, tx.clone());
         let id = self.conn.post(
             method::PAGE_NAVIGATE,
-            json!({ "url": url }),
+            json!({ (key::URL): url }),
             Some(&self.session_id),
             tx,
         )?;
@@ -647,7 +733,7 @@ impl Page {
                 }
                 Ok(Incoming::Reply { id: got, result }) if got == id => {
                     let r = result.map_err(DfwError::internal)?;
-                    let error = r.get("errorText").and_then(Value::as_str).unwrap_or("");
+                    let error = r.get(key::ERROR_TEXT).and_then(Value::as_str).unwrap_or("");
                     if !error.is_empty() {
                         return Err(DfwError::internal(format!("cannot open {url}: {error}")));
                     }
@@ -676,21 +762,25 @@ impl Page {
         let arg = arg.map(to_json_compact).unwrap_or_default();
         let r = self.send(
             method::RUNTIME_EVALUATE,
-            json!({ "expression": format!("({function})({arg})"), "awaitPromise": true, "returnByValue": true, "userGesture": true }),
+            json!({ (key::EXPRESSION): format!("({function})({arg})"), (key::AWAIT_PROMISE): true, (key::RETURN_BY_VALUE): true, (key::USER_GESTURE): true }),
         )?;
-        if let Some(details) = r.get("exceptionDetails").filter(|d| !d.is_null()) {
+        if let Some(details) = r.get(key::EXCEPTION_DETAILS).filter(|d| !d.is_null()) {
             let text = |v: Option<&Value>| {
                 v.and_then(Value::as_str)
                     .filter(|s| !s.is_empty())
                     .map(str::to_string)
             };
-            let message = text(details.get("exception").and_then(|e| e.get("description")))
-                .or_else(|| text(details.get("text")))
-                .unwrap_or_else(|| "evaluation failed".to_string());
+            let message = text(
+                details
+                    .get(key::EXCEPTION)
+                    .and_then(|e| e.get(key::DESCRIPTION)),
+            )
+            .or_else(|| text(details.get(key::TEXT)))
+            .unwrap_or_else(|| "evaluation failed".to_string());
             return Err(DfwError::internal(message));
         }
-        Ok(r.get("result")
-            .and_then(|res| res.get("value"))
+        Ok(r.get(key::RESULT)
+            .and_then(|res| res.get(key::VALUE))
             .cloned()
             .unwrap_or(Value::Null))
     }
@@ -706,37 +796,38 @@ impl Page {
         if let Some(selector) = opts.selector.filter(|s| !s.is_empty()) {
             let r = self.evaluate(SELECTOR_BOX, Some(&json!(selector)))?;
             let size = |k: &str| r.get(k).and_then(Value::as_f64).unwrap_or(0.0);
-            if size("width") == 0.0 || size("height") == 0.0 {
+            if size(key::WIDTH) == 0.0 || size(key::HEIGHT) == 0.0 {
                 return Err(DfwError::internal(format!(
                     "selector not found: {selector}"
                 )));
             }
             let mut c = r.as_object().cloned().unwrap_or_default();
-            c.insert("scale".into(), json!(1));
+            c.insert(key::SCALE.into(), json!(1));
             clip = Some(Value::Object(c));
         } else if opts.full_page {
             let m = self.send(method::PAGE_GET_LAYOUT_METRICS, json!({}))?;
-            let height = ["cssContentSize", "contentSize"]
+            let height = [key::CSS_CONTENT_SIZE, key::CONTENT_SIZE]
                 .iter()
                 .find_map(|k| m.get(k).filter(|v| !v.is_null()))
-                .and_then(|size| size.get("height"))
+                .and_then(|size| size.get(key::HEIGHT))
                 .and_then(Value::as_f64)
                 .ok_or_else(|| DfwError::internal("Page.getLayoutMetrics: no content size"))?;
             let height = f64::from(self.height).max(height.ceil());
-            clip =
-                Some(json!({ "x": 0, "y": 0, "width": self.width, "height": height, "scale": 1 }));
+            clip = Some(
+                json!({ (key::X): 0, (key::Y): 0, (key::WIDTH): self.width, (key::HEIGHT): height, (key::SCALE): 1 }),
+            );
         }
         let shot = self.send(
             method::PAGE_CAPTURE_SCREENSHOT,
             match clip {
                 Some(clip) => {
-                    json!({ "format": "png", "clip": clip, "captureBeyondViewport": true })
+                    json!({ (key::FORMAT): "png", (key::CLIP): clip, (key::CAPTURE_BEYOND_VIEWPORT): true })
                 }
-                None => json!({ "format": "png" }),
+                None => json!({ (key::FORMAT): "png" }),
             },
         )?;
         let buf = shot
-            .get("data")
+            .get(key::DATA)
             .and_then(Value::as_str)
             .and_then(base64_decode)
             .ok_or_else(|| DfwError::internal("Page.captureScreenshot: no image data"))?;
@@ -757,7 +848,7 @@ impl Page {
         self.stop_fonts();
         let _ = self.conn.send(
             method::TARGET_CLOSE_TARGET,
-            json!({ "targetId": self.target_id }),
+            json!({ (key::TARGET_ID): self.target_id }),
             None,
         );
     }
@@ -808,12 +899,12 @@ impl Context {
     pub fn create(conn: &Arc<Connection>, opts: ContextOptions) -> Result<Context, DfwError> {
         let r = conn.send(
             method::TARGET_CREATE_BROWSER_CONTEXT,
-            json!({ "disposeOnDetach": true }),
+            json!({ (key::DISPOSE_ON_DETACH): true }),
             None,
         )?;
         Ok(Context {
             conn: Arc::clone(conn),
-            id: text(&r, "browserContextId"),
+            id: text(&r, key::BROWSER_CONTEXT_ID),
             opts,
         })
     }
@@ -822,19 +913,19 @@ impl Context {
     pub fn new_page(&self) -> Result<Page, DfwError> {
         let target = self.conn.send(
             method::TARGET_CREATE_TARGET,
-            json!({ "url": "about:blank", "browserContextId": self.id }),
+            json!({ (key::URL): "about:blank", (key::BROWSER_CONTEXT_ID): self.id }),
             None,
         )?;
-        let target_id = text(&target, "targetId");
+        let target_id = text(&target, key::TARGET_ID);
         let attached = self.conn.send(
             method::TARGET_ATTACH_TO_TARGET,
-            json!({ "targetId": target_id, "flatten": true }),
+            json!({ (key::TARGET_ID): target_id, (key::FLATTEN): true }),
             None,
         )?;
         let mut page = Page {
             conn: Arc::clone(&self.conn),
             target_id,
-            session_id: text(&attached, "sessionId"),
+            session_id: text(&attached, key::SESSION_ID),
             scale: self.opts.device_scale_factor,
             width: 1280,
             height: 800,
@@ -845,7 +936,7 @@ impl Context {
             page.font_listener = Some(serve_fonts(&self.conn, &page.session_id, cache)?);
             page.send(
                 method::FETCH_ENABLE,
-                json!({ "patterns": FONT_PATTERNS.map(|p| json!({ "urlPattern": p })) }),
+                json!({ (key::PATTERNS): FONT_PATTERNS.map(|p| json!({ (key::URL_PATTERN): p })) }),
             )?;
         }
         page.send(method::PAGE_ENABLE, json!({}))?;

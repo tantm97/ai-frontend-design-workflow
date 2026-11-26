@@ -16,11 +16,12 @@ use crate::workflow::lang::prune_sessions;
 use crate::workflow::state::{field, load_state, summarize};
 
 use super::pre_tool_use::root_from;
+use crate::core::host::input as payload;
 
 /// `sessionStart(input)`: the status lines as context; nothing when there is no active workflow.
 pub fn session_start(input: &HookInput) -> Result<Option<HookResult>, DfwError> {
     let session_id =
-        js::truthy_value(input.raw.get("session_id")).map(|id| js::to_string(Some(id)));
+        js::truthy_value(input.raw.get(payload::SESSION_ID)).map(|id| js::to_string(Some(id)));
     // Claude Code only: persist the session id for later Bash calls (dfw lang).
     if let (Some(id), Some(env_file)) = (&session_id, env_nonempty("CLAUDE_ENV_FILE")) {
         let line = format!("export DFW_SESSION_ID='{}'\n", id.replace('\'', ""));

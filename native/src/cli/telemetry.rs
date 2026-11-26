@@ -14,6 +14,12 @@ use crate::telemetry::flush::{flush, resource, Flushed, BATCH};
 use crate::telemetry::otlp::request_body;
 use crate::telemetry::{compiled_endpoint, compiled_headers, current, describe, logs_url, spool};
 
+/// The keys of what `__debug telemetry-build` prints: whether each part was compiled in.
+mod build_key {
+    pub const ENDPOINT: &str = "endpoint";
+    pub const HEADERS: &str = "headers";
+}
+
 const USAGE: &str =
     "Usage: dfw telemetry status | on | off | endpoint <url> | show [--raw] | flush";
 
@@ -100,8 +106,8 @@ fn telemetry(ctx: &Ctx) -> Result<i32, DfwError> {
 /// binary (never their values).
 pub(super) fn debug_telemetry_build(_ctx: &Ctx) -> Result<i32, DfwError> {
     out(&to_json_compact(&json!({
-        "endpoint": compiled_endpoint().is_some(),
-        "headers": compiled_headers().is_some(),
+        (build_key::ENDPOINT): compiled_endpoint().is_some(),
+        (build_key::HEADERS): compiled_headers().is_some(),
     })));
     Ok(0)
 }

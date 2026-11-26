@@ -18,21 +18,21 @@ use crate::core::encoding::base64_encode;
 
 /// How long unpacking the axe-core archive may take.
 const UNPACK_DEADLINE: std::time::Duration = std::time::Duration::from_secs(60);
-use super::cdp::{lock, method};
+use super::cdp::{key, lock, method};
 use super::launch::{
-    browser_status, fonts_ready, open_renderer_with, BrowserStatus, LaunchOptions, Renderer,
+    browser_status, fonts_ready, open_renderer_with, status, BrowserStatus, LaunchOptions, Renderer,
 };
 use super::layout_check::{head, manifest_breakpoints, states_of, Finding};
 use crate::core::config::load_config;
 use crate::core::error::DfwError;
 use crate::core::http;
 use crate::core::js;
-use crate::core::level::Level;
+use crate::core::level::{finding, result, Level};
 use crate::core::paths::file_url;
 use crate::core::paths::{global_dir, project_paths, rel};
 use crate::core::util::read_json;
 use crate::design::compose::{build_composed, build_system};
-use crate::design::manifest::{Manifest, Screen, Variant};
+use crate::design::manifest::{key as manifest_key, Manifest, Screen, Variant};
 
 /// The pinned axe-core release (`AXE`).
 pub const AXE_VERSION: &str = "4.14.0";
@@ -53,6 +53,24 @@ const SET_STATE_AND_THEME: &str = "(a) => {
 
 const CONCURRENCY: usize = 6;
 
+/// The keys of a violation axe reports (`a11y_run_axe.js` returns them as axe names them).
+mod violation {
+    pub const ID: &str = "id";
+    pub const IMPACT: &str = "impact";
+    pub const HELP: &str = "help";
+    pub const SUMMARY: &str = "summary";
+    /// How many elements fail.
+    pub const NODES: &str = "nodes";
+    /// The selector of the first one.
+    pub const TARGET: &str = "target";
+}
+
+/// The argument of `SET_STATE_AND_THEME`.
+mod state_and_theme {
+    pub const STATE: &str = "state";
+    pub const THEME: &str = "theme";
+}
+
 fn axe_dir() -> PathBuf {
     global_dir()
         .join("tools")
@@ -72,9 +90,11 @@ impl AxeStatus {
     pub fn to_json(&self) -> Value {
         match self {
             AxeStatus::Installed { path } => {
-                json!({ "installed": true, "path": path.display().to_string(), "version": AXE_VERSION })
+                json!({ (status::INSTALLED): true, (status::PATH): path.display().to_string(), (status::VERSION): AXE_VERSION })
             }
-            AxeStatus::Missing { detail } => json!({ "installed": false, "detail": detail }),
+            AxeStatus::Missing { detail } => {
+                json!({ (status::INSTALLED): false, (status::DETAIL): detail })
+            }
         }
     }
 }
@@ -204,7 +224,7 @@ pub struct A11yResult {
 
 /// A finding as a11y.mjs writes it (`source` before `message`).
 pub fn finding_json(f: &Finding) -> Value {
-    json!({ "level": f.level, "rule": f.rule, "file": f.file, "line": 1, "source": f.source, "message": f.message })
+    json!({ (finding::LEVEL): f.level, (finding::RULE): f.rule, (finding::FILE): f.file, (finding::LINE): 1, (finding::SOURCE): f.source, (finding::MESSAGE): f.message })
 }
 
 impl A11yResult {
@@ -215,11 +235,11 @@ impl A11yResult {
             A11yStatus::Skipped => "skipped",
             A11yStatus::Ran => "ran",
         };
-        let mut out = json!({ "tool": "axe", "status": status });
+        let mut out = json!({ (result::TOOL): "axe", (result::STATUS): status });
         if let Some(detail) = &self.detail {
-            out["detail"] = json!(detail);
+            out[result::DETAIL] = json!(detail);
         }
-        out["findings"] = self.findings.iter().map(finding_json).collect();
+        out[result::FINDINGS] = self.findings.iter().map(finding_json).collect();
         out
     }
 }
@@ -252,11 +272,11 @@ fn screen_jobs(root: &Path, opts: &A11yOptions) -> Result<Vec<Job>, DfwError> {
     };
     let mut themes = vec![None];
     if opts.themes {
-        themes.extend(texts(&manifest, "themes").into_iter().map(Some));
+        themes.extend(texts(&manifest, manifest_key::THEMES).into_iter().map(Some));
     }
     let mut jobs = Vec::new();
     for s in Manifest(&manifest).screens().map(Screen::value) {
-        let id = js::to_string(s.get("id"));
+        let id = js::to_string(s.get(manifest_key::ID));
         if opts
             .screens
             .as_ref()
@@ -279,8 +299,11 @@ fn screen_jobs(root: &Path, opts: &A11yOptions) -> Result<Vec<Job>, DfwError> {
                     let state = truthy(st).map(|t| format!(" [{t}]")).unwrap_or_default();
                     let theme = truthy(th).map(|t| format!(" {{{t}}}")).unwrap_or_default();
                     jobs.push(Job {
-                        rel: rel::design(&js::to_string(v.get("file"))),
-                        label: format!("{id}/{}{state}{theme}", js::to_string(v.get("id"))),
+                        rel: rel::design(&js::to_string(v.get(manifest_key::FILE))),
+                        label: format!(
+                            "{id}/{}{state}{theme}",
+                            js::to_string(v.get(manifest_key::ID))
+                        ),
                         state: st.clone(),
                         theme: th.clone(),
                         width: bp.width,
@@ -415,27 +438,30 @@ fn check_page(renderer: &Renderer, job: &Job, url: Option<&str>, axe_src: &str) 
             page.goto(url, 30_000)?;
             page.evaluate(
                 SET_STATE_AND_THEME,
-                Some(&json!({ "state": job.state, "theme": job.theme })),
+                Some(&json!({ (state_and_theme::STATE): job.state, (state_and_theme::THEME): job.theme })),
             )?;
             fonts_ready(&page, 3000)?;
-            page.send(method::RUNTIME_EVALUATE, json!({ "expression": axe_src }))?;
+            page.send(
+                method::RUNTIME_EVALUATE,
+                json!({ (key::EXPRESSION): axe_src }),
+            )?;
             let violations = page.evaluate(RUN_AXE.trim_end(), None)?;
             for v in violations.as_array().into_iter().flatten() {
                 let text = |key: &str| js::to_string(v.get(key));
-                let summary = text("summary");
+                let summary = text(violation::SUMMARY);
                 let summary = if summary.is_empty() {
                     String::new()
                 } else {
                     format!(": {summary}")
                 };
                 add(
-                    impact_level(v.get("impact").and_then(Value::as_str)),
-                    format!("axe-{}", text("id")),
+                    impact_level(v.get(violation::IMPACT).and_then(Value::as_str)),
+                    format!("axe-{}", text(violation::ID)),
                     format!(
                         "{} ({} element(s), e.g. {}){summary}",
-                        text("help"),
-                        text("nodes"),
-                        text("target")
+                        text(violation::HELP),
+                        text(violation::NODES),
+                        text(violation::TARGET)
                     ),
                 );
             }

@@ -9,17 +9,24 @@ use std::path::Path;
 
 use serde_json::{json, Map, Value};
 
-use super::color::{audit_colors, audit_type_scale, hex_to_oklch, PRODUCT_SURFACE};
+use super::color::{
+    audit_colors, audit_key, audit_type_scale, hex_to_oklch, type_scale_key, PRODUCT_SURFACE,
+};
 
 use super::inventory::inventory_findings;
+use super::manifest::key as manifest_key;
+use super::tokens::{extension, key as dtcg_key};
 
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::level::Level;
+use crate::core::level::{finding, Level};
 use crate::core::paths::{project_paths, rel};
 use crate::core::util::read_json;
 
 const TOKENS_FILE: &str = rel::TOKENS_JSON;
+
+/// The role of the page background: a tinted canvas wants tinted shadows.
+const CANVAS_ROLE: &str = "canvas";
 
 const ROLES: [&str; 20] = [
     "canvas",
@@ -77,15 +84,15 @@ fn collect(tree: &Value) -> Vec<Token<'_>> {
         out: &mut Vec<Token<'a>>,
     ) {
         let kind = node
-            .get("$type")
+            .get(dtcg_key::TYPE)
             .filter(|t| js::truthy(Some(t)))
             .or(inherited);
-        if let Some(map) = node.as_object().filter(|m| m.contains_key("$value")) {
+        if let Some(map) = node.as_object().filter(|m| m.contains_key(dtcg_key::VALUE)) {
             let token = Token {
                 name: trail.join("."),
-                value: map.get("$value"),
+                value: map.get(dtcg_key::VALUE),
                 kind,
-                described: js::truthy(map.get("$description")),
+                described: js::truthy(map.get(dtcg_key::DESCRIPTION)),
             };
             // A Map: a name seen again keeps its place and takes the new token.
             match out.iter_mut().find(|t| t.name == token.name) {
@@ -136,7 +143,10 @@ impl<'a> Resolver<'a> {
     fn hex(&self, name: &str) -> Option<Value> {
         match self.get(name)?.value? {
             Value::String(s) => s.starts_with('#').then(|| json!(js::slice16(s, 0, 7))),
-            other => other.get("hex").filter(|h| js::truthy(Some(h))).cloned(),
+            other => other
+                .get(dtcg_key::HEX)
+                .filter(|h| js::truthy(Some(h)))
+                .cloned(),
         }
     }
 
@@ -145,14 +155,14 @@ impl<'a> Resolver<'a> {
         js::present(
             self.get(&format!("font.size.{key}"))?
                 .value
-                .and_then(|v| v.get("value")),
+                .and_then(|v| v.get(dtcg_key::AMOUNT)),
         )
     }
 }
 
 /// `value?.value` of a dimension token.
 fn inner_value<'a>(token: &Token<'a>) -> Option<&'a Value> {
-    token.value.and_then(|v| v.get("value"))
+    token.value.and_then(|v| v.get(dtcg_key::AMOUNT))
 }
 
 /// Values a JavaScript `Set` holds once: text, numbers, booleans, null and "missing" by value;
@@ -202,7 +212,9 @@ fn is_grey_shadow(name: &str, value: Option<&Value>) -> Result<bool, DfwError> {
         if layer.is_null() {
             return Err(malformed(&format!("a layer of shadow {name} is null")));
         }
-        let components = layer.get("color").and_then(|c| c.get("components"));
+        let components = layer
+            .get(dtcg_key::COLOR)
+            .and_then(|c| c.get(dtcg_key::COMPONENTS));
         let grey = match components.filter(|c| js::truthy(Some(c))) {
             None => false,
             Some(Value::Array(list)) => {
@@ -301,7 +313,7 @@ fn count_decisions(body: &str) -> usize {
 
 /// One finding on the token file, at line 1.
 fn add(findings: &mut Vec<Value>, level: &str, rule: &str, message: String) {
-    findings.push(json!({ "level": level, "rule": rule, "file": TOKENS_FILE, "line": 1, "message": message, "source": "dfw-ds" }));
+    findings.push(json!({ (finding::LEVEL): level, (finding::RULE): rule, (finding::FILE): TOKENS_FILE, (finding::LINE): 1, (finding::MESSAGE): message, (finding::SOURCE): "dfw-ds" }));
 }
 
 /// Findings of a colour or type check, added in their order with their level and rule.
@@ -309,9 +321,9 @@ fn add_all(findings: &mut Vec<Value>, found: Vec<Value>) {
     for x in found {
         add(
             findings,
-            x["level"].as_str().unwrap_or_default(),
-            x["rule"].as_str().unwrap_or_default(),
-            js::to_string(x.get("message")),
+            x[finding::LEVEL].as_str().unwrap_or_default(),
+            x[finding::RULE].as_str().unwrap_or_default(),
+            js::to_string(x.get(finding::MESSAGE)),
         );
     }
 }
@@ -361,9 +373,9 @@ fn audit_color_roles(
         }
     }
     let exceptions: Vec<String> = tree
-        .get("$extensions")
-        .and_then(|e| e.get("dfw"))
-        .and_then(|d| d.get("exceptions"))
+        .get(dtcg_key::EXTENSIONS)
+        .and_then(|e| e.get(dtcg_key::DFW))
+        .and_then(|d| d.get(extension::EXCEPTIONS))
         .and_then(Value::as_array)
         .map(|list| list.iter().map(|x| js::to_string(Some(x))).collect())
         .unwrap_or_default();
@@ -372,7 +384,7 @@ fn audit_color_roles(
         .iter()
         .all(|k| roles.contains_key(*k))
     {
-        let input = json!({ "roles": roles, "status": status, "onFill": on_fill });
+        let input = json!({ (audit_key::ROLES): roles, (audit_key::STATUS): status, (audit_key::ON_FILL): on_fill });
         add_all(findings, audit_colors(&input, &exceptions));
     }
     roles
@@ -425,12 +437,16 @@ fn audit_type(
         .filter(|v| js::truthy(Some(v)))
         .map_or(16.0, |v| js::to_number(Some(v)));
     let surface = manifest
-        .get("surface")
+        .get(manifest_key::SURFACE)
         .filter(|s| js::truthy(Some(s)))
         .map_or(PRODUCT_SURFACE.to_string(), |s| js::to_string(Some(s)));
     add_all(
         findings,
-        audit_type_scale(&json!({ "ui": ui, "display": display }), body, &surface),
+        audit_type_scale(
+            &json!({ (type_scale_key::UI): ui, (type_scale_key::DISPLAY): display }),
+            body,
+            &surface,
+        ),
     );
     if display.is_empty() {
         add(findings, Level::Warn.as_str(), "type-display", "No display sizes (font.size.display-*): titles and key numbers will sit at body scale, the most common \"AI look\".".into());
@@ -491,7 +507,7 @@ fn audit_shape(
     }
     // `roles.canvas ? hexToOklch(roles.canvas).c : 0`: a colour object whose hex is not text
     // is a TypeError there.
-    let canvas_chroma = match roles.get("canvas") {
+    let canvas_chroma = match roles.get(CANVAS_ROLE) {
         Some(Value::String(hex)) => hex_to_oklch(hex).c,
         Some(_) => return Err(malformed("the hex of color.canvas must be text")),
         None => 0.0,
@@ -514,7 +530,10 @@ fn audit_spacing(tokens: &[Token<'_>], findings: &mut Vec<Value>) {
         .iter()
         .filter(|t| {
             t.name.starts_with("space.")
-                && t.value.and_then(|v| v.get("unit")).and_then(Value::as_str) == Some("px")
+                && t.value
+                    .and_then(|v| v.get(dtcg_key::UNIT))
+                    .and_then(Value::as_str)
+                    == Some("px")
         })
         .filter_map(|t| {
             let value = inner_value(t)?;
@@ -544,7 +563,7 @@ fn audit_rationale(root: &Path, findings: &mut Vec<Value>) -> Result<(), DfwErro
     };
     let bullets = count_decisions(&rationale_body(&text));
     if bullets < 5 {
-        findings.push(json!({ "level": Level::Warn.as_str(), "rule": "rationale", "file": "DESIGN.md", "line": 1, "message": format!("DESIGN.md \"## Rationale\" has {bullets} decision(s); write at least 5 \"decision - because <context fact or principle>\" lines (accent choice, neutrals, type scale, density, motif)."), "source": "dfw-ds" }));
+        findings.push(json!({ (finding::LEVEL): Level::Warn.as_str(), (finding::RULE): "rationale", (finding::FILE): "DESIGN.md", (finding::LINE): 1, (finding::MESSAGE): format!("DESIGN.md \"## Rationale\" has {bullets} decision(s); write at least 5 \"decision - because <context fact or principle>\" lines (accent choice, neutrals, type scale, density, motif)."), (finding::SOURCE): "dfw-ds" }));
     }
     Ok(())
 }

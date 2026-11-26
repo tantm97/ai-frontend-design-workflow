@@ -24,6 +24,22 @@ use crate::core::js;
 /// Default `threshold` of "dfw diff": the largest OKLab HyAB distance still counted as equal.
 pub const THRESHOLD: f64 = 0.1;
 
+/// The keys of an entry of the result of [`diff_images`] ([`DiffResult::to_value`]).
+pub mod key {
+    /// The two images and the diff image (`out`), as paths.
+    pub const A: &str = "a";
+    pub const B: &str = "b";
+    pub const OUT: &str = "out";
+    /// Pixels that differ.
+    pub const DIFF: &str = "diff";
+    pub const W: &str = "w";
+    pub const H: &str = "h";
+    pub const RATIO: &str = "ratio";
+    pub const SIZE_CHANGED: &str = "sizeChanged";
+    /// Why the pair could not be compared.
+    pub const ERROR: &str = "error";
+}
+
 /// Two PNG files to compare and where the diff image goes (`{ a, b, out }`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Pair {
@@ -57,21 +73,21 @@ impl DiffResult {
     /// `{ a, b, out, error }`.
     pub fn to_value(&self) -> Value {
         let mut o = Map::new();
-        o.insert("a".into(), json!(self.pair.a.display().to_string()));
-        o.insert("b".into(), json!(self.pair.b.display().to_string()));
+        o.insert(key::A.into(), json!(self.pair.a.display().to_string()));
+        o.insert(key::B.into(), json!(self.pair.b.display().to_string()));
         if let Some(out) = &self.pair.out {
-            o.insert("out".into(), json!(out.display().to_string()));
+            o.insert(key::OUT.into(), json!(out.display().to_string()));
         }
         match &self.outcome {
             Ok(d) => {
-                o.insert("diff".into(), json!(d.diff));
-                o.insert("w".into(), json!(d.w));
-                o.insert("h".into(), json!(d.h));
-                o.insert("ratio".into(), json!(d.ratio));
-                o.insert("sizeChanged".into(), json!(d.size_changed));
+                o.insert(key::DIFF.into(), json!(d.diff));
+                o.insert(key::W.into(), json!(d.w));
+                o.insert(key::H.into(), json!(d.h));
+                o.insert(key::RATIO.into(), json!(d.ratio));
+                o.insert(key::SIZE_CHANGED.into(), json!(d.size_changed));
             }
             Err(error) => {
-                o.insert("error".into(), json!(error));
+                o.insert(key::ERROR.into(), json!(error));
             }
         }
         Value::Object(o)

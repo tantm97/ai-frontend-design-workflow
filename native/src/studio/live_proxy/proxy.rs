@@ -41,10 +41,25 @@ use crate::studio::http::{
     write_head, write_response, BodyError, Connections, Head, LOOPBACK, MAX_CONNECTIONS,
 };
 
+use crate::review::status::field;
 /// The comment fields the proxy fills from what live.js sends: the clicked element and the
 /// source file it came from.
-pub(super) const TARGET: &str = "target";
-pub(super) const SOURCE: &str = "source";
+pub(super) use crate::review::status::field::{SOURCE, TARGET};
+
+/// The keys of the answer of the live route: `{ target, url, shots, shortcut }`, those of the
+/// server record (`review.json`) and one more.
+mod live_info {
+    pub use crate::workflow::server::field::{SHORTCUT, TARGET, URL};
+    /// Whether a comment gets a screenshot.
+    pub const SHOTS: &str = "shots";
+}
+
+/// The keys of a comment as live.js posts it that are not comment fields: the viewport
+/// `[width, height]` and, inside `target`, the `data-insp-path` of the element.
+mod posted {
+    pub const VIEWPORT: &str = "viewport";
+    pub const INSP: &str = "insp";
+}
 
 /// The content encoding of a gzip-compressed page.
 pub(super) const GZIP: &str = "gzip";
@@ -227,10 +242,10 @@ impl LiveServer {
         }
         if p == paths::LIVE {
             let info = json!({
-                "target": self.t.origin(),
-                "url": format!("http://{}:{port}/", self.public_host),
-                "shots": self.shots,
-                "shortcut": self.keys,
+                (live_info::TARGET): self.t.origin(),
+                (live_info::URL): format!("http://{}:{port}/", self.public_host),
+                (live_info::SHOTS): self.shots,
+                (live_info::SHORTCUT): self.keys,
             });
             send(stream, status::OK, to_json_compact(&info).as_bytes(), JSON);
             return Ok(());
@@ -274,10 +289,10 @@ impl LiveServer {
     fn post_comment(&self, b: &Value) -> Result<Value, DfwError> {
         let mut target = js::spread(b.get(TARGET).filter(|t| js::truthy(t)));
         let insp = target
-            .get("insp")
+            .get(posted::INSP)
             .and_then(Value::as_str)
             .map(str::to_string);
-        target.shift_remove("insp");
+        target.shift_remove(posted::INSP);
         // Only a parsed data-insp-path becomes the source; without it the selector and text
         // identify the element.
         let root = self.root.to_string_lossy();
@@ -287,40 +302,40 @@ impl LiveServer {
             .map_or(Value::Null, |p| json!(p.source));
         target.insert(SOURCE.into(), source);
         if let Some(i) = insp.as_deref().filter(|i| !i.is_empty()) {
-            target.insert("inspPath".into(), json!(i));
+            target.insert(field::INSP_PATH.into(), json!(i));
         }
         let size = |i: usize, fallback: f64| -> f64 {
-            let n = js::to_number(b.get("viewport").and_then(|v| v.get(i)));
+            let n = js::to_number(b.get(posted::VIEWPORT).and_then(|v| v.get(i)));
             let n = if n.is_nan() || n == 0.0 { fallback } else { n };
             js::round(n).clamp(200.0, 4000.0)
         };
         let (vw, vh) = (size(0, 1440.0), size(1, 900.0));
         let route = b
-            .get("url")
+            .get(field::URL)
             .and_then(Value::as_str)
             .filter(|u| u.starts_with('/'))
             .unwrap_or("/")
             .to_string();
-        let screen = match b.get("screen").and_then(Value::as_str) {
+        let screen = match b.get(field::SCREEN).and_then(Value::as_str) {
             Some(s) => s.to_string(),
             None => route.split('#').next().unwrap_or_default().to_string(),
         };
         let mut input = Map::new();
-        if let Some(c) = b.get("comment") {
-            input.insert("comment".into(), c.clone());
+        if let Some(c) = b.get(field::COMMENT) {
+            input.insert(field::COMMENT.into(), c.clone());
         }
-        input.insert("screen".into(), json!(screen));
-        input.insert("variant".into(), json!("live"));
+        input.insert(field::SCREEN.into(), json!(screen));
+        input.insert(field::VARIANT.into(), json!("live"));
         match nearest_breakpoint(&self.root, vw)? {
-            Some(id) => input.insert("breakpoint".into(), id),
-            None => input.insert("breakpoint".into(), Value::Null),
+            Some(id) => input.insert(field::BREAKPOINT.into(), id),
+            None => input.insert(field::BREAKPOINT.into(), Value::Null),
         };
-        input.insert("url".into(), json!(route));
+        input.insert(field::URL.into(), json!(route));
         input.insert(TARGET.into(), Value::Object(target));
-        input.insert("provider".into(), json!("dfw-live"));
+        input.insert(field::PROVIDER.into(), json!("dfw-live"));
         let c = add_comment(&self.root, &Value::Object(input))?;
         if let Some(queue) = &self.shot_queue {
-            let id = js::to_string(c.get("id"));
+            let id = js::to_string(c.get(field::ID));
             let _ = queue.send((id, route, vw as u32, vh as u32));
         }
         Ok(c)

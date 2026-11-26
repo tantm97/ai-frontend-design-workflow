@@ -24,7 +24,17 @@ use crate::penpot::live::sync_threads;
 use crate::penpot::tokens::{
     export_penpot_tokens, format_export, format_import, import_penpot_tokens, DfwTokens,
 };
+use crate::penpot::wire;
 use crate::workflow::server::field as record;
+
+/// The keys of what `dfw penpot export --json` and `dfw tokens export --json` print, besides
+/// those copied from the export ([`wire::ID`], [`wire::ERRORS`]).
+mod out_key {
+    /// The file written.
+    pub const FILE: &str = "file";
+    /// What the token conversion left out.
+    pub const REPORT: &str = "report";
+}
 use crate::workflow::state::load_state;
 
 /// The commands of this group.
@@ -62,12 +72,12 @@ fn export(ctx: &Ctx, root: &Path) -> Result<i32, DfwError> {
         out: flag_text(ctx, "out"),
     };
     let (file, doc) = export_penpot(root, &opts)?;
-    let errors = doc.get("errors").cloned().unwrap_or(Value::Null);
+    let errors = doc.get(wire::ERRORS).cloned().unwrap_or(Value::Null);
     if ctx.args.truthy("json") {
         out(&to_json_pretty(&json!({
-            "file": file.display().to_string(),
-            "id": doc.get("id"),
-            "errors": errors,
+            (out_key::FILE): file.display().to_string(),
+            (wire::ID): doc.get(wire::ID),
+            (wire::ERRORS): errors,
         })));
     } else {
         out(&export_summary(&doc, &file, root));
@@ -160,8 +170,8 @@ pub(super) fn tokens_export(ctx: &Ctx) -> Result<i32, DfwError> {
     let r = export_penpot_tokens(&root, out_file.as_deref(), ctx.args.truthy("opt-themes"))?;
     if ctx.args.truthy("json") {
         out(&to_json_pretty(&json!({
-            "file": r.file.display().to_string(),
-            "report": r.report.to_json(),
+            (out_key::FILE): r.file.display().to_string(),
+            (out_key::REPORT): r.report.to_json(),
         })));
     } else {
         out(&format_export(&r, &root));

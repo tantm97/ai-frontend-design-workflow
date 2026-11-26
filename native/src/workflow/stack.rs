@@ -39,12 +39,29 @@ pub mod field {
     pub const SOURCE: &str = "source";
     pub const PROPOSED_AT: &str = "proposedAt";
     pub const APPROVED_AT: &str = "approvedAt";
+    /// The new packages the approved stack allows: a list of names (`name@version`) or of
+    /// `{ name, version, dev?, license?, purpose? }`, or an object keyed by name.
+    pub const DEPENDENCIES: &str = "dependencies";
+    /// As [`DEPENDENCIES`], for development only.
+    pub const DEV_DEPENDENCIES: &str = "devDependencies";
+    /// Of a dependency: needed in development only.
+    pub const DEV: &str = "dev";
+    pub const LICENSE: &str = "license";
+    /// Of a dependency: why the project needs it.
+    pub const PURPOSE: &str = "purpose";
 }
 
-/// The keys of `package.json` the detection reads.
-mod package_json {
+/// The keys of an app's `package.json` that dfw reads or writes (the stack detection and
+/// `dfw inspector setup`).
+pub mod package_json {
+    /// The packages the app needs, by name.
     pub const DEPENDENCIES: &str = "dependencies";
+    /// The packages needed in development only, by name.
     pub const DEV_DEPENDENCIES: &str = "devDependencies";
+    /// The npm scripts, by name.
+    pub const SCRIPTS: &str = "scripts";
+    /// The script that starts the development server.
+    pub const DEV_SCRIPT: &str = "dev";
 }
 
 /// The package whose presence makes a project TypeScript (with `tsconfig.json`).

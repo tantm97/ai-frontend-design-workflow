@@ -97,9 +97,12 @@ pub mod header {
     pub const SET_COOKIE: &str = "set-cookie";
 }
 
+/// The key of the body of every error answer.
+pub const ERROR_KEY: &str = "error";
+
 /// The body of every error answer: `{"error": message}`.
 pub fn error_body(message: &str) -> serde_json::Value {
-    serde_json::json!({ "error": message })
+    serde_json::json!({ (ERROR_KEY): message })
 }
 
 pub const MAX_HEAD: usize = 64 * 1024;

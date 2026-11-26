@@ -10,6 +10,7 @@ use std::time::Duration;
 use serde_json::Value;
 
 use super::http::write_head;
+use crate::core::presence::key as presence;
 use crate::core::util::to_json_compact;
 
 /// How long one event may take to reach a page; a page that does not read is dropped.
@@ -17,6 +18,18 @@ const EVENT_WRITE_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Events waiting for one page; a page that falls this far behind is dropped.
 const QUEUE: usize = 64;
+
+/// The keys of the data of the events the Studio sends.
+pub mod data {
+    /// `design`: the design files that changed, relative to `design/`.
+    pub const FILES: &str = "files";
+    /// `comments`: the comment that was added or changed.
+    pub const ID: &str = "id";
+    /// `comments`: how many drafts were sent.
+    pub const SENT: &str = "sent";
+    /// `presence`: the file and the element the agent is about to edit, as the note names them.
+    pub use crate::core::presence::key::{DFW_ID, FILE};
+}
 
 /// The connected pages (`clients` in server.mjs): one queue per page. Each page's own
 /// connection thread writes its events, so a page that never reads cannot hold up a broadcast
@@ -89,13 +102,16 @@ fn write_events(stream: &mut TcpStream, rx: &Receiver<Arc<str>>) {
 /// is recent (under 10 s by the real clock, as `Date.now() - Date.parse(p.at)` in Node).
 pub fn presence_event(text: &str, now_ms: i64) -> Option<Value> {
     let p: Value = serde_json::from_str(text).ok()?;
-    let file = p.get("file")?.as_str()?;
-    let at = p.get("at").and_then(Value::as_str).and_then(parse_iso_ms)?;
+    let file = p.get(presence::FILE)?.as_str()?;
+    let at = p
+        .get(presence::AT)
+        .and_then(Value::as_str)
+        .and_then(parse_iso_ms)?;
     if now_ms - at >= 10_000 {
         return None;
     }
-    let dfw_id = p.get("dfwId").and_then(Value::as_str);
-    Some(serde_json::json!({ "file": file, "dfwId": dfw_id }))
+    let dfw_id = p.get(presence::DFW_ID).and_then(Value::as_str);
+    Some(serde_json::json!({ (data::FILE): file, (data::DFW_ID): dfw_id }))
 }
 
 /// `Date.parse` of an ISO time `YYYY-MM-DDTHH:MM:SS[.sss](Z|±HH:MM)` in milliseconds.

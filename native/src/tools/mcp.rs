@@ -21,13 +21,13 @@ use crate::core::config::load_config;
 use crate::core::error::DfwError;
 use crate::core::host::render_text;
 use crate::core::js;
-use crate::core::paths::{find_project_root, resolve};
+use crate::core::paths::{find_project_root, resolve, MANIFEST_VERSION};
 use crate::core::util::{parse_args, plugin_manifest, to_json_compact};
 use crate::workflow::gates::decide_write;
 use crate::workflow::state::load_state;
 
 pub(crate) mod names;
-use names::{key, tool, SERVER};
+use names::{arg, key, tool, SERVER};
 
 /// The value of `{{SKILL_DIR}}` for the host "mcp" (`core::host`).
 const SKILL_DIR_MARK: &str = "__DFW_SKILL_DIR__";
@@ -40,6 +40,8 @@ mod word {
         CONFIG, HOOK, INSTALL, LANG, MCP, SETUP, STATUS, TELEMETRY, UNINSTALL,
     };
     pub use crate::core::word::sub::{SET, SHOW};
+    /// The key `--global` is read by.
+    pub const GLOBAL_FLAG: &str = "global";
     /// The form a `config` command with `--global` is refused as.
     pub const GLOBAL_CONFIG: &str = "config --global";
 }
@@ -177,7 +179,7 @@ fn blocked(list: &[&str]) -> Option<String> {
     }
     let refused = match cmd {
         word::TELEMETRY => !matches!(sub, None | Some(word::STATUS | word::SHOW)),
-        word::CONFIG => args.get("global").is_some(),
+        word::CONFIG => args.get(word::GLOBAL_FLAG).is_some(),
         word::LANG => sub == Some(word::SET),
         _ => false,
     };
@@ -312,25 +314,25 @@ fn tools() -> Value {
     json!([
         {
             (key::NAME): tool::GUIDE,
-            "description": format!("The dfw workflow instructions. No topic: the main guide (read it first). Topics: {}.", topics().join(", ")),
-            "inputSchema": { "type": "object", "properties": { "topic": { "type": "string", "description": "Optional, e.g. \"references/phase-concepts.md\"." } } },
+            (key::DESCRIPTION): format!("The dfw workflow instructions. No topic: the main guide (read it first). Topics: {}.", topics().join(", ")),
+            (key::INPUT_SCHEMA): { (key::TYPE): "object", (key::PROPERTIES): { (arg::TOPIC): { (key::TYPE): "string", (key::DESCRIPTION): "Optional, e.g. \"references/phase-concepts.md\"." } } },
         },
         {
             (key::NAME): tool::CLI,
-            "description": "Run a dfw CLI command, e.g. [\"status\"], [\"init\",\"--mode\",\"new-product\"], [\"shoot\",\"--page\",\"borrow\",\"--states\"]. [\"help\"] lists every command.",
-            "inputSchema": {
-                "type": "object",
-                "properties": { "args": { "type": "array", "items": { "type": "string" } }, "cwd": { "type": "string", "description": "Project root (absolute path)." } },
-                "required": ["args"],
+            (key::DESCRIPTION): "Run a dfw CLI command, e.g. [\"status\"], [\"init\",\"--mode\",\"new-product\"], [\"shoot\",\"--page\",\"borrow\",\"--states\"]. [\"help\"] lists every command.",
+            (key::INPUT_SCHEMA): {
+                (key::TYPE): "object",
+                (key::PROPERTIES): { (arg::ARGS): { (key::TYPE): "array", (key::ITEMS): { (key::TYPE): "string" } }, (arg::CWD): { (key::TYPE): "string", (key::DESCRIPTION): "Project root (absolute path)." } },
+                (key::REQUIRED): [arg::ARGS],
             },
         },
         {
             (key::NAME): tool::CAN_WRITE,
-            "description": "Check the approval gates before writing files (design files are open in design phases; implementation code needs G2 + G3 + the implement phase).",
-            "inputSchema": {
-                "type": "object",
-                "properties": { "files": { "type": "array", "items": { "type": "string" } }, "cwd": { "type": "string", "description": "Project root (absolute path)." } },
-                "required": ["files"],
+            (key::DESCRIPTION): "Check the approval gates before writing files (design files are open in design phases; implementation code needs G2 + G3 + the implement phase).",
+            (key::INPUT_SCHEMA): {
+                (key::TYPE): "object",
+                (key::PROPERTIES): { (arg::FILES): { (key::TYPE): "array", (key::ITEMS): { (key::TYPE): "string" } }, (arg::CWD): { (key::TYPE): "string", (key::DESCRIPTION): "Project root (absolute path)." } },
+                (key::REQUIRED): [arg::FILES],
             },
         },
     ])
@@ -371,33 +373,33 @@ fn param<'a>(params: Option<&'a Value>, key: &str) -> Result<Option<&'a Value>, 
 fn handle(method: Option<&Value>, params: Option<&Value>) -> Result<Value, RpcError> {
     match method.and_then(Value::as_str) {
         Some("initialize") => {
-            let protocol = js::truthy_value(param(params, "protocolVersion")?)
+            let protocol = js::truthy_value(param(params, key::PROTOCOL_VERSION)?)
                 .cloned()
                 .unwrap_or_else(|| json!("2025-06-18"));
             let manifest = plugin_manifest(None).unwrap_or(Value::Null);
-            let version = js::truthy_value(manifest.get("version"))
+            let version = js::truthy_value(manifest.get(MANIFEST_VERSION))
                 .cloned()
                 .unwrap_or_else(|| json!("0.0.0"));
             Ok(json!({
-                "protocolVersion": protocol,
-                "capabilities": { "tools": {}, "prompts": {} },
-                "serverInfo": { (key::NAME): SERVER, "version": version },
-                "instructions": INSTRUCTIONS,
+                (key::PROTOCOL_VERSION): protocol,
+                (key::CAPABILITIES): { (key::TOOLS): {}, (key::PROMPTS): {} },
+                (key::SERVER_INFO): { (key::NAME): SERVER, (key::VERSION): version },
+                (key::INSTRUCTIONS): INSTRUCTIONS,
             }))
         }
         Some("ping") => Ok(json!({})),
-        Some("tools/list") => Ok(json!({ "tools": tools() })),
+        Some("tools/list") => Ok(json!({ (key::TOOLS): tools() })),
         Some("tools/call") => {
-            let a = js::truthy_value(param(params, "arguments")?);
+            let a = js::truthy_value(param(params, key::ARGUMENTS)?);
             let arg = |key: &str| a.and_then(|a| a.get(key));
             let name = param(params, key::NAME)?;
             let result = match name.and_then(Value::as_str) {
-                Some(tool::GUIDE) => guide(arg("topic")).map(|text| ToolResult {
+                Some(tool::GUIDE) => guide(arg(arg::TOPIC)).map(|text| ToolResult {
                     text,
                     is_error: false,
                 }),
-                Some(tool::CLI) => run_dfw(arg("args"), arg("cwd")),
-                Some(tool::CAN_WRITE) => can_write(arg("files"), arg("cwd")),
+                Some(tool::CLI) => run_dfw(arg(arg::ARGS), arg(arg::CWD)),
+                Some(tool::CAN_WRITE) => can_write(arg(arg::FILES), arg(arg::CWD)),
                 _ => {
                     return Err(RpcError::invalid_params(format!(
                         "Unknown tool {}",
@@ -409,10 +411,12 @@ fn handle(method: Option<&Value>, params: Option<&Value>) -> Result<Value, RpcEr
                 Ok(r) => (r.text, r.is_error),
                 Err(message) => (message, true),
             };
-            Ok(json!({ "content": [{ "type": "text", "text": text }], "isError": is_error }))
+            Ok(
+                json!({ (key::CONTENT): [{ (key::TYPE): "text", (key::TEXT): text }], (key::IS_ERROR): is_error }),
+            )
         }
         Some("prompts/list") => Ok(json!({
-            "prompts": [{ (key::NAME): SERVER, "description": "Start or continue the dfw design-first workflow in this project." }]
+            (key::PROMPTS): [{ (key::NAME): SERVER, (key::DESCRIPTION): "Start or continue the dfw design-first workflow in this project." }]
         })),
         Some("prompts/get") => {
             let name = param(params, key::NAME)?;
@@ -427,7 +431,7 @@ fn handle(method: Option<&Value>, params: Option<&Value>) -> Result<Value, RpcEr
                 message,
             })?;
             Ok(
-                json!({ "messages": [{ "role": "user", "content": { "type": "text", "text": text } }] }),
+                json!({ (key::MESSAGES): [{ (key::ROLE): "user", (key::CONTENT): { (key::TYPE): "text", (key::TEXT): text } }] }),
             )
         }
         _ => Err(RpcError {
@@ -450,7 +454,7 @@ const JSONRPC: &str = "2.0";
 
 /// A JSON-RPC error reply.
 fn rpc_error(id: Value, code: i64, message: &str) -> Value {
-    json!({ "jsonrpc": JSONRPC, "id": id, "error": { "code": code, "message": message } })
+    json!({ (key::JSONRPC): JSONRPC, (key::ID): id, (key::ERROR): { (key::CODE): code, (key::MESSAGE): message } })
 }
 
 /// The reply to one input line, or `None` when it needs none (blank line, notification).
@@ -470,9 +474,11 @@ fn reply_to(line: &str) -> Option<Value> {
             "Invalid Request",
         ));
     };
-    let id = msg.get("id")?.clone(); // no id: a notification
-    match handle(msg.get("method"), msg.get("params")) {
-        Ok(result) => Some(json!({ "jsonrpc": JSONRPC, "id": id, (key::RESULT): result })),
+    let id = msg.get(key::ID)?.clone(); // no id: a notification
+    match handle(msg.get(key::METHOD), msg.get(key::PARAMS)) {
+        Ok(result) => {
+            Some(json!({ (key::JSONRPC): JSONRPC, (key::ID): id, (key::RESULT): result }))
+        }
         Err(err) => Some(rpc_error(id, err.code, &err.message)),
     }
 }

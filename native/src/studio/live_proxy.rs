@@ -22,6 +22,7 @@ use serde_json::Value;
 
 pub use proxy::{start_live_server, LiveOptions};
 
+use crate::core::config::key::breakpoint;
 use crate::core::config::{load_config, review_shortcut};
 use crate::core::error::DfwError;
 use crate::core::js;
@@ -406,7 +407,7 @@ pub fn nearest_breakpoint(root: &Path, width: f64) -> Result<Option<Value>, DfwE
     if list.is_empty() || width == 0.0 || width.is_nan() {
         return Ok(None);
     }
-    let dist = |b: &Value| (crate::core::js::to_number(b.get("width")) - width).abs();
+    let dist = |b: &Value| (crate::core::js::to_number(b.get(breakpoint::WIDTH)) - width).abs();
     let mut best = &list[0];
     for b in &list[1..] {
         // NaN compares false, as in the reduce of live.mjs.
@@ -414,7 +415,7 @@ pub fn nearest_breakpoint(root: &Path, width: f64) -> Result<Option<Value>, DfwE
             best = b;
         }
     }
-    Ok(best.get("id").cloned())
+    Ok(best.get(breakpoint::ID).cloned())
 }
 
 /// The shortcut a proxy uses: `--shortcut`, else `review.shortcut` in the config, else Alt+C.

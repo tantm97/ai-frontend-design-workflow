@@ -20,6 +20,36 @@ use crate::design::tokens::{relative_path, TYPE_KEY};
 /// visible elements (backgrounds weighted by area).
 const COLLECT: &str = include_str!("extract_collect.js");
 
+/// The keys of what `COLLECT` returns: a bag per kind of value, each value counted as
+/// `{ n, roles: { <role>: true } }`.
+mod counted {
+    pub const COLORS: &str = "colors";
+    pub const FAMILIES: &str = "families";
+    pub const SIZES: &str = "sizes";
+    pub const RADII: &str = "radii";
+    pub const SPACES: &str = "spaces";
+    /// How often a value was seen (backgrounds weighted by area).
+    pub const N: &str = "n";
+    pub const ROLES: &str = "roles";
+}
+
+/// The keys of the token seed (DTCG): its groups, the token words and the extension each token
+/// carries. The DTCG words are `design::tokens::key`'s.
+mod key {
+    pub use crate::design::tokens::key::{
+        AMOUNT, COLOR_SPACE, COMPONENTS, DESCRIPTION, EXTENSIONS, HEX, UNIT, VALUE,
+    };
+    /// The extension of an extracted token: `{ uses, roles? }`.
+    pub const EXTRACTED: &str = "dfw.extracted";
+    pub const USES: &str = "uses";
+    /// The roles a colour was seen in, as a list.
+    pub const ROLES: &str = "roles";
+
+    /* --------------------------------------------------------------------- the groups */
+
+    pub use crate::design::style::group::{COLOR, FAMILY, FONT, RADIUS, SIZE, SPACE};
+}
+
 /// One counted value: how often it was seen and in which roles.
 #[derive(Debug, Clone, PartialEq)]
 struct Counted {
@@ -37,9 +67,11 @@ fn top(bag: Option<&Value>, n: usize) -> Vec<Counted> {
         .into_iter()
         .map(|(value, v)| Counted {
             value: value.clone(),
-            n: v.get("n").and_then(Value::as_f64).unwrap_or(f64::NAN),
+            n: v.get(counted::N)
+                .and_then(Value::as_f64)
+                .unwrap_or(f64::NAN),
             roles: v
-                .get("roles")
+                .get(counted::ROLES)
                 .and_then(Value::as_object)
                 .map(|r| js::entries(r).into_iter().map(|(k, _)| k.clone()).collect())
                 .unwrap_or_default(),
@@ -103,17 +135,20 @@ fn cluster_colors(bag: Option<&Value>, max: usize) -> Vec<Cluster> {
 /// `{ $extensions: { 'dfw.extracted': { uses, ...extra } } }`, added to a token.
 fn with_source(mut token: Map<String, Value>, uses: f64, roles: Option<&[String]>) -> Value {
     let mut extracted = Map::new();
-    extracted.insert("uses".into(), js::num(js::round(uses)));
+    extracted.insert(key::USES.into(), js::num(js::round(uses)));
     if let Some(roles) = roles {
-        extracted.insert("roles".into(), json!(roles));
+        extracted.insert(key::ROLES.into(), json!(roles));
     }
-    token.insert("$extensions".into(), json!({ "dfw.extracted": extracted }));
+    token.insert(
+        key::EXTENSIONS.into(),
+        json!({ (key::EXTRACTED): extracted }),
+    );
     Value::Object(token)
 }
 
 fn token(value: Value) -> Map<String, Value> {
     let mut token = Map::new();
-    token.insert("$value".into(), value);
+    token.insert(key::VALUE.into(), value);
     token
 }
 
@@ -140,7 +175,7 @@ fn dim(bag: Option<&Value>, n: usize, prefix: &str) -> Value {
     uses.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
     let mut g = group("dimension");
     for (i, (v, n)) in uses.iter().enumerate() {
-        let value = json!({ "value": js::num(*v), "unit": "px" });
+        let value = json!({ (key::AMOUNT): js::num(*v), (key::UNIT): "px" });
         g.insert(
             format!("{prefix}{}", i + 1),
             with_source(token(value), *n, None),
@@ -152,21 +187,26 @@ fn dim(bag: Option<&Value>, n: usize, prefix: &str) -> Value {
 /// The tokens for what the page counted (the part of `extractTokens` after the render).
 fn tokens_from(url: &str, data: &Value) -> Value {
     let mut color = group("color");
-    for (i, k) in cluster_colors(data.get("colors"), 10).iter().enumerate() {
+    for (i, k) in cluster_colors(data.get(counted::COLORS), 10)
+        .iter()
+        .enumerate()
+    {
         let components: Vec<Value> = hex_to_rgb(&k.hex)
             .iter()
             .map(|x| js::num(js::round(x * 10000.0) / 10000.0))
             .collect();
-        let value = json!({ "colorSpace": "srgb", "components": components, "hex": k.hex });
+        let value =
+            json!({ (key::COLOR_SPACE): "srgb", (key::COMPONENTS): components, (key::HEX): k.hex });
         color.insert(
             format!("c{:02}", i + 1),
             with_source(token(value), k.uses, Some(&k.roles)),
         );
     }
     let mut family = group("fontFamily");
-    for (f, name) in top(data.get("families"), 3)
-        .iter()
-        .zip(["primary", "secondary", "tertiary"])
+    for (f, name) in
+        top(data.get(counted::FAMILIES), 3)
+            .iter()
+            .zip(["primary", "secondary", "tertiary"])
     {
         let unquote = |font: &str| {
             let font = js::trim(font);
@@ -178,11 +218,11 @@ fn tokens_from(url: &str, data: &Value) -> Value {
     }
     let description = format!("Extracted from {url} on {} by \"dfw tokens extract\". A seed for the design system brief, not the design system: name the roles, merge, check contrast (dfw system audit), then build tokens.json with dfw palette build / dfw type scale.", &now_iso()[..10]);
     json!({
-        "$description": description,
-        "color": color,
-        "font": { "family": family, "size": dim(data.get("sizes"), 10, "s") },
-        "radius": dim(data.get("radii"), 5, "r"),
-        "space": dim(data.get("spaces"), 10, "sp"),
+        (key::DESCRIPTION): description,
+        (key::COLOR): color,
+        (key::FONT): { (key::FAMILY): family, (key::SIZE): dim(data.get(counted::SIZES), 10, "s") },
+        (key::RADIUS): dim(data.get(counted::RADII), 5, "r"),
+        (key::SPACE): dim(data.get(counted::SPACES), 10, "sp"),
     })
 }
 
@@ -231,11 +271,11 @@ pub fn extract_tokens_to_file(
     Ok(format!(
         "Wrote {}: {} colours, {} font families, {} font sizes, {} radii, {} spacing values. It is a seed: review it with the user before using any of it.",
         relative_path(root, &file),
-        n(&["color"]),
-        n(&["font", "family"]),
-        n(&["font", "size"]),
-        n(&["radius"]),
-        n(&["space"])
+        n(&[key::COLOR]),
+        n(&[key::FONT, key::FAMILY]),
+        n(&[key::FONT, key::SIZE]),
+        n(&[key::RADIUS]),
+        n(&[key::SPACE])
     ))
 }
 

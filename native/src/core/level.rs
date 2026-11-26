@@ -41,12 +41,27 @@ impl Level {
     }
 }
 
-/// The keys of a finding record that code reads by name (the others are not named yet).
+/// The keys of a finding record: `{ level, rule, file, line, source, message }`.
 pub mod finding {
     /// The finding's [`Level`](super::Level), by its name.
     pub const LEVEL: &str = "level";
     /// The id of the rule that found it.
     pub const RULE: &str = "rule";
+    /// The file it is in, relative to the project.
+    pub const FILE: &str = "file";
+    /// The line it is on, from 1.
+    pub const LINE: &str = "line";
+    pub const MESSAGE: &str = "message";
+    /// Who found it (`dfw` for dfw's own checks).
+    pub const SOURCE: &str = "source";
+}
+
+/// The keys of a check result: `{ tool, status, detail?, findings }` (every check, axe included).
+pub mod result {
+    pub const TOOL: &str = "tool";
+    pub const STATUS: &str = "status";
+    pub const DETAIL: &str = "detail";
+    pub const FINDINGS: &str = "findings";
 }
 
 /// The level of a finding record (`None` when missing or unknown).

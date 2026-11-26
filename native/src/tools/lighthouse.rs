@@ -12,6 +12,7 @@ use serde_json::{json, Value};
 use crate::browser::launch::find_browser;
 use crate::core::js;
 use crate::core::level::Level;
+use crate::core::level::{finding, result as field};
 use crate::core::process::{node_executable, run_timed, Spawn};
 use crate::tools::check::outcome;
 
@@ -20,8 +21,27 @@ const LIGHTHOUSE_VERSION: &str = "13.6.0";
 /// The tool and the source its results and findings name.
 const TOOL: &str = "lighthouse";
 
+/// The keys of Lighthouse's JSON report (the LHR) that are read.
+pub mod key {
+    /// The scored categories, by id.
+    pub const CATEGORIES: &str = "categories";
+    /// A category's or an audit's score, 0 to 1 (`null` when it could not be scored).
+    pub const SCORE: &str = "score";
+    pub const TITLE: &str = "title";
+    /// The audits a category is made of: `{ id, weight }`.
+    pub const AUDIT_REFS: &str = "auditRefs";
+    pub const ID: &str = "id";
+    pub const WEIGHT: &str = "weight";
+    /// Every audit, by id.
+    pub const AUDITS: &str = "audits";
+    /// How an audit's score reads: `binary`, `numeric`, `metricSavings`, ...
+    pub const SCORE_DISPLAY_MODE: &str = "scoreDisplayMode";
+    /// The measured value, as text (`2.1 s`).
+    pub const DISPLAY_VALUE: &str = "displayValue";
+}
+
 fn unverifiable(detail: &str) -> Value {
-    json!({ "tool": TOOL, "status": outcome::UNVERIFIABLE, "detail": detail, "findings": [] })
+    json!({ (field::TOOL): TOOL, (field::STATUS): outcome::UNVERIFIABLE, (field::DETAIL): detail, (field::FINDINGS): [] })
 }
 
 /// `runLighthouse(url, { timeoutMs })`: a dfw check result (`{ tool, status, detail, findings }`).
@@ -127,41 +147,41 @@ pub fn lighthouse_report(stdout: Option<&str>, url: &str, error_detail: &str) ->
             error_detail
         };
         let detail: String = detail.chars().take(300).collect();
-        return json!({ "tool": TOOL, "status": outcome::ERROR, "detail": detail, "findings": [] });
+        return json!({ (field::TOOL): TOOL, (field::STATUS): outcome::ERROR, (field::DETAIL): detail, (field::FINDINGS): [] });
     };
-    let categories = values(lhr.get("categories"));
+    let categories = values(lhr.get(key::CATEGORIES));
     // A category Lighthouse could not score has score null: that is not a 0.
     let scores: Vec<String> = categories
         .iter()
         .map(|c| {
-            let score = c.get("score").and_then(Value::as_f64).map_or_else(
+            let score = c.get(key::SCORE).and_then(Value::as_f64).map_or_else(
                 || "n/a".to_string(),
                 // Math.round: halves go up.
                 |s| js::number((s * 100.0 + 0.5).floor()),
             );
-            format!("{} {score}", js::to_string(c.get("title")))
+            format!("{} {score}", js::to_string(c.get(key::TITLE)))
         })
         .collect();
     let mut findings = Vec::new();
     for cat in &categories {
-        for audit_ref in values(cat.get("auditRefs")) {
+        for audit_ref in values(cat.get(key::AUDIT_REFS)) {
             let id = audit_ref
-                .get("id")
+                .get(key::ID)
                 .and_then(Value::as_str)
                 .unwrap_or_default();
             let Some(a) = lhr
-                .get("audits")
+                .get(key::AUDITS)
                 .and_then(|audits| audits.get(id))
                 .filter(|a| js::truthy(a))
             else {
                 continue;
             };
             let mode = a
-                .get("scoreDisplayMode")
+                .get(key::SCORE_DISPLAY_MODE)
                 .and_then(Value::as_str)
                 .unwrap_or_default();
-            let weighted = audit_ref.get("weight").is_some_and(js::truthy);
-            let score = match a.get("score").and_then(Value::as_f64) {
+            let weighted = audit_ref.get(key::WEIGHT).is_some_and(js::truthy);
+            let score = match a.get(key::SCORE).and_then(Value::as_f64) {
                 Some(score)
                     if score < 0.9
                         && weighted
@@ -171,29 +191,29 @@ pub fn lighthouse_report(stdout: Option<&str>, url: &str, error_detail: &str) ->
                 }
                 _ => continue,
             };
-            let display = a.get("displayValue").filter(|v| js::truthy(v));
+            let display = a.get(key::DISPLAY_VALUE).filter(|v| js::truthy(v));
             findings.push(json!({
-                "level": if score < 0.5 { Level::Warn } else { Level::Info }.as_str(),
-                "rule": format!("lighthouse-{}", js::to_string(a.get("id"))),
-                "file": url,
-                "line": 1,
-                "source": TOOL,
-                "message": format!(
+                (finding::LEVEL): if score < 0.5 { Level::Warn } else { Level::Info }.as_str(),
+                (finding::RULE): format!("lighthouse-{}", js::to_string(a.get(key::ID))),
+                (finding::FILE): url,
+                (finding::LINE): 1,
+                (finding::SOURCE): TOOL,
+                (finding::MESSAGE): format!(
                     "{}: {}{}",
-                    js::to_string(cat.get("title")),
-                    js::to_string(a.get("title")),
+                    js::to_string(cat.get(key::TITLE)),
+                    js::to_string(a.get(key::TITLE)),
                     display.map(|d| format!(" ({})", js::to_string(Some(d)))).unwrap_or_default()
                 ),
             }));
         }
     }
-    json!({ "tool": TOOL, "status": outcome::RAN, "detail": format!("scores: {}", scores.join(", ")), "findings": findings })
+    json!({ (field::TOOL): TOOL, (field::STATUS): outcome::RAN, (field::DETAIL): format!("scores: {}", scores.join(", ")), (field::FINDINGS): findings })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tools::check::field::{DETAIL, FINDINGS, STATUS};
+    use crate::core::level::result::{DETAIL, FINDINGS, STATUS};
 
     /// The app Lighthouse is run against.
     const URL: &str = "http://localhost:3000";
