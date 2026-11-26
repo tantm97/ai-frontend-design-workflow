@@ -1258,6 +1258,9 @@
     }
     return out;
   }
+  function knownProp(prop) {
+    return Object.hasOwn(styleProp, prop);
+  }
   function verifyLayout(d) {
     const el = (
       /** @type {HTMLElement | null} */
@@ -1267,7 +1270,7 @@
       /** @type {HTMLStyleElement | null} */
       document.querySelector("style[data-dfw-layout]")?.sheet
     );
-    if (!el || !sheet || !styleProp[d.prop]) return;
+    if (!el || !sheet || !knownProp(d.prop)) return;
     const own = rulesOf(sheet.cssRules, (r) => r.style.getPropertyValue(d.prop) && el.matches(r.selectorText));
     if (!own.length) return;
     const read = () => (d.prop === LAYOUT_PROP.GRID_COLUMN ? ["gridColumnStart", "gridColumnEnd"] : [styleProp[d.prop]]).map((k) => getComputedStyle(el)[k]).join(" / ");

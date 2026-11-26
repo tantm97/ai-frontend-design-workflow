@@ -2,7 +2,8 @@
 // choice of a resize, and the order of token names in the inspector.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { specificity } from '../../core/studio/overlay/verify.js';
+import { specificity, knownProp } from '../../core/studio/overlay/verify.js';
+import { LAYOUT_PROP } from '../../core/studio/shared/enums.js';
 import { nearest } from '../../core/studio/overlay/layout.js';
 import { match, semanticFirst } from '../../core/studio/overlay/tokens.js';
 import { isTypingTarget } from '../../core/studio/overlay/fields.js';
@@ -55,4 +56,9 @@ test('studio-overlay-pure: isTypingTarget is one definition of a field for the o
   assert.equal(isTypingTarget(null), false);
   assert.equal(isTypingTarget({ isContentEditable: true }), true, 'editable by inheritance');
   assert.equal(isTypingTarget(document), false, 'a node without closest()');
+});
+
+test('overlay: a layout prop from a message is looked up by own key only (S4)', () => {
+  assert.equal(knownProp(LAYOUT_PROP.GRID_COLUMN), true);
+  for (const inherited of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) assert.equal(knownProp(inherited), false, inherited);
 });
