@@ -121,11 +121,15 @@ pub mod group {
     pub const ON_FILL: &str = "on-fill";
     /// Text on the warn fill, under [`COLOR`].
     pub const ON_WARN: &str = "on-warn";
-    /// The font stacks, under `font`.
+    /// The font group: stacks, sizes, weights.
+    pub const FONT: &str = "font";
+    /// The font stacks, under [`FONT`].
     pub const FAMILY: &str = "family";
     /// The eyebrow label tokens, under `font`.
     pub const EYEBROW: &str = "eyebrow";
     pub const RADIUS: &str = "radius";
+    /// The spacing scale.
+    pub const SPACE: &str = "space";
     /// The fully rounded radius.
     pub const PILL: &str = "pill";
     pub const SHADOW: &str = "shadow";
@@ -513,10 +517,10 @@ pub fn style_tokens(g: &Value, fonts: &str) -> Result<Value, DfwError> {
     let mut t = base_preset(g)?;
     group(&mut t, &[])?.insert(group::COLOR.into(), color_tokens(g));
     let display = text(fonts_for(g, fonts).and_then(|f| f.get(key::DISPLAY)));
-    group(&mut t, &["font"])?.insert(group::FAMILY.into(), font_families(g, fonts, &display));
+    group(&mut t, &[group::FONT])?.insert(group::FAMILY.into(), font_families(g, fonts, &display));
     write_font_sizes(&mut t, g)?;
     write_display_font(&mut t, &display)?;
-    group(&mut t, &["font"])?.insert(group::EYEBROW.into(), eyebrow_tokens(g));
+    group(&mut t, &[group::FONT])?.insert(group::EYEBROW.into(), eyebrow_tokens(g));
     group(&mut t, &[])?.insert(group::RADIUS.into(), radius_tokens(g));
     let sizes = group(&mut t, &["size"])?;
     for (k, v) in density(g.get(key::DENSITY).and_then(Value::as_str)) {
@@ -614,7 +618,7 @@ fn font_families(g: &Value, fonts: &str, display: &str) -> Value {
 fn write_font_sizes(t: &mut Value, g: &Value) -> Result<(), DfwError> {
     let ty = g.get(key::TYPE);
     let type_of = |key: &str| ty.and_then(|t| t.get(key));
-    let size = group(t, &["font", "size"])?;
+    let size = group(t, &[group::FONT, group::SIZE])?;
     if js::truthy(type_of("ui")) {
         for (k, v) in entries(type_of("ui")) {
             let mut token = px(Some(v));
@@ -650,7 +654,7 @@ fn write_display_font(t: &mut Value, display: &str) -> Result<(), DfwError> {
             json!({ (dtcg_key::AMOUNT): if serif { -0.01 } else { -0.025 }, (dtcg_key::UNIT): "em" }),
         ),
     ] {
-        group(t, &["font", name])?
+        group(t, &[group::FONT, name])?
             .insert(group::DISPLAY.into(), json!({ (dtcg_key::VALUE): value }));
     }
     Ok(())

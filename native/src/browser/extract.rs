@@ -47,12 +47,7 @@ mod key {
 
     /* --------------------------------------------------------------------- the groups */
 
-    pub const COLOR: &str = "color";
-    pub const FONT: &str = "font";
-    pub const FAMILY: &str = "family";
-    pub const SIZE: &str = "size";
-    pub const RADIUS: &str = "radius";
-    pub const SPACE: &str = "space";
+    pub use crate::design::style::group::{COLOR, FAMILY, FONT, RADIUS, SIZE, SPACE};
 }
 
 /// One counted value: how often it was seen and in which roles.

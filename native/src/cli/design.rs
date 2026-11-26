@@ -90,10 +90,9 @@ mod style_key {
 
 /// The DTCG keys and token groups `dfw type scale --write` writes in `design/tokens.json`.
 mod token_key {
-    pub use crate::design::tokens::key::{AMOUNT, DESCRIPTION, TYPE, UNIT, VALUE};
     /// The font group, and its size group under it.
-    pub const FONT: &str = "font";
-    pub const SIZE: &str = "size";
+    pub use crate::design::style::group::{FONT, SIZE};
+    pub use crate::design::tokens::key::{AMOUNT, DESCRIPTION, TYPE, UNIT, VALUE};
 }
 
 /// The keys of what `__debug color` prints and reads for an OKLCH colour and a type scale.
