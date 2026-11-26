@@ -15,6 +15,9 @@ use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::rel;
 
+/// The property Node's `x?.length` reads: an object with a truthy `length` passed that test.
+const JS_LENGTH: &str = "length";
+
 /// `design/design.json` keys.
 pub mod key {
     /// The product name.
@@ -33,8 +36,18 @@ pub mod key {
     pub const DESCRIPTION: &str = "description";
     pub const FILE: &str = "file";
     pub const BLUEPRINT: &str = "blueprint";
-    /// What the product is: `marketing` for a marketing site, else a product UI.
+    /// What the product is: `product` (app screens, the default) or `marketing`.
     pub const SURFACE: &str = "surface";
+    /// The token themes the Studio offers (`dark`, the option themes `opt-<name>`).
+    pub const THEMES: &str = "themes";
+    /// A screen left out of the canvas.
+    pub const ARCHIVED: &str = "archived";
+    /// The canvas page a screen names for itself.
+    pub const PAGE: &str = "page";
+    /// The screen a flow (or a link between screens) starts from.
+    pub const FROM: &str = "from";
+    /// The screen a flow (or a link between screens) goes to.
+    pub const TO: &str = "to";
     /// The id of the variant a screen's approval chose.
     pub const APPROVED_VARIANT: &str = "approvedVariant";
     /// A variant the agent recommends.
@@ -158,7 +171,7 @@ impl<'a> Screen<'a> {
             Some(Value::String(text)) if !text.is_empty() => {
                 return Err(malformed("\"states\" of a screen must be a list"));
             }
-            Some(Value::Object(map)) if js::truthy(map.get("length")) => {
+            Some(Value::Object(map)) if js::truthy(map.get(JS_LENGTH)) => {
                 return Err(malformed("\"states\" of a screen must be a list"));
             }
             _ => {}

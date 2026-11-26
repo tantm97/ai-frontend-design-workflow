@@ -11,7 +11,57 @@ use crate::core::paths::{file, project_paths, rel, resolve};
 use crate::core::util::{to_json_compact, write_atomic_inside};
 
 /// The DTCG key that gives a token, or every token of a group, its type.
-pub const TYPE_KEY: &str = "$type";
+pub const TYPE_KEY: &str = key::TYPE;
+
+/// The keys of a DTCG token tree: the `$` keys of tokens and groups, and the fields of the
+/// colour, dimension and shadow values dfw reads and writes.
+pub mod key {
+    /// The type of a token, or of every token of a group.
+    pub const TYPE: &str = "$type";
+    /// The value of a token: what makes a node a token.
+    pub const VALUE: &str = "$value";
+    pub const DESCRIPTION: &str = "$description";
+    /// Tool data of a token or a group; dfw's own is under [`DFW`].
+    pub const EXTENSIONS: &str = "$extensions";
+    /// dfw's entry in `$extensions`.
+    pub const DFW: &str = "dfw";
+
+    /* ------------------------------------------------------------------ colour values */
+
+    /// The colour space of a colour value (`srgb`, `oklch`, ...).
+    pub const COLOR_SPACE: &str = "colorSpace";
+    /// The channels of a colour value.
+    pub const COMPONENTS: &str = "components";
+    /// The `#rrggbb` form of an sRGB colour value.
+    pub const HEX: &str = "hex";
+    pub const ALPHA: &str = "alpha";
+
+    /* --------------------------------------------------------------- dimension values */
+
+    /// The number of a dimension or duration value.
+    pub const AMOUNT: &str = "value";
+    /// The unit of a dimension or duration value (`px`, `em`, `ms`).
+    pub const UNIT: &str = "unit";
+
+    /* ------------------------------------------------------------------- shadow layers */
+
+    /// The colour of a shadow layer.
+    pub const COLOR: &str = "color";
+    pub const OFFSET_X: &str = "offsetX";
+    pub const OFFSET_Y: &str = "offsetY";
+    pub const BLUR: &str = "blur";
+    pub const SPREAD: &str = "spread";
+}
+
+/// The keys of dfw's entry in the `$extensions` of a token tree (`$extensions.dfw`).
+pub mod extension {
+    /// The id of the style guide applied.
+    pub const STYLE: &str = "style";
+    /// The font set written (`vi` or `latin`).
+    pub const FONTS: &str = "fonts";
+    /// The design-system audit rules the user recorded an exception for.
+    pub const EXCEPTIONS: &str = "exceptions";
+}
 
 /// The DTCG `$type` names dfw reads and writes.
 pub mod dtcg {
@@ -265,17 +315,17 @@ fn value_to_css(value: Option<&Value>, ty: &str) -> Result<String, DfwError> {
 
 /// A zero dimension in `unit`, for an optional length or delay that is missing.
 fn zero(unit: &str) -> Value {
-    serde_json::json!({ "value": 0, "unit": unit })
+    serde_json::json!({ (key::AMOUNT): 0, (key::UNIT): unit })
 }
 
 /// `{ value, unit }` as `<value><unit>`.
 fn dimension_to_css(value: Option<&Value>) -> Result<String, DfwError> {
     Ok(match value {
-        Some(Value::Object(map)) if map.contains_key("value") => {
+        Some(Value::Object(map)) if map.contains_key(key::AMOUNT) => {
             format!(
                 "{}{}",
-                fmt_number(map.get("value")),
-                js::to_string(map.get("unit"))
+                fmt_number(map.get(key::AMOUNT)),
+                js::to_string(map.get(key::UNIT))
             )
         }
         Some(Value::Null) => return Err(malformed("a dimension is null")),
@@ -562,13 +612,13 @@ pub fn collect_tokens(tree: &Value) -> Vec<TokenEntry> {
         let children: Vec<(String, &Value)> = match node {
             Value::Object(map) => {
                 let ty = map.get(TYPE_KEY).filter(|t| js::truthy(Some(t))).or(ty);
-                if let Some(value) = map.get("$value") {
+                if let Some(value) = map.get(key::VALUE) {
                     out.push(TokenEntry {
                         name: trail.join("."),
                         ty: ty.cloned(),
                         value: value.clone(),
                         description: map
-                            .get("$description")
+                            .get(key::DESCRIPTION)
                             .filter(|d| js::truthy(Some(d)))
                             .cloned(),
                     });

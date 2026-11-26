@@ -26,8 +26,10 @@ use super::html::escape_html as esc;
 use super::tokens::{dir_names, TokenEntry};
 use crate::core::error::DfwError;
 use crate::core::js;
+use crate::core::level::finding;
 use crate::core::paths::{file, in_design, project_paths, rel};
 use crate::design::dsaudit::audit_design_system;
+use crate::design::style::key as style_key;
 
 /// The page's own styles (the literal of system-page.mjs, kept as a file).
 const CSS: &str = include_str!("../system_page.css");
@@ -139,7 +141,7 @@ fn page_head(manifest: &Value, style: Option<&Value>, head: &str, design_base: &
         product = esc(&manifest_text(manifest, "product", "")),
         style_name = style.map_or(String::new(), |s| format!(
             " · {}",
-            esc(&js::to_string(s.get("name")))
+            esc(&js::to_string(s.get(style_key::NAME)))
         )),
     )
 }
@@ -197,7 +199,7 @@ impl Foundations {
 
 /// The audit section's title and list.
 fn audit_html(audit: &[Value]) -> (String, String) {
-    let level = |x: &Value| js::to_string(x.get("level"));
+    let level = |x: &Value| js::to_string(x.get(finding::LEVEL));
     let count = |name: &str| audit.iter().filter(|x| level(x) == name).count();
     let audit_title = if audit.is_empty() {
         "clean".to_string()
@@ -219,7 +221,7 @@ fn audit_html(audit: &[Value]) -> (String, String) {
                 };
                 format!(
                     "<li class=\"lv-{level}\"><b>{label}</b>{}</li>",
-                    esc(&js::to_string(x.get("message")))
+                    esc(&js::to_string(x.get(finding::MESSAGE)))
                 )
             })
             .collect();

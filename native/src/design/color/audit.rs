@@ -2,7 +2,7 @@
 
 use super::{contrast, hex_to_oklch, hue_distance, Oklch};
 use crate::core::js;
-use crate::core::level::Level;
+use crate::core::level::{finding, Level};
 use serde_json::{json, Map, Value};
 
 /// The rule of an accent too close in hue to a status colour.
@@ -48,6 +48,16 @@ const ROLE_PAIRS: [(&str, &str, f64, bool, &str); 13] = [
     ("on-brand", "brand", 4.5, true, "Text on brand surfaces"),
 ];
 
+/// The keys of the input of [`audit_colors`].
+pub mod key {
+    /// The resolved role colours (hex), by role.
+    pub const ROLES: &str = "roles";
+    /// The resolved status colours (hex), by name (`ok`, `warn-tint`, ...).
+    pub const STATUS: &str = "status";
+    /// The text colour on status fills.
+    pub const ON_FILL: &str = "onFill";
+}
+
 /// `auditColors`: review resolved role colours (hex). `input` is `{ roles, status, onFill }`;
 /// returns `[{ level, rule, message }]`. The checks run in the order their findings are
 /// printed (the golden tests compare that order).
@@ -55,15 +65,15 @@ pub fn audit_colors(input: &Value, exceptions: &[String]) -> Vec<Value> {
     let empty = Map::new();
     let colors = RoleColors {
         roles: input
-            .get("roles")
+            .get(key::ROLES)
             .and_then(Value::as_object)
             .unwrap_or(&empty),
         status: input
-            .get("status")
+            .get(key::STATUS)
             .and_then(Value::as_object)
             .unwrap_or(&empty),
         on_fill: input
-            .get("onFill")
+            .get(key::ON_FILL)
             .and_then(Value::as_str)
             .unwrap_or("#ffffff"),
     };
@@ -116,9 +126,9 @@ impl Findings<'_> {
     fn add(&mut self, level: Level, rule: &str, message: String) {
         let excepted = self.exceptions.iter().any(|e| e == rule);
         self.out.push(json!({
-            "level": if excepted && level == Level::Error { Level::Info } else { level }.as_str(),
-            "rule": rule,
-            "message": if excepted { format!("{message} (recorded exception)") } else { message },
+            (finding::LEVEL): if excepted && level == Level::Error { Level::Info } else { level }.as_str(),
+            (finding::RULE): rule,
+            (finding::MESSAGE): if excepted { format!("{message} (recorded exception)") } else { message },
         }));
     }
 }

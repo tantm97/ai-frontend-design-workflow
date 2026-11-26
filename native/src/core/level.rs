@@ -47,6 +47,13 @@ pub mod finding {
     pub const LEVEL: &str = "level";
     /// The id of the rule that found it.
     pub const RULE: &str = "rule";
+    /// The file it is in, relative to the project.
+    pub const FILE: &str = "file";
+    /// The line it is on, from 1.
+    pub const LINE: &str = "line";
+    pub const MESSAGE: &str = "message";
+    /// Who found it (`dfw` for dfw's own checks).
+    pub const SOURCE: &str = "source";
 }
 
 /// The level of a finding record (`None` when missing or unknown).

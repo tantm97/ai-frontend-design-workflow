@@ -25,6 +25,72 @@ use crate::core::paths::{in_design, project_paths, rel, resolve, to_posix};
 /// Attributes of `<dfw-use>` that are not props and are not copied to the root element.
 const RESERVED: [&str; 6] = ["c", "component", "variant", "size", "id", "class"];
 
+/// Attribute names of the design format that are read by name.
+pub mod attr {
+    /// The stable id of an element, what comments and edits point at.
+    pub const DFW_ID: &str = "data-dfw-id";
+    /// The id of a `<dfw-use>` or a `<dfw-icon>` (stamped as [`DFW_ID`]).
+    pub const ID: &str = "id";
+    pub const CLASS: &str = "class";
+    /// The name of a master, or the icon of a `<dfw-icon>`.
+    pub const NAME: &str = "name";
+    /// The accessible name of an icon.
+    pub const LABEL: &str = "label";
+    /// The props a master declares (`name=default ...`).
+    pub const PROPS: &str = "props";
+    /// The master of a `<dfw-use>` (the long form of `c`).
+    pub const COMPONENT: &str = "component";
+    /// The inline style of an element.
+    pub const STYLE: &str = "style";
+}
+
+/// The slot that takes the content of an instance outside any named fill.
+pub const DEFAULT_SLOT: &str = "default";
+
+/// The keys of the JSON the compose functions return: a component definition
+/// ([`ComponentDef::to_json`]) and a composed page with its instances ([`Composed::to_json`]).
+pub mod key {
+    /* ---------------------------------------------------- a component definition */
+
+    pub const NAME: &str = "name";
+    /// The master's file, relative to the project.
+    pub const FILE: &str = "file";
+    /// The line of its `<dfw-component>` tag (also the line of an instance).
+    pub const LINE: &str = "line";
+    pub const DESCRIPTION: &str = "description";
+    pub const GROUP: &str = "group";
+    pub const VARIANTS: &str = "variants";
+    pub const SIZES: &str = "sizes";
+    pub const DEFAULT_VARIANT: &str = "defaultVariant";
+    pub const DEFAULT_SIZE: &str = "defaultSize";
+    pub const PROPS: &str = "props";
+    /// The default of each prop, by name.
+    pub const PROP_DEFAULTS: &str = "propDefaults";
+    /// The plain elements the master stands for.
+    pub const REPLACES: &str = "replaces";
+    pub const PREVIEW: &str = "preview";
+    /// What its slots accept.
+    pub const ACCEPTS: &str = "accepts";
+    pub const STYLES: &str = "styles";
+    pub const TEMPLATE: &str = "template";
+    pub const EXAMPLES: &str = "examples";
+
+    /* ------------------------------------------------- a composed page, an instance */
+
+    /// The composed HTML.
+    pub const HTML: &str = "html";
+    /// The instances found, each `{ component?, variant, size, id, line }`.
+    pub const INSTANCES: &str = "instances";
+    /// The problems found, as findings `{ level, rule, message, line }`.
+    pub const ISSUES: &str = "issues";
+    /// The master an instance uses.
+    pub const COMPONENT: &str = "component";
+    pub const VARIANT: &str = "variant";
+    pub const SIZE: &str = "size";
+    /// The instance's id.
+    pub const ID: &str = "id";
+}
+
 /// The object `parseAttrs` built: decoded values by name, in the order the names first appear;
 /// a repeated name keeps its place and takes the later value.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

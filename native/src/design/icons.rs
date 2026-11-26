@@ -14,6 +14,14 @@ use crate::core::js;
 use crate::core::paths::{file, project_paths};
 use crate::core::util::write_atomic_inside;
 
+/// The keys of the icon library (`assets/icons/lucide.json`).
+pub mod key {
+    /// The icons by name, each `[paths, ...tags]`.
+    pub const ICONS: &str = "icons";
+    /// The opening `<svg>` tag every icon shares.
+    pub const SVG_ROOT: &str = "svgRoot";
+}
+
 /// `iconBundle`: the parsed icon library `{ svgRoot, icons: { name: [paths, ...tags] } }`.
 pub fn icon_bundle() -> Result<Value, DfwError> {
     assets::json(Folder::Assets, "icons/lucide.json")?.ok_or_else(|| {
@@ -23,10 +31,10 @@ pub fn icon_bundle() -> Result<Value, DfwError> {
 
 /// `iconSvg`: the SVG file text of one icon, or `None` when the library has no such icon.
 pub fn icon_svg(bundle: &Value, name: &str) -> Option<String> {
-    let entry = bundle.get("icons")?.as_object()?.get(name)?;
+    let entry = bundle.get(key::ICONS)?.as_object()?.get(name)?;
     Some(format!(
         "{}{}</svg>\n",
-        js::to_string(bundle.get("svgRoot")),
+        js::to_string(bundle.get(key::SVG_ROOT)),
         js::to_string(entry.get(0))
     ))
 }
@@ -56,7 +64,7 @@ pub fn search_icons(bundle: &Value, query: &str, limit: f64) -> Vec<IconHit> {
     let words = js::words(&query.to_lowercase());
     let joined = words.join("-");
     let mut scored = Vec::new();
-    let Some(icons) = bundle.get("icons").and_then(Value::as_object) else {
+    let Some(icons) = bundle.get(key::ICONS).and_then(Value::as_object) else {
         return scored;
     };
     for (name, entry) in js::entries(icons) {

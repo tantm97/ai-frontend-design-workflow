@@ -1,7 +1,7 @@
 //! `typeScale` and `auditTypeScale`: a modular type scale and its rhythm checks.
 
 use crate::core::js;
-use crate::core::level::Level;
+use crate::core::level::{finding, Level};
 use serde_json::{json, Value};
 
 /// A modular type scale (`typeScale`): sizes in px by step name, in the order Node listed them.
@@ -76,23 +76,31 @@ fn unique_sorted(list: Option<&Value>) -> Vec<f64> {
     out
 }
 
-/// `auditTypeScale`: check a scale for rhythm and hierarchy. `scale` is `{ ui: [px], display:
-/// [px] }` or a flat list of UI sizes; returns `[{ level, rule, message }]`.
 /// The surface of an app's screens, the default when the manifest names none (the other is
 /// `marketing`).
 pub const PRODUCT_SURFACE: &str = "product";
 
+/// The keys of the scale [`audit_type_scale`] reads (when it is not a flat list).
+pub mod key {
+    /// The UI sizes, in px.
+    pub const UI: &str = "ui";
+    /// The display sizes, in px.
+    pub const DISPLAY: &str = "display";
+}
+
+/// `auditTypeScale`: check a scale for rhythm and hierarchy. `scale` is `{ ui: [px], display:
+/// [px] }` or a flat list of UI sizes; returns `[{ level, rule, message }]`.
 pub fn audit_type_scale(scale: &Value, body: f64, surface: &str) -> Vec<Value> {
     let mut out = Vec::new();
     let ui = unique_sorted(if scale.is_array() {
         Some(scale)
     } else {
-        scale.get("ui")
+        scale.get(key::UI)
     });
     let display = unique_sorted(if scale.is_array() {
         None
     } else {
-        scale.get("display")
+        scale.get(key::DISPLAY)
     });
     let list = |values: &[f64], sep: &str| {
         values
@@ -110,7 +118,7 @@ pub fn audit_type_scale(scale: &Value, body: f64, surface: &str) -> Vec<Value> {
             .fold(f64::NEG_INFINITY, js::max);
         if dev > 0.08 {
             let ratios: Vec<String> = rr.iter().map(|x| js::to_fixed(*x, 2)).collect();
-            out.push(json!({ "level": Level::Warn.as_str(), "rule": "type-ratio", "message": format!("Display steps {} do not follow one ratio ({}). Use a modular scale (dfw type scale).", list(&display, "/"), ratios.join(", ")) }));
+            out.push(json!({ (finding::LEVEL): Level::Warn.as_str(), (finding::RULE): "type-ratio", (finding::MESSAGE): format!("Display steps {} do not follow one ratio ({}). Use a modular scale (dfw type scale).", list(&display, "/"), ratios.join(", ")) }));
         }
     }
     let top = if display.is_empty() {
@@ -122,7 +130,7 @@ pub fn audit_type_scale(scale: &Value, body: f64, surface: &str) -> Vec<Value> {
     let need = if surface == "marketing" { 3.0 } else { 1.8 };
     if let Some(top) = top {
         if top / body < need {
-            out.push(json!({ "level": Level::Warn.as_str(), "rule": "type-contrast", "message": format!("Largest size {}px is only {}× body; {surface} UIs need ≥ {}× for clear hierarchy.", js::number(top), js::to_fixed(top / body, 1), js::number(need)) }));
+            out.push(json!({ (finding::LEVEL): Level::Warn.as_str(), (finding::RULE): "type-contrast", (finding::MESSAGE): format!("Largest size {}px is only {}× body; {surface} UIs need ≥ {}× for clear hierarchy.", js::number(top), js::to_fixed(top / body, 1), js::number(need)) }));
         }
     }
     let mut all = ui.clone();
@@ -138,7 +146,7 @@ pub fn audit_type_scale(scale: &Value, body: f64, surface: &str) -> Vec<Value> {
         .filter(|w| w[1] / w[0] < if w[0] < 20.0 { 1.08 } else { 1.06 })
         .count();
     if close >= 2 {
-        out.push(json!({ "level": Level::Warn.as_str(), "rule": "type-steps", "message": format!("{close} adjacent sizes are too close (e.g. 14/15): they look like mistakes, not hierarchy. Merge them or use a modular scale.") }));
+        out.push(json!({ (finding::LEVEL): Level::Warn.as_str(), (finding::RULE): "type-steps", (finding::MESSAGE): format!("{close} adjacent sizes are too close (e.g. 14/15): they look like mistakes, not hierarchy. Merge them or use a modular scale.") }));
     }
     out
 }

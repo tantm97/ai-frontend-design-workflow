@@ -36,31 +36,31 @@ impl ComponentDef {
     pub fn to_json(&self) -> Value {
         let mut map = Map::new();
         if let Some(name) = &self.name {
-            map.insert("name".into(), json!(name));
+            map.insert(key::NAME.into(), json!(name));
         }
         let mut defaults = Map::new();
         for (k, v) in &self.prop_defaults {
             defaults.insert(k.clone(), json!(v));
         }
-        for (key, value) in [
-            ("file", json!(self.file)),
-            ("line", json!(self.line)),
-            ("description", json!(self.description)),
-            ("group", json!(self.group)),
-            ("variants", json!(self.variants)),
-            ("sizes", json!(self.sizes)),
-            ("defaultVariant", json!(self.default_variant)),
-            ("defaultSize", json!(self.default_size)),
-            ("props", json!(self.props)),
-            ("propDefaults", js::key_order(Value::Object(defaults))),
-            ("replaces", json!(self.replaces)),
-            ("preview", json!(self.preview)),
-            ("accepts", json!(self.accepts)),
-            ("styles", json!(self.styles)),
-            ("template", json!(self.template)),
-            ("examples", json!(self.examples)),
+        for (name, value) in [
+            (key::FILE, json!(self.file)),
+            (key::LINE, json!(self.line)),
+            (key::DESCRIPTION, json!(self.description)),
+            (key::GROUP, json!(self.group)),
+            (key::VARIANTS, json!(self.variants)),
+            (key::SIZES, json!(self.sizes)),
+            (key::DEFAULT_VARIANT, json!(self.default_variant)),
+            (key::DEFAULT_SIZE, json!(self.default_size)),
+            (key::PROPS, json!(self.props)),
+            (key::PROP_DEFAULTS, js::key_order(Value::Object(defaults))),
+            (key::REPLACES, json!(self.replaces)),
+            (key::PREVIEW, json!(self.preview)),
+            (key::ACCEPTS, json!(self.accepts)),
+            (key::STYLES, json!(self.styles)),
+            (key::TEMPLATE, json!(self.template)),
+            (key::EXAMPLES, json!(self.examples)),
         ] {
-            map.insert(key.into(), value);
+            map.insert(name.into(), value);
         }
         Value::Object(map)
     }
@@ -214,7 +214,7 @@ pub fn parse_component_file(text: &str, rel: &str) -> Vec<ComponentDef> {
         let (styles, template, examples) = master_parts(&text[el.inner.clone()]);
         let list = |name: &str| js::words(a.get(name).unwrap_or_default());
         let or = |name: &str, fallback: &str| a.nonempty(name).unwrap_or(fallback).to_string();
-        let props = prop_list(a.get("props"));
+        let props = prop_list(a.get(attr::PROPS));
         let variants = list("variants");
         let sizes = list("sizes");
         let mut prop_defaults: Vec<(String, String)> = Vec::new();
@@ -234,7 +234,7 @@ pub fn parse_component_file(text: &str, rel: &str) -> Vec<ComponentDef> {
             t.to_string()
         });
         defs.push(ComponentDef {
-            name: a.get("name").map(str::to_string),
+            name: a.get(attr::NAME).map(str::to_string),
             file: rel.to_string(),
             line: line_of(text, tag.range.start),
             description: or("description", ""),

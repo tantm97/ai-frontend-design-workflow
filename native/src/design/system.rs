@@ -11,8 +11,9 @@ use serde_json::{json, Map, Value};
 
 use super::compose::{build_system, load_components};
 use super::inventory::ensure_inventory;
+use super::manifest::key as manifest_key;
 use super::style::{apply_style, get_style, head_for, is_style, style_name, style_tokens};
-use super::tokens::{build_tokens, dir_names, option};
+use super::tokens::{build_tokens, dir_names, key as dtcg_key, option};
 use crate::assets::{self, Folder};
 use crate::core::error::DfwError;
 use crate::core::js;
@@ -66,7 +67,9 @@ pub fn list_presets() -> Result<Vec<(String, String)>, DfwError> {
     {
         let tokens =
             assets::json(Folder::Kits, &format!("{PRESETS_DIR}/{f}"))?.unwrap_or_else(|| json!({}));
-        let description = tokens.get("$description").filter(|d| js::truthy(Some(d)));
+        let description = tokens
+            .get(dtcg_key::DESCRIPTION)
+            .filter(|d| js::truthy(Some(d)));
         presets.push((
             f.replacen(".tokens.json", "", 1),
             description.map_or(String::new(), |d| js::to_string(Some(d))),
@@ -189,7 +192,7 @@ fn set_manifest_themes(root: &Path, manifest: &Path, add: &[String]) -> Result<(
     };
     let mut themes: Vec<Value> = Vec::new();
     let kept = map
-        .get("themes")
+        .get(manifest_key::THEMES)
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
@@ -204,7 +207,7 @@ fn set_manifest_themes(root: &Path, manifest: &Path, add: &[String]) -> Result<(
             themes.push(t);
         }
     }
-    map.insert("themes".into(), Value::Array(themes));
+    map.insert(manifest_key::THEMES.into(), Value::Array(themes));
     write_json_inside(root, manifest, &m)
 }
 
@@ -329,6 +332,19 @@ pub fn system_choose(root: &Path, name: &str, fonts: &str) -> Result<String, Dfw
     Ok(name.to_string())
 }
 
+/// The keys of the design system summary ([`system_summary`]).
+pub mod key {
+    /// The list of masters.
+    pub const COMPONENTS: &str = "components";
+    pub const NAME: &str = "name";
+    pub const GROUP: &str = "group";
+    pub const VARIANTS: &str = "variants";
+    pub const SIZES: &str = "sizes";
+    pub const PROPS: &str = "props";
+    /// The master's file, relative to the project.
+    pub const FILE: &str = "file";
+}
+
 /// `systemSummary`: `{ components: [{ name, group, variants, sizes, props, file }] }`.
 pub fn system_summary(root: &Path) -> Result<Value, DfwError> {
     let lib = load_components(root)?;
@@ -337,17 +353,17 @@ pub fn system_summary(root: &Path) -> Result<Value, DfwError> {
         .map(|d| {
             let mut c = Map::new();
             if let Some(name) = &d.name {
-                c.insert("name".into(), json!(name));
+                c.insert(key::NAME.into(), json!(name));
             }
-            c.insert("group".into(), json!(d.group));
-            c.insert("variants".into(), json!(d.variants));
-            c.insert("sizes".into(), json!(d.sizes));
-            c.insert("props".into(), json!(d.props));
-            c.insert("file".into(), json!(d.file));
+            c.insert(key::GROUP.into(), json!(d.group));
+            c.insert(key::VARIANTS.into(), json!(d.variants));
+            c.insert(key::SIZES.into(), json!(d.sizes));
+            c.insert(key::PROPS.into(), json!(d.props));
+            c.insert(key::FILE.into(), json!(d.file));
             Value::Object(c)
         })
         .collect();
-    Ok(json!({ "components": components }))
+    Ok(json!({ (key::COMPONENTS): components }))
 }
 
 #[cfg(test)]

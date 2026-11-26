@@ -92,6 +92,33 @@ fn previous_step(step: f64) -> f64 {
     f64::from(STEPS[step_index(step).map_or(0, |i| i.saturating_sub(1))])
 }
 
+/// The keys of a palette ([`build_palette`]).
+pub mod key {
+    /// The OKLCH ramps, by name.
+    pub const RAMPS: &str = "ramps";
+    /// The role colours, by role.
+    pub const ROLES: &str = "roles";
+    /// The status colours, by name.
+    pub const STATUS: &str = "status";
+    /// The ramp names: `{ brand, neutral, signature }`.
+    pub const NAMES: &str = "names";
+    pub const BRAND: &str = "brand";
+    pub const NEUTRAL: &str = "neutral";
+    pub const SIGNATURE: &str = "signature";
+    /// What the build adjusted, one line each.
+    pub const NOTES: &str = "notes";
+    /// The hues and chromas the palette is built around.
+    pub const SEEDS: &str = "seeds";
+    pub const BRAND_HUE: &str = "brandHue";
+    pub const BRAND_CHROMA: &str = "brandChroma";
+    /// The hue of the neutral ramp.
+    pub const NEUTRAL_HUE: &str = "nHue";
+    /// How much of the brand hue tints the neutrals.
+    pub const TINT: &str = "tint";
+    /// The hue of the signature ramp (`null` without one).
+    pub const SIGNATURE_HUE: &str = "sigHue";
+}
+
 /// `buildPalette`: ramps, roles picked by contrast and status colours from a few decisions.
 /// Returns `{ ramps, roles, status, names, notes, seeds }` as the Node function did.
 pub fn build_palette(seeds: &Seeds, names: &Names) -> Value {
@@ -121,17 +148,17 @@ pub fn build_palette(seeds: &Seeds, names: &Names) -> Value {
         ramps_json.insert(name.clone(), ramp.to_json());
     }
     js::key_order(json!({
-        "ramps": ramps_json,
-        "roles": roles,
-        "status": status,
-        "names": { "brand": names.brand, "neutral": names.neutral, "signature": names.signature },
-        "notes": notes,
-        "seeds": {
-            "brandHue": js::num(basis.brand_hue),
-            "brandChroma": js::num(basis.brand_chroma),
-            "nHue": js::num(basis.n_hue),
-            "tint": js::num(basis.tint),
-            "sigHue": basis.sig_hue.map_or(Value::Null, js::num),
+        (key::RAMPS): ramps_json,
+        (key::ROLES): roles,
+        (key::STATUS): status,
+        (key::NAMES): { (key::BRAND): names.brand, (key::NEUTRAL): names.neutral, (key::SIGNATURE): names.signature },
+        (key::NOTES): notes,
+        (key::SEEDS): {
+            (key::BRAND_HUE): js::num(basis.brand_hue),
+            (key::BRAND_CHROMA): js::num(basis.brand_chroma),
+            (key::NEUTRAL_HUE): js::num(basis.n_hue),
+            (key::TINT): js::num(basis.tint),
+            (key::SIGNATURE_HUE): basis.sig_hue.map_or(Value::Null, js::num),
         },
     }))
 }

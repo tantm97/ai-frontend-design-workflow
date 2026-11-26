@@ -12,7 +12,7 @@ use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::js::regex::with_js_classes;
 use crate::core::paths::project_paths;
-use crate::design::tokens::{collect_tokens, TokenEntry};
+use crate::design::tokens::{collect_tokens, key as dtcg_key, TokenEntry};
 use crate::design::tokens::{dir_names, file_declarations};
 
 /// `loadTokens`: the tokens of every `design/tokens/*.json`.
@@ -125,6 +125,6 @@ impl<'a> Tokens<'a> {
     /// `byName.get('font.size.<k>')?.value?.value`.
     pub(super) fn size_of(&self, k: &str) -> Option<&'a Value> {
         self.get(&format!("font.size.{k}"))
-            .and_then(|t| t.value.get("value"))
+            .and_then(|t| t.value.get(dtcg_key::AMOUNT))
     }
 }

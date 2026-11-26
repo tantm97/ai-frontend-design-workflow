@@ -7,7 +7,7 @@ use serde_json::Value;
 
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::design::compose::{attrs_of, load_components, Attrs, ComponentDef};
+use crate::design::compose::{attr, attrs_of, load_components, Attrs, ComponentDef};
 use crate::design::html::{element_at, Tag, Token, Tokenizer};
 
 /// An element found by [`locate`], with the byte offsets an edit splices at.
@@ -62,8 +62,9 @@ fn scanned_tags(text: &str) -> Vec<Tag> {
 }
 
 fn has_id(text: &str, tag: &Tag, attrs: &Attrs, id: &str) -> bool {
-    attrs.get("data-dfw-id") == Some(id)
-        || ((tag.is(text, "dfw-use") || tag.is(text, "dfw-icon")) && attrs.get("id") == Some(id))
+    attrs.get(attr::DFW_ID) == Some(id)
+        || ((tag.is(text, "dfw-use") || tag.is(text, "dfw-icon"))
+            && attrs.get(attr::ID) == Some(id))
 }
 
 /// `locate`: the one element with `data-dfw-id="id"` (or `<dfw-use|dfw-icon id="id">`).
@@ -132,7 +133,7 @@ pub fn master_of(root: &Path, id: &str) -> Result<Option<ComponentDef>, DfwError
     let found = lib.iter().find(|def| {
         scanned_tags(&def.template)
             .iter()
-            .any(|tag| attrs_of(&def.template, &tag.attrs).get("data-dfw-id") == Some(id))
+            .any(|tag| attrs_of(&def.template, &tag.attrs).get(attr::DFW_ID) == Some(id))
     });
     Ok(found.cloned())
 }

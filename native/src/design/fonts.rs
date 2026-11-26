@@ -14,6 +14,18 @@ use crate::core::http;
 const USER_AGENT: &str =
     "Mozilla/5.0 (Macintosh) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36";
 
+/// The keys of [`FontSubsets::to_json`].
+pub mod key {
+    pub const FAMILY: &str = "family";
+    /// The service answered with the family's CSS.
+    pub const OK: &str = "ok";
+    /// The HTTP status of an error answer.
+    pub const STATUS: &str = "status";
+    /// Why the request failed.
+    pub const ERROR: &str = "error";
+    pub const SUBSETS: &str = "subsets";
+}
+
 /// The answer for one family.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FontSubsets {
@@ -30,11 +42,11 @@ impl FontSubsets {
     /// The object the Node CLI printed with `--json`.
     pub fn to_json(&self) -> Value {
         if self.ok {
-            json!({ "family": self.family, "ok": true, "subsets": self.subsets })
+            json!({ (key::FAMILY): self.family, (key::OK): true, (key::SUBSETS): self.subsets })
         } else if let Some(error) = &self.error {
-            json!({ "family": self.family, "ok": false, "error": error, "subsets": [] })
+            json!({ (key::FAMILY): self.family, (key::OK): false, (key::ERROR): error, (key::SUBSETS): [] })
         } else {
-            json!({ "family": self.family, "ok": false, "status": self.status, "subsets": [] })
+            json!({ (key::FAMILY): self.family, (key::OK): false, (key::STATUS): self.status, (key::SUBSETS): [] })
         }
     }
 }
