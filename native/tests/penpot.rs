@@ -13,17 +13,11 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 use serde_json::Value;
 
-#[path = "../src/core/paths/layout.rs"]
-#[allow(
-    dead_code,
-    reason = "each test binary uses a part of the project layout"
-)]
-mod layout;
+#[path = "support/product.rs"]
+mod product;
 use layout::{file, rel};
+use product::{layout, word};
 
-#[path = "../src/core/word.rs"]
-#[allow(dead_code, reason = "each test binary uses a part of the command line")]
-mod word;
 use word::{command, flag, sub};
 
 /// What a dry run of an import says it was.
