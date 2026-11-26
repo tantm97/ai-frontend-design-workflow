@@ -1430,3 +1430,185 @@ fn no_os_file_watcher_crate() {
         found.join("\n")
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// Paths, ids and the Penpot ledgers (review-rows-wave2 D1, D2: §0 rows 11, 12, 16, 31, 33, 38)
+// ---------------------------------------------------------------------------------------------
+
+/// The lines of each function of a product file, as `(fn line, line number, line)`: a line
+/// belongs to the last `fn ` above it.
+fn by_function(lines: &[String]) -> Vec<(&str, usize, &str)> {
+    let mut inside = "";
+    let mut out = Vec::new();
+    for (i, line) in lines.iter().enumerate() {
+        if let Some(at) = line.find("fn ") {
+            inside = &line[at..];
+        }
+        out.push((inside, i + 1, line.as_str()));
+    }
+    out
+}
+
+/// "Is it inside" is decided once, in `core::paths::inside` (real path, case folded where the
+/// volume ignores case). A `.starts_with(` on a `real_path(`/`canonicalize(` result elsewhere
+/// is a second check that misses the case variant or the alias (`security-privacy.md` S2): on
+/// the call's own line, or on a name a `let` bound to one in the same function.
+#[test]
+fn real_paths_are_compared_in_core_paths() {
+    let word = regex::Regex::new(r"[a-z_][a-z0-9_]*").unwrap();
+    let mut found = Vec::new();
+    for (rel, lines) in product_sources(&["src/core/paths.rs"]) {
+        let mut real_names: Vec<String> = Vec::new();
+        let mut current = "";
+        for (inside, n, line) in by_function(&lines) {
+            if inside != current {
+                current = inside;
+                real_names.clear();
+            }
+            let resolves = line.contains("real_path(") || line.contains("canonicalize(");
+            if resolves {
+                if let Some((pattern, _)) = line
+                    .trim_start()
+                    .strip_prefix("let ")
+                    .and_then(|l| l.split_once('='))
+                {
+                    real_names.extend(
+                        word.find_iter(pattern)
+                            .map(|m| m.as_str().to_string())
+                            .filter(|w| w != "mut"),
+                    );
+                }
+            }
+            let Some(at) = line.find(".starts_with(") else {
+                continue;
+            };
+            let on_real = |name: &String| {
+                line[..at].trim_end().ends_with(name.as_str())
+                    || line[at..].starts_with(&format!(".starts_with({name}"))
+                    || line[at..].starts_with(&format!(".starts_with(&{name}"))
+            };
+            if resolves || real_names.iter().any(on_real) {
+                found.push(format!("{rel}:{n}: {}", line.trim()));
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "a real path compared by hand; use core::paths::inside:\n{}",
+        found.join("\n")
+    );
+}
+
+/// A file named after an id is built by the `*_file(&SafeName)` helper of its folder, so the id
+/// matched its whole pattern first (`security-privacy.md` S3). Refused: a `format!` that ends a
+/// name with `.json`, `.html` or `.svg` (or `.{}` with `file::JSON_EXT`) outside those helpers.
+#[test]
+fn file_names_from_ids_go_through_the_file_helpers() {
+    let name = regex::Regex::new(
+        r#"format!\("[^"]*\{[^}"]*\}\.(?:json|html|svg)"|format!\("[^"]*\{[^}"]*\}\.\{\}",\s*file::JSON_EXT"#,
+    )
+    .unwrap();
+    // The helpers, as `file: fn`.
+    let helpers = [
+        "src/penpot/export.rs: fn export_file(",
+        "src/core/util.rs: fn create_free(",
+        "src/core/paths/layout.rs: fn icon(",
+        "src/core/paths/layout.rs: fn theme(",
+        "src/core/paths/layout.rs: fn master(",
+    ];
+    // Known exceptions, outside review-rows-wave2 area P: a name from a constant list, a key
+    // of dfw's own, or a sanitised id; each still to move behind a helper.
+    let known = [
+        "src/core/fixture.rs: fn variant_page(",
+        "src/design/style.rs: fn get_style(",
+        "src/design/style.rs: fn is_style(",
+        "src/design/compose/library.rs: fn load_icon(",
+        "src/design/system.rs: fn system_options(",
+        "src/browser/cdp.rs: fn cached_or_fetched(",
+        "src/workflow/lang.rs: fn session_file(",
+        // A temporary file named after the process.
+        "src/penpot/import.rs: fn token_diff(",
+    ];
+    let mut found = Vec::new();
+    for (rel, lines) in product_sources(&[]) {
+        for (inside, n, line) in by_function(&lines) {
+            if !name.is_match(line) {
+                continue;
+            }
+            let at = format!("{rel}: {inside}");
+            if helpers
+                .iter()
+                .chain(known.iter())
+                .any(|h| at.starts_with(h))
+            {
+                continue;
+            }
+            found.push(format!("{rel}:{n}: {}", line.trim()));
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "a file name built from an id by hand; add a *_file(&SafeName) helper:\n{}",
+        found.join("\n")
+    );
+}
+
+/// A version names a snapshot folder only through `freeze::snapshot_dir`, which checks it is
+/// `v<number>` first (`security-privacy.md` S3, 71e6fde, 04e1754).
+#[test]
+fn snapshot_folders_are_joined_in_snapshot_dir() {
+    let mut found = Vec::new();
+    for (rel, lines) in product_sources(&[]) {
+        for (inside, n, line) in by_function(&lines) {
+            let allowed = rel == "src/workflow/freeze.rs" && inside.starts_with("fn snapshot_dir(");
+            if line.contains("approved.join(") && !allowed {
+                found.push(format!("{rel}:{n}: {}", line.trim()));
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "a version joined onto design/approved by hand; use freeze::snapshot_dir:\n{}",
+        found.join("\n")
+    );
+}
+
+/// The Penpot ledgers (`threads.json`, `imported.json`) are read, changed and written under
+/// their lock: the one write is `threads::write_ledger`, which asks for the guard (§0 row 38).
+/// Refused in `src/penpot/`: a `write_json_inside(` whose statement names a ledger.
+#[test]
+fn penpot_ledgers_are_written_under_their_lock() {
+    let ledger = ["threads", "ledger", "PENPOT_IMPORTED", "PENPOT_THREADS"];
+    let mut found = Vec::new();
+    for (rel, lines) in product_sources(&[]) {
+        if !rel.starts_with("src/penpot/") {
+            continue;
+        }
+        for (i, line) in lines.iter().enumerate() {
+            let Some(at) = line.find("write_json_inside(") else {
+                continue;
+            };
+            let mut statement = line[at..].to_string();
+            for next in lines.iter().skip(i + 1).take(4) {
+                if statement.contains(';') {
+                    break;
+                }
+                statement.push_str(next);
+            }
+            let in_helper = rel == "src/penpot/threads.rs"
+                && lines[..i]
+                    .iter()
+                    .rev()
+                    .find(|l| l.contains("fn "))
+                    .is_some_and(|l| l.contains("fn write_ledger("));
+            if !in_helper && ledger.iter().any(|w| statement.contains(w)) {
+                found.push(format!("{rel}:{}: {}", i + 1, line.trim()));
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "a Penpot ledger written without the lock's guard; use threads::write_ledger(held, ...):\n{}",
+        found.join("\n")
+    );
+}

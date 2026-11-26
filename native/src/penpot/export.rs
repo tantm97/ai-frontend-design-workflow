@@ -27,7 +27,9 @@ use crate::core::config::load_config;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::js::regex::fixed_regex;
-use crate::core::paths::{file, file_url, file_url_to_path, project_paths, rel, resolve, to_posix};
+use crate::core::paths::{
+    file, file_url, file_url_to_path, project_paths, rel, resolve, to_posix, SafeName,
+};
 use crate::core::util::{
     get_path, now_iso, read_json, sha256, to_json_compact, write_json, write_json_inside,
 };
@@ -119,11 +121,18 @@ static SCALE_STEP: LazyLock<Regex> = LazyLock::new(|| fixed_regex(r"\.[0-9]+$"))
 static RADIUS_NAME: LazyLock<Regex> = LazyLock::new(|| fixed_regex(r"(^|\.)radius(\.|$)"));
 static TEXTISH: LazyLock<Regex> =
     LazyLock::new(|| fixed_regex(r"(^|[.-])(ink|text|on|fg|foreground|muted|subtle)([.-]|$)"));
-static EXPORT_FILE: LazyLock<Regex> = LazyLock::new(|| fixed_regex(r"^px_[0-9A-Za-z_]+\.json$"));
+/// The id of an export (`px_<time>_<hex>`): the only form that names a file in `exports/`.
+pub(super) static EXPORT_ID: LazyLock<Regex> = LazyLock::new(|| fixed_regex(r"^px_[0-9A-Za-z_]+$"));
 
 /// The file of the export `id` (`px_<time>_<hex>.json`), in `exports/`.
-pub(super) fn export_file(id: &str) -> String {
-    format!("{id}.json")
+pub(super) fn export_file(id: &SafeName) -> String {
+    format!("{id}.{}", file::JSON_EXT)
+}
+
+/// The export id a file of `exports/` is named after, if it is one.
+fn export_of_file(name: &str) -> Option<SafeName> {
+    let id = name.strip_suffix(file::JSON_EXT)?.strip_suffix('.')?;
+    SafeName::matching(&EXPORT_ID, id)
 }
 
 /// `resolveAlias`: the token a name ends at, aliases followed (`"{a.b}"` to `a.b` and on);
@@ -1016,10 +1025,15 @@ pub fn export_penpot(root: &Path, opts: &ExportOptions) -> Result<(PathBuf, Valu
     });
     doc[wire::ERRORS] = Value::Array(errors);
     let dir = penpot_dir(root);
+    let id = js::to_string(doc.get(wire::ID));
+    let id = SafeName::matching(&EXPORT_ID, &id).ok_or_else(|| {
+        DfwError::internal(format!(
+            "Export id \"{id}\" is not of the form px_<time>_<hash>."
+        ))
+    })?;
     write_json_inside(
         root,
-        &dir.join(file::PENPOT_EXPORTS)
-            .join(export_file(&js::to_string(doc.get(wire::ID)))),
+        &dir.join(file::PENPOT_EXPORTS).join(export_file(&id)),
         &doc,
     )?;
     prune_exports(&dir, KEEP_EXPORTS)?;
@@ -1052,7 +1066,7 @@ pub fn prune_exports(dir: &Path, keep: usize) -> Result<Vec<String>, DfwError> {
     }
     let mut files: Vec<String> = dir_names(&d)?
         .into_iter()
-        .filter(|f| EXPORT_FILE.is_match(f))
+        .filter(|f| export_of_file(f).is_some())
         .collect();
     files.sort_by(|a, b| js::cmp_utf16(a, b));
     files.truncate(files.len().saturating_sub(keep));

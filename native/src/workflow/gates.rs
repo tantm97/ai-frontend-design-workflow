@@ -1,9 +1,7 @@
 //! Ports `core/lib/gate.mjs`: the write gate decision (`decideWrite`) and the paths a tool call
 //! writes (`filesFromPatch`, `filesFromToolInput`).
 
-use std::ffi::OsStr;
-use std::fs;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Component, Path};
 
 use serde_json::Value;
 
@@ -11,7 +9,7 @@ use crate::core::config::{gate_allow, gate_design_paths, gate_immutable};
 use crate::core::error::DfwError;
 use crate::core::host::{patch, tool};
 use crate::core::js;
-use crate::core::paths::{self, resolve};
+use crate::core::paths::{self, resolve, to_posix, Place, FOLD_CASE};
 use crate::core::util::matches_any;
 
 use super::state::{current_approval, design_lock, field, gate, gate_passed};
@@ -99,11 +97,6 @@ pub fn relative(from: &Path, to: &Path) -> String {
     up.chain(down).collect::<Vec<_>>().join("/")
 }
 
-/// Whether paths are compared without case: macOS (APFS, HFS+) and Windows (NTFS) volumes ignore
-/// case by default, so `design/Approved` is `design/approved` there. Decided per OS, without
-/// testing the volume: on the rare case-sensitive volume of those systems it only refuses more.
-const FOLD_CASE: bool = cfg!(any(target_os = "macos", target_os = "windows"));
-
 /// [`matches_any`], without case when `fold` is set.
 fn matches(rel: &str, globs: &[String], fold: bool) -> bool {
     if !fold {
@@ -111,42 +104,6 @@ fn matches(rel: &str, globs: &[String], fold: bool) -> bool {
     }
     let globs: Vec<String> = globs.iter().map(|g| g.to_lowercase()).collect();
     matches_any(&rel.to_lowercase(), &globs)
-}
-
-/// The real path of an absolute, normalized path that may not exist yet: the nearest existing
-/// ancestor with its symlinks resolved, then the rest as given. A symlink whose target is
-/// missing is followed as well, since a write through it creates the target. `None` when the
-/// path cannot be resolved (a loop, an unreadable folder).
-pub fn real_path(path: &Path) -> Option<PathBuf> {
-    let mut path = path.to_path_buf();
-    for _ in 0..40 {
-        let mut existing = path.as_path();
-        let mut rest: Vec<&OsStr> = Vec::new();
-        while fs::symlink_metadata(existing).is_err() {
-            rest.push(existing.file_name()?);
-            existing = existing.parent()?;
-        }
-        let append = |base: PathBuf| rest.iter().rev().fold(base, |p, part| p.join(part));
-        match crate::core::paths::canonicalize(existing) {
-            Ok(real) => return Some(append(real)),
-            Err(_) => {
-                // A dangling symlink: go on from its target.
-                let target = fs::read_link(existing).ok()?;
-                let next = append(resolve(existing.parent()?.join(target)));
-                path = next;
-            }
-        }
-    }
-    None
-}
-
-/// The path of `abs_file` relative to the project, by real path: a symlink, a case variant or
-/// an alias of the root (`/tmp` and `/private/tmp`) names the file it reaches. `None` when one
-/// of the two cannot be resolved.
-fn real_relative(root: &Path, abs_file: &Path) -> Option<String> {
-    let real_root = real_path(&resolve(root))?;
-    let real_file = real_path(&resolve(root.join(abs_file)))?;
-    Some(relative(&real_root, &real_file))
 }
 
 /// `decideWrite({ root, state, config, absFile })`: decide whether a write to `abs_file` is
@@ -166,9 +123,12 @@ pub fn decide_write(
     if state.get(field::ACTIVE) == Some(&Value::Bool(false)) {
         return Ok(Decision::allow());
     }
-    let (rel, resolved) = match real_relative(root, abs_file) {
-        Some(rel) => (rel, true),
-        None => (
+    // By real path: a symlink, a case variant or an alias of the root (`/tmp` and
+    // `/private/tmp`) names the file it reaches.
+    let (rel, resolved) = match paths::inside(root, &root.join(abs_file)) {
+        Place::Inside { rel, .. } => (to_posix(&rel.to_string_lossy()), true),
+        Place::Outside(_) => return Ok(Decision::allow()),
+        Place::Unresolved => (
             relative(&resolve(root), &resolve(root.join(abs_file))),
             false,
         ),
@@ -283,9 +243,11 @@ mod tests {
         HTML_FILE, NOTES_FILE, OTHER_HTML_FILE, SIBLING_FILE,
     };
     use crate::core::host::normalize_hook_input;
-    use crate::core::paths::rel;
+    use crate::core::paths::{real_path, rel};
     use crate::workflow::state::new_state;
     use serde_json::json;
+    use std::fs;
+    use std::path::PathBuf;
 
     /// The project root of the tests that need no folder on disk.
     const PROJ: &str = "/proj";

@@ -12,6 +12,11 @@ use crate::penpot::tokens::{key, penpot_type, BASE_SET, ENABLED};
 use crate::penpot::wire;
 use crate::review::comments::all_comments;
 
+/// The archive of a change file named `name` (`<name>.json`).
+fn archive_file(name: &str) -> String {
+    format!("{name}.{}", file::JSON_EXT)
+}
+
 fn frozen() -> Value {
     json!({ "version": 2, "status": "approved", "locked": true })
 }
@@ -411,4 +416,37 @@ fn a_non_string_pushed_at_does_not_fail() {
         dir_names(&archive).unwrap(),
         [archive_file(STAMP), archive_file(UNSTAMPED)]
     );
+}
+
+/// §0 row 16: two change files pushed at the same time (or without a time) are both kept; the
+/// second archive never replaces the first (`contracts.md` C9).
+#[test]
+fn two_imports_with_one_push_time_keep_both_archives() {
+    /// A push time, and its archive name.
+    const PUSHED: &str = "2026-11-16T10:00:00Z";
+    const STAMP: &str = "20261116T100000Z";
+    /// A note that tells the two change files apart.
+    const NOTE: &str = "note";
+    let root = project("penpot-archive-twice", draft());
+    let mut changes = with_export(&root, &fixture_export(), "changes.json");
+    changes[wire::PUSHED_AT] = PUSHED.into();
+    let archive = root.join(rel::join(rel::PENPOT, file::PENPOT_CHANGES));
+    for n in 1..=3 {
+        changes[NOTE] = n.into();
+        run(&root, &changes, None, false);
+    }
+    let second = format!("{STAMP}-2");
+    let third = format!("{STAMP}-3");
+    let names = [
+        archive_file(STAMP),
+        archive_file(&second),
+        archive_file(&third),
+    ];
+    let mut sorted = names.to_vec();
+    sorted.sort();
+    assert_eq!(dir_names(&archive).unwrap(), sorted);
+    for (n, name) in names.iter().enumerate() {
+        let kept = read_json(&archive.join(name), None).unwrap();
+        assert_eq!(kept[NOTE], n + 1, "{name}");
+    }
 }

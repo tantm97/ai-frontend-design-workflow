@@ -1,13 +1,13 @@
 //! Ports `core/lib/freeze.mjs`: design freeze (G2), snapshot verification and re-open for a new version.
 
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde_json::{json, Map, Value};
 
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::{file, project_paths, rel, resolve};
+use crate::core::paths::{file, project_paths, rel, resolve, ProjectPaths};
 use crate::core::util::{
     copy_dir, ensure_inside, list_files, now_iso, read_json, sha256, write_json_inside,
 };
@@ -103,7 +103,7 @@ pub fn freeze_design(root: &Path, state: &mut Value, note: Option<Value>) -> Res
     let design = design_of(state)?;
     let version = format!("v{}", js::to_string(design.get(state_key::VERSION)));
     // The state is the user's file: its version names a folder only in the form freeze writes.
-    check_snapshot_name(&version).map_err(|_| {
+    let dest = snapshot_dir(&p, &version).map_err(|_| {
         DfwError::new(format!(
             "Cannot freeze: design.version in {} is {}, not a whole number. Set it to the number of this design version (1, 2, ...) and run the command again.",
             rel::STATE,
@@ -115,7 +115,6 @@ pub fn freeze_design(root: &Path, state: &mut Value, note: Option<Value>) -> Res
             "Version {version} is already approved. Use \"dfw reopen\" to start a new version."
         )));
     }
-    let dest = p.approved.join(&version);
     if dest.exists() {
         return Err(DfwError::new(format!(
             "Snapshot {} already exists; refusing to overwrite.",
@@ -164,9 +163,15 @@ pub fn freeze_design(root: &Path, state: &mut Value, note: Option<Value>) -> Res
     approve_gate(root, state, gate::G2, note, extra)
 }
 
-/// The version names a folder: only the form `freezeDesign` writes (v1, v2, ...) is joined onto
-/// `design/approved`.
-pub fn check_snapshot_name(version: &str) -> Result<(), DfwError> {
+/// The folder of the approved snapshot `version` (`design/approved/v1`): the one join of a
+/// version onto `design/approved`, made only for the form `freezeDesign` writes (v1, v2, ...).
+pub fn snapshot_dir(p: &ProjectPaths, version: &str) -> Result<PathBuf, DfwError> {
+    check_snapshot_name(version)?;
+    Ok(p.approved.join(version))
+}
+
+/// The version names a folder: only the form `freezeDesign` writes (v1, v2, ...).
+fn check_snapshot_name(version: &str) -> Result<(), DfwError> {
     let digits = version.strip_prefix('v').unwrap_or_default();
     if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
         return Err(DfwError::new(format!(
@@ -179,8 +184,7 @@ pub fn check_snapshot_name(version: &str) -> Result<(), DfwError> {
 /// `verifySnapshot(root, version)`: verify an approved snapshot is intact (nobody edited it).
 /// Returns one line per missing, modified or added file.
 pub fn verify_snapshot(root: &Path, version: &str) -> Result<Vec<String>, DfwError> {
-    check_snapshot_name(version)?;
-    let dir = project_paths(root).approved.join(version);
+    let dir = snapshot_dir(&project_paths(root), version)?;
     let lock = read_json(&dir.join(file::APPROVAL_LOCK), Some(Value::Null))?;
     if !js::truthy(&lock) {
         return Err(DfwError::new(format!(

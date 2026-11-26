@@ -16,7 +16,7 @@ use crate::core::util::{get_path, list_files, read_json, write_atomic_inside};
 use crate::design::manifest::key;
 use crate::review::comments::all_comments;
 use crate::review::status::{self, field as comment, Status};
-use crate::workflow::freeze::check_snapshot_name;
+use crate::workflow::freeze::snapshot_dir;
 use crate::workflow::gates::relative;
 use crate::workflow::stack::field as stack_key;
 use crate::workflow::state::{current_approval, field, gate, require_state};
@@ -182,14 +182,13 @@ pub fn write_handoff(root: &Path) -> Result<String, DfwError> {
     let version = js::to_string(appr.get(field::VERSION));
     // The state is the user's file: its version names folders and files only in the form
     // freeze writes (`v<number>`), never `../x`.
-    check_snapshot_name(&version).map_err(|_| {
+    let dir = snapshot_dir(&p, &version).map_err(|_| {
         DfwError::new(format!(
             "{}: the last design.approved entry has version \"{version}\", not a snapshot name (v1, v2, ...). Restore the file from version control, or set that version to the folder under {}/, and run the command again.",
             rel::STATE,
             rel::APPROVED
         ))
     })?;
-    let dir = p.approved.join(&version);
     let m = read_json(&dir.join(file::MANIFEST), Some(json!({})))?;
     let stack = read_json(&p.stack, Some(Value::Null))?;
     let tokens_css = dir.join(file::TOKENS).join(file::TOKENS_CSS);

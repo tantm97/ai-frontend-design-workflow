@@ -13,11 +13,17 @@ use serde_json::{json, Map, Value};
 
 use crate::core::error::DfwError;
 use crate::core::js;
+use crate::core::js::regex::fixed_regex;
 use crate::core::lock::{self, LockTimes};
+use crate::core::paths::SafeName;
 use crate::core::paths::{file, project_paths, rel};
-use crate::core::util::{iso_from_millis, now_iso, read_json, write_json_inside};
+use crate::core::util::{
+    create_first_free, iso_from_millis, now_iso, read_json, to_json_pretty, write_json_inside,
+};
 use crate::review::status::{self, by, field, Status};
 use crate::workflow::state::field as state_key;
+use regex::Regex;
+use std::sync::LazyLock;
 
 /// `locked(root, fn)`: run `f` holding the reviews lock (`.dfw/reviews/.lock`, see
 /// `core::lock`). The Studio server and the CLI (hooks, `dfw comments ...`) change the same
@@ -138,21 +144,6 @@ fn new_session_unlocked(
     root: &Path,
     design_version: Option<&str>,
 ) -> Result<Session, DfwError> {
-    // The id is the real time to the second (not DFW_NOW), as in Node. When that file exists,
-    // move on one second at a time until the name is free, so a second round in the same second
-    // never replaces the first.
-    let reviews = project_paths(root).reviews;
-    let mut t = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0);
-    let id = loop {
-        let id = format!("rv_{}", session_stamp(t));
-        if !reviews.join(format!("{id}.json")).exists() {
-            break id;
-        }
-        t += 1000;
-    };
     let p = project_paths(root);
     let state = read_json(&p.state, Some(json!({})))?;
     if state.is_null() {
@@ -181,14 +172,45 @@ fn new_session_unlocked(
     };
     let session = json!({
         (field::SCHEMA): 1,
-        (field::ID): id,
+        (field::ID): Value::Null,
         (field::STARTED_AT): now_iso(),
         (field::DESIGN_VERSION): version,
         (field::COMMENTS): [],
     });
-    let file = p.reviews.join(format!("{id}.json"));
-    write_reviews(held, root, &file, &session)?;
-    Ok(Session { file, session })
+    create_session(held, root, session)
+}
+
+/// The id of a review session: `rv_` and the time to the second, `rv_20261118T102030`.
+static SESSION_ID: LazyLock<Regex> = LazyLock::new(|| fixed_regex(r"^rv_[0-9]{8}T[0-9]{6}$"));
+
+/// Write a new session file under the reviews lock, named after the real time to the second
+/// (not DFW_NOW), as in Node. When that name is taken, the next second is tried, and on, so a
+/// second round in the same second never replaces the first and the names keep their order.
+fn create_session(_held: &Held, root: &Path, session: Value) -> Result<Session, DfwError> {
+    let t = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0);
+    let id_at = |n: u32| {
+        let id = format!("rv_{}", session_stamp(t + i64::from(n) * 1000));
+        SafeName::matching(&SESSION_ID, &id)
+    };
+    let with_id = |id: &str| {
+        let mut session = session.clone();
+        session[field::ID] = id.into();
+        session
+    };
+    let (file, id) = create_first_free(
+        root,
+        &project_paths(root).reviews,
+        file::JSON_EXT,
+        id_at,
+        |id| (to_json_pretty(&with_id(id)) + "\n").into_bytes(),
+    )?;
+    Ok(Session {
+        file,
+        session: with_id(&id),
+    })
 }
 
 /// `2026-11-18T10:20:30.123Z` as `20261118T102030`.

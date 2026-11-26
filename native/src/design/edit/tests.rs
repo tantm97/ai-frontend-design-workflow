@@ -1029,11 +1029,9 @@ fn concurrent_edits_are_all_kept_and_journaled() {
 fn a_journal_name_in_use_is_never_overwritten() {
     let root = test_dir("edit-journal-name");
     let taken = next_stamp(&[], None);
-    write(&root, &rel::join(rel::EDITS, &record_file(&taken)), "{}");
+    let record = [rel::EDITS, &taken].join("/") + "." + file::JSON_EXT;
+    write(&root, &record, "{}");
     write_record(&root, &json!({ "a": 1 })).unwrap();
-    assert_eq!(
-        read(&root, &rel::join(rel::EDITS, &record_file(&taken))),
-        "{}"
-    );
+    assert_eq!(read(&root, &record), "{}");
     assert_eq!(journal(&root).unwrap().len(), 2);
 }

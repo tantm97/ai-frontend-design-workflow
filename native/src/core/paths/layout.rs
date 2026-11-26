@@ -73,6 +73,10 @@ pub mod file {
     pub const PENPOT_IMPORTED: &str = "imported.json";
     pub const PENPOT_THREADS: &str = "threads.json";
     pub const PENPOT_CHANGES: &str = "changes";
+    /// The lock of the Penpot ledgers (`threads.json`, `imported.json`), in `.dfw/penpot`.
+    pub const PENPOT_LOCK: &str = ".lock";
+    /// The extension of a JSON file, without its dot.
+    pub const JSON_EXT: &str = "json";
     /// Studio screenshots in [`SHOTS`].
     pub const SHOTS_STUDIO: &str = "studio";
     /// Screenshots of a URL in [`SHOTS`].

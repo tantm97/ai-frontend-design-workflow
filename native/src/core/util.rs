@@ -11,7 +11,7 @@ use crate::core::js::number::number as js_number;
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self, IsTerminal, Read, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use regex::Regex;
@@ -21,7 +21,7 @@ use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 
 use super::error::DfwError;
-use super::paths::{env_nonempty, manifest_path, plugin_root, real_path, to_posix};
+use super::paths::{env_nonempty, inside, manifest_path, plugin_root, to_posix, Place, SafeName};
 
 /// Name of the marketplace the plugins are published in.
 pub const MARKETPLACE_NAME: &str = "dfw-marketplace";
@@ -133,16 +133,104 @@ pub fn write_atomic_inside(
 
 /// The refusal of [`write_atomic_inside`]: `file`'s real path must stay under the real `root`.
 pub fn ensure_inside(root: &Path, file: &Path) -> Result<(), DfwError> {
-    let real = real_path(file);
-    if real.starts_with(real_path(root)) {
-        return Ok(());
-    }
+    let real = match inside(root, file) {
+        // A cycle of links ends: the write fails on its own.
+        Place::Inside { .. } | Place::Unresolved => return Ok(()),
+        Place::Outside(real) => real,
+    };
     let shown = file.strip_prefix(root).unwrap_or(file);
     Err(DfwError::new(format!(
         "{} leads outside the project (to {}) through a symbolic link; dfw does not write there. Replace the link with a regular file, or remove it, and run the command again.",
         to_posix(&shown.to_string_lossy()),
         real.display()
     )))
+}
+
+/// The most names [`create_first_free`] tries before it gives up.
+const MAX_NAME_TRIES: u32 = 10_000;
+
+/// Write `data` to a new file `<stem>.<ext>` of `dir` in the project at `root`; when that name
+/// is taken, `<stem>-2.<ext>`, `<stem>-3.<ext>` and on. Never replaces a file
+/// (`contracts.md` C9). Returns the file written.
+pub fn create_unique(
+    root: &Path,
+    dir: &Path,
+    stem: &SafeName,
+    ext: &str,
+    data: &[u8],
+) -> Result<PathBuf, DfwError> {
+    // A counter after a safe name keeps it safe.
+    let names = |n| match n {
+        0 => Some(stem.to_string()),
+        n => Some(format!("{stem}-{}", n + 1)),
+    };
+    create_free(root, dir, ext, names, |_| data.to_vec()).map(|(file, _)| file)
+}
+
+/// [`create_unique`] with the names chosen by the caller, for ids whose order is their name (a
+/// clock, a sequence): `names(0)`, `names(1)`, ... (each with `.<ext>`) until one is free; the
+/// content is `data(name)`, for a file that holds its own id. Returns the file and its name.
+///
+/// The file is written whole under a temporary name and linked to its name, which fails when the
+/// name is taken, so a reader never sees half a file and nothing is replaced. Where the volume
+/// has no links, the file is made with `create_new` and written in place.
+pub fn create_first_free(
+    root: &Path,
+    dir: &Path,
+    ext: &str,
+    mut names: impl FnMut(u32) -> Option<SafeName>,
+    data: impl Fn(&str) -> Vec<u8>,
+) -> Result<(PathBuf, String), DfwError> {
+    create_free(root, dir, ext, |n| names(n).map(|s| s.to_string()), data)
+}
+
+fn create_free(
+    root: &Path,
+    dir: &Path,
+    ext: &str,
+    mut names: impl FnMut(u32) -> Option<String>,
+    data: impl Fn(&str) -> Vec<u8>,
+) -> Result<(PathBuf, String), DfwError> {
+    ensure_inside(root, dir)?;
+    fs::create_dir_all(dir)?;
+    for n in 0..MAX_NAME_TRIES {
+        let Some(name) = names(n) else { break };
+        let file = dir.join(format!("{name}.{ext}"));
+        if create_new_file(&file, &data(&name))? {
+            return Ok((file, name));
+        }
+    }
+    Err(DfwError::internal(format!(
+        "No free file name in {}.",
+        dir.display()
+    )))
+}
+
+/// Make `file` with `data` unless it exists (also as a link): `false` when it does.
+fn create_new_file(file: &Path, data: &[u8]) -> Result<bool, DfwError> {
+    let mut tmp = file.as_os_str().to_owned();
+    tmp.push(format!(".{}.tmp", unique_suffix()));
+    let tmp = PathBuf::from(tmp);
+    write_atomic(&tmp, data)?;
+    let linked = fs::hard_link(&tmp, file);
+    let _ = fs::remove_file(&tmp);
+    match linked {
+        Ok(()) => Ok(true),
+        Err(err) if err.kind() == io::ErrorKind::AlreadyExists => Ok(false),
+        // No hard links on this volume.
+        Err(_) => match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(file)
+        {
+            Ok(mut f) => {
+                f.write_all(data)?;
+                Ok(true)
+            }
+            Err(err) if err.kind() == io::ErrorKind::AlreadyExists => Ok(false),
+            Err(err) => Err(err.into()),
+        },
+    }
 }
 
 /// `fs.mkdtempSync(path.join(base, prefix))`: a new directory only its owner can enter, with a
@@ -1009,6 +1097,62 @@ mod tests {
             .file_type()
             .is_symlink());
         assert_eq!(fs::read_to_string(&file).unwrap(), "[]");
+    }
+
+    /// `contracts.md` C9: two files named in the same second get two names; the first is kept,
+    /// and nothing is left behind but the files.
+    #[test]
+    fn create_unique_never_replaces_a_file() {
+        const STEM: &str = "20261116T100000Z";
+        const EXT: &str = "json";
+        let root = test_dir("create-unique");
+        let dir = root.join(file::DFW).join(APP_DIR);
+        let stem = SafeName::matching(&Regex::new("^[0-9TZ]+$").unwrap(), STEM).unwrap();
+        let first = create_unique(&root, &dir, &stem, EXT, b"1").unwrap();
+        let second = create_unique(&root, &dir, &stem, EXT, b"2").unwrap();
+        let third = create_unique(&root, &dir, &stem, EXT, b"3").unwrap();
+        assert_eq!(first, dir.join(format!("{STEM}.{EXT}")));
+        assert_eq!(second, dir.join(format!("{STEM}-2.{EXT}")));
+        assert_eq!(third, dir.join(format!("{STEM}-3.{EXT}")));
+        assert_eq!(
+            fs::read_to_string(&first).unwrap(),
+            "1",
+            "the first is kept"
+        );
+        assert_eq!(fs::read_to_string(&second).unwrap(), "2");
+        assert_eq!(
+            fs::read_dir(&dir).unwrap().count(),
+            3,
+            "no temporary file left"
+        );
+        // Names chosen by the caller: the first free one, its content made for its name.
+        let names = |n: u32| {
+            SafeName::matching(
+                &Regex::new("^[0-9TZ-]+$").unwrap(),
+                &format!("{STEM}-{}", n + 2),
+            )
+        };
+        let (file, name) =
+            create_first_free(&root, &dir, EXT, names, |name| name.as_bytes().to_vec()).unwrap();
+        assert_eq!(name, format!("{STEM}-4"));
+        assert_eq!(fs::read_to_string(file).unwrap(), name);
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    /// The folder of a new file is checked like any project write.
+    #[cfg(unix)]
+    #[test]
+    fn create_unique_refuses_a_folder_linked_out_of_the_project() {
+        let tmp = test_dir("create-unique-link");
+        let (root, elsewhere) = (tmp.join("project"), tmp.join("elsewhere"));
+        fs::create_dir_all(root.join(file::DFW)).unwrap();
+        fs::create_dir_all(&elsewhere).unwrap();
+        let dir = root.join(file::DFW).join(APP_DIR);
+        std::os::unix::fs::symlink(&elsewhere, &dir).unwrap();
+        let stem = SafeName::matching(&Regex::new("^x$").unwrap(), "x").unwrap();
+        assert!(create_unique(&root, &dir, &stem, "json", b"1").is_err());
+        assert_eq!(fs::read_dir(&elsewhere).unwrap().count(), 0);
+        fs::remove_dir_all(&tmp).unwrap();
     }
 
     /// A project file that is a link out of the project is refused; a link inside is written
