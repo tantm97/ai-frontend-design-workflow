@@ -8,7 +8,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { leftoverCheck, versionMismatch, trackedToolingCheck } from '../../scripts/lib/checks.mjs';
+import { leftoverCheck, versionMismatch, trackedToolingCheck, workflowPipeCheck, WORKFLOWS_DIR } from '../../scripts/lib/checks.mjs';
+import { checkSteps, WINDOWS_TARGET, NO_OP_CC } from '../../scripts/lib/check-steps.mjs';
+import { outputOf } from '../../scripts/lib/no-op-cc.mjs';
 import { blockedTitle, proposeOutcome, issueExists, findReport } from '../../scripts/ci-upstream.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -178,4 +180,46 @@ test('checks: tracked local tooling (AGENTS.md, docs/) is an error; vendored .cl
   assert.equal(trackedToolingCheck(repoWith(['docs/x.md'])).length, 1);
   assert.deepEqual(trackedToolingCheck(repoWith(['plugins/x/.claude/skills/s/SKILL.md', '.claude-plugin/marketplace.json'])), []);
   assert.deepEqual(trackedToolingCheck(), []);
+});
+
+test('checks: a workflow line that pipes into grep -q is an error; a comment is not; the repo has none', () => {
+  const root = tmp('dfw-workflows-');
+  const yml = (lines) => write(path.join(root, WORKFLOWS_DIR, 'ci.yml'), `jobs:\n  x:\n    steps:\n${lines.join('\n')}\n`);
+  yml(['      - run: rustc -vV | grep -q "host: x"']);
+  assert.match(workflowPipeCheck(root).join('\n'), /ci\.yml:4: a pipe into grep -q/);
+  yml(['      - run: dfw --version |grep --quiet 0.6', '      - run: ls | grep -c x']);
+  assert.equal(workflowPipeCheck(root).length, 1);
+  yml(['      # `cmd | grep -q` fails under pipefail', '      - run: out=$(rustc -vV); case "$out" in *host*) ;; esac']);
+  assert.deepEqual(workflowPipeCheck(root), []);
+  assert.deepEqual(workflowPipeCheck(), []);
+});
+
+test('check: macOS and Linux also run clippy for the Windows target with a no-op C compiler; Windows does not', () => {
+  const windowsClippy = (platform) => checkSteps({ platform }).filter((s) => s.args.includes(WINDOWS_TARGET));
+  for (const platform of ['darwin', 'linux']) {
+    const [step, ...more] = windowsClippy(platform);
+    assert.equal(more.length, 0);
+    assert.equal(step.args[0], 'clippy');
+    assert.ok(step.args.includes('--all-targets') && step.args.includes('warnings'));
+    assert.equal(step.target, WINDOWS_TARGET);
+    assert.deepEqual(Object.values(step.env), [NO_OP_CC, NO_OP_CC]);
+    assert.ok(Object.keys(step.env).every((k) => k.endsWith(WINDOWS_TARGET.replaceAll('-', '_'))));
+    const names = checkSteps({ platform }).map((s) => s.name);
+    assert.ok(names.indexOf(step.name) > names.indexOf('cargo clippy') && names.indexOf(step.name) < names.indexOf('cargo test'));
+  }
+  assert.deepEqual(windowsClippy('win32'), []);
+  if (process.platform !== 'win32') assert.ok(fs.statSync(NO_OP_CC).mode & 0o111, 'the no-op compiler is executable');
+});
+
+test('no-op compiler: writes the -o file and the archive empty, and nothing for a probe', () => {
+  assert.equal(outputOf(['-O0', '-c', 'a.c', '-o', 'out/a.o']), 'out/a.o');
+  assert.equal(outputOf(['cq', 'libring.a', 'a.o', 'b.o']), 'libring.a');
+  assert.equal(outputOf(['s', 'libring.a']), 'libring.a');
+  assert.equal(outputOf(['-E', 'detect_compiler_family.c']), undefined);
+  const dir = tmp('dfw-no-op-cc-');
+  const src = write(path.join(dir, 'probe.c'), 'int x;');
+  execFileSync(process.execPath, [NO_OP_CC, '-c', src, '-o', path.join(dir, 'probe.o')]);
+  execFileSync(process.execPath, [NO_OP_CC, '-E', src]);
+  assert.equal(fs.readFileSync(path.join(dir, 'probe.o'), 'utf8'), '');
+  assert.equal(fs.readFileSync(src, 'utf8'), 'int x;');
 });

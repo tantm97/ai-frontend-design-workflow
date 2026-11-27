@@ -315,3 +315,35 @@ export function trackedToolingCheck(root = REPO_ROOT) {
     .filter((f) => LOCAL_TOOLING_FILES.includes(f) || LOCAL_TOOLING_DIRS.some((d) => f.startsWith(d)))
     .map((f) => `${f}: local tooling is tracked; remove it with git rm --cached and keep it in .git/info/exclude (G6)`);
 }
+
+/** The CI workflows: every `run:` step is a bash script with `set -eo pipefail`. */
+export const WORKFLOWS_DIR = path.join('.github', 'workflows');
+/** A pipe into `grep -q` (or `--quiet`): grep exits at the first match and the writer's SIGPIPE fails the step. */
+const PIPE_INTO_QUIET_GREP = /\|\s*grep\s+(?:-\w*q\w*|--quiet)\b/;
+const YAML_COMMENT = /^\s*#/;
+
+/**
+ * Workflow lines that pipe into `grep -q`. Under pipefail the step fails whenever the writer is still
+ * writing when grep exits, so it passes or fails by timing: the macOS release builds of v0.6.0 failed
+ * the host check `rustc -vV | grep -q` this way and no release was made (#22).
+ */
+export function workflowPipeCheck(root = REPO_ROOT) {
+  const dir = path.join(root, WORKFLOWS_DIR);
+  if (!fs.existsSync(dir)) return [];
+  const errors = [];
+  for (const name of fs
+    .readdirSync(dir)
+    .filter((f) => /\.ya?ml$/.test(f))
+    .sort()) {
+    const rel = path.join(WORKFLOWS_DIR, name);
+    fs.readFileSync(path.join(dir, name), 'utf8')
+      .split('\n')
+      .forEach((line, i) => {
+        if (YAML_COMMENT.test(line) || !PIPE_INTO_QUIET_GREP.test(line)) return;
+        errors.push(
+          `${rel}:${i + 1}: a pipe into grep -q fails under pipefail when grep exits first; read the output whole (out=$(cmd)), then match it with case`,
+        );
+      });
+  }
+  return errors;
+}

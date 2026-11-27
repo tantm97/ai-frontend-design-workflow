@@ -195,7 +195,8 @@ npm test                 # unit tests of the scripts, the marketplace and the br
 DFW_BIN=native/target/debug/dfw npm run test:e2e   # studio end-to-end (dev only: needs the playwright package)
 npm run build            # assemble plugins/dfw and rebuild vendored plugins from the lock
 npm run build:check      # committed plugins/ must equal a clean build
-npm run validate         # structure, cross-references, no upstream hooks or hook installers, no unresolved <skill-dir>, conflict lint, claude plugin validate
+npm run validate         # structure, cross-references, no upstream hooks or hook installers, no unresolved <skill-dir>, no pipe into grep -q in CI workflows, conflict lint, claude plugin validate
+npm run check            # every check above in CI's order; on macOS and Linux also clippy for Windows (once: rustup target add x86_64-pc-windows-gnu)
 npm run styles           # regenerate the 12 style guides with the binary's colour maths (fails on any senior-audit error)
 npm run presets          # regenerate the neutral presets
 npm run icons -- --tag <lucide tag>   # re-vendor the Lucide icon bundle
