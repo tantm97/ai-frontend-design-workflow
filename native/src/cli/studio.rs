@@ -91,9 +91,28 @@ fn port_arg(a: &Args, fallback: u16) -> Result<u16, DfwError> {
     }
 }
 
-fn free_from(mut port: u16) -> u16 {
-    for _ in 0..20 {
-        if port_free(port) {
+/// Ports above 1023 that Chrome and Firefox refuse to load (`ERR_UNSAFE_PORT`), from Chromium's
+/// `net/base/port_util.cc`: a Studio on one of them cannot be opened, so it is never chosen.
+const BROWSER_BLOCKED_PORTS: &[u16] = &[
+    1719, 1720, 1723, 2049, 3659, 4045, 4190, 5060, 5061, 6000, 6566, 6665, 6666, 6667, 6668, 6669,
+    6679, 6697, 10080,
+];
+/// How many ports after the asked one are tried before it is used as is.
+const PORT_TRIES: usize = 20;
+
+/// A browser can open a page on `port`.
+fn browser_allows(port: u16) -> bool {
+    !BROWSER_BLOCKED_PORTS.contains(&port)
+}
+
+/// `port`, or the next one a browser allows and nothing listens on.
+fn free_from(port: u16) -> u16 {
+    free_from_with(port, port_free)
+}
+
+fn free_from_with(mut port: u16, free: impl Fn(u16) -> bool) -> u16 {
+    for _ in 0..PORT_TRIES {
+        if browser_allows(port) && free(port) {
             break;
         }
         port = port.wrapping_add(1);
@@ -380,4 +399,22 @@ fn review_server(ctx: &Ctx) -> Result<i32, DfwError> {
     }
     server.serve(first);
     Ok(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_port_the_browser_refuses_is_skipped() {
+        // ERR_UNSAFE_PORT in the Studio e2e: `--port 5060` started a Studio Chrome cannot open.
+        assert_eq!(free_from_with(5060, |_| true), 5062);
+        assert_eq!(free_from_with(6665, |_| true), 6670);
+    }
+
+    #[test]
+    fn a_free_allowed_port_is_kept_and_a_busy_one_moves_on() {
+        assert_eq!(free_from_with(4600, |_| true), 4600);
+        assert_eq!(free_from_with(4600, |p| p != 4600), 4601);
+    }
 }
