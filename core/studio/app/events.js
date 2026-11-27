@@ -4,7 +4,7 @@
 // initial load of the manifest, state, tokens and components.
 import { $, P, S, post, store, toast } from './state.js';
 import { loadPresent, handleGoto, renderPresentBar } from './present.js';
-import { isShown, liveFrames, positionFrames, rebuildKeepCam, selectFrame, setPage, softReload } from './frames.js';
+import { isShown, liveFrames, patchDone, queuePatches, rebuildKeepCam, schedulePositions, selectFrame, setPage } from './frames.js';
 import { onWheel, startPan, movePan, endPan, revealSelection, zoomToSelection } from './canvas.js';
 import { clearAgent, showAgent, updateHud } from './hud.js';
 import { setLayers, renderLayers } from './layers.js';
@@ -31,6 +31,7 @@ function onReady(/** @type {any} */ f) {
     return;
   }
   clearTimeout(f.softTimer);
+  patchDone(f);
   f.loaded = true;
   f.sizeCount = 0;
   f.lastStep = 0;
@@ -75,8 +76,8 @@ function onSize(f, d) {
   f.h = h;
   // A frame of a kept, hidden page is placed when that page shows again.
   if (!isShown(f)) return;
-  positionFrames();
-  updateHud();
+  // While a page loads, many frames report a size in one animation frame: place them once.
+  schedulePositions();
 }
 
 /** An element was clicked in a frame: select it, or open the composer in comment mode. */
@@ -206,11 +207,11 @@ async function onDesign(/** @type {MessageEvent} */ e) {
   const screenOnly = files.every(
     (/** @type {string} */ f) => f.endsWith('.html') && !f.startsWith('system/') && !f.startsWith('components/'),
   );
-  // Kept pages are patched too, so going back to one never shows an old version.
-  for (const f of liveFrames()) {
-    if (!f.iframe) continue;
-    if (!screenOnly || (f.file && files.includes(f.file))) softReload(f, files);
-  }
+  // Kept pages are patched too (when shown again), so going back to one never shows an old version.
+  queuePatches(
+    liveFrames().filter((f) => !screenOnly || (f.file && files.includes(f.file))),
+    files,
+  );
   if (P.open && (!screenOnly || (P.file && files.includes(P.file)))) loadPresent();
 }
 

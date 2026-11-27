@@ -597,6 +597,21 @@ try {
     'the frame kept its document across the page switch',
   );
   assert.equal(await page.evaluate(() => window.__dfwStudio.frames.get('home::a::desktop').loaded), true);
+  // The live budget: with more frames than the budget (lowered to 3 here), at most that many
+  // documents stay alive over every kept page, the hidden pages' first; the others show their
+  // placeholder and load again when they are needed.
+  const liveDocs = () => page.evaluate(() => document.querySelectorAll('.world iframe').length);
+  const budget = await page.evaluate(() => window.__dfwStudio.liveBudget);
+  assert.ok((await liveDocs()) > 3, 'the small fixture keeps every frame under the default budget');
+  await page.evaluate(() => (window.__dfwStudio.liveBudget = 3));
+  await page.click('#page-list button[data-page="__all"]');
+  await page.keyboard.press('Shift+1');
+  await page.waitForFunction(() => document.querySelectorAll('.world iframe').length <= 3, null, { timeout: 8000 });
+  await page.waitForFunction(() => [...window.__dfwStudio.frames.values()].filter((f) => f.loaded).length === 3, null, { timeout: 8000 });
+  assert.ok((await page.$$('.page-canvas:not([hidden]) .frame .placeholder')).length > 0, 'frames over the budget show their placeholder');
+  assert.ok((await liveDocs()) <= 3, 'live documents stay within the budget');
+  await page.evaluate((n) => (window.__dfwStudio.liveBudget = n), budget);
+  await page.dblclick('#page-list button[data-page="screens"]');
   await page.keyboard.press('Shift+1');
   await frameReady('home::a::desktop');
 

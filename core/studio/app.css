@@ -245,6 +245,10 @@ body[data-mode="hand"] .world iframe, body.space .world iframe, body.panning .wo
 .frame { position: absolute; background: var(--frame-bg); --frame-drop: 0 calc(4px * var(--iz)) calc(18px * var(--iz)) rgb(0 0 0 / 0.07); box-shadow: 0 0 0 calc(1px * var(--iz)) rgb(0 0 0 / 0.07), var(--frame-drop); }
 /* Zoomed out, a blur scaled by --iz covers thousands of world pixels per frame: only the ring stays. */
 .world.far .frame { --frame-drop: 0 0 transparent; }
+/* The document's box. A frame far off screen (.off, set when the camera settles) is not rendered,
+   animations in it included. */
+.frame-body { position: absolute; inset: 0; overflow: hidden; contain: strict; }
+.frame.off .frame-body { content-visibility: hidden; }
 .frame iframe { border: 0; display: block; width: 100%; height: 100%; background: var(--frame-bg); }
 /* A ring of box-shadow, not outline: an outline on a frame made Chrome exceed its tile memory while
    the canvas moved, so parts of the window flashed blank (Retina, tall frames). */
@@ -260,6 +264,7 @@ body[data-mode="hand"] .world iframe, body.space .world iframe, body.panning .wo
 .row-title { position: absolute; font-size: calc(14px * var(--iz)); font-weight: 600; color: var(--ink); white-space: nowrap; transform: translateY(-100%); padding-bottom: calc(22px * var(--iz)); user-select: none; }
 .row-title .d { font-weight: 400; color: var(--ink-3); margin-left: 0.6em; font-size: 0.85em; }
 .world.tiny .row-title, .world.tiny .frame-title { display: none; }
+.world.tiny .placeholder { visibility: hidden; }
 
 .hud { position: fixed; inset: 0; pointer-events: none; z-index: 26; }
 .box { position: absolute; left: 0; top: 0; }
