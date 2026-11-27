@@ -10,7 +10,7 @@ In this order (`telemetry::decide`):
 1. `DO_NOT_TRACK` set (not `0` or `false`), `DFW_TELEMETRY=off` (also `0`, `false`, `no`) or `CI` set
    (not `0` or `false`): **off**.
 2. The user's setting, `telemetry.enabled` in `<dfw home>/config.json` (`dfw telemetry on | off`):
-   `false` is **off**; `true` is **on** when an address exists.
+   `false` is **off**; `true` is **on** when an address exists. A config file that cannot be read is **off**.
 3. No address (none compiled in, none set with `dfw telemetry endpoint <url>`): **off**. This is every
    local build and every fork.
 4. An address and no setting: the first command prints the notice on stderr and records nothing; from
@@ -33,11 +33,11 @@ cannot be put in an event, and a spool line that is not such an event is never s
 
 | Event | Fields |
 |---|---|
-| `dfw.command` | command name (`unknown` for a first argument that is no command), duration range, exit code |
+| `dfw.command` | command name (`unknown` for a first argument that is no command), duration range, exit code; not sent for `hook`, `telemetry` and `__debug` |
 | `dfw.hook` | hook name, host, duration range, outcome kind (`none`, `context`, `deny`, `block`, `error`) |
-| `dfw.gate_approved` | gate id |
+| `dfw.gate_approved` | gate id (after an `approve` that exits 0) |
 | `dfw.checks` | finding count per check tool |
-| `dfw.workflow` | mode, phase (after `init`, `mode`, `phase`, `approve`, `reopen`, `pause`, `resume`) |
+| `dfw.workflow` | mode, phase (after `init`, `mode`, `phase`, `approve`, `reopen`, `pause`, `resume` exit 0) |
 
 Resource attributes: `service.name=dfw`, `service.version`, `os.type`, `host.arch`, `dfw.install_id`
 (128 random bits, made with the first recorded event, deleted by `dfw telemetry off`). The time of an
@@ -89,11 +89,9 @@ and do not run the release build with `cargo -vv` (it prints the build script's 
 
 Maintainer: add the two secrets under Settings > Secrets and variables > Actions.
 
-## Left for the integrator
+## Where it is recorded
 
-Done at the merge: `dfw doctor` prints the telemetry row after the global config dir, `check` and
-`lint` record `dfw.checks` (one `CheckCount` per result whose tool is on the list), and the native
-help lists `dfw telemetry status|on|off|endpoint <url>|show|flush` (the golden help test allows
-exactly that line). Still open:
-
-- **Docs** (tasks 4.1, 4.2 of the change): README privacy section and AGENTS.md rule 3.
+`main` records `dfw.command` (and `dfw.gate_approved`, `dfw.workflow`) when a command ends, the hook
+dispatcher records `dfw.hook`, and `check` and `lint` record `dfw.checks` (one `CheckCount` per result
+whose tool is on the list). `dfw doctor` prints the telemetry row after the global config dir. The
+README section "Telemetry and privacy" describes it for users.

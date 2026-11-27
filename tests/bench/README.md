@@ -24,12 +24,13 @@ Rules:
 
 **Bias:** fixtures are written for the rules being measured. This benchmark shows that the checks work and do not cry wolf. It does not show that designs get better; level 2 does.
 
-Recorded on 2026-11-15, Apple Silicon, system Chrome:
+Apple Silicon, system Chrome (0.4.0 and 0.5.0 recorded on 2026-11-15; 0.6.11 on 2026-11-27 with a debug build, which is slower than a release):
 
 | Version | Detection | Coverage | False positives | lint | layout | axe |
 |---|---|---|---|---|---|---|
-| 0.4.0 (main) | 22% | 17% | 0 | 5 ms | 6.2 s | not available |
+| 0.4.0 | 22% | 17% | 0 | 5 ms | 6.2 s | not available |
 | 0.5.0 | 100% | 100% | 0 | 11 ms | 7.0 s | 2.2 s |
+| 0.6.11 (debug build) | 100% | 100% | 0 | 177 ms | 9.4 s | 2.2 s |
 
 ## 2. Workflow benchmark (manual, uses your AI tool's quota)
 
@@ -52,7 +53,7 @@ Metrics per brief:
 | Rendered issues | `dfw layout check --states` |
 | Time to G2 | session timestamps |
 | Tokens to G2 | the tool's usage report |
-| User comments needed | `dfw comments list --status all` count |
-| Blind quality score | `references/quality-rubric.md`, 0-2 per criterion, by someone who did not see which version made it |
+| User comments needed | `dfw comments list` count (every status) |
+| Blind quality score | `core/workflow/references/quality-rubric.md`, 0-2 per criterion, by someone who did not see which version made it |
 
 Record each run in `tests/bench/workflow-runs.jsonl` (one JSON object per brief and version). A change is worth keeping when MUST findings and the blind score improve, or stay equal at lower time and tokens.
