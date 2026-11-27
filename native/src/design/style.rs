@@ -824,8 +824,16 @@ pub struct AppliedStyle {
     pub fonts: Value,
 }
 
-/// The files a guide replaces whole, recorded in `.dfw/written.json`.
+/// The files a preset or a guide replaces whole, recorded in `.dfw/written.json`.
 pub const REPLACED: [&str; 2] = [rel::TOKENS_JSON, rel::HEAD];
+
+/// The files a guide replaces whole: [`REPLACED`], its motif master and `style.json`.
+pub fn guide_files() -> Vec<String> {
+    let mut files: Vec<String> = REPLACED.iter().map(|f| (*f).to_string()).collect();
+    files.push(rel::component(MOTIF_FILE));
+    files.push(rel::STYLE.to_string());
+    files
+}
 
 /// `applyStyle`: write a guide to the project: `tokens.json`, `head.html`, the motif master and
 /// `design/system/style.json`. A token file or head edited since dfw wrote it is refused unless
@@ -838,8 +846,8 @@ pub fn apply_style(
 ) -> Result<AppliedStyle, DfwError> {
     get_style(id)?;
     let mut written = Written::open(root)?;
-    for file in REPLACED {
-        written.check(file, force)?;
+    for file in guide_files() {
+        written.check(&file, force)?;
     }
     let applied = write_style(root, id, fonts, &mut written)?;
     written.save()?;
@@ -863,6 +871,7 @@ pub(crate) fn write_style(
     written.record(rel::HEAD)?;
     if let Some(motif) = motif_component(&g) {
         write_atomic_inside(root, &p.components.join(MOTIF_FILE), motif)?;
+        written.record(&rel::component(MOTIF_FILE))?;
     }
     let font_set = fonts_for(&g, fonts).cloned();
     let mut style = Map::new();
@@ -908,6 +917,7 @@ pub(crate) fn write_style(
     put("fonts", font_set.clone());
     put("fontsVariant", Some(json!(fonts)));
     write_json_inside(root, &p.style, &js::key_order(Value::Object(style)))?;
+    written.record(rel::STYLE)?;
     let id = text(g.get(key::ID));
     let design_md = root.join("DESIGN.md");
     let rationale = strings(g.get(key::RATIONALE));

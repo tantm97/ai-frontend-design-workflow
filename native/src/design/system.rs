@@ -13,7 +13,7 @@ use super::compose::{build_system, load_components};
 use super::inventory::ensure_inventory;
 use super::manifest::key as manifest_key;
 use super::style::{
-    get_style, head_for, is_style, style_name, style_tokens, write_style, REPLACED,
+    get_style, guide_files, head_for, is_style, style_name, style_tokens, write_style, REPLACED,
 };
 use super::tokens::{build_tokens, dir_names, key as dtcg_key, option};
 use super::written::Written;
@@ -332,8 +332,8 @@ pub fn system_choose(
     if is_style(name) {
         get_style(name)?;
         let mut written = Written::open(root)?;
-        for file in REPLACED {
-            written.check(file, force)?;
+        for file in guide_files() {
+            written.check(&file, force)?;
         }
         // Fonts, motif, style.json and rationale come from the guide; the tokens come from the
         // option theme the user compared and approved, so edits made during the comparison stay.

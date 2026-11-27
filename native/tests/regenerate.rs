@@ -433,3 +433,37 @@ fn sha256(bytes: &[u8]) -> String {
         .map(|b| format!("{b:02x}"))
         .collect()
 }
+
+/// A guide also replaces `design/system/style.json` and its motif master whole: once dfw wrote
+/// them, an edit to either is refused by a second `style apply` unless `--force`.
+#[test]
+fn an_edited_style_file_or_motif_is_refused() {
+    let case = written_project("guide-files");
+    must(&case, &[command::STYLE, APPLY, STYLE]);
+    // What the guide wrote besides the token file and the head: style.json, and its motif
+    // master when it has one.
+    let text = fs::read_to_string(project(&case).join(rel::WRITTEN)).unwrap();
+    let record: Value = serde_json::from_str(&text).unwrap();
+    let targets: Vec<String> = record
+        .as_object()
+        .unwrap()
+        .keys()
+        .filter(|k| *k != rel::TOKENS_JSON && *k != rel::HEAD)
+        .cloned()
+        .collect();
+    assert!(
+        targets.iter().any(|t| t == rel::STYLE),
+        "style.json is recorded"
+    );
+    for target in &targets {
+        edit(&project(&case).join(target));
+        let out = dfw(&case, &[command::STYLE, APPLY, STYLE]);
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        let why = format!("{target}: {stderr}");
+        assert_eq!(out.status.code(), Some(1), "{why}");
+        assert!(stderr.contains(target.as_str()), "{why}");
+        must(&case, &[command::STYLE, APPLY, STYLE, FORCE_HINT]);
+        assert!(!keeps_edit(read(&case, target).as_bytes()), "{target}");
+    }
+    fs::remove_dir_all(&case).unwrap();
+}
