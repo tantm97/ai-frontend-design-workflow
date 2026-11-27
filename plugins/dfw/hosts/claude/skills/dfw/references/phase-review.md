@@ -2,7 +2,7 @@
 
 ## Interactive review loop
 
-The user reviews in the Studio (`dfw studio start`). Comments are stored in `.dfw/reviews/rv_*.json` using the feedback contract (`schemas/feedback.schema.json`): screen, variant, breakpoint, state, theme, target (`dfwId`, CSS selector, bounding box, accessible role/name, text, computed style summary, source file:line), comment text, status, thread.
+The user reviews in the Studio (`dfw studio start`), or in Penpot when `dfw status` says `canvas: penpot` (`references/penpot.md` > "Review canvas"): then the dfw bridge panel keeps the boards up to date after each of your builds, and Penpot threads and edits arrive as comments with `provider: "penpot"` through the same wait. Comments are stored in `.dfw/reviews/rv_*.json` using the feedback contract (`schemas/feedback.schema.json`): screen, variant, breakpoint, state, theme, target (`dfwId`, CSS selector, bounding box, accessible role/name, text, computed style summary, source file:line), comment text, status, thread.
 
 ### Live comments (the user comments, you fix, no relaying)
 - As soon as the Studio is shown to the user (with its link in your reply), start listening: run `dfw comments wait --timeout 3600` **in the background** (Bash `run_in_background`). The user writes comments as drafts and hands them over with the Studio's **Send to AI** button; the wait exits the moment they are sent and prints them; you are re-invoked with that output. Apply them (below), then start the wait in the background again **before you end your turn**, also after a batch a hook delivered. Stop listening only when the user says review is over or the phase moves on.
@@ -17,7 +17,7 @@ The user reviews in the Studio (`dfw studio start`). Comments are stored in `.df
 3. For each comment: `dfw comments ack <id>`; apply the change in the referenced file; if the request conflicts with a higher-precedence rule (accessibility, business rule, approved system), do not silently apply or ignore it: explain, propose the closest compliant option, `dfw comments reply <id> --message "<question>"` and ask the user in chat.
 4. Verify each change actually happened: re-render (`dfw shoot --screen <id> --variant <v> --bp <bp>` or `--selector '<selector>'` for an element shot) and inspect the image; run `dfw check <file>`.
 5. `dfw comments fixed <id> --message "<what changed, where>" [--evidence .dfw/shots/...png]`. Never mark `resolved` yourself; the user resolves in the Studio ("Looks right") or tells you in chat (then `dfw comments resolve <id> --by user`).
-6. Tell the user which comments are ready to verify (the Studio's "To verify" tab), and any that need their decision.
+6. Tell the user which comments are ready to verify (the Studio's "To verify" tab; in Penpot, the `[dfw] ... fixed` reply in the thread, which they resolve to accept), and any that need their decision.
 7. Comments with `provider: "penpot"` come from a designer's edits or comment threads in Penpot (`references/penpot-import.md`, `references/penpot-live.md`). Treat them like any other comment: apply text, colour and position changes through masters, tokens and screen layout (never paste Penpot geometry into the HTML), and confirm token changes with the user before `dfw tokens import`.
 
 ### Critique (before asking for approval)

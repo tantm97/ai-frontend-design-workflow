@@ -11,6 +11,6 @@ Comment threads in Penpot become dfw comments, and the agent's answers come back
 
 Threads elsewhere in the file are ignored. Replies are posted by the plugin as the Penpot user who has the panel open (Penpot has no bot identity), hence the `[dfw]` prefix. The link between a thread and its comment is kept in `.dfw/penpot/threads.json` (`<file id>#<thread number>`).
 
-After a fix, the panel says the design changed; **Update boards** redraws the boards in place, so their comment threads stay (see `references/penpot-export.md`). Layer edits are not live: they come back with **Send changes to dfw** (see `references/penpot-import.md`).
+After a fix, the panel updates the boards in place by itself when **Keep boards up to date automatically** is on (it sends pending layer edits first); otherwise it says the design changed and **Update boards** redraws them. Either way comment threads stay (see `references/penpot-export.md`). Layer edits are not live: they come back with **Send changes to dfw** or the automatic update (see `references/penpot-import.md`). The panel also says whether the agent listens (a running `dfw comments wait`), and reconnects by itself after the Studio restarts.
 
 Not verified without a running Penpot: comment thread positions (absolute vs board-relative), and whether `CommentThread.board` is the main component when a pin sits on the `dfw components` page.
