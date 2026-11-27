@@ -494,3 +494,41 @@ fn cli_init_gates_approve_g2_blocked_by_must_findings() {
     // The snapshot the Node side froze is intact for the native check.
     assert_eq!(ok(&[command::VERIFY_SNAPSHOT]), "Snapshot v1 intact.\n");
 }
+
+/// `dfw init --canvas` records where the user reviews; a value other than `studio` or `penpot`
+/// is refused before anything is written, and `dfw status` names the canvas.
+#[test]
+fn init_records_and_checks_the_canvas() {
+    let refused = tmp_dir("init-canvas-refused");
+    let r = cli(&refused, &[command::INIT, flag::CANVAS, "figma"]);
+    assert_eq!(r.code, 1, "{}", r.stdout);
+    assert!(r.stderr.contains("--canvas penpot"), "{}", r.stderr);
+    assert!(!refused.join(rel::DFW).exists(), "nothing written");
+    let bare = cli(&refused, &[command::INIT, flag::CANVAS]);
+    assert_eq!(bare.code, 1);
+    assert!(
+        bare.stderr.contains("--canvas needs a value."),
+        "{}",
+        bare.stderr
+    );
+
+    let root = fixture_project("init-canvas");
+    let penpot = "penpot";
+    let init = cli(&root, &[command::INIT, flag::CANVAS, penpot]).ok();
+    assert!(init.ends_with(&format!("canvas: {penpot}\n")), "{init}");
+    let config: Value =
+        serde_json::from_str(&fs::read_to_string(root.join(rel::CONFIG)).unwrap()).unwrap();
+    assert_eq!(
+        config,
+        json!({ "schema": 1, "review": { "canvas": penpot } })
+    );
+    let status = cli(&root, &[command::STATUS]).ok();
+    assert!(
+        status.contains(&format!("\ncanvas: {penpot}\n")),
+        "{status}"
+    );
+    let json = cli(&root, &[command::STATUS, flag::JSON]).json();
+    let last = json.as_object().unwrap().iter().next_back();
+    let last = last.map(|(k, v)| (k.as_str(), v.as_str()));
+    assert_eq!(last, Some(("canvas", Some(penpot))));
+}
