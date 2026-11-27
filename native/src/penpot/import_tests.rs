@@ -450,3 +450,44 @@ fn two_imports_with_one_push_time_keep_both_archives() {
         assert_eq!(kept[NOTE], n + 1, "{name}");
     }
 }
+
+/// The source line of an id skips the comments: `<!-- <p data-dfw-id="x"> -->` then the real
+/// element on line 9 points at line 9 (penpot-bridge "Source lookup reads HTML as HTML").
+#[test]
+fn source_line_skips_an_id_inside_a_comment() {
+    let root = crate::core::util::test_dir("penpot-source-line");
+    let screen = "screen.html";
+    let text = "<!-- <p data-dfw-id=\"x\"> -->\n".to_string()
+        + &"<br>\n".repeat(7)
+        + "<p data-dfw-id=\"x\">";
+    std::fs::write(root.join(screen), text).unwrap();
+    let line = source_line(&root, Some(&json!(screen)), Some(&json!("x")));
+    assert_eq!(line, json!(format!("{screen}:9")));
+    // Not found: the file alone.
+    let line = source_line(&root, Some(&json!(screen)), Some(&json!("y")));
+    assert_eq!(line, json!(screen));
+}
+
+#[test]
+fn id_offset_reads_quotes_instances_and_unclosed_tags() {
+    assert_eq!(id_offset("<p data-dfw-id='x'>", "x"), Some(3));
+    assert_eq!(
+        id_offset("<i>\r\n<dfw-use c=\"b\" id='x'></dfw-use>", "x"),
+        Some(5)
+    );
+    assert_eq!(
+        id_offset("<dfw-use c=\"b\" data-dfw-id=\"x\">", "x"),
+        Some(0)
+    );
+    // An id attribute of a plain element is no instance id.
+    assert_eq!(id_offset("<p id=\"x\">", "x"), None);
+    // A tag whose quote never closes is text; the element after it is found.
+    assert_eq!(
+        id_offset("<p title=\"open\n<p data-dfw-id=\"x\">", "x"),
+        Some(18)
+    );
+    assert_eq!(
+        id_offset("<script>'<p data-dfw-id=\"x\">'</script>", "x"),
+        None
+    );
+}

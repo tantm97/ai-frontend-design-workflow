@@ -8,7 +8,7 @@ use super::text::{bullets, has_heading, md_parts, part_body};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::js::regex::with_js_classes;
-use crate::design::html::escape_html as esc;
+use crate::design::html::{escape_html as esc, without_comments};
 use crate::design::style::key as style_key;
 
 /// The strings of a JSON array (`(list || []).map(...)`); anything else is no list.
@@ -21,13 +21,12 @@ fn items(value: Option<&Value>) -> Vec<String> {
 
 /// The section for style guide `style`; `md` is the text of DESIGN.md (empty without one).
 pub(super) fn concept(style: &Value, md: &str, inline: &Inline) -> Result<String, DfwError> {
-    let comment = with_js_classes(r"(?s)<!--.*?-->")?;
     let section = |h: &str| -> String {
         match md_parts(md)
             .into_iter()
             .find(|part| has_heading(part, &[h]))
         {
-            Some(part) => js::trim(&comment.replace_all(part_body(part), "")).to_string(),
+            Some(part) => js::trim(&without_comments(part_body(part))).to_string(),
             None => String::new(),
         }
     };
@@ -108,4 +107,44 @@ pub(super) fn concept(style: &Value, md: &str, inline: &Inline) -> Result<String
         card("Don't", "dont"),
         card("Component rules", "components"),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    /// The lead paragraph of the Concept section for DESIGN.md text `md`.
+    fn lead(md: &str) -> String {
+        let style = json!({ (style_key::CONCEPT): "fallback" });
+        let html = concept(&style, md, &Inline::new().unwrap()).unwrap();
+        let open = "ds-lead\">";
+        let start = html.find(open).unwrap() + open.len();
+        html[start..start + html[start..].find("</p>").unwrap()].to_string()
+    }
+
+    #[test]
+    fn comments_of_a_section_are_dropped() {
+        assert_eq!(
+            lead("# T\n## Direction\n<!-- TODO -->Calm\r\n<!-- a\nb -->"),
+            "Calm"
+        );
+        // A section that is only a comment falls back to the style guide.
+        assert_eq!(
+            lead("# T\n## Direction\n<!-- Write the direction -->"),
+            "fallback"
+        );
+    }
+
+    #[test]
+    fn a_comment_in_a_quoted_attribute_or_unclosed_stays() {
+        assert_eq!(
+            lead("# T\n## Direction\n<i title='<!-- x -->'>Bold</i>"),
+            "&lt;i title='&lt;!-- x --&gt;'&gt;Bold&lt;/i&gt;"
+        );
+        assert_eq!(
+            lead("# T\n## Direction\nCalm <!-- open"),
+            "Calm &lt;!-- open"
+        );
+    }
 }

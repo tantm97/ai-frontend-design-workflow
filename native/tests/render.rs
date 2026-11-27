@@ -97,11 +97,21 @@ fn assert_no_browser_left(sandbox: &Path) {
     if cfg!(windows) {
         return;
     }
-    let left = Command::new("pgrep")
-        .args(["-f", &tmp.display().to_string()])
-        .output()
-        .unwrap();
-    assert!(left.stdout.is_empty(), "browser processes left behind");
+    // Chrome's helper processes exit a moment after the browser: poll with a deadline (T12).
+    let left = || {
+        let out = Command::new("pgrep")
+            .args(["-f", &tmp.display().to_string()])
+            .output()
+            .unwrap();
+        String::from_utf8_lossy(&out.stdout).into_owned()
+    };
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    let mut pids = left();
+    while !pids.is_empty() && std::time::Instant::now() < deadline {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        pids = left();
+    }
+    assert!(pids.is_empty(), "browser processes left behind: {pids}");
 }
 
 fn page(body: &str) -> String {

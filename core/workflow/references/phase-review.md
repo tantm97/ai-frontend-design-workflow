@@ -16,7 +16,7 @@ The user reviews in the Studio (`dfw studio start`). Comments are stored in `.df
 4. Verify each change actually happened: re-render (`dfw shoot --screen <id> --variant <v> --bp <bp>` or `--selector '<selector>'` for an element shot) and inspect the image; run `dfw check <file>`.
 5. `dfw comments fixed <id> --message "<what changed, where>" [--evidence .dfw/shots/...png]`. Never mark `resolved` yourself; the user resolves in the Studio ("Looks right") or tells you in chat (then `dfw comments resolve <id> --by user`).
 6. Tell the user which comments are ready to verify (the Studio's "To verify" tab), and any that need their decision.
-7. Comments with `provider: "penpot"` come from a designer's edits in Penpot (`references/penpot.md`). Treat them like any other comment: apply text, colour and position changes through masters, tokens and screen layout (never paste Penpot geometry into the HTML), and confirm token changes with the user before `dfw tokens import`.
+7. Comments with `provider: "penpot"` come from a designer's edits or comment threads in Penpot (`references/penpot-import.md`, `references/penpot-live.md`). Treat them like any other comment: apply text, colour and position changes through masters, tokens and screen layout (never paste Penpot geometry into the HTML), and confirm token changes with the user before `dfw tokens import`.
 
 ### Critique (before asking for approval)
 - Spawn `dfw:visual-reviewer` with the screens in scope. It runs `dfw check`, screenshots every screen/variant/breakpoint, uses `impeccable:impeccable` critique/audit (and `emil-design-eng:review-animations` if motion changed; Hallmark finish review on marketing pages it led) and returns a Must/Should/Nice report with evidence.

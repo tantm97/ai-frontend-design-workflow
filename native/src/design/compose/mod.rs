@@ -42,6 +42,10 @@ pub mod attr {
     pub const COMPONENT: &str = "component";
     /// The inline style of an element.
     pub const STYLE: &str = "style";
+    /// The screen a link or button goes to (`screen[/variant]`).
+    pub const GOTO: &str = "data-dfw-goto";
+    /// The target of a link.
+    pub const HREF: &str = "href";
 }
 
 /// The slot that takes the content of an instance outside any named fill.

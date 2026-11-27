@@ -3,7 +3,8 @@
 
 use super::*;
 use crate::core::js::regex::fixed_regex;
-use crate::design::compose::ComponentDef;
+use crate::design::compose::{attr, ComponentDef};
+use crate::design::html::{self, Tag};
 
 /// The CSS properties a change type is made with.
 fn css_property(change: &Value) -> Option<&'static str> {
@@ -38,21 +39,19 @@ fn find_from(text: &str, needle: &str, from: usize) -> Option<usize> {
     text.get(from..)?.find(needle).map(|i| i + from)
 }
 
-/// `/<(?!template\b)[a-z]/i`: the first tag that is not a template tag.
-fn first_element(text: &str) -> Option<usize> {
+/// True when `word` is in `text` with an ASCII word boundary on both sides, ignoring ASCII case
+/// (`/\bword\b/i`).
+fn has_word(text: &str, word: &str) -> bool {
+    let is_word = |b: Option<&u8>| b.is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'_');
+    let text = text.to_ascii_lowercase();
+    let word = word.to_ascii_lowercase();
     let bytes = text.as_bytes();
-    (0..bytes.len()).find(|&i| {
-        if bytes[i] != b'<' || !bytes.get(i + 1).is_some_and(u8::is_ascii_alphabetic) {
-            return false;
-        }
-        let name = &bytes[i + 1..];
-        let template = name.len() >= 8
-            && name[..8].eq_ignore_ascii_case(b"template")
-            && !name
-                .get(8)
-                .is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'_');
-        !template
-    })
+    let boundary =
+        |at: usize| is_word(at.checked_sub(1).and_then(|i| bytes.get(i))) != is_word(bytes.get(at));
+    !word.is_empty()
+        && text
+            .match_indices(&word)
+            .any(|(at, _)| boundary(at) && boundary(at + word.len()))
 }
 
 /// `masterSource`: `design/system/components/<file>:<line>` for a master change: the CSS rule
@@ -185,28 +184,75 @@ fn template_offset(block: &str, start: usize, change: &Value, cls: Option<&str>)
     let tpl_end = find_from(block, "</template>", tpl_at)
         .filter(|e| *e > 0)
         .unwrap_or(block.len());
-    let tpl = &block[tpl_at..tpl_end];
+    let first = |pick: &dyn Fn(&Tag) -> bool| {
+        html::first_open_tag(block, tpl_at..tpl_end, pick).map(|tag| tag.range.start)
+    };
     if change.get(field::TYPE).and_then(Value::as_str) == Some(change_type::TEXT) {
-        if let Some(slot) = tpl.find("<dfw-slot") {
-            return Some(tpl_at + slot);
+        if let Some(slot) = first(&|tag| tag.is(block, "dfw-slot")) {
+            return Some(slot);
         }
     }
     if !js::truthy(change.get(wire::IS_ROOT)) {
         let tag = js::truthy_value(change.get(wire::TAG)).map(|t| js::to_string(Some(t)));
-        let re = match (cls, tag) {
-            (Some(cls), _) => Regex::new(&format!(
-                r#"(?i)<[a-z][0-9A-Za-z_-]*[^>]*class="[^"]*(?-u:\b){}(?-u:\b)"#,
-                regex::escape(cls)
-            ))
-            .ok(),
-            (None, Some(tag)) => Regex::new(&format!(r"(?i)<{tag}(?-u:\b)")).ok(),
+        let found = match (cls, tag) {
+            (Some(cls), _) => first(&|tag| {
+                tag.attrs.iter().any(|a| {
+                    block[a.name.clone()].eq_ignore_ascii_case(attr::CLASS)
+                        && has_word(&html::attr_value(block, a), cls)
+                })
+            }),
+            (None, Some(name)) => first(&|tag| tag.is(block, &name)),
             (None, None) => None,
         };
-        if let Some(m) = re.and_then(|re| re.find(tpl)) {
-            return Some(tpl_at + m.start());
+        if found.is_some() {
+            return found;
         }
     }
-    tpl.get(1..)
-        .and_then(first_element)
-        .map(|first| tpl_at + 1 + first)
+    first(&|tag| !tag.is(block, "template"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The offset `template_offset` gives in `block` for a change on a layer of class `cls` or
+    /// of tag `tag` (neither: the first element).
+    fn offset(block: &str, cls: Option<&str>, tag: Option<&str>) -> Option<usize> {
+        let change = json!({ (field::TYPE): change_type::FILL, (wire::TAG): tag });
+        template_offset(block, 0, &change, cls)
+    }
+
+    #[test]
+    fn a_layer_inside_a_comment_is_not_found() {
+        let block = "<template><!-- <i class=\"icon\"> <b> --><span><i class=\"icon\"></i><b></b></span></template>";
+        assert_eq!(offset(block, Some("icon"), None), block.rfind("<i class"));
+        assert_eq!(offset(block, None, Some("b")), block.find("<b></b>"));
+        let block = "<template><!-- <i> --><span></span></template>";
+        assert_eq!(offset(block, None, None), block.find("<span"));
+    }
+
+    #[test]
+    fn single_quoted_and_mixed_case_classes_are_found() {
+        let block = "<template>\r\n<p class='x'><i CLASS='a Icon-sm'></i></p></template>";
+        assert_eq!(offset(block, Some("icon"), None), block.find("<i"));
+        // A class that only starts with the name is no match.
+        assert_eq!(offset(block, Some("ico"), None), block.find("<p"));
+    }
+
+    #[test]
+    fn an_unclosed_tag_does_not_hide_the_layer() {
+        let block = "<template><p title=\"open\n<b class=\"x\"></b></template>";
+        assert_eq!(offset(block, Some("x"), None), block.find("<b"));
+    }
+
+    #[test]
+    fn has_word_matches_on_word_boundaries() {
+        assert!(has_word("btn btn--primary", "btn--primary"));
+        /// A class name.
+        const BTN: &str = "btn";
+        assert!(has_word("btn-primary", BTN));
+        assert!(!has_word("btnx", BTN));
+        assert!(has_word("A BTN", BTN));
+        assert!(!has_word("x", ""));
+    }
 }

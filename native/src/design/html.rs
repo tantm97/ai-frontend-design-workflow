@@ -605,6 +605,37 @@ pub fn line_of(src: &str, index: usize) -> usize {
         + 1
 }
 
+/// `src` without its comments; every other byte as written. A `<!--` inside a quoted attribute
+/// or raw text is no comment, and one that never closes is text.
+pub fn without_comments(src: &str) -> String {
+    Tokenizer::new(src)
+        .filter_map(|token| match token {
+            Token::Comment(_) => None,
+            Token::Open(tag) | Token::Close(tag) => Some(&src[tag.range]),
+            Token::Text(r) | Token::RawText(r) => Some(&src[r]),
+        })
+        .collect()
+}
+
+/// The text of `src` with every tag and comment replaced by `sep` (text and raw text as written).
+pub fn text_with_tags_as(src: &str, sep: &str) -> String {
+    Tokenizer::new(src)
+        .map(|token| match token {
+            Token::Open(_) | Token::Close(_) | Token::Comment(_) => sep,
+            Token::Text(r) | Token::RawText(r) => &src[r],
+        })
+        .collect()
+}
+
+/// The first opening tag of `src[range]` for which `pick` is true (`range` must start outside a
+/// tag, a comment and raw text).
+pub fn first_open_tag(src: &str, range: Range<usize>, pick: impl Fn(&Tag) -> bool) -> Option<Tag> {
+    Tokenizer::within(src, range).find_map(|token| match token {
+        Token::Open(tag) if pick(&tag) => Some(tag),
+        _ => None,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -950,5 +981,44 @@ mod tests {
         assert_eq!(escape_html(v), "a &amp; &lt;b&gt; &quot;c&quot; 'd'");
         assert_eq!(escape_attr(v), "a &amp; &lt;b> &quot;c&quot; 'd'");
         assert_eq!(escape_html("&amp;"), "&amp;amp;");
+    }
+
+    #[test]
+    fn without_comments_keeps_every_other_byte() {
+        let src = "a<!-- <p id=\"x\"> -->b\r\n<p title='<!-- not -->'>c</p><!-- open";
+        assert_eq!(
+            without_comments(src),
+            "ab\r\n<p title='<!-- not -->'>c</p><!-- open"
+        );
+        // Raw text holds no comment; an unclosed tag stays text.
+        let raw = "<style><!-- css --></style><x";
+        assert_eq!(without_comments(raw), raw);
+    }
+
+    #[test]
+    fn text_with_tags_as_replaces_tags_and_comments() {
+        let src = "a<b class='c'>b</b><!-- <i> -->c<script>1<2</script> d < e <x title=\"open";
+        assert_eq!(
+            text_with_tags_as(src, " "),
+            "a b  c 1<2  d < e <x title=\"open"
+        );
+    }
+
+    #[test]
+    fn first_open_tag_skips_comments_and_stays_in_range() {
+        let src = "<!-- <p id='x'> --><i id='y'></i><p id='x'>";
+        let is_x = |t: &Tag| t.attr(src, "id").map(|a| attr_value(src, a)).as_deref() == Some("x");
+        assert_eq!(
+            first_open_tag(src, 0..src.len(), is_x).map(|t| t.range.start),
+            src.rfind("<p")
+        );
+        assert_eq!(first_open_tag(src, 0..33, is_x), None);
+        // An unclosed quote makes no tag; the real one after it is found.
+        let src = "<p id='x\n<p id='x'>";
+        let is_x = |t: &Tag| t.attr(src, "id").map(|a| attr_value(src, a)).as_deref() == Some("x");
+        assert_eq!(
+            first_open_tag(src, 0..src.len(), is_x).map(|t| t.range.start),
+            Some(9)
+        );
     }
 }
