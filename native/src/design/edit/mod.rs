@@ -537,7 +537,7 @@ fn next_stamp(journal: &[String], seq_after: Option<u32>) -> String {
 
 /// The edit lock of a project (`.dfw/edits/.lock`): the Studio serves one thread per
 /// connection, and the read, transform, write and journal of an edit or an undo run as one.
-fn edit_lock(root: &Path) -> Result<lock::Lock, DfwError> {
+pub(crate) fn edit_lock(root: &Path) -> Result<lock::Lock, DfwError> {
     lock::acquire(&edits_dir(root).join(".lock"), &lock::STANDARD)
 }
 

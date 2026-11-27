@@ -12,8 +12,11 @@ use serde_json::{json, Map, Value};
 use super::compose::{build_system, load_components};
 use super::inventory::ensure_inventory;
 use super::manifest::key as manifest_key;
-use super::style::{apply_style, get_style, head_for, is_style, style_name, style_tokens};
+use super::style::{
+    get_style, head_for, is_style, style_name, style_tokens, write_style, REPLACED,
+};
 use super::tokens::{build_tokens, dir_names, key as dtcg_key, option};
+use super::written::Written;
 use crate::assets::{self, Folder};
 use crate::core::error::DfwError;
 use crate::core::js;
@@ -144,7 +147,11 @@ pub fn system_init(root: &Path, opts: &InitOptions) -> Result<SystemInit, DfwErr
         if !opts.force && !is_placeholder_tokens(tok_file)? {
             return Err(DfwError::new(message::tokens_exist()));
         }
-        apply_style(root, style, &opts.fonts)?;
+        get_style(style)?;
+        let mut written = Written::open(root)?;
+        written.check(rel::HEAD, opts.force)?;
+        write_style(root, style, &opts.fonts, &mut written)?;
+        written.save()?;
         build_tokens(root)?;
         build_system(root)?;
         return Ok(SystemInit {
@@ -155,14 +162,18 @@ pub fn system_init(root: &Path, opts: &InitOptions) -> Result<SystemInit, DfwErr
     }
     let mut tokens_written = false;
     let (tokens, head) = preset_files(&opts.preset)?;
+    let mut written = Written::open(root)?;
     if opts.force || is_placeholder_tokens(tok_file)? {
         write_atomic_inside(root, tok_file, &tokens)?;
+        written.record(rel::TOKENS_JSON)?;
         tokens_written = true;
     }
     let head_file = &p.head;
     if opts.force || !head_file.exists() {
         write_atomic_inside(root, head_file, head)?;
+        written.record(rel::HEAD)?;
     }
+    written.save()?;
     build_tokens(root)?;
     build_system(root)?;
     Ok(SystemInit {
@@ -259,6 +270,10 @@ pub fn system_options(root: &Path, names: &[String], fonts: &str) -> Result<Vec<
         heads.push(js::trim(&js::strip_comments(&head)).to_string());
     }
     let head_file = &p.head;
+    let mut written = Written::open(root)?;
+    // The options block keeps the rest of the head: a head that was dfw's stays dfw's, one the
+    // user edited stays edited.
+    let ours = written.is_ours(rel::HEAD)?;
     let current = if head_file.exists() {
         js::read_text(head_file)?
     } else {
@@ -289,6 +304,10 @@ pub fn system_options(root: &Path, names: &[String], fonts: &str) -> Result<Vec<
         None => format!("{}\n{block}\n", js::trim(&current)),
     };
     write_atomic_inside(root, head_file, text)?;
+    if ours {
+        written.record(rel::HEAD)?;
+    }
+    written.save()?;
     set_manifest_themes(root, &p.manifest, &options)?;
     let built = build_tokens(root)?;
     Ok(built
@@ -299,12 +318,23 @@ pub fn system_options(root: &Path, names: &[String], fonts: &str) -> Result<Vec<
 }
 
 /// `systemChoose`: promote one option (or preset) to the base tokens and remove the option
-/// themes. The option's tokens win, edits included. Returns the chosen name.
-pub fn system_choose(root: &Path, name: &str, fonts: &str) -> Result<String, DfwError> {
+/// themes. The option's tokens win, edits included. A token file or head edited since dfw wrote
+/// it is refused unless `force` (`design-files.md` D7). Returns the chosen name.
+pub fn system_choose(
+    root: &Path,
+    name: &str,
+    fonts: &str,
+    force: bool,
+) -> Result<String, DfwError> {
     let p = project_paths(root);
     let opt = p.themes.join(option::file(&style_name(name)?));
     let tok_file = &p.tokens_json;
     if is_style(name) {
+        get_style(name)?;
+        let mut written = Written::open(root)?;
+        for file in REPLACED {
+            written.check(file, force)?;
+        }
         // Fonts, motif, style.json and rationale come from the guide; the tokens come from the
         // option theme the user compared and approved, so edits made during the comparison stay.
         let edited = if opt.exists() {
@@ -312,10 +342,12 @@ pub fn system_choose(root: &Path, name: &str, fonts: &str) -> Result<String, Dfw
         } else {
             None
         };
-        apply_style(root, name, fonts)?;
+        write_style(root, name, fonts, &mut written)?;
         if let Some(edited) = edited {
             write_atomic_inside(root, tok_file, edited)?;
+            written.record(rel::TOKENS_JSON)?;
         }
+        written.save()?;
     } else {
         let (tokens, head) = preset_files(name).map_err(|e| {
             if opt.exists() {
@@ -325,13 +357,20 @@ pub fn system_choose(root: &Path, name: &str, fonts: &str) -> Result<String, Dfw
                 e
             }
         })?;
+        let mut written = Written::open(root)?;
+        for file in REPLACED {
+            written.check(file, force)?;
+        }
         let tokens = if opt.exists() {
             fs::read(&opt)?
         } else {
             tokens.into_bytes()
         };
         write_atomic_inside(root, tok_file, tokens)?;
+        written.record(rel::TOKENS_JSON)?;
         write_atomic_inside(root, &p.head, head)?;
+        written.record(rel::HEAD)?;
+        written.save()?;
     }
     remove_options(&p.themes, &[])?;
     set_manifest_themes(root, &p.manifest, &[])?;
@@ -600,7 +639,7 @@ mod tests {
             json_of(&root, &p.manifest)["themes"],
             json!(themes_of(&compared))
         );
-        system_choose(&root, INDUSTRIAL_PRESET, "vi").unwrap();
+        system_choose(&root, INDUSTRIAL_PRESET, "vi", false).unwrap();
         assert!(read(&root, &p.tokens_css).contains("--color-accent: #0b5cad"));
         assert!(!read(&root, &p.tokens_css).contains(option::PREFIX));
     }
@@ -680,7 +719,7 @@ mod tests {
         let compared = [INDUSTRIAL_STYLE, SWISS_GRID_STYLE];
         let o = system_options(&root, &names(&compared), "vi").unwrap();
         assert_eq!(o, themes_of(&compared));
-        system_choose(&root, SWISS_GRID_STYLE, "vi").unwrap();
+        system_choose(&root, SWISS_GRID_STYLE, "vi", false).unwrap();
         assert!(
             read(&root, &p.tokens_css).contains("--color-accent: var(--color-palette-coban-600)")
         );
@@ -810,7 +849,7 @@ mod tests {
         let mut t = json_of(&root, opt);
         t[COLOR][ACCENT] = json!({ "$value": { "colorSpace": "srgb", "components": [0.051, 0.4196, 0.4706], "hex": EDITED }, "$description": "Edited during the comparison" });
         write(&root, opt, &t.to_string());
-        system_choose(&root, PLAYFUL_STYLE, "vi").unwrap();
+        system_choose(&root, PLAYFUL_STYLE, "vi", false).unwrap();
         assert_eq!(
             json_of(&root, &p.tokens_json)[COLOR][ACCENT]["$value"]["hex"],
             EDITED
@@ -937,9 +976,9 @@ mod tests {
         assert_eq!(err.message(), message::duplicate_option(&option::theme(ID)));
         assert_eq!(themes(), files_of(&[DEFAULT_PRESET, ID]));
         // The short name points at the file; the file is chosen.
-        let err = system_choose(&root, ID, "vi").unwrap_err();
+        let err = system_choose(&root, ID, "vi", false).unwrap_err();
         assert_eq!(err.message(), message::choose_by_file(ID));
-        system_choose(&root, &source, "vi").unwrap();
+        system_choose(&root, &source, "vi", false).unwrap();
         assert!(themes().is_empty());
         assert_eq!(json_of(&root, &p.style)["id"], ID);
         fs::remove_dir_all(&root).unwrap();

@@ -19,7 +19,7 @@ Design system (built before any screen)
   dfw system ref [<name>]                       Starter-kit masters as a read-only reference (states/a11y checklist); never copied
   dfw system presets                            List presets
   dfw style list | search <words> | show <id>   Curated style guides (concept, named palette + rules, type, motifs)
-  dfw style apply <id> [--fonts latin]          Turn a guide into tokens + fonts + motif master (latin = English-only fonts)
+  dfw style apply <id> [--fonts latin] [--force]   Turn a guide into tokens + fonts + motif master (latin = English-only fonts; --force replaces an edited tokens.json/head.html)
   dfw style match [--brief design/system/brief.json]   Rank guides against the brief's personality axes, with reasons
   dfw blueprint [list|<screen>] [--json]        Screen blueprints (goal, layout, above-the-fold, data range, feedback) to agree before building
   dfw layout check [--screen a,b] [--bp ids] [--states] [--changed]   Rendered check: overlap, clipping, overflow, anchors (with long lists), empty space, cross-screen consistency
@@ -27,7 +27,7 @@ Design system (built before any screen)
   dfw palette build --brand <hex|hue> ...       OKLCH ramps + roles picked by contrast + harmonised status colours
   dfw type scale --base 16 --ratio 1.2 --display-ratio 1.333 [--write]   Modular type scale
   dfw system options <a> <b> [<c>]               Compare 2-3 style guides/presets as themes (opt-<name>) on the same screens
-  dfw system choose <preset>                    Promote one option to design/tokens/tokens.json
+  dfw system choose <preset> [--force]          Promote one option to design/tokens/tokens.json (--force replaces an edited tokens.json/head.html)
   dfw system list [--json]                      Components, variants, sizes, props
   dfw build                                     tokens.css + system/components.css (the hook does this on edit)
   dfw icons search <words> | add <names...> | list   Curated Lucide icons -> design/system/icons/

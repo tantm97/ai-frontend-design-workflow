@@ -15,9 +15,10 @@ use serde_json::{json, Map, Value};
 use crate::assets::{self, Folder};
 use crate::core::error::DfwError;
 use crate::core::js;
-use crate::core::paths::{project_paths, resolve};
+use crate::core::paths::{project_paths, rel, resolve};
 use crate::core::util::{write_atomic_inside, write_json_inside};
 use crate::design::tokens::{extension, key as dtcg_key, option};
+use crate::design::written::Written;
 
 /// `STYLES_DIR`: the guides shipped with dfw, a folder of the embedded kits.
 const STYLES_DIR: &str = "styles";
@@ -823,15 +824,43 @@ pub struct AppliedStyle {
     pub fonts: Value,
 }
 
+/// The files a guide replaces whole, recorded in `.dfw/written.json`.
+pub const REPLACED: [&str; 2] = [rel::TOKENS_JSON, rel::HEAD];
+
 /// `applyStyle`: write a guide to the project: `tokens.json`, `head.html`, the motif master and
-/// `design/system/style.json`.
-pub fn apply_style(root: &Path, id: &str, fonts: &str) -> Result<AppliedStyle, DfwError> {
+/// `design/system/style.json`. A token file or head edited since dfw wrote it is refused unless
+/// `force` (`design-files.md` D7).
+pub fn apply_style(
+    root: &Path,
+    id: &str,
+    fonts: &str,
+    force: bool,
+) -> Result<AppliedStyle, DfwError> {
+    get_style(id)?;
+    let mut written = Written::open(root)?;
+    for file in REPLACED {
+        written.check(file, force)?;
+    }
+    let applied = write_style(root, id, fonts, &mut written)?;
+    written.save()?;
+    Ok(applied)
+}
+
+/// [`apply_style`] without the check: the caller has checked under `written` and saves it.
+pub(crate) fn write_style(
+    root: &Path,
+    id: &str,
+    fonts: &str,
+    written: &mut Written,
+) -> Result<AppliedStyle, DfwError> {
     let g = get_style(id)?;
     let p = project_paths(root);
     fs::create_dir_all(&p.tokens)?;
     write_json_inside(root, &p.tokens_json, &style_tokens(&g, fonts)?)?;
+    written.record(rel::TOKENS_JSON)?;
     fs::create_dir_all(&p.components)?;
     write_atomic_inside(root, &p.head, head_for(&g, fonts))?;
+    written.record(rel::HEAD)?;
     if let Some(motif) = motif_component(&g) {
         write_atomic_inside(root, &p.components.join(MOTIF_FILE), motif)?;
     }

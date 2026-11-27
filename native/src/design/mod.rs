@@ -16,6 +16,7 @@ pub mod style;
 pub mod system;
 pub mod system_page;
 pub mod tokens;
+pub mod written;
 
 use crate::core::error::DfwError;
 
