@@ -17,7 +17,9 @@ use serde_json::{json, Map, Value};
 use super::error::DfwError;
 use super::paths::rel::all_under;
 use super::paths::{file, global_dir, project_paths, rel};
-use super::util::{deep_merge, get_path, read_json, set_path, write_json, write_json_inside};
+use super::util::{
+    deep_merge, get_path, read_json, set_path, to_json_compact, write_json, write_json_inside,
+};
 
 /// The sections of the config the code reads by name, and the dotted keys of single values.
 pub mod key {
@@ -63,6 +65,8 @@ pub mod key {
     pub const SLOPLINT: &str = "sloplint";
     pub const TASTE_COPY_LINT: &str = "tasteCopyLint";
     pub const MAX_FINDINGS: &str = "maxFindings";
+    /// `false` switches off the layout check of the Stop hook.
+    pub const LAYOUT_ON_STOP: &str = "layoutOnStop";
 
     /* `studio` */
     pub const PORT: &str = "port";
@@ -140,7 +144,7 @@ pub fn defaults() -> Value {
         },
         (key::CHECKS): {
             // PostToolUse checks: "fast" (dfw lint), "full" (all tools) or false.
-            (key::ON_EDIT): "fast",
+            (key::ON_EDIT): on_edit::FAST,
             (key::TIMEOUT_MS): 8000,
             (key::IMPECCABLE): true,
             (key::SLOPLINT): true,
@@ -469,13 +473,6 @@ fn strings(config: &Value, path: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// A positive number at `path`, else `None` (the `value || default` of the Node callers).
-fn positive(config: &Value, path: &str) -> Option<f64> {
-    get_path(config, path)
-        .and_then(Value::as_f64)
-        .filter(|n| *n >= 1.0)
-}
-
 /// `gate.allow`: globs always writable regardless of gates.
 pub fn gate_allow(config: &Value) -> Vec<String> {
     strings(config, "gate.allow")
@@ -547,35 +544,158 @@ pub fn studio_breakpoints(config: &Value) -> Vec<Breakpoint> {
 pub enum OnEdit {
     /// `false`: no checks.
     Off,
-    /// `"fast"` and anything unknown: dfw lint only.
+    /// `"fast"` (the default) and any other text, as Node read it: dfw lint only.
     Fast,
     /// `"full"` or `true`: every tool.
     Full,
 }
 
-/// `checks.onEdit` as the PostToolUse hook reads it.
-pub fn checks_on_edit(config: &Value) -> OnEdit {
-    match get_path(config, "checks.onEdit") {
-        Some(Value::Bool(false)) => OnEdit::Off,
-        Some(Value::Bool(true)) => OnEdit::Full,
-        Some(Value::String(s)) if s == "full" => OnEdit::Full,
-        _ => OnEdit::Fast,
+/// The values of `checks.onEdit` besides `true` and `false`.
+pub mod on_edit {
+    pub const FAST: &str = "fast";
+    pub const FULL: &str = "full";
+}
+
+/// The largest `checks.timeoutMs` (an hour) and `checks.maxFindings`.
+pub const MAX_TIMEOUT_MS: f64 = 3_600_000.0;
+pub const MAX_FINDINGS_CAP: f64 = 10_000.0;
+
+/// The kinds a `checks` value must be, as the error names them.
+mod want {
+    pub const OBJECT: &str = "an object";
+    pub const FLAG: &str = "true or false";
+    pub const ON_EDIT: &str = "text (\"fast\", \"full\"), true or false";
+}
+
+/// The config file that set the dotted `path` (or a section above it to a value that is not an
+/// object): the project-local file, then the project file, then the global one. Read only to
+/// name the file in an error.
+fn file_of(root: Option<&Path>, path: &str) -> String {
+    let mut files = Vec::new();
+    if let Some(root) = root.filter(|r| !r.as_os_str().is_empty()) {
+        let p = project_paths(root);
+        files.push((p.config_local, rel::CONFIG_LOCAL.to_string()));
+        files.push((p.config, rel::CONFIG.to_string()));
+    }
+    let global = global_config_path();
+    let shown = global.display().to_string();
+    files.push((global, shown));
+    let parts: Vec<&str> = path.split('.').collect();
+    let holds = |layer: &Value| {
+        (1..=parts.len()).any(|n| {
+            get_path(layer, &parts[..n].join("."))
+                .is_some_and(|v| n == parts.len() || !v.is_object())
+        })
+    };
+    files
+        .into_iter()
+        .find(|(file, _)| read_json(file, Some(Value::Null)).is_ok_and(|layer| holds(&layer)))
+        .map_or_else(|| "the dfw config".to_string(), |(_, shown)| shown)
+}
+
+/// A value of `checks` of the wrong type: the key, the file that set it, the value and what it
+/// must be (`errors.md` E2, E7).
+fn checks_error(root: Option<&Path>, at: &str, value: &Value, kind: &str) -> DfwError {
+    const SHOWN: usize = 60;
+    let mut shown = to_json_compact(value);
+    if shown.chars().count() > SHOWN {
+        shown = shown.chars().take(SHOWN).collect::<String>() + "...";
+    }
+    DfwError::new(format!(
+        "{at} in {} is {shown}, not {kind}. Fix it in that file, or run \"dfw config set {at} <value>\".",
+        file_of(root, at)
+    ))
+}
+
+/// The value of `checks.<name>`, `None` when it is not set. `checks` that is not an object is
+/// an error. `root` is the project whose config `config` is (it names the file in an error).
+fn checks_value<'a>(
+    config: &'a Value,
+    root: Option<&Path>,
+    name: &str,
+) -> Result<Option<&'a Value>, DfwError> {
+    match config.get(key::CHECKS) {
+        None => Ok(None),
+        Some(Value::Object(checks)) => Ok(checks.get(name)),
+        Some(other) => Err(checks_error(root, key::CHECKS, other, want::OBJECT)),
     }
 }
 
-/// `checks.timeoutMs || 8000`.
-pub fn checks_timeout_ms(config: &Value) -> u64 {
-    positive(config, "checks.timeoutMs").map_or(8000, |n| n as u64)
+/// `checks.<name>` as a boolean (`impeccable`, `sloplint`, `tasteCopyLint`, `layoutOnStop`);
+/// `default` when it is not set; any other type is an error.
+pub fn checks_flag(
+    config: &Value,
+    root: Option<&Path>,
+    name: &str,
+    default: bool,
+) -> Result<bool, DfwError> {
+    match checks_value(config, root, name)? {
+        None => Ok(default),
+        Some(Value::Bool(b)) => Ok(*b),
+        Some(other) => Err(checks_error(
+            root,
+            &format!("{}.{name}", key::CHECKS),
+            other,
+            want::FLAG,
+        )),
+    }
 }
 
-/// `checks.maxFindings || 12`.
-pub fn checks_max_findings(config: &Value) -> usize {
-    positive(config, "checks.maxFindings").map_or(12, |n| n as usize)
+/// `checks.<name>` as a number from 1 to `max` (a fraction is cut off); `default` when it is
+/// not set; any other value is an error.
+pub fn checks_number(
+    config: &Value,
+    root: Option<&Path>,
+    name: &str,
+    default: u64,
+    max: f64,
+) -> Result<u64, DfwError> {
+    match checks_value(config, root, name)? {
+        None => Ok(default),
+        Some(v) => match v.as_f64().filter(|n| (1.0..=max).contains(n)) {
+            Some(n) => Ok(n as u64),
+            None => Err(checks_error(
+                root,
+                &format!("{}.{name}", key::CHECKS),
+                v,
+                &format!("a number from 1 to {max}"),
+            )),
+        },
+    }
 }
 
-/// `checks.layoutOnStop !== false`: the layout check of the Stop hook runs unless it is switched off.
-pub fn checks_layout_on_stop(config: &Value) -> bool {
-    get_path(config, "checks.layoutOnStop") != Some(&Value::Bool(false))
+/// `checks.onEdit`: `false`, `"fast"` (the default), `"full"` or `true`. Other text is `"fast"`,
+/// as Node read it (a recorded golden case); a value that is not text or a boolean is an error.
+pub fn checks_on_edit(config: &Value, root: Option<&Path>) -> Result<OnEdit, DfwError> {
+    match checks_value(config, root, key::ON_EDIT)? {
+        None => Ok(OnEdit::Fast),
+        Some(Value::Bool(false)) => Ok(OnEdit::Off),
+        Some(Value::Bool(true)) => Ok(OnEdit::Full),
+        Some(Value::String(s)) if s == on_edit::FULL => Ok(OnEdit::Full),
+        // `on_edit::FAST` and any other text.
+        Some(Value::String(_)) => Ok(OnEdit::Fast),
+        Some(other) => Err(checks_error(
+            root,
+            &format!("{}.{}", key::CHECKS, key::ON_EDIT),
+            other,
+            want::ON_EDIT,
+        )),
+    }
+}
+
+/// `checks.timeoutMs`: the budget of each external check, 8000 when it is not set.
+pub fn checks_timeout_ms(config: &Value, root: Option<&Path>) -> Result<u64, DfwError> {
+    checks_number(config, root, key::TIMEOUT_MS, 8000, MAX_TIMEOUT_MS)
+}
+
+/// `checks.maxFindings`: how many findings the edit hook shows, 12 when it is not set.
+pub fn checks_max_findings(config: &Value, root: Option<&Path>) -> Result<usize, DfwError> {
+    checks_number(config, root, key::MAX_FINDINGS, 12, MAX_FINDINGS_CAP).map(|n| n as usize)
+}
+
+/// `checks.layoutOnStop`: the layout check of the Stop hook runs unless it is `false`.
+pub fn checks_layout_on_stop(config: &Value, root: Option<&Path>) -> Result<bool, DfwError> {
+    checks_flag(config, root, key::LAYOUT_ON_STOP, true)
 }
 
 /// `review.shortcut` as text; `None` when it is missing or null (the caller then uses its default).
@@ -1105,10 +1225,10 @@ mod tests {
                 height: 1112
             }
         );
-        assert_eq!(checks_on_edit(&d), OnEdit::Fast);
-        assert_eq!(checks_timeout_ms(&d), 8000);
-        assert_eq!(checks_max_findings(&d), 12);
-        assert!(checks_layout_on_stop(&d));
+        assert_eq!(checks_on_edit(&d, None).unwrap(), OnEdit::Fast);
+        assert_eq!(checks_timeout_ms(&d, None).unwrap(), 8000);
+        assert_eq!(checks_max_findings(&d, None).unwrap(), 12);
+        assert!(checks_layout_on_stop(&d, None).unwrap());
         assert_eq!(review_shortcut(&d).as_deref(), Some("alt+c"));
         assert_eq!(
             env_map(&d),
@@ -1122,27 +1242,23 @@ mod tests {
         /// The one breakpoint with a size.
         const WIDE: &str = "wide";
         let c = json!({
-            "checks": { "onEdit": true, "timeoutMs": 0, "maxFindings": "many", "layoutOnStop": false },
+            "checks": { "onEdit": true, "timeoutMs": 2500.5, "maxFindings": 3, "layoutOnStop": false },
             "studio": { "port": "4700", "breakpoints": [{ "id": WIDE, "width": 1920, "height": 1080 }, "junk", { "id": "no-size" }] },
             "review": { "shortcut": false },
             "env": { "A": 1, "B": true, "C": null, "D": {} },
         });
-        assert_eq!(checks_on_edit(&c), OnEdit::Full);
-        assert_eq!(
-            checks_on_edit(&json!({"checks": {"onEdit": "full"}})),
-            OnEdit::Full
-        );
-        assert_eq!(
-            checks_on_edit(&json!({"checks": {"onEdit": false}})),
-            OnEdit::Off
-        );
-        assert_eq!(
-            checks_on_edit(&json!({"checks": {"onEdit": null}})),
-            OnEdit::Fast
-        );
-        assert_eq!(checks_timeout_ms(&c), 8000);
-        assert_eq!(checks_max_findings(&c), 12);
-        assert!(!checks_layout_on_stop(&c));
+        assert_eq!(checks_on_edit(&c, None).unwrap(), OnEdit::Full);
+        for (value, want) in [
+            (json!(on_edit::FULL), OnEdit::Full),
+            (json!(on_edit::FAST), OnEdit::Fast),
+            (json!(false), OnEdit::Off),
+        ] {
+            let c = json!({ (key::CHECKS): { (key::ON_EDIT): value } });
+            assert_eq!(checks_on_edit(&c, None).unwrap(), want);
+        }
+        assert_eq!(checks_timeout_ms(&c, None).unwrap(), 2500);
+        assert_eq!(checks_max_findings(&c, None).unwrap(), 3);
+        assert!(!checks_layout_on_stop(&c, None).unwrap());
         assert_eq!(studio_port(&c), 4700);
         assert_eq!(studio_port(&json!({"studio": {"port": 99999}})), 4600);
         assert_eq!(
@@ -1169,6 +1285,71 @@ mod tests {
             ]
         );
         assert!(gate_allow(&json!({"gate": {"allow": "x"}})).is_empty());
+    }
+
+    /// E7: a `checks` value of the wrong type is an error that names the key and the file that
+    /// set it, never a value coerced by JavaScript truthiness.
+    #[test]
+    fn a_checks_value_of_the_wrong_type_names_the_key_and_the_file() {
+        let root = project(
+            "config-checks",
+            Some(r#"{"checks":{"impeccable":7,"timeoutMs":0}}"#),
+            Some(r#"{"checks":{"onEdit":7,"maxFindings":"many"}}"#),
+        );
+        let c = load_config_from(&root.join(NO_GLOBAL), Some(&root), &mut |_| {}).unwrap();
+        let err = |e: DfwError| e.message().to_string();
+        assert_eq!(
+            err(checks_flag(&c, Some(&root), key::IMPECCABLE, true).unwrap_err()),
+            format!("checks.impeccable in {} is 7, not true or false. Fix it in that file, or run \"dfw config set checks.impeccable <value>\".", rel::CONFIG)
+        );
+        let on_edit = err(checks_on_edit(&c, Some(&root)).unwrap_err());
+        assert!(
+            on_edit.starts_with(&format!("checks.onEdit in {} is 7, not", rel::CONFIG_LOCAL)),
+            "{on_edit}"
+        );
+        let timeout = err(checks_timeout_ms(&c, Some(&root)).unwrap_err());
+        assert!(
+            timeout.starts_with(&format!(
+                "checks.timeoutMs in {} is 0, not a number from 1 to",
+                rel::CONFIG
+            )),
+            "{timeout}"
+        );
+        assert!(
+            err(checks_max_findings(&c, Some(&root)).unwrap_err()).starts_with(&format!(
+                "checks.maxFindings in {} is \"many\"",
+                rel::CONFIG_LOCAL
+            ))
+        );
+        // Every type but the right one fails, `null` too; a key that is not set is the default.
+        for wrong in [Value::Null, json!(1), json!("true"), json!([]), json!({})] {
+            let c =
+                json!({ (key::CHECKS): { (key::SLOPLINT): wrong, (key::LAYOUT_ON_STOP): wrong } });
+            assert!(
+                checks_flag(&c, None, key::SLOPLINT, true).is_err(),
+                "{wrong}"
+            );
+            assert!(checks_layout_on_stop(&c, None).is_err(), "{wrong}");
+        }
+        for wrong in [
+            Value::Null,
+            json!(true),
+            json!("8000"),
+            json!(-1),
+            json!(1e21),
+        ] {
+            let c = json!({ (key::CHECKS): { (key::TIMEOUT_MS): wrong } });
+            assert!(checks_timeout_ms(&c, None).is_err(), "{wrong}");
+        }
+        assert!(checks_flag(&json!({}), None, key::TASTE_COPY_LINT, false).is_ok_and(|on| !on));
+        // A section that is not an object fails every key.
+        for wrong in [Value::Null, json!(7), json!("x"), json!([])] {
+            let c = json!({ (key::CHECKS): wrong });
+            let e = err(checks_flag(&c, None, key::IMPECCABLE, true).unwrap_err());
+            assert!(e.starts_with("checks in "), "{e}");
+            assert!(checks_on_edit(&c, None).is_err());
+        }
+        fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]

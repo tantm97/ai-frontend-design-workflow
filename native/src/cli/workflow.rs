@@ -42,8 +42,9 @@ use crate::workflow::stack::detect_stack;
 use crate::workflow::stack::field as stack_key;
 use crate::workflow::state::{
     approve_gate, approved_versions, arg_raw, arg_truthy, current_approval, field, gate,
-    gate_title, load_state, mode_info, new_state, push_history, require_state, save_state,
-    set_field, set_mode, set_phase, state_field_error, summarize, type_error,
+    gate_title, load_state, mode_info, new_state, push_history, require_checked_state,
+    require_state, save_state, set_field, set_mode, set_phase, state_field_error, summarize,
+    type_error,
 };
 
 /// The commands of this group.
@@ -321,7 +322,7 @@ fn next_step(
 
 fn mode(ctx: &Ctx) -> Result<i32, DfwError> {
     let root = ctx.root();
-    let mut state = require_state(&root)?;
+    let mut state = require_checked_state(&root)?;
     set_mode(&root, &mut state, ctx.args.pos(1))?;
     out(&summarize(Some(&state))?);
     Ok(0)
@@ -330,7 +331,7 @@ fn mode(ctx: &Ctx) -> Result<i32, DfwError> {
 fn phase(ctx: &Ctx) -> Result<i32, DfwError> {
     let a = &ctx.args;
     let root = ctx.root();
-    let mut state = require_state(&root)?;
+    let mut state = require_checked_state(&root)?;
     set_phase(
         &root,
         &mut state,
@@ -481,7 +482,7 @@ fn approve(ctx: &Ctx) -> Result<i32, DfwError> {
     let a = &ctx.args;
     let root = ctx.root();
     let gate = a.pos(1).unwrap_or_default().to_uppercase();
-    let mut state = require_state(&root)?;
+    let mut state = require_checked_state(&root)?;
     let Some(note) = arg_truthy(a, "note") else {
         return Err(DfwError::new("Approvals record what the user approved: pass --note \"<summary of what was approved>\"."));
     };
@@ -516,7 +517,7 @@ fn approve(ctx: &Ctx) -> Result<i32, DfwError> {
 
 fn reopen(ctx: &Ctx) -> Result<i32, DfwError> {
     let root = ctx.root();
-    let mut state = require_state(&root)?;
+    let mut state = require_checked_state(&root)?;
     reopen_design(&root, &mut state, arg_raw(&ctx.args, "reason"))?;
     out(&summarize(Some(&state))?);
     Ok(0)

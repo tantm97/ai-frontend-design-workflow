@@ -20,7 +20,7 @@ use std::time::Duration;
 use serde_json::{json, Map, Value};
 
 pub use self::report::{check_exit_code, format_report};
-use crate::core::config::{env_map, key as config_key};
+use crate::core::config::{checks_flag, checks_timeout_ms, env_map, key as config_key};
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{canonicalize, file, project_paths, rel, resolve, to_posix};
@@ -757,18 +757,14 @@ pub fn run_checks_with(
     lookup: &Lookup,
 ) -> Result<Vec<Value>, DfwError> {
     let p = project_paths(root);
-    let checks = config.get(config_key::CHECKS);
-    let setting = |key: &str| checks.and_then(|c| c.get(key));
+    // The `checks` settings are read typed: a wrong type stops the run with the key and the
+    // file, never a value coerced by JavaScript truthiness (`errors.md` E7).
+    let setting = |name: &str, default: bool| checks_flag(config, Some(root), name, default);
     let env = env_map(config);
-    let configured = setting(config_key::TIMEOUT_MS)
-        .and_then(Value::as_f64)
-        .filter(|n| *n >= 1.0)
-        .map(|n| n as u64);
-    let budget = opts
-        .timeout_ms
-        .filter(|n| *n > 0)
-        .or(configured)
-        .unwrap_or(8000);
+    let budget = match opts.timeout_ms.filter(|n| *n > 0) {
+        Some(n) => n,
+        None => checks_timeout_ms(config, Some(root))?,
+    };
     // Targets may be typed as ./design/x.html, an absolute path or relative to the current
     // directory: make them project-relative.
     let targets: Option<Vec<String>> = targets.map(|list| {
@@ -832,7 +828,7 @@ pub fn run_checks_with(
         env: &env,
         timeout_ms: budget,
     };
-    if want(tool::IMPECCABLE) && setting(tool::IMPECCABLE) != Some(&Value::Bool(false)) {
+    if want(tool::IMPECCABLE) && setting(config_key::IMPECCABLE, true)? {
         let engine = (lookup.engine)()?;
         results.push(remap(run_impeccable(
             root,
@@ -841,10 +837,10 @@ pub fn run_checks_with(
             engine.as_ref(),
         )));
     }
-    if want(tool::SLOPLINT) && setting(tool::SLOPLINT) != Some(&Value::Bool(false)) {
+    if want(tool::SLOPLINT) && setting(config_key::SLOPLINT, true)? {
         results.push(remap(run_sloplint(root, &tool_targets, run_opts, lookup)?));
     }
-    if want("taste") && setting(config_key::TASTE_COPY_LINT).is_some_and(js::truthy) {
+    if want("taste") && setting(config_key::TASTE_COPY_LINT, false)? {
         results.push(remap(run_taste_copy_lint(
             root,
             &tool_targets,

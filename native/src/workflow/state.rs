@@ -220,6 +220,73 @@ pub fn require_state(root: &Path) -> Result<Value, DfwError> {
     })
 }
 
+/// The kinds [`check_state`] names in its error.
+mod kind {
+    pub const TEXT: &str = "text";
+    pub const OBJECT: &str = "an object";
+    pub const RECORD: &str = "null or an approval record (an object with \"approvedAt\")";
+    pub const LIST: &str = "a list";
+    pub const FLAG: &str = "true or false";
+    pub const NUMBER: &str = "a number";
+}
+
+/// Every field of the state a gate command (`approve`, `reopen`, `phase`, `mode`) reads has its
+/// type: `mode`, `phase` and `product` text, `gates` an object whose gate records are `null` or
+/// objects with a text `approvedAt` (what `approve` writes; `{}` is not an approval), `design` an object with a number `version` (freezing also needs a whole one), a text
+/// `status`, a boolean `locked` and a list `approved`. `dfw status` is not a gate: it prints any
+/// shape as Node did. A wrong type is [`state_field_error`] naming the
+/// field, so a gate is never decided on a value read by JavaScript truthiness (`errors.md` E7).
+pub fn check_state(state: &Value) -> Result<(), DfwError> {
+    let Value::Object(map) = state else {
+        return Err(DfwError::new(format!(
+            "{} does not hold an object. Restore the file from version control.",
+            rel::STATE
+        )));
+    };
+    for key in [field::MODE, field::PHASE, field::PRODUCT] {
+        if !map.get(key).is_some_and(Value::is_string) {
+            return Err(state_field_error(key, kind::TEXT));
+        }
+    }
+    let Some(Value::Object(gates)) = map.get(field::GATES) else {
+        return Err(state_field_error(field::GATES, kind::OBJECT));
+    };
+    for (id, _) in GATES {
+        let record = |g: &Value| g.get(field::APPROVED_AT).is_some_and(Value::is_string);
+        if gates.get(id).is_some_and(|g| !g.is_null() && !record(g)) {
+            return Err(state_field_error(
+                &format!("{}.{id}", field::GATES),
+                kind::RECORD,
+            ));
+        }
+    }
+    let Some(Value::Object(design)) = map.get(field::DESIGN) else {
+        return Err(state_field_error(field::DESIGN, kind::OBJECT));
+    };
+    let at = |key: &str| format!("{}.{key}", field::DESIGN);
+    /// A field of `design`, what it must be and the test of it.
+    type Rule = (&'static str, &'static str, fn(&Value) -> bool);
+    let checks: [Rule; 4] = [
+        (field::VERSION, kind::NUMBER, Value::is_number),
+        (field::STATUS, kind::TEXT, Value::is_string),
+        (field::LOCKED, kind::FLAG, Value::is_boolean),
+        (field::APPROVED, kind::LIST, Value::is_array),
+    ];
+    for (key, want, ok) in checks {
+        if !design.get(key).is_some_and(ok) {
+            return Err(state_field_error(&at(key), want));
+        }
+    }
+    Ok(())
+}
+
+/// [`require_state`], then [`check_state`]: the state a gate command works on.
+pub fn require_checked_state(root: &Path) -> Result<Value, DfwError> {
+    let state = require_state(root)?;
+    check_state(&state)?;
+    Ok(state)
+}
+
 /// `saveState(root, state)`: stamps `updatedAt` and writes `.dfw/state.json`.
 pub fn save_state(root: &Path, state: &mut Value) -> Result<(), DfwError> {
     set_field(state, field::UPDATED_AT, Some(Value::String(now_iso())))?;
@@ -607,6 +674,110 @@ mod tests {
             .unwrap_err()
             .message()
             .contains("\"history\""));
+    }
+
+    /// E7: every field a gate command reads is type-checked, and the error names it; the values
+    /// of the right type (a gate record `null` or an object) pass.
+    #[test]
+    fn check_state_names_each_field_of_the_wrong_type() {
+        assert!(check_state(&fresh(NEW_PRODUCT)).is_ok());
+        let mut approved = fresh(NEW_PRODUCT);
+        approved[field::GATES][gate::G1] = json!({ (field::APPROVED_AT): "x" });
+        approved[field::DESIGN][field::VERSION] = json!(2.5);
+        assert!(check_state(&approved).is_ok());
+        let fields = [
+            field::MODE,
+            field::PHASE,
+            field::PRODUCT,
+            field::GATES,
+            "gates.G1",
+            "gates.DS",
+            "gates.G2",
+            "gates.G3",
+            "gates.G4",
+            field::DESIGN,
+            "design.version",
+            "design.status",
+            "design.locked",
+            "design.approved",
+        ];
+        let set = |s: &mut Value, path: &str, v: Value| match path.split_once('.') {
+            Some((a, b)) => s[a][b] = v,
+            None => s[path] = v,
+        };
+        // The gate records, which may be `null` or missing (the gate is open).
+        let record = |path: &str| path.starts_with(&format!("{}.", field::GATES));
+        for path in fields {
+            let mut kinds = vec![json!(5), json!("yes"), json!([]), json!({}), json!(true)];
+            if !record(path) {
+                kinds.push(Value::Null);
+            }
+            for wrong in kinds {
+                let mut s = fresh(NEW_PRODUCT);
+                let right = s.pointer(&format!("/{}", path.replace('.', "/"))).cloned();
+                if right.as_ref().map(std::mem::discriminant)
+                    == Some(std::mem::discriminant(&wrong))
+                {
+                    continue;
+                }
+                set(&mut s, path, wrong.clone());
+                let err = check_state(&s).unwrap_err();
+                assert!(
+                    err.message()
+                        .contains(&format!("\"{path}\" is missing or is not")),
+                    "{path} = {wrong}: {err}"
+                );
+            }
+            // A missing field fails too (a gate record may be missing: it is open).
+            let mut s = fresh(NEW_PRODUCT);
+            match path.split_once('.') {
+                Some((a, b)) => s[a].as_object_mut().unwrap().shift_remove(b),
+                None => s.as_object_mut().unwrap().shift_remove(path),
+            };
+            assert_eq!(check_state(&s).is_ok(), record(path), "{path}");
+        }
+        assert!(check_state(&json!([])).is_err());
+    }
+
+    /// `dfw status` is not a gate and prints any shape as Node did: it never panics.
+    #[test]
+    fn summarize_never_panics_on_any_shape() {
+        let values = [
+            Value::Null,
+            json!(7),
+            json!("x"),
+            json!([]),
+            json!({}),
+            json!(true),
+        ];
+        for key in [
+            field::MODE,
+            field::PHASE,
+            field::PRODUCT,
+            field::GATES,
+            field::DESIGN,
+            field::WAIVED,
+        ] {
+            for v in &values {
+                let mut s = fresh(NEW_PRODUCT);
+                s[key] = v.clone();
+                let _ = summarize(Some(&s));
+                for inner in [
+                    field::VERSION,
+                    field::STATUS,
+                    field::LOCKED,
+                    field::APPROVED,
+                ] {
+                    let mut s = fresh(NEW_PRODUCT);
+                    s[field::DESIGN][inner] = v.clone();
+                    s[field::DESIGN][field::STATUS] = "approved".into();
+                    let _ = summarize(Some(&s));
+                }
+            }
+        }
+        for v in &values {
+            let _ = summarize(Some(v));
+        }
     }
 
     #[test]
