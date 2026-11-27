@@ -134,13 +134,32 @@ fn href_file(href: &str) -> Option<&str> {
         .map(|at| &path[..at + ".html".len()])
 }
 
+/// The screen id a `data-dfw-goto` value names (`screen[/variant]`).
+pub(crate) fn goto_screen(goto: &str) -> &str {
+    goto.split('/').next().unwrap_or_default()
+}
+
+/// The design file an `href` of a design file in the folder `dir` (its parts, relative to
+/// `design/`) links to, relative to `design/`: `None` for an external or absolute link and for
+/// a target that is no `.html` file.
+pub(crate) fn linked_file(dir: &[&str], href: &str) -> Option<String> {
+    let external = EXTERNAL.as_ref()?;
+    let href = href_file(href).filter(|h| !external.is_match(h))?;
+    let mut parts = dir.to_vec();
+    for seg in href.split('/') {
+        if seg == ".." {
+            parts.pop();
+        } else if seg != "." {
+            parts.push(seg);
+        }
+    }
+    Some(parts.join("/"))
+}
+
 /// `screenFlows(manifest, files)`: screen-to-screen links found in the design files
 /// (`data-dfw-goto="screen[/variant]"` and `href` to another design file). `files` maps a
 /// design-relative file to its HTML. Returns `[{ from, to, label }]` (screen ids).
 pub fn screen_flows(manifest: &Value, files: &HashMap<String, String>) -> Vec<Value> {
-    let Some(external) = EXTERNAL.as_ref() else {
-        return Vec::new();
-    };
     let screens = screens_of(manifest);
     let mut by_file: HashMap<String, Value> = HashMap::new();
     for s in &screens {
@@ -164,20 +183,10 @@ pub fn screen_flows(manifest: &Value, files: &HashMap<String, String>) -> Vec<Va
             for (open, inner) in links(html) {
                 let goto = attr_text(html, &open, attr::GOTO);
                 let href = attr_text(html, &open, attr::HREF);
-                let mut to: Option<Value> =
-                    goto.map(|g| json!(g.split('/').next().unwrap_or_default()));
+                let mut to: Option<Value> = goto.map(|g| json!(goto_screen(&g)));
                 if to.is_none() {
-                    let file = href.as_deref().and_then(href_file);
-                    if let Some(href) = file.filter(|h| !external.is_match(h)) {
-                        let mut parts = dir.clone();
-                        for seg in href.split('/') {
-                            if seg == ".." {
-                                parts.pop();
-                            } else if seg != "." {
-                                parts.push(seg);
-                            }
-                        }
-                        to = by_file.get(&parts.join("/")).cloned();
+                    if let Some(target) = href.as_deref().and_then(|h| linked_file(&dir, h)) {
+                        to = by_file.get(&target).cloned();
                     }
                 }
                 let Some(to) = to else { continue };
@@ -243,6 +252,22 @@ impl Pages<'_> {
         self.pages[page].screens.push(sid.clone());
         self.assigned.push(sid.clone());
     }
+}
+
+/// The screens on the pages the manifest declares (`pages` with their sections, then a screen's
+/// own `page`), page by page in canvas order: what the Studio places before its fallback
+/// "Screens" and "Explorations" pages.
+pub fn declared_pages(manifest: &Value) -> Vec<Vec<Value>> {
+    let screens = screens_of(manifest);
+    let by_id: Vec<Value> = screens.iter().map(|s| id_of(s)).collect();
+    let mut pages = Pages {
+        by_id: &by_id,
+        pages: Vec::new(),
+        assigned: Vec::new(),
+    };
+    place_declared_pages(manifest, &mut pages);
+    place_by_screen_page(&screens, &mut pages);
+    pages.pages.into_iter().map(|p| p.screens).collect()
 }
 
 /// `studioPages(manifest)`: the canvas pages, Design System first.

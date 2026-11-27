@@ -46,6 +46,11 @@ pub mod key {
     pub const ARCHIVED: &str = "archived";
     /// The canvas page a screen names for itself.
     pub const PAGE: &str = "page";
+    /// `true` on a screen the user reaches from outside the design (a deep link, a
+    /// notification): no other screen has to link to it.
+    pub const ENTRY: &str = "entry";
+    /// The language of the screens' content (BCP 47).
+    pub const LANG: &str = "lang";
     /// The screen a flow (or a link between screens) starts from.
     pub const FROM: &str = "from";
     /// The screen a flow (or a link between screens) goes to.

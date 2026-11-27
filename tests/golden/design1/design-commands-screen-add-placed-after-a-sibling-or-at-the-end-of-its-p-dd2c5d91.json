@@ -1,0 +1,86 @@
+{
+  "test": "design commands > screen add: placed after a sibling or at the end of its page, refusals, frozen design",
+  "results": [
+    {
+      "code": 0,
+      "stdout": "Added screen \"item-review\" to page \"stock\", after \"items\".\n  design/design.json: screen entry and the page's screens\n  design/screens/item-review/a.html: skeleton, app-shell as in \"items\"\nLink to it: add data-dfw-goto=\"item-review\" to the control in design/screens/items/a.html that opens it.\nLink to it: add data-dfw-goto=\"item-review\" to the control in design/screens/detail/a.html that opens it.\nNext: fill its blueprint (dfw blueprint item-review), build it from the design system, wire its primary, back and cancel actions, then dfw layout check --changed and dfw check.\n",
+      "stderr": "",
+      "files": {
+        "design/design.json": "{\n  \"schema\": 1,\n  \"product\": \"Fixture\",\n  \"lang\": \"vi\",\n  \"pages\": [\n    {\n      \"id\": \"stock\",\n      \"title\": \"Stock\",\n      \"screens\": [\n        \"items\",\n        \"item-review\",\n        \"detail\"\n      ]\n    },\n    {\n      \"id\": \"settings\",\n      \"title\": \"Settings\",\n      \"screens\": []\n    }\n  ],\n  \"screens\": [\n    {\n      \"id\": \"items\",\n      \"title\": \"Items\",\n      \"variants\": [\n        {\n          \"id\": \"a\",\n          \"file\": \"screens/items/a.html\"\n        }\n      ],\n      \"blueprint\": {\n        \"layout\": \"flow\"\n      }\n    },\n    {\n      \"id\": \"item-review\",\n      \"title\": \"Review & save\",\n      \"route\": \"/items/review\",\n      \"variants\": [\n        {\n          \"id\": \"a\",\n          \"label\": \"A\",\n          \"file\": \"screens/item-review/a.html\"\n        }\n      ],\n      \"blueprint\": {\n        \"layout\": \"flow\"\n      }\n    },\n    {\n      \"id\": \"detail\",\n      \"title\": \"Detail\",\n      \"variants\": [\n        {\n          \"id\": \"a\",\n          \"file\": \"screens/detail/a.html\"\n        }\n      ]\n    }\n  ]\n}\n",
+        "design/screens/item-review/a.html": "<!doctype html>\n<!--\n  dfw screen skeleton. Copy to design/screens/<screen-id>/<variant-id>.html.\n  - Compose from the design system: <dfw-use c=\"component\" variant=\"...\" id=\"area.element\">...</dfw-use>, icons with <dfw-icon name=\"...\">.\n  - This file's <style> does LAYOUT only (grid, flex, gap, padding, width, position). No colors, fonts, borders, shadows, radii.\n  - Every meaningful element/instance gets a stable, unique id / data-dfw-id (\"area.element\", lowercase).\n  - States: wrap alternatives in <div class=\"when-empty\">...</div> / <div class=\"unless-empty\">...</div>.\n-->\n<html lang=\"vi\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <title>Review &amp; save - Fixture</title>\n  <meta name=\"description\" content=\"One sentence: what this screen is for.\">\n  <dfw-head></dfw-head>\n  <style>\n    .page { display: grid; gap: var(--space-6); padding: var(--space-6) var(--space-8); align-content: start; }\n  </style>\n</head>\n<body>\n  <dfw-use c=\"app-shell\" current=\"stock\" id=\"shell\" variant=\"focus\">\n    <dfw-fill slot=\"header\">\n      <dfw-use c=\"page-header\" title=\"Review &amp; save\" id=\"item-review.header\"></dfw-use>\n    </dfw-fill>\n    <div class=\"page\" data-dfw-id=\"item-review.body\"></div>\n  </dfw-use>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "Added screen \"history\" to page \"stock\", at the end.\n  design/design.json: screen entry and the page's screens\n  design/screens/history/a.html: skeleton, app-shell as in \"items\"\nNext: fill its blueprint (dfw blueprint history), build it from the design system, wire its primary, back and cancel actions, then dfw layout check --changed and dfw check.\n",
+      "stderr": "",
+      "files": {
+        "design/design.json": "{\n  \"schema\": 1,\n  \"product\": \"Fixture\",\n  \"lang\": \"vi\",\n  \"pages\": [\n    {\n      \"id\": \"stock\",\n      \"title\": \"Stock\",\n      \"screens\": [\n        \"items\",\n        \"detail\",\n        \"history\"\n      ]\n    },\n    {\n      \"id\": \"settings\",\n      \"title\": \"Settings\",\n      \"screens\": []\n    }\n  ],\n  \"screens\": [\n    {\n      \"id\": \"items\",\n      \"title\": \"Items\",\n      \"variants\": [\n        {\n          \"id\": \"a\",\n          \"file\": \"screens/items/a.html\"\n        }\n      ],\n      \"blueprint\": {\n        \"layout\": \"flow\"\n      }\n    },\n    {\n      \"id\": \"detail\",\n      \"title\": \"Detail\",\n      \"variants\": [\n        {\n          \"id\": \"a\",\n          \"file\": \"screens/detail/a.html\"\n        }\n      ]\n    },\n    {\n      \"id\": \"history\",\n      \"variants\": [\n        {\n          \"id\": \"a\",\n          \"label\": \"A\",\n          \"file\": \"screens/history/a.html\"\n        }\n      ],\n      \"blueprint\": {\n        \"layout\": \"flow\"\n      }\n    }\n  ]\n}\n",
+        "design/screens/history/a.html": "<!doctype html>\n<!--\n  dfw screen skeleton. Copy to design/screens/<screen-id>/<variant-id>.html.\n  - Compose from the design system: <dfw-use c=\"component\" variant=\"...\" id=\"area.element\">...</dfw-use>, icons with <dfw-icon name=\"...\">.\n  - This file's <style> does LAYOUT only (grid, flex, gap, padding, width, position). No colors, fonts, borders, shadows, radii.\n  - Every meaningful element/instance gets a stable, unique id / data-dfw-id (\"area.element\", lowercase).\n  - States: wrap alternatives in <div class=\"when-empty\">...</div> / <div class=\"unless-empty\">...</div>.\n-->\n<html lang=\"vi\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <title>history - Fixture</title>\n  <meta name=\"description\" content=\"One sentence: what this screen is for.\">\n  <dfw-head></dfw-head>\n  <style>\n    .page { display: grid; gap: var(--space-6); padding: var(--space-6) var(--space-8); align-content: start; }\n  </style>\n</head>\n<body>\n  <dfw-use c=\"app-shell\" current=\"stock\" id=\"shell\" variant=\"focus\">\n    <dfw-fill slot=\"header\">\n      <dfw-use c=\"page-header\" title=\"history\" id=\"history.header\"></dfw-use>\n    </dfw-fill>\n    <div class=\"page\" data-dfw-id=\"history.body\"></div>\n  </dfw-use>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "{\n  \"screen\": \"billing\",\n  \"page\": \"settings\",\n  \"after\": null,\n  \"file\": \"design/screens/billing/a.html\",\n  \"shellFrom\": null,\n  \"linkFrom\": []\n}\n",
+      "stderr": "",
+      "files": {
+        "design/design.json": "{\n  \"schema\": 1,\n  \"product\": \"Fixture\",\n  \"lang\": \"vi\",\n  \"pages\": [\n    {\n      \"id\": \"stock\",\n      \"title\": \"Stock\",\n      \"screens\": [\n        \"items\",\n        \"detail\"\n      ]\n    },\n    {\n      \"id\": \"settings\",\n      \"title\": \"Settings\",\n      \"screens\": [\n        \"billing\"\n      ]\n    }\n  ],\n  \"screens\": [\n    {\n      \"id\": \"items\",\n      \"title\": \"Items\",\n      \"variants\": [\n        {\n          \"id\": \"a\",\n          \"file\": \"screens/items/a.html\"\n        }\n      ],\n      \"blueprint\": {\n        \"layout\": \"flow\"\n      }\n    },\n    {\n      \"id\": \"detail\",\n      \"title\": \"Detail\",\n      \"variants\": [\n        {\n          \"id\": \"a\",\n          \"file\": \"screens/detail/a.html\"\n        }\n      ]\n    },\n    {\n      \"id\": \"billing\",\n      \"variants\": [\n        {\n          \"id\": \"a\",\n          \"label\": \"A\",\n          \"file\": \"screens/billing/a.html\"\n        }\n      ]\n    }\n  ]\n}\n",
+        "design/screens/billing/a.html": "<!doctype html>\n<!--\n  dfw screen skeleton. Copy to design/screens/<screen-id>/<variant-id>.html.\n  - Compose from the design system: <dfw-use c=\"component\" variant=\"...\" id=\"area.element\">...</dfw-use>, icons with <dfw-icon name=\"...\">.\n  - This file's <style> does LAYOUT only (grid, flex, gap, padding, width, position). No colors, fonts, borders, shadows, radii.\n  - Every meaningful element/instance gets a stable, unique id / data-dfw-id (\"area.element\", lowercase).\n  - States: wrap alternatives in <div class=\"when-empty\">...</div> / <div class=\"unless-empty\">...</div>.\n-->\n<html lang=\"vi\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <title>billing - Fixture</title>\n  <meta name=\"description\" content=\"One sentence: what this screen is for.\">\n  <dfw-head></dfw-head>\n  <style>\n    .page { display: grid; gap: var(--space-6); padding: var(--space-6) var(--space-8); align-content: start; }\n  </style>\n</head>\n<body>\n  <dfw-use c=\"app-shell\" current=\"home\" id=\"shell\">\n    <dfw-fill slot=\"header\">\n      <dfw-use c=\"page-header\" title=\"billing\" id=\"billing.header\"></dfw-use>\n    </dfw-fill>\n    <div class=\"page\" data-dfw-id=\"billing.body\"></div>\n  </dfw-use>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Usage: dfw screen add <id> --page <page> [--after <screen>] [--from <screen>[,<screen>...]] [--title <text>] [--route <path>] [--json]\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Usage: dfw screen add <id> --page <page> [--after <screen>] [--from <screen>[,<screen>...]] [--title <text>] [--route <path>] [--json]\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Screen id \"../escape\" is not valid: use lowercase letters, digits and dashes, starting with a letter or digit (for example order-review).\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Screen id \"_explore\" is not valid: use lowercase letters, digits and dashes, starting with a letter or digit (for example order-review).\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Page \"billing\" is not in \"pages\" of design/design.json (pages: stock, settings). Use one of them, or add the page (id, title, description) to design/design.json first, after the user agreed to it.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Screen \"items\" is not on page \"settings\" (its screens: none). Give --after a screen of that page, or leave it out to add at the end.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "--from names \"nope\", which is no screen of design/design.json.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Screen \"items\" already exists in design/design.json. Pick another id, or change that screen.\n",
+      "files": {}
+    },
+    {
+      "code": 1,
+      "stdout": "",
+      "stderr": "Design v1 is approved and locked (G2); adding a screen changes the approved design. It needs the user's approval and \"dfw reopen --reason <why>\" first.\n",
+      "files": {}
+    }
+  ]
+}

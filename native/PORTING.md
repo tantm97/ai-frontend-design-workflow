@@ -67,6 +67,7 @@ guide) and core/manifest.json; nothing is read from the plugin folder, `DFW_PLUG
 | `cli/hook.rs` | hook | native |
 | `cli/comments.rs` | comments | native (every subcommand, incl. wait and inbox) |
 | `cli/design.rs` | build, tokens, lint, check, system, style, type, palette, icons, fonts, blueprint (hidden: `__debug compose`, `__debug color`, `__debug lint`) | native |
+| `cli/screen.rs` | screen (`add`, in `design/screen_add`) | native; the Node CLI has no such command |
 | `cli/edit.rs` | none (hidden: `__debug edit`, `undo`, `system-page`, `changed-screens`, `mark-checked`) | native |
 | `cli/studio.rs` | studio, review, __studio-server, __review-server | native |
 | `cli/browser.rs` | shoot (job list in `browser/shoot`), diff, layout (hidden: `__debug a11y`) | native |
@@ -74,4 +75,4 @@ guide) and core/manifest.json; nothing is read from the plugin folder, `DFW_PLUG
 | `cli/tools.rs` | inspector, install, uninstall, setup, doctor, mcp, stack, handoff (`cmdHandoff` of cli.mjs is `tools/handoff`) | native |
 | `cli/telemetry.rs` | telemetry (new: status, on, off, endpoint, show, flush; hidden: `__debug telemetry-build`) | native; the Node CLI has no such command |
 
-The `HELP` text is `src/cli/help.txt`; it is the Node CLI's text with one line more (the telemetry command).
+The `HELP` text is `src/cli/help.txt`; it is the Node CLI's text with the lines of the commands added since (telemetry, screen add).

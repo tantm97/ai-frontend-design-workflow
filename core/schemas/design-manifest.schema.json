@@ -63,23 +63,18 @@
     },
     "flows": {
       "type": "array",
+      "description": "Computed by the Studio from data-dfw-goto and links between screen files; a value written here is ignored (kept valid for older files).",
       "items": {
         "type": "object",
-        "required": [
-          "id"
-        ],
         "properties": {
-          "id": {
+          "from": {
             "type": "string"
           },
-          "title": {
+          "to": {
             "type": "string"
           },
-          "screens": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
+          "label": {
+            "type": "string"
           }
         }
       }
@@ -121,9 +116,6 @@
           "title": {
             "type": "string"
           },
-          "flow": {
-            "type": "string"
-          },
           "route": {
             "type": "string"
           },
@@ -135,6 +127,10 @@
           },
           "archived": {
             "type": "boolean"
+          },
+          "entry": {
+            "type": "boolean",
+            "description": "The user reaches this screen from outside the design (deep link, notification); no other screen has to link to it."
           },
           "variants": {
             "type": "array",

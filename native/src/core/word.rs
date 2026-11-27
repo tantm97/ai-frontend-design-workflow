@@ -39,6 +39,7 @@ pub mod command {
     pub const ICONS: &str = "icons";
     pub const FONTS: &str = "fonts";
     pub const BLUEPRINT: &str = "blueprint";
+    pub const SCREEN: &str = "screen";
 
     // studio
     pub const STUDIO: &str = "studio";
