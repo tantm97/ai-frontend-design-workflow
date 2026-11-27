@@ -202,7 +202,7 @@
       posted = [];
       const built = Boolean(data.exportId);
       document.getElementById('stale').hidden = !res.stale || (autoBox.checked && built);
-      say('agent', res.listening ? 'The agent is listening: your comments and sent changes reach it at once.' : 'The agent is not listening: your comments are kept; ask it to look at the review comments.');
+      say('agent', res.listening ? 'The AI is listening: your comments and sent changes reach it at once.' : 'The AI is not listening: your comments are kept and reach it with your next message.');
       if (isLive()) {
         const news = [res.comments.length ? `${res.comments.length} new (${res.comments.join(', ')})` : '', res.updated.map((u) => `${u.id} ${u.status}`).join(', ')].filter(Boolean).join('; ');
         liveStatus(`Live: ${threads.length} thread(s) on dfw boards, checked ${new Date().toLocaleTimeString()}${news ? `. ${news}` : ''}`);

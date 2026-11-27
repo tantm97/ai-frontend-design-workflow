@@ -11,7 +11,7 @@ A file that is split by job lists its other modules under "Also".
 | `core/lib/a11y.mjs` | `browser/a11y` |  | browser | done (callers: `check`, `approve G2`, doctor, install, `setup --a11y`) |
 | `core/lib/binary.mjs` | `tools/binary` |  | tools | done |
 | `core/lib/cdp.mjs` | `browser/cdp` | findBrowser, launch, guard: browser/launch; installBrowser, checkedDownloadUrl: browser/download | browser | done |
-| `core/lib/check.mjs` | `tools/check` | starting a tool: tools/check/run; the report: tools/check/report | tools | done (the engine lookup is review/locate, the project env filter core/config) |
+| `core/lib/check.mjs` | `tools/check` | the report: tools/check/report | tools | done (the engine lookup is review/locate, the project env filter core/config) |
 | `core/lib/cli.mjs` | `cli (mod.rs + one file per group)` | decision log cases: workflow/decisions | every group, its own `cli/<group>.rs` | done (every command native) |
 | `core/lib/color.mjs` | `design/color` |  | design | done |
 | `core/lib/comments.mjs` | `review/comments` |  | review | done |
@@ -34,7 +34,7 @@ A file that is split by job lists its other modules under "Also".
 | `core/lib/layout.mjs` | `browser/layout_check` | changedScreens, markChecked: design/layout_cache | browser | done |
 | `core/lib/lighthouse.mjs` | `tools/lighthouse` |  | tools | done |
 | `core/lib/lint.mjs` | `design/lint` | JavaScript regular expressions for the regex crate: core/js/regex | design | done |
-| `core/lib/live.mjs` | `studio/live_proxy` | the server half: studio/live_proxy/proxy; the wire: studio/http | studio | done |
+| `core/lib/live.mjs` | `studio/live_proxy` | the server half: studio/live_proxy/proxy; WebSocket upgrades: studio/live_proxy/tunnel; the wire: studio/http | studio | done |
 | `core/lib/locate.mjs` | `review/locate` |  | review | done, with the engine lookup of 0.5.2 (`resolveEngine`, `verifyEngine`, `engineAssets`, `launcherCommand`); callers: doctor and the check runner |
 | `core/lib/mcp.mjs` | `tools/mcp` | install and uninstall: tools/mcp_install | tools | done |
 | `core/lib/penpot-tokens.mjs` | `penpot/tokens` |  | penpot | done |
@@ -55,14 +55,18 @@ Rust modules with no Node file of their own: `design/html` (the tokenizer, desig
 `assets` (embedded files, design decision 6: core/studio, core/templates, core/kits, core/assets, core/workflow (the MCP
 guide) and core/manifest.json; nothing is read from the plugin folder, `DFW_PLUGIN_ROOT` only overrides them), `core/js` (the JavaScript value and regular expression rules every module follows), `core/process`
 (spawn plans, pids, Node.js on PATH), `tools/handoff` (`cmdHandoff` of cli.mjs, owner tools, done) and `telemetry`
-(the `telemetry` change: events, otlp, spool, flush; with `build.rs` and `cli/telemetry.rs`; done).
+(the `telemetry` change: events, otlp, spool, flush, wire; with `build.rs` and `cli/telemetry.rs`; done).
+Also with no Node file of their own: `design/screen_add` (`dfw screen add`), the modules that name a
+file's keys or a list of words once (`design/manifest`, `design/written`, `core/state`, `core/presence`, `core/word`,
+`core/level`, `core/fixture`, `review/status`, `workflow/names`, `workflow/server`, `studio/paths`, `penpot/threads`)
+and the shared helpers `core/lock`, `core/http`, `core/platform` and `core/encoding`.
 
 ## Commands
 
 | Group file | Commands | State |
 |---|---|---|
 | `cli/mod.rs` | version, help | native |
-| `cli/debug.rs` | __debug (hidden helpers for the golden tests) | native |
+| `cli/debug.rs` | __debug (hidden helpers for the golden tests; its own: `config`, `host-format`, `host-render`) | native |
 | `cli/workflow.rs` | init, status, mode, phase, approve, reopen, pause, resume, decide, decisions, config, lang, verify-snapshot (hidden: `__debug hot`) | native |
 | `cli/hook.rs` | hook | native |
 | `cli/comments.rs` | comments | native (every subcommand, incl. wait and inbox) |
@@ -70,9 +74,10 @@ guide) and core/manifest.json; nothing is read from the plugin folder, `DFW_PLUG
 | `cli/screen.rs` | screen (`add`, in `design/screen_add`) | native; the Node CLI has no such command |
 | `cli/edit.rs` | none (hidden: `__debug edit`, `undo`, `system-page`, `changed-screens`, `mark-checked`) | native |
 | `cli/studio.rs` | studio, review, __studio-server, __review-server | native |
-| `cli/browser.rs` | shoot (job list in `browser/shoot`), diff, layout (hidden: `__debug a11y`) | native |
+| `cli/browser.rs` | shoot (job list in `browser/shoot`), diff, layout (hidden: `__debug a11y`, `__debug png-info`) | native |
 | `cli/penpot.rs` | penpot (export, plugin, import); `tokens export\|import`, called from `cli/design.rs` (hidden: `__debug penpot-build-export`, `__debug penpot-sync`) | native |
-| `cli/tools.rs` | inspector, install, uninstall, setup, doctor, mcp, stack, handoff (`cmdHandoff` of cli.mjs is `tools/handoff`) | native |
+| `cli/tools.rs` | inspector, install, uninstall, setup, doctor, mcp, stack, handoff (`cmdHandoff` of cli.mjs is `tools/handoff`, `cmdDoctor` is `tools/doctor`; hidden: `__debug insp-path`) | native |
 | `cli/telemetry.rs` | telemetry (new: status, on, off, endpoint, show, flush; hidden: `__debug telemetry-build`) | native; the Node CLI has no such command |
 
-The `HELP` text is `src/cli/help.txt`; it is the Node CLI's text with the lines of the commands added since (telemetry, screen add).
+The `HELP` text is `src/cli/help.txt`; it began as the Node CLI's text, and the lines of what was added since (telemetry,
+`setup --binary`, `approve --accept-unverified`, `screen add`, `init --canvas`) are re-recorded in the golden tests.

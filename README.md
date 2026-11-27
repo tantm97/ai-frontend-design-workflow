@@ -7,37 +7,35 @@ discovery -> direction (G1) -> design system (DS) -> pages of screens + review (
           -> technology approval (G3) -> implementation -> verification (G4)
 ```
 
+![The dfw Studio: a canvas of screens, pan and zoom, the inspector, a direct text edit, then a comment sent to the AI](media/demo.gif)
+
 ## Install (one command)
 
-No Node.js needed (downloads the native `dfw` binary for your OS from the GitHub release, checks its SHA-256 against the release's `SHA256SUMS`, then registers everything with Claude Code and GitHub Copilot, whichever is installed):
+macOS and Linux. It downloads the `dfw` binary for your OS from the GitHub release, checks its SHA-256 against the release's `SHA256SUMS`, links it as `~/.local/bin/dfw`, then registers everything with Claude Code and GitHub Copilot, whichever is installed:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/tantm97/ai-frontend-design-workflow/main/install.sh | sh
 ```
 
-With Node.js (the same download and checksum check, done by a small Node script):
+Options go after `sh -s --`, for example `curl -fsSL .../install.sh | sh -s -- --scope project`. `DFW_VERSION=<version>` installs a given release.
 
-```bash
-npx github:tantm97/ai-frontend-design-workflow
-```
+On Windows: run the same line in Git Bash (`install.sh` knows Windows but is tested on macOS and Linux only), or download `dfw-<version>-win32-x64.exe` from the [releases](https://github.com/tantm97/ai-frontend-design-workflow/releases), check it against `SHA256SUMS`, save it as `%USERPROFILE%\.config\dfw\bin\<version>\dfw.exe` and run `dfw.exe install`. If you already have Node.js 22+, `npx github:tantm97/ai-frontend-design-workflow` does the same download and check on any OS.
 
-On Windows without a POSIX shell: download `dfw-<version>-win32-x64.exe` from the [releases](https://github.com/tantm97/ai-frontend-design-workflow/releases), check it against `SHA256SUMS`, save it as `%USERPROFILE%\.config\dfw\bin\<version>\dfw.exe` and run `dfw.exe install`.
+The installer adds the `dfw-marketplace` to each tool, installs `dfw` (its plugin dependencies pull in the seven design skills), sets up the Impeccable engine (telemetry off) and runs `dfw doctor`. Screenshots and the layout check use the Chrome, Edge or Chromium already on your machine; only when none is found does the installer download Google's headless Chrome once. Options of `dfw install`: `--host auto|claude|copilot|all`, `--scope user|project|local` (`project` shares it via `.claude/settings.json`), `--source <path|owner/repo>` (another marketplace source, for example a local clone; a marketplace registered from a different source is replaced), `--no-runtime` (no browser check, no Impeccable engine). `dfw uninstall` removes it again (project files stay). Running the installer again upgrades an installed dfw to the newest release. Then restart Claude Code (or `/reload-plugins`) and type `/dfw`.
 
-Both add the `dfw-marketplace` to each tool, install `dfw` (its plugin dependencies pull in the seven design skills), set up the Impeccable engine (telemetry off) and run `dfw doctor`. Screenshots and the layout check use the Chrome, Edge or Chromium already on your machine; only when none is found does the installer download Google's headless Chrome once. Options: `--scope project` (share via `.claude/settings.json`), `--source <path|owner/repo>` (another marketplace source, for example a local clone; a marketplace registered from a different source is replaced), `--no-runtime`, `uninstall`. Running the installer again upgrades an installed dfw to the newest release. Then restart Claude Code (or `/reload-plugins`) and type `/dfw`.
+How dfw runs: dfw is one native program (written in Rust, 7 to 9 MB depending on the OS, no runtime to install). It carries the Studio, the templates, the starter kit, the style guides, the icons and the workflow guide inside, so it runs from any folder. The plugin's `bin/dfw` launcher (`bin/dfw.cmd` on Windows), which Claude Code puts on `PATH` and every hook calls (`dfw hook <name>`), starts the binary installed for the plugin's version, `~/.config/dfw/bin/<version>/dfw` (`DFW_HOME` or `XDG_CONFIG_HOME` move that folder). When the plugin was updated before the matching binary was installed, it runs the newest installed binary and says so on stderr; when none is installed it prints how to install one and exits with 127. `dfw setup --binary` downloads the binary of the plugin's version; `DFW_BIN=<path>` runs another build (development).
 
-How dfw runs: dfw is one native program (written in Rust, about 7 MB, no runtime to install). It carries the Studio, the templates, the starter kit, the style guides, the icons and the workflow guide inside, so it runs from any folder. The plugin's `bin/dfw` launcher (`bin/dfw.cmd` on Windows), which Claude Code puts on `PATH` and every hook calls, starts the binary installed for the plugin's version, `~/.config/dfw/bin/<version>/dfw` (`DFW_HOME` or `XDG_CONFIG_HOME` move that folder). When the plugin was updated before the matching binary was installed, it runs the newest installed binary and says so on stderr; when none is installed it prints how to install one and exits with 127. `dfw setup --binary` downloads the binary of the plugin's version; `DFW_BIN=<path>` runs another build (development).
+Without the installer: Claude Code `claude plugin marketplace add tantm97/ai-frontend-design-workflow` then `claude plugin install dfw@dfw-marketplace`; GitHub Copilot CLI `copilot plugin marketplace add tantm97/ai-frontend-design-workflow` then `copilot plugin install dfw@dfw-marketplace` (and the seven skills the same way). Both tools install the same plugin folder, `plugins/dfw`: Claude Code reads `.claude-plugin/plugin.json`, Copilot the root `plugin.json`, and each loads only its own skill, agents and hooks from `hosts/claude/` or `hosts/copilot/`.
 
-The installer registers dfw with every supported tool it finds (`--host claude|copilot|all` to choose). Without the installer: Claude Code `claude plugin marketplace add tantm97/ai-frontend-design-workflow` then `claude plugin install dfw@dfw-marketplace`; GitHub Copilot CLI `copilot plugin marketplace add tantm97/ai-frontend-design-workflow` then `copilot plugin install dfw@dfw-marketplace` (and the seven skills the same way). Both tools install the same plugin folder, `plugins/dfw`: Claude Code reads `.claude-plugin/plugin.json`, Copilot the root `plugin.json`, and each loads only its own skill, agents and hooks from `hosts/claude/` or `hosts/copilot/`.
-
-**Upgrading GitHub Copilot from 0.6.1 or earlier** (when Copilot had its own `plugins/dfw-copilot` folder): run `dfw install --host copilot` once with a newer dfw (the one-line installer above gets it). It uninstalls the old dfw, installs the one from `plugins/dfw` and prints `Replaced the old dfw for GitHub Copilot (<path>): two-folder layout.` By hand: `copilot plugin uninstall dfw`, then `copilot plugin install dfw@dfw-marketplace` (a plain `copilot plugin update dfw` may keep the old files). If you installed `plugins/dfw-copilot` by path, uninstall it the same way and install from the marketplace. `dfw doctor` warns while the old layout is installed. Claude Code users only update as usual.
+**Upgrading GitHub Copilot from 0.6.1 or earlier** (when Copilot had its own `dfw-copilot` plugin folder): run `dfw install --host copilot` once with a newer dfw. It replaces the old dfw with the one from `plugins/dfw`; `dfw doctor` warns while the old layout is installed. By hand: `copilot plugin uninstall dfw`, then `copilot plugin install dfw@dfw-marketplace`.
 
 OpenCode, Codex, Cursor: `dfw mcp install opencode|codex|cursor|all` adds dfw's MCP server (workflow guide, CLI and a write-gate check) to that tool's config (`--print` to preview). MCP cannot block the tool's own file writes, so the approval gates are advisory there.
 
 The workflow is called **dfw** (design-first workflow): `/dfw` in Claude Code, `dfw` on the command line.
 
-- **Design system first, like Figma.** Tokens (W3C DTCG) and component masters with every variant and state come first; screens are composed from component instances (`<dfw-use>`), so changing a master updates every screen. A token-driven starter kit (21 components incl. a type component, 3 neutral presets) plus 12 curated style guides (concept, named palette with usage rules, display type, motifs) and a curated icon set (Lucide) make the first version fast.
-- **Pages and a canvas.** Screens are grouped in pages per module. The local **Design Studio** shows the Design System page and every page as an infinite canvas of frames (screen × variant × breakpoint × state/theme): pan/zoom, layers, an inspector that shows which tokens and component an element uses, direct edits written back to the source (with undo), a full-window **Present** mode and an **Interact** tool for clickable prototypes, and click-to-comment review. Pages are laid out like a pencil.dev file: a section per module with rows per breakpoint, variants, states and annotation notes.
-- **Live review.** Comments you leave in the Studio are drafts until you press **Send to AI**, which wakes Claude at once (it keeps a background `dfw comments wait` running while you review; hooks on your next message and before Claude stops are the safety net). The Studio shows whether the agent is listening or working, each comment's live status (sent → received → working → fixed, please verify), and you answer the agent's questions with **Reply**, without the terminal.
+- **Design system first, like Figma.** Tokens (W3C DTCG) and component masters with every variant and state come first; screens are composed from component instances (`<dfw-use>`), so changing a master updates every screen. Each product gets only the components it needs: `dfw system init` starts with an empty inventory, and a read-only starter kit (24 reference components with their states and accessibility checklist, `dfw system ref`; 3 neutral presets) is a checklist, never copied. 12 curated style guides (concept, named palette with usage rules, display type, motifs) and a curated icon set (Lucide) make the first version fast.
+- **Pages and a canvas.** Screens are grouped in pages per module. The local **Design Studio** shows the Design System page and every page as an infinite canvas of frames (screen × variant × breakpoint × state/theme): pan/zoom, layers, an inspector that shows which tokens and component an element uses, direct edits written back to the source (with undo), a full-window **Present** mode and an **Interact** tool for clickable prototypes, and click-to-comment review. Pages are laid out like a pencil.dev file: a section per module with rows per breakpoint, variants, states and annotation notes. `dfw screen add` puts a new screen next to its siblings in a page and says which screens should link to it.
+- **Live review.** Comments you leave in the Studio are drafts until you press **Send to AI**, which wakes the agent at once: it keeps a background `dfw comments wait` running while you review, and hooks on your next message and before it stops are the safety net. The Studio shows whether the agent is **Listening**, **working on your comments** or **Not listening** (then **Copy request** gives you a line to paste in the chat), each comment's live status (sent → received → working → fixed, please verify), and you answer the agent's questions with **Reply**, without the terminal. You can review in [Penpot](#penpot) instead of the Studio.
 - **Senior design reasoning, not taste by accident.** A design brief (use context + 7 personality axes) ranks 12 curated style guides (`dfw style match`). Palettes are generated as perceptual OKLCH ramps with roles picked by contrast targets (`dfw palette build`), type follows a modular scale (`dfw type scale`), and `dfw system audit` reviews the system like a senior designer: contrast, accent vs error/success hues, neutral temperature, hue budget, type rhythm, usage rules per colour, and a written rationale for every decision (required at the DS gate).
 - **Quality loop.** Two self-critique rounds against a rubric before you see anything, 2-3 options where a real choice exists, and automated checks on the composed HTML:
   - dfw lint, with AI-default tells, interface guidelines and missing states;
@@ -50,7 +48,7 @@ The workflow is called **dfw** (design-first workflow): `/dfw` in Claude Code, `
 - **Hard gates.** A PreToolUse hook blocks implementation files until the design is approved (G2) and you approved the stack (G3). Approved designs are frozen in `design/approved/vN/` with a sha256 lock. G2 also needs every configured check to have run; `dfw approve G2 --accept-unverified` freezes without them only when the user accepts that, and it is recorded.
 - **No silent stack choices.** The design phase never assumes React/Tailwind/etc.; the stack is decided at G3 (existing projects keep their stack unless you approve a change).
 - **One orchestrator, curated skills.** dfw routes to one lead + at most two supporting skills per phase, with written precedence rules and conflict rulings.
-- **Claude is the only paid service.** Everything else is open source and local. Telemetry and update checks of bundled tools are off; dfw's own usage counts are described under [Telemetry and privacy](#telemetry-and-privacy).
+- **Your AI coding agent is the only paid service.** Everything else is open source and local. Telemetry and update checks of bundled tools are off; dfw's own usage counts are described under [Telemetry and privacy](#telemetry-and-privacy).
 
 ## What is in this repository
 
@@ -80,10 +78,11 @@ Vendored plugins are built from pinned commits (`registry/skills.lock.json`) wit
 ## Requirements
 
 - Claude Code with a Claude subscription (no API key needed), or GitHub Copilot CLI.
-- The `dfw` binary (installed by `install.sh` or the installer). Node.js is not needed to run dfw. It is optional, for two things only: the vendored skills' own scripts (Hallmark sloplint, Taste copy-lint), which `dfw check` reports as NOT VERIFIED without it, and Lighthouse (`dfw check --lighthouse`, through `npx`). Python 3 (UI UX Pro Max search), git.
+- The `dfw` binary (installed by `install.sh`). Python 3 (UI UX Pro Max search), git.
+- Optional, Node.js 22+ for two tools only: the vendored skills' own scripts (Hallmark sloplint, Taste copy-lint), which `dfw check` reports as NOT VERIFIED without it, and Lighthouse (`dfw check --lighthouse`, through `npx`). dfw itself never needs it.
 - Release binaries: macOS (Apple silicon, Intel), Linux (x64, arm64; glibc 2.39 or newer, as on Ubuntu 24.04) and Windows (x64).
 - A Chromium-based browser for screenshots and the layout check: your installed Chrome / Edge / Chromium / Brave (driven headless over the DevTools protocol, no npm packages), `DFW_BROWSER=/path/to/chrome`, or `dfw setup --browser` (Google's chrome-headless-shell, once, into `~/.config/dfw/browser`). Web fonts used by designs are cached in `~/.config/dfw/cache/fonts`.
-- The Studio updates frames and comment status when files change: it uses file-system events and also polls modification times every second, so it keeps working where file events are unreliable (CI runners, network drives, WSL, Docker bind mounts). `DFW_STUDIO_WATCH=poll` turns file events off and polls only. A changed design file is patched into the frame in place (no reload, scroll position kept; a frame whose scripts changed reloads as before). The frames near the view are patched first, three at a time; frames far off screen or on another page catch up when they come into view. With many screens the canvas keeps at most 48 frames loaded, the ones nearest the view (the selected frame always among them); the others show a placeholder and load again when you come near. While Claude edits, the canvas shows where: a dashed box and a cursor on the element it is about to edit (announced by the pre-tool-use hook through `.dfw/presence.json`), then a solid mark on what changed, which fades after a few seconds. On the Design System page each component is documented in rows (summary, variants, sizes and props with their meaning, rules, tokens, master file) in three text sizes.
+- The Studio updates frames and comment status when files change. It polls modification times every 250 ms (every second with `DFW_STUDIO_WATCH=poll`), so it also works where file events are unreliable (network drives, WSL, Docker bind mounts). A changed design file is patched into the frame in place (no reload, scroll position kept; a frame whose scripts changed reloads). The frames near the view are patched first, three at a time; frames far off screen or on another page catch up when they come into view. With many screens the canvas keeps at most 48 frames loaded, the ones nearest the view (the selected frame always among them); the others show a placeholder and load again when you come near. While the agent edits, the canvas shows where: a dashed box and a cursor on the element it is about to edit (announced by the pre-tool-use hook through `.dfw/presence.json`), then a solid mark on what changed, which fades after a few seconds. On the Design System page each component is documented in rows (summary, variants, sizes and props with their meaning, rules, tokens, master file).
 
 If you already installed any of these skills from their original marketplaces, disable those copies (`dfw doctor` warns about duplicates), otherwise both load.
 
@@ -95,32 +94,50 @@ Per project you can turn plugins off in `.claude/settings.json`:
 
 ## Use
 
-Open Claude Code in a project and ask, for example:
+Open Claude Code or GitHub Copilot CLI in a project and ask, for example:
 
 > /dfw Design a professional inventory management application based on these requirements, screenshots and brand assets.
 
 dfw asks your communication language once per session (artifacts stay in English), detects whether the project is new or existing, and walks the phases. Modes: `new`, `existing`, `design-only`, `implement` (approved design), `refine`, `quick`, `review`, `skills`.
 
-Review loop: Claude starts the Studio (`dfw studio start`, default http://127.0.0.1:4600) and listens for your comments.
+Review loop: the agent starts the Studio (`dfw studio start`, default http://127.0.0.1:4600), writes its link in the reply (after the design system step also the Design System page, `http://127.0.0.1:4600/?page=system`) and listens for your comments. `dfw studio status` prints both links again.
 
 | In the Studio | How |
 |---|---|
-| Move around | scroll / space-drag (H), Cmd/Ctrl-scroll or pinch to zoom, Shift+1 fit, Shift+2 zoom to selection |
+| Move around | scroll / space-drag (H), Cmd/Ctrl-scroll, pinch or +/- to zoom, 0 to 100%, Shift+1 fit, Shift+2 zoom to selection, F fullscreen, ? lists every shortcut |
 | Pages | Design System, one page per module, Explorations, or **All pages** on one canvas |
 | Inspect | click an element (Cmd/Alt-click for the exact one): layers, tokens in use, component + variant, "Go to master" |
 | Edit directly | double-click text; change variant/size/props or spacing tokens in the inspector; Cmd/Ctrl+Z undoes (the newest 200 edits are kept) |
 | Rearrange and resize | select an element with a `data-dfw-id`, then drag it among its flex/grid siblings (a blue line shows where it lands; the source is moved) or into an empty flex/grid container that has a `data-dfw-id` (dashed highlight), or drag its handles: in a grid the width snaps to a column span (`span 2 / 4`), elsewhere to a `size.*` token or 25/33/50/67/75/100%, and the height to a `min-height` spacing/size token. Keyboard: Alt+arrows move, Alt+Shift+arrows step the size, Alt+Shift+0 resets it to auto (so do double-clicking a handle and the inspector's "Reset size to auto"). Resizes go to a `<style data-dfw-layout>` block in the screen with selectors that outrank class-based screen rules; in a narrower breakpoint frame they go inside `@media (max-width: <frame width>px)`, so they apply there and below. If a stronger rule (id selector, inline style, `!important`) still wins, the Studio names it. Slot content of a component (e.g. an app shell) can be rearranged; elements that only exist in a master are refused with a pointer to the master. Edits are refused once the design is approved (G2) |
 | Clickable preview | **P** (or double-click a frame title) for full-window Present; **I** to interact on the canvas; ← → between screens. Present hides comment pins unless you press **Pins** (Shift+C) or comment |
-| Comment | **C**, click an element, write (Cmd/Ctrl+Enter), then **Send to AI** when you are done (Claude gets the drafts at once); fixed comments appear under **To verify** where you resolve or reopen them |
+| Comment | **C**, click an element, write (Cmd/Ctrl+Enter), then **Send to AI** when you are done (the agent gets the drafts at once; with nobody listening they wait in a queue). Each comment shows its status (sent, received, fixed); **Reply** answers the agent; fixed comments appear under **To verify** where you resolve or reopen them |
 | Breakpoints and states | top-bar menus with checkboxes and **All** (default: all shown); only checked breakpoints/states get frames |
 | Screenshot | top-bar camera: pick the screens to shoot (grouped by page, all checked by default, choice remembered), at the shown breakpoints/states and theme, to PNG in `.dfw/shots/studio/<time>/`; **Screenshot** in Present (also fullscreen): the screen being shown, saved and downloaded |
 | Comment pins | click a pin to read the comment and its thread, and resolve or reopen it in place. **Shift+C** (or the **Pins** chip) cycles open → all → off; resolved comments are hidden by default |
 
-Useful commands (`dfw help` for all; `-h`, `--help` or `dfw help <command>` only print help and never run the command): `dfw status`, `dfw style match|show|apply`, `dfw system init|inventory|ref|options|choose|audit|list`, `dfw palette build`, `dfw type scale`, `dfw icons search|add`, `dfw fonts check`, `dfw check`, `dfw shoot --page <id> --states`, `dfw comments list|wait`, `dfw decisions`, `dfw pause|resume`.
+Useful commands (`dfw help` for all; `-h`, `--help` or `dfw help <command>` only print help and never run the command):
+
+| Area | Commands |
+|---|---|
+| Workflow | `dfw init [--mode <m>] [--canvas studio\|penpot]`, `dfw status`, `dfw mode`, `dfw phase`, `dfw approve <gate> --note`, `dfw reopen`, `dfw decide`, `dfw decisions`, `dfw pause`, `dfw resume`, `dfw version` |
+| Design system | `dfw style match\|list\|show\|apply`, `dfw system init\|inventory\|ref\|options\|choose\|audit\|list`, `dfw palette build`, `dfw type scale`, `dfw icons search\|add`, `dfw fonts check`, `dfw build`, `dfw tokens build\|extract` |
+| Screens | `dfw blueprint`, `dfw screen add <id> --page <p> [--after <s>]`, `dfw layout check`, `dfw lint`, `dfw check`, `dfw shoot --page <id> --states`, `dfw diff`, `dfw verify-snapshot`, `dfw handoff` |
+| Review | `dfw studio start\|stop\|status`, `dfw comments list\|wait\|ack\|fixed\|reply`, `dfw review start --url <u>`, `dfw inspector setup` |
+| Stack and setup | `dfw stack detect\|set`, `dfw lang`, `dfw config get\|set`, `dfw doctor`, `dfw setup --browser\|--a11y\|--binary`, `dfw telemetry`, `dfw mcp` |
 
 Review the running app (phase verify): `dfw review start --url http://localhost:5173` opens a local proxy (loopback only; HMR passes through; printed as `http://localhost:<port>/` for a localhost app so its login cookies still apply, and a strict CSP is extended only for the injected review scripts) with a **Comment** button (or Alt/Option+C; change it with `--shortcut <combo>` or `dfw config set review.shortcut <combo>`, `off` for the button only; never while typing in a field) on the app itself. Comments go to the same inbox as Studio comments, with the route, a screenshot, and the element's `file:line:col` when the project has [code-inspector-plugin](https://github.com/zh-lx/code-inspector) (MIT, dev builds only). dfw never adds that dependency silently: `dfw inspector setup` prints the pinned devDependency and the Vite/webpack/Next config change to propose at G3; `--write` applies it only after G3 approved it and keeps your original config as `<config>.dfw-backup` (other bundlers, and a config written as a function with a body: printed instructions). Without it, comments carry selector + text.
 
-Penpot (optional bridge; dfw's HTML and DTCG tokens stay the source of truth): `dfw tokens export --format penpot` writes a file for Penpot's Tokens panel (sets `base` + `themes/<name>`, themes, aliases); `dfw tokens import <file> [--dry-run]` brings Penpot token edits back with a diff summary (refused while the design is frozen). Screens: `dfw penpot export` renders every screen x breakpoint, and the **dfw bridge** Penpot plugin (served by the Studio on 127.0.0.1; `dfw penpot plugin` prints its URL) builds one board per screen x breakpoint, with `data-dfw-id` layer names, text layers, token-linked colours and component instances. Comment threads on those boards are live while the plugin panel is open: a new thread reaches Claude like a Studio comment, Claude's ack/fix/reply comes back as a `[dfw]` reply in the thread, resolving the thread accepts the fix and replying reopens it; **Update boards** redraws the boards in place after a fix. Penpot can be the review canvas: `dfw init --canvas penpot` (or `dfw config set review.canvas penpot`; the default is the Studio) turns on **Keep boards up to date automatically** in the panel, which then updates the boards by itself after each build, sending the designer's pending edits to dfw first; the design system page, states and themes are still reviewed in the Studio. Layer edits and token changes come back as dfw comments (`provider: "penpot"`) and a token diff when the designer presses Send (`dfw penpot import <changes.json>` for a downloaded file); dfw never overwrites its HTML from Penpot. Token names `__proto__`, `constructor` and `prototype` in a Penpot file are refused, and `.dfw/penpot/exports/` keeps the newest 20 exports. No Penpot account token or cloud call is used. Which Penpot may drive the bridge is set in the global config only: `penpot.origins` (default `["https://design.penpot.app"]`; a self-hosted one with `dfw config set penpot.origins '["https://penpot.example.com"]' --global`), and every write of the plugin carries a token the Studio makes when it starts. Mapping, data flow and limits: `core/workflow/references/penpot.md` and the job files it links.
+### Penpot
+
+Penpot is an optional bridge; dfw's HTML and DTCG tokens stay the source of truth. No Penpot account token or cloud call is used.
+
+- **Tokens.** `dfw tokens export --format penpot` writes a file for Penpot's Tokens panel (sets `base` + `themes/<name>`, themes, aliases); `dfw tokens import <file> [--dry-run]` brings Penpot token edits back with a diff summary (refused while the design is frozen). Token names `__proto__`, `constructor` and `prototype` are refused.
+- **Boards.** `dfw penpot export` renders every screen x breakpoint (`.dfw/penpot/exports/` keeps the newest 20), and the **dfw bridge** Penpot plugin (served by the Studio on 127.0.0.1; `dfw penpot plugin` prints its URL) builds one board per screen x breakpoint, with `data-dfw-id` layer names, text layers, token-linked colours and component instances. **Update boards** redraws them in place after a fix.
+- **Comments.** While the plugin panel is open, a new comment thread on a board reaches the agent like a Studio comment; its ack, fix or reply comes back as a `[dfw]` reply in the thread; resolving the thread accepts the fix and replying reopens it. Layer edits and token changes come back as dfw comments (`provider: "penpot"`) and a token diff when the designer presses Send (`dfw penpot import <changes.json>` for a downloaded file); dfw never overwrites its HTML from Penpot.
+- **Penpot as the review canvas.** `dfw init --canvas penpot` (or `dfw config set review.canvas penpot`; the default is `studio`) turns on **Keep boards up to date automatically** in the panel: once the design has been quiet for 10 seconds, the panel sends the designer's pending edits to dfw, then updates the boards by itself. The design system page, states and themes are still reviewed in the Studio.
+- **Which Penpot.** Only the origins in the global config may drive the bridge: `penpot.origins` (default `["https://design.penpot.app"]`; a self-hosted one with `dfw config set penpot.origins '["https://penpot.example.com"]' --global`). Every write of the plugin carries a token the Studio makes when it starts.
+
+Mapping, data flow and limits: `core/workflow/references/penpot.md` and the job files it links.
 
 ## Telemetry and privacy
 
@@ -145,7 +162,8 @@ PRODUCT.md, DESIGN.md        canonical product and design docs (also read by Imp
 design/                      design.json manifest (pages, sections, screens), tokens/ (DTCG), system/ (brief.json,
                              style.json, component masters, icons, head.html), screens/, assets/,
                              approved/vN/ (frozen), handoff/vN.md
-.dfw/                        state.json, config.json, decisions.jsonl, reviews/rv_*.json (feedback contract)
+.dfw/                        state.json, config.json, decisions.jsonl, stack.json, reviews/rv_*.json (feedback
+                             contract), shots/ (screenshots), penpot/ (exports)
 ```
 
 Configuration layers: plugin defaults < `~/.config/dfw/config.json` < `.dfw/config.json` < `.dfw/config.local.json`; explicit decisions in `.dfw/decisions.jsonl` take precedence when the orchestrator applies rules. By default the write gate keeps `design/approved/**`, `.dfw/state.json`, `.dfw/config.json`, `.dfw/config.local.json`, `.dfw/decisions.jsonl`, `.dfw/stack.json` and `.dfw/reviews/**` immutable for the agent's own tools (`gate.immutable`, a union across layers that a project cannot shrink): dfw commands change them. Schemas: `plugins/dfw/schemas/`.
@@ -155,10 +173,10 @@ Configuration layers: plugin defaults < `~/.config/dfw/config.json` < `.dfw/conf
 ```
 core/                     agent-agnostic workflow core (files the binary embeds, and the plugin launcher)
   bin/dfw, bin/dfw.cmd    plugin launchers: run the installed native binary
-  studio/                 local Design Studio browser code (vanilla HTML/CSS/JS, no build) and the Penpot plugin
+  studio/                 local Design Studio browser code (plain HTML/CSS/JS; overlay/ and live/ are bundled by esbuild) and the Penpot plugin
   schemas/                JSON Schemas: state, config, design manifest, feedback contract
   templates/              PRODUCT.md, DESIGN.md, design/ workspace, handoff, screen skeleton
-  kits/base/              starter design system: 21 token-driven components + presets (crisp, soft, industrial)
+  kits/base/              starter kit: 24 read-only reference components + presets (crisp, soft, industrial)
   kits/styles/            12 generated style guides (OKLCH palettes, rationale, personality axes)
   assets/icons/           Lucide icon bundle (ISC, pinned tag)
   workflow/               SKILL.md, agents, phase guides, precedence + conflict policies, stack guides (host placeholders rendered at build)
@@ -172,9 +190,10 @@ plugins/                  GENERATED marketplace plugins (dfw, one folder for bot
 .claude-plugin/, .github/plugin/  GENERATED marketplaces for Claude Code and GitHub Copilot
 registry/                 vendored skill registry, lock (pinned commits), xref and conflict-lint rules
 overlays/                 declarative adaptations applied to vendored skills at build time
-scripts/                  installer (npx), build, validate, skill update management, presets, style guides, icon vendoring, CI helper
+scripts/                  build, validate, the checks (check.mjs), the npx installer, the demo GIF (demo-gif.mjs), skill update management, presets, style guides, icon vendoring, CI helper
 tests/                    golden tests of the binary (tests/golden), unit tests of the scripts and browser code,
-                          a browser end-to-end test of the studio, fixtures
+                          a browser end-to-end test of the studio, the check benchmark, fixtures
+media/                    the demo GIF of this README
 ```
 
 Other AI coding agents can be supported by adding an adapter under `adapters/` (see `adapters/README.md`); `core/` stays shared.
@@ -184,6 +203,7 @@ Other AI coding agents can be supported by adding an adapter under `adapters/` (
 The binary is the Rust crate in `native/` (Rust 1.100.0, pinned by `native/rust-toolchain.toml`). Development needs Rust and Node.js 22+ for the scripts and tests; `npm ci` installs the pinned dev tools (esbuild for the Studio bundles, the linters, the DOM the browser-code tests use).
 
 ```bash
+npm ci && npm run check  # the checks of a change in CI's order: lint, tests, build, Rust, golden, Chrome, e2e
 cd native && cargo build # the debug binary native/target/debug/dfw
 cargo test               # Rust unit tests and the tests that run the binary (in native/)
 cargo fmt --check && cargo clippy --all-targets -- -D warnings
@@ -192,8 +212,10 @@ node --test tests/golden/           # golden tests: the binary against recorded 
 DFW_TEST_CHROME=1 node --test tests/golden/   # also the cases that render in Chrome
 DFW_GOLDEN_UPDATE=1 node --test tests/golden/ # record what the binary does now, after a deliberate behaviour change; review the diff
 npm test                 # unit tests of the scripts, the marketplace and the browser code
-DFW_BIN=native/target/debug/dfw npm run test:e2e   # studio end-to-end (dev only: needs the playwright package)
-npm run build            # assemble plugins/dfw and rebuild vendored plugins from the lock
+DFW_BIN=native/target/debug/dfw npm run test:e2e   # studio end-to-end (needs the playwright package, here or in $DFW_RUNTIME_DIR)
+node scripts/demo-gif.mjs   # re-record media/demo.gif after a Studio change (Playwright, ffmpeg)
+npm run lint             # ESLint, Prettier and tsc on the Studio code, scripts and tests
+npm run build            # the Studio bundles, plugins/dfw and the vendored plugins from the lock
 npm run build:check      # committed plugins/ must equal a clean build
 npm run validate         # structure, cross-references, no upstream hooks or hook installers, no unresolved <skill-dir>, conflict lint, claude plugin validate
 npm run styles           # regenerate the 12 style guides with the binary's colour maths (fails on any senior-audit error)
@@ -216,7 +238,7 @@ npm test && npm run build:check && npm run validate
 
 Proposal reports cover: trigger/description changes, added/changed executable code and hooks, files dfw depends on (cross-reference check), new conflict-lint hits, and instruction size. A weekly GitHub Action (`.github/workflows/upstream-check.yml`) opens one PR per update (merging is the approval) and starts `validate.yml` on it, or opens an issue when an update is blocked (one issue per upstream commit). After merging: `claude plugin marketplace update dfw-marketplace` and `/reload-plugins`.
 
-When you change `core/` or an adapter, run `npm run build`; a change to files the binary embeds (`core/studio`, `templates`, `kits`, `assets`, `workflow`) also needs a new `cargo build` (`DFW_PLUGIN_ROOT=core` makes a debug binary read them from the source instead). Bump `version` in `core/manifest.json`, `package.json`, `package-lock.json`, `native/Cargo.toml` and `native/Cargo.lock` together (`node scripts/validate.mjs` fails when they differ) so installed copies update. A release tag builds binaries only after the `verify` job passes: the tagged commit is on `main`, `npm test`, `cargo test` and the golden tests pass and `build --check` is clean; then each runner builds its own target with cargo and the release gets `SHA256SUMS`. Workflow actions are pinned by commit SHA.
+When you change `core/` or an adapter, run `npm run build`; a change to files the binary embeds (`core/studio`, `templates`, `kits`, `assets`, `workflow`) also needs a new `cargo build` (`DFW_PLUGIN_ROOT=core` makes a debug binary read them from the source instead). Bump `version` in `core/manifest.json`, `package.json`, `package-lock.json`, `native/Cargo.toml` and `native/Cargo.lock` together (`node scripts/validate.mjs` fails when they differ) so installed copies update. A release tag builds binaries only after the `verify` job passes: the tagged commit is on `main`, lint, unit tests, `build --check`, validate, `cargo fmt`, `cargo test`, clippy and the golden tests pass; then each runner builds its own target with cargo and the release gets `SHA256SUMS`. Workflow actions are pinned by commit SHA.
 
 ## Known limitations
 
