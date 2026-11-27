@@ -416,7 +416,9 @@ fn approve_g2(root: &Path, a: &Args, state: &mut Value, note: Value) -> Result<i
     }
     let open: Vec<String> = all_comments(root)?
         .iter()
-        .filter(|c| status::of(c).is_some_and(|s| s.is_active() || s == Status::Fixed))
+        // A comment whose status is not one of the statuses (or that is not an object) is not
+        // known to be closed: it blocks the freeze like an open one (`errors.md` E7).
+        .filter(|c| status::of(c).is_none_or(|s| s.is_active() || s == Status::Fixed))
         .map(|c| js::to_string(c.get(comment::ID)))
         .collect();
     if !open.is_empty() && !a.truthy("accept-open-comments") {

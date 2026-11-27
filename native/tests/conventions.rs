@@ -1612,3 +1612,256 @@ fn penpot_ledgers_are_written_under_their_lock() {
         found.join("\n")
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// Checks, gates, cache and config (review-rows-wave2 D3: §0 rows 32 and 18).
+// ---------------------------------------------------------------------------------------------
+
+/// The product text of one source file, joined, its comments dropped.
+fn product_text(rel: &str) -> String {
+    product_sources(&[])
+        .into_iter()
+        .find(|(r, _)| r == rel)
+        .unwrap_or_else(|| panic!("{rel} is not a product source"))
+        .1
+        .join("\n")
+}
+
+/// The arguments of the call whose `(` is at `open`, split at the top-level commas.
+fn call_args(text: &str, open: usize) -> Vec<String> {
+    let mut depth = 0;
+    let mut args = vec![String::new()];
+    for c in text[open..].chars() {
+        match c {
+            '(' | '[' | '{' => {
+                depth += 1;
+                if depth == 1 {
+                    continue;
+                }
+            }
+            ')' | ']' | '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    break;
+                }
+            }
+            ',' if depth == 1 => {
+                args.push(String::new());
+                continue;
+            }
+            _ => {}
+        }
+        if let Some(last) = args.last_mut() {
+            last.push(c);
+        }
+    }
+    args.into_iter().map(|a| a.trim().to_string()).collect()
+}
+
+/// The `ProjectPaths` fields of `rel::GATE_STATE`, and `approved`.
+fn gate_state_fields() -> Vec<String> {
+    // `(&p.state, rel::STATE)`: the field of each rel, from the table test of core/paths.rs.
+    let paths = fs::read_to_string(native().join("src/core/paths.rs")).unwrap();
+    let pair = regex::Regex::new(r"\(&p\.(\w+), rel::(\w+)\)").unwrap();
+    let field_of: std::collections::HashMap<String, String> = pair
+        .captures_iter(&paths)
+        .map(|c| (c[2].to_string(), c[1].to_string()))
+        .collect();
+    let layout = fs::read_to_string(native().join("src/core/paths/layout.rs")).unwrap();
+    let list = regex::Regex::new(r"pub const GATE_STATE: \[&str; \d+\] = \[([^\]]*)\]").unwrap();
+    let names = list
+        .captures(&layout)
+        .expect("rel::GATE_STATE in core/paths/layout.rs")[1]
+        .split(',')
+        .map(|n| n.trim().to_string())
+        .filter(|n| !n.is_empty())
+        .collect::<Vec<_>>();
+    let mut allowed: Vec<String> = names
+        .iter()
+        .map(|n| {
+            field_of
+                .get(n)
+                .unwrap_or_else(|| panic!("rel::{n} of GATE_STATE has no ProjectPaths field"))
+                .clone()
+        })
+        .collect();
+    // Frozen snapshots: immutable too, written only by the freeze.
+    allowed.push(field_of["APPROVED"].clone());
+    allowed
+}
+
+/// The writers of gate state write only the files of `rel::GATE_STATE` (and the frozen
+/// snapshots of `design/approved`): every write in them names a `ProjectPaths` field whose rel
+/// is in that list, or a local built from one (`design-files.md` D11, §0 row 32). The default
+/// `gate.immutable` is built from the same list, so a new gate file a writer writes must join it.
+#[test]
+fn gate_state_writers_write_only_gate_state() {
+    let allowed = gate_state_fields();
+    let writers = [
+        "src/workflow/state.rs",
+        "src/workflow/decisions.rs",
+        "src/workflow/stack.rs",
+        "src/workflow/freeze.rs",
+        "src/review/comments.rs",
+    ];
+    // A session file under `.dfw/reviews`, kept on the session (`Session::file`) after
+    // `session_files` or `p.reviews.join` named it.
+    let allowances = [("src/review/comments.rs", "self.file")];
+    // (call, index of its path argument)
+    let calls = [
+        ("write_json_inside", 1),
+        ("append_jsonl_inside", 1),
+        ("write_atomic_inside", 1),
+        ("write_reviews", 2),
+        ("write_json", 0),
+        ("write_atomic", 0),
+        ("fs::write", 0),
+        ("fs::copy", 1),
+        ("copy_dir", 1),
+        ("create_dir_all", 0),
+        ("fs::rename", 1),
+        ("remove_file", 0),
+        ("remove_dir_all", 0),
+    ];
+    let field = regex::Regex::new(r"\.(\w+)").unwrap();
+    let ident = regex::Regex::new(r"^[&*]*\s*(?:mut\s+)?(\w+)").unwrap();
+    let word_re = regex::Regex::new(r"\w+").unwrap();
+    let binding = regex::Regex::new(r"let\s+(?:mut\s+)?(\w+)(?:\s*:[^=]+)?\s*=([^;]*);").unwrap();
+    let session_loop = regex::Regex::new(r"for\s+file\s+in\s+session_files\(").unwrap();
+    let patterns: Vec<(&str, usize, regex::Regex)> = calls
+        .iter()
+        .map(|(name, at)| {
+            let re = regex::Regex::new(&format!(r"\b{}\(", regex::escape(name))).unwrap();
+            (*name, *at, re)
+        })
+        .collect();
+    let mut found = Vec::new();
+    let mut writes = 0;
+    for rel in writers {
+        let text = product_text(rel);
+        let names_allowed = |expr: &str| {
+            field
+                .captures_iter(expr)
+                .any(|c| allowed.contains(&c[1].to_string()))
+        };
+        // Locals built from an allowed field (or from another such local), and the files of
+        // `session_files` (which lists `.dfw/reviews`).
+        let mut derived: Vec<String> = Vec::new();
+        for _ in 0..3 {
+            for c in binding.captures_iter(&text) {
+                let expr = &c[2];
+                let from_derived = word_re
+                    .find_iter(expr)
+                    .any(|w| derived.iter().any(|d| d == w.as_str()));
+                if (names_allowed(expr) || from_derived) && !derived.contains(&c[1].to_string()) {
+                    derived.push(c[1].to_string());
+                }
+            }
+        }
+        if session_loop.is_match(&text) {
+            derived.push("file".into());
+        }
+        for (name, at, pattern) in &patterns {
+            let (name, at) = (*name, *at);
+            for m in pattern.find_iter(&text) {
+                if text[..m.start()].trim_end().ends_with("fn") {
+                    continue;
+                }
+                let open = m.end() - 1;
+                let args = call_args(&text, open);
+                let Some(arg) = args.get(at) else {
+                    continue;
+                };
+                writes += 1;
+                let line = text[..open].lines().count();
+                let root = ident
+                    .captures(arg)
+                    .map(|c| c[1].to_string())
+                    .unwrap_or_default();
+                let stripped = arg.trim_start_matches(['&', '*']);
+                let ok = names_allowed(arg)
+                    || derived.contains(&root)
+                    || allowances
+                        .iter()
+                        .any(|(f, a)| *f == rel && stripped.starts_with(a));
+                if !ok {
+                    found.push(format!("{rel}:{line}: {name}(… {arg} …)"));
+                }
+            }
+        }
+    }
+    assert!(
+        writes >= 8,
+        "the scan found {writes} writes; it no longer reads the writers"
+    );
+    assert!(
+        found.is_empty(),
+        "a writer of gate state writes a file outside rel::GATE_STATE (add it there, so the agent's tools cannot write it, or move the write):\n{}",
+        found.join("\n")
+    );
+}
+
+/// A global-only config key (`core::config::GLOBAL_ONLY`, or a key named `…bin`, `…command`,
+/// `…url`) is read from the user's global file, never from a `load_config` result: a project
+/// layer could set it there before the filter knew it (`security-privacy.md` S10, §0 row 18).
+#[test]
+fn global_only_config_is_read_from_the_global_file() {
+    let config = product_text("src/core/config.rs");
+    let block = regex::Regex::new(r"pub const GLOBAL_ONLY: \[&str; \d+\] = \[([^\]]*)\]").unwrap();
+    let constant = |name: &str| {
+        regex::Regex::new(&format!(r#"pub const {name}: &str = "([^"]*)";"#))
+            .unwrap()
+            .captures(&config)
+            .unwrap_or_else(|| panic!("key::{name} in core/config.rs"))[1]
+            .to_string()
+    };
+    let sections: Vec<String> = block
+        .captures(&config)
+        .expect("GLOBAL_ONLY in core/config.rs")[1]
+        .split(',')
+        .map(|n| n.trim().trim_start_matches("key::").to_string())
+        .filter(|n| !n.is_empty())
+        .map(|n| constant(&n))
+        .collect();
+    assert!(sections.len() >= 4, "{sections:?}");
+    let read = regex::Regex::new(r#"get_path\(\s*&?([^,]+),\s*"([^"]+)""#).unwrap();
+    let mut found = Vec::new();
+    let mut global_reads = 0;
+    for (rel, lines) in product_sources(&[]) {
+        for (i, line) in lines.iter().enumerate() {
+            for c in read.captures_iter(line) {
+                let (arg, key) = (c[1].trim(), &c[2]);
+                let last = key.rsplit('.').next().unwrap_or(key).to_ascii_lowercase();
+                let global_only = sections
+                    .iter()
+                    .any(|s| key == s || key.starts_with(&format!("{s}.")))
+                    || ["bin", "command", "url"].iter().any(|e| last.ends_with(e));
+                if !global_only {
+                    continue;
+                }
+                // The binding of `arg`, the nearest one above: it must read the global file.
+                let binding = lines[..=i].iter().rev().find(|l| {
+                    l.contains(&format!("let {arg} ="))
+                        || l.contains(&format!("({arg}) ="))
+                        || l.contains("fn ") && l.contains(&format!("{arg}:"))
+                });
+                let from_global =
+                    !arg.contains("load_config") && binding.is_some_and(|b| b.contains("global"));
+                if from_global {
+                    global_reads += 1;
+                } else {
+                    found.push(format!("{rel}:{}: {}", i + 1, line.trim()));
+                }
+            }
+        }
+    }
+    assert!(
+        global_reads >= 3,
+        "the scan found {global_reads} global reads; it no longer reads them"
+    );
+    assert!(
+        found.is_empty(),
+        "a global-only key read from the merged config; read the global file (global_config_path()):\n{}",
+        found.join("\n")
+    );
+}

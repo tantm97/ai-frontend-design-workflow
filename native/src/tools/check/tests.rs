@@ -328,6 +328,33 @@ fn unverified_tools_are_listed_and_strict_exits_3() {
     );
 }
 
+/// Every outcome but a run and a configured skip is "not verified" and exits 3 with --strict;
+/// so is a status no outcome names (fail closed, `errors.md` E8).
+#[test]
+fn every_outcome_but_ran_and_skipped_is_unverified_and_strict_exits_3() {
+    let statuses = Outcome::ALL
+        .iter()
+        .map(|o| o.as_str().to_string())
+        .chain(["", "passed", "RAN"].map(String::from));
+    for status in statuses {
+        let results = [json!({ "tool": "t", "status": status, "findings": [] })];
+        let what = format!("status {status:?}");
+        let report = format_report(&results, 50);
+        let passes =
+            Outcome::parse(&status).is_some_and(|o| [Outcome::Ran, Outcome::Skipped].contains(&o));
+        assert_eq!(report.unverified.is_empty(), passes, "{what}");
+        assert_eq!(
+            check_exit_code(&report, true),
+            if passes { 0 } else { 3 },
+            "{what}"
+        );
+        assert_eq!(report.text.contains("NOT VERIFIED: t"), !passes, "{what}");
+    }
+    for o in Outcome::ALL {
+        assert_eq!(Outcome::parse(o.as_str()), Some(o));
+    }
+}
+
 #[test]
 fn the_report_sorts_caps_and_names_what_did_not_run() {
     let finding = |level: &str, file: &str, line: u64| json!({ "level": level, "rule": "r", "file": file, "line": line, "message": format!("{level} {file}:{line}"), "source": "s" });

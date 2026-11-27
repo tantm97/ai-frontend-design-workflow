@@ -16,7 +16,7 @@
       }
     },
     {
-      ".dfw/layout-cache.json": "{\n  \"c:button.html\": \"b7839ee429880f8f\",\n  \"c:card.html\": \"ac80ba74b2e5db33\",\n  \"c:notes.txt\": \"428b124ded815e54\",\n  \"t:tokens\": \"1d32ebc8c39f0894\",\n  \"f:styles/base.css\": \"2007703776e20c24\",\n  \"f:system/head.html\": null,\n  \"s:screens/items/a.html\": \"e809abc67c51002e\",\n  \"s:screens/items/b.html\": \"e94dc9258d481d41\",\n  \"s:screens/items/gone.html\": null,\n  \"s:screens/other/a.html\": \"f70b370debd085dd\"\n}\n"
+      ".dfw/layout-cache.json": "{\n  \"c:button.html\": \"b7839ee429880f8f\",\n  \"c:card.html\": \"ac80ba74b2e5db33\",\n  \"c:notes.txt\": \"428b124ded815e54\",\n  \"t:tokens\": \"1d32ebc8c39f0894\",\n  \"f:styles/base.css\": \"2007703776e20c24\",\n  \"f:system/head.html\": null,\n  \"s:screens/items/a.html\": \"e809abc67c51002e\",\n  \"s:screens/items/b.html\": \"e94dc9258d481d41\",\n  \"s:screens/items/gone.html\": null,\n  \"s:screens/other/a.html\": \"f70b370debd085dd\",\n  \"l:layout\": \"293e6e914dd9ef1b\",\n  \"m:items\": \"74234e98afe7498f\",\n  \"m:other\": \"74234e98afe7498f\",\n  \"m:empty\": \"74234e98afe7498f\"\n}\n"
     },
     {
       "ok": {
@@ -38,7 +38,7 @@
       }
     },
     {
-      ".dfw/layout-cache.json": "{\n  \"c:button.html\": \"991966cbaa303513\",\n  \"c:card.html\": \"ac80ba74b2e5db33\",\n  \"c:notes.txt\": \"428b124ded815e54\",\n  \"t:tokens\": \"1d32ebc8c39f0894\",\n  \"f:styles/base.css\": \"2007703776e20c24\",\n  \"f:system/head.html\": null,\n  \"s:screens/items/a.html\": \"e809abc67c51002e\",\n  \"s:screens/items/b.html\": \"e94dc9258d481d41\",\n  \"s:screens/items/gone.html\": null,\n  \"s:screens/other/a.html\": \"f70b370debd085dd\"\n}\n",
+      ".dfw/layout-cache.json": "{\n  \"c:button.html\": \"991966cbaa303513\",\n  \"c:card.html\": \"ac80ba74b2e5db33\",\n  \"c:notes.txt\": \"428b124ded815e54\",\n  \"t:tokens\": \"1d32ebc8c39f0894\",\n  \"f:styles/base.css\": \"2007703776e20c24\",\n  \"f:system/head.html\": null,\n  \"s:screens/items/a.html\": \"e809abc67c51002e\",\n  \"s:screens/items/b.html\": \"e94dc9258d481d41\",\n  \"s:screens/items/gone.html\": null,\n  \"s:screens/other/a.html\": \"f70b370debd085dd\",\n  \"l:layout\": \"293e6e914dd9ef1b\",\n  \"m:items\": \"74234e98afe7498f\",\n  \"m:other\": \"74234e98afe7498f\",\n  \"m:empty\": \"74234e98afe7498f\"\n}\n",
       "design/system/components/button.html": "<dfw-component name=\"button\" variants=\"primary ghost\" description=\"Fixture button.\">\n<style>\n.btn { display: inline-flex; align-items: center; height: 44px; padding: 0 var(--space-4); border-radius: var(--radius-md); border: 1px solid transparent; font: inherit; }\n.btn--primary { background: var(--color-accent); color: var(--color-on-accent); }\n.btn--ghost { background: transparent; color: var(--color-ink); border-color: var(--color-border); }\n.btn:focus-visible { outline: 2px solid var(--color-accent); }\n</style>\n<template>\n<button class=\"btn btn--{{variant}}\" type=\"button\"><span><dfw-slot>Button</dfw-slot></span></button>\n</template>\n<dfw-examples>\n<dfw-use c=\"button\" variant=\"primary\">Save</dfw-use>\n<dfw-use c=\"button\" variant=\"ghost\">Cancel</dfw-use>\n</dfw-examples>\n</dfw-component>\n"
     },
     {
@@ -52,7 +52,7 @@
       }
     },
     {
-      ".dfw/layout-cache.json": "{\n  \"c:button.html\": \"991966cbaa303513\",\n  \"c:card.html\": \"ac80ba74b2e5db33\",\n  \"c:notes.txt\": \"428b124ded815e54\",\n  \"t:tokens\": \"1d32ebc8c39f0894\",\n  \"f:styles/base.css\": \"0bc502af21fb5fff\",\n  \"f:system/head.html\": null,\n  \"s:screens/items/a.html\": \"e809abc67c51002e\",\n  \"s:screens/items/b.html\": \"e94dc9258d481d41\",\n  \"s:screens/items/gone.html\": null,\n  \"s:screens/other/a.html\": \"f70b370debd085dd\"\n}\n",
+      ".dfw/layout-cache.json": "{\n  \"c:button.html\": \"991966cbaa303513\",\n  \"c:card.html\": \"ac80ba74b2e5db33\",\n  \"c:notes.txt\": \"428b124ded815e54\",\n  \"t:tokens\": \"1d32ebc8c39f0894\",\n  \"f:styles/base.css\": \"0bc502af21fb5fff\",\n  \"f:system/head.html\": null,\n  \"s:screens/items/a.html\": \"e809abc67c51002e\",\n  \"s:screens/items/b.html\": \"e94dc9258d481d41\",\n  \"s:screens/items/gone.html\": null,\n  \"s:screens/other/a.html\": \"f70b370debd085dd\",\n  \"l:layout\": \"293e6e914dd9ef1b\",\n  \"m:items\": \"74234e98afe7498f\",\n  \"m:other\": \"74234e98afe7498f\",\n  \"m:empty\": \"74234e98afe7498f\"\n}\n",
       "design/styles/base.css": "body{margin:0;width:3000px}"
     },
     {
@@ -66,7 +66,7 @@
       }
     },
     {
-      ".dfw/layout-cache.json": "{\n  \"c:button.html\": \"991966cbaa303513\",\n  \"c:card.html\": \"ac80ba74b2e5db33\",\n  \"c:notes.txt\": \"428b124ded815e54\",\n  \"t:tokens\": \"1d32ebc8c39f0894\",\n  \"f:styles/base.css\": \"0bc502af21fb5fff\",\n  \"f:system/head.html\": \"8b55d7b0f119c2f5\",\n  \"s:screens/items/a.html\": \"e809abc67c51002e\",\n  \"s:screens/items/b.html\": \"e94dc9258d481d41\",\n  \"s:screens/items/gone.html\": null,\n  \"s:screens/other/a.html\": \"f70b370debd085dd\"\n}\n",
+      ".dfw/layout-cache.json": "{\n  \"c:button.html\": \"991966cbaa303513\",\n  \"c:card.html\": \"ac80ba74b2e5db33\",\n  \"c:notes.txt\": \"428b124ded815e54\",\n  \"t:tokens\": \"1d32ebc8c39f0894\",\n  \"f:styles/base.css\": \"0bc502af21fb5fff\",\n  \"f:system/head.html\": \"8b55d7b0f119c2f5\",\n  \"s:screens/items/a.html\": \"e809abc67c51002e\",\n  \"s:screens/items/b.html\": \"e94dc9258d481d41\",\n  \"s:screens/items/gone.html\": null,\n  \"s:screens/other/a.html\": \"f70b370debd085dd\",\n  \"l:layout\": \"293e6e914dd9ef1b\",\n  \"m:items\": \"74234e98afe7498f\",\n  \"m:other\": \"74234e98afe7498f\",\n  \"m:empty\": \"74234e98afe7498f\"\n}\n",
       "design/system/head.html": "<link rel=\"stylesheet\" href=\"x.css\">"
     },
     {
@@ -89,7 +89,7 @@
       }
     },
     {
-      ".dfw/layout-cache.json": "{\n  \"c:button.html\": \"991966cbaa303513\",\n  \"c:card.html\": \"ac80ba74b2e5db33\",\n  \"c:notes.txt\": \"428b124ded815e54\",\n  \"t:tokens\": null,\n  \"f:styles/base.css\": \"0bc502af21fb5fff\",\n  \"f:system/head.html\": \"8b55d7b0f119c2f5\",\n  \"s:screens/items/a.html\": \"e809abc67c51002e\",\n  \"s:screens/items/b.html\": \"e94dc9258d481d41\",\n  \"s:screens/items/gone.html\": null,\n  \"s:screens/other/a.html\": \"9092843df1b7646b\"\n}\n",
+      ".dfw/layout-cache.json": "{\n  \"c:button.html\": \"991966cbaa303513\",\n  \"c:card.html\": \"ac80ba74b2e5db33\",\n  \"c:notes.txt\": \"428b124ded815e54\",\n  \"t:tokens\": null,\n  \"f:styles/base.css\": \"0bc502af21fb5fff\",\n  \"f:system/head.html\": \"8b55d7b0f119c2f5\",\n  \"s:screens/items/a.html\": \"e809abc67c51002e\",\n  \"s:screens/items/b.html\": \"e94dc9258d481d41\",\n  \"s:screens/items/gone.html\": null,\n  \"s:screens/other/a.html\": \"9092843df1b7646b\",\n  \"l:layout\": \"293e6e914dd9ef1b\",\n  \"m:items\": \"74234e98afe7498f\",\n  \"m:other\": \"74234e98afe7498f\",\n  \"m:empty\": \"74234e98afe7498f\"\n}\n",
       "design/screens/other/a.html": "<html><body><p>x</p></body></html>",
       "design/tokens/tokens.json": null
     },

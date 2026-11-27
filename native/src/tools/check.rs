@@ -54,16 +54,77 @@ pub mod tool {
     pub const TASTE_COPY_LINT: &str = "taste-copy-lint";
 }
 
-/// What became of a tool: the `status` of its result. Every one but `ran` and `skipped` means
-/// the check did not run, and the report says NOT VERIFIED.
+/// What became of a tool: the `status` of its result.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Outcome {
+    Ran,
+    /// Not run because the configuration selects no files or leaves the tool out.
+    Skipped,
+    Unavailable,
+    NotInstalled,
+    Unverifiable,
+    Timeout,
+    Error,
+}
+
+impl Outcome {
+    pub const ALL: [Outcome; 7] = [
+        Outcome::Ran,
+        Outcome::Skipped,
+        Outcome::Unavailable,
+        Outcome::NotInstalled,
+        Outcome::Unverifiable,
+        Outcome::Timeout,
+        Outcome::Error,
+    ];
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Outcome::Ran => "ran",
+            Outcome::Skipped => "skipped",
+            Outcome::Unavailable => "unavailable",
+            Outcome::NotInstalled => "not-installed",
+            Outcome::Unverifiable => "unverifiable",
+            Outcome::Timeout => "timeout",
+            Outcome::Error => "error",
+        }
+    }
+
+    /// The outcome a result's `status` names; `None` for a status no tool gives.
+    pub fn parse(status: &str) -> Option<Outcome> {
+        Outcome::ALL.into_iter().find(|o| o.as_str() == status)
+    }
+
+    /// Whether the check looked: only a run and a configured skip did. No wildcard arm, so a new
+    /// outcome must say here whether it counts as a pass (`errors.md` E8).
+    pub const fn verified(self) -> bool {
+        match self {
+            Outcome::Ran | Outcome::Skipped => true,
+            Outcome::Unavailable
+            | Outcome::NotInstalled
+            | Outcome::Unverifiable
+            | Outcome::Timeout
+            | Outcome::Error => false,
+        }
+    }
+
+    /// Whether a result's `status` is verified; a status no outcome names is not (fail closed).
+    pub fn status_verified(status: &str) -> bool {
+        Outcome::parse(status).is_some_and(Outcome::verified)
+    }
+}
+
+/// The [`Outcome`] names, for the results built as JSON. Every one but `ran` and `skipped`
+/// means the check did not run, and the report says NOT VERIFIED.
 pub mod outcome {
-    pub const RAN: &str = "ran";
-    pub const SKIPPED: &str = "skipped";
-    pub const UNAVAILABLE: &str = "unavailable";
-    pub const NOT_INSTALLED: &str = "not-installed";
-    pub const UNVERIFIABLE: &str = "unverifiable";
-    pub const TIMEOUT: &str = "timeout";
-    pub const ERROR: &str = "error";
+    use super::Outcome;
+    pub const RAN: &str = Outcome::Ran.as_str();
+    pub const SKIPPED: &str = Outcome::Skipped.as_str();
+    pub const UNAVAILABLE: &str = Outcome::Unavailable.as_str();
+    pub const NOT_INSTALLED: &str = Outcome::NotInstalled.as_str();
+    pub const UNVERIFIABLE: &str = Outcome::Unverifiable.as_str();
+    pub const TIMEOUT: &str = Outcome::Timeout.as_str();
+    pub const ERROR: &str = Outcome::Error.as_str();
 }
 
 /// The keys of the external tools' JSON output that are read. Hallmark's sloplint gives

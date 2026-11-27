@@ -1,7 +1,7 @@
 {
   "test": "render: layout check > usage, and --changed with nothing changed (no browser needed)",
   "results": [
-    "{\n  \"c:button.html\": \"b7839ee429880f8f\",\n  \"t:tokens\": \"1d32ebc8c39f0894\",\n  \"f:styles/base.css\": null,\n  \"f:system/head.html\": null,\n  \"s:screens/items/a.html\": \"e809abc67c51002e\"\n}\n",
+    "{\n  \"c:button.html\": \"b7839ee429880f8f\",\n  \"t:tokens\": \"1d32ebc8c39f0894\",\n  \"f:styles/base.css\": null,\n  \"f:system/head.html\": null,\n  \"s:screens/items/a.html\": \"e809abc67c51002e\",\n  \"l:layout\": \"293e6e914dd9ef1b\",\n  \"m:items\": \"74234e98afe7498f\"\n}\n",
     {
       "code": 1,
       "stdout": "",

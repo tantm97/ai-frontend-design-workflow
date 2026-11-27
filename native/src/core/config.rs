@@ -31,7 +31,12 @@ pub mod key {
     pub const ACCESSIBILITY: &str = "accessibility";
     pub const SKILLS: &str = "skills";
     pub const ENV: &str = "env";
+    /// Where telemetry goes and whether it is on (global config only).
+    pub const TELEMETRY: &str = "telemetry";
+    /// The Penpot bridge: `penpot.origins` (global config only).
+    pub const PENPOT: &str = "penpot";
     pub const STUDIO_PORT: &str = "studio.port";
+    pub const STUDIO_BREAKPOINTS: &str = "studio.breakpoints";
     pub const REVIEW_SHORTCUT: &str = "review.shortcut";
     /// The marketplace clone `dfw install --repo` recorded (global config only).
     pub const MARKETPLACE_REPO: &str = "marketplaceRepo";
@@ -100,6 +105,20 @@ pub mod key {
     }
 }
 
+/// The default `gate.immutable`: the frozen snapshots and every [`rel::GATE_STATE`] file.
+fn default_immutable() -> Vec<String> {
+    let gate_state = rel::GATE_STATE.iter().map(|r| {
+        if rel::GATE_STATE_DIRS.contains(r) {
+            all_under(r)
+        } else {
+            r.to_string()
+        }
+    });
+    std::iter::once(all_under(rel::APPROVED))
+        .chain(gate_state)
+        .collect()
+}
+
 /// `DEFAULTS`: the plugin's own layer.
 pub fn defaults() -> Value {
     json!({
@@ -117,15 +136,7 @@ pub fn defaults() -> Value {
             // Frozen snapshots are never writable, nor (by the agent's own tools) the files that
             // hold the gates, approvals, decisions, settings and review comments: dfw commands
             // write those directly. A union across layers: a project cannot drop one.
-            (key::IMMUTABLE): [
-                all_under(rel::APPROVED),
-                rel::STATE,
-                rel::CONFIG,
-                rel::CONFIG_LOCAL,
-                rel::DECISIONS,
-                rel::STACK,
-                all_under(rel::REVIEWS),
-            ],
+            (key::IMMUTABLE): default_immutable(),
         },
         (key::CHECKS): {
             // PostToolUse checks: "fast" (dfw lint), "full" (all tools) or false.
@@ -219,6 +230,87 @@ pub fn filter_project_env(mut layer: Value, file: &Path, warn: &mut dyn FnMut(St
     layer
 }
 
+/// `GLOBAL_ONLY`: the sections only the user's global config may set (`security-privacy.md`
+/// S10): where telemetry goes, who may drive the Penpot bridge, the Impeccable engine opt-in and
+/// the marketplace clone. Their readers read the global file; a project layer loses them in
+/// [`load_config`] too, so a new reader of the merged config cannot take them from a project.
+pub const GLOBAL_ONLY: [&str; 4] = [
+    key::TELEMETRY,
+    key::PENPOT,
+    key::IMPECCABLE,
+    key::MARKETPLACE_REPO,
+];
+
+/// The ends of a key name that choose what runs or where it connects (`bin`, `impeccableBin`,
+/// `command`, `url`, `endpointUrl`): only the global config may set one, at any depth.
+pub const GLOBAL_ONLY_NAMES: [&str; 3] = ["bin", "command", "url"];
+
+/// Whether a project layer may not set the key `name`, by [`GLOBAL_ONLY_NAMES`].
+fn names_what_runs(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    GLOBAL_ONLY_NAMES.iter().any(|end| {
+        lower == *end
+            || name.len() > end.len() && lower.ends_with(end) && {
+                // camelCase (`impeccableBin`) or a separator (`impeccable_bin`, `tool-url`)
+                let at = name.len() - end.len();
+                name[at..].starts_with(|c: char| c.is_ascii_uppercase())
+                    || name[..at].ends_with(['_', '-', '.'])
+            }
+    })
+}
+
+/// `filterProjectGlobalOnly`: a project layer without the [`GLOBAL_ONLY`] sections and the
+/// [`GLOBAL_ONLY_NAMES`] keys; one warning per dropped key, as for `env`.
+pub fn filter_project_global_only(
+    mut layer: Value,
+    file: &Path,
+    warn: &mut dyn FnMut(String),
+) -> Value {
+    fn drop_names(
+        map: &mut Map<String, Value>,
+        at: &str,
+        file: &str,
+        warn: &mut dyn FnMut(String),
+    ) {
+        let names: Vec<String> = map.keys().cloned().collect();
+        for name in names {
+            let dotted = if at.is_empty() {
+                name.clone()
+            } else {
+                format!("{at}.{name}")
+            };
+            if names_what_runs(&name) {
+                map.remove(&name);
+                warn(global_only_warning(&dotted, "", file));
+            } else if let Some(Value::Object(inner)) = map.get_mut(&name) {
+                drop_names(inner, &dotted, file, warn);
+            }
+        }
+    }
+    let Some(map) = layer.as_object_mut() else {
+        return layer;
+    };
+    let file = file.display().to_string();
+    for section in GLOBAL_ONLY {
+        if map.remove(section).is_some() {
+            warn(global_only_warning(section, ".<key>", &file));
+        }
+    }
+    drop_names(map, "", &file, warn);
+    layer
+}
+
+/// The warning for a dropped global-only key; `rest` completes the key `dfw config set` takes.
+fn global_only_warning(dotted: &str, rest: &str, file: &str) -> String {
+    format!("dfw: ignored {dotted} in {file} (a project config cannot set it; use the global config: dfw config set {dotted}{rest} <value> --global)")
+}
+
+/// A project layer as [`load_config`] merges it: the `env` it may set, nothing global-only.
+fn project_layer(file: &Path, warn: &mut dyn FnMut(String)) -> Result<Value, DfwError> {
+    let layer = filter_project_env(read_layer(file)?, file, warn);
+    Ok(filter_project_global_only(layer, file, warn))
+}
+
 /// `readLayer(file)`: a config file's content (`{}` when missing); anything but a JSON object is
 /// the user's error to fix.
 fn read_layer(file: &Path) -> Result<Value, DfwError> {
@@ -239,6 +331,12 @@ pub fn load_config(root: Option<&Path>) -> Result<Value, DfwError> {
     load_config_from(&global_config_path(), root, &mut |m| eprintln!("{m}"))
 }
 
+/// [`load_config`] without the warnings, for a reader that runs after a command already loaded
+/// the config and said what it dropped (the layout cache in the stop hook).
+pub fn load_config_quietly(root: &Path) -> Result<Value, DfwError> {
+    load_config_from(&global_config_path(), Some(root), &mut |_| {})
+}
+
 /// [`load_config`] with the global file and the warning sink given, so tests need no environment
 /// variable.
 fn load_config_from(
@@ -250,12 +348,8 @@ fn load_config_from(
     // An empty root is falsy in Node: no project layers.
     if let Some(root) = root.filter(|r| !r.as_os_str().is_empty()) {
         let p = project_paths(root);
-        layers.push(filter_project_env(read_layer(&p.config)?, &p.config, warn));
-        layers.push(filter_project_env(
-            read_layer(&p.config_local)?,
-            &p.config_local,
-            warn,
-        ));
+        layers.push(project_layer(&p.config, warn)?);
+        layers.push(project_layer(&p.config_local, warn)?);
     }
     let mut merged = Value::Object(Map::new());
     for layer in &layers {
@@ -442,7 +536,7 @@ impl Breakpoint {
 
 /// `studio.breakpoints`; entries that are not breakpoints are left out.
 pub fn studio_breakpoints(config: &Value) -> Vec<Breakpoint> {
-    let items = get_path(config, "studio.breakpoints").and_then(Value::as_array);
+    let items = get_path(config, key::STUDIO_BREAKPOINTS).and_then(Value::as_array);
     items
         .map(|list| list.iter().filter_map(Breakpoint::from_value).collect())
         .unwrap_or_default()
@@ -573,15 +667,13 @@ mod tests {
         );
         let c = load(&root).unwrap();
         let state = new_state("new-product", "".into()).unwrap();
-        for file in [
-            rel::STATE,
-            rel::CONFIG,
-            rel::CONFIG_LOCAL,
-            rel::DECISIONS,
-            rel::STACK,
-            &rel::join(rel::REVIEWS, REVIEW_SESSION),
-        ] {
-            let d = decide_write(&root, Some(&state), &c, &root.join(file)).unwrap();
+        for gate_file in rel::GATE_STATE {
+            let file = if rel::GATE_STATE_DIRS.contains(&gate_file) {
+                rel::join(gate_file, REVIEW_SESSION)
+            } else {
+                gate_file.to_string()
+            };
+            let d = decide_write(&root, Some(&state), &c, &root.join(&file)).unwrap();
             assert!(!d.allow, "{file}");
             assert!(
                 d.reason.unwrap().contains("only dfw commands change it"),
@@ -865,6 +957,80 @@ mod tests {
             "allowed keys do not warn"
         );
         assert_eq!(warnings[0], format!("dfw: ignored env.IMPECCABLE_BIN in {project_file} (a project config cannot set it; use the global config: dfw config set env.IMPECCABLE_BIN <value> --global)"));
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    /// A project layer cannot set a global-only section or a key that names what runs or where
+    /// it connects, at any depth; the global config can (`security-privacy.md` S10).
+    #[test]
+    fn project_layers_cannot_set_global_only_keys() {
+        let project_text = r#"{"telemetry":{"endpoint":"http://evil.example"},"penpot":{"origins":["http://evil.example"]},"impeccable":{"allowUnverifiedEngine":true},"marketplaceRepo":"/repo","checks":{"impeccableBin":"/repo/x","tool_url":"x","maxFindings":3},"review":{"command":"x","shortcut":"off"},"studio":{"url":"x","port":4700}}"#;
+        let root = project(
+            "config-global-only",
+            Some(project_text),
+            Some(r#"{"x":{"y":{"bin":"/repo/b"}}}"#),
+        );
+        let global = root.join("home-config.json");
+        /// The address the global config names.
+        const TRUSTED: &str = "https://ok.example";
+        fs::write(&global, r#"{"telemetry":{"endpoint":"https://ok.example"},"penpot":{"origins":["https://ok.example"]},"checks":{"impeccableBin":"/usr/bin/x"}}"#).unwrap();
+        let mut warnings = Vec::new();
+        let c = load_config_from(&global, Some(&root), &mut |m| warnings.push(m)).unwrap();
+        assert_eq!(c[key::TELEMETRY], json!({ "endpoint": TRUSTED }));
+        assert_eq!(c[key::PENPOT], json!({ "origins": [TRUSTED] }));
+        assert_eq!(c.get(key::IMPECCABLE), None);
+        assert_eq!(c.get(key::MARKETPLACE_REPO), None);
+        assert_eq!(
+            c[key::CHECKS]["impeccableBin"],
+            "/usr/bin/x",
+            "the global value stays"
+        );
+        assert_eq!(c[key::CHECKS].get("tool_url"), None);
+        assert_eq!(
+            c[key::CHECKS][key::MAX_FINDINGS],
+            3,
+            "other keys of the section stay"
+        );
+        assert_eq!(c[key::REVIEW].get("command"), None);
+        assert_eq!(c[key::REVIEW][key::SHORTCUT], "off");
+        assert_eq!(c[key::STUDIO].get("url"), None);
+        assert_eq!(c[key::STUDIO][key::PORT], 4700);
+        assert_eq!(c["x"]["y"], json!({}));
+        let project_file = project_paths(&root).config.display().to_string();
+        let local_file = project_paths(&root).config_local.display().to_string();
+        let dropped = [
+            "telemetry ",
+            "penpot ",
+            "impeccable ",
+            "marketplaceRepo ",
+            "checks.impeccableBin ",
+            "checks.tool_url ",
+            "review.command ",
+            "studio.url ",
+        ];
+        for k in dropped {
+            let n = warnings
+                .iter()
+                .filter(|w| w.contains(&format!("ignored {k}")) && w.contains(&project_file))
+                .count();
+            assert_eq!(n, 1, "one warning for {k}naming the file: {warnings:?}");
+        }
+        assert!(warnings
+            .iter()
+            .any(|w| w.contains("ignored x.y.bin ") && w.contains(&local_file)));
+        assert_eq!(warnings.len(), dropped.len() + 1);
+        assert_eq!(warnings[0], format!("dfw: ignored telemetry in {project_file} (a project config cannot set it; use the global config: dfw config set telemetry.<key> <value> --global)"));
+        for name in [
+            "shortcut",
+            "maxFindings",
+            "breakpoints",
+            "debug",
+            "Url2",
+            "curl",
+            "cabin",
+        ] {
+            assert!(!names_what_runs(name), "{name}");
+        }
         fs::remove_dir_all(&root).unwrap();
     }
 

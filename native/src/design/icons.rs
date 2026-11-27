@@ -121,7 +121,12 @@ pub fn add_icons(root: &Path, names: &[String]) -> Result<AddedIcons, DfwError> 
     for n in names {
         match icon_svg(&bundle, n) {
             Some(svg) => {
-                write_atomic_inside(root, &dir.join(file::icon(n)), svg)?;
+                // An icon already in the project is the user's version, maybe edited: it stays
+                // (`design-files.md` D7).
+                let to = dir.join(file::icon(n));
+                if !to.exists() {
+                    write_atomic_inside(root, &to, svg)?;
+                }
                 added.push(n.clone());
             }
             None => missing.push(n.clone()),

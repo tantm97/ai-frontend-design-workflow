@@ -172,11 +172,11 @@ pub fn system_init(root: &Path, opts: &InitOptions) -> Result<SystemInit, DfwErr
     })
 }
 
-/// Remove the option themes (`opt-*`) of a themes folder.
-fn remove_options(themes_dir: &Path) -> Result<(), DfwError> {
+/// Remove the option themes (`opt-*`) of a themes folder, but the files named in `keep`.
+fn remove_options(themes_dir: &Path, keep: &[String]) -> Result<(), DfwError> {
     for f in dir_names(themes_dir)?
         .iter()
-        .filter(|f| option::is_option(f))
+        .filter(|f| option::is_option(f) && !keep.contains(f))
     {
         fs::remove_file(themes_dir.join(f))?;
     }
@@ -235,17 +235,25 @@ pub fn system_options(root: &Path, names: &[String], fonts: &str) -> Result<Vec<
     let p = project_paths(root);
     let themes_dir = &p.themes;
     fs::create_dir_all(themes_dir)?;
-    remove_options(themes_dir)?;
+    // An option of the last comparison that the new one names again is the user's version: its
+    // edits stay (`design-files.md` D7); the other options go.
+    let files: Vec<String> = options.iter().map(|o| format!("{o}.json")).collect();
+    remove_options(themes_dir, &files)?;
     let mut heads = Vec::new();
-    for (n, option) in names.iter().zip(&options) {
-        let theme = themes_dir.join(format!("{option}.json"));
+    for (n, name) in names.iter().zip(&files) {
+        let theme = themes_dir.join(name);
+        let kept = theme.exists();
         let head = if is_style(n) {
             let g = get_style(n)?;
-            write_json_inside(root, &theme, &style_tokens(&g, fonts)?)?;
+            if !kept {
+                write_json_inside(root, &theme, &style_tokens(&g, fonts)?)?;
+            }
             head_for(&g, fonts)
         } else {
             let (tokens, head) = preset_files(n)?;
-            write_atomic_inside(root, &theme, &tokens)?;
+            if !kept {
+                write_atomic_inside(root, &theme, &tokens)?;
+            }
             head
         };
         heads.push(js::trim(&js::strip_comments(&head)).to_string());
@@ -325,7 +333,7 @@ pub fn system_choose(root: &Path, name: &str, fonts: &str) -> Result<String, Dfw
         write_atomic_inside(root, tok_file, tokens)?;
         write_atomic_inside(root, &p.head, head)?;
     }
-    remove_options(&p.themes)?;
+    remove_options(&p.themes, &[])?;
     set_manifest_themes(root, &p.manifest, &[])?;
     build_tokens(root)?;
     build_system(root)?;
