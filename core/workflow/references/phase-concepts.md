@@ -19,6 +19,8 @@ Skills (budget): base `frontend-design:frontend-design`; product UI support `ui-
 
    Page layout follows the pencil.dev convention: a page per module with a title + description, one row per breakpoint, a Variants row, a States row, and annotation notes (`pages[].notes`, `sections[].notes`: spec notes such as sizes, rules, pending decisions) next to the rows.
 
+**Adding a screen later** (screens already exist, during review or after G2): follow `references/phase-concepts-add-screen.md` (place it in its page and flow, `dfw screen add`, link it both ways).
+
 **Editing in small steps without drift:** every change goes to the narrowest owner (token → master → page variant → screen). After editing a master, every screen using it is re-rendered by the Stop hook; never patch one screen to compensate for a master (that is how screens drift apart).
 
 Speed rules: compose from components (short files); never re-read files you just wrote; batch screenshots (one `dfw shoot` per page); do not run full `dfw check` after every small edit; parallelise independent pages.
