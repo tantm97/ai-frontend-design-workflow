@@ -7,18 +7,30 @@
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use serde_json::{json, Value};
 
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{file, project_paths, rel};
-use crate::core::util::{read_json, write_json_inside};
-use crate::review::status::{self, by, field, Status};
+use crate::core::process::{is_alive, Pid};
+use crate::core::util::{now_iso, read_json};
+use crate::design::pages::page;
+use crate::review::status::{self, by, field, listening, Status};
 
 use super::comments::{all_comments, locked, try_locked, write_reviews, Held};
+
+/// The command the agent keeps running in the background while the user reviews in the Studio.
+pub const WAIT_COMMAND: &str = "dfw comments wait --timeout 3600";
+
+/// How long `dfw comments wait` waits when `--timeout` names no number, in seconds.
+pub const WAIT_SECONDS: f64 = 3600.0;
+
+/// Where a comment on the Design System page is, in the text for the agent.
+const DESIGN_SYSTEM: &str = "design system";
 
 /// How many delivery keys are kept.
 const MAX_DELIVERED: usize = 2000;
@@ -124,8 +136,26 @@ pub fn take_undelivered(root: &Path, hook: bool) -> Result<Vec<Value>, DfwError>
     }
 }
 
+/// "in the background", with the host's words for a background command when they are known
+/// (the `{{BACKGROUND}}` text of the host table).
+pub fn in_background(background: Option<&str>) -> String {
+    background.map_or("in the background".to_string(), |how| {
+        format!("in the background ({how})")
+    })
+}
+
+/// The last sentence of every batch of comments: re-arm the wait, so the next "Send to AI" in
+/// the Studio wakes the agent again.
+pub fn re_arm(background: Option<&str>) -> String {
+    format!(
+        "Then, before you end your turn, start \"{WAIT_COMMAND}\" again {} so the user's next Studio comments wake you.",
+        in_background(background)
+    )
+}
+
 /// `formatForClaude(comments)`: the comments as the text the agent reads, with what to do next.
-pub fn format_for_claude(comments: &[Value]) -> String {
+/// `background` is the host's wording for a background command (`None`: not known).
+pub fn format_for_claude(comments: &[Value], background: Option<&str>) -> String {
     let lines: Vec<String> = comments
         .iter()
         .map(|c| {
@@ -139,10 +169,18 @@ pub fn format_for_claude(comments: &[Value]) -> String {
             .iter()
             .filter_map(|k| js::truthy_value(c.get(k)))
             .map(|v| js::to_string(Some(v)))
+            // The Studio's Design System page is the screen `system`.
+            .map(|v| {
+                if v == page::SYSTEM {
+                    DESIGN_SYSTEM.to_string()
+                } else {
+                    v
+                }
+            })
             .collect();
             let place = place.join(" / ");
             let place = if place.is_empty() {
-                "design system"
+                DESIGN_SYSTEM
             } else {
                 &place
             };
@@ -188,9 +226,10 @@ pub fn format_for_claude(comments: &[Value]) -> String {
         ""
     };
     format!(
-        "{} new Studio comment(s) from the user:\n{}{live}\nApply them now (references/phase-review.md > \"Applying comments\"): \"dfw comments ack <id>\", fix (prefer design-system fixes when the comment is about a component or token), check, then \"dfw comments fixed <id> --message \\\"<what changed>\\\"\". If a comment conflicts with an approved decision or is ambiguous, reply with \"dfw comments reply <id> --message ...\" and ask the user.",
+        "{} new Studio comment(s) from the user:\n{}{live}\nApply them now (references/phase-review.md > \"Applying comments\"): \"dfw comments ack <id>\", fix (prefer design-system fixes when the comment is about a component or token), check, then \"dfw comments fixed <id> --message \\\"<what changed>\\\"\". If a comment conflicts with an approved decision or is ambiguous, reply with \"dfw comments reply <id> --message ...\" and ask the user (they answer in the Studio).\n{}",
         comments.len(),
-        lines.join("\n")
+        lines.join("\n"),
+        re_arm(background)
     )
 }
 
@@ -208,7 +247,7 @@ pub struct WaitOptions {
 impl Default for WaitOptions {
     fn default() -> Self {
         WaitOptions {
-            timeout_ms: 3_600_000.0,
+            timeout_ms: WAIT_SECONDS * 1000.0,
             poll_ms: 1000,
             settle_ms: 1500,
         }
@@ -219,38 +258,149 @@ fn listening_file(root: &Path) -> PathBuf {
     project_paths(root).reviews.join(file::REVIEWS_LISTENING)
 }
 
-/// The marker of a running `dfw comments wait`, removed when the wait ends (also on an error).
-struct Listening(PathBuf);
+/// The entries of `.listening.json`, one per running wait. A marker of an older dfw (one
+/// object) is one entry; a missing or unreadable file is none (the file is dfw's own, and a
+/// wait that cannot read it starts a new list).
+fn listeners(root: &Path) -> Vec<Value> {
+    match read_json(&listening_file(root), Some(Value::Null)) {
+        Ok(Value::Array(list)) => list,
+        Ok(one @ Value::Object(_)) => vec![one],
+        _ => Vec::new(),
+    }
+}
+
+/// Whether the process of a listening entry still runs.
+fn entry_alive(entry: &Value) -> bool {
+    Pid::of(entry.get(listening::PID)).is_some_and(is_alive)
+}
+
+/// Waits started by this process, so two waits of one process (threads of a test) keep two
+/// entries.
+static WAITS: AtomicU64 = AtomicU64::new(0);
+
+/// The entry of a running `dfw comments wait` in `.listening.json`, removed when the wait ends
+/// (also on an error). Each wait adds and removes only its own entry, under the reviews lock, so
+/// a second wait never ends the first one's; entries of processes that are gone are dropped by
+/// every write.
+struct Listening {
+    root: PathBuf,
+    token: String,
+}
 
 impl Listening {
     fn start(root: &Path) -> Result<Self, DfwError> {
-        let file = listening_file(root);
-        let marker = json!({ (status::listening::PID): std::process::id(), (status::listening::SINCE): crate::core::util::now_iso() });
-        write_json_inside(root, &file, &marker)?;
-        Ok(Listening(file))
+        let pid = std::process::id();
+        let token = format!("{pid}.{}", WAITS.fetch_add(1, Ordering::Relaxed));
+        let entry = json!({ (listening::PID): pid, (listening::SINCE): now_iso(), (listening::TOKEN): token });
+        locked(root, |held| {
+            let mut list: Vec<Value> = listeners(root).into_iter().filter(entry_alive).collect();
+            list.push(entry);
+            write_reviews(held, root, &listening_file(root), &Value::Array(list))
+        })?;
+        Ok(Listening {
+            root: root.to_path_buf(),
+            token,
+        })
+    }
+
+    fn stop(&self) -> Result<(), DfwError> {
+        locked(&self.root, |held| {
+            let mine = Some(&Value::String(self.token.clone()));
+            let list: Vec<Value> = listeners(&self.root)
+                .into_iter()
+                .filter(|e| e.get(listening::TOKEN) != mine && entry_alive(e))
+                .collect();
+            let file = listening_file(&self.root);
+            if list.is_empty() {
+                // The last wait leaves no file behind.
+                return match std::fs::remove_file(&file) {
+                    Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.into()),
+                    _ => Ok(()),
+                };
+            }
+            write_reviews(held, &self.root, &file, &Value::Array(list))
+        })
     }
 }
 
 impl Drop for Listening {
     fn drop(&mut self) {
-        // A marker left behind (killed process) is ignored by `is_listening`: its pid is gone.
-        let _ = std::fs::remove_file(&self.0);
+        // A drop cannot fail: an entry left behind is ignored by `is_listening` once its process
+        // is gone, and dropped by the next wait.
+        let _ = self.stop();
     }
 }
 
 /// `isListening(root)`: whether a `dfw comments wait` is running for this project, so the Studio
-/// can tell the user whether a sent comment wakes Claude now or with their next message.
+/// can tell the user whether a sent comment wakes the agent now or with their next message.
+/// Reads only: entries of processes that are gone are ignored, never removed here (the Studio
+/// asks on a GET, which writes nothing).
 pub fn is_listening(root: &Path) -> bool {
-    read_json(&listening_file(root), Some(Value::Null))
-        .ok()
-        .is_some_and(|m| {
-            crate::core::process::Pid::of(m.get(status::listening::PID))
-                .is_some_and(crate::core::process::is_alive)
+    listeners(root).iter().any(entry_alive)
+}
+
+/// What the Studio tells the user about the agent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Listener {
+    /// A `dfw comments wait` runs: a sent comment wakes the agent.
+    Listening,
+    /// Nobody listens, but the agent was given comments it has not finished and was active
+    /// within [`WORKING_WINDOW`]: it is between waking and re-arming.
+    Working,
+    /// Sent comments wait for the agent's next turn.
+    Off,
+}
+
+/// How recent the agent's last delivery or design edit must be to count as working.
+pub const WORKING_WINDOW: Duration = Duration::from_secs(10 * 60);
+
+/// Every comment of the project with [`field::DELIVERED`]: whether its current state was given
+/// to the agent (a draft never is; a comment that is no news, such as a fixed one, counts as
+/// given). Computed, never stored.
+pub fn with_delivery(root: &Path) -> Result<Vec<Value>, DfwError> {
+    let news: HashSet<String> = undelivered(root)?.iter().map(key).collect();
+    Ok(all_comments(root)?
+        .into_iter()
+        .map(|mut c| {
+            let given = c.get(field::DRAFT) != Some(&Value::Bool(true)) && !news.contains(&key(&c));
+            if let Value::Object(o) = &mut c {
+                o.insert(field::DELIVERED.into(), Value::Bool(given));
+            }
+            c
         })
+        .collect())
+}
+
+/// Whether a file changed within [`WORKING_WINDOW`] of `now`.
+fn recent(path: &Path, now: SystemTime) -> bool {
+    std::fs::metadata(path)
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|at| now.duration_since(at).ok())
+        .is_some_and(|age| age < WORKING_WINDOW)
+}
+
+/// [`Listener`] of the project. Reads only.
+pub fn listener(root: &Path) -> Result<Listener, DfwError> {
+    if is_listening(root) {
+        return Ok(Listener::Listening);
+    }
+    let busy = with_delivery(root)?.iter().any(|c| {
+        c.get(field::DELIVERED) == Some(&Value::Bool(true))
+            && status::of(c).is_some_and(Status::is_active)
+    });
+    let now = SystemTime::now();
+    let active = recent(&delivered_file(root), now) || recent(&project_paths(root).presence, now);
+    Ok(if busy && active {
+        Listener::Working
+    } else {
+        Listener::Off
+    })
 }
 
 /// `waitForComments(root, { timeoutMs, pollMs, settleMs })`: block until undelivered comments
-/// exist (or the timeout passes). Returns the comments, marked delivered.
+/// exist (or the timeout passes). Returns the comments, marked delivered. Comments another
+/// reader (a hook) took during the settle time are not this wait's: it goes on waiting.
 pub fn wait_for_comments(root: &Path, options: WaitOptions) -> Result<Vec<Value>, DfwError> {
     let _listening = Listening::start(root)?;
     let start = Instant::now();
@@ -259,7 +409,11 @@ pub fn wait_for_comments(root: &Path, options: WaitOptions) -> Result<Vec<Value>
         if !undelivered(root)?.is_empty() {
             // Let the user finish a burst of comments before waking the agent.
             thread::sleep(Duration::from_millis(options.settle_ms));
-            return take_undelivered(root, false);
+            let got = take_undelivered(root, false)?;
+            if !got.is_empty() {
+                return Ok(got);
+            }
+            continue;
         }
         thread::sleep(Duration::from_millis(options.poll_ms));
     }
@@ -412,7 +566,7 @@ mod tests {
         let id = c[field::ID].as_str();
         let list = undelivered(&root).unwrap();
         assert_eq!(
-            format_for_claude(&list).lines().nth(1).unwrap(),
+            format_for_claude(&list, None).lines().nth(1).unwrap(),
             "- fb_001 [open] items / a -> tr.low component table"
         );
         mark_delivered(&root, &list).unwrap();
@@ -428,7 +582,7 @@ mod tests {
             },
         )
         .unwrap();
-        let text = format_for_claude(&undelivered(&root).unwrap());
+        let text = format_for_claude(&undelivered(&root).unwrap(), None);
         assert!(
             text.contains("\n    follow-up by user: \"Also the header\""),
             "{text}"
@@ -445,7 +599,7 @@ mod tests {
             &update(Status::Reopened, Some("Still too small"), Some(by::USER)),
         )
         .unwrap();
-        let text = format_for_claude(&undelivered(&root).unwrap());
+        let text = format_for_claude(&undelivered(&root).unwrap(), None);
         assert!(
             text.contains("reopened by user: \"Still too small\""),
             "{text}"
@@ -460,9 +614,150 @@ mod tests {
             json!({ "id": "fb_002", "status": open, "comment": "x", "provider": "dfw-live" }),
         ];
         assert_eq!(
-            format_for_claude(&comments),
-            format!("2 new Studio comment(s) from the user:\n- fb_001 [open] home / mobile / dark -> home.cta ({}:3)\n    \"Bigger\"\n- fb_002 [open] design system -> ?\n    \"x\"\nComments marked \"live\" are on the running app (dfw review): open target.source (file:line:col) and fix the implementation there; without a source, find the element by its selector and text (phase-verify).\nApply them now (references/phase-review.md > \"Applying comments\"): \"dfw comments ack <id>\", fix (prefer design-system fixes when the comment is about a component or token), check, then \"dfw comments fixed <id> --message \\\"<what changed>\\\"\". If a comment conflicts with an approved decision or is ambiguous, reply with \"dfw comments reply <id> --message ...\" and ask the user.", rel::screen(SCREEN_PAGE))
+            format_for_claude(&comments, None),
+            format!("2 new Studio comment(s) from the user:\n- fb_001 [open] home / mobile / dark -> home.cta ({}:3)\n    \"Bigger\"\n- fb_002 [open] design system -> ?\n    \"x\"\nComments marked \"live\" are on the running app (dfw review): open target.source (file:line:col) and fix the implementation there; without a source, find the element by its selector and text (phase-verify).\nApply them now (references/phase-review.md > \"Applying comments\"): \"dfw comments ack <id>\", fix (prefer design-system fixes when the comment is about a component or token), check, then \"dfw comments fixed <id> --message \\\"<what changed>\\\"\". If a comment conflicts with an approved decision or is ambiguous, reply with \"dfw comments reply <id> --message ...\" and ask the user (they answer in the Studio).\nThen, before you end your turn, start \"dfw comments wait --timeout 3600\" again in the background so the user's next Studio comments wake you.", rel::screen(SCREEN_PAGE))
         );
+    }
+
+    /// A comment on the Design System page is placed as "design system", and the host's words
+    /// for a background command end the text.
+    #[test]
+    fn design_system_comments_say_design_system() {
+        let comments = [
+            json!({ "id": "fb_003", "status": Status::Open.as_str(), "screen": page::SYSTEM, "theme": "dark", "target": { "dfwId": "system.button" }, "comment": "Rounder" }),
+        ];
+        let text = format_for_claude(&comments, Some("Bash `run_in_background`"));
+        assert_eq!(
+            text.lines().nth(1),
+            Some("- fb_003 [open] design system / dark -> system.button")
+        );
+        assert!(
+            text.ends_with("again in the background (Bash `run_in_background`) so the user's next Studio comments wake you."),
+            "{text}"
+        );
+    }
+
+    /// Polls `done` until it holds or 10 s pass (testing.md T12).
+    fn eventually(done: impl Fn() -> bool) -> bool {
+        let end = Instant::now() + Duration::from_secs(10);
+        while !done() && Instant::now() < end {
+            thread::sleep(Duration::from_millis(10));
+        }
+        done()
+    }
+
+    fn entries(root: &Path) -> usize {
+        listeners(root).len()
+    }
+
+    /// Two waits keep one entry each: the one that ends removes only its own (the first wait
+    /// was reported not listening while it still ran).
+    #[test]
+    fn two_waits_share_the_marker() {
+        let root = project("inbox-two-waits");
+        let long = {
+            let root = root.clone();
+            thread::spawn(move || wait_for_comments(&root, quick(60_000.0, 20)).unwrap())
+        };
+        assert!(eventually(|| entries(&root) == 1));
+        let short = {
+            let root = root.clone();
+            thread::spawn(move || wait_for_comments(&root, quick(300.0, 20)).unwrap())
+        };
+        assert!(eventually(|| entries(&root) == 2));
+        assert!(short.join().unwrap().is_empty(), "the short wait times out");
+        assert_eq!(entries(&root), 1, "only its own entry went");
+        assert!(is_listening(&root), "the long wait still listens");
+        add_comment(&root, &json!({ "comment": "wake up" })).unwrap();
+        assert_eq!(long.join().unwrap().len(), 1);
+        assert!(
+            !listening_file(&root).exists(),
+            "the last wait leaves no file"
+        );
+    }
+
+    /// An entry of a process that is gone does not listen, and the next wait drops it; an
+    /// older dfw's single object is read.
+    #[test]
+    fn a_dead_entry_is_not_listening_and_is_dropped_by_the_next_wait() {
+        let root = project("inbox-dead-entry");
+        std::fs::create_dir_all(project_paths(&root).reviews).unwrap();
+        let dead = json!([{ (listening::PID): 2_147_483_646u32 }]);
+        std::fs::write(listening_file(&root), dead.to_string()).unwrap();
+        assert!(!is_listening(&root));
+        assert_eq!(entries(&root), 1, "a read removes nothing");
+        let old = json!({ (listening::PID): std::process::id() });
+        std::fs::write(listening_file(&root), old.to_string()).unwrap();
+        assert!(is_listening(&root), "the marker of an older dfw");
+        std::fs::write(listening_file(&root), dead.to_string()).unwrap();
+        let waiter = {
+            let root = root.clone();
+            thread::spawn(move || wait_for_comments(&root, quick(60_000.0, 20)).unwrap())
+        };
+        assert!(eventually(|| is_listening(&root)));
+        let list = listeners(&root);
+        assert_eq!(list.len(), 1, "{list:?}");
+        assert_eq!(list[0][listening::PID], std::process::id());
+        add_comment(&root, &json!({ "comment": "end" })).unwrap();
+        waiter.join().unwrap();
+    }
+
+    /// Comments a hook took during the settle time are not the wait's: it goes on until the
+    /// next comment (it printed "No new comments before the timeout" at once).
+    #[test]
+    fn a_wait_keeps_waiting_when_a_hook_took_its_comments() {
+        let root = project("inbox-hook-took");
+        let options = WaitOptions {
+            timeout_ms: 60_000.0,
+            poll_ms: 10,
+            // Long, so the hook below takes the comment inside it even on a slow runner.
+            settle_ms: 2000,
+        };
+        let waiter = {
+            let root = root.clone();
+            thread::spawn(move || wait_for_comments(&root, options).unwrap())
+        };
+        assert!(eventually(|| is_listening(&root)));
+        add_comment(&root, &json!({ "comment": "taken by the hook" })).unwrap();
+        // Inside the settle time: the wait has seen the comment (it polls every 10 ms). If a
+        // slow runner had not yet, the wait still must not end empty.
+        thread::sleep(Duration::from_millis(150));
+        let taken = take_undelivered(&root, true).unwrap().len();
+        let later = "sent later";
+        add_comment(&root, &json!({ "comment": later })).unwrap();
+        let got = waiter.join().unwrap();
+        assert_eq!(taken, 1, "the hook took the first comment");
+        assert_eq!(got.len(), 1);
+        assert_eq!(got[0][field::COMMENT], later);
+    }
+
+    /// Delivered and still open: the agent is working; fixed, or long ago: it is not.
+    #[test]
+    fn working_after_a_delivery_until_fixed() {
+        let root = project("inbox-working");
+        assert_eq!(listener(&root).unwrap(), Listener::Off);
+        let c = add_comment(&root, &json!({ "comment": "Bigger" })).unwrap();
+        let id = c[field::ID].as_str();
+        assert_eq!(listener(&root).unwrap(), Listener::Off, "not given yet");
+        assert_eq!(with_delivery(&root).unwrap()[0][field::DELIVERED], false);
+        take_undelivered(&root, false).unwrap();
+        assert_eq!(with_delivery(&root).unwrap()[0][field::DELIVERED], true);
+        assert_eq!(listener(&root).unwrap(), Listener::Working);
+        update_comment(&root, id, &update(Status::Acknowledged, None, None)).unwrap();
+        assert_eq!(listener(&root).unwrap(), Listener::Working, "acknowledged");
+        update_comment(&root, id, &update(Status::Fixed, Some("done"), None)).unwrap();
+        assert_eq!(
+            listener(&root).unwrap(),
+            Listener::Off,
+            "nothing left to do"
+        );
+        let draft = add_comment(&root, &json!({ "comment": "later", "draft": true })).unwrap();
+        let shown = with_delivery(&root).unwrap();
+        let draft = shown
+            .iter()
+            .find(|c| c[field::ID] == draft[field::ID])
+            .unwrap();
+        assert_eq!(draft[field::DELIVERED], false, "a draft is never delivered");
     }
 
     #[test]

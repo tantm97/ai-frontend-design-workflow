@@ -3,12 +3,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  canReply,
+  commentLabel,
   esc,
   frameCount,
   frameSrc,
   inFilter,
   layerParents,
   layoutScope,
+  listenerState,
   own,
   pageModel,
   pinsOf,
@@ -162,6 +165,31 @@ test('studio-app-model: statusLabel reads own keys only, so an unknown status co
   assert.equal(typeof statusLabel('valueOf'), 'string');
   // The label is text; markup from a status is escaped where it reaches innerHTML.
   assert.equal(esc(statusLabel('<img src=x onerror=alert(1)>')), '&lt;img src=x onerror=alert(1)&gt;');
+});
+
+test('studio-app-model: a sent comment says whether the agent received it; a draft and other statuses keep their words', () => {
+  assert.equal(commentLabel({ status: 'open', draft: true, delivered: false }), 'Draft · not sent yet');
+  assert.equal(commentLabel({ status: 'open', delivered: false }), 'Sent · waiting for the AI');
+  assert.equal(commentLabel({ status: 'reopened', delivered: true }), 'Received by the AI');
+  assert.equal(commentLabel({ status: 'acknowledged', delivered: true }), 'AI is working');
+  assert.equal(commentLabel({ status: 'open' }), 'Open · waiting for the AI', 'an older server sends no delivery');
+  assert.equal(commentLabel({ status: 'open', delivered: 'yes' }), 'Open · waiting for the AI', 'only a boolean counts');
+});
+
+test('studio-app-model: the user can reply on sent comments still with the agent', () => {
+  assert.equal(canReply({ status: 'open' }), true);
+  assert.equal(canReply({ status: 'acknowledged' }), true);
+  assert.equal(canReply({ status: 'reopened' }), true);
+  assert.equal(canReply({ status: 'open', draft: true }), false, 'a draft is the user’s own');
+  for (const status of ['fixed', 'resolved', 'dismissed']) assert.equal(canReply({ status }), false, status);
+});
+
+test('studio-app-model: the listener state of the listening route, anything else is off', () => {
+  assert.equal(listenerState({ listening: true, working: true }), 'listening');
+  assert.equal(listenerState({ listening: false, working: true }), 'working');
+  assert.equal(listenerState({ listening: false, working: false }), 'off');
+  assert.equal(listenerState({ listening: true }), 'listening', 'an older server sends no working');
+  for (const odd of [null, undefined, 'listening', { listening: 'true' }, []]) assert.equal(listenerState(odd), 'off');
 });
 
 test('studio-app-model: own returns a table value only for an own string key', () => {

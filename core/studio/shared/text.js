@@ -15,11 +15,23 @@ export const TEXT = Object.freeze({
   draftLabel: 'Draft · not sent yet',
   sendButton: (/** @type {number} */ drafts) => (drafts ? `Send to AI (${drafts})` : 'Send to AI'),
   sentListening: (/** @type {number} */ n) => `Sent ${n} comment${plural(n)} to the AI.`,
-  sentNotListening: (/** @type {number} */ n) => `Sent ${n} comment${plural(n)}. The AI gets them with your next message in the terminal.`,
+  sentWorking: (/** @type {number} */ n) =>
+    `Sent ${n} comment${plural(n)}. The AI is still working on earlier comments; it gets these when it is done.`,
+  sentQueued: 'Saved and queued. The AI is not listening right now; it gets them with your next message.',
   noDrafts: 'No drafts to send.',
   /** Markup: `<b>` names the state (studio-ui.md U1). */
   listeningHtml: '<b>The AI is listening.</b> Sent comments wake it at once.',
-  notListeningHtml: '<b>The AI is not listening.</b> Sent comments reach it with your next message in the terminal.',
+  workingHtml: '<b>The AI is working on your comments.</b> It listens again when it is done; new comments wait for it.',
+  notListeningHtml:
+    '<b>The AI is not listening.</b> Your comments are saved. Ask the AI to listen to Studio comments (or send any message) and they reach it at once.',
+  /** What the Copy button puts on the clipboard, for the user to paste to the agent. */
+  listenRequest: 'Listen to my Studio comments.',
+  copiedRequest: 'Copied. Paste it to the AI.',
+  copyFailed: (/** @type {string} */ text) => `Could not copy. Send the AI: ${text}`,
+  sentLabel: 'Sent · waiting for the AI',
+  receivedLabel: 'Received by the AI',
+  replyButton: 'Reply',
+  replyPlaceholder: 'Your answer (sent to the AI at once)',
   agentWorking: (/** @type {string} */ n) => `The AI is working on #${n}.`,
   agentFixed: (/** @type {string} */ n) => `The AI fixed #${n}: please verify (Comments → To verify).`,
   newRound: 'New review round started.',

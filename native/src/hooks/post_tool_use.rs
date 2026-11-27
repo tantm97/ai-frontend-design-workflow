@@ -132,7 +132,7 @@ pub fn post_tool_use(input: &HookInput, host: &Host) -> Result<Option<HookResult
     let inbox = if delivers_on_prompt(host) {
         None
     } else {
-        inbox_for(input)?
+        inbox_for(input, host)?
     };
     let text: Vec<String> = [checks, inbox].into_iter().flatten().collect();
     Ok((!text.is_empty()).then(|| HookResult::Context(text.join("\n\n"))))

@@ -17,6 +17,7 @@ use crate::core::js;
 use crate::core::paths::{file, project_paths, resolve};
 use crate::core::process::{is_alive, kill, spawn_detached, Pid};
 use crate::core::util::{ensure_inside, now_iso, out, read_json, write_json_inside, Args};
+use crate::design::pages::system_link;
 use crate::studio::live_proxy::{
     assert_local_target, configured_shortcut, start_live_server, LiveOptions,
 };
@@ -113,9 +114,10 @@ fn studio(ctx: &Ctx) -> Result<i32, DfwError> {
         sub::STATUS => {
             out(&if alive {
                 format!(
-                    "studio running: {} (pid {})",
+                    "studio running: {} (pid {})\n{}",
                     text(record::URL),
-                    text(record::PID)
+                    text(record::PID),
+                    system_line(&text(record::URL))
                 )
             } else {
                 "studio not running".into()
@@ -138,7 +140,11 @@ fn studio(ctx: &Ctx) -> Result<i32, DfwError> {
         _ => return Err(DfwError::new("Usage: dfw studio start|stop|status")),
     }
     if alive {
-        out(&format!("studio already running: {}", text(record::URL)));
+        out(&format!(
+            "studio already running: {}\n{}",
+            text(record::URL),
+            system_line(&text(record::URL))
+        ));
         return Ok(0);
     }
     let config = load_config(Some(&root))?;
@@ -174,8 +180,14 @@ fn studio(ctx: &Ctx) -> Result<i32, DfwError> {
         &p.studio,
         &json!({ (record::PID): pid, (record::PORT): port, (record::URL): url, (record::STARTED_AT): now_iso() }),
     )?;
-    out(&format!("studio running: {url}"));
+    out(&format!("studio running: {url}\n{}", system_line(&url)));
     Ok(0)
+}
+
+/// The line after the Studio's address: the link that opens its Design System page, for the
+/// agent to give the user.
+fn system_line(studio_url: &str) -> String {
+    format!("design system: {}", system_link(studio_url))
 }
 
 /// The `--shortcut` flag (alone it never gets here: `require_flag_values`).

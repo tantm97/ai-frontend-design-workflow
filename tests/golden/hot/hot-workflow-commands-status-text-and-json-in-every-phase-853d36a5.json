@@ -63,7 +63,7 @@
     },
     {
       "code": 0,
-      "stdout": "dfw: product=\"Fixture\" mode=quick-change phase=concepts\ndesign: v1 draft\ngates: G1=waived DS=waived G2=open G3=open G4=open\ncomments: 0 active, 0 awaiting user verification, 0 resolved\nstudio: not running\nstack: not set\nnext: review in the studio; when the user approves: \"dfw approve G2 --note ...\"\n",
+      "stdout": "dfw: product=\"Fixture\" mode=quick-change phase=concepts\ndesign: v1 draft\ngates: G1=waived DS=waived G2=open G3=open G4=open\ncomments: 0 active, 0 awaiting user verification, 0 resolved\nstudio: not running\nstack: not set\nnext: review in the studio: write its link in your reply (\"dfw studio start\" prints it) and start \"dfw comments wait --timeout 3600\" in the background; when the user approves: \"dfw approve G2 --note ...\"\n",
       "stderr": "",
       "files": {}
     },

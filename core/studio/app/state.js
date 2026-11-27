@@ -3,7 +3,7 @@
 // settings, the server API, the toast, and messages to the frames.
 import { pageModel as modelOf, screenById as findScreen } from './model.js';
 import { LIVE_BUDGET } from './schedule.js';
-import { MODE } from '#studio/shared/enums.js';
+import { MODE, LISTENER } from '#studio/shared/enums.js';
 import { TEXT } from '#studio/shared/text.js';
 
 /**
@@ -57,7 +57,7 @@ export const S = {
   pages: [],
   state: null,
   comments: [],
-  listening: false, // a dfw comments wait runs for this project (GET /__dfw/api/listening)
+  listener: LISTENER.OFF, // LISTENER: a wait listens, the agent works on comments, or neither (GET /__dfw/api/listening)
   tokens: [],
   components: new Map(),
   page: null,

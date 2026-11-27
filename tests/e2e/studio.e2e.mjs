@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -45,6 +45,17 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dfw-e2e-'));
 const env = { ...process.env, DFW_HOME: path.join(tmp, '.dfwhome') };
 const dfw = (...a) => execFileSync(DFW, a, { cwd: tmp, env, encoding: 'utf8' });
 const studio = (...a) => dfw('studio', ...a);
+/** The background waits started by the test, stopped at the end whatever happened. */
+const waits = [];
+/** A background `dfw comments wait`, as the agent runs it; `exited` gives its stdout. */
+function startWait() {
+  const child = spawn(DFW, ['comments', 'wait', '--timeout', '60'], { cwd: tmp, env, stdio: ['ignore', 'pipe', 'inherit'] });
+  waits.push(child);
+  let out = '';
+  child.stdout.on('data', (d) => (out += d));
+  const exited = new Promise((resolve) => child.on('exit', () => resolve(out)));
+  return { child, exited };
+}
 
 dfw('init', '--product', 'E2E Shop');
 fs.mkdirSync(path.join(tmp, 'design/screens/home'), { recursive: true });
@@ -176,6 +187,8 @@ try {
   const painted = () => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   /** The Studio has the frame's overlay ready (tool, tokens and layout settings sent). */
   const frameReady = (key) => page.waitForFunction((k) => window.__dfwStudio.frames.get(k)?.loaded === true, key);
+  /** The send bar shows the listener state `state` (the Studio re-checks every 3 s). */
+  const listenerIs = (state) => page.waitForFunction((s) => document.querySelector('#listen').dataset.on === s, state, { timeout: 10000 });
   /**
    * Wait until a file on disk passes `ok`. A file has no page event to wait on, so it is read again
    * every 50 ms until the deadline (testing.md T12: a condition with a deadline, not a fixed sleep).
@@ -312,11 +325,44 @@ try {
   assert.match(await page.textContent('.comment[data-id="fb_001"] .status'), /Draft/);
   assert.match(dfw('comments', 'inbox', '--peek'), /No new comments/, 'a draft is not delivered');
   assert.match(await page.textContent('#listen'), /not listening/, 'no dfw comments wait runs');
+  assert.doesNotMatch(await page.textContent('#listen'), /terminal/, 'the Studio never sends the user to the terminal');
+  assert.equal(await page.isVisible('#listen-copy'), true, 'not listening: a request to copy for the agent');
+  if (shotsDir) await page.locator('#tab-comments').screenshot({ path: path.join(shotsDir, 'studio-2a-not-listening.png') });
   assert.equal(await page.textContent('#send-drafts'), 'Send to AI (1)');
+  const sendBg = () => page.$eval('#send-drafts', (b) => getComputedStyle(b).backgroundColor);
+  const enabledBg = await sendBg();
   await page.click('#send-drafts');
+  await page.waitForFunction(() => /^Saved and queued\./.test(document.querySelector('#toast').textContent));
   await page.waitForSelector('.comment[data-id="fb_001"] .status[data-s="open"]');
+  assert.equal(await page.textContent('.comment[data-id="fb_001"] .status'), 'Sent · waiting for the AI');
   assert.match(dfw('comments', 'inbox', '--peek'), /fb_001/, 'sent: the inbox delivers it');
   assert.equal(await page.isDisabled('#send-drafts'), true, 'nothing left to send');
+  assert.notEqual(await sendBg(), enabledBg, 'a disabled Send looks disabled');
+  // The agent starts listening: the queued comment wakes the wait at once, then the agent works on it.
+  const first = startWait();
+  const woke = await first.exited;
+  assert.match(woke, /fb_001/, 'the wait prints the queued comment');
+  assert.match(woke, /start "dfw comments wait --timeout 3600" again in the background/, 'and says to re-arm');
+  await page.waitForFunction(() => document.querySelector('.comment[data-id="fb_001"] .status')?.textContent === 'Received by the AI');
+  await listenerIs('working');
+  assert.match(await page.textContent('#listen'), /The AI is working on your comments/);
+  if (shotsDir) await page.locator('#tab-comments').screenshot({ path: path.join(shotsDir, 'studio-2b-working.png') });
+  // A wait that is killed sends no event: the Studio's re-check shows it within seconds.
+  const second = startWait();
+  await listenerIs('listening');
+  assert.equal(await page.isVisible('#listen-copy'), false, 'listening: nothing to copy');
+  if (shotsDir) await page.locator('#tab-comments').screenshot({ path: path.join(shotsDir, 'studio-2c-listening.png') });
+  second.child.kill('SIGKILL');
+  await second.exited;
+  await page.waitForFunction(() => document.querySelector('#listen').dataset.on !== 'listening', null, { timeout: 10000 });
+  // The user answers the agent in the Studio; the reply reaches the inbox as a follow-up.
+  await page.click('.comment[data-id="fb_001"] .comment-actions button:has-text("Reply")');
+  await page.fill('.comment[data-id="fb_001"] .comment-actions textarea', 'Use the darker blue.');
+  await page.click('.comment[data-id="fb_001"] .comment-actions button.ok');
+  await page.waitForFunction(() =>
+    /Use the darker blue\./.test(document.querySelector('.comment[data-id="fb_001"] .thread')?.textContent || ''),
+  );
+  assert.match(dfw('comments', 'inbox'), /follow-up by user: "Use the darker blue\."/, 'the reply reaches the agent');
 
   // The comment is stored in the feedback contract with source mapping.
   const stored = JSON.parse(dfw('comments', 'list', '--json'));
@@ -562,7 +608,12 @@ try {
   // Live comment status: Claude acknowledges via the CLI -> chip updates over SSE.
   await page.click('.ptabs button[data-tab="comments"]');
   await page.click('.tabs button[data-filter="active"]');
+  // Sent while the agent listens: the wait wakes with the comment at once.
+  const third = startWait();
+  await listenerIs('listening');
   await page.click('#send-drafts');
+  await page.waitForFunction(() => /^Sent 1 comment to the AI\./.test(document.querySelector('#toast').textContent));
+  assert.match(await third.exited, /fb_002/, 'Send to AI wakes the listening wait');
   await page.waitForSelector('.comment[data-id="fb_002"] .status[data-s="open"]');
   dfw('comments', 'ack', 'fb_002', '--message', 'On it.');
   await page.waitForSelector('.comment[data-id="fb_002"] .status[data-s="acknowledged"]');
@@ -848,6 +899,21 @@ try {
   const lint = JSON.parse(spawnSync(DFW, ['lint', 'design/screens/board/a.html', '--json'], { cwd: tmp, env, encoding: 'utf8' }).stdout);
   assert.equal(lint.tally.error, 0, `lint clean after layout edits: ${JSON.stringify(lint.results).slice(0, 400)}`);
 
+  // The link the agent gives (`dfw studio start` prints it) opens the Design System page, not the
+  // page the Studio would open by itself; an unknown page id is ignored.
+  const link = studio('status').match(/^design system: (\S+)$/m)?.[1];
+  assert.equal(link, `${url}?page=system`);
+  const linked = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  try {
+    await linked.goto(link);
+    await linked.waitForFunction(() => window.__dfwStudio?.page === 'system');
+    await linked.goto(`${url}?page=nope`);
+    await linked.waitForFunction(() => !!window.__dfwStudio?.page);
+    assert.notEqual(await linked.evaluate(() => window.__dfwStudio.page), 'nope');
+  } finally {
+    await linked.close();
+  }
+
   // The Design System page of a project with a style guide (palette ramps, used-token chips):
   // no bold text in its mono font either.
   // Its own folder: inside the first project, dfw would find that project instead.
@@ -875,6 +941,7 @@ try {
   console.error('FAIL studio e2e:', e.message, (e.stack.match(/studio\.e2e\.mjs:\d+/) || [''])[0]);
   if (shotsDir && page) await page.screenshot({ path: path.join(shotsDir, 'studio-failure.png'), fullPage: true }).catch(() => {});
 } finally {
+  for (const w of waits) w.kill('SIGKILL');
   await browser.close();
   studio('stop');
   if (!args.includes('--keep')) fs.rmSync(tmp, { recursive: true, force: true });

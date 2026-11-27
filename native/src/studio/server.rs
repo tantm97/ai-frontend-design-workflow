@@ -31,9 +31,9 @@ use crate::design::compose::build_system;
 use crate::design::edit::{apply_edit, undo_edit};
 
 use crate::review::comments::{
-    add_comment, all_comments, current_session, new_session, send_drafts, update_comment, Update,
+    add_comment, current_session, new_session, send_drafts, update_comment, Update,
 };
-use crate::review::inbox::is_listening;
+use crate::review::inbox::{listener, with_delivery, Listener};
 use crate::studio::paths;
 use crate::workflow::state::{load_state, summarize};
 
@@ -51,6 +51,9 @@ mod key {
     pub const SESSION: &str = "session";
     /// Whether an agent listens for comments (the listening route, `comments/send`).
     pub const LISTENING: &str = "listening";
+    /// Whether the agent, not listening, is still working on comments it was given (the
+    /// listening route, `comments/send`).
+    pub const WORKING: &str = "working";
     /// How many drafts `comments/send` sent.
     pub const SENT: &str = "sent";
     /// The body of a PATCH of a comment: `{ status, message }`.
@@ -288,18 +291,19 @@ impl Studio {
             return Ok(Response::ok(&body));
         }
         if p == paths::COMMENTS && method == method::GET {
-            return Ok(Response::ok(&Value::Array(all_comments(root)?)));
+            return Ok(Response::ok(&Value::Array(with_delivery(root)?)));
         }
         if p == paths::LISTENING && method == method::GET {
-            return Ok(Response::ok(
-                &json!({ (key::LISTENING): is_listening(root) }),
-            ));
+            return Ok(Response::ok(&listener_body(root)?));
         }
         if p == paths::COMMENTS_SEND && method == method::POST {
             let sent = send_drafts(root)?;
             self.clients
                 .broadcast("comments", &json!({ (data::SENT): sent.len() }));
-            let body = json!({ (key::SENT): sent.len(), (key::LISTENING): is_listening(root) });
+            let mut body = listener_body(root)?;
+            if let Value::Object(o) = &mut body {
+                o.insert(key::SENT.into(), json!(sent.len()));
+            }
             return Ok(Response::ok(&body));
         }
         if p == paths::COMMENTS && method == method::POST {
@@ -411,6 +415,16 @@ fn asset(rel: &str, content_type: &str) -> Option<Response> {
     studio_file(rel).map(|bytes| Response::send(status::OK, bytes.into_owned(), content_type))
 }
 
+/// `{ listening, working }`: whether a sent comment wakes the agent now, and when not, whether
+/// it is still working on comments it was given. Reads only (a GET writes nothing).
+fn listener_body(root: &Path) -> Result<Value, DfwError> {
+    let state = listener(root)?;
+    Ok(json!({
+        (key::LISTENING): state == Listener::Listening,
+        (key::WORKING): state == Listener::Working,
+    }))
+}
+
 /// The id of `/__dfw/api/comments/fb_<digits>`.
 fn comment_id(path: &str) -> Option<&str> {
     let id = path.strip_prefix(paths::COMMENT)?;
@@ -462,6 +476,7 @@ mod tests {
     use crate::core::paths::file;
     use crate::core::paths::rel;
     use crate::core::util::test_dir;
+    use crate::review::comments::all_comments;
     use crate::studio::http::{header, status_line, END_OF_HEAD};
     use crate::studio::penpot_routes::route;
     use std::io::{Read, Write};

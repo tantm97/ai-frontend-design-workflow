@@ -4,7 +4,7 @@
 // tests/unit/studio-app-model.test.mjs imports them in Node.
 import { PATH } from '#studio/shared/paths.js';
 import { TEXT } from '#studio/shared/text.js';
-import { STATUS, COMMENT_FILTER, SECTION_KIND, SYSTEM_SCREEN, PIN_FILTER } from '#studio/shared/enums.js';
+import { STATUS, COMMENT_FILTER, SECTION_KIND, SYSTEM_SCREEN, PIN_FILTER, LISTENER } from '#studio/shared/enums.js';
 
 /**
  * @typedef {{ id: string, label?: string, short?: string, width: number, height: number }} Breakpoint
@@ -275,8 +275,34 @@ const STATUS_LABEL = TEXT.statusLabel;
 /** A Studio comment not sent to the agent yet (the user sends the drafts with one button). */
 export const isDraft = (/** @type {any} */ c) => c?.draft === true;
 
-/** Words for a comment's status, a draft first (plain text: esc() it for innerHTML). */
-export const commentLabel = (/** @type {any} */ c) => (isDraft(c) ? TEXT.draftLabel : statusLabel(c?.status));
+/** Waiting for the agent to pick it up: sent, open or reopened (acknowledged means it has). */
+const WAITING = [STATUS.OPEN, STATUS.REOPENED];
+
+/**
+ * Words for a comment's status, a draft first (plain text: esc() it for innerHTML). A sent open or
+ * reopened comment says whether the agent has received it (`delivered`, from the comments route);
+ * without that field (an older server) it shows its status.
+ */
+export function commentLabel(/** @type {any} */ c) {
+  if (isDraft(c)) return TEXT.draftLabel;
+  if (WAITING.includes(c?.status) && typeof c?.delivered === 'boolean') return c.delivered ? TEXT.receivedLabel : TEXT.sentLabel;
+  return statusLabel(c?.status);
+}
+
+/** Can the user answer the agent on this comment? Sent and still with the agent. */
+export const canReply = (/** @type {any} */ c) => !isDraft(c) && ACTIVE.includes(c?.status);
+
+/**
+ * The send bar's state from an answer of the listening route (`{ listening, working }`); anything
+ * else is "off".
+ * @param {unknown} r
+ */
+export function listenerState(r) {
+  const a = /** @type {{ listening?: unknown, working?: unknown } | null} */ (r && typeof r === 'object' ? r : null);
+  if (a?.listening === true) return LISTENER.LISTENING;
+  if (a?.working === true) return LISTENER.WORKING;
+  return LISTENER.OFF;
+}
 
 /** Words for a comment status (plain text: esc() it for innerHTML); an unknown status is shown as it is. */
 export function statusLabel(/** @type {unknown} */ s) {
