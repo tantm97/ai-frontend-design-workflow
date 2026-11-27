@@ -20,52 +20,17 @@ use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
 
-#[path = "../src/core/paths/layout.rs"]
-#[allow(
-    dead_code,
-    reason = "each test binary uses a part of the project layout"
-)]
-mod layout;
+#[path = "support/product.rs"]
+mod product;
 use layout::rel;
+use product::{fixture, host_id, layout, names, telemetry_wire, wire, word};
 
-#[path = "../src/core/host/wire.rs"]
-#[allow(
-    dead_code,
-    reason = "each test binary uses a part of what a host sends"
-)]
-mod wire;
 use wire::{event, tool};
 
-#[path = "../src/core/word.rs"]
-#[allow(dead_code, reason = "each test binary uses a part of the command line")]
-mod word;
 use word::{command, flag, hook_name, sub};
 
-#[path = "../src/core/host/id.rs"]
-#[allow(dead_code, reason = "each test binary uses a part of the host ids")]
-mod host_id;
-
-#[path = "../src/workflow/names.rs"]
-#[allow(
-    dead_code,
-    reason = "each test binary uses a part of the workflow names"
-)]
-mod names;
-
-#[path = "../src/telemetry/wire.rs"]
-#[allow(
-    dead_code,
-    reason = "each test binary uses a part of what the telemetry sends"
-)]
-mod telemetry_wire;
 use telemetry_wire::{attr, event as recorded, file as telemetry_file, otlp};
 
-#[path = "../src/core/fixture.rs"]
-#[allow(
-    dead_code,
-    reason = "each test binary uses a part of the fixture names"
-)]
-mod fixture;
 use fixture::{APP_MODULE, SCREEN_PAGE, SECRET_COMPONENT};
 
 #[path = "support/home.rs"]
@@ -363,10 +328,6 @@ fn wait_until(what: &str, mut done: impl FnMut() -> bool) {
 /// is in them.
 #[test]
 // One collector run: every event kind is sent and checked against the same capture.
-#[allow(
-    clippy::too_many_lines,
-    reason = "long function kept as ported; split it when it next changes (A10)"
-)]
 fn events_arrive_as_otlp_json_and_carry_no_content() {
     let sink = Sink::start(Duration::ZERO);
     let m = Machine::new("otlp");
@@ -445,64 +406,7 @@ fn events_arrive_as_otlp_json_and_carry_no_content() {
     let first_body: Value = serde_json::from_str(&first.body).unwrap();
     let id = fs::read_to_string(m.telemetry_dir().join(telemetry_file::ID)).unwrap();
     for body in [&first_body, &sent] {
-        assert_eq!(body[otlp::RESOURCE_LOGS].as_array().unwrap().len(), 1);
-        let resource = body[otlp::RESOURCE_LOGS][0][otlp::RESOURCE][otlp::ATTRIBUTES]
-            .as_array()
-            .unwrap();
-        let pairs: Vec<(&str, &str)> = resource
-            .iter()
-            .map(|a| {
-                (
-                    a[otlp::KEY].as_str().unwrap(),
-                    a[otlp::VALUE][otlp::STRING_VALUE].as_str().unwrap(),
-                )
-            })
-            .collect();
-        assert_eq!(pairs[0], (attr::SERVICE_NAME, "dfw"));
-        assert_eq!(pairs[1].0, attr::SERVICE_VERSION);
-        assert_eq!(pairs[2].0, attr::OS_TYPE);
-        assert_eq!(pairs[3].0, attr::HOST_ARCH);
-        assert_eq!(pairs[4], (attr::INSTALL_ID, id.trim()));
-        assert_eq!(pairs.len(), 5);
-        for record in records(body) {
-            let keys: Vec<&str> = record
-                .as_object()
-                .unwrap()
-                .keys()
-                .map(String::as_str)
-                .collect();
-            assert_eq!(
-                keys,
-                [
-                    otlp::TIME_UNIX_NANO,
-                    otlp::SEVERITY_NUMBER,
-                    otlp::SEVERITY_TEXT,
-                    otlp::EVENT_NAME,
-                    otlp::BODY,
-                    otlp::ATTRIBUTES
-                ]
-            );
-            let nanos = record[otlp::TIME_UNIX_NANO].as_str().unwrap();
-            assert!(
-                nanos.len() == 19 && nanos.bytes().all(|b| b.is_ascii_digit()),
-                "{nanos}"
-            );
-            assert_eq!(
-                record[otlp::BODY][otlp::STRING_VALUE],
-                record[otlp::EVENT_NAME]
-            );
-            for a in record[otlp::ATTRIBUTES].as_array().unwrap() {
-                assert!(a[otlp::KEY].as_str().unwrap().starts_with("dfw."));
-                let value = a[otlp::VALUE].as_object().unwrap();
-                assert_eq!(value.len(), 1);
-                let (kind, v) = value.iter().next().unwrap();
-                assert!(
-                    kind == otlp::STRING_VALUE || kind == otlp::INT_VALUE,
-                    "{kind}"
-                );
-                assert!(v.is_string());
-            }
-        }
+        assert_otlp_logs(body, id.trim());
     }
 
     // What was said: names from the command table, buckets, codes, ids; an unknown first
@@ -554,6 +458,76 @@ fn events_arrive_as_otlp_json_and_carry_no_content() {
     assert_eq!(string(&shown[8], attr::HOST), host_id::COPILOT);
 
     // Nothing of the project: not its path or folder name, no file name, no argument value.
+    assert_nothing_of_the_project(&m, &project, &[&first.body, &second.body]);
+    sink.assert_silent();
+}
+
+/// One OTLP logs request as dfw sends it: one resource with the five attributes, records with
+/// their six keys in order, and only string or integer attribute values.
+fn assert_otlp_logs(body: &Value, id: &str) {
+    assert_eq!(body[otlp::RESOURCE_LOGS].as_array().unwrap().len(), 1);
+    let resource = body[otlp::RESOURCE_LOGS][0][otlp::RESOURCE][otlp::ATTRIBUTES]
+        .as_array()
+        .unwrap();
+    let pairs: Vec<(&str, &str)> = resource
+        .iter()
+        .map(|a| {
+            (
+                a[otlp::KEY].as_str().unwrap(),
+                a[otlp::VALUE][otlp::STRING_VALUE].as_str().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(pairs[0], (attr::SERVICE_NAME, "dfw"));
+    assert_eq!(pairs[1].0, attr::SERVICE_VERSION);
+    assert_eq!(pairs[2].0, attr::OS_TYPE);
+    assert_eq!(pairs[3].0, attr::HOST_ARCH);
+    assert_eq!(pairs[4], (attr::INSTALL_ID, id));
+    assert_eq!(pairs.len(), 5);
+    for record in records(body) {
+        let keys: Vec<&str> = record
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect();
+        assert_eq!(
+            keys,
+            [
+                otlp::TIME_UNIX_NANO,
+                otlp::SEVERITY_NUMBER,
+                otlp::SEVERITY_TEXT,
+                otlp::EVENT_NAME,
+                otlp::BODY,
+                otlp::ATTRIBUTES
+            ]
+        );
+        let nanos = record[otlp::TIME_UNIX_NANO].as_str().unwrap();
+        assert!(
+            nanos.len() == 19 && nanos.bytes().all(|b| b.is_ascii_digit()),
+            "{nanos}"
+        );
+        assert_eq!(
+            record[otlp::BODY][otlp::STRING_VALUE],
+            record[otlp::EVENT_NAME]
+        );
+        for a in record[otlp::ATTRIBUTES].as_array().unwrap() {
+            assert!(a[otlp::KEY].as_str().unwrap().starts_with("dfw."));
+            let value = a[otlp::VALUE].as_object().unwrap();
+            assert_eq!(value.len(), 1);
+            let (kind, v) = value.iter().next().unwrap();
+            assert!(
+                kind == otlp::STRING_VALUE || kind == otlp::INT_VALUE,
+                "{kind}"
+            );
+            assert!(v.is_string());
+        }
+    }
+}
+
+/// No request body holds anything of the project: its path or folder name, a file name, an
+/// argument value, or anything that looks like a path or a URL.
+fn assert_nothing_of_the_project(m: &Machine, project: &str, bodies: &[&str]) {
     let base_name = m
         .project
         .parent()
@@ -566,7 +540,7 @@ fn events_arrive_as_otlp_json_and_carry_no_content() {
     let design_folder = format!("{}/", rel::DESIGN);
     let secrets = [
         // the folder and its name, a file name, argument values, anything that looks like a path or a URL
-        project.as_str(),
+        project,
         home.as_str(),
         base_name.as_str(),
         "acme-secret-project",
@@ -595,12 +569,11 @@ fn events_arrive_as_otlp_json_and_carry_no_content() {
         "127.0.0.1",
         "http",
     ];
-    for body in [&first.body, &second.body] {
+    for body in bodies {
         for secret in &secrets {
             assert!(!body.contains(secret), "{secret:?} is in an event: {body}");
         }
     }
-    sink.assert_silent();
 }
 
 /// `dfw telemetry off`, `DO_NOT_TRACK=1`, `DFW_TELEMETRY=off` and `CI=true` each stop recording

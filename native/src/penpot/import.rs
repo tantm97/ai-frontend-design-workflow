@@ -22,8 +22,8 @@ use super::diff::{
     change_type, describe_change, describe_component_change, diff_changes, dimension_token_index,
     field, list, master_source, walkable, MasterSource,
 };
-use super::export::{export_file, penpot_dir};
-use super::threads::{continue_thread, thread_key, threads_file};
+use super::export::{export_file, penpot_dir, EXPORT_ID};
+use super::threads::{self, continue_thread, thread_key, threads_file};
 use super::tokens::{
     import_penpot_tokens, key, nest, read_dfw_tokens, short_value, NestEntry, TokenImport, RESERVED,
 };
@@ -32,14 +32,17 @@ use super::wire;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::js::regex::fixed_regex;
-use crate::core::paths::{file, rel};
-use crate::core::util::{now_iso, read_json, sha256, to_json_compact, write_json_inside};
+use crate::core::paths::{file, rel, SafeName};
+use crate::core::util::{
+    create_unique, now_iso, read_json, sha256, to_json_compact, to_json_pretty, write_json_inside,
+};
 use crate::design::compose::{load_components, Library};
 use crate::design::tokens::relative_path;
 use crate::review::comments::add_comment;
 use crate::review::status;
 
-static EXPORT_ID: LazyLock<Regex> = LazyLock::new(|| fixed_regex(r"^px_[0-9A-Za-z_]+$"));
+/// The archive name of a change file (its push time, or [`UNSTAMPED`]): letters and digits only.
+static ARCHIVE_NAME: LazyLock<Regex> = LazyLock::new(|| fixed_regex(r"^[0-9A-Za-z]+$"));
 
 /// The feedback comments an import writes.
 pub(super) mod comment {
@@ -495,7 +498,7 @@ fn component_comment(root: &Path, cs: &[Value], lib: Option<&Library>, gate_note
 
 /// The export the change file was built from: the one it names, when the name has the shape dfw
 /// generates and the file is there; else the latest. The id never becomes a path otherwise.
-fn load_baseline(dir: &Path, export_id: Option<&str>) -> Result<Value, DfwError> {
+fn load_baseline(dir: &Path, export_id: Option<&SafeName>) -> Result<Value, DfwError> {
     let named = match export_id {
         Some(id) => read_json(
             &dir.join(file::PENPOT_EXPORTS).join(export_file(id)),
@@ -589,6 +592,17 @@ pub fn import_changes(
     changes: &mut Value,
     opts: ImportOptions,
 ) -> Result<ChangeImport, DfwError> {
+    // The ledgers are read, changed and written as one (the plugin's sync and "Send changes"
+    // run on Studio connection threads at the same time).
+    threads::locked(root, |held| import_locked(held, root, changes, opts))
+}
+
+fn import_locked(
+    held: &threads::Held,
+    root: &Path,
+    changes: &mut Value,
+    opts: ImportOptions,
+) -> Result<ChangeImport, DfwError> {
     let dir = penpot_dir(root);
     let mut result = compare_with_export(root, &dir, changes, &opts)?;
     add_token_diff(root, &dir, changes, &opts, &mut result)?;
@@ -637,9 +651,9 @@ pub fn import_changes(
             &mut result.warnings,
         )?;
     }
-    write_json_inside(root, &ledger_file, &Value::Array(ledger))?;
+    threads::write_ledger(held, root, &ledger_file, &Value::Array(ledger))?;
     if threads_written {
-        write_json_inside(root, &threads_file(root), &threads)?;
+        threads::write_ledger(held, root, &threads_file(root), &threads)?;
     }
     if !opts.live {
         archive_changes(root, &dir, changes)?;
@@ -660,9 +674,8 @@ fn compare_with_export(
     let export_id = changes
         .get(wire::EXPORT_ID)
         .and_then(Value::as_str)
-        .filter(|id| EXPORT_ID.is_match(id))
-        .map(str::to_string);
-    let baseline = load_baseline(dir, export_id.as_deref())?;
+        .and_then(|id| SafeName::matching(&EXPORT_ID, id));
+    let baseline = load_baseline(dir, export_id.as_ref())?;
     let dims = read_dfw_tokens(root, false)
         .map(|t| dimension_token_index(Some(&t.base)))
         .unwrap_or_default();
@@ -670,7 +683,7 @@ fn compare_with_export(
     let mut warnings = diff.warnings;
     let baseline_id = baseline.get(wire::ID);
     if let Some(id) = &export_id {
-        if baseline_id.and_then(Value::as_str) != Some(id) {
+        if baseline_id.and_then(Value::as_str) != Some(id.as_str()) {
             warnings.push(format!(
                 "Change file refers to export {id}, which is not on disk; compared with the latest export {}.",
                 js::to_string(baseline_id)
@@ -870,12 +883,8 @@ fn write_comments(
 /// The archive name of a change file whose push time has no digits.
 pub(super) const UNSTAMPED: &str = "changes";
 
-/// The file of the change file archived as `name`, in `changes/`.
-pub(super) fn archive_file(name: &str) -> String {
-    format!("{name}.json")
-}
-
-/// Keep the change file under `changes/`, named after its push time.
+/// Keep the change file under `changes/`, named after its push time; a second change file with
+/// the same push time (or none) is kept next to the first (`<name>-2.json`), never over it.
 fn archive_changes(root: &Path, dir: &Path, changes: &Value) -> Result<(), DfwError> {
     // The archive name comes from the change file: digits, T and Z only.
     let pushed_at = js::truthy_value(changes.get(wire::PUSHED_AT))
@@ -885,11 +894,17 @@ fn archive_changes(root: &Path, dir: &Path, changes: &Value) -> Result<(), DfwEr
         .filter(|c| c.is_ascii_digit() || *c == 'T' || *c == 'Z')
         .collect();
     let name = if stamp.is_empty() { UNSTAMPED } else { &stamp };
-    write_json_inside(
+    let Some(name) = SafeName::matching(&ARCHIVE_NAME, name) else {
+        return Err(DfwError::internal("No archive name for the change file."));
+    };
+    create_unique(
         root,
-        &dir.join(file::PENPOT_CHANGES).join(archive_file(name)),
-        changes,
-    )
+        &dir.join(file::PENPOT_CHANGES),
+        &name,
+        file::JSON_EXT,
+        (to_json_pretty(changes) + "\n").as_bytes(),
+    )?;
+    Ok(())
 }
 
 /// `formatImportChanges`: what `dfw penpot import` prints.

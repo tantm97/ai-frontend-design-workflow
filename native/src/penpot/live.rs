@@ -16,13 +16,13 @@ use serde_json::{json, Value};
 use super::diff::list;
 use super::export::{penpot_dir, CHANGES_SCHEMA};
 use super::import::{import_changes, ImportOptions};
-use super::threads::{thread_key, threads_file};
+use super::threads::{self, thread_key, threads_file};
 use super::wire;
 
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::paths::{file, project_paths};
-use crate::core::util::{list_files, read_json, write_json_inside};
+use crate::core::util::{list_files, read_json};
 
 use crate::review::comments::all_comments;
 use crate::review::status::{self, Status};
@@ -101,6 +101,15 @@ pub fn mark_posted(root: &Path, file_id: &str, posted: Option<&Value>) -> Result
     if posted.is_empty() {
         return Ok(());
     }
+    threads::locked(root, |held| mark_posted_locked(held, root, file_id, posted))
+}
+
+fn mark_posted_locked(
+    held: &threads::Held,
+    root: &Path,
+    file_id: &str,
+    posted: &[Value],
+) -> Result<(), DfwError> {
     let mut threads = read_json(&threads_file(root), Some(json!({})))?;
     let mut changed = false;
     for p in posted {
@@ -128,7 +137,7 @@ pub fn mark_posted(root: &Path, file_id: &str, posted: Option<&Value>) -> Result
         changed = true;
     }
     if changed {
-        write_json_inside(root, &threads_file(root), &threads)?;
+        threads::write_ledger(held, root, &threads_file(root), &threads)?;
     }
     Ok(())
 }

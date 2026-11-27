@@ -11,12 +11,32 @@ use serde_json::{json, Value};
 
 use super::launch::{browser_dir, current, status};
 use crate::core::error::DfwError;
-use crate::core::http;
+use crate::core::http::{self, Failed, Source, Verify};
 use crate::core::platform::{node_arch, node_platform};
 use crate::core::util::{sha256, to_json_compact, to_json_pretty};
 
 const CFT_URL: &str = "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json";
 const DOWNLOAD_HOST: &str = "storage.googleapis.com";
+
+/// Where the index and the archive come from: Chrome for Testing publishes no checksum, so the
+/// archive's is recorded (`archive.json`).
+struct Sources {
+    index: Source,
+    archive: Source,
+}
+
+const CFT: Sources = Sources {
+    index: Source {
+        host: "googlechromelabs.github.io",
+        redirects: &[],
+        verify: Verify::Read,
+    },
+    archive: Source {
+        host: DOWNLOAD_HOST,
+        redirects: &[],
+        verify: Verify::RecordedOnly,
+    },
+};
 /// The archive is about 100 MB: 20 minutes is a slow line, not a hung one.
 const ZIP_TIMEOUT_S: u64 = 20 * 60;
 /// Size caps: the index is a few hundred kB, an archive about 100 MB.
@@ -126,18 +146,20 @@ pub fn install_browser(log: &dyn Fn(&str)) -> Result<Value, DfwError> {
             node_arch()
         ))
     })?;
-    install_from(CFT_URL, plat, &browser_dir(), checked, log)
+    install_from(&CFT, CFT_URL, plat, &browser_dir(), checked, log)
 }
 
-/// [`install_browser`] with the index URL, platform, target folder and URL check given.
+/// [`install_browser`] with the sources, index URL, platform, target folder and URL check given.
 fn install_from(
+    sources: &Sources,
     index_url: &str,
     plat: &str,
     browser_dir: &Path,
     check: fn(&Value) -> Result<String, DfwError>,
     log: &dyn Fn(&str),
 ) -> Result<Value, DfwError> {
-    let index: Value = serde_json::from_slice(&fetch(index_url, 30, INDEX_LIMIT)?.1)?;
+    let index: Value =
+        serde_json::from_slice(&fetch(&sources.index, index_url, 30, INDEX_LIMIT)?.1)?;
     let stable = index
         .get(index::CHANNELS)
         .and_then(|c| c.get(index::STABLE));
@@ -192,10 +214,10 @@ fn install_from(
         log(&format!(
             "Downloading headless Chrome {version} ({plat}) from {host} ..."
         ));
-        let (landed, zip) = fetch(&from, ZIP_TIMEOUT_S, ZIP_LIMIT)?;
-        check(&Value::String(landed.clone()))?; // a redirect must stay on the same host
-                                                // Chrome for Testing publishes no checksum for its archives: what was unpacked is
-                                                // recorded instead, so a later question "which file was this" has an answer.
+        // A redirect must stay on the same host (`http::download`). Chrome for Testing
+        // publishes no checksum for its archives: what was unpacked is recorded instead, so a
+        // later question "which file was this" has an answer.
+        let (landed, zip) = fetch(&sources.archive, &from, ZIP_TIMEOUT_S, ZIP_LIMIT)?;
         crate::core::util::write_atomic(
             &dir.join("archive.json"),
             to_json_pretty(
@@ -224,24 +246,48 @@ fn install_from(
     )
 }
 
-/// GET a URL: the URL it ended at (after redirects) and the body. `HTTP <status>` is an error.
-fn fetch(url: &str, timeout_s: u64, limit: u64) -> Result<(String, Vec<u8>), DfwError> {
-    let res = http::get(url, &[], Duration::from_secs(timeout_s), limit)
-        .map_err(|e| DfwError::internal(format!("fetch failed: {url}: {e}")))?;
-    if !res.ok() {
-        return Err(DfwError::new(format!(
-            "download failed: HTTP {}",
-            res.status
-        )));
-    }
+/// GET a URL from `source`: the URL it ended at (after redirects) and the body. `HTTP <status>`
+/// and a URL off the source's host are errors.
+fn fetch(
+    source: &Source,
+    url: &str,
+    timeout_s: u64,
+    limit: u64,
+) -> Result<(String, Vec<u8>), DfwError> {
+    let res = http::download(
+        source,
+        url,
+        None,
+        &[],
+        Duration::from_secs(timeout_s),
+        limit,
+    )
+    .map_err(|e| match e {
+        Failed::Transport(e) => DfwError::internal(format!("fetch failed: {url}: {e}")),
+        Failed::Status(status) => DfwError::new(format!("download failed: HTTP {status}")),
+        Failed::Refused { url, host } => DfwError::new(format!(
+            "refusing to download a browser from {}: expected https://{host}/...",
+            to_json_compact(&Value::String(url))
+        )),
+        other @ Failed::Mismatch { .. } => DfwError::new(other.to_string()),
+    })?;
     Ok((res.landed, res.body))
 }
 
-/// Unpack a zip archive into `dir`, keeping executable bits. An entry that would land outside
-/// `dir` (an absolute name, `..`) or a symbolic link fails the whole archive. Links are refused
+/// Unpack a zip archive into `dir`, keeping executable bits. An entry that would climb out of
+/// `dir` (`..`) or a symbolic link fails the whole archive; an absolute name (`/x`, `C:\x`)
+/// loses its root and lands under `dir` (`enclosed_name`). Links are refused
 /// outright: a link checked on its own can still be chained (`d/l -> ..`, then `e -> d/l/..`,
 /// then `e/x`) to write outside `dir`, and the headless shell archives hold none (plain files
 /// and folders: the binary, its libraries and resources).
+///
+/// The one archive reader of the crate (`zip::ZipArchive::new` is a `disallowed-methods` entry,
+/// §0 row 41). Each entry of the downloaded archive is streamed into the fresh folder it unpacks
+/// to (symbolic links refused); no reader looks at it before the unpack ends.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the one archive reader, streaming each entry into a fresh private folder"
+)]
 fn unpack(zip_bytes: &[u8], dir: &Path) -> io::Result<()> {
     let bad = |what: &str| io::Error::new(io::ErrorKind::InvalidData, what.to_string());
     let mut archive = zip::ZipArchive::new(Cursor::new(zip_bytes)).map_err(io::Error::other)?;
@@ -262,12 +308,6 @@ fn unpack(zip_bytes: &[u8], dir: &Path) -> io::Result<()> {
             return Err(bad("the archive holds a symbolic link"));
         }
         let mode = entry.unix_mode();
-        // Streams one entry of the verified archive into the fresh folder it unpacks to
-        // (symbolic links were refused above); no reader looks at it before the unpack ends.
-        #[allow(
-            clippy::disallowed_methods,
-            reason = "streaming an archive entry into a fresh private folder"
-        )]
         let mut file = fs::File::create(&to)?;
         io::copy(&mut entry, &mut file)?;
         #[cfg(unix)]
@@ -378,6 +418,20 @@ mod tests {
         .into_bytes()
     }
 
+    /// The fixture servers, as the index's and the archive's sources.
+    const LOCAL: Sources = Sources {
+        index: Source {
+            host: http::LOOPBACK,
+            redirects: &[],
+            verify: Verify::Read,
+        },
+        archive: Source {
+            host: http::LOOPBACK,
+            redirects: &[],
+            verify: Verify::RecordedOnly,
+        },
+    };
+
     /// The test's stand-in for the host check: the local fixture server only.
     fn local_only(url: &Value) -> Result<String, DfwError> {
         url.as_str()
@@ -420,6 +474,7 @@ mod tests {
             log: &dyn Fn(&str),
         ) -> Result<Value, DfwError> {
             install_from(
+                &LOCAL,
                 &format!("{}/{name}", self.base),
                 plat,
                 &self.home,
@@ -600,9 +655,32 @@ mod tests {
         let dir = test_dir("unzip");
         let inside = dir.join("in");
         fs::create_dir(&inside).unwrap();
-        let evil = zip_of(&[("ok.txt", b"ok", 0o644), ("../escaped.txt", b"no", 0o644)]);
+        /// A plain entry next to the one under test.
+        const PLAIN: &str = "ok.txt";
+        let evil = zip_of(&[(PLAIN, b"ok", 0o644), ("../escaped.txt", b"no", 0o644)]);
         assert!(unpack(&evil, &inside).is_err());
         assert!(!dir.join("escaped.txt").exists());
+        // Absolute names, in both forms (and one naming a real place outside): the root is
+        // dropped, so each lands under the folder and never where it points.
+        /// The file the absolute entries name.
+        const FILE: &str = "absolute.txt";
+        let absolute_at = dir.join(FILE);
+        let absolute = absolute_at.to_string_lossy().into_owned();
+        let short = [
+            format!("/{FILE}"),
+            format!("C:\\{FILE}"),
+            format!("C:/{FILE}"),
+        ];
+        for name in std::iter::once(&absolute).chain(&short) {
+            let at = test_dir("unzip-absolute");
+            let archive = zip_of(&[(PLAIN, b"ok", 0o644), (name, b"in", 0o644)]);
+            let unpacked = unpack(&archive, &at);
+            assert!(!absolute_at.exists(), "{name}: written outside");
+            if *name != absolute {
+                assert!(unpacked.is_ok(), "{name}: {unpacked:?}");
+                assert_eq!(fs::read(at.join(FILE)).unwrap(), b"in", "{name}");
+            }
+        }
         assert!(unpack(b"not a zip", &inside).is_err());
 
         let mut writer = zip::ZipWriter::new(Cursor::new(Vec::new()));

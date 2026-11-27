@@ -14,17 +14,11 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Output, Stdio};
 
-#[path = "../src/core/paths/layout.rs"]
-#[allow(
-    dead_code,
-    reason = "each test binary uses a part of the project layout"
-)]
-mod layout;
+#[path = "support/product.rs"]
+mod product;
 use layout::file;
+use product::{layout, word};
 
-#[path = "../src/core/word.rs"]
-#[allow(dead_code, reason = "each test binary uses a part of the command line")]
-mod word;
 use word::{command, flag, hook_name};
 
 #[path = "support/home.rs"]

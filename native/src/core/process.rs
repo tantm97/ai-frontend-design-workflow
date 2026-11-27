@@ -144,37 +144,27 @@ fn run_with(
             };
         }
     };
-    // A grandchild can keep a pipe open after the program is gone: the readers fill shared
-    // buffers and are given a moment, not joined for ever.
-    let drain = |pipe: Option<Box<dyn Read + Send>>| {
-        let text = Arc::new(Mutex::new(Vec::new()));
-        let shared = Arc::clone(&text);
-        let reader = thread::spawn(move || {
-            let Some(mut pipe) = pipe else { return };
-            let mut chunk = [0u8; 8192];
-            while let Ok(n) = pipe.read(&mut chunk) {
-                if n == 0 {
-                    break;
-                }
-                if let Ok(mut buf) = shared.lock() {
-                    buf.extend_from_slice(&chunk[..n]);
-                }
-            }
-        });
-        (text, reader)
+    let stdout = child
+        .stdout
+        .take()
+        .map(|p| Box::new(p) as Box<dyn Read + Send>);
+    let stderr = child
+        .stderr
+        .take()
+        .map(|p| Box::new(p) as Box<dyn Read + Send>);
+    let readers = drain(stdout).and_then(|out| Ok((out, drain(stderr)?)));
+    let ((out, out_reader), (err, err_reader)) = match readers {
+        Ok(readers) => readers,
+        // No thread to read a pipe with (the system is out of them): the child is ended, never
+        // left to block on a full pipe, and the run is an error.
+        Err(why) => {
+            kill_tree(&mut child);
+            return Ran {
+                error: Some(format!("spawnSync {} {why}", plan.cmd)),
+                ..Ran::default()
+            };
+        }
     };
-    let (out, out_reader) = drain(
-        child
-            .stdout
-            .take()
-            .map(|p| Box::new(p) as Box<dyn Read + Send>),
-    );
-    let (err, err_reader) = drain(
-        child
-            .stderr
-            .take()
-            .map(|p| Box::new(p) as Box<dyn Read + Send>),
-    );
     let deadline = Instant::now() + timeout;
     let mut timed_out = false;
     let mut status = None;
@@ -209,6 +199,30 @@ fn run_with(
         timed_out,
         error: None,
     }
+}
+
+/// What a pipe delivers, and the thread reading it.
+type Drained = (Arc<Mutex<Vec<u8>>>, thread::JoinHandle<()>);
+
+/// What a reader of `pipe` collects, filled as it arrives on its own thread. A grandchild can
+/// keep a pipe open after the program is gone: the reader is given a moment by [`run_timed`],
+/// not joined for ever. An error when the thread cannot start.
+fn drain(pipe: Option<Box<dyn Read + Send>>) -> std::io::Result<Drained> {
+    let text = Arc::new(Mutex::new(Vec::new()));
+    let shared = Arc::clone(&text);
+    let reader = thread::Builder::new().spawn(move || {
+        let Some(mut pipe) = pipe else { return };
+        let mut chunk = [0u8; 8192];
+        while let Ok(n) = pipe.read(&mut chunk) {
+            if n == 0 {
+                break;
+            }
+            if let Ok(mut buf) = shared.lock() {
+                buf.extend_from_slice(&chunk[..n]);
+            }
+        }
+    })?;
+    Ok((text, reader))
 }
 
 /// End a child that ran past its deadline and everything it started. On Unix the child leads

@@ -1286,3 +1286,584 @@ fn json_keys_are_named() {
         found.join("\n")
     );
 }
+
+/* ------------------------------------------------ servers, threads, downloads (§0 36, 41, 19, 2) */
+
+/// The lines of product code that hold `needle`, as `file:line: text`, but the files of
+/// `homes` (each with the reason it may).
+fn product_lines_with(needle: &str, homes: &[(&str, &str)]) -> Vec<String> {
+    let mut found = Vec::new();
+    for (rel, lines) in product_sources(&[]) {
+        if homes.iter().any(|(home, _)| *home == rel) {
+            continue;
+        }
+        for (i, line) in lines.iter().enumerate() {
+            if line.contains(needle) {
+                found.push(format!("{rel}:{}: {}", i + 1, line.trim()));
+            }
+        }
+    }
+    found
+}
+
+/// Threads start with `thread::Builder::spawn` and a handled error (§0 row 36, P13):
+/// `thread::spawn` panics when the system has no thread left. clippy.toml refuses it too; this
+/// also covers a module that allows `disallowed_methods` as a whole (`core::process`).
+#[test]
+fn threads_start_through_the_builder() {
+    let homes = [(
+        "src/core/util.rs",
+        "serve_routes is a #[cfg(test)] fixture server before the test module",
+    )];
+    let found = product_lines_with("thread::spawn", &homes);
+    assert!(
+        found.is_empty(),
+        "thread::spawn in product code; use std::thread::Builder::new().spawn and handle its error:\n{}",
+        found.join("\n")
+    );
+}
+
+/// Every accept loop of a server hands its connections to `studio::http::spawn_connection`
+/// (§0 row 36, P13): the connection cap, a 503 above it and no panic without a thread.
+#[test]
+fn accept_loops_go_through_spawn_connection() {
+    /// How many lines after `.incoming()` the hand-over may be.
+    const BODY: usize = 4;
+    let mut found = Vec::new();
+    let mut loops = 0;
+    for (rel, lines) in product_sources(&[]) {
+        for (i, line) in lines.iter().enumerate() {
+            if !line.contains(".incoming()") {
+                continue;
+            }
+            loops += 1;
+            let body = lines.iter().skip(i).take(BODY + 1);
+            if !body.into_iter().any(|l| l.contains("spawn_connection(")) {
+                found.push(format!("{rel}:{}: {}", i + 1, line.trim()));
+            }
+        }
+    }
+    assert!(
+        loops >= 2,
+        "the Studio and the review proxy accept loops were not found"
+    );
+    assert!(
+        found.is_empty(),
+        "an accept loop that does not use studio::http::spawn_connection:\n{}",
+        found.join("\n")
+    );
+}
+
+/// Archives are read by `browser::download::unpack` only (§0 row 41, S11), which refuses links
+/// and entries that climb out of its folder. clippy.toml refuses `zip::ZipArchive::new` too;
+/// this also covers a module that allows `disallowed_methods` as a whole.
+#[test]
+fn archives_are_read_by_unpack_only() {
+    let homes = [("src/browser/download.rs", "unpack, the one archive reader")];
+    let found = product_lines_with("ZipArchive", &homes);
+    assert!(
+        found.is_empty(),
+        "an archive read outside browser::download::unpack:\n{}",
+        found.join("\n")
+    );
+}
+
+/// What dfw fetches from a fixed host goes through `core::http::download` (§0 row 19, S11):
+/// https on the source's host, also after redirects, verified before use. The other clients,
+/// each with its reason.
+#[test]
+fn downloads_go_through_core_http_download() {
+    let homes = [
+        ("src/core/http.rs", "the one home of the HTTP client"),
+        (
+            "src/browser/cdp.rs",
+            "the font proxy fetches the fonts a rendered page names, from any host, and only hands them to that page",
+        ),
+        (
+            "src/studio/live_proxy/proxy.rs",
+            "the review proxy forwards the browser's requests to the user's own dev server",
+        ),
+        (
+            "src/telemetry/flush.rs",
+            "the telemetry POST to the compiled-in collector (native/README-telemetry.md)",
+        ),
+    ];
+    let mut found = product_lines_with("http::get(", &homes);
+    found.extend(product_lines_with("ureq::", &homes));
+    assert!(
+        found.is_empty(),
+        "an HTTP request outside core::http; fetch through core::http::download(&Source, ...):\n{}",
+        found.join("\n")
+    );
+}
+
+/// Anything that reacts to file changes polls (§0 row 2, P6): no crate of an OS file watcher,
+/// direct or pulled in by another crate.
+#[test]
+fn no_os_file_watcher_crate() {
+    const WATCHERS: [&str; 6] = [
+        "notify",
+        "inotify",
+        "fsevent",
+        "kqueue",
+        "hotwatch",
+        "watchexec",
+    ];
+    let mut found = Vec::new();
+    for file in ["Cargo.toml", "Cargo.lock"] {
+        let text = fs::read_to_string(native().join(file)).unwrap();
+        for (i, line) in text.lines().enumerate() {
+            let line = line.split('#').next().unwrap_or_default();
+            // `name = "x"` in the lock, `x = ...` in a dependency table of the manifest.
+            let name = match line.trim().strip_prefix("name = ") {
+                Some(quoted) => quoted.trim_matches('"'),
+                None => line.split('=').next().unwrap_or_default().trim(),
+            };
+            if WATCHERS.iter().any(|w| name.starts_with(w)) {
+                found.push(format!("{file}:{}: {}", i + 1, line.trim()));
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "an OS file watcher crate; the Studio polls (studio::watch, P6):\n{}",
+        found.join("\n")
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Paths, ids and the Penpot ledgers (review-rows-wave2 D1, D2: §0 rows 11, 12, 16, 31, 33, 38)
+// ---------------------------------------------------------------------------------------------
+
+/// The lines of each function of a product file, as `(fn line, line number, line)`: a line
+/// belongs to the last `fn ` above it.
+fn by_function(lines: &[String]) -> Vec<(&str, usize, &str)> {
+    let mut inside = "";
+    let mut out = Vec::new();
+    for (i, line) in lines.iter().enumerate() {
+        if let Some(at) = line.find("fn ") {
+            inside = &line[at..];
+        }
+        out.push((inside, i + 1, line.as_str()));
+    }
+    out
+}
+
+/// "Is it inside" is decided once, in `core::paths::inside` (real path, case folded where the
+/// volume ignores case). A `.starts_with(` on a `real_path(`/`canonicalize(` result elsewhere
+/// is a second check that misses the case variant or the alias (`security-privacy.md` S2): on
+/// the call's own line, or on a name a `let` bound to one in the same function.
+#[test]
+fn real_paths_are_compared_in_core_paths() {
+    let word = regex::Regex::new(r"[a-z_][a-z0-9_]*").unwrap();
+    let mut found = Vec::new();
+    for (rel, lines) in product_sources(&["src/core/paths.rs"]) {
+        let mut real_names: Vec<String> = Vec::new();
+        let mut current = "";
+        for (inside, n, line) in by_function(&lines) {
+            if inside != current {
+                current = inside;
+                real_names.clear();
+            }
+            let resolves = line.contains("real_path(") || line.contains("canonicalize(");
+            if resolves {
+                if let Some((pattern, _)) = line
+                    .trim_start()
+                    .strip_prefix("let ")
+                    .and_then(|l| l.split_once('='))
+                {
+                    real_names.extend(
+                        word.find_iter(pattern)
+                            .map(|m| m.as_str().to_string())
+                            .filter(|w| w != "mut"),
+                    );
+                }
+            }
+            let Some(at) = line.find(".starts_with(") else {
+                continue;
+            };
+            let on_real = |name: &String| {
+                line[..at].trim_end().ends_with(name.as_str())
+                    || line[at..].starts_with(&format!(".starts_with({name}"))
+                    || line[at..].starts_with(&format!(".starts_with(&{name}"))
+            };
+            if resolves || real_names.iter().any(on_real) {
+                found.push(format!("{rel}:{n}: {}", line.trim()));
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "a real path compared by hand; use core::paths::inside:\n{}",
+        found.join("\n")
+    );
+}
+
+/// A file named after an id is built by the `*_file(&SafeName)` helper of its folder, so the id
+/// matched its whole pattern first (`security-privacy.md` S3). Refused: a `format!` that ends a
+/// name with `.json`, `.html` or `.svg` (or `.{}` with `file::JSON_EXT`) outside those helpers.
+#[test]
+fn file_names_from_ids_go_through_the_file_helpers() {
+    let name = regex::Regex::new(
+        r#"format!\("[^"]*\{[^}"]*\}\.(?:json|html|svg)"|format!\("[^"]*\{[^}"]*\}\.\{\}",\s*file::JSON_EXT"#,
+    )
+    .unwrap();
+    // The helpers, as `file: fn`.
+    let helpers = [
+        "src/penpot/export.rs: fn export_file(",
+        "src/core/util.rs: fn create_free(",
+        "src/core/paths/layout.rs: fn icon(",
+        "src/core/paths/layout.rs: fn theme(",
+        "src/core/paths/layout.rs: fn master(",
+    ];
+    // Known exceptions, outside review-rows-wave2 area P: a name from a constant list, a key
+    // of dfw's own, or a sanitised id; each still to move behind a helper.
+    let known = [
+        "src/core/fixture.rs: fn variant_page(",
+        "src/design/style.rs: fn get_style(",
+        "src/design/style.rs: fn is_style(",
+        "src/design/compose/library.rs: fn load_icon(",
+        "src/design/system.rs: fn system_options(",
+        "src/browser/cdp.rs: fn cached_or_fetched(",
+        "src/workflow/lang.rs: fn session_file(",
+        // A temporary file named after the process.
+        "src/penpot/import.rs: fn token_diff(",
+    ];
+    let mut found = Vec::new();
+    for (rel, lines) in product_sources(&[]) {
+        for (inside, n, line) in by_function(&lines) {
+            if !name.is_match(line) {
+                continue;
+            }
+            let at = format!("{rel}: {inside}");
+            if helpers
+                .iter()
+                .chain(known.iter())
+                .any(|h| at.starts_with(h))
+            {
+                continue;
+            }
+            found.push(format!("{rel}:{n}: {}", line.trim()));
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "a file name built from an id by hand; add a *_file(&SafeName) helper:\n{}",
+        found.join("\n")
+    );
+}
+
+/// A version names a snapshot folder only through `freeze::snapshot_dir`, which checks it is
+/// `v<number>` first (`security-privacy.md` S3, 71e6fde, 04e1754).
+#[test]
+fn snapshot_folders_are_joined_in_snapshot_dir() {
+    let mut found = Vec::new();
+    for (rel, lines) in product_sources(&[]) {
+        for (inside, n, line) in by_function(&lines) {
+            let allowed = rel == "src/workflow/freeze.rs" && inside.starts_with("fn snapshot_dir(");
+            if line.contains("approved.join(") && !allowed {
+                found.push(format!("{rel}:{n}: {}", line.trim()));
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "a version joined onto design/approved by hand; use freeze::snapshot_dir:\n{}",
+        found.join("\n")
+    );
+}
+
+/// The Penpot ledgers (`threads.json`, `imported.json`) are read, changed and written under
+/// their lock: the one write is `threads::write_ledger`, which asks for the guard (§0 row 38).
+/// Refused in `src/penpot/`: a `write_json_inside(` whose statement names a ledger.
+#[test]
+fn penpot_ledgers_are_written_under_their_lock() {
+    let ledger = ["threads", "ledger", "PENPOT_IMPORTED", "PENPOT_THREADS"];
+    let mut found = Vec::new();
+    for (rel, lines) in product_sources(&[]) {
+        if !rel.starts_with("src/penpot/") {
+            continue;
+        }
+        for (i, line) in lines.iter().enumerate() {
+            let Some(at) = line.find("write_json_inside(") else {
+                continue;
+            };
+            let mut statement = line[at..].to_string();
+            for next in lines.iter().skip(i + 1).take(4) {
+                if statement.contains(';') {
+                    break;
+                }
+                statement.push_str(next);
+            }
+            let in_helper = rel == "src/penpot/threads.rs"
+                && lines[..i]
+                    .iter()
+                    .rev()
+                    .find(|l| l.contains("fn "))
+                    .is_some_and(|l| l.contains("fn write_ledger("));
+            if !in_helper && ledger.iter().any(|w| statement.contains(w)) {
+                found.push(format!("{rel}:{}: {}", i + 1, line.trim()));
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "a Penpot ledger written without the lock's guard; use threads::write_ledger(held, ...):\n{}",
+        found.join("\n")
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Checks, gates, cache and config (review-rows-wave2 D3: §0 rows 32 and 18).
+// ---------------------------------------------------------------------------------------------
+
+/// The product text of one source file, joined, its comments dropped.
+fn product_text(rel: &str) -> String {
+    product_sources(&[])
+        .into_iter()
+        .find(|(r, _)| r == rel)
+        .unwrap_or_else(|| panic!("{rel} is not a product source"))
+        .1
+        .join("\n")
+}
+
+/// The arguments of the call whose `(` is at `open`, split at the top-level commas.
+fn call_args(text: &str, open: usize) -> Vec<String> {
+    let mut depth = 0;
+    let mut args = vec![String::new()];
+    for c in text[open..].chars() {
+        match c {
+            '(' | '[' | '{' => {
+                depth += 1;
+                if depth == 1 {
+                    continue;
+                }
+            }
+            ')' | ']' | '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    break;
+                }
+            }
+            ',' if depth == 1 => {
+                args.push(String::new());
+                continue;
+            }
+            _ => {}
+        }
+        if let Some(last) = args.last_mut() {
+            last.push(c);
+        }
+    }
+    args.into_iter().map(|a| a.trim().to_string()).collect()
+}
+
+/// The `ProjectPaths` fields of `rel::GATE_STATE`, and `approved`.
+fn gate_state_fields() -> Vec<String> {
+    // `(&p.state, rel::STATE)`: the field of each rel, from the table test of core/paths.rs.
+    let paths = fs::read_to_string(native().join("src/core/paths.rs")).unwrap();
+    let pair = regex::Regex::new(r"\(&p\.(\w+), rel::(\w+)\)").unwrap();
+    let field_of: std::collections::HashMap<String, String> = pair
+        .captures_iter(&paths)
+        .map(|c| (c[2].to_string(), c[1].to_string()))
+        .collect();
+    let layout = fs::read_to_string(native().join("src/core/paths/layout.rs")).unwrap();
+    let list = regex::Regex::new(r"pub const GATE_STATE: \[&str; \d+\] = \[([^\]]*)\]").unwrap();
+    let names = list
+        .captures(&layout)
+        .expect("rel::GATE_STATE in core/paths/layout.rs")[1]
+        .split(',')
+        .map(|n| n.trim().to_string())
+        .filter(|n| !n.is_empty())
+        .collect::<Vec<_>>();
+    let mut allowed: Vec<String> = names
+        .iter()
+        .map(|n| {
+            field_of
+                .get(n)
+                .unwrap_or_else(|| panic!("rel::{n} of GATE_STATE has no ProjectPaths field"))
+                .clone()
+        })
+        .collect();
+    // Frozen snapshots: immutable too, written only by the freeze.
+    allowed.push(field_of["APPROVED"].clone());
+    allowed
+}
+
+/// The writers of gate state write only the files of `rel::GATE_STATE` (and the frozen
+/// snapshots of `design/approved`): every write in them names a `ProjectPaths` field whose rel
+/// is in that list, or a local built from one (`design-files.md` D11, §0 row 32). The default
+/// `gate.immutable` is built from the same list, so a new gate file a writer writes must join it.
+#[test]
+fn gate_state_writers_write_only_gate_state() {
+    let allowed = gate_state_fields();
+    let writers = [
+        "src/workflow/state.rs",
+        "src/workflow/decisions.rs",
+        "src/workflow/stack.rs",
+        "src/workflow/freeze.rs",
+        "src/review/comments.rs",
+    ];
+    // A session file under `.dfw/reviews`, kept on the session (`Session::file`) after
+    // `session_files` or `p.reviews.join` named it.
+    let allowances = [("src/review/comments.rs", "self.file")];
+    // (call, index of its path argument)
+    let calls = [
+        ("write_json_inside", 1),
+        ("append_jsonl_inside", 1),
+        ("write_atomic_inside", 1),
+        ("write_reviews", 2),
+        ("write_json", 0),
+        ("write_atomic", 0),
+        ("fs::write", 0),
+        ("fs::copy", 1),
+        ("copy_dir", 1),
+        ("create_dir_all", 0),
+        ("fs::rename", 1),
+        ("remove_file", 0),
+        ("remove_dir_all", 0),
+    ];
+    let field = regex::Regex::new(r"\.(\w+)").unwrap();
+    let ident = regex::Regex::new(r"^[&*]*\s*(?:mut\s+)?(\w+)").unwrap();
+    let word_re = regex::Regex::new(r"\w+").unwrap();
+    let binding = regex::Regex::new(r"let\s+(?:mut\s+)?(\w+)(?:\s*:[^=]+)?\s*=([^;]*);").unwrap();
+    let session_loop = regex::Regex::new(r"for\s+file\s+in\s+session_files\(").unwrap();
+    let patterns: Vec<(&str, usize, regex::Regex)> = calls
+        .iter()
+        .map(|(name, at)| {
+            let re = regex::Regex::new(&format!(r"\b{}\(", regex::escape(name))).unwrap();
+            (*name, *at, re)
+        })
+        .collect();
+    let mut found = Vec::new();
+    let mut writes = 0;
+    for rel in writers {
+        let text = product_text(rel);
+        // `freeze::snapshot_dir` is the one join of `approved/` (snapshot_folders_are_joined_...).
+        let names_allowed = |expr: &str| {
+            expr.contains("snapshot_dir(")
+                || field
+                    .captures_iter(expr)
+                    .any(|c| allowed.contains(&c[1].to_string()))
+        };
+        // Locals built from an allowed field (or from another such local), and the files of
+        // `session_files` (which lists `.dfw/reviews`).
+        let mut derived: Vec<String> = Vec::new();
+        for _ in 0..3 {
+            for c in binding.captures_iter(&text) {
+                let expr = &c[2];
+                let from_derived = word_re
+                    .find_iter(expr)
+                    .any(|w| derived.iter().any(|d| d == w.as_str()));
+                if (names_allowed(expr) || from_derived) && !derived.contains(&c[1].to_string()) {
+                    derived.push(c[1].to_string());
+                }
+            }
+        }
+        if session_loop.is_match(&text) {
+            derived.push("file".into());
+        }
+        for (name, at, pattern) in &patterns {
+            let (name, at) = (*name, *at);
+            for m in pattern.find_iter(&text) {
+                if text[..m.start()].trim_end().ends_with("fn") {
+                    continue;
+                }
+                let open = m.end() - 1;
+                let args = call_args(&text, open);
+                let Some(arg) = args.get(at) else {
+                    continue;
+                };
+                writes += 1;
+                let line = text[..open].lines().count();
+                let root = ident
+                    .captures(arg)
+                    .map(|c| c[1].to_string())
+                    .unwrap_or_default();
+                let stripped = arg.trim_start_matches(['&', '*']);
+                let ok = names_allowed(arg)
+                    || derived.contains(&root)
+                    || allowances
+                        .iter()
+                        .any(|(f, a)| *f == rel && stripped.starts_with(a));
+                if !ok {
+                    found.push(format!("{rel}:{line}: {name}(… {arg} …)"));
+                }
+            }
+        }
+    }
+    assert!(
+        writes >= 8,
+        "the scan found {writes} writes; it no longer reads the writers"
+    );
+    assert!(
+        found.is_empty(),
+        "a writer of gate state writes a file outside rel::GATE_STATE (add it there, so the agent's tools cannot write it, or move the write):\n{}",
+        found.join("\n")
+    );
+}
+
+/// A global-only config key (`core::config::GLOBAL_ONLY`, or a key named `…bin`, `…command`,
+/// `…url`) is read from the user's global file, never from a `load_config` result: a project
+/// layer could set it there before the filter knew it (`security-privacy.md` S10, §0 row 18).
+#[test]
+fn global_only_config_is_read_from_the_global_file() {
+    let config = product_text("src/core/config.rs");
+    let block = regex::Regex::new(r"pub const GLOBAL_ONLY: \[&str; \d+\] = \[([^\]]*)\]").unwrap();
+    let constant = |name: &str| {
+        regex::Regex::new(&format!(r#"pub const {name}: &str = "([^"]*)";"#))
+            .unwrap()
+            .captures(&config)
+            .unwrap_or_else(|| panic!("key::{name} in core/config.rs"))[1]
+            .to_string()
+    };
+    let sections: Vec<String> = block
+        .captures(&config)
+        .expect("GLOBAL_ONLY in core/config.rs")[1]
+        .split(',')
+        .map(|n| n.trim().trim_start_matches("key::").to_string())
+        .filter(|n| !n.is_empty())
+        .map(|n| constant(&n))
+        .collect();
+    assert!(sections.len() >= 4, "{sections:?}");
+    let read = regex::Regex::new(r#"get_path\(\s*&?([^,]+),\s*"([^"]+)""#).unwrap();
+    let mut found = Vec::new();
+    let mut global_reads = 0;
+    for (rel, lines) in product_sources(&[]) {
+        for (i, line) in lines.iter().enumerate() {
+            for c in read.captures_iter(line) {
+                let (arg, key) = (c[1].trim(), &c[2]);
+                let last = key.rsplit('.').next().unwrap_or(key).to_ascii_lowercase();
+                let global_only = sections
+                    .iter()
+                    .any(|s| key == s || key.starts_with(&format!("{s}.")))
+                    || ["bin", "command", "url"].iter().any(|e| last.ends_with(e));
+                if !global_only {
+                    continue;
+                }
+                // The binding of `arg`, the nearest one above: it must read the global file.
+                let binding = lines[..=i].iter().rev().find(|l| {
+                    l.contains(&format!("let {arg} ="))
+                        || l.contains(&format!("({arg}) ="))
+                        || l.contains("fn ") && l.contains(&format!("{arg}:"))
+                });
+                let from_global =
+                    !arg.contains("load_config") && binding.is_some_and(|b| b.contains("global"));
+                if from_global {
+                    global_reads += 1;
+                } else {
+                    found.push(format!("{rel}:{}: {}", i + 1, line.trim()));
+                }
+            }
+        }
+    }
+    assert!(
+        global_reads >= 3,
+        "the scan found {global_reads} global reads; it no longer reads them"
+    );
+    assert!(
+        found.is_empty(),
+        "a global-only key read from the merged config; read the global file (global_config_path()):\n{}",
+        found.join("\n")
+    );
+}

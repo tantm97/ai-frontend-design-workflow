@@ -12,25 +12,13 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant};
 
-#[path = "../src/core/paths/layout.rs"]
-#[allow(
-    dead_code,
-    reason = "each test binary uses a part of the project layout"
-)]
-mod layout;
+#[path = "support/product.rs"]
+mod product;
 use layout::{file, rel};
+use product::{fixture, layout, word};
 
-#[path = "../src/core/fixture.rs"]
-#[allow(
-    dead_code,
-    reason = "each test binary uses a part of the fixture names"
-)]
-mod fixture;
 use fixture::{SCREEN, SCREEN_PAGE};
 
-#[path = "../src/core/word.rs"]
-#[allow(dead_code, reason = "each test binary uses a part of the command line")]
-mod word;
 use word::{command, sub};
 
 #[path = "support/home.rs"]

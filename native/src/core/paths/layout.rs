@@ -73,6 +73,10 @@ pub mod file {
     pub const PENPOT_IMPORTED: &str = "imported.json";
     pub const PENPOT_THREADS: &str = "threads.json";
     pub const PENPOT_CHANGES: &str = "changes";
+    /// The lock of the Penpot ledgers (`threads.json`, `imported.json`), in `.dfw/penpot`.
+    pub const PENPOT_LOCK: &str = ".lock";
+    /// The extension of a JSON file, without its dot.
+    pub const JSON_EXT: &str = "json";
     /// Studio screenshots in [`SHOTS`].
     pub const SHOTS_STUDIO: &str = "studio";
     /// Screenshots of a URL in [`SHOTS`].
@@ -150,6 +154,12 @@ pub mod rel {
     pub const EXTRACTED_TOKENS: &str = "design/system/extracted.tokens.json";
     /// The built Design System page.
     pub const SYSTEM_PAGE: &str = "design/system/index.html";
+    /// The files that hold the gates, approvals, decisions, settings and review comments: dfw
+    /// commands write them, the agent's own file tools never do (`design-files.md` D11). A
+    /// folder of [`GATE_STATE_DIRS`] stands for everything under it.
+    pub const GATE_STATE: [&str; 6] = [STATE, CONFIG, CONFIG_LOCAL, DECISIONS, STACK, REVIEWS];
+    /// The folders of [`GATE_STATE`].
+    pub const GATE_STATE_DIRS: [&str; 1] = [REVIEWS];
     /// The product brief at the project root.
     pub const PRODUCT_DOC: &str = "PRODUCT.md";
     /// The design notes at the project root.

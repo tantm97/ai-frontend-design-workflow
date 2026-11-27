@@ -17,33 +17,15 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 use serde_json::{json, Value};
 
-#[path = "../src/core/paths/layout.rs"]
-#[allow(
-    dead_code,
-    reason = "each test binary uses a part of the project layout"
-)]
-mod layout;
+#[path = "support/product.rs"]
+mod product;
 use layout::{file, rel};
+use product::{fixture, layout, wire, word};
 
-#[path = "../src/core/fixture.rs"]
-#[allow(
-    dead_code,
-    reason = "each test binary uses a part of the fixture names"
-)]
-mod fixture;
 use fixture::screen_page;
 
-#[path = "../src/core/host/wire.rs"]
-#[allow(
-    dead_code,
-    reason = "each test binary uses a part of what a host sends"
-)]
-mod wire;
 use wire::event;
 
-#[path = "../src/core/word.rs"]
-#[allow(dead_code, reason = "each test binary uses a part of the command line")]
-mod word;
 use word::{command, flag, hook_name, sub};
 
 #[path = "support/home.rs"]

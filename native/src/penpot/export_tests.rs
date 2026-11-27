@@ -7,6 +7,11 @@ use crate::core::util::{copy_dir, list_files, test_dir};
 use crate::design::tokens::build_tokens;
 use crate::penpot::tokens::{key as token_key, BASE_SET};
 
+/// [`export_file`] of an id a test made.
+pub(crate) fn id_file(id: &str) -> String {
+    export_file(&SafeName::matching(&EXPORT_ID, id).unwrap())
+}
+
 pub(in crate::penpot) fn fix() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/penpot")
 }
@@ -62,7 +67,7 @@ pub(in crate::penpot) fn with_export(root: &Path, doc: &Value, changes: &str) ->
     fs::create_dir_all(dir.join(file::PENPOT_EXPORTS)).unwrap();
     let id = doc["id"].as_str().unwrap();
     fs::write(
-        dir.join(file::PENPOT_EXPORTS).join(export_file(id)),
+        dir.join(file::PENPOT_EXPORTS).join(id_file(id)),
         to_json_compact(doc),
     )
     .unwrap();
@@ -167,7 +172,7 @@ fn real_render_of_the_fixture_project_matches_the_snapshot() {
     assert!(root
         .join(rel::PENPOT)
         .join(file::PENPOT_EXPORTS)
-        .join(export_file(id))
+        .join(id_file(id))
         .exists());
     assert!(root.join(rel::PENPOT_TOKENS).exists());
     assert_eq!(file, root.join(rel::PENPOT_EXPORT));
@@ -202,7 +207,7 @@ fn only_the_newest_exports_are_kept() {
     let ids: Vec<String> = (1..=25)
         .map(|i| format!("px_202611{i:02}100000_abcdef12"))
         .collect();
-    let json_name = |id: &String| export_file(id);
+    let json_name = |id: &String| id_file(id);
     for id in &ids {
         fs::write(exports.join(json_name(id)), "{}").unwrap();
     }

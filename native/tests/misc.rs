@@ -15,37 +15,15 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 use serde_json::{json, Value};
 
-#[path = "../src/core/paths/layout.rs"]
-#[allow(
-    dead_code,
-    reason = "each test binary uses a part of the project layout"
-)]
-mod layout;
+#[path = "support/product.rs"]
+mod product;
 use layout::rel;
+use product::{fixture, layout, mcp_names, names, word};
 
-#[path = "../src/core/fixture.rs"]
-#[allow(
-    dead_code,
-    reason = "each test binary uses a part of the fixture names"
-)]
-mod fixture;
 use fixture::{APP_COMPONENT, HTML_FILE};
 
-#[path = "../src/core/word.rs"]
-#[allow(dead_code, reason = "each test binary uses a part of the command line")]
-mod word;
 use word::{command, flag, sub};
 
-#[path = "../src/workflow/names.rs"]
-#[allow(
-    dead_code,
-    reason = "each test binary uses a part of the workflow names"
-)]
-mod names;
-
-#[path = "../src/tools/mcp/names.rs"]
-#[allow(dead_code, reason = "each test binary uses a part of the MCP names")]
-mod mcp_names;
 use mcp_names::{key, tool as mcp_tool, SERVER};
 
 #[path = "support/home.rs"]

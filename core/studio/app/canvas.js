@@ -23,7 +23,7 @@ export function applyCam() {
     clearTimeout(movingT);
     movingT = setTimeout(() => world.classList.remove('moving'), 160);
     $('#zoom-label').textContent = TEXT.zoom(z);
-    S.cams[S.page] = { ...S.cam };
+    S.cams.set(S.page, { ...S.cam });
     updateHud();
     scheduleLoads();
   });
@@ -110,7 +110,7 @@ export function revealSelection() {
 
 /** "All pages": bring a page's section to the top-left. */
 export function zoomToSection(/** @type {string} */ id) {
-  const b = S.secBounds?.[id];
+  const b = S.secBounds.get(id);
   if (!b) return;
   const [vw] = vpSize();
   const z = Math.min(1, Math.max(0.05, (vw - 96) / b[2]));

@@ -12,9 +12,6 @@ use std::thread;
 use std::time::Duration;
 
 use serde_json::{json, Value};
-use sha2::{Digest, Sha512};
-
-use crate::core::encoding::base64_encode;
 
 /// How long unpacking the axe-core archive may take.
 const UNPACK_DEADLINE: std::time::Duration = std::time::Duration::from_secs(60);
@@ -25,7 +22,7 @@ use super::launch::{
 use super::layout_check::{head, manifest_breakpoints, states_of, Finding};
 use crate::core::config::load_config;
 use crate::core::error::DfwError;
-use crate::core::http;
+use crate::core::http::{self, Failed, Source, Verify};
 use crate::core::js;
 use crate::core::level::{finding, result, Level};
 use crate::core::paths::file_url;
@@ -41,6 +38,12 @@ const AXE_INTEGRITY: &str = "sha512-9WTZxEjsZ7b13TH8JPmbV2z8CHbl80/2hm3XPEG4JgNd
 /// The file of the axe-core package dfw runs, and its licence, the two files it keeps.
 const AXE_FILE: &str = "axe.min.js";
 const AXE_LICENSE: &str = "LICENSE";
+/// The npm registry, whose tarballs carry an integrity hash.
+const NPM: Source = Source {
+    host: "registry.npmjs.org",
+    redirects: &[],
+    verify: Verify::Sri,
+};
 const NOT_DOWNLOADED: &str = "axe-core not downloaded (dfw setup --a11y, ~550 KB, once)";
 
 /// `runAxe` and `deadControls` of a11y.mjs, byte for byte: they run in the page.
@@ -118,10 +121,11 @@ fn status_in(dir: &Path) -> AxeStatus {
 /// `installAxe({ log })`: download the pinned axe-core tarball, check its npm integrity hash,
 /// keep axe.min.js and LICENSE.
 pub fn install_axe(log: &dyn Fn(&str)) -> Result<AxeStatus, DfwError> {
-    install_axe_from(&axe_dir(), AXE_TARBALL, AXE_INTEGRITY, log)
+    install_axe_from(&NPM, &axe_dir(), AXE_TARBALL, AXE_INTEGRITY, log)
 }
 
 fn install_axe_from(
+    source: &Source,
     dir: &Path,
     url: &str,
     integrity: &str,
@@ -133,21 +137,24 @@ fn install_axe_from(
     log(&format!(
         "Downloading axe-core {AXE_VERSION} from registry.npmjs.org ..."
     ));
-    let res = http::get(url, &[], Duration::from_secs(60), 64 << 20)
-        .map_err(|e| DfwError::internal(format!("fetch failed: {url}: {e}")))?;
-    if !res.ok() {
-        return Err(DfwError::new(format!(
-            "axe-core download failed: HTTP {}",
-            res.status
-        )));
-    }
-    let body = res.body;
-    let got = format!("sha512-{}", base64_encode(&Sha512::digest(&body)));
-    if got != integrity {
-        return Err(DfwError::new(
+    // Refused unless its integrity hash is the pinned one.
+    let body = http::download(
+        source,
+        url,
+        Some(integrity),
+        &[],
+        Duration::from_secs(60),
+        64 << 20,
+    )
+    .map_err(|e| match e {
+        Failed::Transport(e) => DfwError::internal(format!("fetch failed: {url}: {e}")),
+        Failed::Status(status) => DfwError::new(format!("axe-core download failed: HTTP {status}")),
+        Failed::Mismatch { .. } => DfwError::new(
             "axe-core download does not match the pinned integrity hash; refusing to use it.",
-        ));
-    }
+        ),
+        refused @ Failed::Refused { .. } => DfwError::new(refused.to_string()),
+    })?
+    .body;
     fs::create_dir_all(dir)?;
     let tgz = dir.join("axe-core.tgz");
     crate::core::util::write_atomic(&tgz, &body)?;
@@ -489,7 +496,11 @@ fn check_page(renderer: &Renderer, job: &Job, url: Option<&str>, axe_src: &str) 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
+    use crate::core::encoding::base64_encode;
     use crate::core::fixture::COMPOSED_PAGE;
+    #[cfg(unix)]
+    use sha2::{Digest, Sha512};
     #[cfg(unix)]
     use std::process::Command;
 
@@ -554,7 +565,20 @@ mod tests {
         let dir = tmp.join("home/tools/axe-core").join(AXE_VERSION);
         let logged = Mutex::new(Vec::new());
         let log = |m: &str| lock(&logged).push(m.to_string());
-        let install = |integrity: &str| install_axe_from(&dir, &url, integrity, &log);
+        /// The fixture server, as the registry.
+        const LOCAL: Source = Source {
+            host: crate::core::http::LOOPBACK,
+            ..NPM
+        };
+        let install = |integrity: &str| install_axe_from(&LOCAL, &dir, &url, integrity, &log);
+        // The registry's host refuses the fixture server before anything is asked.
+        let refused = install_axe_from(&NPM, &dir, &url, &integrity, &|_| {}).unwrap_err();
+        assert!(
+            refused
+                .message()
+                .starts_with("refusing to download http://"),
+            "{refused}"
+        );
 
         let missing = install(&integrity).unwrap_err();
         assert_eq!(missing.message(), "axe-core download failed: HTTP 404");

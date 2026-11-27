@@ -3,14 +3,14 @@
 //! verifies it against the release's SHA256SUMS; the plugin launcher (bin/dfw) runs it.
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use regex::Regex;
 use serde_json::{json, Value};
 
 use crate::core::error::DfwError;
-use crate::core::http;
+use crate::core::http::{self, Failed, Source, Verify};
 use crate::core::paths::global_dir;
 use crate::core::platform::{dfw_version, node_arch, node_platform};
 use crate::core::util::sha256;
@@ -27,8 +27,13 @@ pub fn asset_name(version: &str, platform: &str, arch: &str) -> String {
 
 /// `binaryPath(version)`: where the binary of a version is installed.
 pub fn binary_path(version: &str) -> PathBuf {
+    binary_path_in(&global_dir().join("bin"), version)
+}
+
+/// Where the binary of a version goes under the `bin` folder `bins`.
+fn binary_path_in(bins: &Path, version: &str) -> PathBuf {
     let exe = if cfg!(windows) { "dfw.exe" } else { "dfw" };
-    global_dir().join("bin").join(version).join(exe)
+    bins.join(version).join(exe)
 }
 
 /// `binaryStatus()`.
@@ -53,14 +58,48 @@ pub fn binary_status() -> BinaryStatus {
     }
 }
 
-/// `get(url)`: the body of a URL, following redirects; `HTTP <status> for <url>` otherwise.
-/// Two minutes and 256 MB at most.
-fn get(url: &str) -> Result<Vec<u8>, DfwError> {
-    let res = http::get(url, &[], Duration::from_secs(120), 256 << 20)
-        .map_err(|e| DfwError::internal(format!("{url}: {e}")))?;
-    if !res.ok() {
-        return Err(DfwError::new(format!("HTTP {} for {url}", res.status)));
-    }
+/// Where a release's files come from: its checksum list (only read) and its binaries
+/// (verified against the list). GitHub answers a release download with a redirect to its
+/// storage hosts.
+struct Release {
+    sums: Source,
+    asset: Source,
+}
+
+/// The release hosts of GitHub.
+const GITHUB: Release = Release {
+    sums: Source {
+        host: "github.com",
+        redirects: GITHUB_STORAGE,
+        verify: Verify::Read,
+    },
+    asset: Source {
+        host: "github.com",
+        redirects: GITHUB_STORAGE,
+        verify: Verify::Sha256,
+    },
+};
+
+/// Where GitHub serves release assets from after the redirect.
+const GITHUB_STORAGE: &[&str] = &[
+    "objects.githubusercontent.com",
+    "release-assets.githubusercontent.com",
+];
+
+/// `get(url)`: the body of a URL from `source`, following redirects and verified against
+/// `want`; `HTTP <status> for <url>` otherwise. Two minutes and 256 MB at most.
+fn get(source: &Source, url: &str, want: Option<&str>) -> Result<Vec<u8>, DfwError> {
+    let res = http::download(source, url, want, &[], Duration::from_secs(120), 256 << 20).map_err(
+        |e| match e {
+            Failed::Transport(e) => DfwError::internal(format!("{url}: {e}")),
+            Failed::Status(status) => DfwError::new(format!("HTTP {status} for {url}")),
+            Failed::Mismatch { want, got } => DfwError::new(format!(
+                "Checksum mismatch for {} (expected {want}, got {got}); not installed.",
+                url.rsplit('/').next().unwrap_or(url)
+            )),
+            refused @ Failed::Refused { .. } => DfwError::new(refused.to_string()),
+        },
+    )?;
     Ok(res.body)
 }
 
@@ -80,16 +119,23 @@ fn wanted_sum(sums: &str, name: &str) -> Option<String> {
 pub fn install_binary(log: &dyn Fn(&str)) -> Result<Value, DfwError> {
     let version = dfw_version();
     let base = format!("https://github.com/{RELEASE_REPO}/releases/download/v{version}");
-    install_binary_from(&base, &version, log)
+    install_binary_from(&GITHUB, &base, &global_dir().join("bin"), &version, log)
 }
 
-/// [`install_binary`] from a given release folder URL.
-fn install_binary_from(base: &str, version: &str, log: &dyn Fn(&str)) -> Result<Value, DfwError> {
+/// [`install_binary`] from a given release folder URL on `release`'s hosts, into the `bin`
+/// folder `bins` (a test's own folder, never the user's).
+fn install_binary_from(
+    release: &Release,
+    base: &str,
+    bins: &Path,
+    version: &str,
+    log: &dyn Fn(&str),
+) -> Result<Value, DfwError> {
     let name = asset_name(version, node_platform(), node_arch());
     log(&format!(
         "Downloading {name} from github.com/{RELEASE_REPO} (release v{version}) ..."
     ));
-    let sums = get(&format!("{base}/SHA256SUMS")).map_err(|e| {
+    let sums = get(&release.sums, &format!("{base}/SHA256SUMS"), None).map_err(|e| {
         DfwError::new(format!(
             "No dfw binary release for v{version} yet ({e}). The installed dfw keeps running."
         ))
@@ -101,14 +147,10 @@ fn install_binary_from(base: &str, version: &str, log: &dyn Fn(&str)) -> Result<
             node_arch()
         ))
     })?;
-    let buf = get(&format!("{base}/{name}"))?;
+    // Refused unless its SHA-256 is the listed one.
+    let buf = get(&release.asset, &format!("{base}/{name}"), Some(&want))?;
     let got = sha256(&buf);
-    if got != want {
-        return Err(DfwError::new(format!(
-            "Checksum mismatch for {name} (expected {want}, got {got}); not installed."
-        )));
-    }
-    let dest = binary_path(version);
+    let dest = binary_path_in(bins, version);
     if let Some(dir) = dest.parent() {
         fs::create_dir_all(dir)?;
     }
@@ -191,6 +233,7 @@ fn remove_node_binaries_in(bin: &std::path::Path) -> Vec<String> {
 mod tests {
     use super::*;
     use crate::core::util::serve_routes as serve;
+    use crate::core::util::test_dir;
     use std::collections::HashMap;
 
     #[test]
@@ -235,8 +278,7 @@ mod tests {
     }
 
     /// The download against a local server: wrong checksum, missing asset, missing release.
-    /// The good path writes under the global dir, so it is covered by the golden test
-    /// (its own DFW_HOME), not here.
+    /// Everything goes into the test's own folder, never the user's dfw home (T9).
     #[test]
     fn download_is_verified_before_anything_is_installed() {
         /// The release the local server offers.
@@ -256,7 +298,32 @@ mod tests {
             ),
         ]));
         let quiet = |_: &str| {};
-        let err = install_binary_from(&format!("{base}/bad"), RELEASE, &quiet).unwrap_err();
+        let bins = test_dir("binary-install");
+        /// The fixture server, as the release's hosts.
+        const LOCAL: Release = Release {
+            sums: Source {
+                host: http::LOOPBACK,
+                redirects: &[],
+                verify: Verify::Read,
+            },
+            asset: Source {
+                host: http::LOOPBACK,
+                redirects: &[],
+                verify: Verify::Sha256,
+            },
+        };
+        let install =
+            |at: &str| install_binary_from(&LOCAL, &format!("{base}/{at}"), &bins, RELEASE, &quiet);
+        // GitHub's hosts refuse the fixture server before anything is asked.
+        let err = install_binary_from(&GITHUB, &format!("{base}/bad"), &bins, RELEASE, &quiet)
+            .unwrap_err();
+        assert!(
+            err.message()
+                .contains("refusing to download http://127.0.0.1:"),
+            "{err}"
+        );
+        assert!(!binary_path_in(&bins, RELEASE).exists());
+        let err = install("bad").unwrap_err();
         assert_eq!(
             err.message(),
             format!(
@@ -265,8 +332,8 @@ mod tests {
                 sha256(BINARY)
             )
         );
-        assert!(!binary_path(RELEASE).exists());
-        let err = install_binary_from(&format!("{base}/other"), RELEASE, &quiet).unwrap_err();
+        assert!(!binary_path_in(&bins, RELEASE).exists());
+        let err = install("other").unwrap_err();
         assert_eq!(
             err.message(),
             format!(
@@ -275,7 +342,7 @@ mod tests {
                 node_arch()
             )
         );
-        let err = install_binary_from(&format!("{base}/none"), RELEASE, &quiet).unwrap_err();
+        let err = install("none").unwrap_err();
         assert_eq!(
             err.message(),
             format!("No dfw binary release for v7.7.7 yet (HTTP 404 for {base}/none/SHA256SUMS). The installed dfw keeps running.")

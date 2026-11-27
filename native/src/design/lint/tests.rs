@@ -917,11 +917,13 @@ fn a_manifest_of_the_wrong_shape_is_an_error_where_node_dies() {
         let coverage = state_coverage(&root, &rel::screen(HTML_FILE), TABLE);
         (lint_manifest(&root).is_ok(), coverage.is_ok())
     };
+    // A manifest that is not an object: Node read it as one with no screens; the lint stops
+    // (`errors.md` E7), so a gate never passes on it.
+    for not_object in [json!(5), json!("text"), json!([1])] {
+        assert!(!check(not_object.clone()).0, "{not_object}");
+    }
     // Wrong types the Node code read without trouble.
     for fine in [
-        json!(5),
-        json!("text"),
-        json!([1]),
         json!({ "screens": 0, "pages": "ab", "states": 0 }),
         json!({ "screens": [5, "x", { "id": "a", "variants": 0 }] }),
         json!({ "screens": [{ "id": "a", "variants": [{ "file": "" }, { "file": 0 }] }] }),

@@ -33,12 +33,17 @@ pub use style::{layout_value, load_token_names, set_style_prop, token_var};
 
 use crate::core::error::DfwError;
 use crate::core::js;
+use crate::core::js::regex::fixed_regex;
 use crate::core::lock;
-use crate::core::paths::{self, project_paths, real_path, resolve, to_posix};
-use crate::core::util::{ensure_inside, now_iso, read_json, to_json_compact, write_atomic_inside};
+use crate::core::paths::{self, file, inside, project_paths, resolve, to_posix, Place, SafeName};
+use crate::core::util::{
+    create_first_free, now_iso, read_json, to_json_compact, write_atomic_inside,
+};
 use crate::design::compose::{attr, load_components, ComponentDef};
 use crate::design::html::{escape_text, set_attr, Splice};
-use crate::design::tokens::{dir_names, relative_path};
+use crate::design::tokens::dir_names;
+use regex::Regex;
+use std::sync::LazyLock;
 
 /// `SPACING_PROPS`: what a spacing edit may set in an inline style.
 pub const SPACING_PROPS: [&str; 17] = [
@@ -182,18 +187,26 @@ pub fn resolve_design_file(root: &Path, file: Option<&Value>) -> Result<DesignFi
     let p = project_paths(root);
     let rel = file.trim_start_matches('/');
     let rel = paths::rel::inside(paths::rel::DESIGN, rel).unwrap_or(rel);
-    // Canonical paths: on a case-insensitive file system "Approved/x.html" IS the frozen file,
-    // and a symlink may leave design/.
-    let design = real_path(&p.design);
-    let approved = real_path(&p.approved);
-    let abs = real_path(&p.design.join(rel));
-    if abs == design || !abs.starts_with(&design) {
-        return Err(DfwError::new(format!(
-            "Edits are limited to files under {}/.",
-            paths::rel::DESIGN
-        )));
-    }
-    if abs.starts_with(&approved) {
+    let missing = || {
+        DfwError::new(format!(
+            "{} does not exist.",
+            paths::rel::design(&to_posix(rel))
+        ))
+    };
+    // Real paths: on a case-insensitive file system "Approved/x.html" IS the frozen file, and a
+    // symlink may leave design/.
+    let (abs, in_design) = match inside(&p.design, &p.design.join(rel)) {
+        Place::Inside { real, rel } if !rel.as_os_str().is_empty() => (real, rel),
+        // A cycle of links is no file.
+        Place::Unresolved => return Err(missing()),
+        _ => {
+            return Err(DfwError::new(format!(
+                "Edits are limited to files under {}/.",
+                paths::rel::DESIGN
+            )))
+        }
+    };
+    if !matches!(inside(&p.approved, &abs), Place::Outside(_)) {
         return Err(DfwError::new(format!(
             "{}/ is frozen; edits there are refused.",
             paths::rel::APPROVED
@@ -205,12 +218,9 @@ pub fn resolve_design_file(root: &Path, file: Option<&Value>) -> Result<DesignFi
         ));
     }
     if !abs.exists() {
-        return Err(DfwError::new(format!(
-            "{} does not exist.",
-            paths::rel::design(&to_posix(rel))
-        )));
+        return Err(missing());
     }
-    let rel = paths::rel::design(&to_posix(&relative_path(&design, &abs)));
+    let rel = paths::rel::design(&to_posix(&in_design.to_string_lossy()));
     Ok(DesignFile { abs, rel })
 }
 
@@ -531,37 +541,24 @@ fn edit_lock(root: &Path) -> Result<lock::Lock, DfwError> {
     lock::acquire(&edits_dir(root).join(".lock"), &lock::STANDARD)
 }
 
-/// The file name of the journal record `stamp`.
-fn record_file(stamp: &str) -> String {
-    format!("{stamp}.json")
-}
+/// The name of a journal record ([`next_stamp`]).
+static STAMP: LazyLock<Regex> = LazyLock::new(|| fixed_regex(r"^[0-9]+-[0-9]{4}$"));
 
 /// Write a journal record under a new name; never replaces a record.
 fn write_record(root: &Path, record: &Value) -> Result<(), DfwError> {
-    use std::io::Write;
-    let dir = edits_dir(root);
     let text = to_json_compact(record);
+    let journal = journal(root)?;
     let mut seq_after = None;
-    for _ in 0..10000 {
-        let stamp = next_stamp(&journal(root)?, seq_after);
-        let file = dir.join(record_file(&stamp));
-        ensure_inside(root, &file)?;
-        match fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&file)
-        {
-            Ok(mut f) => return Ok(f.write_all(text.as_bytes())?),
-            Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
-                seq_after = stamp.rsplit_once('-').and_then(|(_, s)| s.parse().ok());
-            }
-            Err(err) => return Err(err.into()),
-        }
-    }
-    Err(DfwError::internal(format!(
-        "No free journal name in {}.",
-        dir.display()
-    )))
+    let stamps = |_| {
+        let stamp = next_stamp(&journal, seq_after);
+        // The next try continues after this one.
+        seq_after = stamp.rsplit_once('-').and_then(|(_, s)| s.parse().ok());
+        SafeName::matching(&STAMP, &stamp)
+    };
+    create_first_free(root, &edits_dir(root), file::JSON_EXT, stamps, |_| {
+        text.clone().into_bytes()
+    })?;
+    Ok(())
 }
 
 /// What [`apply_edit`] did.

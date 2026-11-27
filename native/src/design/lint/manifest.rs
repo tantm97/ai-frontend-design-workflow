@@ -66,6 +66,10 @@ pub fn lint_manifest(root: &Path) -> Result<Vec<Value>, DfwError> {
         );
         return Ok(out);
     }
+    // A list or a text is not a manifest with no screens: the lint stops (`errors.md` E7).
+    if !manifest.is_object() {
+        return Err(malformed("the file must hold a JSON object"));
+    }
     let screens = list(manifest.get(key::SCREENS), "\"screens\"")?;
     for screen in screens {
         item(screen, "a screen")?;

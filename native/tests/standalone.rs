@@ -16,22 +16,12 @@ use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
-#[path = "../src/core/paths/layout.rs"]
-#[allow(
-    dead_code,
-    reason = "each test binary uses a part of the project layout"
-)]
-mod layout;
+#[path = "support/product.rs"]
+mod product;
 use layout::{file, rel};
+use product::{layout, mcp_names, word};
 
-#[path = "../src/core/word.rs"]
-#[allow(dead_code, reason = "each test binary uses a part of the command line")]
-mod word;
 use word::{command, flag, sub};
-
-#[path = "../src/tools/mcp/names.rs"]
-#[allow(dead_code, reason = "each test binary uses a part of the MCP names")]
-mod mcp_names;
 
 #[path = "support/home.rs"]
 mod home;

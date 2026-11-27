@@ -9,7 +9,7 @@ use regex::Regex;
 use serde_json::{json, Value};
 
 use crate::core::error::DfwError;
-use crate::core::http;
+use crate::core::http::{self, Failed, Source, Verify};
 
 const USER_AGENT: &str =
     "Mozilla/5.0 (Macintosh) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36";
@@ -94,6 +94,12 @@ fn subsets_in(css: &str) -> Result<Vec<String>, DfwError> {
 /// is a few kilobytes).
 const LOOKUP_DEADLINE: Duration = Duration::from_secs(15);
 const CSS_LIMIT: u64 = 1024 * 1024;
+/// The Google Fonts CSS API: a stylesheet dfw only reads for its subset names.
+const GOOGLE_FONTS: Source = Source {
+    host: "fonts.googleapis.com",
+    redirects: &[],
+    verify: Verify::Read,
+};
 
 /// `fontSubsets`: which subsets Google Fonts ships for `family`. A failed request is not an
 /// error here: it is reported in the result (`ok` false), as the Node CLI printed it.
@@ -109,14 +115,16 @@ pub fn font_subsets(family: &str) -> Result<FontSubsets, DfwError> {
         error,
         subsets: Vec::new(),
     };
-    let css = match http::get(
+    let css = match http::download(
+        &GOOGLE_FONTS,
         &url,
+        None,
         &[("user-agent", USER_AGENT)],
         LOOKUP_DEADLINE,
         CSS_LIMIT,
     ) {
-        Ok(res) if res.ok() => String::from_utf8_lossy(&res.body).into_owned(),
-        Ok(res) => return Ok(failed(Some(res.status), None)),
+        Ok(res) => String::from_utf8_lossy(&res.body).into_owned(),
+        Err(Failed::Status(status)) => return Ok(failed(Some(status), None)),
         Err(err) => return Ok(failed(None, Some(err.to_string()))),
     };
     Ok(FontSubsets {

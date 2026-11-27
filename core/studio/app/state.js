@@ -62,7 +62,8 @@ export const S = {
   page: null,
   mode: MODE.SELECT,
   cam: { x: 0, y: 0, z: 0.25 },
-  cams: {},
+  cams: new Map(), // page id -> camera
+  secBounds: new Map(), // page id -> [x, y, w, h] of its section on the canvas
   activeBps: store.get('bps3', null), // null = all
   activeStates: store.get('states3', null), // null = all
   fullHeight: store.get('full2', true), // frames grow to their content height by default; the toggle crops to the viewport

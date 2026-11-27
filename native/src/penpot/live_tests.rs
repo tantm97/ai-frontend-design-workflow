@@ -327,3 +327,28 @@ fn timestamps_of_an_export() {
     assert_eq!(parse_iso_ms("yesterday"), None);
     assert_eq!(parse_iso_ms(""), None);
 }
+
+/// §0 row 38: the plugin's sync runs on Studio connection threads at the same time; every
+/// reply marked posted is kept (the ledger is read, changed and written under its lock).
+#[test]
+fn concurrent_syncs_keep_every_posted_reply() {
+    /// How many syncs mark a reply posted at the same time.
+    const WRITERS: usize = 24;
+    let (root, _) = live_project("penpot-live-posted");
+    let tk = thread_key(Some(&FILE.into()), Some(&1.into()));
+    let link = json!({ (wire::link::COMMENT): "fb_001", (wire::link::SEEN): 0, (wire::link::RESOLVED): false, (wire::link::POSTED): [] });
+    crate::core::util::write_json(&threads_file(&root), &json!({ tk.clone(): link })).unwrap();
+    let start = std::sync::Barrier::new(WRITERS);
+    std::thread::scope(|s| {
+        for i in 0..WRITERS {
+            let (root, start) = (&root, &start);
+            s.spawn(move || {
+                start.wait();
+                let posted = json!([{ (wire::SEQ): 1, (wire::KEY): format!("reply:{i}") }]);
+                mark_posted(root, FILE, Some(&posted)).unwrap();
+            });
+        }
+    });
+    let threads = read_json(&threads_file(&root), None).unwrap();
+    assert_eq!(count(&threads[&tk], wire::link::POSTED), WRITERS);
+}

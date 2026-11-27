@@ -11,13 +11,46 @@ use super::export::penpot_dir;
 use super::wire;
 use crate::core::error::DfwError;
 use crate::core::js;
+use crate::core::lock;
 use crate::core::paths::file;
+use crate::core::util::write_json_inside;
 use crate::review::comments::{all_comments, update_comment, Update};
 use crate::review::status::{self, Status};
 
 /// `.dfw/penpot/threads.json`.
 pub(crate) fn threads_file(root: &Path) -> PathBuf {
     penpot_dir(root).join(file::PENPOT_THREADS)
+}
+
+/// Proof that the Penpot ledger lock (`.dfw/penpot/.lock`, a `core::lock`) is held: made only
+/// by [`locked`] and asked for by [`write_ledger`], so a write of `threads.json` or
+/// `imported.json` outside the lock does not compile. The Studio serves one thread per
+/// connection, and the plugin's sync and "Send changes" read, change and write these files at
+/// the same time (`process-and-io.md` P7).
+pub(crate) struct Held {
+    /// Released when the guard is dropped.
+    _lock: lock::Lock,
+}
+
+/// Run `f` holding the Penpot ledger lock.
+pub(crate) fn locked<T>(
+    root: &Path,
+    f: impl FnOnce(&Held) -> Result<T, DfwError>,
+) -> Result<T, DfwError> {
+    let held = Held {
+        _lock: lock::acquire(&penpot_dir(root).join(file::PENPOT_LOCK), &lock::STANDARD)?,
+    };
+    f(&held)
+}
+
+/// The one write of a Penpot ledger (`threads.json`, `imported.json`): under the lock.
+pub(crate) fn write_ledger(
+    _held: &Held,
+    root: &Path,
+    file: &Path,
+    value: &Value,
+) -> Result<(), DfwError> {
+    write_json_inside(root, file, value)
 }
 
 /// The key of a thread: the Penpot file's id and the thread's number in it.

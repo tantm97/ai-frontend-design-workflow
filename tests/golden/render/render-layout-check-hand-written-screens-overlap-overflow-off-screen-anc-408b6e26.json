@@ -15,7 +15,7 @@
       "code": 0,
       "stdout": "Layout: 2 render(s), 0 must, 2 should.\n- [SHOULD] (render) touch/a @ desktop: could not render (The \"path\" argument must be of type string. Received undefined)\n- [SHOULD] (render) touch/a @ mobile: could not render (The \"path\" argument must be of type string. Received undefined)\n",
       "files": {
-        ".dfw/layout-cache.json": "{\"t:tokens\":null,\"f:styles/base.css\":null,\"f:system/head.html\":null,\"s:screens/touch/a.html\":null}"
+        ".dfw/layout-cache.json": "{\"t:tokens\":null,\"f:styles/base.css\":null,\"f:system/head.html\":null,\"s:screens/touch/a.html\":null,\"l:layout\":\"a8328bc7151cf8d2\",\"m:touch\":\"74234e98afe7498f\"}"
       }
     }
   ]

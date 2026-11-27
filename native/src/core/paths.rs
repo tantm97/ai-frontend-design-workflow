@@ -339,33 +339,113 @@ pub fn file_url_to_path(url: &str) -> PathBuf {
     }
 }
 
+/// Whether paths are compared without case: macOS (APFS, HFS+) and Windows (NTFS) volumes ignore
+/// case by default, so `design/Approved` is `design/approved` there. Decided per OS, without
+/// testing the volume: on the rare case-sensitive volume of those systems it only refuses more.
+pub const FOLD_CASE: bool = cfg!(any(target_os = "macos", target_os = "windows"));
+
 /// The real path of `p`: symbolic links and letter case as the file system has them. It also
 /// works for a path that does not exist yet (its existing part is resolved, the rest is kept)
 /// and for a link whose target is missing (the target is followed as written), so a dangling
-/// link that points outside is seen as outside.
-pub fn real_path(p: &Path) -> PathBuf {
+/// link that points outside is seen as outside. `None` when the path cannot be resolved: a
+/// cycle of links, or an entry that exists but cannot be read.
+pub fn real_path(p: &Path) -> Option<PathBuf> {
     real_path_hops(&resolve(p), 40)
 }
 
-fn real_path_hops(p: &Path, hops: u32) -> PathBuf {
+fn real_path_hops(p: &Path, hops: u32) -> Option<PathBuf> {
     if let Ok(real) = canonicalize(p) {
-        return real;
+        return Some(real);
     }
     let (Some(up), Some(name)) = (p.parent(), p.file_name()) else {
-        return p.to_path_buf();
+        return Some(p.to_path_buf());
     };
-    let up = real_path_hops(up, hops);
+    let up = real_path_hops(up, hops)?;
     let here = up.join(name);
     match std::fs::read_link(&here) {
-        // A link whose target does not resolve: follow what it names (a cycle stops after `hops`).
+        // A link whose target does not resolve: follow what it names.
         Ok(target) if hops > 0 => real_path_hops(&resolve(up.join(target)), hops - 1),
-        _ => here,
+        // A cycle.
+        Ok(_) => None,
+        Err(_) if std::fs::symlink_metadata(&here).is_ok() => None,
+        Err(_) => Some(here),
+    }
+}
+
+/// Where a path is, compared with a root by real path ([`inside`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Place {
+    /// Under the root (or the root itself): the real path, and its part after the real root
+    /// (empty for the root).
+    Inside { real: PathBuf, rel: PathBuf },
+    /// Elsewhere: the real path.
+    Outside(PathBuf),
+    /// The root or the path cannot be resolved (a cycle of links): the caller decides by the
+    /// path as written, and never takes it for "outside".
+    Unresolved,
+}
+
+/// The one "is it inside" check (`security-privacy.md` S2): `path` and `root` are both resolved
+/// through every symbolic link (also one whose target is missing, [`real_path`]), so an alias
+/// of the root (`/tmp` and `/private/tmp`) is the root and a link cannot lead out; components
+/// are compared without case where the volume ignores case ([`FOLD_CASE`]). `..x.ts` is a name
+/// like any other: only a real path elsewhere is outside.
+pub fn inside(root: &Path, path: &Path) -> Place {
+    let (Some(real_root), Some(real)) = (real_path(root), real_path(path)) else {
+        return Place::Unresolved;
+    };
+    match strip_root(&real_root, &real, FOLD_CASE) {
+        Some(rel) => Place::Inside { real, rel },
+        None => Place::Outside(real),
+    }
+}
+
+/// The part of `path` after `root`, component by component, without case when `fold` is set.
+fn strip_root(root: &Path, path: &Path, fold: bool) -> Option<PathBuf> {
+    let same = |a: Component, b: Component| {
+        a == b
+            || fold
+                && a.as_os_str().to_string_lossy().to_lowercase()
+                    == b.as_os_str().to_string_lossy().to_lowercase()
+    };
+    let mut rest = path.components();
+    for want in root.components() {
+        if !rest.next().is_some_and(|got| same(want, got)) {
+            return None;
+        }
+    }
+    Some(rest.as_path().to_path_buf())
+}
+
+/// A file name part checked against its whole pattern: what every `*_file(name)` helper takes,
+/// so an id from a request, a file or `.dfw/` state names a file only in the form dfw writes
+/// (`security-privacy.md` S3). Made only by [`SafeName::matching`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SafeName(String);
+
+impl SafeName {
+    /// `text` when `pattern` matches all of it (not only a part), else `None`.
+    pub fn matching(pattern: &regex::Regex, text: &str) -> Option<SafeName> {
+        pattern
+            .find(text)
+            .filter(|m| m.start() == 0 && m.end() == text.len())
+            .map(|_| SafeName(text.to_string()))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for SafeName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
     }
 }
 
 /// Join a relative path that came from an id, a request or a file onto `root` and prove it stays
 /// inside: no absolute path, no `..`, and its real path (through every symbolic link, also one
-/// whose target is missing) is still under the real root, so a link cannot lead out.
+/// whose target is missing) is still under the real root, so a link cannot lead out ([`inside`]).
 pub fn resolve_inside(root: &Path, rel: &str) -> Result<PathBuf, DfwError> {
     let outside = || DfwError::new(format!("Path \"{rel}\" is outside the project."));
     let rel_path = Path::new(rel);
@@ -377,12 +457,14 @@ pub fn resolve_inside(root: &Path, rel: &str) -> Result<PathBuf, DfwError> {
     {
         return Err(outside());
     }
+    // A root that does not exist holds nothing.
+    canonicalize(root).map_err(|_| outside())?;
     let target = root.join(rel_path);
-    let real_root = canonicalize(root).map_err(|_| outside())?;
-    if !real_path(&target).starts_with(&real_root) {
-        return Err(outside());
+    match inside(root, &target) {
+        Place::Outside(_) => Err(outside()),
+        // A cycle of links ends; the path as written is inside.
+        Place::Inside { .. } | Place::Unresolved => Ok(target),
     }
-    Ok(target)
 }
 
 #[cfg(test)]
@@ -647,5 +729,98 @@ mod tests {
             );
         }
         fs::remove_dir_all(&tmp).unwrap();
+    }
+
+    /// The one "is it inside" check, over every case `security-privacy.md` S2 names.
+    #[test]
+    fn inside_decides_by_real_path() {
+        /// A file whose name starts with two dots: a name, not a way up.
+        const TWO_DOTS: &str = "..x.ts";
+        /// The frozen folder with another case.
+        const APPROVED_VARIANT: &str = "design/Approved/v1/a.html";
+        let tmp = test_dir("inside-table");
+        let root = tmp.join("project");
+        let elsewhere = tmp.join("elsewhere");
+        fs::create_dir_all(root.join(rel::approved("v1"))).unwrap();
+        fs::create_dir_all(&elsewhere).unwrap();
+        let is_in = |r: &Path, p: &Path| matches!(inside(r, p), Place::Inside { .. });
+        let is_out = |r: &Path, p: &Path| matches!(inside(r, p), Place::Outside(_));
+        assert!(is_out(&root, &root.join("..")), "..");
+        assert!(is_out(&root, &root.join("..").join("x")), "../x");
+        assert!(is_out(&root, &elsewhere.join(HTML_FILE)), "absolute");
+        assert_eq!(
+            inside(&root, &root.join(TWO_DOTS)),
+            Place::Inside {
+                real: root.join(TWO_DOTS),
+                rel: PathBuf::from(TWO_DOTS)
+            }
+        );
+        assert_eq!(
+            inside(&root, &root),
+            Place::Inside {
+                real: root.clone(),
+                rel: PathBuf::new()
+            },
+            "the root itself"
+        );
+        let approved = root.join(rel::APPROVED);
+        assert_eq!(
+            is_in(&approved, &root.join(APPROVED_VARIANT)),
+            FOLD_CASE,
+            "a case variant of approved is approved where the volume ignores case"
+        );
+        // Also before the folder exists (the write would make it): the case is compared.
+        let fresh = tmp.join("fresh");
+        assert_eq!(
+            is_in(&fresh.join(rel::APPROVED), &fresh.join(APPROVED_VARIANT)),
+            FOLD_CASE,
+            "a case variant of a folder not made yet"
+        );
+        let (upper, lower) = (Path::new("/a/B"), Path::new("/a/b/c"));
+        assert_eq!(strip_root(upper, lower, true), Some(PathBuf::from("c")));
+        assert_eq!(strip_root(upper, lower, false), None);
+        #[cfg(unix)]
+        {
+            use crate::core::fixture::LOOP_LINK;
+            use std::os::unix::fs::symlink;
+            /// A link out of the project, and one whose target is missing.
+            const OUT_LINK: &str = "out";
+            const DANGLING_OUT: &str = "dangling-out.html";
+            symlink(&elsewhere, root.join(OUT_LINK)).unwrap();
+            assert!(
+                is_out(&root, &root.join(OUT_LINK).join(HTML_FILE)),
+                "a link out"
+            );
+            symlink(elsewhere.join(HTML_FILE), root.join(DANGLING_OUT)).unwrap();
+            assert!(
+                is_out(&root, &root.join(DANGLING_OUT)),
+                "a dangling link out"
+            );
+            // An alias of the root (`/tmp` and `/private/tmp` on macOS) is the root.
+            let alias = tmp.join("alias");
+            symlink(&root, &alias).unwrap();
+            assert!(is_in(&root, &alias.join(HTML_FILE)));
+            assert!(is_in(&alias, &root.join(HTML_FILE)));
+            symlink(LOOP_LINK, root.join(LOOP_LINK)).unwrap();
+            assert_eq!(
+                inside(&root, &root.join(LOOP_LINK).join(HTML_FILE)),
+                Place::Unresolved,
+                "a cycle of links"
+            );
+        }
+        fs::remove_dir_all(&tmp).unwrap();
+    }
+
+    #[test]
+    fn a_safe_name_matches_its_whole_pattern() {
+        const ID: &str = "px_1";
+        let pattern = regex::Regex::new("px_[0-9]+").unwrap();
+        assert_eq!(
+            SafeName::matching(&pattern, ID).map(|n| n.to_string()),
+            Some(ID.into())
+        );
+        for bad in ["px_", "../px_1", "px_1/..", "px_1\n", ""] {
+            assert!(SafeName::matching(&pattern, bad).is_none(), "{bad:?}");
+        }
     }
 }

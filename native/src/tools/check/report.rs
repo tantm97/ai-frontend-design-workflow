@@ -7,7 +7,7 @@ use crate::core::error::exit;
 use crate::core::level::{self, Level};
 use serde_json::{json, Value};
 
-use super::outcome;
+use super::Outcome;
 use crate::core::level::{finding, result as field};
 
 /// A tool as the first line of the report lists it: `tool=status`.
@@ -138,16 +138,7 @@ pub fn format_report(results: &[Value], max: usize) -> Report {
         ));
     }
     // Fail closed: a check that could not run is reported as NOT VERIFIED, never read as a pass.
-    let did_not_run = |r: &&Value| {
-        [
-            outcome::UNVERIFIABLE,
-            outcome::UNAVAILABLE,
-            outcome::NOT_INSTALLED,
-            outcome::TIMEOUT,
-            outcome::ERROR,
-        ]
-        .contains(&status(r).as_str())
-    };
+    let did_not_run = |r: &&Value| !Outcome::status_verified(&status(r));
     let detail = |r: &Value| {
         r.get(field::DETAIL)
             .filter(|d| js::truthy(d))

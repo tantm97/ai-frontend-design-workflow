@@ -24,11 +24,17 @@ function rulesOf(rules, pick, out = []) {
   return out;
 }
 
+/** Whether a message names a layout prop this check knows: own keys only (S4), so `constructor`
+ * or `toString` from a message is not one. */
+export function knownProp(/** @type {string} */ prop) {
+  return Object.hasOwn(styleProp, prop);
+}
+
 /** Check a resize the Studio saved (dfw:layout-verify) and report a conflicting rule. */
 export function verifyLayout(/** @type {{ id: string, prop: string }} */ d) {
   const el = /** @type {HTMLElement | null} */ (document.querySelector(`[data-dfw-id="${CSS.escape(d.id)}"]`));
   const sheet = /** @type {HTMLStyleElement | null} */ (document.querySelector('style[data-dfw-layout]'))?.sheet;
-  if (!el || !sheet || !styleProp[d.prop]) return;
+  if (!el || !sheet || !knownProp(d.prop)) return;
   const own = rulesOf(sheet.cssRules, (r) => r.style.getPropertyValue(d.prop) && el.matches(r.selectorText));
   if (!own.length) return; // not at this width (or already reset)
   const read = () =>
