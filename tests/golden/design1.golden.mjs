@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { run, assertSame, nativeBinary, skipReason, REPO, suite, expected } from './harness.mjs';
+import { run, assertSame, nativeBinary, skipReason, REPO, suite, expected, MINIMAL_STATE } from './harness.mjs';
 
 const test = suite('design1');
 
@@ -516,6 +516,71 @@ describe('design commands', { skip: skipReason() }, () => {
       assert.equal(same(args, { setup }).code, 0, args.join(' '));
     }
     assert.equal(same(['blueprint']).stdout, 'items: NO BLUEPRINT\n');
+  });
+
+  test('screen add: placed after a sibling or at the end of its page, refusals, frozen design', () => {
+    const shell = (current) =>
+      `<!doctype html><html lang="vi"><body><dfw-use c="app-shell" variant="focus" current="${current}" id="shell"></dfw-use></body></html>\n`;
+    const manifest = {
+      schema: 1,
+      product: 'Fixture',
+      lang: 'vi',
+      pages: [
+        { id: 'stock', title: 'Stock', screens: ['items', 'detail'] },
+        { id: 'settings', title: 'Settings', screens: [] },
+      ],
+      screens: [
+        { id: 'items', title: 'Items', variants: [{ id: 'a', file: 'screens/items/a.html' }], blueprint: { layout: 'flow' } },
+        { id: 'detail', title: 'Detail', variants: [{ id: 'a', file: 'screens/detail/a.html' }] },
+      ],
+    };
+    const setup = (root) => {
+      write(root, 'design/design.json', JSON.stringify(manifest, null, 2) + '\n');
+      write(root, 'design/screens/items/a.html', shell('stock'));
+      write(root, 'design/screens/detail/a.html', '<p></p>\n');
+    };
+    // Placed: between items and detail, at the end of a page, as JSON.
+    for (const args of [
+      [
+        'screen',
+        'add',
+        'item-review',
+        '--page',
+        'stock',
+        '--after',
+        'items',
+        '--from',
+        'items,detail',
+        '--title',
+        'Review & save',
+        '--route',
+        '/items/review',
+      ],
+      ['screen', 'add', 'history', '--page', 'stock'],
+      ['screen', 'add', 'billing', '--page', 'settings', '--json'],
+    ]) {
+      assert.equal(same(args, { setup }).code, 0, args.join(' '));
+    }
+    // Refused, nothing written: usage, ids, unknown page, --after elsewhere, unknown --from, an existing id.
+    for (const args of [
+      ['screen'],
+      ['screen', 'add', 'item-review'],
+      ['screen', 'add', '../escape', '--page', 'stock'],
+      ['screen', 'add', '_explore', '--page', 'stock'],
+      ['screen', 'add', 'item-review', '--page', 'billing'],
+      ['screen', 'add', 'item-review', '--page', 'settings', '--after', 'items'],
+      ['screen', 'add', 'item-review', '--page', 'stock', '--from', 'nope'],
+      ['screen', 'add', 'items', '--page', 'stock'],
+    ]) {
+      const r = run(args, { setup });
+      assertSame(r, { stderr: true });
+      assert.equal(r.native.code, 1, args.join(' '));
+    }
+    // Approved and locked (G2): refused until reopened.
+    const locked = { ...MINIMAL_STATE, design: { version: 1, status: 'approved', locked: true, approved: [1] } };
+    const r = run(['screen', 'add', 'item-review', '--page', 'stock'], { setup, state: locked });
+    assertSame(r, { stderr: true });
+    assert.equal(r.native.code, 1);
   });
 
   test('fonts: usage error without a network call; the other subcommands answer the same', () => {

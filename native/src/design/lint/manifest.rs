@@ -86,6 +86,7 @@ pub fn lint_manifest(root: &Path) -> Result<Vec<Value>, DfwError> {
     check_blueprints(screens, &mut out);
     check_page_screens(&manifest, screens, &mut out)?;
     check_screens(&p.design, screens, &mut out)?;
+    super::flow::check_flow(&p.design, &manifest, &mut out)?;
     Ok(out)
 }
 

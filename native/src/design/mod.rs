@@ -12,6 +12,7 @@ pub mod layout_cache;
 pub mod lint;
 pub mod manifest;
 pub mod pages;
+pub mod screen_add;
 pub mod style;
 pub mod system;
 pub mod system_page;

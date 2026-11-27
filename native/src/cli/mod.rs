@@ -9,6 +9,7 @@ mod design;
 mod edit;
 mod hook;
 mod penpot;
+mod screen;
 mod studio;
 mod telemetry;
 mod tools;
@@ -71,6 +72,7 @@ pub fn commands() -> Vec<(&'static str, Handler)> {
     all.extend(hook::commands());
     all.extend(comments::commands());
     all.extend(design::commands());
+    all.extend(screen::commands());
     all.extend(studio::commands());
     all.extend(browser::commands());
     all.extend(penpot::commands());
@@ -283,6 +285,7 @@ mod tests {
             CONFIG,
             DOCTOR,
             SETUP,
+            SCREEN,
         ] {
             assert!(
                 unique.contains(cmd),
@@ -292,7 +295,7 @@ mod tests {
         // Besides those: `__debug` (hidden; see cli/debug.rs) and `telemetry`.
         assert!(unique.contains(DEBUG) && !include_str!("help.txt").contains(DEBUG));
         assert!(unique.contains(TELEMETRY));
-        assert_eq!(names.len(), 46, "a command missing from the list above");
+        assert_eq!(names.len(), 47, "a command missing from the list above");
         for name in INTERNAL.iter().chain([MCP, INSTALL, UNINSTALL].iter()) {
             assert!(unique.contains(name));
         }

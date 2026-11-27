@@ -22,6 +22,8 @@ Design system (built before any screen)
   dfw style apply <id> [--fonts latin] [--force]   Turn a guide into tokens + fonts + motif master (latin = English-only fonts; --force replaces an edited tokens.json/head.html)
   dfw style match [--brief design/system/brief.json]   Rank guides against the brief's personality axes, with reasons
   dfw blueprint [list|<screen>] [--json]        Screen blueprints (goal, layout, above-the-fold, data range, feedback) to agree before building
+  dfw screen add <id> --page <page> [--after <screen>] [--from <screen>[,...]] [--title <t>] [--route <r>] [--json]
+                                                Add a screen to a page next to its siblings: manifest entry + skeleton (refused while frozen); prints the --from files to link from
   dfw layout check [--screen a,b] [--bp ids] [--states] [--changed]   Rendered check: overlap, clipping, overflow, anchors (with long lists), empty space, cross-screen consistency
   dfw system audit [--json]                     Senior review: contrast, accent vs status hues, neutrals, type rhythm, rationale
   dfw palette build --brand <hex|hue> ...       OKLCH ramps + roles picked by contrast + harmonised status colours

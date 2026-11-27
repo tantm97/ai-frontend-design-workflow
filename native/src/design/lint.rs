@@ -13,6 +13,7 @@
 //! guideline rules), `tokens` (the token tree), `manifest` (design.json), this file (HTML,
 //! screens, masters, CSS and the walk over the workspace).
 
+mod flow;
 mod manifest;
 mod slop;
 #[cfg(test)]
@@ -73,6 +74,12 @@ pub(crate) mod rule {
     pub(crate) const MANIFEST_MISSING: &str = "manifest-missing";
     /// A design.json without a list of screens.
     pub(crate) const MANIFEST_SCREENS: &str = "manifest-screens";
+    /// A public screen on none of the declared pages.
+    pub(crate) const MANIFEST_UNPAGED_SCREEN: &str = "manifest-unpaged-screen";
+    /// A link between screens that names no screen.
+    pub(crate) const LINK_UNKNOWN_SCREEN: &str = "link-unknown-screen";
+    /// A screen no other screen links to, and no entry.
+    pub(crate) const SCREEN_UNREACHABLE: &str = "screen-unreachable";
 }
 
 /// The non-happy states a data surface or a form must design.
