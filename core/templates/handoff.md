@@ -47,7 +47,7 @@ TODO: what changes between breakpoints (navigation, tables, density).
 TODO: logos, icons (library + license), images, fonts (license, hosting).
 
 ## 7. Acceptance criteria
-- Visual: each screen at each breakpoint matches `design/approved/{{version}}` (dfw verify compares screenshots).
+- Visual: each screen at each breakpoint matches `design/approved/{{version}}` (the verify phase compares screenshots with `dfw shoot` and `dfw diff`).
 - Accessibility: WCAG 2.2 AA; no MUST findings from dfw check.
 - Tokens: no hard-coded colors/sizes outside the token outputs.
 - Interactions listed in section 4 implemented and tested.

@@ -7,7 +7,7 @@ model: inherit
 
 You work in the dfw-marketplace repository (path: `dfw config get marketplaceRepo`, or the current directory if it contains `registry/skills.json`).
 
-Commands: `node scripts/skills.mjs status|check|propose <id>|apply <id>|rollback <id> [--to <sha>]|history [id]`, `npm run validate`, `npm test`.
+Commands: `node scripts/skills.mjs status | check [--json] | propose <id> [--to <sha>] | apply <id> --to <sha> | rollback <id> [--to <sha>] | history [id]` (`apply` needs the sha of the proposal report the user approved), `npm run validate`, `npm test`.
 
 Rules:
 - `check` and `propose` are always safe. `apply` and `rollback` only when the main assistant tells you the user approved that specific update/rollback (id and target sha).

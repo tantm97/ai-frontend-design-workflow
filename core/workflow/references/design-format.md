@@ -11,10 +11,13 @@ design/
   tokens/themes/<name>.json   overrides -> [data-theme="<name>"] (dark mode, or opt-<preset> while comparing options)
   tokens/tokens.css           generated (never edit)
   system/head.html            font links etc. ({{base}} = path to design/; also works in masters, examples and screens: {{base}}assets/logo.png)
+  system/brief.json           design brief: context, brand, personality axes (direction phase; dfw style match reads it)
+  system/style.json           the style guide dfw style apply wrote (written by dfw)
   system/inventory.json       components the product needs: name, purpose, usedBy, states (masters are designed from it)
   system/components/<name>.html   component masters (<dfw-component>)
   system/components.css       generated from the masters (never edit)
   system/icons/<name>.svg     icons in use (dfw icons add)
+  styles/base.css             base styles from tokens and the .when-<state> switches (dfw template)
   styles/*.css                optional shared layout helpers (no visual styling)
   screens/<screen>/<variant>.html
   assets/                     user-supplied brand assets (unaltered) and placeholders
@@ -22,6 +25,11 @@ design/
   handoff/vN.md               design-to-implementation contract
 ```
 The hook regenerates `tokens.css` and `components.css` after every edit; `dfw build` does it by hand.
+
+The format is split by job; load the part the phase needs:
+- this file: the workspace layout and `design.json` (pages, screens, variants, prototype links);
+- `references/design-format-system.md`: component masters and DTCG tokens with the token contract (design system phase, masters);
+- `references/design-format-screens.md`: screen files, instances, layout-only styling, states (concepts, adding a screen).
 
 ## Pages (design.json)
 ```json
@@ -51,72 +59,7 @@ The hook regenerates `tokens.css` and `components.css` after every edit; `dfw bu
   ]
 }
 ```
-- The Studio always shows a generated **Design System** page first (foundations + every component and variant), then one page per entry in `pages` (a module or feature area), each a canvas of frames: screen × variant × breakpoint (× state / theme when toggled).
+- The Studio always shows a generated **Design System** page first (foundations + every component and variant), then one page per entry in `pages` (a module or feature area; `<studio url>?page=<page id>` opens one, `?page=system` the Design System page), each a canvas of frames: screen × variant × breakpoint (× state / theme when toggled).
 - Each page is laid out like a pencil.dev section: title + description, one row per breakpoint, a Variants row, a States row, and annotation panels (`notes`) beside the rows. Override the rows with `sections: [{ title, kind: breakpoint|variants|states|custom, breakpoint, screens, states, notes }]`. In the Studio the user picks which breakpoints and states are shown (multi-select menus with All, default all); state frames, including `kind: states` sections, appear only for checked states. The Studio camera button screenshots every screen of every page, and Present has a Screenshot button for the screen being shown; both save to `.dfw/shots/studio/<time>/`. "All pages" stacks every page on one canvas.
 - Screens whose id starts with `_` (direction explorations) appear on an "Explorations" page.
 - Prototype links: normal `<a href="../other/default.html">` or `data-dfw-goto="<screen-id>[/<variant>]"` on any element; they work in Present mode (P) and with the Interact tool (I). The Flow page is computed from them (`flows` in design.json is ignored). `"entry": true` marks a screen users reach from outside the design; `dfw lint` warns on screens on no page, links to unknown screens and unreachable screens. Add a screen later with `dfw screen add` (`references/phase-concepts-add-screen.md`).
-
-## Component masters
-`design/system/components/button.html`:
-```html
-<dfw-component name="button" group="Actions" variants="primary secondary ghost danger" sizes="md sm lg"
-  props="icon kbd" replaces="button" description="One primary per view; ...">
-<style>
-.btn { min-height: var(--size-control); padding: 0 var(--space-4); border-radius: var(--radius-md); ... }
-.btn--primary { background: var(--color-accent); color: var(--color-on-accent); }
-</style>
-<template>
-<button class="btn btn--{{variant}} btn--{{size}}" type="button"><dfw-icon data-dfw-if="icon" name="{{icon}}"></dfw-icon><span><dfw-slot>Button</dfw-slot></span><kbd data-dfw-if="kbd">{{kbd}}</kbd></button>
-</template>
-<dfw-examples>
-<dfw-use c="button" variant="primary">Save changes</dfw-use>
-<dfw-use c="button" variant="primary" disabled>Disabled</dfw-use>
-</dfw-examples>
-</dfw-component>
-```
-- `props="a b=default"` (or comma-separated when a default has spaces: `props="current, brand=Asset Tracking"`); `{{prop}}` (escaped), `{{variant}}`, `{{size}}`, `{{prop==value?text}}` (e.g. `aria-current` in the shared `app-shell`); `data-dfw-if="prop"` / `"!prop"` keeps an element only when the prop is set / unset.
-- `<dfw-slot>` = instance content; `<dfw-slot name="actions">` is filled by `<dfw-fill slot="actions">` in the instance.
-- `replaces="button input"`: the lint warns when a screen uses those raw elements instead of the component.
-- Styles: tokens only (hard-coded colors are MUST errors in masters; raw lengths are SHOULD warnings). Cover every state in CSS: hover, focus-visible, active, disabled, loading (`aria-busy`), invalid/selected where relevant.
-- `<dfw-examples>` must show every variant, size and state; the Design System page renders them.
-
-## Screens
-```html
-<!doctype html>
-<html lang="vi">
-<head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Inventory - Stockroom</title>
-  <meta name="description" content="...">
-  <dfw-head></dfw-head>
-  <style>/* layout only: grid, flex, gap, padding, width, position */</style>
-</head>
-<body>
-  <dfw-use c="app-shell" current="items" id="shell">
-    <dfw-fill slot="header">
-      <dfw-use c="page-header" title="Inventory" id="inventory.header">
-        <dfw-fill slot="actions"><dfw-use c="button" variant="primary" icon="plus" id="inventory.add">Add item</dfw-use></dfw-fill>
-      </dfw-use>
-    </dfw-fill>
-    <div data-dfw-id="inventory"> ... </div>
-  </dfw-use>
-</body>
-</html>
-```
-- Every screen is framed by the shared `app-shell` master (one navigation and layout for the whole product; a counter/kiosk mode is a variant of it, not a different frame).
-- `<dfw-head>` expands to the font links, tokens.css, base.css and components.css.
-- `<dfw-use c="..." variant size id ...>`: `id` becomes the instance's `data-dfw-id`; `class` is appended; other non-prop attributes (aria-*, disabled, href, role, checked) are copied to the root element.
-- `<dfw-icon name="search" size="16" label="...">` (decorative unless `label`). Find icons with `dfw icons search <words>`, add with `dfw icons add <names>`.
-- **Screens only do layout.** Setting color, background, border, font, shadow or radius in a screen is a MUST error (`screen-visual-style`). Need a new look? Add a variant to the master (design system first), or a token.
-- `<style data-dfw-layout>` (in the head) holds the user's Studio drag/resize edits: one `[data-dfw-id='<id>']:not(#dfw) { grid-column | width | min-height }` rule per element (the `:not(#dfw)` only raises specificity so the rule beats class-based screen rules), optionally inside `@media (max-width: Npx)`. Keep that format when you touch it (the Studio refuses to rewrite a block it cannot parse); fold it into the screen's own layout CSS only if the user asks.
-- Plain HTML elements are fine for structure (main, section, grids, text, tables inside `data-table`).
-- `data-dfw-id` on every meaningful element and instance (`id` attribute on `<dfw-use>`): lowercase, dot-separated, unique per file, stable.
-- Semantic HTML, realistic content and edge cases (long Vietnamese names, zero/huge numbers, empty, errors, permissions).
-- States: wrap alternative content in `.when-<state>` / `.unless-<state>` blocks (Studio State menu sets `html[data-state]`), or `html[data-state="empty"] ...` layout rules.
-- No frameworks, no CDN scripts, no build step. Small inline JS only to demo interaction.
-
-## Tokens (DTCG 2025.10)
-- Colors: `{"$type":"color","$value":{"colorSpace":"srgb","components":[r,g,b],"hex":"#rrggbb"}}`.
-- Dimensions: `{"$type":"dimension","$value":{"value":16,"unit":"px"}}`; durations `{value, unit:"ms"}`.
-- Aliases: `"$value": "{color.blue.600}"`; group `$type` is inherited.
-- The token contract (names component masters and presets rely on): `color.{canvas,surface,surface-sunken,surface-hover,ink,muted,subtle,border,border-strong,rule,accent,accent-hover,accent-soft,accent-text,on-accent,on-fill,on-warn,focus,focus-ring}`, `color.status.{ok,info,warn,err}{,-tint,-text}`, `font.{family,size,weight,leading,tracking}.*`, `space.{half,1,1-5,2,3,4,5,6,8,10,12,16}`, `radius.{sm,md,lg,xl,pill}`, `border.{width,width-strong}`, `focus.{width,offset}`, `size.{control,control-sm,control-lg,target-wcag,target-touch,icon*,sidebar,rail,rail-item,dialog*,band,avatar-xl}`, `shadow.{sm,md,lg}`, `duration.{fast,base}`, `easing.out`. Keep these names when adapting a preset; add new ones freely.

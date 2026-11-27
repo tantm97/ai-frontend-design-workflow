@@ -6,8 +6,8 @@ External skills are vendored, commit-pinned copies built from the dfw-marketplac
 |---|---|
 | Status | `node scripts/skills.mjs status` |
 | Check upstream for updates | `node scripts/skills.mjs check` |
-| Prepare an update (no changes applied) | `node scripts/skills.mjs propose <id>` -> report in `reports/proposals/` |
-| Apply after the user approves | `node scripts/skills.mjs apply <id>` (updates the lock, rebuilds, validates, logs history) |
+| Prepare an update (no changes applied) | `node scripts/skills.mjs propose <id> [--to <sha>]` -> report in `reports/proposals/` |
+| Apply after the user approves | `node scripts/skills.mjs apply <id> --to <sha>` (the commit of the approved proposal report; updates the lock, rebuilds, validates, logs history) |
 | Roll back | `node scripts/skills.mjs rollback <id> [--to <sha>]` |
 | History | `node scripts/skills.mjs history [id]` |
 | Validate everything | `npm run validate` |

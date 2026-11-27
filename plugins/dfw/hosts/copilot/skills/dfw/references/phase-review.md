@@ -25,7 +25,7 @@ The user reviews in the Studio (`dfw studio start`), or in Penpot when `dfw stat
 - Fix Must items; present Should/Nice items to the user with your recommendation.
 
 ### Approval (gate G2)
-1. Preconditions: no active or "to verify" comments (or the user explicitly accepts them), `dfw check` has no MUST findings (or the user explicitly accepts them), and every configured check ran. A check that could not run blocks G2: install what is missing (`dfw doctor`) or turn the check off. Add `--accept-unverified` only when the user, told which checks did not run, accepts freezing without them (it is recorded in the decisions).
+1. Preconditions (`dfw approve G2` checks them itself: every check, axe with states): no active or "to verify" comments (or the user explicitly accepts them: `--accept-open-comments`), `dfw check` has no MUST findings (or the user explicitly accepts them: `--accept-findings`, recorded), and every configured check ran. A check that could not run blocks G2: install what is missing (`dfw doctor`) or turn the check off. Add `--accept-unverified` only when the user, told which checks did not run, accepts freezing without them (it is recorded in the decisions).
 2. Ask the user to approve the design, naming exactly what is approved: screens, chosen variant per screen (set `approvedVariant` in the manifest), tokens, components.
 3. `dfw approve G2 --note "<summary>"` freezes `design/` + PRODUCT.md + DESIGN.md into `design/approved/vN/` with a sha256 lock. The hook then locks the design workspace.
 4. `dfw handoff` writes `design/handoff/vN.md`; fill its TODO sections (behavior not shown, responsive rules, assets, component mapping) with the user's answers.

@@ -28,7 +28,7 @@ Each ruling names the conflicting instructions and decides. Re-check this file a
 
 ## R7. Finish reviewers
 - Conflict: Impeccable (detect/critique/audit), Hallmark (`sloplint`, finish review), Taste (gate), Emil (review-animations) each want to be the final gate.
-- Ruling: dfw's checks are the gate: `dfw check` runs dfw lint + Impeccable detect + Hallmark sloplint (+ Taste copy-lint when enabled). MUST (blocks G2): dfw lint errors (integrity, accessibility), Impeccable errors, and sloplint FAILs on marketing surfaces only; on product UI sloplint FAILs count as SHOULD. Taste copy-lint never blocks. Human-level review: Impeccable `critique`/`audit` always; `review-animations` when motion changed; Hallmark finish review only on marketing pages it led. Taste's gate and any upstream hooks are never run.
+- Ruling: dfw's checks are the gate: `dfw check` runs dfw lint + Impeccable detect + Hallmark sloplint + axe on the rendered screens (+ Taste copy-lint when `checks.tasteCopyLint` is on). MUST (blocks G2): dfw lint errors (integrity, accessibility), axe critical and serious violations, Impeccable errors, and sloplint FAILs on marketing surfaces only; on product UI sloplint FAILs count as SHOULD. Taste copy-lint never blocks. Human-level review: Impeccable `critique`/`audit` always; `review-animations` when motion changed; Hallmark finish review only on marketing pages it led. Taste's gate and any upstream hooks are never run.
 
 ## R8. Copy
 - Conflict: Hallmark's word budgets (~80 words/screen), Taste copy rules, ux-copy guidance, the user's own copy.
