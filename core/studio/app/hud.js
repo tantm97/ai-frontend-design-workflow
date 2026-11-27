@@ -30,6 +30,12 @@ export function place(el, [x, y, w, h]) {
   el.style.height = `${h}px`;
 }
 
+/**
+ * The frame rect of each pin button (set by pins.js), read on every camera frame without parsing.
+ * @type {WeakMap<Element, import('./geometry.js').Rect>}
+ */
+export const pinRect = new WeakMap();
+
 /** Redraw the HUD after anything moved: camera, selection, hover, pins, agent marks. */
 export function updateHud() {
   // Clip the HUD to the canvas (or to the presenter stage).
@@ -57,7 +63,7 @@ export function updateHud() {
     const f = frameByKey(b.dataset.key);
     b.hidden = !visibleFrame(f);
     if (b.hidden) continue;
-    const r = toScreen(f, JSON.parse(b.dataset.rect));
+    const r = toScreen(f, pinRect.get(b) || [0, 0, 0, 0]);
     b.style.left = `${r[0] + r[2]}px`;
     b.style.top = `${r[1]}px`;
   }

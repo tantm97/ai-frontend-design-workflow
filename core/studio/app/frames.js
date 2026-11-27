@@ -6,6 +6,7 @@ import { ACTIVE, esc, frameCount as countOf, notesHtml } from './model.js';
 import { L, boundsOf, flowArrows, layoutSections } from './geometry.js';
 import { $, $$, ALL, P, S, currentPage, pageModel, post, postAll, store, viewContext, viewport, world, ui } from './state.js';
 import { updateHud } from './hud.js';
+import { mergeFiles, planFrameWork } from './schedule.js';
 import { MSG } from '#studio/shared/protocol.js';
 import { MODE, SYSTEM_SCREEN } from '#studio/shared/enums.js';
 import { TEXT } from '#studio/shared/text.js';
@@ -17,7 +18,7 @@ import { TEXT } from '#studio/shared/text.js';
  * @type {Map<string, { el: HTMLElement, deco: HTMLElement, box: HTMLElement, frames: Map<string, any> }>}
  */
 const canvases = new Map();
-/** How many page canvases stay alive (each holds live documents). */
+/** How many page canvases stay alive (their frames count toward the live budget of schedule.js). */
 const KEEP_PAGES = 3;
 
 /** The canvas of a page, created on first use and moved to the most recent end. */
@@ -49,10 +50,38 @@ function canvasOf(/** @type {string} */ id) {
 
 /** Remove a frame and forget its window. */
 function dropFrame(/** @type {any} */ f) {
+  forgetDocument(f);
+  f.el.remove();
+}
+
+/** Stop a frame's timers and forget its window (the frame is removed or goes back to a placeholder). */
+function forgetDocument(/** @type {any} */ f) {
   clearTimeout(f.softTimer);
   if (f.iframe) S.byWin.delete(f.iframe.contentWindow);
   if (f.loading) loadDone(f);
-  f.el.remove();
+  if (f.patching) patchDone(f);
+  f.stale = null;
+}
+
+/**
+ * Give a frame's document back (it is far from the viewport and the live budget is full): the
+ * frame keeps its place and size and shows its placeholder until it comes near again.
+ */
+function unloadFrame(/** @type {any} */ f) {
+  forgetDocument(f);
+  f.iframe?.remove();
+  f.iframe = null;
+  f.loaded = false;
+  f.pinRects = [];
+  $('.frame-body', f.el).append(placeholderOf(f));
+}
+
+/** The grey box a frame shows until its document loads. */
+function placeholderOf(/** @type {any} */ f) {
+  const p = document.createElement('div');
+  p.className = 'placeholder';
+  p.textContent = f.title;
+  return p;
 }
 
 /** Every frame alive in a kept canvas (shown or hidden), e.g. to patch a changed file everywhere. */
@@ -150,6 +179,7 @@ function addFrame(spec, pageId, canvas, before) {
       // A new source (theme, state) navigates the same iframe: the old page stays until the new one paints.
       old.loaded = false;
       old.pinRects = [];
+      old.stale = null;
       old.iframe.dataset.src = spec.src;
       old.iframe.src = spec.src;
     }
@@ -162,7 +192,9 @@ function addFrame(spec, pageId, canvas, before) {
   el.className = 'frame';
   el.dataset.key = f.key;
   const open = `<a href="${esc(f.src)}" target="_blank" rel="noopener" title="${TEXT.openInNewTab}">↗</a>`;
-  el.innerHTML = `<div class="frame-title" title="${esc(TEXT.frameTitleHint(f.title))}">${esc(f.title)}${open}</div><div class="placeholder">${esc(f.title)}</div>`;
+  // The document sits in its own box: off screen, the browser skips its rendering (content-visibility).
+  el.innerHTML = `<div class="frame-title" title="${esc(TEXT.frameTitleHint(f.title))}">${esc(f.title)}${open}</div><div class="frame-body"></div>`;
+  $('.frame-body', el).append(placeholderOf(f));
   const t = $('.frame-title', el);
   t.addEventListener('mousedown', (/** @type {MouseEvent} */ e) => {
     if (/** @type {HTMLElement} */ (e.target).tagName === 'A' || e.button !== 0 || S.mode === MODE.HAND || S.space) return;
@@ -198,7 +230,9 @@ export function positionFrames() {
       r.frames.forEach((/** @type {any} */ f, k) => {
         f.x = at.frames[k].x;
         f.y = at.frames[k].y;
-        f.el.style.cssText = `left:${f.x}px;top:${f.y}px;width:${f.w}px;height:${f.h}px`;
+        // Only a frame that moved is restyled (a frame that grew moves the frames below it, not the others).
+        const css = `left:${f.x}px;top:${f.y}px;width:${f.w}px;height:${f.h}px`;
+        if (f.css !== css) f.el.style.cssText = f.css = css;
       });
     });
     const [x, y, w, h] = place.bounds;
@@ -206,6 +240,17 @@ export function positionFrames() {
     S.secBounds.set(sec.id, place.bounds);
   });
   drawFlow();
+}
+
+let rafPlace = 0;
+/** Place the frames on the next animation frame, once however many frames reported a new size. */
+export function schedulePositions() {
+  if (rafPlace) return;
+  rafPlace = requestAnimationFrame(() => {
+    rafPlace = 0;
+    positionFrames();
+    updateHud();
+  });
 }
 
 /** Arrows between the frames of the Flow page (world coordinates, so they pan and zoom with the canvas). */
@@ -240,11 +285,10 @@ export function drawFlow() {
   deco?.prepend(svg);
 }
 
-/** Frames loading now (same-origin frames run on the Studio's thread: a few at a time). */
-const MAX_LOADING = 2;
 /** The camera must be still this long before frames load (a fast wheel loads nothing on the way). */
 const SETTLE_MS = 180;
-let loadingCount = 0;
+/** A frame that does not answer a patch in this time frees its slot (it reloads itself after 4 s). */
+const PATCH_SLOT_MS = 6000;
 let lastMove = 0;
 /** @type {ReturnType<typeof setTimeout> | undefined} */
 let pumpT;
@@ -255,7 +299,7 @@ export function noteCameraMove() {
   scheduleLoads();
 }
 
-/** Load the frames near the viewport once the camera is still. */
+/** Load (or patch) the frames near the viewport once the camera is still. */
 export function scheduleLoads() {
   clearTimeout(pumpT);
   const wait = SETTLE_MS - (performance.now() - lastMove);
@@ -264,7 +308,6 @@ export function scheduleLoads() {
 
 function pumpLoads() {
   if (performance.now() - lastMove < SETTLE_MS) return scheduleLoads();
-  if (loadingCount >= MAX_LOADING) return;
   const r = viewport.getBoundingClientRect();
   const cx = r.width / 2;
   const cy = r.height / 2;
@@ -272,14 +315,42 @@ function pumpLoads() {
   const dist = (/** @type {any} */ f) => Math.hypot((f.x + f.w / 2) * z + x - cx, (f.y + Math.min(f.h, 900) / 2) * z + y - cy);
   // Near = within 400 screen px of the viewport, from the camera and the frame's world box (no
   // IntersectionObserver: a rebuilt observer that never reported left frames blank for good).
-  const m = 400;
-  const near = (/** @type {any} */ f) => {
+  const within = (/** @type {any} */ f, /** @type {number} */ m) => {
     const l = f.x * z + x;
     const t = f.y * z + y;
     return l < r.width + m && l + f.w * z > -m && t < r.height + m && t + f.h * z > -m;
   };
-  const todo = [...S.frames.values()].filter((f) => !f.iframe && near(f)).sort((a, b) => dist(a) - dist(b));
-  for (const f of todo.slice(0, MAX_LOADING - loadingCount)) loadFrame(f);
+  const near = (/** @type {any} */ f) => within(f, 400);
+  // A frame more than a viewport away is not rendered (its animations stop) until it comes back.
+  // Set here, once the camera is still: toggled by the browser during a move (content-visibility:
+  // auto), it cost a main-thread frame each time a frame crossed the edge.
+  const far = Math.max(r.width, r.height);
+  for (const f of S.frames.values()) {
+    const off = !within(f, far);
+    if (f.off !== off) f.el.classList.toggle('off', (f.off = off));
+  }
+  const facts = [...canvases.values()].flatMap((c, age) =>
+    [...c.frames.values()].map((f) => {
+      const hidden = c.frames !== S.frames;
+      return {
+        frame: f,
+        key: f.key,
+        live: !!f.iframe,
+        hidden,
+        near: !hidden && near(f),
+        dist: hidden ? 0 : dist(f),
+        age,
+        keep: !hidden && (f.key === S.selKey || f.key === S.sel?.key || !!f.pendingVerify || !!f.pendingSelect),
+        loading: !!f.loading,
+        patching: !!f.patching,
+        stale: !!f.stale,
+      };
+    }),
+  );
+  const plan = planFrameWork(facts, { budget: S.liveBudget });
+  for (const u of plan.unload) unloadFrame(u.frame);
+  for (const l of plan.load) loadFrame(l.frame);
+  for (const p of plan.patch) patchFrame(p.frame);
 }
 
 // Safety net: a tab that comes back to the front, a resized window, and a slow check every second
@@ -293,7 +364,6 @@ function loadDone(/** @type {any} */ f) {
   if (!f.loading) return;
   f.loading = false;
   clearTimeout(f.loadTimer);
-  loadingCount = Math.max(0, loadingCount - 1);
   scheduleLoads();
 }
 
@@ -307,13 +377,46 @@ export function loadFrame(/** @type {any} */ f) {
   iframe.src = f.src;
   f.iframe = iframe;
   f.loading = true;
-  loadingCount++;
+  f.stale = null; // a new document has every change
   // The load event also comes for a page that failed (404); a page that never ends frees its slot.
   iframe.addEventListener('load', () => loadDone(f));
   f.loadTimer = setTimeout(() => loadDone(f), 6000);
   $('.placeholder', f.el)?.remove();
-  f.el.append(iframe);
+  $('.frame-body', f.el).append(iframe);
   S.byWin.set(iframe.contentWindow, f);
+}
+
+/** Patch the changes a frame missed while it was off screen or on a hidden page. */
+function patchFrame(/** @type {any} */ f) {
+  const { files, agent } = f.stale;
+  f.stale = null;
+  f.patching = true;
+  f.patchTimer = setTimeout(() => patchDone(f), PATCH_SLOT_MS);
+  softReload(f, files, agent);
+}
+
+/** A frame answered (ready again after a patch or a reload): the next patch may start. */
+export function patchDone(/** @type {any} */ f) {
+  if (!f.patching) return;
+  f.patching = false;
+  clearTimeout(f.patchTimer);
+  scheduleLoads();
+}
+
+/**
+ * Files changed that these frames show. The frames near the viewport patch first, nearest first and
+ * a few at a time; the others (far off screen, or on a kept page that is hidden) patch when they
+ * come near the viewport.
+ * @param {any[]} frames
+ * @param {string[]} files
+ */
+export function queuePatches(frames, files) {
+  const agent = Date.now() > S.selfEditUntil;
+  for (const f of frames) {
+    if (!f.iframe) continue; // a placeholder loads the new source when it loads
+    f.stale = { files: mergeFiles(f.stale?.files, files), agent: agent || !!f.stale?.agent };
+  }
+  scheduleLoads();
 }
 
 /** World rectangle around every section of the canvas. */
@@ -431,15 +534,16 @@ export function reloadFrame(/** @type {any} */ f) {
  * reloaded here, when that is not possible.
  * @param {any} f
  * @param {string[]} [files]
+ * @param {boolean} [agent] the change is the agent's (the frame marks what changed)
  */
-export function softReload(f, files = []) {
+export function softReload(f, files = [], agent = Date.now() > S.selfEditUntil) {
   if (!f || f.present || !f.iframe || !f.loaded) return reloadFrame(f);
   // Only markup and stylesheets are patched in place: a changed image, font or script needs the reload.
   // (A name without an extension is a folder the watcher reported.)
   if (files.some((x) => /\.(?!(?:html|css|json)$)[\w-]+$/.test(x))) return reloadFrame(f);
   clearTimeout(f.softTimer);
   f.softTimer = setTimeout(() => reloadFrame(f), 4000);
-  post(f, { type: MSG.SOFT_RELOAD, files, agent: Date.now() > S.selfEditUntil });
+  post(f, { type: MSG.SOFT_RELOAD, files, agent });
 }
 
 /** Highlight the page buttons of a section on "All pages". */

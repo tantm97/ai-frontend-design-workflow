@@ -10,23 +10,50 @@ import { TEXT } from '#studio/shared/text.js';
 
 let rafCam = 0;
 /** @type {ReturnType<typeof setTimeout> | undefined} */
-let movingT;
-/** Apply S.cam to the world on the next frame (and remember it for the page). */
+let settleT;
+/** The camera counts as still this long after its last move. */
+const CAM_SETTLE_MS = 200;
+/** Below this zoom a frame has no drop shadow (its blur would cover thousands of world pixels). */
+const SHADOW_MIN_Z = 0.3;
+/** Below this zoom the titles are too small to read and are hidden. */
+const TINY_Z = 0.075;
+
+/**
+ * Apply S.cam to the world on the next frame (and remember it for the page). A move changes only
+ * the world's transform, which the compositor applies; what depends on the zoom (title sizes, the
+ * frame ring and shadow) is restyled once, when the camera settles.
+ */
 export function applyCam() {
   cancelAnimationFrame(rafCam);
   rafCam = requestAnimationFrame(() => {
     const { x, y, z } = S.cam;
     world.style.transform = `translate(${x}px, ${y}px) scale(${z})`;
-    world.style.setProperty('--iz', String(1 / z));
-    world.classList.toggle('tiny', z < 0.075);
+    // A jump (fit, a page, a comment) is styled at once; a gesture keeps one layer until it stops.
+    if (!world.classList.contains('moving')) zoomStyles(z);
     world.classList.add('moving');
-    clearTimeout(movingT);
-    movingT = setTimeout(() => world.classList.remove('moving'), 160);
+    clearTimeout(settleT);
+    settleT = setTimeout(settleCam, CAM_SETTLE_MS);
     $('#zoom-label').textContent = TEXT.zoom(z);
     S.cams.set(S.page, { ...S.cam });
     updateHud();
     scheduleLoads();
   });
+}
+
+let styledZ = 0;
+/** Title sizes, ring width and shadow for zoom z (this restyles every frame: only when z changed). */
+function zoomStyles(/** @type {number} */ z) {
+  if (z === styledZ) return;
+  styledZ = z;
+  world.style.setProperty('--iz', String(1 / z));
+  world.classList.toggle('tiny', z < TINY_Z);
+  world.classList.toggle('far', z < SHADOW_MIN_Z);
+}
+
+/** The camera stopped: style for the final zoom and let the browser paint the world sharp again. */
+function settleCam() {
+  zoomStyles(S.cam.z);
+  world.classList.remove('moving');
 }
 
 /** Zoom to z keeping the viewport point (px, py) in place. */

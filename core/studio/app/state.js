@@ -2,6 +2,7 @@
 // Shared state of the Studio and the small helpers every feature module uses: DOM lookup, local
 // settings, the server API, the toast, and messages to the frames.
 import { pageModel as modelOf, screenById as findScreen } from './model.js';
+import { LIVE_BUDGET } from './schedule.js';
 import { MODE } from '#studio/shared/enums.js';
 import { TEXT } from '#studio/shared/text.js';
 
@@ -70,6 +71,7 @@ export const S = {
   theme: store.get('theme', ''),
   frames: new Map(), // key -> frame
   byWin: new Map(), // contentWindow -> frame
+  liveBudget: LIVE_BUDGET, // most frame documents alive at once (the e2e test lowers it)
   rows: [],
   selKey: null, // selected frame
   sel: null, // selected element payload {key, ...}

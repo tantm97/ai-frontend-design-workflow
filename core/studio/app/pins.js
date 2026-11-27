@@ -2,7 +2,7 @@
 // Comment pins on the frames and the pin popover (read, verify or reopen a comment where it was made).
 import { PIN_STATUSES, esc, own, pinsOf, commentLabel, isDraft } from './model.js';
 import { $, $$, P, S, post, store, toast, ui } from './state.js';
-import { updateHud } from './hud.js';
+import { pinRect, updateHud } from './hud.js';
 import { MSG } from '#studio/shared/protocol.js';
 import { MODE, PIN_FILTER, STATUS, TAB, SYSTEM_SCREEN } from '#studio/shared/enums.js';
 import { TEXT } from '#studio/shared/text.js';
@@ -48,7 +48,7 @@ export function renderPins() {
       if (S.pop === c.id) b.classList.add('on');
       b.dataset.key = f.key;
       b.dataset.id = c.id;
-      b.dataset.rect = JSON.stringify(p.rect);
+      pinRect.set(b, p.rect);
       b.style.background = own(STATUS_COLOR, c.status) || 'var(--pin-other)';
       b.onclick = (e) => {
         e.stopPropagation();
