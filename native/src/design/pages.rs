@@ -5,6 +5,8 @@
 //! - Unassigned screens go to "Screens"; ids starting with "_" go to "Explorations".
 
 use crate::core::js;
+use crate::design::compose::attr;
+use crate::design::html::{self, Tag, Token, Tokenizer};
 use crate::design::manifest::{self, key};
 use std::collections::HashMap;
 use std::sync::LazyLock;
@@ -12,16 +14,9 @@ use std::sync::LazyLock;
 use regex::Regex;
 use serde_json::{json, Map, Value};
 
-// The patterns of this file, compiled once: the Studio reads the flows on every manifest
-// request. One that did not compile would be a typo the tests catch; callers then take their
-// "no match" path.
-static TAG: LazyLock<Option<Regex>> = LazyLock::new(|| Regex::new("<[^>]*>").ok());
-static LINK_OPEN: LazyLock<Option<Regex>> =
-    LazyLock::new(|| Regex::new(r"(?i)<(a|button)(?-u:\b)([^>]*)>").ok());
-static GOTO: LazyLock<Option<Regex>> =
-    LazyLock::new(|| Regex::new(r#"data-dfw-goto="([^"]+)""#).ok());
-static HREF: LazyLock<Option<Regex>> =
-    LazyLock::new(|| Regex::new(r##"(?-u:\b)href="([^"#?]+\.html)[^"]*""##).ok());
+// The pattern of this file, compiled once: the Studio reads the flows on every manifest request.
+// One that did not compile would be a typo the tests catch; callers then take their "no match"
+// path.
 static EXTERNAL: LazyLock<Option<Regex>> = LazyLock::new(|| Regex::new(r"(?i)^[a-z]+:|^/").ok());
 
 /// The ids of the pages the Studio makes itself.
@@ -74,10 +69,7 @@ fn id_of(screen: &Value) -> Value {
 
 /// The text of a link with tags turned into spaces, spaces collapsed, at most 40 UTF-16 units.
 fn link_label(inner: &str) -> String {
-    let text = match TAG.as_ref() {
-        Some(tag) => tag.replace_all(inner, " ").into_owned(),
-        None => inner.to_string(),
-    };
+    let text = html::text_with_tags_as(inner, " ");
     let mut out = String::new();
     let mut space = false;
     for c in text.chars() {
@@ -100,45 +92,53 @@ fn link_label(inner: &str) -> String {
         .collect()
 }
 
-/// Every `<a>`/`<button>` element of `html` with its attributes and inner text, as the
-/// regular expression `<(a|button)\b([^>]*)>([\s\S]*?)<\/\1>`/gi of pages.mjs finds them (the
-/// back reference is replaced by a search for the matching end tag).
-fn links(html: &str) -> Vec<(&str, &str)> {
-    let Some(open) = LINK_OPEN.as_ref() else {
-        return Vec::new();
-    };
-    let lower = html.to_ascii_lowercase();
+/// Every `<a>`/`<button>` element of `html` with its opening tag and inner text: the content up
+/// to the first end tag of the same name (pages.mjs read `<(a|button)\b([^>]*)>([\s\S]*?)<\/\1>`).
+/// A link without an end tag is skipped; a link inside a found one is not read. Tags inside
+/// comments, quoted attributes and raw text do not count.
+fn links(src: &str) -> Vec<(Tag, &str)> {
     let mut out = Vec::new();
-    let mut at = 0;
-    while let Some(m) = open.captures_at(html, at) {
-        let (Some(all), Some(name), Some(attrs)) = (m.get(0), m.get(1), m.get(2)) else {
-            break;
-        };
-        let close = format!("</{}>", name.as_str().to_ascii_lowercase());
-        match lower[all.end()..].find(&close) {
-            Some(i) => {
-                out.push((attrs.as_str(), &html[all.end()..all.end() + i]));
-                at = all.end() + i + close.len();
-            }
-            None => {
-                // No end tag: the match fails here and the search goes on one character later.
-                at = all.start() + html[all.start()..].chars().next().map_or(1, char::len_utf8);
-            }
+    let mut tokens = Tokenizer::new(src);
+    while let Some(token) = tokens.next() {
+        let Token::Open(open) = token else { continue };
+        if !(open.is(src, "a") || open.is(src, "button")) {
+            continue;
         }
-        if at > html.len() {
-            break;
+        let name = open.name(src);
+        let close = tokens.clone().find_map(|token| match token {
+            Token::Close(tag) if tag.is(src, name) => Some(tag.range),
+            _ => None,
+        });
+        if let Some(close) = close {
+            let inner = &src[open.range.end..close.start];
+            tokens.seek(close.end);
+            out.push((open, inner));
         }
     }
     out
+}
+
+/// The value of attribute `name` of `tag`, when it is not empty.
+fn attr_text(src: &str, tag: &Tag, name: &str) -> Option<String> {
+    tag.attr(src, name)
+        .map(|a| html::attr_value(src, a))
+        .filter(|v| !v.is_empty())
+}
+
+/// The design file an `href` names: the value before `#` or `?`, up to its last `.html`
+/// (`href="([^"#?]+\.html)[^"]*"` of pages.mjs).
+fn href_file(href: &str) -> Option<&str> {
+    let path = &href[..href.find(['#', '?']).unwrap_or(href.len())];
+    path.rfind(".html")
+        .filter(|at| *at > 0)
+        .map(|at| &path[..at + ".html".len()])
 }
 
 /// `screenFlows(manifest, files)`: screen-to-screen links found in the design files
 /// (`data-dfw-goto="screen[/variant]"` and `href` to another design file). `files` maps a
 /// design-relative file to its HTML. Returns `[{ from, to, label }]` (screen ids).
 pub fn screen_flows(manifest: &Value, files: &HashMap<String, String>) -> Vec<Value> {
-    let (Some(goto_re), Some(href_re), Some(external)) =
-        (GOTO.as_ref(), HREF.as_ref(), EXTERNAL.as_ref())
-    else {
+    let Some(external) = EXTERNAL.as_ref() else {
         return Vec::new();
     };
     let screens = screens_of(manifest);
@@ -161,15 +161,16 @@ pub fn screen_flows(manifest: &Value, files: &HashMap<String, String>) -> Vec<Va
             };
             let mut dir: Vec<&str> = file.split('/').collect();
             dir.pop();
-            for (attrs, inner) in links(html) {
-                let goto = goto_re.captures(attrs).and_then(|c| c.get(1));
-                let href = href_re.captures(attrs).and_then(|c| c.get(1));
+            for (open, inner) in links(html) {
+                let goto = attr_text(html, &open, attr::GOTO);
+                let href = attr_text(html, &open, attr::HREF);
                 let mut to: Option<Value> =
-                    goto.map(|g| json!(g.as_str().split('/').next().unwrap_or_default()));
+                    goto.map(|g| json!(g.split('/').next().unwrap_or_default()));
                 if to.is_none() {
-                    if let Some(href) = href.filter(|h| !external.is_match(h.as_str())) {
+                    let file = href.as_deref().and_then(href_file);
+                    if let Some(href) = file.filter(|h| !external.is_match(h)) {
                         let mut parts = dir.clone();
-                        for seg in href.as_str().split('/') {
+                        for seg in href.split('/') {
                             if seg == ".." {
                                 parts.pop();
                             } else if seg != "." {
@@ -516,9 +517,79 @@ mod tests {
 
     #[test]
     fn links_need_their_own_end_tag() {
-        let found = links("<a x>1</A><button>2<a>3</a></button><a>open");
-        assert_eq!(found, vec![(" x", "1"), ("", "2<a>3</a>")]);
+        let src = "<a x>1</A><button>2<a>3</a></button><a>open";
+        let found: Vec<(&str, &str)> = links(src)
+            .iter()
+            .map(|(open, inner)| (&src[open.range.clone()], *inner))
+            .collect();
+        assert_eq!(found, vec![("<a x>", "1"), ("<button>", "2<a>3</a>")]);
         assert_eq!(link_label("  a <b>b</b>\n\n c  "), "a b c");
         assert_eq!(link_label(&"x".repeat(50)).len(), 40);
+    }
+
+    /// The screens the HTML of screen `from` links to, as `(to, label)`.
+    fn flows_from(html: &str) -> Vec<(String, String)> {
+        let page_file = |id: &str| rel::join(file::SCREENS, &screen_page(id));
+        let m = json!({ "screens": [{ "id": "from", "variants": [{ "id": "a", "file": page_file("from") }] }, { "id": "to", "variants": [{ "id": "a", "file": page_file("to") }] }] });
+        let files: HashMap<String, String> = [(page_file("from"), html.to_string())]
+            .into_iter()
+            .collect();
+        screen_flows(&m, &files)
+            .iter()
+            .map(|f| {
+                (
+                    js::to_string(f.get(key::TO)),
+                    js::to_string(f.get(field::LABEL)),
+                )
+            })
+            .collect()
+    }
+
+    fn to_screen(label: &str) -> Vec<(String, String)> {
+        vec![("to".to_string(), label.to_string())]
+    }
+
+    #[test]
+    fn a_link_inside_a_comment_is_not_read() {
+        let html = format!(
+            r#"<!-- <a href="../to/{HTML_FILE}">old</a> --><a data-dfw-goto="to">Go <!-- x --></a>"#
+        );
+        assert_eq!(flows_from(&html), to_screen("Go"));
+        assert!(flows_from(r#"<!-- <button data-dfw-goto="to">x</button> -->"#).is_empty());
+        // An end tag inside a comment does not close the link.
+        let html = r#"<a data-dfw-goto="to">A <!-- </a> --> B</a>"#;
+        assert_eq!(flows_from(html), to_screen("A B"));
+    }
+
+    #[test]
+    fn single_quoted_targets_are_read() {
+        assert_eq!(
+            flows_from("<button data-dfw-goto='to/b'>Next</button>"),
+            to_screen("Next")
+        );
+        let html = format!("<a href='../to/{HTML_FILE}#top'>Top</a>");
+        assert_eq!(flows_from(&html), to_screen("Top"));
+        let html = format!("<a\r\n  href=\"../to/{HTML_FILE}?q=1\">CRLF</a>");
+        assert_eq!(flows_from(&html), to_screen("CRLF"));
+    }
+
+    #[test]
+    fn an_unclosed_tag_does_not_swallow_the_next_link() {
+        // The quote of the first tag never closes: it is text, and the link after it is read.
+        let html = r#"<a title="open>x<button data-dfw-goto="to">Real</button>"#;
+        assert_eq!(flows_from(html), to_screen("Real"));
+        // A link without an end tag is skipped; the next one is read.
+        let html = r#"<button data-dfw-goto="to">open <a data-dfw-goto="to">Closed</a>"#;
+        assert_eq!(flows_from(html), to_screen("Closed"));
+    }
+
+    #[test]
+    fn href_file_reads_up_to_the_last_html() {
+        /// A design file a link names.
+        const PAGE: &str = "a.html";
+        assert_eq!(href_file("a.html#x"), Some(PAGE));
+        assert_eq!(href_file("a.html.bak?x=1.html"), Some(PAGE));
+        assert_eq!(href_file(".html"), None);
+        assert_eq!(href_file("a.htm"), None);
     }
 }

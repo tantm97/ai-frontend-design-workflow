@@ -2,5 +2,5 @@
   "$comment": "The counts tests/conventions.rs compares with (convention G15): allow = allow attributes in src/, repeated_test_literals = string literals one test writes twice, html_regex = regular expressions with an HTML tag in src/ (D1). Lower a count when it goes down; never raise it without a reviewed reason.",
   "allow": 10,
   "repeated_test_literals": 0,
-  "html_regex": 23
+  "html_regex": 17
 }

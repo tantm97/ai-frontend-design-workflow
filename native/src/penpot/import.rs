@@ -36,7 +36,8 @@ use crate::core::paths::{file, rel, SafeName};
 use crate::core::util::{
     create_unique, now_iso, read_json, sha256, to_json_compact, to_json_pretty, write_json_inside,
 };
-use crate::design::compose::{load_components, Library};
+use crate::design::compose::{attr, load_components, Library};
+use crate::design::html::{self, Token, Tokenizer};
 use crate::design::tokens::relative_path;
 use crate::review::comments::add_comment;
 use crate::review::status;
@@ -222,19 +223,39 @@ fn source_line(root: &Path, file: Option<&Value>, id: Option<&Value>) -> Value {
     let Some(id) = js::truthy_value(id).filter(|_| abs.exists()) else {
         return file.clone();
     };
-    let found = js::read_text(&abs).ok().and_then(|text| {
-        let re = Regex::new(&format!(
-            r#"(?:data-dfw-id|<dfw-use(?-u:\b)[^>]*(?-u:\b)id)="{}""#,
-            regex::escape(&js::to_string(Some(id)))
-        ))
-        .ok()?;
-        let m = re.find(&text)?;
-        Some(text[..m.start()].matches('\n').count() + 1)
-    });
+    let id = js::to_string(Some(id));
+    let found = js::read_text(&abs)
+        .ok()
+        .and_then(|text| id_offset(&text, &id).map(|at| html::line_of(&text, at)));
     match found {
         Some(line) => format!("{name}:{line}").into(),
         None => file.clone(),
     }
+}
+
+/// Where the element with `data-dfw-id` `id`, or the `<dfw-use>` with that `id`, is written: the
+/// attribute of an element, the `<` of an instance. Tags inside comments do not count.
+fn id_offset(text: &str, id: &str) -> Option<usize> {
+    let is = |a: &&html::Attr, name: &str| {
+        &text[a.name.clone()] == name && html::attr_value(text, a) == id
+    };
+    Tokenizer::new(text).find_map(|token| {
+        let Token::Open(tag) = token else {
+            return None;
+        };
+        if tag.is(text, "dfw-use")
+            && tag
+                .attrs
+                .iter()
+                .any(|a| is(&a, attr::ID) || is(&a, attr::DFW_ID))
+        {
+            return Some(tag.range.start);
+        }
+        tag.attrs
+            .iter()
+            .find(|a| is(a, attr::DFW_ID))
+            .map(|a| a.span.start)
+    })
 }
 
 /// `value.replace(/^design\//, '')`.
