@@ -56,13 +56,13 @@ pub(in crate::penpot) fn fixture_export_at(generated_at: &str) -> Value {
     })
 }
 
-pub(in crate::penpot) fn fixture_export() -> Value {
+pub(crate) fn fixture_export() -> Value {
     fixture_export_at("2026-11-16T10:00:00.000Z")
 }
 
 /// Put an export in a project as if "dfw penpot export" had written it; returns the change
 /// file (a fixture) for it.
-pub(in crate::penpot) fn with_export(root: &Path, doc: &Value, changes: &str) -> Value {
+pub(crate) fn with_export(root: &Path, doc: &Value, changes: &str) -> Value {
     let dir = penpot_dir(root);
     fs::create_dir_all(dir.join(file::PENPOT_EXPORTS)).unwrap();
     let id = doc["id"].as_str().unwrap();
@@ -247,4 +247,20 @@ fn pages_that_hold_screens() {
         r#"[["stock","Stock",["items","detail"]],["shop","shop",["cart"]],["screens","Screens",["home"]],["explorations","Explorations",["_try"]]]"#
     );
     assert_eq!(screen_pages(&json!({})).len(), 1);
+}
+
+/// One export at a time: while an export holds the project's export lock, another waits for it
+/// (the CLI and the Studio take the same lock), and it is free again once the holder ends.
+#[test]
+fn an_export_waits_for_the_export_lock() {
+    let root = test_dir("penpot-export-lock");
+    let held = export_lock(&root).unwrap();
+    let path = penpot_dir(&root).join(file::PENPOT_EXPORT_LOCK);
+    assert!(path.is_dir());
+    let waited = lock::acquire_within(&path, &EXPORT_LOCK, Some(Duration::from_millis(200)));
+    assert!(waited.unwrap().is_none(), "a second export must wait");
+    drop(held);
+    assert!(!path.exists(), "released when the export ends");
+    drop(export_lock(&root).unwrap());
+    assert!(!path.exists());
 }

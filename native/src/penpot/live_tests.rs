@@ -311,6 +311,41 @@ fn boards_are_behind_once_a_design_file_changes_after_the_export() {
     assert_eq!(sync(&root, "f", &export, vec![], json!([]))["stale"], true);
 }
 
+/// The sync answer names the latest export and how long the design has been quiet, so the
+/// panel can update its boards; a file dated in the future reads as just changed.
+#[test]
+fn the_sync_answer_names_the_latest_export_and_the_quiet_time() {
+    let (root, export) = live_project("penpot-live-quiet");
+    let screen = root.join(rel::screen(ITEMS_PAGE));
+    let set_time = |at: SystemTime| {
+        for f in list_files(&project_paths(&root).design, &[]).unwrap() {
+            fs::File::options()
+                .write(true)
+                .open(project_paths(&root).design.join(f))
+                .unwrap()
+                .set_modified(at)
+                .unwrap();
+        }
+    };
+    set_time(SystemTime::now() - Duration::from_secs(30));
+    let r = sync(&root, "f", &export, vec![], json!([]));
+    assert_eq!(r[wire::EXPORT_ID], export);
+    let quiet = r[wire::report::QUIET_MS].as_u64().unwrap();
+    assert!((29_000..120_000).contains(&quiet), "{quiet}");
+    fs::File::options()
+        .write(true)
+        .open(&screen)
+        .unwrap()
+        .set_modified(SystemTime::now() + Duration::from_secs(60))
+        .unwrap();
+    let r = sync(&root, "f", &export, vec![], json!([]));
+    assert_eq!(r[wire::report::QUIET_MS], 0);
+    fs::remove_file(penpot_dir(&root).join(file::PENPOT_EXPORT)).unwrap();
+    let r = sync(&root, "f", &export, vec![], json!([]));
+    assert_eq!(r[wire::EXPORT_ID], Value::Null);
+    assert_eq!(r[wire::report::STALE], false);
+}
+
 /// The timestamps `Date.parse` reads for the staleness check.
 #[test]
 fn timestamps_of_an_export() {

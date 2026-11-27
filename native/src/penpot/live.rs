@@ -9,7 +9,7 @@
 
 use std::fs;
 use std::path::Path;
-use std::time::UNIX_EPOCH;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::{json, Value};
 
@@ -205,37 +205,66 @@ fn parse_iso_ms(text: &str) -> Option<f64> {
     Some(ms)
 }
 
-/// `exportStale`: true when a design file changed after the latest export was rendered (the
-/// Penpot boards are behind).
-pub fn export_stale(root: &Path) -> Result<bool, DfwError> {
+/// Milliseconds since 1970 of a file time (negative before it).
+fn epoch_ms(time: SystemTime) -> f64 {
+    match time.duration_since(UNIX_EPOCH) {
+        Ok(after) => after.as_secs_f64() * 1000.0,
+        Err(before) => -before.duration().as_secs_f64() * 1000.0,
+    }
+}
+
+/// When the newest file under `design/` (outside the frozen snapshots and the handoff) changed,
+/// in milliseconds since 1970; `None` when there is no such file.
+fn design_newest_ms(root: &Path) -> Result<Option<f64>, DfwError> {
+    let design = project_paths(root).design;
+    let mut newest: Option<f64> = None;
+    for rel in list_files(&design, &[file::APPROVED, file::HANDOFF])? {
+        let Ok(modified) = fs::metadata(design.join(&rel)).and_then(|m| m.modified()) else {
+            continue;
+        };
+        let ms = epoch_ms(modified);
+        newest = Some(newest.map_or(ms, |n| n.max(ms)));
+    }
+    Ok(newest)
+}
+
+/// The latest export as the panel needs it: its id and when it was rendered (ms since 1970).
+fn latest_export(root: &Path) -> Result<(Option<String>, Option<f64>), DfwError> {
     let doc = read_json(
         &penpot_dir(root).join(file::PENPOT_EXPORT),
         Some(Value::Null),
     )?;
+    let id = doc
+        .get(wire::ID)
+        .and_then(Value::as_str)
+        .map(str::to_string);
     let generated_at = js::truthy_value(doc.get(wire::GENERATED_AT)).and_then(Value::as_str);
-    let Some(at) = generated_at.and_then(parse_iso_ms).filter(|at| *at != 0.0) else {
+    let at = generated_at.and_then(parse_iso_ms).filter(|at| *at != 0.0);
+    Ok((id, at))
+}
+
+/// `exportStale`: true when a design file changed after the latest export was rendered (the
+/// Penpot boards are behind).
+pub fn export_stale(root: &Path) -> Result<bool, DfwError> {
+    let (_, at) = latest_export(root)?;
+    let Some(at) = at else {
         return Ok(false);
     };
-    let design = project_paths(root).design;
-    for rel in list_files(&design, &[file::APPROVED, file::HANDOFF])? {
-        let modified = fs::metadata(design.join(&rel)).and_then(|m| m.modified());
-        let Ok(modified) = modified else {
-            continue;
-        };
-        let ms = match modified.duration_since(UNIX_EPOCH) {
-            Ok(after) => after.as_secs_f64() * 1000.0,
-            Err(before) => -before.duration().as_secs_f64() * 1000.0,
-        };
-        if ms > at {
-            return Ok(true);
-        }
-    }
-    Ok(false)
+    Ok(design_newest_ms(root)?.is_some_and(|newest| newest > at))
+}
+
+/// How long the design has been quiet: milliseconds since the newest design file changed, never
+/// below 0 (a file dated in the future reads as just changed); `None` without design files.
+pub fn design_quiet_ms(root: &Path) -> Result<Option<u64>, DfwError> {
+    let now = epoch_ms(SystemTime::now());
+    Ok(design_newest_ms(root)?.map(|newest| (now - newest).max(0.0) as u64))
 }
 
 /// `syncThreads`: the live comment loop with the Penpot plugin (the same loop as the Studio,
 /// without pressing "Send changes"). `payload`: `{ fileId, exportId, threads: [...], posted:
-/// [{ seq, key }] }`. Returns `{ comments: [ids], updated, replies, stale, warnings }`.
+/// [{ seq, key }] }`. Returns `{ comments: [ids], updated, replies, stale, warnings, exportId,
+/// quietMs }`: with the last two the panel decides whether to update the boards itself (the id
+/// of the latest export, and how long the design has been quiet).
 pub fn sync_threads(
     root: &Path,
     payload: &Value,
@@ -279,6 +308,8 @@ pub fn sync_threads(
         wire::REPLIES: thread_replies(root, &file_id)?,
         (wire::report::STALE): export_stale(root)?,
         (wire::report::WARNINGS): r.warnings,
+        (wire::EXPORT_ID): latest_export(root)?.0,
+        (wire::report::QUIET_MS): design_quiet_ms(root)?,
     }))
 }
 

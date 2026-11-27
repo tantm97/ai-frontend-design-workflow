@@ -91,6 +91,8 @@ pub mod penpot {
     pub const ICON: &str = "icon.svg";
     /// The panel page, framed only by Penpot.
     pub const UI: &str = "ui.html";
+    /// The panel's decisions, loaded by the panel page.
+    pub const UI_JS: &str = "ui.js";
 
     /// The routes that write: each needs the panel's token.
     #[cfg(test)]
@@ -98,7 +100,7 @@ pub mod penpot {
 
     /// Every route above as `(name, path)`.
     #[cfg(test)]
-    pub const ALL: [(&str, &str); 8] = [
+    pub const ALL: [(&str, &str); 9] = [
         ("SESSION", SESSION),
         ("EXPORT", EXPORT),
         ("CHANGES", CHANGES),
@@ -107,6 +109,7 @@ pub mod penpot {
         ("PLUGIN_JS", PLUGIN_JS),
         ("ICON", ICON),
         ("UI", UI),
+        ("UI_JS", UI_JS),
     ];
 }
 

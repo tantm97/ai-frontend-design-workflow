@@ -58,6 +58,9 @@ function fakePenpot() {
       return p;
     },
     openPage: async (p) => (current = p),
+    get currentPage() {
+      return current;
+    },
     createBoard: () => {
       const b = shape('board');
       current.root.appendChild(b);
@@ -118,6 +121,25 @@ test('penpot plugin: Update boards redraws a board in place, so its comment thre
     [['new', 510]],
   );
   assert.equal(JSON.parse(board.getPluginData('dfw-board')).exportId, 'px_2');
+});
+
+test('penpot plugin: an update opens the page the user was on again, and still draws without that API', async () => {
+  const p = loadPlugin();
+  await p.send({ type: 'build', export: exportDoc('px_1', 'old') });
+  const notes = p.penpot.createPage();
+  notes.name = 'Notes';
+  await p.penpot.openPage(notes);
+  await p.send({ type: 'build', export: exportDoc('px_2', 'new'), options: { update: true } });
+  assert.equal(p.penpot.currentPage, notes);
+  // Without the API (an older Penpot) the update still draws.
+  const q = loadPlugin();
+  await q.send({ type: 'build', export: exportDoc('px_1', 'old') });
+  Object.defineProperty(q.penpot, 'currentPage', {
+    get() {
+      throw new Error('not in this Penpot');
+    },
+  });
+  assert.equal((await q.send({ type: 'build', export: exportDoc('px_2', 'new'), options: { update: true } })).stats.updated, 1);
 });
 
 test('penpot plugin: live threads are the ones on dfw boards; replies are posted into them', async () => {

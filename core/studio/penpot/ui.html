@@ -40,7 +40,10 @@
 </section>
 <section>
   <label><input id="live" type="checkbox" checked> Live comments: threads on dfw boards go to the AI, its replies come back into the thread</label>
+  <label><input id="auto" type="checkbox"> Keep boards up to date automatically (your changes are sent to dfw first)</label>
   <p id="liveStatus" aria-live="polite">Waiting for the first check...</p>
+  <p id="agent" aria-live="polite" hidden></p>
+  <p id="autoStatus" aria-live="polite" hidden></p>
   <p id="stale" hidden>The dfw design changed since these boards were built: press <b>Update boards</b>.</p>
 </section>
 <section>
@@ -50,19 +53,57 @@
   </div>
 </section>
 <pre id="log" aria-live="polite"></pre>
+<script src="/__dfw/penpot/ui.js"></script>
 <script>
+  /* global dfwPanel */
   const log = (t, err) => {
     const el = document.getElementById('log');
     el.textContent = t;
     el.className = err ? 'err' : '';
   };
+  const say = (id, t) => {
+    const el = document.getElementById(id);
+    el.textContent = t || '';
+    el.hidden = !t;
+  };
+  // "Keep boards up to date automatically": what the user chose last in this browser, else on
+  // when the project reviews in Penpot (review.canvas).
+  const AUTO_KEY = 'dfw.penpot.autoUpdate';
+  const autoBox = document.getElementById('auto');
+  const stored = () => {
+    try {
+      return localStorage.getItem(AUTO_KEY);
+    } catch (e) {
+      return null;
+    }
+  };
+  autoBox.addEventListener('change', () => {
+    try {
+      localStorage.setItem(AUTO_KEY, autoBox.checked ? '1' : '0');
+    } catch (e) {}
+    if (!autoBox.checked) say('autoStatus', '');
+  });
   // The Studio says which Penpot origins this panel talks to (penpot.origins of the user's dfw
   // config) and gives the token its writes carry: a page that is not this panel cannot read it.
+  // A restarted Studio has a new token: after a refused write or a lost Studio the next tick reads
+  // the session again (the origins of the last good one still check Penpot's messages meanwhile).
   let bridge = null;
-  const ready = fetch('/__dfw/penpot/session.json')
-    .then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.statusText))))
-    .then((b) => (bridge = b))
-    .catch((e) => log(`Could not reach the dfw Studio: ${e.message}. Is it running ("dfw studio start")?`, true));
+  let needSession = true;
+  async function loadSession() {
+    try {
+      const r = await fetch('/__dfw/penpot/session.json');
+      if (!r.ok) throw new Error(r.statusText || String(r.status));
+      const first = !bridge;
+      bridge = await r.json();
+      needSession = false;
+      if (first) autoBox.checked = dfwPanel.autoDefault(stored(), bridge.canvas);
+      else log('Connected to the dfw Studio again.');
+      return true;
+    } catch (e) {
+      log(`Could not reach the dfw Studio: ${e.message}. Is it running ("dfw studio start")?`, true);
+      return false;
+    }
+  }
   // Only to Penpot: the frame's own Penpot when the browser tells it, else each allowed origin
   // (a message to an origin that is not the parent's is dropped by the browser).
   const penpotOrigins = () => {
@@ -71,7 +112,17 @@
     return bridge.origins.includes(top) ? [top] : bridge.origins;
   };
   const toPlugin = (msg) => penpotOrigins().forEach((o) => parent.postMessage(msg, o));
-  const post = (url, body) => fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', 'x-dfw-bridge': bridge ? bridge.token : '' }, body });
+  const post = async (url, body) => {
+    let r;
+    try {
+      r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', 'x-dfw-bridge': bridge ? bridge.token : '' }, body });
+    } catch (e) {
+      needSession = true;
+      throw e;
+    }
+    if (dfwPanel.needsSession(r.status)) needSession = true;
+    return r;
+  };
   let downloadOnly = false;
 
   async function images(doc) {
@@ -97,9 +148,10 @@
     toPlugin({ type: 'build', export: doc, images: await images(doc), options: { components: document.getElementById('components').checked, update } });
   }
 
-  async function fromStudio(update) {
+  // Draws the export into the file; true when it was sent to the plugin. `render`: render the
+  // design now (else read the last export, rendering one only when there is none).
+  async function fromStudio(update, render = update || document.getElementById('refresh').checked) {
     const q = new URLSearchParams();
-    const render = update || document.getElementById('refresh').checked;
     const page = document.getElementById('page').value.trim();
     const bp = document.getElementById('bp').value.trim();
     if (page) q.set('page', page);
@@ -113,8 +165,10 @@
       if (!r.ok) throw new Error(doc.error || r.statusText);
       await build(doc, update);
       if (update) document.getElementById('stale').hidden = true;
+      return true;
     } catch (e) {
       log(`Could not get the export: ${e.message}. Is the dfw Studio running? Or use "Load export file".`, true);
+      return false;
     }
   }
   document.getElementById('build').addEventListener('click', () => fromStudio(false));
@@ -125,30 +179,77 @@
   const liveStatus = (t) => (document.getElementById('liveStatus').textContent = t);
   let posted = [];
   let busyAt = 0;
-  function tick() {
+  // The automatic board update: send the designer's pending changes, then redraw the boards in
+  // place. `stage` is 'collect' or 'build' while one runs; a failure waits a minute.
+  let update = { busyAt: 0, failedAt: 0, stage: null, render: false };
+  const isLive = () => document.getElementById('live').checked;
+  async function tick() {
+    if (needSession && !(await loadSession())) return liveStatus('The dfw Studio is not reachable: start it with "dfw studio start"; this panel reconnects by itself.');
     if (!bridge) return;
-    if (!document.getElementById('live').checked) return liveStatus('Live comments are off: use "Send changes to dfw".');
+    if (!isLive() && !autoBox.checked) return liveStatus('Live comments are off: use "Send changes to dfw".');
+    if (update.busyAt && Date.now() - update.busyAt < dfwPanel.BUSY_MS) return;
     if (busyAt && Date.now() - busyAt < 30000) return;
     busyAt = Date.now();
     toPlugin({ type: 'threads' });
   }
   async function sync(data) {
     try {
-      const r = await post('/__dfw/penpot/sync', JSON.stringify({ ...data, posted }));
+      // With live comments off the threads stay in Penpot; the answer still says whether the boards are behind.
+      const threads = isLive() ? data.threads : [];
+      const r = await post('/__dfw/penpot/sync', JSON.stringify({ ...data, threads, posted: isLive() ? posted : [] }));
       const res = await r.json();
       if (!r.ok) throw new Error(res.error || r.statusText);
       posted = [];
-      document.getElementById('stale').hidden = !res.stale;
-      const news = [res.comments.length ? `${res.comments.length} new (${res.comments.join(', ')})` : '', res.updated.map((u) => `${u.id} ${u.status}`).join(', ')].filter(Boolean).join('; ');
-      liveStatus(`Live: ${data.threads.length} thread(s) on dfw boards, checked ${new Date().toLocaleTimeString()}${news ? `. ${news}` : ''}`);
-      if (res.replies.length) return toPlugin({ type: 'reply', replies: res.replies });
+      const built = Boolean(data.exportId);
+      document.getElementById('stale').hidden = !res.stale || (autoBox.checked && built);
+      say('agent', res.listening ? 'The agent is listening: your comments and sent changes reach it at once.' : 'The agent is not listening: your comments are kept; ask it to look at the review comments.');
+      if (isLive()) {
+        const news = [res.comments.length ? `${res.comments.length} new (${res.comments.join(', ')})` : '', res.updated.map((u) => `${u.id} ${u.status}`).join(', ')].filter(Boolean).join('; ');
+        liveStatus(`Live: ${threads.length} thread(s) on dfw boards, checked ${new Date().toLocaleTimeString()}${news ? `. ${news}` : ''}`);
+      } else liveStatus('Live comments are off: use "Send changes to dfw".');
+      if (autoBox.checked && !built) say('autoStatus', 'Press "Build boards" once in this file; after that the boards stay up to date.');
+      const now = Date.now();
+      const due = dfwPanel.shouldAutoUpdate({
+        auto: autoBox.checked,
+        built,
+        stale: Boolean(res.stale),
+        boardsExportId: data.exportId,
+        latestExportId: res.exportId,
+        quietMs: res.quietMs,
+        busyMs: update.busyAt ? now - update.busyAt : 0,
+        sinceFailMs: update.failedAt ? now - update.failedAt : null,
+      });
+      if (due) startUpdate(Boolean(res.stale));
+      if (isLive() && res.replies.length) return toPlugin({ type: 'reply', replies: res.replies });
     } catch (e) {
       liveStatus(`Live comments paused: ${e.message}. Is the dfw Studio running, and were the boards built from it?`);
     }
     busyAt = 0;
   }
+  function startUpdate(render) {
+    update = { busyAt: Date.now(), failedAt: 0, stage: 'collect', render };
+    say('autoStatus', 'The dfw design changed: sending your changes to dfw, then updating the boards...');
+    toPlugin({ type: 'collect' });
+  }
+  function updateFailed(why) {
+    update = { busyAt: 0, failedAt: Date.now(), stage: null, render: false };
+    say('autoStatus', `Boards not updated: ${why} Your edits in Penpot are kept; trying again in a minute.`);
+  }
+  // Step 1: the designer's edits go to dfw first, so the redraw never loses them. Step 2: redraw.
+  async function sendThenRedraw(changes) {
+    try {
+      const r = await post('/__dfw/penpot/changes', JSON.stringify(changes));
+      const res = await r.json();
+      if (!r.ok) throw new Error(res.error || r.statusText);
+      if (res.changes) log(res.summary);
+    } catch (e) {
+      return updateFailed(`could not send your changes (${e.message}).`);
+    }
+    update.stage = 'build';
+    if (!(await fromStudio(true, update.render))) updateFailed('could not get the new export.');
+  }
   setInterval(tick, 5000);
-  ready.then(tick);
+  tick();
   document.getElementById('load').addEventListener('click', () => document.getElementById('file').click());
   document.getElementById('file').addEventListener('change', async (e) => {
     const f = e.target.files[0];
@@ -175,7 +276,13 @@
         busyAt = 0;
         return liveStatus(`Live comments paused: ${msg.message}`);
       }
+      if (update.stage && (msg.of === 'collect' || msg.of === 'build')) return updateFailed(`${msg.message}.`);
       return log(msg.message, true);
+    }
+    if (msg.type === 'changes' && update.stage === 'collect') return sendThenRedraw(msg.data);
+    if (msg.type === 'built' && update.stage === 'build') {
+      update = { busyAt: 0, failedAt: 0, stage: null, render: false };
+      say('autoStatus', `Boards updated automatically at ${new Date().toLocaleTimeString()}.`);
     }
     if (msg.type === 'threads') return sync(msg.data);
     if (msg.type === 'replied') {

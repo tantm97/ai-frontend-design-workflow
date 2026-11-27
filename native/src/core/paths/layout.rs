@@ -75,6 +75,8 @@ pub mod file {
     pub const PENPOT_CHANGES: &str = "changes";
     /// The lock of the Penpot ledgers (`threads.json`, `imported.json`), in `.dfw/penpot`.
     pub const PENPOT_LOCK: &str = ".lock";
+    /// The lock of a Penpot export (CLI and Studio), in `.dfw/penpot`.
+    pub const PENPOT_EXPORT_LOCK: &str = ".export.lock";
     /// The extension of a JSON file, without its dot.
     pub const JSON_EXT: &str = "json";
     /// Studio screenshots in [`SHOTS`].

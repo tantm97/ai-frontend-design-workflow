@@ -8,7 +8,7 @@
 //   Send changes : boards built here + main components on the "dfw components" page + Penpot comments
 //                  + token sets -> the Studio, which records them as dfw feedback comments (component
 //                  edits target the master file). dfw never overwrites its HTML from Penpot.
-// API used: penpot.ui, createPage/openPage, createBoard/createRectangle/createText/createShapeFromSvg,
+// API used: penpot.ui, createPage/openPage/currentPage, createBoard/createRectangle/createText/createShapeFromSvg,
 // uploadMediaData, library.local.createComponent / component.instance() / component.mainInstance(),
 // library.local.components, library.local.tokens,
 // fonts.findByName, Page.findCommentThreads, CommentThread.findComments/reply, Shape.remove, setPluginData/getPluginData (doc.plugins.penpot.app).
@@ -252,6 +252,11 @@ async function build(doc, images, options) {
     );
   const useInstances = options.components !== false;
   const update = Boolean(options.update);
+  // An update (also the panel's automatic one) opens the page the user was on again afterwards.
+  let back = null;
+  try {
+    back = update ? penpot.currentPage : null;
+  } catch (e) {}
   const old = update ? existing() : { boards: new Map(), pages: new Map(), mains: new Map() };
   // Update: reuse the main components already in the file when their structure is unchanged;
   // a new or changed master is drawn as plain layers (no second main is created).
@@ -332,6 +337,9 @@ async function build(doc, images, options) {
     const before = data(penpot.currentFile, 'dfw-export');
     const allKeys = update && before && before.keys ? [...new Set([...before.keys, ...keys])] : keys;
     penpot.currentFile.setPluginData('dfw-export', JSON.stringify({ id: doc.id, keys: allKeys, components: [...ctx.mains.keys()] }));
+  } catch (e) {}
+  try {
+    if (back && back !== penpot.currentPage) await penpot.openPage(back);
   } catch (e) {}
   return stats;
 }

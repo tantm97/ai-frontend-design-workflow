@@ -16,7 +16,7 @@ use super::api::mime;
 use super::http::{method, query_param, status, LOOPBACK};
 use super::server::{Request, Response, Studio, JSON};
 use crate::assets::{studio_file, studio_text};
-use crate::core::config::global_config_path;
+use crate::core::config::{global_config_path, project_canvas};
 use crate::core::error::DfwError;
 use crate::core::paths::{file, project_paths};
 use crate::core::util::{get_path, read_json, to_json_pretty};
@@ -24,6 +24,7 @@ use crate::penpot::export::{export_penpot, ExportOptions};
 use crate::penpot::import::{format_import_changes, import_changes, ImportOptions};
 use crate::penpot::live::sync_threads;
 use crate::penpot::wire;
+use crate::review::inbox::is_listening;
 use crate::review::status::field as comment;
 use crate::studio::paths;
 use crate::workflow::state::load_state;
@@ -66,6 +67,9 @@ mod session {
     pub const TOKEN: &str = "token";
     /// The Penpot origins the Studio answers.
     pub const ORIGINS: &str = "origins";
+    /// Where the user reviews (`review.canvas`): the panel keeps boards up to date by default
+    /// when it is `penpot`.
+    pub const CANVAS: &str = "canvas";
 }
 
 /// The keys of the answer to a change file: `{ summary, comments, changes }`.
@@ -207,14 +211,24 @@ pub fn route(studio: &Studio, req: &Request) -> Result<Response, DfwError> {
             }
             None => Response::not_found(),
         },
+        // The panel's own decisions (when to update the boards), loaded by `ui.html` from this
+        // origin: no CORS, only the panel needs it.
+        route::UI_JS => match studio_file("penpot/ui.js") {
+            Some(code) => {
+                Response::send(status::OK, code.into_owned(), mime(".js").unwrap_or(JSON))
+            }
+            None => Response::not_found(),
+        },
         // What the panel needs before it talks to Penpot or writes: the token and the origins.
         route::SESSION if method == method::GET => {
             if let Some(refused) = bridge_refusal(studio, req, false) {
                 return Ok(refused);
             }
+            // Read now, not at start: `dfw config set review.canvas` applies without a restart.
+            let canvas = project_canvas(&studio.root, &mut |m| eprintln!("{m}"));
             Response::json(
                 status::OK,
-                &json!({ (session::TOKEN): studio.penpot_token, (session::ORIGINS): studio.penpot_origins }),
+                &json!({ (session::TOKEN): studio.penpot_token, (session::ORIGINS): studio.penpot_origins, (session::CANVAS): canvas.name() }),
             )
         }
         // A GET only reads the last export: rendering (files written, a browser started) is a
@@ -230,8 +244,8 @@ pub fn route(studio: &Studio, req: &Request) -> Result<Response, DfwError> {
             if let Some(refused) = bridge_refusal(studio, req, true) {
                 return Ok(refused);
             }
-            // One export at a time (Node shared the running export's promise).
-            let _one = studio.penpot_exporting.lock();
+            // One export at a time: `export_penpot` takes the project's export lock, which
+            // `dfw penpot export` takes too.
             let opts = ExportOptions {
                 page: query_param(req.head.target(), "page").filter(|p| !p.is_empty()),
                 bp: query_param(req.head.target(), "bp").filter(|b| !b.is_empty()),
@@ -268,11 +282,13 @@ pub fn route(studio: &Studio, req: &Request) -> Result<Response, DfwError> {
                 return Ok(refused);
             }
             let state = load_state(&studio.root)?;
-            let r = sync_threads(&studio.root, &req.json()?, state.as_ref())?;
+            let mut r = sync_threads(&studio.root, &req.json()?, state.as_ref())?;
             let count = |k: &str| r.get(k).and_then(Value::as_array).map_or(0, Vec::len);
             if count(wire::COMMENTS) > 0 || count(wire::UPDATED) > 0 {
                 studio.clients.broadcast("comments", &json!({}));
             }
+            // The panel shows whether an agent waits for the comments it sends.
+            r[wire::report::LISTENING] = is_listening(&studio.root).into();
             Response::json(status::OK, &r)
         }
         _ => Response::not_found(),
