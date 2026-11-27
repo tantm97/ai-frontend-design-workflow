@@ -96,11 +96,11 @@ fn run(
     let host = current_host(ctx.args.get(flag_key::HOST))?;
     let input = normalize_hook_input(payload)?;
     let result: Option<HookResult> = match name {
-        hook_name::SESSION_START => session_start(&input)?,
+        hook_name::SESSION_START => session_start(&input, host)?,
         hook_name::PRE_TOOL_USE => pre_tool_use(&input)?,
         hook_name::USER_PROMPT_SUBMIT => user_prompt_submit(&input, host)?,
         hook_name::POST_TOOL_USE => post_tool_use(&input, host)?,
-        _ => stop(&input)?,
+        _ => stop(&input, host)?,
     };
     let kind = HookOutcome::of(result.as_ref());
     let neutral = result.map_or(Value::Null, |r| r.to_value());

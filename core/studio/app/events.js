@@ -17,7 +17,7 @@ import { renderToolbar } from './toolbar.js';
 import { frameHeight } from './geometry.js';
 import { MSG, SSE } from '#studio/shared/protocol.js';
 import { events, server } from './api.js';
-import { MODE, TAB, EDIT_OP, PHASE, AGENT_PHASE, SYSTEM_SCREEN } from '#studio/shared/enums.js';
+import { MODE, TAB, EDIT_OP, PHASE, AGENT_PHASE, SYSTEM_SCREEN, PAGE_QUERY } from '#studio/shared/enums.js';
 import { TEXT } from '#studio/shared/text.js';
 
 /** A frame (or the presenter) loaded its overlay: send it the tool, tokens, pins and selection. */
@@ -193,8 +193,16 @@ export async function loadAll({ keepCam = false } = {}) {
   if (!S.activeBps?.length) S.activeBps = null;
   renderToolbar();
   if (keepCam && S.page) rebuildKeepCam();
-  else setPage(store.get('page', null) || S.pages.find((p) => !p.system && !p.flow && p.screens.length)?.id || SYSTEM_SCREEN);
+  else
+    setPage(linkedPage() || store.get('page', null) || S.pages.find((p) => !p.system && !p.flow && p.screens.length)?.id || SYSTEM_SCREEN);
   await loadComments();
+}
+
+/** The page the address names (`?page=system`, the link the agent gives), on the first load only; an unknown id is ignored. */
+function linkedPage() {
+  if (S.page) return null;
+  const id = new URLSearchParams(location.search).get(PAGE_QUERY);
+  return S.pages.find((p) => p.id === id)?.id || null;
 }
 
 /** A design file changed: reload the manifest, or update the frames that show the file. */

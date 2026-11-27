@@ -52,7 +52,7 @@ Reference files live next to this SKILL.md: `./references/`. Policies: `./polici
 ## 2. Continuing work
 
 - `dfw status` prints a `next:` hint; follow it unless the user wants something else.
-- Review comments arrive by themselves: while the Studio is in review, keep `dfw comments wait` running in the background (it wakes you when the user comments); the hooks also inject new comments with the next message or before you stop. Apply them per `references/phase-review.md` > "Applying comments", then re-arm the wait.
+- **Link what you show; listen while the user reviews.** Whenever you ask the user to look at something in the Studio, write its URL in your reply (`dfw studio start` prints it; command output is not shown to the user). From the moment the Studio is shown until review ends, keep `dfw comments wait --timeout 3600` running in the background (an async/background shell command): the Studio's **Send to AI** wakes you. Apply each batch (from the wait or a hook) per `references/phase-review.md` > "Applying comments", and re-arm the wait before you end your turn.
 - **Adding a screen to an existing design** (the user asks for one more, or one is missing): read `references/phase-concepts-add-screen.md` first. Place it in its page between the screens it follows and precedes, add it with `dfw screen add`, and link it both ways before showing it.
 - When the user changes their mind about an earlier decision, record the new decision (level 1) and re-run only what it affects.
 - `dfw pause` disables gates and hooks for the project (only on the user's request); `dfw resume` re-enables them.

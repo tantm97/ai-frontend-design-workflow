@@ -877,12 +877,15 @@ describe('hot: comments', { skip: skipReason() }, () => {
     const got = same(['comments', 'wait', '--timeout', '30'], { setup: withSession(MIXED) });
     assert.match(
       got.stdout,
-      /^2 new Studio comment\(s\) from the user:\n[^]*\nAfter fixing, start "dfw comments wait" in the background again to keep listening\.\n$/,
+      /^2 new Studio comment\(s\) from the user:\n[^]*\nThen, before you end your turn, start "dfw comments wait --timeout 3600" again in the background so the user's next Studio comments wake you\.\n$/,
     );
     assert.ok('.dfw/reviews/.delivered.json' in got.files);
     assert.ok(Date.now() - start >= 1500, 'the binary waits the settle time');
     const none = same(['comments', 'wait', '--timeout', '1']);
-    assert.equal(none.stdout, 'No new comments before the timeout. Re-run "dfw comments wait" in the background to keep listening.\n');
+    assert.equal(
+      none.stdout,
+      'No new comments before the timeout. Start "dfw comments wait --timeout 3600" again in the background to keep listening.\n',
+    );
     // The flag alone is one second; a timeout in the past returns at once, comments or not.
     same(['comments', 'wait', '--timeout']);
     assert.deepEqual(same(['comments', 'wait', '--timeout', '-5'], { setup: withSession(MIXED) }).files, {});

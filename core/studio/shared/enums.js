@@ -80,6 +80,12 @@ export const NAV_DIR = Object.freeze({ UP: 'up', DOWN: 'down', LEFT: 'left', RIG
 /** The screen id of comments on the Design System page. */
 export const SYSTEM_SCREEN = 'system';
 
+/** The query parameter of a Studio address that opens a page (`?page=system`); the binary prints such links (design::pages::PAGE_QUERY). */
+export const PAGE_QUERY = 'page';
+
+/** What the send bar says about the agent, from the listening route: a wait listens, it works on comments it was given, or neither. */
+export const LISTENER = Object.freeze({ LISTENING: 'listening', WORKING: 'working', OFF: 'off' });
+
 /** `KeyboardEvent.key` values the Studio reacts to. */
 export const KEY = Object.freeze({
   ESCAPE: 'Escape',

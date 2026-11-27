@@ -136,10 +136,18 @@ pub static HOSTS: [Host; 6] = [
     planned(id::CURSOR, "Cursor", "cursor-agent"),
 ];
 
+/// The placeholder of the host's words for a background shell command (`{{BACKGROUND}}`).
+pub const BACKGROUND: &str = "BACKGROUND";
+
 impl Host {
     /// The value of a text placeholder (`host.text[key]`).
     pub fn text(&self, key: &str) -> Option<&'static str> {
         self.text?.iter().find(|(k, _)| *k == key).map(|(_, v)| *v)
+    }
+
+    /// The host's words for a background shell command, for text the hooks give the agent.
+    pub fn background(&self) -> Option<&'static str> {
+        self.text(BACKGROUND)
     }
 
     /// `host.context[event]`: `None` for an event the table does not list.
@@ -248,6 +256,16 @@ pub fn get_host(id: Option<&str>) -> Result<&'static Host, DfwError> {
 /// `currentHost(flag)`: host for this process: the `--host` flag, then `DFW_HOST`, then Claude Code.
 pub fn current_host(flag: Option<&ArgValue>) -> Result<&'static Host, DfwError> {
     current_host_from(flag, env_nonempty("DFW_HOST").as_deref())
+}
+
+/// The host named by the `--host` flag or `DFW_HOST`; `None` when neither names one (a command
+/// the agent runs does not know its host, and the default would be the wrong words for another).
+pub fn named_host(flag: Option<&ArgValue>) -> Result<Option<&'static Host>, DfwError> {
+    let env_host = env_nonempty("DFW_HOST");
+    if flag.is_none() && env_host.is_none() {
+        return Ok(None);
+    }
+    current_host_from(flag, env_host.as_deref()).map(Some)
 }
 
 fn current_host_from(

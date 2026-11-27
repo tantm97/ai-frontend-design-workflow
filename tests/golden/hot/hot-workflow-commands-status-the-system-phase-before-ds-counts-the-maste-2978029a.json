@@ -3,7 +3,7 @@
   "results": [
     {
       "code": 0,
-      "stdout": "dfw: product=\"Fixture\" mode=new-product phase=system\ndesign: v1 draft\ngates: G1=approved DS=open G2=open G3=open G4=open\ncomments: 0 active, 0 awaiting user verification, 0 resolved\nstudio: not running\nstack: not set\nnext: review the Design System page in the studio; when the user approves: \"dfw approve DS --note ...\"\n",
+      "stdout": "dfw: product=\"Fixture\" mode=new-product phase=system\ndesign: v1 draft\ngates: G1=approved DS=open G2=open G3=open G4=open\ncomments: 0 active, 0 awaiting user verification, 0 resolved\nstudio: not running\nstack: not set\nnext: review the Design System page in the studio: write its link in your reply (\"dfw studio start\" prints it) and start \"dfw comments wait --timeout 3600\" in the background; when the user approves: \"dfw approve DS --note ...\"\n",
       "stderr": "",
       "files": {}
     },

@@ -1225,12 +1225,12 @@ fn html_regexes_do_not_grow() {
 }
 
 /// Every write of `.dfw/reviews/` holds the reviews lock: it goes through `write_reviews`, which
-/// takes the lock's guard (`process-and-io.md` P7, §0 row 15). `Listening::start` writes the
-/// marker of its own process once, without a read before it: the one exception.
+/// takes the lock's guard (`process-and-io.md` P7, §0 row 15). The listening marker is a list
+/// several waits share, so it is written the same way.
 #[test]
 fn reviews_writes_hold_the_lock() {
     let files = ["src/review/comments.rs", "src/review/inbox.rs"];
-    let allowed = ["fn write_reviews(", "fn start("];
+    let allowed = ["fn write_reviews("];
     let mut found = Vec::new();
     for (rel, lines) in product_sources(&[]) {
         if !files.contains(&rel.as_str()) {

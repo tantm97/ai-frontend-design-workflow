@@ -183,7 +183,7 @@ fn replying_reopens_resolving_accepts_or_dismisses() {
         .into_iter()
         .filter(|c| c["id"] == a)
         .collect();
-    assert!(format_for_claude(&mine).contains("reopened by user: \"Still too small\""));
+    assert!(format_for_claude(&mine, None).contains("reopened by user: \"Still too small\""));
     set(&root, a, FIXED, Some("Bigger now."));
     // Resolving the thread accepts the fix; resolving an open thread dismisses the comment.
     let resolved = || {
@@ -229,7 +229,7 @@ fn a_follow_up_on_a_comment_being_worked_on_reaches_the_agent() {
     let threads = vec![thread(1, &["A", "Also the header"], false)];
     sync(&root, FILE, &export, threads, json!([]));
     assert_eq!(one(&root)[field::STATUS], ACKNOWLEDGED);
-    let told = format_for_claude(&undelivered(&root).unwrap());
+    let told = format_for_claude(&undelivered(&root).unwrap(), None);
     assert!(
         told.contains("follow-up by user: \"Also the header\""),
         "{told}"
@@ -248,7 +248,7 @@ fn a_reply_in_a_thread_that_stays_resolved_reopens_the_comment() {
     let reply = [RED, PLEASE_DO];
     sync(&root, FILE, &export, threads(&reply, true), json!([]));
     assert_eq!(one(&root)[field::STATUS], REOPENED);
-    let told = format_for_claude(&undelivered(&root).unwrap());
+    let told = format_for_claude(&undelivered(&root).unwrap(), None);
     assert!(told.contains(PLEASE_DO), "{told}");
     let again = sync(&root, FILE, &export, threads(&reply, true), json!([]));
     assert_eq!(

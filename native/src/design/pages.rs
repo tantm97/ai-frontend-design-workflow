@@ -32,6 +32,16 @@ pub(crate) mod page {
     pub const EXPLORATIONS: &str = "explorations";
 }
 
+/// The query parameter of a Studio address that opens a page (`?page=system`); the Studio reads
+/// the same name (`core/studio/shared/enums.js` `PAGE_QUERY`).
+pub const PAGE_QUERY: &str = "page";
+
+/// The address of the Studio that opens its Design System page, for `studio_url` (which ends
+/// with `/`).
+pub fn system_link(studio_url: &str) -> String {
+    format!("{studio_url}?{PAGE_QUERY}={}", page::SYSTEM)
+}
+
 /// The keys of a canvas page and of a link between screens that `design.json` does not have
 /// (the others are [`key`]).
 pub(crate) mod field {

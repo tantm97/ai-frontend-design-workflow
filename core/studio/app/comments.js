@@ -1,7 +1,7 @@
 // @ts-check
 // Comments: the list in the right panel, the composer (click an element, write, save), status
 // actions (resolve, reopen, dismiss) and live status updates from the agent.
-import { ACTIVE, commentLabel, esc, inFilter, isDraft } from './model.js';
+import { ACTIVE, canReply, commentLabel, esc, inFilter, isDraft, listenerState } from './model.js';
 import { $, $$, ALL, P, PKEY, S, post, postAll, toast, ui } from './state.js';
 import { renderPages, selectFrame, setPage } from './frames.js';
 import { zoomToRect } from './canvas.js';
@@ -9,7 +9,7 @@ import { toScreen, updateHud } from './hud.js';
 import { closePop, pinStatuses, placePop, renderPop, syncPins } from './pins.js';
 import { MSG } from '#studio/shared/protocol.js';
 import { server } from './api.js';
-import { MODE, STATUS, COMMENT_FILTER, TAB, SYSTEM_SCREEN } from '#studio/shared/enums.js';
+import { MODE, STATUS, COMMENT_FILTER, TAB, SYSTEM_SCREEN, LISTENER } from '#studio/shared/enums.js';
 import { TEXT } from '#studio/shared/text.js';
 
 export function renderComments() {
@@ -72,6 +72,8 @@ export function commentActions(c, actions) {
     btn(TEXT.resolveButton, 'ok', () => patch(c.id, { status: STATUS.RESOLVED, message: TEXT.verifiedInStudio }));
     btn(TEXT.reopenButton, '', () => askReason(actions, (msg) => patch(c.id, { status: STATUS.REOPENED, message: msg })));
   } else if (ACTIVE.includes(c.status)) {
+    // A reply is a thread line by the user, no status change; the inbox delivers it as a follow-up.
+    if (canReply(c)) btn(TEXT.replyButton, '', () => askReason(actions, (msg) => patch(c.id, { message: msg }), TEXT.replyPlaceholder));
     btn(TEXT.dismissButton, '', () => askReason(actions, (msg) => patch(c.id, { status: STATUS.DISMISSED, message: msg })));
   } else {
     btn(TEXT.reopenAgainButton, '', () => askReason(actions, (msg) => patch(c.id, { status: STATUS.REOPENED, message: msg })));
@@ -79,15 +81,17 @@ export function commentActions(c, actions) {
 }
 
 /**
- * A reason field under the actions; done() gets the text.
+ * A reason (or reply) field under the actions; done() gets the text, never an empty one.
  * @param {HTMLElement} container
  * @param {(msg: string) => void} done
+ * @param {string} [placeholder]
  */
-function askReason(container, done) {
+function askReason(container, done, placeholder = TEXT.reasonPlaceholder) {
   if ($('textarea', container)) return;
   const ta = document.createElement('textarea');
   ta.rows = 2;
-  ta.placeholder = TEXT.reasonPlaceholder;
+  ta.placeholder = placeholder;
+  ta.setAttribute('aria-label', placeholder);
   const ok = document.createElement('button');
   ok.type = 'button';
   ok.textContent = TEXT.reasonSend;
@@ -221,35 +225,71 @@ export function setTab(tab, { quiet = false } = {}) {
   $('#tab-comments').hidden = tab !== TAB.COMMENTS;
 }
 
-/** The drafts count on the Send button and whether an agent session listens (dfw comments wait). */
+/** What the send bar says in each listener state (markup: `<b>` names the state). */
+const LISTENER_HTML = new Map([
+  [LISTENER.LISTENING, TEXT.listeningHtml],
+  [LISTENER.WORKING, TEXT.workingHtml],
+  [LISTENER.OFF, TEXT.notListeningHtml],
+]);
+
+/** The drafts count on the Send button and whether the agent listens (dfw comments wait), works, or neither. */
 export function renderSendBar() {
   const drafts = S.comments.filter(isDraft).length;
   const send = $('#send-drafts');
   send.disabled = drafts === 0;
   send.textContent = TEXT.sendButton(drafts);
   const listen = $('#listen');
-  listen.dataset.on = String(!!S.listening);
-  listen.innerHTML = S.listening ? TEXT.listeningHtml : TEXT.notListeningHtml;
+  // Patched only on a change: a poll every few seconds must not re-announce the status line.
+  if (listen.dataset.on !== S.listener) {
+    listen.dataset.on = S.listener;
+    listen.innerHTML = LISTENER_HTML.get(S.listener) || TEXT.notListeningHtml;
+  }
+  $('#listen-copy').hidden = S.listener !== LISTENER.OFF;
 }
+
+/** The toast after "Send to AI": what happens to the sent comments now. */
+const sentText = (/** @type {number} */ n) =>
+  S.listener === LISTENER.LISTENING ? TEXT.sentListening(n) : S.listener === LISTENER.WORKING ? TEXT.sentWorking(n) : TEXT.sentQueued;
 
 /** Send every draft to the agent at once. */
 async function sendDrafts() {
   try {
     const r = await server.sendDrafts();
-    S.listening = r.listening;
-    toast(r.sent ? (r.listening ? TEXT.sentListening(r.sent) : TEXT.sentNotListening(r.sent)) : TEXT.noDrafts);
+    S.listener = listenerState(r);
+    toast(r.sent ? sentText(r.sent) : TEXT.noDrafts);
     await loadComments();
   } catch (e) {
     toast(e.message);
   }
 }
 
+/** Put the request to listen on the clipboard, for the user to paste to the agent. */
+async function copyRequest() {
+  try {
+    await navigator.clipboard.writeText(TEXT.listenRequest);
+    toast(TEXT.copiedRequest);
+  } catch {
+    toast(TEXT.copyFailed(TEXT.listenRequest));
+  }
+}
+
+/** How often the send bar re-checks the listener while the page is visible: a wait that ends or is killed sends no event. */
+const LISTENER_POLL_MS = 3000;
+
+/** Ask the server whether the agent listens; re-render the send bar when that changed. */
+async function refreshListener() {
+  const state = listenerState(await server.listening().catch(() => null));
+  if (state === S.listener) return;
+  S.listener = state;
+  renderSendBar();
+}
+
 /** Fetch the comments; announce what the agent changed since the last fetch. */
 export async function loadComments() {
   const prev = new Map(S.comments.map((c) => [c.id, c.status]));
-  const [comments, listening] = await Promise.all([server.comments(), server.listening().catch(() => ({ listening: false }))]);
+  const [comments, listening] = await Promise.all([server.comments(), server.listening().catch(() => null)]);
   S.comments = comments;
-  S.listening = listening.listening;
+  S.listener = listenerState(listening);
   // Live updates from the agent (via .dfw/reviews/ + SSE): announce status changes.
   if (prev.size) {
     for (const c of S.comments) {
@@ -284,6 +324,13 @@ export function initComments() {
     };
   }
   $('#send-drafts').onclick = sendDrafts;
+  $('#listen-copy').onclick = copyRequest;
+  setInterval(() => {
+    if (document.visibilityState === 'visible') refreshListener();
+  }, LISTENER_POLL_MS);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') refreshListener();
+  });
   $('#new-session').onclick = async () => {
     await server.newSession();
     toast(TEXT.newRound);

@@ -13,7 +13,7 @@ use super::pre_tool_use::root_from;
 /// `inboxFor(input)`: the undelivered comments of the project as text for the agent, marked
 /// delivered in the same hold of the reviews lock (two hooks at once never deliver one comment
 /// twice); `None` when there are none, the lock is busy, or the workflow is not active.
-pub fn inbox_for(input: &HookInput) -> Result<Option<String>, DfwError> {
+pub fn inbox_for(input: &HookInput, host: &Host) -> Result<Option<String>, DfwError> {
     let root = root_from(input)?;
     let Some(state) = load_state(&root)? else {
         return Ok(None);
@@ -25,7 +25,7 @@ pub fn inbox_for(input: &HookInput) -> Result<Option<String>, DfwError> {
     if list.is_empty() {
         return Ok(None);
     }
-    Ok(Some(format_for_claude(&list)))
+    Ok(Some(format_for_claude(&list, host.background())))
 }
 
 /// A host that cannot add context to the user's prompt gets new comments on PostToolUse and
@@ -39,7 +39,7 @@ pub fn user_prompt_submit(input: &HookInput, host: &Host) -> Result<Option<HookR
     if !delivers_on_prompt(host) {
         return Ok(None);
     }
-    Ok(inbox_for(input)?.map(HookResult::Context))
+    Ok(inbox_for(input, host)?.map(HookResult::Context))
 }
 
 #[cfg(test)]
@@ -50,6 +50,10 @@ mod tests {
     use crate::review::comments::add_comment;
     use crate::workflow::state::{new_state, save_state};
     use serde_json::json;
+
+    fn claude() -> &'static Host {
+        crate::core::host::get_host(None).unwrap()
+    }
 
     /// Eight prompt hooks at once give each comment to the agent once (review CO-5: the hook
     /// read and marked in two steps, so two hooks could both deliver one comment).
@@ -69,7 +73,7 @@ mod tests {
         .unwrap();
         let mut told: Vec<String> = std::thread::scope(|s| {
             let hooks: Vec<_> = (0..8)
-                .map(|_| s.spawn(|| inbox_for(&input).unwrap()))
+                .map(|_| s.spawn(|| inbox_for(&input, claude()).unwrap()))
                 .collect();
             hooks
                 .into_iter()
@@ -77,7 +81,7 @@ mod tests {
                 .collect()
         });
         // A hook that found the lock busy left its comments for the next prompt.
-        while let Some(text) = inbox_for(&input).unwrap() {
+        while let Some(text) = inbox_for(&input, claude()).unwrap() {
             told.push(text);
         }
         let all = told.join("\n");

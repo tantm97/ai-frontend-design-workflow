@@ -6,15 +6,22 @@ use super::flag_key;
 use super::word::{command, sub};
 use super::{Ctx, Handler};
 use crate::core::error::DfwError;
+use crate::core::host::named_host;
 use crate::core::js;
 use crate::core::util::{out, to_json_pretty, ArgValue};
 use crate::review::comments::{add_comment, all_comments, new_session, update_comment, Update};
 use crate::review::inbox::{
-    format_for_claude, take_undelivered, undelivered, wait_for_comments, WaitOptions,
+    format_for_claude, in_background, take_undelivered, undelivered, wait_for_comments,
+    WaitOptions, WAIT_COMMAND, WAIT_SECONDS,
 };
 use crate::review::status::{self, field, Status};
 
 use crate::workflow::state::arg_truthy;
+
+/// The host's words for a background command when `--host` or `DFW_HOST` names the host.
+fn background(ctx: &Ctx) -> Result<Option<&'static str>, DfwError> {
+    Ok(named_host(ctx.args.get(flag_key::HOST))?.and_then(|h| h.background()))
+}
 
 /// The commands of this group: every subcommand runs here.
 pub fn commands() -> Vec<(&'static str, Handler)> {
@@ -118,7 +125,7 @@ fn comments(ctx: &Ctx) -> Result<i32, DfwError> {
             if list.is_empty() {
                 out("No new comments.");
             } else {
-                out(&format_for_claude(&list));
+                out(&format_for_claude(&list, background(ctx)?));
             }
             Ok(0)
         }
@@ -198,16 +205,21 @@ fn wait(ctx: &Ctx) -> Result<i32, DfwError> {
     let seconds = ctx.args.text("timeout").map_or(f64::NAN, js::str_to_number);
     let seconds = Some(seconds)
         .filter(|s| *s != 0.0 && !s.is_nan())
-        .unwrap_or(3600.0);
+        .unwrap_or(WAIT_SECONDS);
     let options = WaitOptions {
         timeout_ms: seconds * 1000.0,
         ..WaitOptions::default()
     };
+    // Before the wait, so a wrong DFW_HOST fails at once, not after an hour.
+    let background = background(ctx)?;
     let list = wait_for_comments(&ctx.root(), options)?;
     if list.is_empty() {
-        out("No new comments before the timeout. Re-run \"dfw comments wait\" in the background to keep listening.");
+        out(&format!(
+            "No new comments before the timeout. Start \"{WAIT_COMMAND}\" again {} to keep listening.",
+            in_background(background)
+        ));
     } else {
-        out(&format!("{}\nAfter fixing, start \"dfw comments wait\" in the background again to keep listening.", format_for_claude(&list)));
+        out(&format_for_claude(&list, background));
     }
     Ok(0)
 }

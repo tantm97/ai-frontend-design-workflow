@@ -13,7 +13,7 @@
     },
     {
       "code": 0,
-      "stdout": "{\"decision\":\"block\",\"reason\":\"1 new Studio comment(s) from the user:\\n- fb_001 [open] items / a -> ?\\n    \\\"undefined\\\"\\nApply them now (references/phase-review.md > \\\"Applying comments\\\"): \\\"dfw comments ack <id>\\\", fix (prefer design-system fixes when the comment is about a component or token), check, then \\\"dfw comments fixed <id> --message \\\\\\\"<what changed>\\\\\\\"\\\". If a comment conflicts with an approved decision or is ambiguous, reply with \\\"dfw comments reply <id> --message ...\\\" and ask the user.\"}",
+      "stdout": "{\"decision\":\"block\",\"reason\":\"1 new Studio comment(s) from the user:\\n- fb_001 [open] items / a -> ?\\n    \\\"undefined\\\"\\nApply them now (references/phase-review.md > \\\"Applying comments\\\"): \\\"dfw comments ack <id>\\\", fix (prefer design-system fixes when the comment is about a component or token), check, then \\\"dfw comments fixed <id> --message \\\\\\\"<what changed>\\\\\\\"\\\". If a comment conflicts with an approved decision or is ambiguous, reply with \\\"dfw comments reply <id> --message ...\\\" and ask the user (they answer in the Studio).\\nThen, before you end your turn, start \\\"dfw comments wait --timeout 3600\\\" again in the background (Bash `run_in_background`) so the user's next Studio comments wake you.\"}",
       "files": {
         ".dfw/reviews/.delivered.json": "[\n  \"fb_001:open:2026-01-02T03:04:05.678Z\"\n]\n"
       }
@@ -35,7 +35,7 @@
     },
     {
       "code": 0,
-      "stdout": "{\"decision\":\"block\",\"reason\":\"1 new Studio comment(s) from the user:\\n- fb_001 [open] items / a -> ?\\n    \\\"undefined\\\"\\nApply them now (references/phase-review.md > \\\"Applying comments\\\"): \\\"dfw comments ack <id>\\\", fix (prefer design-system fixes when the comment is about a component or token), check, then \\\"dfw comments fixed <id> --message \\\\\\\"<what changed>\\\\\\\"\\\". If a comment conflicts with an approved decision or is ambiguous, reply with \\\"dfw comments reply <id> --message ...\\\" and ask the user.\"}",
+      "stdout": "{\"decision\":\"block\",\"reason\":\"1 new Studio comment(s) from the user:\\n- fb_001 [open] items / a -> ?\\n    \\\"undefined\\\"\\nApply them now (references/phase-review.md > \\\"Applying comments\\\"): \\\"dfw comments ack <id>\\\", fix (prefer design-system fixes when the comment is about a component or token), check, then \\\"dfw comments fixed <id> --message \\\\\\\"<what changed>\\\\\\\"\\\". If a comment conflicts with an approved decision or is ambiguous, reply with \\\"dfw comments reply <id> --message ...\\\" and ask the user (they answer in the Studio).\\nThen, before you end your turn, start \\\"dfw comments wait --timeout 3600\\\" again in the background (an async/background shell command) so the user's next Studio comments wake you.\"}",
       "files": {
         ".dfw/reviews/.delivered.json": "[\n  \"fb_001:open:2026-01-02T03:04:05.678Z\"\n]\n"
       }
@@ -57,7 +57,7 @@
     },
     {
       "code": 0,
-      "stdout": "{\"decision\":\"block\",\"reason\":\"1 new Studio comment(s) from the user:\\n- fb_001 [open] items / a -> ?\\n    \\\"undefined\\\"\\nApply them now (references/phase-review.md > \\\"Applying comments\\\"): \\\"dfw comments ack <id>\\\", fix (prefer design-system fixes when the comment is about a component or token), check, then \\\"dfw comments fixed <id> --message \\\\\\\"<what changed>\\\\\\\"\\\". If a comment conflicts with an approved decision or is ambiguous, reply with \\\"dfw comments reply <id> --message ...\\\" and ask the user.\"}",
+      "stdout": "{\"decision\":\"block\",\"reason\":\"1 new Studio comment(s) from the user:\\n- fb_001 [open] items / a -> ?\\n    \\\"undefined\\\"\\nApply them now (references/phase-review.md > \\\"Applying comments\\\"): \\\"dfw comments ack <id>\\\", fix (prefer design-system fixes when the comment is about a component or token), check, then \\\"dfw comments fixed <id> --message \\\\\\\"<what changed>\\\\\\\"\\\". If a comment conflicts with an approved decision or is ambiguous, reply with \\\"dfw comments reply <id> --message ...\\\" and ask the user (they answer in the Studio).\\nThen, before you end your turn, start \\\"dfw comments wait --timeout 3600\\\" again in the background (Bash `run_in_background`) so the user's next Studio comments wake you.\"}",
       "files": {
         ".dfw/reviews/.delivered.json": "[\n  \"fb_001:open:2026-01-02T03:04:05.678Z\"\n]\n"
       }

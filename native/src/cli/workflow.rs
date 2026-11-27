@@ -31,6 +31,7 @@ use crate::design::inventory::DS_GATE_RULES;
 use crate::design::manifest::key as manifest_key;
 use crate::design::tokens::{build_tokens, dir_names, option};
 use crate::review::comments::{add_comment, all_comments};
+use crate::review::inbox::{is_listening, WAIT_COMMAND};
 use crate::review::status::{self, field as comment, Status};
 use crate::tools::check::{format_report, run_checks, CheckOptions};
 use crate::workflow::decisions::field as decision;
@@ -234,6 +235,10 @@ fn status(ctx: &Ctx) -> Result<i32, DfwError> {
                 js::to_string(studio.get(record::URL))
             }
         ));
+        if !studio.is_null() {
+            let yes = if is_listening(&root) { "yes" } else { "no" };
+            lines.push(format!("listening: {yes}"));
+        }
         lines.push(format!(
             "stack: {}",
             if js::truthy(&stack) {
@@ -297,12 +302,12 @@ fn next_step(
         "direction" if g1 => "\"dfw phase system\"",
         "direction" => "present directions; record the choice with \"dfw approve G1 --note ...\"",
         "system" if ds => "\"dfw phase concepts\"",
-        "system" if components > 0 => "review the Design System page in the studio; when the user approves: \"dfw approve DS --note ...\"",
+        "system" if components > 0 => return Some(format!("review the Design System page in the studio: write its link in your reply (\"dfw studio start\" prints it) and start \"{WAIT_COMMAND}\" in the background; when the user approves: \"dfw approve DS --note ...\"")),
         "system" => return Some(format!("build the design system: \"dfw system init --style <id>\", list the components the product needs in {}, then design each master", rel::INVENTORY)),
         "concepts" if active > 0 => return Some(format!("apply {active} open review comment(s)")),
         "concepts" if fixed > 0 => "ask the user to verify fixed comments in the studio",
         "concepts" if approved => "design approved; \"dfw phase stack\"",
-        "concepts" => "review in the studio; when the user approves: \"dfw approve G2 --note ...\"",
+        "concepts" => return Some(format!("review in the studio: write its link in your reply (\"dfw studio start\" prints it) and start \"{WAIT_COMMAND}\" in the background; when the user approves: \"dfw approve G2 --note ...\"")),
         "stack" if g3 => "\"dfw phase implement\"",
         "stack" => "propose/confirm the stack; \"dfw approve G3 --note ...\"",
         "implement" => {
@@ -695,5 +700,42 @@ pub(super) fn debug_hot(ctx: &Ctx) -> Result<i32, DfwError> {
             "Unknown __debug hot subcommand \"{}\". Known: add-comments, stack-detect, freeze",
             other.unwrap_or_default()
         ))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn in_phase(phase: &str) -> Value {
+        json!({ (field::PHASE): phase })
+    }
+
+    const NO_GATES: Gates = Gates {
+        g1: false,
+        ds: false,
+        g3: false,
+    };
+
+    /// The review steps tell the agent to give the Studio link and start the wait.
+    #[test]
+    fn review_steps_name_the_link_and_the_wait() {
+        let system = in_phase("system");
+        let ds = next_step(&system, NO_GATES, 3, (0, 0), false).unwrap();
+        assert!(
+            ds.contains(WAIT_COMMAND) && ds.contains("dfw studio start"),
+            "{ds}"
+        );
+        assert!(ds.ends_with("\"dfw approve DS --note ...\""), "{ds}");
+        let g2 = next_step(&in_phase("concepts"), NO_GATES, 3, (0, 0), false).unwrap();
+        assert!(
+            g2.contains(WAIT_COMMAND) && g2.contains("your reply"),
+            "{g2}"
+        );
+        let build = next_step(&system, NO_GATES, 0, (0, 0), false).unwrap();
+        assert!(
+            !build.contains(WAIT_COMMAND),
+            "nothing to review yet: {build}"
+        );
     }
 }

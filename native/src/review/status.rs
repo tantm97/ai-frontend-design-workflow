@@ -112,6 +112,9 @@ pub mod field {
     pub const DRAFT: &str = "draft";
     /// When a draft was sent.
     pub const SENT_AT: &str = "sentAt";
+    /// In the Studio's answer only, never stored: whether the agent was given the comment's
+    /// current state.
+    pub const DELIVERED: &str = "delivered";
     /// The page of the running app a live comment is on.
     pub const URL: &str = "url";
     /// The id of the review session a comment was posted in (in what the commands print).
@@ -145,12 +148,15 @@ pub mod field {
     pub const COMMENTS: &str = "comments";
 }
 
-/// The keys of `.dfw/reviews/listening.json`, the marker of a running `dfw comments wait`.
+/// The keys of one entry of `.dfw/reviews/.listening.json`, the list of running
+/// `dfw comments wait` (an older dfw wrote one such object instead of a list).
 pub mod listening {
     /// The process id of the wait.
     pub const PID: &str = "pid";
     /// When the wait started.
     pub const SINCE: &str = "since";
+    /// Which wait of its process this is (`<pid>.<n>`): a wait removes only its own entry.
+    pub const TOKEN: &str = "token";
 }
 
 /// Who changes a comment (`by` of a thread line). Only [`by::USER`] resolves.

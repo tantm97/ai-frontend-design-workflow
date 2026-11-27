@@ -9,7 +9,7 @@
     },
     {
       "code": 0,
-      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"2 new Studio comment(s) from the user:\\n- fb_001 [open] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_001 \\\"quoted\\\" tiếng Việt\\\"\\n- fb_005 [reopened] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_005 \\\"quoted\\\" tiếng Việt\\\"\\n    reopened by user: \\\"Still too small\\\"\\nApply them now (references/phase-review.md > \\\"Applying comments\\\"): \\\"dfw comments ack <id>\\\", fix (prefer design-system fixes when the comment is about a component or token), check, then \\\"dfw comments fixed <id> --message \\\\\\\"<what changed>\\\\\\\"\\\". If a comment conflicts with an approved decision or is ambiguous, reply with \\\"dfw comments reply <id> --message ...\\\" and ask the user.\"}}",
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"2 new Studio comment(s) from the user:\\n- fb_001 [open] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_001 \\\"quoted\\\" tiếng Việt\\\"\\n- fb_005 [reopened] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_005 \\\"quoted\\\" tiếng Việt\\\"\\n    reopened by user: \\\"Still too small\\\"\\nApply them now (references/phase-review.md > \\\"Applying comments\\\"): \\\"dfw comments ack <id>\\\", fix (prefer design-system fixes when the comment is about a component or token), check, then \\\"dfw comments fixed <id> --message \\\\\\\"<what changed>\\\\\\\"\\\". If a comment conflicts with an approved decision or is ambiguous, reply with \\\"dfw comments reply <id> --message ...\\\" and ask the user (they answer in the Studio).\\nThen, before you end your turn, start \\\"dfw comments wait --timeout 3600\\\" again in the background (Bash `run_in_background`) so the user's next Studio comments wake you.\"}}",
       "stderr": "",
       "files": {
         ".dfw/reviews/.delivered.json": "[\n  \"fb_001:open:2026-01-01T00:00:00.000Z\",\n  \"fb_005:reopened:2026-01-01T02:00:00.000Z\"\n]\n"
@@ -59,7 +59,7 @@
     },
     {
       "code": 0,
-      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"2 new Studio comment(s) from the user:\\n- fb_001 [open] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_001 \\\"quoted\\\" tiếng Việt\\\"\\n- fb_005 [reopened] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_005 \\\"quoted\\\" tiếng Việt\\\"\\n    reopened by user: \\\"Still too small\\\"\\nApply them now (references/phase-review.md > \\\"Applying comments\\\"): \\\"dfw comments ack <id>\\\", fix (prefer design-system fixes when the comment is about a component or token), check, then \\\"dfw comments fixed <id> --message \\\\\\\"<what changed>\\\\\\\"\\\". If a comment conflicts with an approved decision or is ambiguous, reply with \\\"dfw comments reply <id> --message ...\\\" and ask the user.\"}}",
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"2 new Studio comment(s) from the user:\\n- fb_001 [open] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_001 \\\"quoted\\\" tiếng Việt\\\"\\n- fb_005 [reopened] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_005 \\\"quoted\\\" tiếng Việt\\\"\\n    reopened by user: \\\"Still too small\\\"\\nApply them now (references/phase-review.md > \\\"Applying comments\\\"): \\\"dfw comments ack <id>\\\", fix (prefer design-system fixes when the comment is about a component or token), check, then \\\"dfw comments fixed <id> --message \\\\\\\"<what changed>\\\\\\\"\\\". If a comment conflicts with an approved decision or is ambiguous, reply with \\\"dfw comments reply <id> --message ...\\\" and ask the user (they answer in the Studio).\\nThen, before you end your turn, start \\\"dfw comments wait --timeout 3600\\\" again in the background (Bash `run_in_background`) so the user's next Studio comments wake you.\"}}",
       "stderr": "<not compared>",
       "files": {
         ".dfw/reviews/.delivered.json": "[\n  \"fb_001:open:2026-01-01T00:00:00.000Z\",\n  \"fb_005:reopened:2026-01-01T02:00:00.000Z\"\n]\n"
@@ -67,7 +67,7 @@
     },
     {
       "code": 0,
-      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"2 new Studio comment(s) from the user:\\n- fb_001 [open] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_001 \\\"quoted\\\" tiếng Việt\\\"\\n- fb_005 [reopened] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_005 \\\"quoted\\\" tiếng Việt\\\"\\n    reopened by user: \\\"Still too small\\\"\\nApply them now (references/phase-review.md > \\\"Applying comments\\\"): \\\"dfw comments ack <id>\\\", fix (prefer design-system fixes when the comment is about a component or token), check, then \\\"dfw comments fixed <id> --message \\\\\\\"<what changed>\\\\\\\"\\\". If a comment conflicts with an approved decision or is ambiguous, reply with \\\"dfw comments reply <id> --message ...\\\" and ask the user.\"}}",
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"2 new Studio comment(s) from the user:\\n- fb_001 [open] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_001 \\\"quoted\\\" tiếng Việt\\\"\\n- fb_005 [reopened] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_005 \\\"quoted\\\" tiếng Việt\\\"\\n    reopened by user: \\\"Still too small\\\"\\nApply them now (references/phase-review.md > \\\"Applying comments\\\"): \\\"dfw comments ack <id>\\\", fix (prefer design-system fixes when the comment is about a component or token), check, then \\\"dfw comments fixed <id> --message \\\\\\\"<what changed>\\\\\\\"\\\". If a comment conflicts with an approved decision or is ambiguous, reply with \\\"dfw comments reply <id> --message ...\\\" and ask the user (they answer in the Studio).\\nThen, before you end your turn, start \\\"dfw comments wait --timeout 3600\\\" again in the background (Bash `run_in_background`) so the user's next Studio comments wake you.\"}}",
       "stderr": "<not compared>",
       "files": {
         ".dfw/reviews/.delivered.json": "[\n  \"fb_001:open:2026-01-01T00:00:00.000Z\",\n  \"fb_005:reopened:2026-01-01T02:00:00.000Z\"\n]\n"
@@ -75,94 +75,8 @@
     },
     {
       "code": 0,
-      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"2 new Studio comment(s) from the user:\\n- fb_001 [open] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_001 \\\"quoted\\\" tiếng Việt\\\"\\n- fb_005 [reopened] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_005 \\\"quoted\\\" tiếng Việt\\\"\\n    reopened by user: \\\"Still too small\\\"\\nApply them now (references/phase-review.md > \\\"Applying comments\\\"): \\\"dfw comments ack <id>\\\", fix (prefer design-system fixes when the comment is about a component or token), check, then \\\"dfw comments fixed <id> --message \\\\\\\"<what changed>\\\\\\\"\\\". If a comment conflicts with an approved decision or is ambiguous, reply with \\\"dfw comments reply <id> --message ...\\\" and ask the user.\"}}",
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"2 new Studio comment(s) from the user:\\n- fb_001 [open] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_001 \\\"quoted\\\" tiếng Việt\\\"\\n- fb_005 [reopened] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_005 \\\"quoted\\\" tiếng Việt\\\"\\n    reopened by user: \\\"Still too small\\\"\\nApply them now (references/phase-review.md > \\\"Applying comments\\\"): \\\"dfw comments ack <id>\\\", fix (prefer design-system fixes when the comment is about a component or token), check, then \\\"dfw comments fixed <id> --message \\\\\\\"<what changed>\\\\\\\"\\\". If a comment conflicts with an approved decision or is ambiguous, reply with \\\"dfw comments reply <id> --message ...\\\" and ask the user (they answer in the Studio).\\nThen, before you end your turn, start \\\"dfw comments wait --timeout 3600\\\" again in the background (Bash `run_in_background`) so the user's next Studio comments wake you.\"}}",
       "stderr": "<not compared>",
-      "files": {
-        ".dfw/reviews/.delivered.json": "[\n  \"fb_001:open:2026-01-01T00:00:00.000Z\",\n  \"fb_005:reopened:2026-01-01T02:00:00.000Z\"\n]\n"
-      }
-    },
-    {
-      "code": 0,
-      "stdout": "",
-      "stderr": "",
-      "files": {}
-    },
-    {
-      "code": 0,
-      "stdout": "",
-      "stderr": "",
-      "files": {}
-    },
-    {
-      "code": 0,
-      "stdout": "",
-      "stderr": "",
-      "files": {}
-    },
-    {
-      "code": 0,
-      "stdout": "",
-      "stderr": "",
-      "files": {}
-    },
-    {
-      "code": 0,
-      "stdout": "",
-      "stderr": "",
-      "files": {}
-    },
-    {
-      "code": 0,
-      "stdout": "",
-      "stderr": "<not compared>",
-      "files": {}
-    },
-    {
-      "code": 0,
-      "stdout": "",
-      "stderr": "<not compared>",
-      "files": {}
-    },
-    {
-      "code": 0,
-      "stdout": "",
-      "stderr": "<not compared>",
-      "files": {}
-    },
-    {
-      "code": 0,
-      "stdout": "",
-      "stderr": "<not compared>",
-      "files": {}
-    },
-    {
-      "code": 0,
-      "stdout": "",
-      "stderr": "<not compared>",
-      "files": {}
-    },
-    {
-      "code": 0,
-      "stdout": "",
-      "stderr": "<not compared>",
-      "files": {}
-    },
-    {
-      "code": 0,
-      "stdout": "",
-      "stderr": "<not compared>",
-      "files": {}
-    },
-    {
-      "code": 0,
-      "stdout": "",
-      "stderr": "",
-      "files": {}
-    },
-    {
-      "code": 0,
-      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"2 new Studio comment(s) from the user:\\n- fb_001 [open] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_001 \\\"quoted\\\" tiếng Việt\\\"\\n- fb_005 [reopened] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_005 \\\"quoted\\\" tiếng Việt\\\"\\n    reopened by user: \\\"Still too small\\\"\\nApply them now (references/phase-review.md > \\\"Applying comments\\\"): \\\"dfw comments ack <id>\\\", fix (prefer design-system fixes when the comment is about a component or token), check, then \\\"dfw comments fixed <id> --message \\\\\\\"<what changed>\\\\\\\"\\\". If a comment conflicts with an approved decision or is ambiguous, reply with \\\"dfw comments reply <id> --message ...\\\" and ask the user.\"}}",
-      "stderr": "",
       "files": {
         ".dfw/reviews/.delivered.json": "[\n  \"fb_001:open:2026-01-01T00:00:00.000Z\",\n  \"fb_005:reopened:2026-01-01T02:00:00.000Z\"\n]\n"
       }
@@ -188,6 +102,30 @@
     {
       "code": 0,
       "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
       "stderr": "<not compared>",
       "files": {}
     },
@@ -211,7 +149,69 @@
     },
     {
       "code": 0,
-      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"2 new Studio comment(s) from the user:\\n- fb_001 [open] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_001 \\\"quoted\\\" tiếng Việt\\\"\\n- fb_005 [reopened] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_005 \\\"quoted\\\" tiếng Việt\\\"\\n    reopened by user: \\\"Still too small\\\"\\nApply them now (references/phase-review.md > \\\"Applying comments\\\"): \\\"dfw comments ack <id>\\\", fix (prefer design-system fixes when the comment is about a component or token), check, then \\\"dfw comments fixed <id> --message \\\\\\\"<what changed>\\\\\\\"\\\". If a comment conflicts with an approved decision or is ambiguous, reply with \\\"dfw comments reply <id> --message ...\\\" and ask the user.\"}}",
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"2 new Studio comment(s) from the user:\\n- fb_001 [open] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_001 \\\"quoted\\\" tiếng Việt\\\"\\n- fb_005 [reopened] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_005 \\\"quoted\\\" tiếng Việt\\\"\\n    reopened by user: \\\"Still too small\\\"\\nApply them now (references/phase-review.md > \\\"Applying comments\\\"): \\\"dfw comments ack <id>\\\", fix (prefer design-system fixes when the comment is about a component or token), check, then \\\"dfw comments fixed <id> --message \\\\\\\"<what changed>\\\\\\\"\\\". If a comment conflicts with an approved decision or is ambiguous, reply with \\\"dfw comments reply <id> --message ...\\\" and ask the user (they answer in the Studio).\\nThen, before you end your turn, start \\\"dfw comments wait --timeout 3600\\\" again in the background (Bash `run_in_background`) so the user's next Studio comments wake you.\"}}",
+      "stderr": "",
+      "files": {
+        ".dfw/reviews/.delivered.json": "[\n  \"fb_001:open:2026-01-01T00:00:00.000Z\",\n  \"fb_005:reopened:2026-01-01T02:00:00.000Z\"\n]\n"
+      }
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "",
+      "stderr": "<not compared>",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"2 new Studio comment(s) from the user:\\n- fb_001 [open] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_001 \\\"quoted\\\" tiếng Việt\\\"\\n- fb_005 [reopened] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_005 \\\"quoted\\\" tiếng Việt\\\"\\n    reopened by user: \\\"Still too small\\\"\\nApply them now (references/phase-review.md > \\\"Applying comments\\\"): \\\"dfw comments ack <id>\\\", fix (prefer design-system fixes when the comment is about a component or token), check, then \\\"dfw comments fixed <id> --message \\\\\\\"<what changed>\\\\\\\"\\\". If a comment conflicts with an approved decision or is ambiguous, reply with \\\"dfw comments reply <id> --message ...\\\" and ask the user (they answer in the Studio).\\nThen, before you end your turn, start \\\"dfw comments wait --timeout 3600\\\" again in the background (Bash `run_in_background`) so the user's next Studio comments wake you.\"}}",
       "stderr": "<not compared>",
       "files": {
         ".dfw/reviews/.delivered.json": "[\n  \"fb_001:open:2026-01-01T00:00:00.000Z\",\n  \"fb_005:reopened:2026-01-01T02:00:00.000Z\"\n]\n"
@@ -219,7 +219,7 @@
     },
     {
       "code": 0,
-      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"2 new Studio comment(s) from the user:\\n- fb_001 [open] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_001 \\\"quoted\\\" tiếng Việt\\\"\\n- fb_005 [reopened] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_005 \\\"quoted\\\" tiếng Việt\\\"\\n    reopened by user: \\\"Still too small\\\"\\nApply them now (references/phase-review.md > \\\"Applying comments\\\"): \\\"dfw comments ack <id>\\\", fix (prefer design-system fixes when the comment is about a component or token), check, then \\\"dfw comments fixed <id> --message \\\\\\\"<what changed>\\\\\\\"\\\". If a comment conflicts with an approved decision or is ambiguous, reply with \\\"dfw comments reply <id> --message ...\\\" and ask the user.\"}}",
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"2 new Studio comment(s) from the user:\\n- fb_001 [open] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_001 \\\"quoted\\\" tiếng Việt\\\"\\n- fb_005 [reopened] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_005 \\\"quoted\\\" tiếng Việt\\\"\\n    reopened by user: \\\"Still too small\\\"\\nApply them now (references/phase-review.md > \\\"Applying comments\\\"): \\\"dfw comments ack <id>\\\", fix (prefer design-system fixes when the comment is about a component or token), check, then \\\"dfw comments fixed <id> --message \\\\\\\"<what changed>\\\\\\\"\\\". If a comment conflicts with an approved decision or is ambiguous, reply with \\\"dfw comments reply <id> --message ...\\\" and ask the user (they answer in the Studio).\\nThen, before you end your turn, start \\\"dfw comments wait --timeout 3600\\\" again in the background (Bash `run_in_background`) so the user's next Studio comments wake you.\"}}",
       "stderr": "<not compared>",
       "files": {
         ".dfw/reviews/.delivered.json": "[\n  \"fb_001:open:2026-01-01T00:00:00.000Z\",\n  \"fb_005:reopened:2026-01-01T02:00:00.000Z\"\n]\n"
@@ -227,7 +227,7 @@
     },
     {
       "code": 0,
-      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"2 new Studio comment(s) from the user:\\n- fb_001 [open] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_001 \\\"quoted\\\" tiếng Việt\\\"\\n- fb_005 [reopened] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_005 \\\"quoted\\\" tiếng Việt\\\"\\n    reopened by user: \\\"Still too small\\\"\\nApply them now (references/phase-review.md > \\\"Applying comments\\\"): \\\"dfw comments ack <id>\\\", fix (prefer design-system fixes when the comment is about a component or token), check, then \\\"dfw comments fixed <id> --message \\\\\\\"<what changed>\\\\\\\"\\\". If a comment conflicts with an approved decision or is ambiguous, reply with \\\"dfw comments reply <id> --message ...\\\" and ask the user.\"}}",
+      "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"2 new Studio comment(s) from the user:\\n- fb_001 [open] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_001 \\\"quoted\\\" tiếng Việt\\\"\\n- fb_005 [reopened] items / a -> items.title (design/screens/items/a.html:18)\\n    \\\"Comment fb_005 \\\"quoted\\\" tiếng Việt\\\"\\n    reopened by user: \\\"Still too small\\\"\\nApply them now (references/phase-review.md > \\\"Applying comments\\\"): \\\"dfw comments ack <id>\\\", fix (prefer design-system fixes when the comment is about a component or token), check, then \\\"dfw comments fixed <id> --message \\\\\\\"<what changed>\\\\\\\"\\\". If a comment conflicts with an approved decision or is ambiguous, reply with \\\"dfw comments reply <id> --message ...\\\" and ask the user (they answer in the Studio).\\nThen, before you end your turn, start \\\"dfw comments wait --timeout 3600\\\" again in the background (Bash `run_in_background`) so the user's next Studio comments wake you.\"}}",
       "stderr": "<not compared>",
       "files": {
         ".dfw/reviews/.delivered.json": "[\n  \"fb_001:open:2026-01-01T00:00:00.000Z\",\n  \"fb_005:reopened:2026-01-01T02:00:00.000Z\"\n]\n"
