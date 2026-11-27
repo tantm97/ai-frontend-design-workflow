@@ -243,7 +243,9 @@ mod tests {
         HTML_FILE, NOTES_FILE, OTHER_HTML_FILE, SIBLING_FILE,
     };
     use crate::core::host::normalize_hook_input;
-    use crate::core::paths::{real_path, rel};
+    #[cfg(unix)]
+    use crate::core::paths::real_path;
+    use crate::core::paths::rel;
     use crate::workflow::state::new_state;
     use serde_json::json;
     use std::fs;

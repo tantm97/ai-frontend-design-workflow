@@ -734,14 +734,10 @@ mod tests {
     /// The one "is it inside" check, over every case `security-privacy.md` S2 names.
     #[test]
     fn inside_decides_by_real_path() {
-        use crate::core::fixture::LOOP_LINK;
         /// A file whose name starts with two dots: a name, not a way up.
         const TWO_DOTS: &str = "..x.ts";
         /// The frozen folder with another case.
         const APPROVED_VARIANT: &str = "design/Approved/v1/a.html";
-        /// A link out of the project, and one whose target is missing.
-        const OUT_LINK: &str = "out";
-        const DANGLING_OUT: &str = "dangling-out.html";
         let tmp = test_dir("inside-table");
         let root = tmp.join("project");
         let elsewhere = tmp.join("elsewhere");
@@ -785,7 +781,11 @@ mod tests {
         assert_eq!(strip_root(upper, lower, false), None);
         #[cfg(unix)]
         {
+            use crate::core::fixture::LOOP_LINK;
             use std::os::unix::fs::symlink;
+            /// A link out of the project, and one whose target is missing.
+            const OUT_LINK: &str = "out";
+            const DANGLING_OUT: &str = "dangling-out.html";
             symlink(&elsewhere, root.join(OUT_LINK)).unwrap();
             assert!(
                 is_out(&root, &root.join(OUT_LINK).join(HTML_FILE)),
