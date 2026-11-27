@@ -654,6 +654,57 @@ printf '{"files":[{"findings":[{"id":"T1","sev":"FAIL","msg":"vague headline","f
     assert!(args(&sloplint).trim().ends_with("--json --scope page"));
 }
 
+/// E7: a `checks` setting of the wrong type stops the run with its key, never a value coerced
+/// by JavaScript truthiness; nothing external is looked up first.
+#[cfg(unix)]
+#[test]
+fn a_checks_setting_of_the_wrong_type_stops_the_run() {
+    let root = project("check-wrong-type");
+    let looked = Cell::new(0);
+    let none = || {
+        looked.set(looked.get() + 1);
+        Ok(None)
+    };
+    let lookup = Lookup {
+        engine: &|| {
+            looked.set(looked.get() + 1);
+            Ok(None)
+        },
+        sloplint: &none,
+        taste: &none,
+        node: &|| None,
+    };
+    let off = |name: &str, wrong: Value| {
+        let mut checks = json!({ "impeccable": false, "sloplint": false });
+        checks[name] = wrong;
+        json!({ "checks": checks })
+    };
+    for (name, wrong) in [
+        ("impeccable", json!(0)),
+        ("sloplint", Value::Null),
+        ("tasteCopyLint", json!(1)),
+    ] {
+        let opts = CheckOptions {
+            timeout_ms: Some(5000),
+            tools: None,
+        };
+        let err = run_checks_with(&root, None, &off(name, wrong), opts, &lookup).unwrap_err();
+        assert!(
+            err.message().starts_with(&format!("checks.{name} in ")),
+            "{err}"
+        );
+    }
+    assert_eq!(looked.get(), 0);
+    // The budget is read only when the caller gives none.
+    let slow = json!({ "checks": { "timeoutMs": "slow" } });
+    let only_lint = |timeout_ms| CheckOptions {
+        timeout_ms,
+        tools: Some(&["dfw"]),
+    };
+    assert!(run_checks_with(&root, None, &slow, only_lint(None), &lookup).is_err());
+    assert!(run_checks_with(&root, None, &slow, only_lint(Some(5000)), &lookup).is_ok());
+}
+
 /// Which tools run: the `tools` option, the `checks` settings, and what each tool reads.
 #[cfg(unix)]
 #[test]
@@ -701,7 +752,7 @@ fn tool_selection_and_what_each_tool_skips() {
     assert_eq!(
         run(
             None,
-            json!({ "checks": { "impeccable": false, "sloplint": false, "tasteCopyLint": 1 } }),
+            json!({ "checks": { "impeccable": false, "sloplint": false, "tasteCopyLint": true } }),
             None
         ),
         want(&[(DFW_LINT, RAN), (DS_AUDIT, RAN), (TASTE_COPY_LINT, RAN)])

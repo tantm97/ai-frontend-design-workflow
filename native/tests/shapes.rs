@@ -265,25 +265,7 @@ const IGNORED: &[(&str, &str)] = &[
 /// Wrong shapes a reader takes today though it should not (a pass in part, or a value skipped
 /// where it should stop the gate): each is a known gap, with the follow-up it needs.
 /// `(document, paths separated by spaces, the gap)`. An entry that no longer fails must go.
-const KNOWN: &[(&str, &str, &str)] = &[
-    (
-        rel::CONFIG,
-        "checks checks.impeccable checks.sloplint",
-        "the config is read with JavaScript truthiness (the parity of 0.5.2): a wrong type is coerced, not refused; needs typed accessors that name the key",
-    ),
-    (
-        rel::STATE,
-        "mode phase product gates.G1 gates.DS gates.G2 gates.G3 gates.G4 design.status design.locked",
-        "approve G2 checks only design.version before it freezes; the other fields are printed or read as text: needs state_field_error for every field the gate commands read",
-    ),
-    (
-        rel::MANIFEST,
-        "screens screens.0 screens.0.id screens.0.states screens.0.states.0 screens.0.variants \
-         screens.0.variants.0 screens.0.variants.0.id screens.0.variants.0.file states states.0 \
-         breakpoints breakpoints.0 breakpoints.0.id breakpoints.0.width breakpoints.0.height",
-        "the manifest views (Manifest::screens, variants, id_text, items) skip or coerce a value of the wrong type, as Node did; the lint and the checks a gate runs need the _checked accessors",
-    ),
-];
+const KNOWN: &[(&str, &str, &str)] = &[];
 
 /// `path` of `doc` is in one of the lists.
 fn listed<'a>(list: impl IntoIterator<Item = (&'a str, &'a str)>, doc: &str, path: &str) -> bool {

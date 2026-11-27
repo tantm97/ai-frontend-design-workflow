@@ -10,7 +10,7 @@ use crate::core::js;
 use crate::core::level::Level;
 use crate::core::paths::{project_paths, rel};
 use crate::core::util::read_json;
-use crate::design::manifest::{items_checked as list, key, not_null as item, Screen};
+use crate::design::manifest::{items_checked as list, key, not_null as item, Manifest, Screen};
 
 /// `Set.prototype.has` for values read from JSON: text, numbers, booleans and null are equal
 /// by value, an object or an array only to itself (so never to another entry).
@@ -70,6 +70,7 @@ pub fn lint_manifest(root: &Path) -> Result<Vec<Value>, DfwError> {
     if !manifest.is_object() {
         return Err(malformed("the file must hold a JSON object"));
     }
+    Manifest(&manifest).shape_checked()?;
     let screens = list(manifest.get(key::SCREENS), "\"screens\"")?;
     for screen in screens {
         item(screen, "a screen")?;

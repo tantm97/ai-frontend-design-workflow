@@ -922,22 +922,25 @@ fn a_manifest_of_the_wrong_shape_is_an_error_where_node_dies() {
     for not_object in [json!(5), json!("text"), json!([1])] {
         assert!(!check(not_object.clone()).0, "{not_object}");
     }
-    // Wrong types the Node code read without trouble.
-    for fine in [
+    // Wrong types the Node code read without trouble: the lint stops on a path the gates read
+    // (`Manifest::shape_checked`); the state check of one screen still reads past them.
+    for wrong in [
         json!({ "screens": 0, "pages": "ab", "states": 0 }),
         json!({ "screens": [5, "x", { "id": "a", "variants": 0 }] }),
         json!({ "screens": [{ "id": "a", "variants": [{ "file": "" }, { "file": 0 }] }] }),
-        json!({ "screens": [{ "id": "a" }], "pages": [{ "screens": "ab" }, "x", 5, []] }),
         json!({ "screens": [{ "id": "a", "states": { "length": 0 }, "variants": [variant] }] }),
     ] {
-        assert_eq!(check(fine.clone()), (true, true), "{fine}");
+        assert_eq!(check(wrong.clone()), (false, true), "{wrong}");
     }
+    // The pages are shown, not gated: the odd shapes Node read are read the same way.
+    let fine = json!({ "screens": [{ "id": "a" }], "pages": [{ "screens": "ab" }, "x", 5, []] });
+    assert_eq!(check(fine.clone()), (true, true), "{fine}");
     // (lint_manifest, state_coverage): which of the two the Node code died in.
     for (broken, ok) in [
         (json!({ "screens": {} }), (false, false)),
         (json!({ "screens": "ab" }), (false, false)),
         (json!({ "screens": [null] }), (false, false)),
-        (json!({ "screens": [{ "variants": "x" }] }), (true, false)),
+        (json!({ "screens": [{ "variants": "x" }] }), (false, false)),
         (
             json!({ "screens": [{ "variants": [null] }] }),
             (false, false),
@@ -959,15 +962,15 @@ fn a_manifest_of_the_wrong_shape_is_an_error_where_node_dies() {
         ),
         (
             json!({ "screens": [{ "id": "a", "states": state::LOADING, "variants": [variant] }] }),
-            (true, false),
+            (false, false),
         ),
         (
             json!({ "screens": [{ "id": "a", "states": { "length": 2 }, "variants": [variant] }] }),
-            (true, false),
+            (false, false),
         ),
         (
             json!({ "screens": [{ "id": "a", "variants": [variant] }], "states": { "a": 1 } }),
-            (true, false),
+            (false, false),
         ),
     ] {
         assert_eq!(check(broken.clone()), ok, "{broken}");

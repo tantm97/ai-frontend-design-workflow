@@ -2,7 +2,9 @@
 //! keep the user's edits without `--force` (`design-files.md` D7, §0 row 26): run on a project
 //! whose every file of `design/` carries an edit, each one leaves every file as it was, byte for
 //! byte, or stops with an error. A command whose job is to replace a file the user named (the
-//! option the user chose) is listed with that file and the reason.
+//! option the user chose) is listed with that file and the reason. `system choose` and
+//! `style apply` replace `tokens.json` and `head.html` whole: they refuse an edited one without
+//! `--force` (`.dfw/written.json` holds what dfw wrote).
 
 #![allow(
     clippy::disallowed_methods,
@@ -186,8 +188,6 @@ enum Allowed {
     KeepEdit,
     /// Remove it.
     Remove,
-    /// Replace it: the command's job is to write this file from what the user named.
-    Replace,
 }
 
 /// The exceptions, each with its reason.
@@ -201,20 +201,14 @@ fn allowed(args: &[&str], f: &str) -> Allowed {
         // tokens, then drops the options and the `themes` list of the manifest.
         rel::TOKENS_JSON if choose => Allowed::KeepEdit,
         _ if option_theme && choose => Allowed::Remove,
-        // Known gap: `system choose <preset>` writes the preset's head whole (its fonts), so an
-        // edit to head.html made before the choice goes; what in the head is the user's needs a
-        // decision first (reported with the change).
-        rel::HEAD if choose => Allowed::Replace,
         // `system options` rewrites the font block between its markers in the head and the
-        // `themes` list of the manifest.
-        rel::HEAD | rel::MANIFEST if choose || options => Allowed::KeepEdit,
+        // `themes` list of the manifest; `system choose` the `themes` list.
+        rel::HEAD if options => Allowed::KeepEdit,
+        rel::MANIFEST if choose || options => Allowed::KeepEdit,
         // A new comparison drops the options it does not name (the ones it names stay).
         _ if option_theme && options => Allowed::Remove,
         // `type scale --write` writes the type tokens into tokens.json, the rest kept.
         rel::TOKENS_JSON if is(&[command::TYPE]) => Allowed::KeepEdit,
-        // `style apply <id>` is the explicit command that turns a guide into the tokens, the
-        // fonts of the head and the motif master (`system init --style` refuses without --force).
-        rel::TOKENS_JSON | rel::HEAD if is(&[command::STYLE, APPLY]) => Allowed::Replace,
         _ => Allowed::Nothing,
     }
 }
@@ -297,7 +291,7 @@ fn regenerating_commands_keep_the_users_edits() {
             let ok = match (allowed(args, f), after.get(f)) {
                 (_, Some(now)) if now == bytes => true,
                 (Allowed::KeepEdit, Some(now)) => keeps_edit(now),
-                (Allowed::Remove, None) | (Allowed::Replace, _) => true,
+                (Allowed::Remove, None) => true,
                 _ => false,
             };
             if !ok {
@@ -326,4 +320,150 @@ fn regenerating_commands_keep_the_users_edits() {
         "commands replaced the user's edits without --force:\n{}",
         breaches.join("\n")
     );
+}
+
+/// The text the refusal of an edited file holds.
+const FORCE_HINT: &str = "--force";
+
+fn read(case: &Path, rel: &str) -> String {
+    fs::read_to_string(project(case).join(rel)).unwrap()
+}
+
+/// The SHA-256 `.dfw/written.json` holds for `rel`.
+fn recorded(case: &Path, rel: &str) -> Option<String> {
+    let text = fs::read_to_string(project(case).join(rel::WRITTEN)).ok()?;
+    let record: Value = serde_json::from_str(&text).unwrap();
+    record.get(rel).and_then(Value::as_str).map(str::to_string)
+}
+
+/// A project whose design system dfw wrote (`system init`), so both files have a record.
+fn written_project(label: &str) -> PathBuf {
+    let case = tmp_dir(label);
+    fs::create_dir_all(project(&case)).unwrap();
+    must(&case, &[command::INIT]);
+    must(&case, &[command::SYSTEM, sub::INIT, "--preset", PRESET]);
+    assert!(recorded(&case, rel::TOKENS_JSON).is_some());
+    assert!(recorded(&case, rel::HEAD).is_some());
+    case
+}
+
+/// The commands that replace the token file and the head whole.
+fn replacing() -> [Vec<&'static str>; 3] {
+    [
+        vec![command::STYLE, APPLY, STYLE],
+        vec![command::SYSTEM, CHOOSE, OTHER_PRESET],
+        vec![command::SYSTEM, CHOOSE, STYLE],
+    ]
+}
+
+#[test]
+fn an_edited_token_file_or_head_is_refused_then_replaced_with_force() {
+    for args in replacing() {
+        for target in [rel::TOKENS_JSON, rel::HEAD] {
+            let case = written_project("refuse");
+            edit(&project(&case).join(target));
+            let before = design_files(&project(&case));
+            let out = dfw(&case, &args);
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            let shown = format!("dfw {} on an edited {target}", args.join(" "));
+            let refusal = format!("{shown}: {stderr}");
+            assert_eq!(out.status.code(), Some(1), "{refusal}");
+            assert!(
+                stderr.contains(target) && stderr.contains(FORCE_HINT),
+                "{refusal}"
+            );
+            assert_eq!(design_files(&project(&case)), before, "{shown} wrote");
+            let mut forced = args.clone();
+            forced.push(FORCE_HINT);
+            must(&case, &forced);
+            assert!(!keeps_edit(read(&case, target).as_bytes()), "{shown}");
+            for f in [rel::TOKENS_JSON, rel::HEAD] {
+                let bytes = fs::read(project(&case).join(f)).unwrap();
+                assert_eq!(
+                    recorded(&case, f).as_deref(),
+                    Some(sha256(&bytes).as_str()),
+                    "{shown}: {f}"
+                );
+            }
+            fs::remove_dir_all(&case).unwrap();
+        }
+    }
+}
+
+#[test]
+fn files_dfw_wrote_and_nobody_edited_are_replaced() {
+    // The usual flow: init, compare options, choose; then a guide on top.
+    let case = written_project("flow");
+    must(&case, &[command::SYSTEM, OPTIONS, PRESET, OTHER_PRESET]);
+    must(&case, &[command::SYSTEM, CHOOSE, OTHER_PRESET]);
+    must(&case, &[command::STYLE, APPLY, STYLE]);
+    fs::remove_dir_all(&case).unwrap();
+}
+
+#[test]
+fn a_project_without_a_record_is_written_as_before_and_recorded() {
+    let case = written_project("old");
+    fs::remove_file(project(&case).join(rel::WRITTEN)).unwrap();
+    edit(&project(&case).join(rel::TOKENS_JSON));
+    must(&case, &[command::STYLE, APPLY, STYLE]);
+    assert!(!keeps_edit(read(&case, rel::TOKENS_JSON).as_bytes()));
+    assert!(recorded(&case, rel::TOKENS_JSON).is_some());
+    assert!(recorded(&case, rel::HEAD).is_some());
+    fs::remove_dir_all(&case).unwrap();
+}
+
+/// `system options` keeps an edit to the head outside its block, and the head stays the user's:
+/// a later `system choose` refuses it.
+#[test]
+fn an_edited_head_stays_edited_through_options() {
+    let case = written_project("options");
+    edit(&project(&case).join(rel::HEAD));
+    must(&case, &[command::SYSTEM, OPTIONS, PRESET, OTHER_PRESET]);
+    let out = dfw(&case, &[command::SYSTEM, CHOOSE, OTHER_PRESET]);
+    assert_eq!(out.status.code(), Some(1));
+    assert!(keeps_edit(read(&case, rel::HEAD).as_bytes()));
+    fs::remove_dir_all(&case).unwrap();
+}
+
+/// Lowercase hex SHA-256, as dfw records it.
+fn sha256(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(bytes)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
+
+/// A guide also replaces `design/system/style.json` and its motif master whole: once dfw wrote
+/// them, an edit to either is refused by a second `style apply` unless `--force`.
+#[test]
+fn an_edited_style_file_or_motif_is_refused() {
+    let case = written_project("guide-files");
+    must(&case, &[command::STYLE, APPLY, STYLE]);
+    // What the guide wrote besides the token file and the head: style.json, and its motif
+    // master when it has one.
+    let text = fs::read_to_string(project(&case).join(rel::WRITTEN)).unwrap();
+    let record: Value = serde_json::from_str(&text).unwrap();
+    let targets: Vec<String> = record
+        .as_object()
+        .unwrap()
+        .keys()
+        .filter(|k| *k != rel::TOKENS_JSON && *k != rel::HEAD)
+        .cloned()
+        .collect();
+    assert!(
+        targets.iter().any(|t| t == rel::STYLE),
+        "style.json is recorded"
+    );
+    for target in &targets {
+        edit(&project(&case).join(target));
+        let out = dfw(&case, &[command::STYLE, APPLY, STYLE]);
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        let why = format!("{target}: {stderr}");
+        assert_eq!(out.status.code(), Some(1), "{why}");
+        assert!(stderr.contains(target.as_str()), "{why}");
+        must(&case, &[command::STYLE, APPLY, STYLE, FORCE_HINT]);
+        assert!(!keeps_edit(read(&case, target).as_bytes()), "{target}");
+    }
+    fs::remove_dir_all(&case).unwrap();
 }

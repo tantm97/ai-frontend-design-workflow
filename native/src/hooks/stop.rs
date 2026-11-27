@@ -35,7 +35,9 @@ pub fn stop(input: &HookInput) -> Result<Option<HookResult>, DfwError> {
     if state.get(field::ACTIVE) == Some(&Value::Bool(false)) || !designing {
         return Ok(None);
     }
-    if !checks_layout_on_stop(&load_config(Some(&root))?) || !browser_status().installed() {
+    if !checks_layout_on_stop(&load_config(Some(&root))?, Some(&root))?
+        || !browser_status().installed()
+    {
         return Ok(None);
     }
     let ch = changed_screens(&root)?;

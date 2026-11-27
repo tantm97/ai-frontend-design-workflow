@@ -128,6 +128,9 @@ pub mod rel {
     pub const STACK: &str = ".dfw/stack.json";
     pub const REVIEWS: &str = ".dfw/reviews";
     pub const BUILD: &str = ".dfw/build";
+    /// The SHA-256 of each design file dfw last wrote whole (`design/written.rs`): a file that
+    /// differs from it holds the user's edits.
+    pub const WRITTEN: &str = ".dfw/written.json";
     #[cfg(test)]
     pub const SHOTS: &str = ".dfw/shots";
     #[cfg(test)]

@@ -68,7 +68,7 @@ fn edited(input: &HookInput) -> Result<Option<Edited>, DfwError> {
         return Ok(None);
     }
     let config = load_config(Some(&root))?;
-    if checks_on_edit(&config) == OnEdit::Off {
+    if checks_on_edit(&config, Some(&root))? == OnEdit::Off {
         return Ok(None);
     }
     let root = resolve(&root);
@@ -106,13 +106,13 @@ fn post_tool_use_checks(input: &HookInput) -> Result<Option<String>, DfwError> {
     };
     let _ = rebuild();
     // Fast by default: dfw lint only.
-    let full = checks_on_edit(&config) == OnEdit::Full;
+    let full = checks_on_edit(&config, Some(&root))? == OnEdit::Full;
     let opts = CheckOptions {
-        timeout_ms: Some(checks_timeout_ms(&config)),
+        timeout_ms: Some(checks_timeout_ms(&config, Some(&root))?),
         tools: if full { None } else { Some(&["dfw"]) },
     };
     let results = run_checks(&root, Some(&targets), &config, opts)?;
-    let report = format_report(&results, checks_max_findings(&config));
+    let report = format_report(&results, checks_max_findings(&config, Some(&root))?);
     if report.errors == 0 && report.warnings == 0 {
         return Ok(None);
     }

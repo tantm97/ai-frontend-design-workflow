@@ -423,7 +423,12 @@ fn system(ctx: &Ctx) -> Result<i32, DfwError> {
             Ok(0)
         }
         "choose" => {
-            let chosen = system_choose(&root, a.pos(2).unwrap_or("undefined"), fonts_arg(a))?;
+            let chosen = system_choose(
+                &root,
+                a.pos(2).unwrap_or("undefined"),
+                fonts_arg(a),
+                a.truthy("force"),
+            )?;
             out(&format!("Tokens now come from \"{chosen}\". Adapt {} to the direction, then review the Design System page.", rel::TOKENS_JSON));
             Ok(0)
         }
@@ -721,7 +726,7 @@ fn style(ctx: &Ctx) -> Result<i32, DfwError> {
         }
         "apply" => {
             let id = a.pos(2).unwrap_or("undefined");
-            let r = apply_style(&root, id, fonts_arg(a))?;
+            let r = apply_style(&root, id, fonts_arg(a), a.truthy("force"))?;
             build_tokens(&root)?;
             build_system(&root)?;
             // The argument, not the guide's own id: a project guide file is not in the library.
@@ -734,7 +739,7 @@ fn style(ctx: &Ctx) -> Result<i32, DfwError> {
                 rel::TOKENS_JSON, rel::HEAD, rel::STYLE,
                 if has_motifs { format!(", {}", rel::component(MOTIF_FILE)) } else { String::new() }));
         }
-        _ => return usage("Usage: dfw style list | search <words> | match [--brief f] | show <id> [--json] | apply <id|file.json> [--fonts latin]"),
+        _ => return usage("Usage: dfw style list | search <words> | match [--brief f] | show <id> [--json] | apply <id|file.json> [--fonts latin] [--force]"),
     }
     Ok(0)
 }

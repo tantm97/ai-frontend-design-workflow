@@ -2,10 +2,10 @@
 //! (`Manifest`, `Screen`, `Variant`) whose accessors read it. Readers use
 //! these instead of `value.get("screens")`, so a key is spelled once.
 //!
-//! Two ways to read a value of the wrong type, both kept from the Node CLI on purpose (the golden
-//! suite `checks` holds them):
-//! - `…_checked` accessors report it (`dfw lint`, the gates): a list that is not a list, or a
-//!   `null` item, is a [`DfwError`] that names `design/design.json`;
+//! Two ways to read a value of the wrong type (the golden suite `checks` holds them):
+//! - [`Manifest::shape_checked`] and the `…_checked` accessors report it (`dfw lint`, so
+//!   `dfw check` and the gates): a value the gates read that has the wrong type, `null` included,
+//!   is a [`DfwError`] that names `design/design.json` and the path (`screens.0.id`);
 //! - the plain accessors skip it (the Studio, Penpot, caches): a half-written file never breaks
 //!   a canvas.
 
@@ -63,6 +63,10 @@ pub mod key {
     /// Added by the Studio's manifest API: `true` when there is no `design.json` and the
     /// screens were read from `design/screens/**`.
     pub const INFERRED: &str = "inferred";
+    /// The width of a breakpoint, in CSS pixels.
+    pub const WIDTH: &str = "width";
+    /// The height of a breakpoint, in CSS pixels.
+    pub const HEIGHT: &str = "height";
 }
 
 /// The keys of a screen's [`key::BLUEPRINT`]: the plan of the screen before it is drawn.
@@ -117,11 +121,124 @@ pub fn not_null<'a>(value: &'a Value, what: &str) -> Result<&'a Value, DfwError>
     Ok(value)
 }
 
+/// The JSON type a value of the manifest must have.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Kind {
+    List,
+    Object,
+    Text,
+    Number,
+}
+
+impl Kind {
+    fn holds(self, value: &Value) -> bool {
+        match self {
+            Kind::List => value.is_array(),
+            Kind::Object => value.is_object(),
+            Kind::Text => value.is_string(),
+            Kind::Number => value.is_number(),
+        }
+    }
+    fn name(self) -> &'static str {
+        match self {
+            Kind::List => "a list",
+            Kind::Object => "an object",
+            Kind::Text => "text",
+            Kind::Number => "a number",
+        }
+    }
+}
+
+/// `at` joined with a key or an index: the dotted path a message names (`screens.0.id`).
+fn path_of(at: &str, key: &str) -> String {
+    if at.is_empty() {
+        key.to_string()
+    } else {
+        format!("{at}.{key}")
+    }
+}
+
+/// `value` is of `kind`, or an error naming `path`.
+fn expect(value: &Value, kind: Kind, path: &str) -> Result<(), DfwError> {
+    if kind.holds(value) {
+        return Ok(());
+    }
+    Err(malformed(&format!("\"{path}\" must be {}", kind.name())))
+}
+
+/// The value of `key` in `object` is of `kind` when it is there (`null` is a value of the wrong
+/// type, not a missing one).
+fn field<'v>(
+    object: &'v Value,
+    key: &str,
+    kind: Kind,
+    at: &str,
+) -> Result<Option<&'v Value>, DfwError> {
+    match object.get(key) {
+        None => Ok(None),
+        Some(value) => {
+            expect(value, kind, &path_of(at, key))?;
+            Ok(Some(value))
+        }
+    }
+}
+
+/// The list at `key` of `object` when it is there, each item of `item` kind.
+fn list_of<'v>(
+    object: &'v Value,
+    key: &str,
+    item: Kind,
+    at: &str,
+) -> Result<&'v [Value], DfwError> {
+    let Some(list) = field(object, key, Kind::List, at)?.and_then(Value::as_array) else {
+        return Ok(&[]);
+    };
+    let at = path_of(at, key);
+    for (i, value) in list.iter().enumerate() {
+        expect(value, item, &path_of(&at, &i.to_string()))?;
+    }
+    Ok(list)
+}
+
 /// The whole file.
 #[derive(Debug, Clone, Copy)]
 pub struct Manifest<'a>(pub &'a Value);
 
 impl<'a> Manifest<'a> {
+    /// The values the lint and the gate checks read have their type: the screens, their ids,
+    /// states and variants (with their ids and files), the states and the breakpoints (with
+    /// their ids and sizes). A missing value is left to the lint's findings; a value of the
+    /// wrong type (`null` included) is an error that names its path (`errors.md` E7).
+    pub fn shape_checked(self) -> Result<(), DfwError> {
+        let m = self.0;
+        list_of(m, key::STATES, Kind::Text, "")?;
+        for (i, bp) in list_of(m, key::BREAKPOINTS, Kind::Object, "")?
+            .iter()
+            .enumerate()
+        {
+            let at = path_of(key::BREAKPOINTS, &i.to_string());
+            field(bp, key::ID, Kind::Text, &at)?;
+            field(bp, key::WIDTH, Kind::Number, &at)?;
+            field(bp, key::HEIGHT, Kind::Number, &at)?;
+        }
+        for (i, screen) in list_of(m, key::SCREENS, Kind::Object, "")?
+            .iter()
+            .enumerate()
+        {
+            let at = path_of(key::SCREENS, &i.to_string());
+            field(screen, key::ID, Kind::Text, &at)?;
+            list_of(screen, key::STATES, Kind::Text, &at)?;
+            for (j, variant) in list_of(screen, key::VARIANTS, Kind::Object, &at)?
+                .iter()
+                .enumerate()
+            {
+                let at = path_of(&path_of(&at, key::VARIANTS), &j.to_string());
+                field(variant, key::ID, Kind::Text, &at)?;
+                field(variant, key::FILE, Kind::Text, &at)?;
+            }
+        }
+        Ok(())
+    }
     /// The screens (skipping a value of the wrong type).
     pub fn screens(self) -> impl Iterator<Item = Screen<'a>> {
         items(self.0.get(key::SCREENS)).iter().map(Screen)
@@ -272,5 +389,66 @@ mod tests {
             .screen_of_file_checked(HTML_FILE)
             .unwrap()
             .is_none());
+    }
+
+    #[test]
+    fn a_wrong_type_on_a_path_the_gates_read_is_an_error_naming_it() {
+        let good = json!({
+            "states": [EMPTY],
+            "breakpoints": [{ "id": "desktop", "width": 1440, "height": 900 }],
+            "screens": [{ "id": SCREEN, "states": [ERROR],
+                "variants": [{ "id": "a", "file": page_file(SCREEN) }] }]
+        });
+        Manifest(&good).shape_checked().unwrap();
+        // Missing values are the lint's findings, not a shape error.
+        Manifest(&json!({})).shape_checked().unwrap();
+        Manifest(&json!({ "screens": [{ "variants": [{}] }], "breakpoints": [{}] }))
+            .shape_checked()
+            .unwrap();
+        let paths = [
+            "screens",
+            "screens.0",
+            "screens.0.id",
+            "screens.0.states",
+            "screens.0.states.0",
+            "screens.0.variants",
+            "screens.0.variants.0",
+            "screens.0.variants.0.id",
+            "screens.0.variants.0.file",
+            "states",
+            "states.0",
+            "breakpoints",
+            "breakpoints.0",
+            "breakpoints.0.id",
+            "breakpoints.0.width",
+            "breakpoints.0.height",
+        ];
+        let all = [
+            Value::Null,
+            json!(false),
+            json!(7),
+            json!("x"),
+            json!([]),
+            json!({}),
+        ];
+        for path in paths {
+            let pointer = format!("/{}", path.replace('.', "/"));
+            let kind = std::mem::discriminant(good.pointer(&pointer).unwrap());
+            for wrong in all.iter().filter(|w| std::mem::discriminant(*w) != kind) {
+                let mut v = good.clone();
+                *v.pointer_mut(&pointer).unwrap() = wrong.clone();
+                let err = Manifest(&v).shape_checked().unwrap_err();
+                let message = err.message();
+                assert!(
+                    message.contains(&format!("\"{path}\" must be ")),
+                    "{path} = {wrong}: {message}"
+                );
+                assert!(message.contains(rel::MANIFEST), "{message}");
+            }
+        }
+        // A later item is named by its index.
+        let v = json!({ "screens": [{ "id": SCREEN }, { "id": 2 }] });
+        let err = Manifest(&v).shape_checked().unwrap_err();
+        assert!(err.message().contains("\"screens.1.id\" must be text"));
     }
 }
