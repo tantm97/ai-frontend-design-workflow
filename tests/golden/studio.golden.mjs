@@ -119,14 +119,26 @@ function mask(text, s) {
     .replace(new RegExp(`\\b${s.port}\\b`, 'g'), '<port>')
     .replace(/rv_\d{8}T\d{6}/g, 'rv_<now>')
     .replace(/'nonce-[A-Za-z0-9+/=]+'/g, "'nonce-<n>'")
-    .replace(/nonce="[A-Za-z0-9+/=]+"/g, 'nonce="<n>"');
+    .replace(/nonce="[A-Za-z0-9+/=]+"/g, 'nonce="<n>"')
+    // The live sync says how long the design has been quiet: a time.
+    .replace(/"quietMs":\d+/g, '"quietMs":"<ms>"');
   // The port of the app behind a review proxy differs per run too.
   return s.app ? t.replace(new RegExp(`\\b${s.app}\\b`, 'g'), '<app>') : t;
 }
 
 // Browser files the servers send as they are: the recorded body names the file, so a change to
 // the browser code does not need a new recording (the bytes are the file's, checked here).
-const BROWSER_FILES = ['app.html', 'app.js', 'app.css', 'overlay.js', 'live.js', 'penpot/plugin.js', 'penpot/ui.html', 'penpot/icon.svg'];
+const BROWSER_FILES = [
+  'app.html',
+  'app.js',
+  'app.css',
+  'overlay.js',
+  'live.js',
+  'penpot/plugin.js',
+  'penpot/ui.html',
+  'penpot/ui.js',
+  'penpot/icon.svg',
+];
 const browserFile = (raw) => BROWSER_FILES.find((rel) => raw.equals(fs.readFileSync(path.join(REPO, 'core', 'studio', rel))));
 
 /** What a client can observe of a response, masked. */
@@ -376,6 +388,7 @@ describe('studio server: Node and native answer the same', { skip: skipReason() 
       '/__dfw/penpot/plugin.js',
       '/__dfw/penpot/icon.svg',
       '/__dfw/penpot/ui.html',
+      '/__dfw/penpot/ui.js',
       '/__dfw/penpot/export.json',
       '/__dfw/penpot/nope',
     ])

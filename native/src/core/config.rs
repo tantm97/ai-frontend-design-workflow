@@ -40,6 +40,8 @@ pub mod key {
     pub const STUDIO_PORT: &str = "studio.port";
     pub const STUDIO_BREAKPOINTS: &str = "studio.breakpoints";
     pub const REVIEW_SHORTCUT: &str = "review.shortcut";
+    /// Where the user reviews the designs: `studio` (the default) or `penpot`.
+    pub const REVIEW_CANVAS: &str = "review.canvas";
     /// The marketplace clone `dfw install --repo` recorded (global config only).
     pub const MARKETPLACE_REPO: &str = "marketplaceRepo";
 
@@ -75,6 +77,8 @@ pub mod key {
     /* `review` */
     /// The key that toggles comment mode on the running app.
     pub const SHORTCUT: &str = "shortcut";
+    /// Where the user reviews the designs (see [`super::Canvas`]).
+    pub const CANVAS: &str = "canvas";
 
     /* `accessibility` */
     pub const STANDARD: &str = "standard";
@@ -163,6 +167,8 @@ pub fn defaults() -> Value {
             // dfw review: key that toggles comment mode on the running app ("off": the Comment button only).
             // Alt/Option+C rather than C, so the app's own single-key shortcuts keep working.
             (key::SHORTCUT): "alt+c",
+            // Where the user reviews and comments: the Studio, or Penpot through the dfw bridge.
+            (key::CANVAS): Canvas::Studio.name(),
         },
         (key::ACCESSIBILITY): { (key::STANDARD): "WCAG 2.2", (key::LEVEL): "AA" },
         (key::SKILLS): {
@@ -703,6 +709,60 @@ pub fn review_shortcut(config: &Value) -> Option<String> {
     get_path(config, key::REVIEW_SHORTCUT)
         .filter(|v| !v.is_null())
         .map(js::to_string)
+}
+
+/// Where the user reviews and comments on the designs (`review.canvas`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Canvas {
+    /// The dfw Studio (the default).
+    Studio,
+    /// Penpot, through the dfw bridge panel; the panel keeps the boards up to date while open.
+    Penpot,
+}
+
+impl Canvas {
+    /// Every canvas, the default first.
+    pub const ALL: [Canvas; 2] = [Canvas::Studio, Canvas::Penpot];
+
+    /// The value in the config, on the command line and in JSON.
+    pub fn name(self) -> &'static str {
+        match self {
+            Canvas::Studio => "studio",
+            Canvas::Penpot => "penpot",
+        }
+    }
+
+    /// The canvas named `name`, `None` for any other text.
+    pub fn parse(name: &str) -> Option<Canvas> {
+        Canvas::ALL.into_iter().find(|c| c.name() == name)
+    }
+}
+
+/// `review.canvas`: the Studio unless it says `penpot`. A value that is neither is the Studio,
+/// with one line on `warn`: a typo in a review preference must not stop a command or a hook.
+pub fn review_canvas(config: &Value, warn: &mut dyn FnMut(String)) -> Canvas {
+    match get_path(config, key::REVIEW_CANVAS) {
+        None | Some(Value::Null) => Canvas::Studio,
+        Some(value) => value.as_str().and_then(Canvas::parse).unwrap_or_else(|| {
+            warn(format!(
+                "dfw: {} is {}, not \"studio\" or \"penpot\"; using \"studio\". Set it with: dfw config set {} penpot",
+                key::REVIEW_CANVAS,
+                to_json_compact(value),
+                key::REVIEW_CANVAS
+            ));
+            Canvas::Studio
+        }),
+    }
+}
+
+/// [`review_canvas`] of the project at `root`. A config that cannot be read is the Studio: the
+/// readers (`dfw status`, the Penpot panel's session) keep working, and `dfw config` names the
+/// broken file.
+pub fn project_canvas(root: &Path, warn: &mut dyn FnMut(String)) -> Canvas {
+    match load_config_quietly(root) {
+        Ok(config) => review_canvas(&config, warn),
+        Err(_) => Canvas::Studio,
+    }
 }
 
 /// `env`: variables applied to every external tool dfw launches, in file order.
@@ -1285,6 +1345,53 @@ mod tests {
             ]
         );
         assert!(gate_allow(&json!({"gate": {"allow": "x"}})).is_empty());
+    }
+
+    /// review.canvas: the Studio by default; `penpot` when set; anything else is the Studio
+    /// with one warning naming the command that sets it.
+    #[test]
+    fn review_canvas_defaults_to_studio_and_falls_back_with_a_warning() {
+        let lines = std::cell::RefCell::new(Vec::new());
+        let mut warn = |m: String| lines.borrow_mut().push(m);
+        assert_eq!(review_canvas(&defaults(), &mut warn), Canvas::Studio);
+        assert_eq!(review_canvas(&json!({}), &mut warn), Canvas::Studio);
+        let penpot = json!({ (key::REVIEW): { (key::CANVAS): Canvas::Penpot.name() } });
+        assert_eq!(review_canvas(&penpot, &mut warn), Canvas::Penpot);
+        assert!(lines.borrow().is_empty(), "{lines:?}");
+        for odd in [
+            json!("figma"),
+            json!("Penpot"),
+            json!(1),
+            json!([Canvas::Penpot.name()]),
+        ] {
+            let c = json!({ (key::REVIEW): { (key::CANVAS): odd } });
+            assert_eq!(review_canvas(&c, &mut warn), Canvas::Studio);
+        }
+        let lines = lines.into_inner();
+        assert_eq!(lines.len(), 4, "{lines:?}");
+        assert!(lines[0].contains("\"figma\""), "{}", lines[0]);
+        assert!(
+            lines[0].contains("dfw config set review.canvas penpot"),
+            "{}",
+            lines[0]
+        );
+        assert_eq!(Canvas::parse("studio"), Some(Canvas::Studio));
+        assert_eq!(Canvas::parse("x"), None);
+    }
+
+    /// A project may choose its canvas: it picks neither what runs nor where dfw connects.
+    #[test]
+    fn a_project_may_set_the_canvas() {
+        let root = project(
+            "config-canvas",
+            Some(r#"{"review":{"canvas":"penpot"}}"#),
+            None,
+        );
+        let c = load_config_from(&root.join(NO_GLOBAL), Some(&root), &mut |m| {
+            panic!("no warning expected: {m}")
+        })
+        .unwrap();
+        assert_eq!(review_canvas(&c, &mut |_| {}), Canvas::Penpot);
     }
 
     /// E7: a `checks` value of the wrong type is an error that names the key and the file that

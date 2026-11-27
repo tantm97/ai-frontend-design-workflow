@@ -11,4 +11,6 @@
 | review-only | `dfw init --mode review-only` | audit | Writes nothing except `.dfw/`. Output: a review report (Must/Should/Nice) with evidence. |
 | skill maintenance | no project needed | `references/skills-maintenance.md` | Works in the dfw-marketplace repository. |
 
+Review canvas: new-product, existing-project, design-only and ui-refinement have a review loop, so `dfw init` gets `--canvas studio|penpot` from the one question in `references/penpot.md` > "Review canvas" (default `studio`). The other modes keep the Studio.
+
 Switching mode later: `dfw mode <mode>`. Record why with `dfw decide --level 1 --topic mode "<reason>"` when the user asked for it.

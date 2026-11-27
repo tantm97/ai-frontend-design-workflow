@@ -119,6 +119,7 @@ pub mod flag {
     pub const SCREEN: &str = "--screen";
     pub const PRINT: &str = "--print";
     pub const PRODUCT: &str = "--product";
+    pub const CANVAS: &str = "--canvas";
 }
 
 /// The hooks `dfw hook <name>` runs, one per host event (`cli::hook`).
@@ -156,6 +157,7 @@ mod tests {
             SCREEN,
             PRINT,
             PRODUCT,
+            CANVAS,
         ];
         assert!(all.iter().all(|f| f.starts_with("--") && f.len() > 3));
         all.sort_unstable();

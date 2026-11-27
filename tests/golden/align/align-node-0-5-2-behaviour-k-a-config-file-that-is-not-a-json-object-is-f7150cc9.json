@@ -15,7 +15,7 @@
     },
     {
       "code": 0,
-      "stdout": "dfw: product=\"Fixture\" mode=new-product phase=discovery\ndesign: v1 draft\ngates: G1=open DS=open G2=open G3=open G4=open\ncomments: 0 active, 0 awaiting user verification, 0 resolved\nstudio: not running\nstack: not set\nnext: finish discovery (PRODUCT.md), then \"dfw phase direction\"\n",
+      "stdout": "dfw: product=\"Fixture\" mode=new-product phase=discovery\ndesign: v1 draft\ngates: G1=open DS=open G2=open G3=open G4=open\ncomments: 0 active, 0 awaiting user verification, 0 resolved\nstudio: not running\ncanvas: studio\nstack: not set\nnext: finish discovery (PRODUCT.md), then \"dfw phase direction\"\n",
       "stderr": "",
       "files": {}
     },
@@ -33,7 +33,7 @@
     },
     {
       "code": 0,
-      "stdout": "dfw: product=\"Fixture\" mode=new-product phase=discovery\ndesign: v1 draft\ngates: G1=open DS=open G2=open G3=open G4=open\ncomments: 0 active, 0 awaiting user verification, 0 resolved\nstudio: not running\nstack: not set\nnext: finish discovery (PRODUCT.md), then \"dfw phase direction\"\n",
+      "stdout": "dfw: product=\"Fixture\" mode=new-product phase=discovery\ndesign: v1 draft\ngates: G1=open DS=open G2=open G3=open G4=open\ncomments: 0 active, 0 awaiting user verification, 0 resolved\nstudio: not running\ncanvas: studio\nstack: not set\nnext: finish discovery (PRODUCT.md), then \"dfw phase direction\"\n",
       "stderr": "",
       "files": {}
     },
@@ -51,7 +51,7 @@
     },
     {
       "code": 0,
-      "stdout": "dfw: product=\"Fixture\" mode=new-product phase=discovery\ndesign: v1 draft\ngates: G1=open DS=open G2=open G3=open G4=open\ncomments: 0 active, 0 awaiting user verification, 0 resolved\nstudio: not running\nstack: not set\nnext: finish discovery (PRODUCT.md), then \"dfw phase direction\"\n",
+      "stdout": "dfw: product=\"Fixture\" mode=new-product phase=discovery\ndesign: v1 draft\ngates: G1=open DS=open G2=open G3=open G4=open\ncomments: 0 active, 0 awaiting user verification, 0 resolved\nstudio: not running\ncanvas: studio\nstack: not set\nnext: finish discovery (PRODUCT.md), then \"dfw phase direction\"\n",
       "stderr": "",
       "files": {}
     },
@@ -69,7 +69,7 @@
     },
     {
       "code": 0,
-      "stdout": "dfw: product=\"Fixture\" mode=new-product phase=discovery\ndesign: v1 draft\ngates: G1=open DS=open G2=open G3=open G4=open\ncomments: 0 active, 0 awaiting user verification, 0 resolved\nstudio: not running\nstack: not set\nnext: finish discovery (PRODUCT.md), then \"dfw phase direction\"\n",
+      "stdout": "dfw: product=\"Fixture\" mode=new-product phase=discovery\ndesign: v1 draft\ngates: G1=open DS=open G2=open G3=open G4=open\ncomments: 0 active, 0 awaiting user verification, 0 resolved\nstudio: not running\ncanvas: studio\nstack: not set\nnext: finish discovery (PRODUCT.md), then \"dfw phase direction\"\n",
       "stderr": "",
       "files": {}
     },
@@ -87,7 +87,7 @@
     },
     {
       "code": 0,
-      "stdout": "dfw: product=\"Fixture\" mode=new-product phase=discovery\ndesign: v1 draft\ngates: G1=open DS=open G2=open G3=open G4=open\ncomments: 0 active, 0 awaiting user verification, 0 resolved\nstudio: not running\nstack: not set\nnext: finish discovery (PRODUCT.md), then \"dfw phase direction\"\n",
+      "stdout": "dfw: product=\"Fixture\" mode=new-product phase=discovery\ndesign: v1 draft\ngates: G1=open DS=open G2=open G3=open G4=open\ncomments: 0 active, 0 awaiting user verification, 0 resolved\nstudio: not running\ncanvas: studio\nstack: not set\nnext: finish discovery (PRODUCT.md), then \"dfw phase direction\"\n",
       "stderr": "",
       "files": {}
     }

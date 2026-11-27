@@ -29,6 +29,8 @@ interface PenpotLocalLibrary {
 interface Penpot {
   ui: PenpotUi;
   currentFile: PenpotFile | null;
+  /** The page the user has open (read before an update, opened again after it). */
+  currentPage: PenpotObject | null;
   createPage(): PenpotObject;
   openPage(page: PenpotObject): void;
   createBoard(): PenpotObject;

@@ -13,6 +13,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{LazyLock, Mutex};
 use std::thread;
+use std::time::Duration;
 
 use regex::Regex;
 use serde_json::{json, Map, Value};
@@ -27,6 +28,7 @@ use crate::core::config::load_config;
 use crate::core::error::DfwError;
 use crate::core::js;
 use crate::core::js::regex::fixed_regex;
+use crate::core::lock::{self, Lock, LockTimes};
 use crate::core::paths::{
     file, file_url, file_url_to_path, project_paths, rel, resolve, to_posix, SafeName,
 };
@@ -941,6 +943,9 @@ pub fn export_penpot(root: &Path, opts: &ExportOptions) -> Result<(PathBuf, Valu
             "dfw penpot export renders in Chrome/Edge/Chromium: none found (dfw setup --browser).",
         ));
     }
+    // One export at a time, whoever asks (`dfw penpot export`, the panel through the Studio):
+    // two renders would write `.dfw/penpot/` at once. Released when this function returns.
+    let _one = export_lock(root)?;
     let (manifest, jobs) = select_renders(root, opts.page.as_deref(), opts.bp.as_deref())?;
     if jobs.is_empty() {
         return Err(DfwError::new(format!(
@@ -1054,6 +1059,22 @@ pub fn export_penpot(root: &Path, opts: &ExportOptions) -> Result<(PathBuf, Valu
         write_json_inside(root, &dir.join(file::PENPOT_TOKENS), tokens)?;
     }
     Ok((file, doc))
+}
+
+/// The timings of the export lock: a render of many screens takes minutes, so a live holder is
+/// only taken over after 10 minutes (a hung export); a dead one after 5 s of waiting.
+const EXPORT_LOCK: LockTimes = LockTimes {
+    wait: Duration::from_secs(5),
+    stale: Duration::from_secs(600),
+    retry: Duration::from_millis(50),
+};
+
+/// Take the export lock of the project (`.dfw/penpot/.export.lock`), waiting for a running export.
+fn export_lock(root: &Path) -> Result<Lock, DfwError> {
+    lock::acquire(
+        &penpot_dir(root).join(file::PENPOT_EXPORT_LOCK),
+        &EXPORT_LOCK,
+    )
 }
 
 /// `pruneExports`: keep the newest exports in `.dfw/penpot/exports/` (every render writes a
@@ -1219,4 +1240,4 @@ pub fn export_summary(doc: &Value, file: &Path, root: &Path) -> String {
 
 #[cfg(test)]
 #[path = "export_tests.rs"]
-pub(super) mod tests;
+pub(crate) mod tests;

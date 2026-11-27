@@ -27,7 +27,12 @@ const write = (root, rel, data) => {
 // A review session is named after the real second it starts in, and a dry run that cannot read
 // the plugin's tokens leaves its temporary file (named after the process) behind, as in Node.
 // The harness masks them in the output, file contents and file names (normalize).
-const mask = (text) => text.replace(/rv_\d{8}T\d{6}/g, 'rv_<now>').replace(/\.tokens-\d+\.json/g, '.tokens-<pid>.json');
+// The live sync says how long the design has been quiet (quietMs): a time, masked too.
+const mask = (text) =>
+  text
+    .replace(/rv_\d{8}T\d{6}/g, 'rv_<now>')
+    .replace(/\.tokens-\d+\.json/g, '.tokens-<pid>.json')
+    .replace(/"quietMs":\d+/g, '"quietMs":"<ms>"');
 
 const STDERR = { stderr: true };
 /** What a case compares, as recorded: exit code, stdout unless stdout: false, stderr only with stderr: true, files. */
@@ -436,7 +441,8 @@ describe('penpot screens', { skip: skipReason() }, () => {
     for (const at of ['2026-11-16T10:00:00.000Z', NOW]) {
       const r = native(['__debug', 'penpot-build-export', path.join(FIX, 'renders.json'), tokens, at]);
       assert.equal(r.status, 0, r.stderr);
-      assert.equal(r.stdout, expected(r.stdout));
+      const answer = mask(r.stdout);
+      assert.equal(answer, expected(answer));
       assert.match(JSON.parse(r.stdout).id, /^px_\d{14}_[0-9a-f]{8}$/);
     }
     // Without tokens: no token links, the same hash.
@@ -579,7 +585,8 @@ describe('penpot screens', { skip: skipReason() }, () => {
       fs.writeFileSync(path.join(dir, 'tokens.json'), JSON.stringify(base));
       const r = native(['__debug', 'penpot-build-export', path.join(dir, 'renders.json'), path.join(dir, 'tokens.json')]);
       assert.equal(r.status, 0, r.stderr);
-      assert.equal(r.stdout, expected(r.stdout));
+      const answer = mask(r.stdout);
+      assert.equal(answer, expected(answer));
       assert.equal(JSON.parse(r.stdout).pages.length, 2);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
@@ -868,7 +875,8 @@ describe('penpot live comments', { skip: skipReason() }, () => {
   function sync(p, payload, at) {
     const r = native(['__debug', 'penpot-sync', p.native], { input: JSON.stringify(payload), env: { DFW_NOW: at } });
     assert.equal(r.status, 0, r.stderr);
-    assert.equal(r.stdout, expected(r.stdout));
+    const answer = mask(r.stdout);
+    assert.equal(answer, expected(answer));
     const files = tree(p.native);
     assert.deepEqual(files, expected(files));
     return JSON.parse(r.stdout);

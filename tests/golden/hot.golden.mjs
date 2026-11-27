@@ -156,6 +156,30 @@ describe('hot: workflow commands', { skip: skipReason() }, () => {
     assert.deepEqual(again.files, {});
   });
 
+  test('init --canvas: Penpot or the Studio recorded, other values refused before any write', () => {
+    const fresh = { state: null };
+    const penpot = same(['init', '--canvas', 'penpot'], fresh);
+    assert.equal(penpot.code, 0);
+    assert.deepEqual(JSON.parse(penpot.files['.dfw/config.json']), { schema: 1, review: { canvas: 'penpot' } });
+    assert.match(penpot.stdout, /\ncanvas: penpot\n$/);
+    same(['init', '--canvas', 'studio'], fresh);
+    // A config already there keeps its keys.
+    const kept = same(['init', '--canvas', 'penpot'], {
+      state: null,
+      setup: (root) => write(root, '.dfw/config.json', { schema: 1, studio: { port: 4700 } }),
+    });
+    assert.deepEqual(JSON.parse(kept.files['.dfw/config.json']), { schema: 1, studio: { port: 4700 }, review: { canvas: 'penpot' } });
+    for (const args of [['--canvas', 'figma'], ['--canvas'], ['--canvas=']]) {
+      const r = same(['init', ...args], fresh);
+      assert.equal(r.code, 1, args.join(' '));
+      assert.deepEqual(r.files, {}, args.join(' '));
+    }
+    assert.match(
+      same(['status'], { setup: (root) => write(root, '.dfw/config.json', { schema: 1, review: { canvas: 'penpot' } }) }).stdout,
+      /\ncanvas: penpot\n/,
+    );
+  });
+
   test('init without design/: the design template and the token build', () => {
     const r = same(['init', '--product', 'New'], {
       state: null,

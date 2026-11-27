@@ -1,7 +1,7 @@
 dfw - design-first workflow CLI
 
 Workflow
-  dfw init [--mode <mode>] [--product <name>]   Start the workflow in this project
+  dfw init [--mode <mode>] [--product <name>] [--canvas studio|penpot]   Start the workflow; review in the Studio (default) or Penpot
   dfw status [--json]                           Phase, gates, design version, comments
   dfw mode <mode>                               Change workflow mode (new-product, existing-project, design-only, implement-approved, ui-refinement, quick-change, review-only)
   dfw phase <phase> [--force --reason <r>]      Move to a phase (discovery, direction, system, concepts, stack, implement, verify, audit, done)

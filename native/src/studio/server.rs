@@ -9,7 +9,7 @@
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use serde_json::{json, Value};
 
@@ -70,8 +70,6 @@ pub struct Studio {
     pub port: u16,
     pub clients: Clients,
     shooting: AtomicBool,
-    /// Held while a Penpot export runs.
-    pub penpot_exporting: Mutex<()>,
     /// The token the Penpot plugin panel reads from the Studio and sends with its writes; new
     /// for every Studio process.
     pub penpot_token: String,
@@ -178,7 +176,6 @@ impl Studio {
             port,
             clients: Clients::default(),
             shooting: AtomicBool::new(false),
-            penpot_exporting: Mutex::new(()),
             penpot_token: super::http::random_token(),
             penpot_origins: penpot_routes::allowed_origins(&mut |m| eprintln!("{m}")),
         })
@@ -472,6 +469,7 @@ pub fn serve(root: &Path, port: Option<u16>) -> Result<i32, DfwError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::config::{key as config_key, set_config_value, Canvas, Scope};
     use crate::core::fixture::{ITEMS_PAGE, REVIEW_SESSION};
     use crate::core::paths::file;
     use crate::core::paths::rel;
@@ -941,12 +939,33 @@ mod tests {
             );
         }
         let session_path = penpot(route::SESSION);
-        let session = raw(method::GET, &session_path, "", "");
-        let session: Value =
-            serde_json::from_str(session.split_once(END_OF_HEAD).unwrap().1).unwrap();
+        let read_session = || -> Value {
+            let r = raw(method::GET, &session_path, "", "");
+            serde_json::from_str(r.split_once(END_OF_HEAD).unwrap().1).unwrap()
+        };
+        /// The key of the canvas in the session.
+        const CANVAS: &str = "canvas";
+        let session = read_session();
         assert_eq!(session["token"], json!(studio.penpot_token));
         assert_eq!(session["origins"], json!(["https://design.penpot.app"]));
+        assert_eq!(session[CANVAS], Canvas::Studio.name());
         assert!(studio.penpot_token.len() >= 20);
+        // The canvas is read per request: a switch applies without a restart.
+        let penpot_canvas = Canvas::Penpot.name();
+        set_config_value(
+            Scope::Project,
+            &root,
+            config_key::REVIEW_CANVAS,
+            penpot_canvas.into(),
+        )
+        .unwrap();
+        assert_eq!(read_session()[CANVAS], penpot_canvas);
+        let ui_js = raw(method::GET, &penpot(route::UI_JS), "", "");
+        assert!(
+            ui_js.starts_with(&status_line(status::OK)) && ui_js.contains("shouldAutoUpdate"),
+            "{}",
+            ui_js.split(END_OF_HEAD).next().unwrap_or_default()
+        );
         let cross = raw(
             method::GET,
             &session_path,
@@ -975,13 +994,23 @@ mod tests {
             }
         }
         assert_eq!(all_comments(&root).unwrap().len(), 0);
-        let ok = raw(
+        let panel =
+            format!("{token}Sec-Fetch-Site: same-origin\r\nOrigin: http://127.0.0.1:{port}\r\n");
+        let ok = raw(method::POST, &penpot(route::SYNC), &panel, sync);
+        assert!(!ok.starts_with(&status_line(status::FORBIDDEN)), "{ok}");
+        // The answer says whether an agent waits, and what the panel needs to update its boards.
+        let doc = crate::penpot::export::tests::fixture_export();
+        crate::penpot::export::tests::with_export(&root, &doc, "changes.json");
+        let quiet = raw(
             method::POST,
             &penpot(route::SYNC),
-            &format!("{token}Sec-Fetch-Site: same-origin\r\nOrigin: http://127.0.0.1:{port}\r\n"),
-            sync,
+            &panel,
+            r#"{"fileId":"f","threads":[]}"#,
         );
-        assert!(!ok.starts_with(&status_line(status::FORBIDDEN)), "{ok}");
+        let answer: Value = serde_json::from_str(quiet.split_once(END_OF_HEAD).unwrap().1).unwrap();
+        assert_eq!(answer["listening"], false, "{answer}");
+        assert_eq!(answer["exportId"], doc["id"], "{answer}");
+        assert!(answer.get("quietMs").is_some(), "{answer}");
 
         // A GET only reads: with no export on disk it is a 404 and nothing is written.
         let export = root.join(rel::PENPOT_EXPORT);

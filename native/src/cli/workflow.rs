@@ -12,7 +12,8 @@ use super::word::{command, sub};
 use super::{Ctx, Handler};
 use crate::browser::a11y::{a11y_check, A11yOptions};
 use crate::core::config::{
-    get_config_value, key as config_key, load_config, set_config_value, Scope,
+    get_config_value, key as config_key, load_config, project_canvas, set_config_value, Canvas,
+    Scope,
 };
 use crate::core::error::exit;
 use crate::core::error::DfwError;
@@ -84,6 +85,17 @@ fn init(ctx: &Ctx) -> Result<i32, DfwError> {
     }
     let mode = arg_truthy(a, "mode").map_or("new-product".to_string(), |m| js::to_string(Some(&m)));
     let product = arg_truthy(a, "product").unwrap_or_else(|| "".into());
+    // Checked before anything is written: a refused canvas leaves no half-made project.
+    let canvas = match a.text("canvas") {
+        None => None,
+        Some(name) => Some(Canvas::parse(name).ok_or_else(|| {
+            DfwError::new(format!(
+                "Unknown review canvas \"{name}\". Use --canvas {} (the default) or --canvas {}.",
+                Canvas::Studio.name(),
+                Canvas::Penpot.name()
+            ))
+        })?),
+    };
     let mut state = new_state(&mode, product)?;
     let mode = js::to_string(state.get(field::MODE));
     if mode_info(&mode).is_some_and(|m| m.requires_approved_design) {
@@ -93,6 +105,14 @@ fn init(ctx: &Ctx) -> Result<i32, DfwError> {
     fs::create_dir_all(&p.reviews)?;
     if !p.config.exists() {
         write_json_inside(&root, &p.config, &json!({ (config_key::SCHEMA): 1 }))?;
+    }
+    if let Some(canvas) = canvas {
+        set_config_value(
+            Scope::Project,
+            &root,
+            config_key::REVIEW_CANVAS,
+            canvas.name().into(),
+        )?;
     }
     if !p.decisions.exists() {
         write_atomic_inside(&root, &p.decisions, "")?;
@@ -144,13 +164,17 @@ fn init(ctx: &Ctx) -> Result<i32, DfwError> {
     } else {
         format!("Created: {}\n", created.join(", "))
     };
+    let canvas = canvas.map_or(String::new(), |c| format!("\n{CANVAS_LINE}{}", c.name()));
     out(&format!(
-        "Initialized dfw ({mode}) in {}\n{created}{}",
+        "Initialized dfw ({mode}) in {}\n{created}{}{canvas}",
         root.display(),
         summarize(Some(&state))?
     ));
     Ok(0)
 }
+
+/// The start of the line of `dfw init` and `dfw status` that names the review canvas.
+const CANVAS_LINE: &str = "canvas: ";
 
 /// The keys of `dfw status --json`.
 mod status_key {
@@ -166,6 +190,8 @@ mod status_key {
     /// The running Studio's record, `null` when it does not run.
     pub const STUDIO: &str = "studio";
     pub const STACK: &str = "stack";
+    /// Where the user reviews: `studio` or `penpot` (`review.canvas`).
+    pub const CANVAS: &str = "canvas";
 }
 
 fn status(ctx: &Ctx) -> Result<i32, DfwError> {
@@ -204,6 +230,7 @@ fn status(ctx: &Ctx) -> Result<i32, DfwError> {
         Some(s) => current_approval(s)?,
         None => None,
     };
+    let canvas = project_canvas(&root, &mut |m| eprintln!("{m}"));
     if as_json {
         return print_json(&json!({
             (status_key::ROOT): root.to_string_lossy(),
@@ -216,6 +243,7 @@ fn status(ctx: &Ctx) -> Result<i32, DfwError> {
             },
             (status_key::STUDIO): studio,
             (status_key::STACK): stack,
+            (status_key::CANVAS): canvas.name(),
         }));
     }
     let mut lines = vec![summarize(state.as_ref())?];
@@ -239,6 +267,7 @@ fn status(ctx: &Ctx) -> Result<i32, DfwError> {
             let yes = if is_listening(&root) { "yes" } else { "no" };
             lines.push(format!("listening: {yes}"));
         }
+        lines.push(format!("{CANVAS_LINE}{}", canvas.name()));
         lines.push(format!(
             "stack: {}",
             if js::truthy(&stack) {
@@ -270,6 +299,7 @@ fn status(ctx: &Ctx) -> Result<i32, DfwError> {
             load_components(&root)?.len(),
             (active, fixed),
             approved.is_some(),
+            canvas,
         );
         if let Some(next) = next {
             lines.push(format!("next: {next}"));
@@ -287,16 +317,19 @@ struct Gates {
 }
 
 /// `nextStep(state, data)`: what the agent does next in this phase. `components` is the number
-/// of component masters; `comments` the active and the fixed ones.
+/// of component masters; `comments` the active and the fixed ones; `canvas` where the user
+/// reviews the screens (the design system is reviewed in the Studio either way).
 fn next_step(
     state: &Value,
     gates: Gates,
     components: usize,
     comments: (usize, usize),
     approved: bool,
+    canvas: Canvas,
 ) -> Option<String> {
     let Gates { g1, ds, g3 } = gates;
     let (active, fixed) = comments;
+    let penpot = canvas == Canvas::Penpot;
     let step = match state.get(field::PHASE).and_then(Value::as_str)? {
         "discovery" => "finish discovery (PRODUCT.md), then \"dfw phase direction\"",
         "direction" if g1 => "\"dfw phase system\"",
@@ -305,8 +338,10 @@ fn next_step(
         "system" if components > 0 => return Some(format!("review the Design System page in the studio: write its link in your reply (\"dfw studio start\" prints it) and start \"{WAIT_COMMAND}\" in the background; when the user approves: \"dfw approve DS --note ...\"")),
         "system" => return Some(format!("build the design system: \"dfw system init --style <id>\", list the components the product needs in {}, then design each master", rel::INVENTORY)),
         "concepts" if active > 0 => return Some(format!("apply {active} open review comment(s)")),
+        "concepts" if fixed > 0 && penpot => "ask the user to verify fixed comments in Penpot (resolving the thread accepts the fix)",
         "concepts" if fixed > 0 => "ask the user to verify fixed comments in the studio",
         "concepts" if approved => "design approved; \"dfw phase stack\"",
+        "concepts" if penpot => return Some(format!("review in Penpot: keep the studio running (\"dfw studio start\"), give the user the plugin manifest URL (\"dfw penpot plugin\" prints it) and ask them to keep the dfw bridge panel open (it updates the boards), and start \"{WAIT_COMMAND}\" in the background; when the user approves: \"dfw approve G2 --note ...\"")),
         "concepts" => return Some(format!("review in the studio: write its link in your reply (\"dfw studio start\" prints it) and start \"{WAIT_COMMAND}\" in the background; when the user approves: \"dfw approve G2 --note ...\"")),
         "stack" if g3 => "\"dfw phase implement\"",
         "stack" => "propose/confirm the stack; \"dfw approve G3 --note ...\"",
@@ -721,21 +756,55 @@ mod tests {
     #[test]
     fn review_steps_name_the_link_and_the_wait() {
         let system = in_phase("system");
-        let ds = next_step(&system, NO_GATES, 3, (0, 0), false).unwrap();
+        let ds = next_step(&system, NO_GATES, 3, (0, 0), false, Canvas::Studio).unwrap();
         assert!(
             ds.contains(WAIT_COMMAND) && ds.contains("dfw studio start"),
             "{ds}"
         );
         assert!(ds.ends_with("\"dfw approve DS --note ...\""), "{ds}");
-        let g2 = next_step(&in_phase("concepts"), NO_GATES, 3, (0, 0), false).unwrap();
+        let g2 = next_step(
+            &in_phase("concepts"),
+            NO_GATES,
+            3,
+            (0, 0),
+            false,
+            Canvas::Studio,
+        )
+        .unwrap();
         assert!(
             g2.contains(WAIT_COMMAND) && g2.contains("your reply"),
             "{g2}"
         );
-        let build = next_step(&system, NO_GATES, 0, (0, 0), false).unwrap();
+        let build = next_step(&system, NO_GATES, 0, (0, 0), false, Canvas::Studio).unwrap();
         assert!(
             !build.contains(WAIT_COMMAND),
             "nothing to review yet: {build}"
         );
+    }
+
+    /// With the Penpot canvas the screens review names the panel and keeps the wait armed; the
+    /// design system is still reviewed in the Studio.
+    #[test]
+    fn penpot_review_step_names_the_panel_and_the_wait() {
+        /// The word the Penpot hints name.
+        const PENPOT: &str = "Penpot";
+        let concepts = in_phase("concepts");
+        let g2 = next_step(&concepts, NO_GATES, 3, (0, 0), false, Canvas::Penpot).unwrap();
+        for part in [
+            PENPOT,
+            "dfw penpot plugin",
+            "dfw studio start",
+            WAIT_COMMAND,
+        ] {
+            assert!(g2.contains(part), "{part}: {g2}");
+        }
+        assert!(g2.ends_with("\"dfw approve G2 --note ...\""), "{g2}");
+        let fixed = next_step(&concepts, NO_GATES, 3, (0, 1), false, Canvas::Penpot).unwrap();
+        assert!(fixed.contains(PENPOT), "{fixed}");
+        let studio = next_step(&concepts, NO_GATES, 3, (0, 0), false, Canvas::Studio).unwrap();
+        assert!(!studio.contains(PENPOT), "{studio}");
+        let system = in_phase("system");
+        let ds = |canvas| next_step(&system, NO_GATES, 3, (0, 0), false, canvas);
+        assert_eq!(ds(Canvas::Penpot), ds(Canvas::Studio));
     }
 }

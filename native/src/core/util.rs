@@ -718,7 +718,7 @@ pub fn parse_args<S: AsRef<str>>(argv: &[S]) -> Args {
 
 /// `VALUE_FLAGS` of cli.mjs: flags that take a value. Given without one they would read as `true`:
 /// a level 1 decision, a 1 second timeout, an approval note "true", a TypeError in path.resolve.
-pub const VALUE_FLAGS: [&str; 56] = [
+pub const VALUE_FLAGS: [&str; 57] = [
     "root",
     "port",
     "host",
@@ -740,6 +740,7 @@ pub const VALUE_FLAGS: [&str; 56] = [
     "status",
     "url",
     "shortcut",
+    "canvas",
     "bp",
     "out",
     "selector",

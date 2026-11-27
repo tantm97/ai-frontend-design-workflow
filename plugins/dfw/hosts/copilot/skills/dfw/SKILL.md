@@ -16,6 +16,7 @@ You orchestrate a design-first workflow. Designs are framework-neutral HTML/CSS 
 2. **State.** Run `dfw status`. No workflow yet -> step 3. Otherwise continue the current phase (section 2) unless the user asked for something else.
 3. **Mode.** Map the request (or the argument) to a mode; ask only if it is genuinely ambiguous:
    - `new` -> new-product · `existing` -> existing-project · `design-only` · `implement` -> implement-approved · `refine` -> ui-refinement · `quick` -> quick-change · `review` -> review-only · `skills` -> skill maintenance (read `references/skills-maintenance.md`; no project state needed).
+   - **Review canvas** (new-product, existing-project, design-only, ui-refinement): ask once with the ask_user tool where the user reviews, the dfw Studio (default) or Penpot, as in `references/penpot.md` > "Review canvas", and add `--canvas studio|penpot` to `dfw init`.
    - Then `dfw init --mode <mode> --product "<name>"` and read `references/modes.md` for the mode's path.
 4. Read the reference file for the current phase (table below) **before** doing the phase's work.
 
