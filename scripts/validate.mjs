@@ -5,7 +5,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { REPO_ROOT, readJson, loadRegistry, loadLock } from './lib/build.mjs';
-import { xrefCheck, hooksCheck, leftoverCheck, layoutCheck, trackedToolingCheck, conflictLint, versionMismatch } from './lib/checks.mjs';
+import {
+  xrefCheck,
+  hooksCheck,
+  leftoverCheck,
+  layoutCheck,
+  trackedToolingCheck,
+  conflictLint,
+  versionMismatch,
+  workflowPipeCheck,
+} from './lib/checks.mjs';
 import { createHash } from 'node:crypto';
 import { unwrap } from './knowledge.mjs';
 import { lockPackages } from './crate-licenses.mjs';
@@ -33,6 +42,8 @@ for (const file of [path.join('.claude-plugin', 'marketplace.json'), path.join('
 errors.push(...layoutCheck());
 // Local tooling (AGENTS.md, openspec/, docs/, .claude/) is never tracked.
 errors.push(...trackedToolingCheck());
+// CI steps that pass or fail by timing: a pipe into grep -q under pipefail.
+errors.push(...workflowPipeCheck());
 
 // 2. Lock <-> built copies.
 for (const s of registry.skills) {
