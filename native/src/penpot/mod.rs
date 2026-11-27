@@ -232,11 +232,10 @@ pub(crate) mod wire {
         pub(crate) const VALUE: &str = "value";
         pub(crate) const TYPE: &str = "type";
         pub(crate) const DESCRIPTION: &str = "description";
-        pub(crate) const GROUP: &str = "group";
-        pub(crate) const IS_SOURCE: &str = "isSource";
-        pub(crate) const SELECTED_TOKEN_SETS: &str = "selectedTokenSets";
-        pub(crate) const TOKEN_SET_ORDER: &str = "tokenSetOrder";
-        pub(crate) const ACTIVE_SETS: &str = "activeSets";
+        /// The theme and set keys are those of a Penpot token file.
+        pub(crate) use crate::penpot::tokens::key::{
+            ACTIVE_SETS, GROUP, IS_SOURCE, SELECTED_TOKEN_SETS, TOKEN_SET_ORDER,
+        };
         /// The token a change is on, and its value before and after.
         pub(crate) const TOKEN: &str = "token";
         pub(crate) const FROM: &str = "from";

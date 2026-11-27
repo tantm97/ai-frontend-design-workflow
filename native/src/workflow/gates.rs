@@ -7,7 +7,7 @@ use serde_json::Value;
 
 use crate::core::config::{gate_allow, gate_design_paths, gate_immutable};
 use crate::core::error::DfwError;
-use crate::core::host::{patch, tool};
+use crate::core::host::{input, patch, tool};
 use crate::core::js;
 use crate::core::paths::{self, resolve, to_posix, Place, FOLD_CASE};
 use crate::core::util::matches_any;
@@ -216,10 +216,15 @@ pub fn files_from_tool_input(
     }
     let first = |keys: &[&str]| keys.iter().find_map(|k| js::truthy_value(input.get(k)));
     if tool == tool::APPLY_PATCH {
-        let body = first(&["input", "patch", "content"]);
+        let body = first(&[input::RAW_INPUT, input::PATCH, input::CONTENT]);
         return Ok(body.map_or(Vec::new(), |b| files_from_patch(&js::to_string(Some(b)))));
     }
-    const KEYS: [&str; 4] = ["file_path", "notebook_path", "path", "filePath"];
+    const KEYS: [&str; 4] = [
+        input::FILE_PATH,
+        input::NOTEBOOK_PATH,
+        input::PATH,
+        input::FILE_PATH_CAMEL,
+    ];
     match KEYS
         .iter()
         .find_map(|k| js::truthy_value(input.get(k)).map(|v| (k, v)))

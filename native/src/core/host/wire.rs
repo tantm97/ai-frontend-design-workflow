@@ -117,6 +117,15 @@ pub mod input {
     pub const EDITS: &str = "edits";
     /// The text an Edit call (or one of [`EDITS`]) replaces.
     pub const OLD_STRING: &str = "old_string";
+    /// The file a write tool names, in the order the write gate reads them (Claude Code's
+    /// `file_path`, a notebook's `notebook_path`, Copilot's `path` and `filePath`).
+    pub const FILE_PATH: &str = "file_path";
+    pub const NOTEBOOK_PATH: &str = "notebook_path";
+    pub const PATH: &str = "path";
+    pub const FILE_PATH_CAMEL: &str = "filePath";
+    /// The body of an apply_patch call (after [`RAW_INPUT`]).
+    pub const PATCH: &str = "patch";
+    pub const CONTENT: &str = "content";
 }
 
 /// The keys of the neutral result of a hook handler: `{ context }`, `{ deny }` or `{ block }`.
