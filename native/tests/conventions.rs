@@ -1739,10 +1739,12 @@ fn gate_state_writers_write_only_gate_state() {
     let mut writes = 0;
     for rel in writers {
         let text = product_text(rel);
+        // `freeze::snapshot_dir` is the one join of `approved/` (snapshot_folders_are_joined_...).
         let names_allowed = |expr: &str| {
-            field
-                .captures_iter(expr)
-                .any(|c| allowed.contains(&c[1].to_string()))
+            expr.contains("snapshot_dir(")
+                || field
+                    .captures_iter(expr)
+                    .any(|c| allowed.contains(&c[1].to_string()))
         };
         // Locals built from an allowed field (or from another such local), and the files of
         // `session_files` (which lists `.dfw/reviews`).
