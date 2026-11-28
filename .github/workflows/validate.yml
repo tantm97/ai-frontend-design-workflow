@@ -28,7 +28,8 @@ jobs:
         run: node scripts/validate.mjs
   native:
     # The binary (native/): formatting, build, Rust tests, lints, then the golden tests: the binary
-    # against the results recorded in tests/golden. Windows builds and runs the Rust tests only.
+    # against the results recorded in tests/golden. Windows builds, runs the Rust tests and runs
+    # install.sh under Git Bash.
     strategy:
       fail-fast: false
       matrix:
@@ -65,9 +66,20 @@ jobs:
         working-directory: native
         run: cargo clippy --all-targets -- -D warnings
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
-        if: runner.os != 'Windows'
         with:
           node-version: 22
+      - name: install.sh under Git Bash (asset name, .exe, checksum, install folder, hand-off; a fake release)
+        if: runner.os == 'Windows'
+        # shell bash on a Windows runner is Git Bash: its sh.exe and tools are on PATH.
+        shell: bash
+        run: node --test tests/unit/install-sh.test.mjs
+      - name: Crate licences match Cargo.lock and cargo metadata for every release target
+        if: runner.os == 'Linux'
+        working-directory: native
+        # Fetches the crates of every platform (Windows-only ones too), so every licence is read.
+        run: |
+          cargo fetch --locked
+          node ../scripts/crate-licenses.mjs --check
       - name: Golden tests (the binary gives the recorded results)
         if: runner.os != 'Windows'
         # A missing binary fails instead of skipping: a green run means the cases ran.

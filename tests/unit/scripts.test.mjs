@@ -285,3 +285,35 @@ test('texts: the screen skeleton and the presets name the command that writes th
     assert.doesNotMatch($description, /\bcopy\b/i, file);
   }
 });
+
+test('crate licences: the release targets come from the release workflow matrix', async () => {
+  const { releaseTargets } = await import('../../scripts/crate-licenses.mjs');
+  const yml = fs.readFileSync(path.join(REPO, '.github', 'workflows', 'release-binaries.yml'), 'utf8');
+  const targets = releaseTargets(yml);
+  assert.ok(targets.includes('x86_64-pc-windows-msvc'), targets.join(', '));
+  assert.equal(targets.length, (yml.match(/platform: [\w-]+, target:/g) || []).length);
+});
+
+test('crate licences: a list with an unread licence, a missing crate or other targets is refused; the committed one is not', async () => {
+  const { listProblems, releaseTargets } = await import('../../scripts/crate-licenses.mjs');
+  const lockText = fs.readFileSync(path.join(REPO, 'native', 'Cargo.lock'), 'utf8');
+  const targets = releaseTargets(fs.readFileSync(path.join(REPO, '.github', 'workflows', 'release-binaries.yml'), 'utf8'));
+  const data = JSON.parse(fs.readFileSync(path.join(REPO, 'native', 'crate-licenses.json'), 'utf8'));
+  assert.deepEqual(listProblems(lockText, data, targets), []);
+  const unread = structuredClone(data);
+  unread.crates[0].license = 'not recorded (no licence field could be read)';
+  assert.match(listProblems(lockText, unread, targets).join('\n'), /has no licence for .*: run `cargo fetch --locked`/);
+  const short = { ...data, crates: data.crates.slice(1) };
+  assert.match(listProblems(lockText, short, targets).join('\n'), /does not list exactly the crates of native\/Cargo\.lock/);
+  assert.match(listProblems(lockText, data, targets.slice(1)).join('\n'), /lists the release targets/);
+  const oldShape = structuredClone(data);
+  oldShape.crates[0].linked = 'none of x';
+  assert.match(listProblems(lockText, oldShape, targets).join('\n'), /"linked" is not a list of release targets/);
+});
+
+test('notices: the committed THIRD_PARTY_NOTICES.md is what the build writes, and names a licence for every crate', async () => {
+  const { noticesText, loadRegistry, loadLock, NOTICES } = await import('../../scripts/lib/build.mjs');
+  const committed = fs.readFileSync(path.join(REPO, NOTICES), 'utf8');
+  assert.equal(committed, noticesText(loadRegistry(), loadLock()));
+  assert.doesNotMatch(committed, /not recorded/);
+});
