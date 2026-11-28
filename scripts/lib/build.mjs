@@ -8,6 +8,8 @@ import { renderText, getHost } from './host.mjs';
 
 export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const CACHE = path.join(REPO_ROOT, '.cache', 'upstream');
+/** The notices file at the repo root, written by `npm run build` (writeNotices). */
+export const NOTICES = 'THIRD_PARTY_NOTICES.md';
 
 export function readJson(f) {
   return JSON.parse(fs.readFileSync(f, 'utf8'));
@@ -268,17 +270,17 @@ export function writeMarketplace(registry, lock, { root = REPO_ROOT } = {}) {
 function crateNotices(root) {
   const file = path.join(root, 'native', 'crate-licenses.json');
   if (!fs.existsSync(file)) return [];
-  const { crates, unresolvedTargets } = readJson(file);
+  const { crates, releaseTargets } = readJson(file);
   const linkedOn = (c) =>
-    Array.isArray(c.linked)
-      ? c.linked.length === 5
-        ? 'all release targets'
-        : c.linked.join(', ')
-      : `not on the resolved targets (${unresolvedTargets.length ? `${unresolvedTargets.join(', ')} not resolved offline; ` : ''}a test-only, build-time, Windows-only or other-platform crate)`;
+    c.linked.length === releaseTargets.length
+      ? 'all release targets'
+      : c.linked.length
+        ? c.linked.join(', ')
+        : 'no release target (a test-only, build-time or other-platform crate)';
   return [
     '## Rust crates in the dfw binary',
     '',
-    `Every crate of \`native/Cargo.lock\` (${crates.length}), with the licence its own manifest declares (\`cargo metadata\`, or the crate's Cargo.toml in the local cargo registry). Direct dependencies are marked. A licence that could not be read is listed as "not recorded"; it is never guessed. Regenerate with \`node scripts/crate-licenses.mjs\`.`,
+    `Every crate of \`native/Cargo.lock\` (${crates.length}), with the licence its own manifest declares (\`cargo metadata\` for each release target: ${releaseTargets.join(', ')}). Direct dependencies are marked. Regenerate with \`node scripts/crate-licenses.mjs\`.`,
     '',
     '| Crate | Version | License | Direct | Linked on |',
     '|---|---|---|---|---|',
@@ -287,7 +289,8 @@ function crateNotices(root) {
   ];
 }
 
-export function writeNotices(registry, lock, { root = REPO_ROOT } = {}) {
+/** The text of THIRD_PARTY_NOTICES.md, from the registry, the lock and native/crate-licenses.json. */
+export function noticesText(registry, lock, { root = REPO_ROOT } = {}) {
   const lines = [
     '# Third-party notices',
     '',
@@ -315,7 +318,11 @@ export function writeNotices(registry, lock, { root = REPO_ROOT } = {}) {
     '',
     ...crateNotices(root),
   );
-  fs.writeFileSync(path.join(root, 'THIRD_PARTY_NOTICES.md'), lines.join('\n'));
+  return lines.join('\n');
+}
+
+export function writeNotices(registry, lock, { root = REPO_ROOT } = {}) {
+  fs.writeFileSync(path.join(root, NOTICES), noticesText(registry, lock, { root }));
 }
 
 export function buildAll({ only, root = REPO_ROOT, outRoot } = {}) {

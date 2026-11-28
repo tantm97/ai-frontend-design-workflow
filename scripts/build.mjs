@@ -3,13 +3,13 @@
 //   node scripts/build.mjs            the Studio's injected bundles (build-overlay.mjs), then every
 //                                     plugin + marketplace.json + notices
 //   node scripts/build.mjs --only id  rebuild one plugin
-//   node scripts/build.mjs --check    rebuild into a temp dir and fail if committed plugins or the
-//                                     committed bundles differ
+//   node scripts/build.mjs --check    rebuild into a temp dir and fail if committed plugins, the
+//                                     committed bundles or THIRD_PARTY_NOTICES.md differ
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
-import { buildAll, REPO_ROOT, loadRegistry, listFiles, strayPlugins } from './lib/build.mjs';
+import { buildAll, REPO_ROOT, NOTICES, loadLock, loadRegistry, listFiles, noticesText, strayPlugins } from './lib/build.mjs';
 
 const args = process.argv.slice(2);
 const only = args.includes('--only') ? args[args.indexOf('--only') + 1].split(',') : undefined;
@@ -53,11 +53,17 @@ try {
           diffs.push(`${s.plugin}/${f}: content differs from a clean build`);
     }
     fs.rmSync(tmp, { recursive: true, force: true });
+    if (!only) {
+      const notices = path.join(REPO_ROOT, NOTICES);
+      const committed = fs.existsSync(notices) ? fs.readFileSync(notices, 'utf8') : null;
+      if (committed !== noticesText(loadRegistry(), loadLock()))
+        diffs.push(`${NOTICES}: ${committed === null ? 'missing' : 'content differs from a clean build'} (npm run build)`);
+    }
     if (diffs.length) {
       console.error(`Build check failed (${diffs.length}):\n${diffs.slice(0, 50).join('\n')}`);
       process.exit(1);
     }
-    console.log('Build check: committed plugins match a clean build from the lock.');
+    console.log(`Build check: committed plugins and ${NOTICES} match a clean build from the lock.`);
   } else {
     const res = buildAll({ only });
     if (!only) console.log('assembled dfw (core + adapters/claude-code + adapters/copilot)');

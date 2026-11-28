@@ -54,23 +54,42 @@ chmod 755 "$DEST"
 echo "  installed $DEST"
 
 # A "dfw" command on PATH for use outside Claude Code (Claude Code itself uses the plugin's bin/).
-# Only a link of dfw's own (into $HOME_DIR/bin/, or one whose target is gone) is replaced: another
-# "dfw" there (a file, or a link elsewhere) is the user's and stays.
+# Only a "dfw" of dfw's own is replaced: another "dfw" there (a file, or a link elsewhere) is the
+# user's and stays.
 LINK_DIR="$HOME/.local/bin"
-LINK="$LINK_DIR/dfw$EXT"
+LINK="$LINK_DIR/dfw"
 mkdir -p "$LINK_DIR"
 OURS=no
-if [ ! -e "$LINK" ] && [ ! -L "$LINK" ]; then
-  OURS=yes
-elif [ -L "$LINK" ]; then
-  case "$(readlink "$LINK")" in "$HOME_DIR/bin/"*) OURS=yes ;; esac
-  [ -e "$LINK" ] || OURS=yes
-fi
-if [ "$OURS" = yes ]; then
-  rm -f "$LINK"
-  ln -s "$DEST" "$LINK"
+if [ "$OS" = win32 ]; then
+  # Git Bash's "ln -s" copies the file unless Windows allows symbolic links, and a copy is not a
+  # link, so a later install could never replace it. A small script that runs the installed
+  # binary does the same job; its second line says it is dfw's.
+  MARK="# dfw: written by install.sh, replaced by the next install"
+  if [ ! -e "$LINK" ] && [ ! -L "$LINK" ]; then
+    OURS=yes
+  elif [ -f "$LINK" ] && [ "$(sed -n 2p "$LINK")" = "$MARK" ]; then
+    OURS=yes
+  fi
+  if [ "$OURS" = yes ]; then
+    QUOTED=$(printf '%s' "$DEST" | sed "s/'/'\\\\''/g")
+    printf '#!/bin/sh\n%s\nexec '"'"'%s'"'"' "$@"\n' "$MARK" "$QUOTED" > "$LINK"
+    chmod 755 "$LINK"
+  else
+    echo "  $LINK is not dfw's; left as it is. To use this dfw from a shell: add $DEST_DIR to PATH"
+  fi
 else
-  echo "  $LINK is not a dfw link; left as it is. To use this dfw from a shell: ln -sf \"$DEST\" \"$LINK\""
+  if [ ! -e "$LINK" ] && [ ! -L "$LINK" ]; then
+    OURS=yes
+  elif [ -L "$LINK" ]; then
+    case "$(readlink "$LINK")" in "$HOME_DIR/bin/"*) OURS=yes ;; esac
+    [ -e "$LINK" ] || OURS=yes
+  fi
+  if [ "$OURS" = yes ]; then
+    rm -f "$LINK"
+    ln -s "$DEST" "$LINK"
+  else
+    echo "  $LINK is not a dfw link; left as it is. To use this dfw from a shell: ln -sf \"$DEST\" \"$LINK\""
+  fi
 fi
 case ":$PATH:" in *":$LINK_DIR:"*) ;; *) echo "  add $LINK_DIR to PATH to run dfw from any shell" ;; esac
 
