@@ -182,6 +182,8 @@
     ),
     /** @type {HTMLElement | null} */
     hoverEl: null,
+    /** @type {{ x: number, y: number, exact: boolean } | null} the last pointer point in this frame (null: outside) */
+    pointer: null,
     /** @type {HTMLElement | null} */
     selected: null,
     /** @type {{ el: HTMLElement, id: string, orig: string } | null} text edit in progress */
@@ -408,6 +410,8 @@
     LAYOUT_VERIFY: "dfw:layout-verify",
     /** to frame: hover the layer at index `{ i }`. */
     LAYER_HOVER: "dfw:layer-hover",
+    /** to frame: the camera moved under a still pointer; hover again at the last pointer point p * k + (dx, dy) `{ k, dx, dy }`. */
+    HOVER_SHIFT: "dfw:hover-shift",
     /** to frame: select the layer at index `{ i }`. */
     LAYER_SELECT: "dfw:layer-select",
     /** to frame: select an element `{ dfwId, selector }`. */
@@ -1081,6 +1085,7 @@
   var hoverPayload = (t) => ({ rect: rectOf(t), label: labelOf(t), comp: !!t.dataset.dfwComponent });
   var raf = 0;
   function onMouseMove(e) {
+    st.pointer = { x: e.clientX, y: e.clientY, exact: exact(e) };
     if (st.midPan) return post(MSG.PAN, { phase: PHASE.MOVE, sx: e.screenX, sy: e.screenY });
     if (st.resize || st.drag) {
       if (!(e.buttons & 1)) return st.resize ? endResize(false) : endDrag(false);
@@ -1092,6 +1097,19 @@
     st.hoverEl = t;
     cancelAnimationFrame(raf);
     raf = requestAnimationFrame(() => post(MSG.HOVER, t ? hoverPayload(t) : { rect: null }));
+  }
+  function shiftHover({ k, dx, dy }) {
+    const p = st.pointer;
+    if (!p || !interactive() || st.editing || st.resize || st.drag) return;
+    const x = p.x * k + dx;
+    const y = p.y * k + dy;
+    const inside = x >= 0 && y >= 0 && x < innerWidth && y < innerHeight;
+    st.pointer = inside ? { ...p, x, y } : null;
+    const t = inside ? pick(document.elementFromPoint(x, y), p.exact) : null;
+    if (t === st.hoverEl) return;
+    st.hoverEl = t;
+    cancelAnimationFrame(raf);
+    post(MSG.HOVER, t ? hoverPayload(t) : { rect: null });
   }
   function onMouseDown(e) {
     const t = (
@@ -1218,6 +1236,7 @@
     document.addEventListener("mousemove", onMouseMove, capture);
     document.addEventListener("mouseleave", () => {
       st.hoverEl = null;
+      st.pointer = null;
       post(MSG.HOVER, { rect: null });
     });
     document.addEventListener("mousedown", onMouseDown, capture);
@@ -1545,6 +1564,7 @@
       const el = st.layerEls[d.i];
       post(MSG.HOVER, el ? { rect: rectOf(el), label: labelOf(el), comp: !!el.dataset.dfwComponent } : { rect: null });
     },
+    [MSG.HOVER_SHIFT]: shiftHover,
     [MSG.LAYER_SELECT]: (d) => {
       if (st.layerEls[d.i]) select(st.layerEls[d.i], { scroll: true });
     },

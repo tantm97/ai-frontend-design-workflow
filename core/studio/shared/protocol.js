@@ -24,6 +24,8 @@ export const MSG = Object.freeze({
   LAYOUT_VERIFY: 'dfw:layout-verify',
   /** to frame: hover the layer at index `{ i }`. */
   LAYER_HOVER: 'dfw:layer-hover',
+  /** to frame: the camera moved under a still pointer; hover again at the last pointer point p * k + (dx, dy) `{ k, dx, dy }`. */
+  HOVER_SHIFT: 'dfw:hover-shift',
   /** to frame: select the layer at index `{ i }`. */
   LAYER_SELECT: 'dfw:layer-select',
   /** to frame: select an element `{ dfwId, selector }`. */

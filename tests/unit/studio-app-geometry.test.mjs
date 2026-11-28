@@ -14,6 +14,7 @@ import {
   frameToScreen,
   layoutSections,
   nextZoom,
+  pointerShift,
   wheelCamera,
   zoomAtPoint,
 } from '../../core/studio/app/geometry.js';
@@ -131,6 +132,29 @@ test('studio-app-geometry: wheel pans (Shift: sideways), Ctrl/Cmd zooms at the p
 
 test('studio-app-geometry: a rectangle in a frame to window coordinates', () => {
   assert.deepEqual(frameToScreen({ x: 100, y: 200 }, [10, 20, 30, 40], { x: 5, y: 6, z: 0.5 }, { left: 240, top: 44 }), [300, 160, 15, 20]);
+});
+
+test('studio-app-geometry: after a zoom or pan, a still pointer is at the frame point that is under it now', () => {
+  const f = { x: 1840, y: 312 };
+  const vr = { left: 240, top: 44 };
+  const p = [211.5, 97.25];
+  const cams = [
+    { x: 10, y: 20, z: 1 },
+    { x: -1500, y: -90, z: 1.5 }, // a + key step
+    { x: 33.3, y: 7.7, z: 0.18 },
+    { x: -9000, y: -2400, z: 4 },
+    { x: -400, y: 50, z: 0.76 },
+  ];
+  for (const a of cams) {
+    for (const b of cams) {
+      const { k, dx, dy } = pointerShift(f, a, b);
+      const q = [p[0] * k + dx, p[1] * k + dy];
+      const [ax, ay] = frameToScreen(f, [p[0], p[1], 0, 0], a, vr);
+      const [bx, by] = frameToScreen(f, [q[0], q[1], 0, 0], b, vr);
+      assert.ok(Math.abs(ax - bx) < 1e-6 && Math.abs(ay - by) < 1e-6, `same screen point from z ${a.z} to z ${b.z}`);
+    }
+  }
+  assert.deepEqual(pointerShift(f, cams[0], cams[0]), { k: 1, dx: 0, dy: 0 }, 'no move, no shift');
 });
 
 test('studio-app-geometry: a frame grows to its whole document, a design system page of 46,000px too', () => {

@@ -1,14 +1,17 @@
 // @ts-check
 // Canvas and camera: pan and zoom only change the transform of the "world" element that holds every
 // frame (real-size iframes). Wheel, pinch, middle-drag and the hand tool move the camera.
-import { L, fitRect, nextZoom, wheelCamera, zoomAtPoint } from './geometry.js';
-import { $, S, viewport, world, ui } from './state.js';
+import { L, fitRect, nextZoom, pointerShift, wheelCamera, zoomAtPoint } from './geometry.js';
+import { $, S, frameByKey, post, viewport, world, ui } from './state.js';
 import { clearSelection, markSection, noteCameraMove, pageBounds, scheduleLoads } from './frames.js';
 import { updateHud } from './hud.js';
 import { MODE } from '#studio/shared/enums.js';
+import { MSG } from '#studio/shared/protocol.js';
 import { TEXT } from '#studio/shared/text.js';
 
 let rafCam = 0;
+/** @type {import('./geometry.js').Camera | null} the camera the world shows now */
+let shownCam = null;
 /** @type {ReturnType<typeof setTimeout> | undefined} */
 let settleT;
 /** The camera counts as still this long after its last move. */
@@ -28,6 +31,8 @@ export function applyCam() {
   rafCam = requestAnimationFrame(() => {
     const { x, y, z } = S.cam;
     world.style.transform = `translate(${x}px, ${y}px) scale(${z})`;
+    hoverUnderPointer(shownCam, S.cam);
+    shownCam = { ...S.cam };
     // A jump (fit, a page, a comment) is styled at once; a gesture keeps one layer until it stops.
     if (!world.classList.contains('moving')) zoomStyles(z);
     world.classList.add('moving');
@@ -38,6 +43,18 @@ export function applyCam() {
     updateHud();
     scheduleLoads();
   });
+}
+
+/**
+ * The world moved under a pointer that did not: the hovered frame hovers again at the pointer
+ * (its content slid under it), so the hover box shows what a click picks.
+ * @param {import('./geometry.js').Camera | null} a the camera before
+ * @param {import('./geometry.js').Camera} b the camera now
+ */
+function hoverUnderPointer(a, b) {
+  const f = S.hover && frameByKey(S.hover.key);
+  if (!a || !f || f.present || (a.x === b.x && a.y === b.y && a.z === b.z)) return;
+  post(f, { type: MSG.HOVER_SHIFT, ...pointerShift(f, a, b) });
 }
 
 let styledZ = 0;
