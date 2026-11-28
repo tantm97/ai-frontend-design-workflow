@@ -1,15 +1,10 @@
-// The decisions of the dfw bridge panel (core/studio/penpot/ui.js, a classic script the panel page
-// loads): when it updates the boards by itself, when it reads the session again, and whether
-// "Keep boards up to date automatically" starts checked.
+// The decisions of the dfw bridge panel (core/studio/penpot/ui.js, the module the panel page
+// imports): when it updates the boards by itself, when it reads the session again, whether
+// "Keep boards up to date automatically" starts checked, and what it says about the AI.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const code = fs.readFileSync(path.join(HERE, '../../core/studio/penpot/ui.js'), 'utf8');
-const panel = new Function(`${code}\nreturn dfwPanel;`)();
+import { dfwPanel as panel } from '#studio/penpot/ui.js';
+import { TEXT } from '#studio/shared/text.js';
 
 /** Boards built from px_1, the design changed after the export and has been quiet for 12 s. */
 const due = {
@@ -59,4 +54,12 @@ test('penpot panel: the box starts on for a Penpot project, unless the user chos
   assert.equal(panel.autoDefault(undefined, undefined), false, 'an older Studio sends no canvas');
   assert.equal(panel.autoDefault('0', 'penpot'), false);
   assert.equal(panel.autoDefault('1', 'studio'), true);
+});
+
+test('penpot panel: the AI is listening, working or not listening, in the words of the Studio', () => {
+  assert.equal(panel.agentHtml({ listening: true, working: false }), TEXT.listeningHtml);
+  assert.equal(panel.agentHtml({ listening: false, working: true }), TEXT.workingHtml);
+  assert.equal(panel.agentHtml({ listening: false, working: false }), TEXT.notListeningHtml);
+  assert.equal(panel.agentHtml({ listening: false }), TEXT.notListeningHtml, 'an older Studio sends no working');
+  assert.equal(panel.agentHtml(null), TEXT.notListeningHtml);
 });

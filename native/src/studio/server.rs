@@ -413,8 +413,9 @@ fn asset(rel: &str, content_type: &str) -> Option<Response> {
 }
 
 /// `{ listening, working }`: whether a sent comment wakes the agent now, and when not, whether
-/// it is still working on comments it was given. Reads only (a GET writes nothing).
-fn listener_body(root: &Path) -> Result<Value, DfwError> {
+/// it is still working on comments it was given. Reads only (a GET writes nothing). The listening
+/// route answers it; the Penpot panel's sync answer carries the same keys.
+pub(crate) fn listener_body(root: &Path) -> Result<Value, DfwError> {
     let state = listener(root)?;
     Ok(json!({
         (key::LISTENING): state == Listener::Listening,
@@ -1008,10 +1009,10 @@ mod tests {
             r#"{"fileId":"f","threads":[]}"#,
         );
         let answer: Value = serde_json::from_str(quiet.split_once(END_OF_HEAD).unwrap().1).unwrap();
-        assert_eq!(answer["listening"], false, "{answer}");
+        assert_eq!(answer[key::LISTENING], false, "{answer}");
+        assert_eq!(answer[key::WORKING], false, "{answer}");
         assert_eq!(answer["exportId"], doc["id"], "{answer}");
         assert!(answer.get("quietMs").is_some(), "{answer}");
-
         // A GET only reads: with no export on disk it is a 404 and nothing is written.
         let export = root.join(rel::PENPOT_EXPORT);
         let _ = std::fs::remove_file(&export);
@@ -1021,6 +1022,60 @@ mod tests {
             "{r}"
         );
         assert!(!export.exists());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// the panel's sync answer says what the Studio's listening route says: an agent given a
+    /// comment it has not finished is working
+    #[test]
+    fn the_penpot_sync_answers_like_the_listening_route() {
+        let root = fixture();
+        let (port, studio) = start(&root);
+        let raw = |method: &str, path: &str, extra: &str, body: &str| {
+            call_bytes(
+                port,
+                format!(
+                    "{method} {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n{extra}Content-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}",
+                    body.len()
+                )
+                .as_bytes(),
+            )
+        };
+        let panel = format!(
+            "x-dfw-bridge: {}\r\nSec-Fetch-Site: same-origin\r\nOrigin: http://127.0.0.1:{port}\r\n",
+            studio.penpot_token
+        );
+        let doc = crate::penpot::export::tests::fixture_export();
+        crate::penpot::export::tests::with_export(&root, &doc, "changes.json");
+        let answer = |path: &str, extra: &str, method: &str, body: &str| -> Value {
+            let r = raw(method, path, extra, body);
+            serde_json::from_str(r.split_once(END_OF_HEAD).unwrap().1).unwrap()
+        };
+        let sync = || {
+            answer(
+                &penpot(route::SYNC),
+                &panel,
+                method::POST,
+                r#"{"fileId":"f","threads":[]}"#,
+            )
+        };
+        let quiet = sync();
+        assert_eq!(quiet[key::LISTENING], false, "{quiet}");
+        assert_eq!(quiet[key::WORKING], false, "{quiet}");
+        crate::review::comments::add_comment(
+            &root,
+            &json!({ (crate::review::status::field::COMMENT): "Bigger" }),
+        )
+        .unwrap();
+        crate::review::inbox::take_undelivered(&root, false).unwrap();
+        let busy = sync();
+        assert_eq!(busy[key::LISTENING], false, "{busy}");
+        assert_eq!(busy[key::WORKING], true, "{busy}");
+        let listening = answer(paths::LISTENING, "", method::GET, "");
+        assert_eq!(
+            listening,
+            json!({ (key::LISTENING): false, (key::WORKING): true })
+        );
         let _ = std::fs::remove_dir_all(&root);
     }
 

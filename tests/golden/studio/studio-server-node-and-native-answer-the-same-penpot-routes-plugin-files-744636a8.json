@@ -93,7 +93,7 @@
       "status": 200,
       "type": "application/json; charset=utf-8",
       "cache": "no-store",
-      "body": "{\"comments\":[\"fb_007\"],\"updated\":[],\"replies\":[],\"stale\":true,\"warnings\":[],\"exportId\":\"px_20261116100000_fe69fbf2\",\"quietMs\":\"<ms>\",\"listening\":false}"
+      "body": "{\"comments\":[\"fb_007\"],\"updated\":[],\"replies\":[],\"stale\":true,\"warnings\":[],\"exportId\":\"px_20261116100000_fe69fbf2\",\"quietMs\":\"<ms>\",\"listening\":false,\"working\":false}"
     },
     {
       "status": 403,

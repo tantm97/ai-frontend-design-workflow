@@ -14,7 +14,7 @@ use serde_json::{json, Value};
 
 use super::api::mime;
 use super::http::{method, query_param, status, LOOPBACK};
-use super::server::{Request, Response, Studio, JSON};
+use super::server::{listener_body, Request, Response, Studio, JSON};
 use crate::assets::{studio_file, studio_text};
 use crate::core::config::{global_config_path, project_canvas};
 use crate::core::error::DfwError;
@@ -24,7 +24,6 @@ use crate::penpot::export::{export_penpot, ExportOptions};
 use crate::penpot::import::{format_import_changes, import_changes, ImportOptions};
 use crate::penpot::live::sync_threads;
 use crate::penpot::wire;
-use crate::review::inbox::is_listening;
 use crate::review::status::field as comment;
 use crate::studio::paths;
 use crate::workflow::state::load_state;
@@ -287,8 +286,13 @@ pub fn route(studio: &Studio, req: &Request) -> Result<Response, DfwError> {
             if count(wire::COMMENTS) > 0 || count(wire::UPDATED) > 0 {
                 studio.clients.broadcast("comments", &json!({}));
             }
-            // The panel shows whether an agent waits for the comments it sends.
-            r[wire::report::LISTENING] = is_listening(&studio.root).into();
+            // The panel shows what the send bar of the Studio shows: whether an agent waits for
+            // the comments it sends, and when not, whether it still works on earlier ones.
+            if let (Some(answer), Value::Object(listener)) =
+                (r.as_object_mut(), listener_body(&studio.root)?)
+            {
+                answer.extend(listener);
+            }
             Response::json(status::OK, &r)
         }
         _ => Response::not_found(),
