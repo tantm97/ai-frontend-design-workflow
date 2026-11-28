@@ -6,6 +6,7 @@ import { labelOf, rectOf } from './target.js';
 import { buildLayers, navLayer } from './layers.js';
 import { endEdit, startEdit } from './edit.js';
 import { reportPins, select } from './select.js';
+import { shiftHover } from './events.js';
 import { layoutKey, placeHandles } from './layout.js';
 import { verifyLayout } from './verify.js';
 import { softReload } from './update.js';
@@ -63,6 +64,7 @@ const ON = {
     const el = st.layerEls[d.i];
     post(MSG.HOVER, el ? { rect: rectOf(el), label: labelOf(el), comp: !!el.dataset.dfwComponent } : { rect: null });
   },
+  [MSG.HOVER_SHIFT]: shiftHover,
   [MSG.LAYER_SELECT]: (d) => {
     if (st.layerEls[d.i]) select(st.layerEls[d.i], { scroll: true });
   },

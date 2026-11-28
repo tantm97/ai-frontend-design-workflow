@@ -20,6 +20,7 @@ const hoverPayload = (/** @type {HTMLElement} */ t) => ({ rect: rectOf(t), label
 
 let raf = 0;
 function onMouseMove(/** @type {MouseEvent} */ e) {
+  st.pointer = { x: e.clientX, y: e.clientY, exact: exact(e) };
   if (st.midPan) return post(MSG.PAN, { phase: PHASE.MOVE, sx: e.screenX, sy: e.screenY });
   if (st.resize || st.drag) {
     if (!(e.buttons & 1)) return st.resize ? endResize(false) : endDrag(false); // released outside the frame
@@ -31,6 +32,25 @@ function onMouseMove(/** @type {MouseEvent} */ e) {
   st.hoverEl = t;
   cancelAnimationFrame(raf);
   raf = requestAnimationFrame(() => post(MSG.HOVER, t ? hoverPayload(t) : { rect: null }));
+}
+
+/**
+ * The camera moved under a still pointer (the Studio sends where the last pointer point is now):
+ * hover what is under it, or nothing once it is outside this frame.
+ * @param {{ k: number, dx: number, dy: number }} d
+ */
+export function shiftHover({ k, dx, dy }) {
+  const p = st.pointer;
+  if (!p || !interactive() || st.editing || st.resize || st.drag) return;
+  const x = p.x * k + dx;
+  const y = p.y * k + dy;
+  const inside = x >= 0 && y >= 0 && x < innerWidth && y < innerHeight;
+  st.pointer = inside ? { ...p, x, y } : null;
+  const t = inside ? pick(document.elementFromPoint(x, y), p.exact) : null;
+  if (t === st.hoverEl) return;
+  st.hoverEl = t;
+  cancelAnimationFrame(raf);
+  post(MSG.HOVER, t ? hoverPayload(t) : { rect: null });
 }
 
 function onMouseDown(/** @type {MouseEvent} */ e) {
@@ -154,6 +174,7 @@ export function listenInput() {
   document.addEventListener('mousemove', onMouseMove, capture);
   document.addEventListener('mouseleave', () => {
     st.hoverEl = null;
+    st.pointer = null;
     post(MSG.HOVER, { rect: null });
   });
   document.addEventListener('mousedown', onMouseDown, capture);

@@ -14,6 +14,7 @@ import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { setTimeout as delay } from 'node:timers/promises';
+import { STEPS as STEP_ZOOMS } from '../../core/studio/app/geometry.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const DFW = process.env.DFW_BIN
@@ -498,6 +499,92 @@ try {
     ['height', selBox.height - 2, elBox.height],
   ])
     assert.ok(Math.abs(a - b) < 1.5, `selection box ${k} ${a} matches the element's ${b}`);
+
+  // Zoom sweep: at every zoom step from zoom-to-selection down, and at the odd zooms of Ctrl-wheel,
+  // the selection box sits on the element (1px) and a click at the element's centre picks it.
+  const cta = frame.locator('[data-dfw-id="home.cta"]');
+  const camZ = () => page.evaluate(() => window.__dfwStudio.cam.z);
+  const zoomed = async (z) => {
+    await page.waitForFunction((z) => window.__dfwStudio.cam.z !== z, z);
+    await painted();
+  };
+  /** The selection box (drawn 1px outside the element) against the element's real rect in the page. */
+  const selOffset = async (loc) => {
+    const e = await loc.boundingBox();
+    const s = await page.locator('#sel-box').boundingBox();
+    return Math.max(Math.abs(s.x + 1 - e.x), Math.abs(s.y + 1 - e.y), Math.abs(s.width - 2 - e.width), Math.abs(s.height - 2 - e.height));
+  };
+  const clickCentre = async (loc) => {
+    const e = await loc.boundingBox();
+    await page.mouse.click(e.x + e.width / 2, e.y + e.height / 2);
+    await page.waitForFunction(() => window.__dfwStudio.sel?.own?.id === 'home.cta');
+    await painted();
+  };
+  let z = await camZ();
+  await page.keyboard.press('Shift+2');
+  await zoomed(z);
+  const sweep = [];
+  for (let i = 0; i < 9; i++) {
+    z = await camZ();
+    sweep.push(z);
+    assert.ok((await selOffset(cta)) < 1, `selection box on the element at zoom ${z}`);
+    await clickCentre(cta);
+    assert.ok((await selOffset(cta)) < 1, `a click at the centre at zoom ${z} selects the element under it`);
+    await page.keyboard.press('-');
+    await zoomed(z);
+  }
+  for (const dy of [7, -13, 5, -3]) {
+    const e = await cta.boundingBox();
+    z = await camZ();
+    await page.mouse.move(e.x + e.width / 2, e.y + e.height / 2);
+    await page.keyboard.down('Control');
+    for (let i = 0; i < 3; i++) await page.mouse.wheel(0, dy);
+    await page.keyboard.up('Control');
+    await zoomed(z);
+    z = await camZ();
+    sweep.push(z);
+    assert.ok((await selOffset(cta)) < 1, `selection box on the element after Ctrl-wheel to zoom ${z}`);
+    await clickCentre(cta);
+  }
+  assert.ok(
+    sweep.some((v) => v >= 3) && sweep.some((v) => v <= 0.25) && sweep.some((v) => !STEP_ZOOMS.includes(v)),
+    `zooms swept: ${sweep}`,
+  );
+  // A zoom under a still pointer: the content slides under it with no mousemove in the frame. The
+  // hover box follows what is under the pointer (what a click picks), not the element it was on.
+  // From the CTA centred at zoom 1, the title is above the centre: zooming in moves it up and away.
+  z = await camZ();
+  await page.keyboard.press('Shift+2');
+  await zoomed(z);
+  while ((z = await camZ()) > 1) {
+    await page.keyboard.press('-');
+    await zoomed(z);
+  }
+  const title = frame.locator('[data-dfw-id="home.title"]');
+  const tb = await title.boundingBox();
+  const at = { x: tb.x + tb.height, y: tb.y + tb.height / 2 }; // on its first word (the heading is as wide as the page)
+  await page.mouse.move(at.x, at.y);
+  await page.waitForFunction(() => window.__dfwStudio.hover?.label?.includes('home.title'));
+  for (let i = 0; i < 3; i++) {
+    z = await camZ();
+    await page.keyboard.press('=');
+    await zoomed(z);
+  }
+  await page.waitForFunction(() => !window.__dfwStudio.hover?.label?.includes('home.title'), null, { timeout: 3000 }).catch(() => {});
+  const inBox = (b) => !!b && b.x <= at.x && at.x <= b.x + b.width && b.y <= at.y && at.y <= b.y + b.height;
+  assert.equal(inBox(await title.boundingBox()), false, 'the zoom moved the title out from under the pointer');
+  const hb = await page.locator('#hover-box').boundingBox();
+  assert.ok(inBox(hb), `the hover box is under the pointer after a zoom (box ${JSON.stringify(hb)}, pointer ${at.x},${at.y})`);
+  const under = await page.evaluate(() => window.__dfwStudio.hover?.label);
+  await page.mouse.click(at.x, at.y);
+  await page.waitForFunction((l) => window.__dfwStudio.sel?.label === l, under);
+  if (shotsDir) {
+    await page.mouse.move(at.x, at.y + 1);
+    await page.waitForFunction(() => !document.querySelector('#world').classList.contains('moving')); // zoom styles settle
+    await page.screenshot({ path: path.join(shotsDir, 'studio-5b-zoomed-selection.png') });
+  }
+  await page.keyboard.press('Shift+2');
+  await painted();
 
   // Direct text edit writes back to the source; Cmd/Ctrl+Z undoes it.
   const src = path.join(tmp, 'design/screens/home/a.html');

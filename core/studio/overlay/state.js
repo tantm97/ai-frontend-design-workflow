@@ -11,6 +11,8 @@ export const st = {
   mode: /** @type {import('../shared/enums.js').Mode} */ (MODE.SELECT),
   /** @type {HTMLElement | null} */
   hoverEl: null,
+  /** @type {{ x: number, y: number, exact: boolean } | null} the last pointer point in this frame (null: outside) */
+  pointer: null,
   /** @type {HTMLElement | null} */
   selected: null,
   /** @type {{ el: HTMLElement, id: string, orig: string } | null} text edit in progress */

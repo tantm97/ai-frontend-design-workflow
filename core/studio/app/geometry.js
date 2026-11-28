@@ -193,3 +193,21 @@ export function frameToScreen(f, r, cam, vr) {
   const { x, y, z } = cam;
   return [(f.x + r[0]) * z + x + vr.left, (f.y + r[1]) * z + y + vr.top, r[2] * z, r[3] * z];
 }
+
+/**
+ * Where a pointer that did not move is in a frame after the camera moved from `a` to `b`: the frame
+ * point p is now p * k + (dx, dy). The frame gets no mousemove while its content slides under a
+ * still pointer, so the overlay hovers again at that point (else the hover box stays on the element
+ * the pointer was over before the zoom, and a click picks another one).
+ * @param {{ x: number, y: number }} f frame position in the world
+ * @param {Camera} a
+ * @param {Camera} b
+ * @returns {{ k: number, dx: number, dy: number }}
+ */
+export function pointerShift(f, a, b) {
+  return {
+    k: a.z / b.z,
+    dx: (f.x * (a.z - b.z) + a.x - b.x) / b.z,
+    dy: (f.y * (a.z - b.z) + a.y - b.y) / b.z,
+  };
+}
