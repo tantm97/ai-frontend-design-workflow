@@ -1,7 +1,8 @@
 // @ts-check
 // Comments: the list in the right panel, the composer (click an element, write, save), status
 // actions (resolve, reopen, dismiss) and live status updates from the agent.
-import { ACTIVE, canReply, commentLabel, esc, inFilter, isDraft, listenerState } from './model.js';
+import { ACTIVE, canReply, commentLabel, esc, inFilter, isDraft } from './model.js';
+import { listenerHtml, listenerState } from '#studio/shared/listener.js';
 import { $, $$, ALL, P, PKEY, S, post, postAll, toast, ui } from './state.js';
 import { renderPages, selectFrame, setPage } from './frames.js';
 import { zoomToRect } from './canvas.js';
@@ -225,13 +226,6 @@ export function setTab(tab, { quiet = false } = {}) {
   $('#tab-comments').hidden = tab !== TAB.COMMENTS;
 }
 
-/** What the send bar says in each listener state (markup: `<b>` names the state). */
-const LISTENER_HTML = new Map([
-  [LISTENER.LISTENING, TEXT.listeningHtml],
-  [LISTENER.WORKING, TEXT.workingHtml],
-  [LISTENER.OFF, TEXT.notListeningHtml],
-]);
-
 /** The drafts count on the Send button and whether the agent listens (dfw comments wait), works, or neither. */
 export function renderSendBar() {
   const drafts = S.comments.filter(isDraft).length;
@@ -242,7 +236,7 @@ export function renderSendBar() {
   // Patched only on a change: a poll every few seconds must not re-announce the status line.
   if (listen.dataset.on !== S.listener) {
     listen.dataset.on = S.listener;
-    listen.innerHTML = LISTENER_HTML.get(S.listener) || TEXT.notListeningHtml;
+    listen.innerHTML = listenerHtml(S.listener);
   }
   $('#listen-copy').hidden = S.listener !== LISTENER.OFF;
 }

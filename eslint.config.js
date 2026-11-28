@@ -144,8 +144,8 @@ export default [
   },
   {
     // Runs in Penpot's plugin sandbox as a classic script; `penpot` (the plugin API) is declared in the file.
-    // ui.js is the panel's classic script, loaded by ui.html; it defines one global, `dfwPanel`.
-    files: ['core/studio/penpot/plugin.js', 'core/studio/penpot/ui.js'],
+    // The panel's ui.js is an ES module (ui.html imports it), linted as one like the Studio code.
+    files: ['core/studio/penpot/plugin.js'],
     languageOptions: { sourceType: 'script' },
   },
   {

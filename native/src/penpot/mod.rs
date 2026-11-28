@@ -275,8 +275,6 @@ pub(crate) mod wire {
         pub(crate) const STALE: &str = "stale";
         /// Milliseconds since the newest design file changed (the live sync).
         pub(crate) const QUIET_MS: &str = "quietMs";
-        /// Whether an agent waits for comments (the live sync, added by the Studio).
-        pub(crate) const LISTENING: &str = "listening";
     }
 
     /// The keys of `.dfw/state.json` the bridge reads.

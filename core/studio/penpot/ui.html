@@ -17,6 +17,7 @@
   label { display: flex; gap: 6px; align-items: center; margin: 6px 0; color: var(--muted); }
   input[type=text] { font: inherit; width: 100%; box-sizing: border-box; padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--ink); }
   pre { white-space: pre-wrap; word-break: break-word; font: 12px/1.4 ui-monospace, monospace; margin: 8px 0 0; max-height: 180px; overflow: auto; }
+  p b { color: var(--ink); }
   .err { color: var(--err); }
   .row { display: flex; gap: 6px; flex-wrap: wrap; }
 </style>
@@ -53,9 +54,9 @@
   </div>
 </section>
 <pre id="log" aria-live="polite"></pre>
-<script src="/__dfw/penpot/ui.js"></script>
-<script>
-  /* global dfwPanel */
+<script type="importmap">{ "imports": { "#studio/": "/__dfw/static/" } }</script>
+<script type="module">
+  import { dfwPanel } from '/__dfw/penpot/ui.js';
   const log = (t, err) => {
     const el = document.getElementById('log');
     el.textContent = t;
@@ -202,7 +203,15 @@
       posted = [];
       const built = Boolean(data.exportId);
       document.getElementById('stale').hidden = !res.stale || (autoBox.checked && built);
-      say('agent', res.listening ? 'The AI is listening: your comments and sent changes reach it at once.' : 'The AI is not listening: your comments are kept and reach it with your next message.');
+      // The same three states and words as the Studio's send bar (constant markup), patched only
+      // on a change: a sync every few seconds must not re-announce it.
+      const agent = document.getElementById('agent');
+      const html = dfwPanel.agentHtml(res);
+      if (agent.dataset.html !== html) {
+        agent.dataset.html = html;
+        agent.innerHTML = html;
+      }
+      agent.hidden = false;
       if (isLive()) {
         const news = [res.comments.length ? `${res.comments.length} new (${res.comments.join(', ')})` : '', res.updated.map((u) => `${u.id} ${u.status}`).join(', ')].filter(Boolean).join('; ');
         liveStatus(`Live: ${threads.length} thread(s) on dfw boards, checked ${new Date().toLocaleTimeString()}${news ? `. ${news}` : ''}`);
