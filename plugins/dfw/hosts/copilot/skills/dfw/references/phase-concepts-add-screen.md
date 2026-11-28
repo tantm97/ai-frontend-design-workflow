@@ -17,8 +17,8 @@ Use this whenever the user asks for a screen while screens already exist (during
 
 ## 2. Blueprint first
 
-- **Add it with `dfw screen add`.** `dfw screen add <id> --page <page> --after <previous screen> --from <screens that open it> --title "<title>" --route <route>` puts it in the page right after `--after` (else at the end of the page), adds its manifest entry, and writes a skeleton framed like its sibling (same `app-shell` variant and `current`). It never edits the `--from` screens: it lists the files to link from.
-- **Write its blueprint** in its `screens[]` entry: goal, primaryAction, layout, regions, aboveFold, data, feedback (`references/phase-concepts.md` step 2). Use the same layout pattern as the screens around it doing the same kind of job (`references/layout-patterns.md` rule 5). Declare its `states`.
+- **Add it with `dfw screen add`.** `dfw screen add <id> --page <page> --after <previous screen> --from <screens that open it> --title "<title>" --route <route>` puts it in the page right after `--after` (else at the end of the page), adds its manifest entry (variant `a`, and the blueprint `layout` of the nearest sibling that has one), and writes the skeleton `design/screens/<id>/a.html` framed like its sibling (same `app-shell` variant and `current`). It never edits the `--from` screens: it lists the files to link from.
+- **Write its blueprint** in its `screens[]` entry: goal, primaryAction, layout, regions, aboveFold, data, feedback (`references/phase-concepts.md` step 2). Check the copied `layout`: use the pattern of the screens doing the same kind of job (`references/layout-patterns.md` rule 5). Declare its `states`.
 - **Show it** with `dfw blueprint <id>` and get the user's OK together with the place.
 
 ## 3. Reuse before adding

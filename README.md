@@ -67,7 +67,7 @@ Also used, pinned and unmodified:
 
 | Item | Source | Use |
 |---|---|---|
-| Knowledge | [vercel-labs/web-interface-guidelines](https://github.com/vercel-labs/web-interface-guidelines) (MIT) | `references/web-interface-guidelines.md`, read in concepts, review and implement |
+| Knowledge | [vercel-labs/web-interface-guidelines](https://github.com/vercel-labs/web-interface-guidelines) (MIT) | `references/web-interface-guidelines.md` (interactions), `-visual.md` (concepts and review) and `-performance.md` (implement and verify), split by phase |
 | Tool | [axe-core](https://github.com/dequelabs/axe-core) 4.14.0 (MPL-2.0) | Downloaded once by `dfw setup --a11y` with its npm integrity hash checked; injected into rendered screens by `dfw check` |
 | Code | [pixelmatch](https://github.com/mapbox/pixelmatch) 8.0.0 (ISC) | Ported into the binary for `dfw diff` (`native/src/browser/pixeldiff.rs`); the original is kept in `core/assets/vendor/pixelmatch.js` |
 | Data | [Lucide](https://github.com/lucide-icons/lucide) icons (ISC) | The icon set of `dfw icons`, embedded in the binary (`core/assets/icons/`) |

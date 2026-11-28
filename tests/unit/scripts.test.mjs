@@ -35,6 +35,30 @@ test('knowledge: vendored file keeps the upstream text byte for byte between mar
   for (const k of reg.knowledge) assert.match(k.commit, /^[0-9a-f]{40}$/);
 });
 
+test('knowledge: parts split the upstream text at its sections and join back byte for byte', async () => {
+  const { splitParts, joinParts } = await import('../../scripts/knowledge.mjs');
+  const body = 'Intro.\n\n## A\n- a\n\n## B\n- b\n\n## C\n- c\n';
+  const k = {
+    id: 'x',
+    sections: ['A', 'B', 'C'],
+    parts: [{ sections: ['A', 'C'] }, { sections: ['B'] }],
+  };
+  const parts = splitParts(k, body);
+  assert.equal(parts[0].body, 'Intro.\n\n## A\n- a\n\n## C\n- c\n');
+  assert.equal(parts[1].body, '## B\n- b\n\n');
+  assert.equal(
+    joinParts(
+      k,
+      parts.map((p) => p.body),
+    ),
+    body,
+  );
+  assert.equal(joinParts(k, [parts[0].body, 'Stray.\n' + parts[1].body]), null, 'text before a later part is refused');
+  assert.equal(joinParts(k, [parts[0].body, '']), null, 'a missing section is refused');
+  assert.throws(() => splitParts({ ...k, sections: ['A', 'B'] }, body), /upstream sections are now A, B, C/);
+  assert.throws(() => splitParts({ ...k, parts: [{ sections: ['A', 'B'] }] }, body), /exactly one part/);
+});
+
 test('overlay: the hooks reference is a short "not available" note and context is bounded', () => {
   const skillDir = path.join(REPO, 'plugins/impeccable/skills/impeccable');
   const hooks = fs.readFileSync(path.join(skillDir, 'reference/hooks.md'), 'utf8');

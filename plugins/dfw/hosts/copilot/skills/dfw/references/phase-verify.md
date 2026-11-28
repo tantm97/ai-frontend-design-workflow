@@ -4,11 +4,11 @@ Goal: evidence that the implementation matches the approved design and quality f
 
 1. Run the app locally (ask the user for the command if unknown). Spawn `visual-reviewer` with: the approved version, the list of screens with their routes (handoff section 1), breakpoints, and the dev server URL.
 2. The reviewer produces, per screen and breakpoint:
-   - design screenshot (`dfw shoot --screen <id> --variant <approved>`) vs implementation screenshot (`dfw shoot --url <route> --out .dfw/shots/impl/<screen>__{bp}.png`), and a side-by-side assessment (layout, spacing, typography, color, components, states);
-   - `dfw check --url <route>` (Impeccable rendered rules, and axe on the live page, which also clicks stateful controls: `dead-control` = a toggle/tab/sort that announces a state but changes nothing) and dfw lint on changed CSS;
+   - design screenshot (`dfw shoot --screen <id> --variant <approved>`, with the Studio running: `dfw studio start`) vs implementation screenshot (`dfw shoot --url <app url of the route> --out .dfw/shots/impl/<screen>__{bp}.png`), and a side-by-side assessment (layout, spacing, typography, color, components, states);
+   - `dfw check --url <app url of the route>` (Impeccable rendered rules, and axe on the live page, which also clicks stateful controls: `dead-control` = a toggle/tab/sort that announces a state but changes nothing) and dfw lint on changed CSS;
    - `dfw diff <design.png> <impl.png> --out .dfw/shots/diff/<screen>__<bp>.png` for each pair: the percentage and the red areas show where to look first. It is triage, not a verdict (real data and font rendering always differ);
-   - optional, only when the user agrees (one-time ~20 MB download through npx): `dfw check --url <route> --lighthouse` for performance, best practices and SEO scores;
-   - `references/web-interface-guidelines.md` Performance and Hydration sections against the implementation;
+   - optional, only when the user agrees (one-time ~20 MB download through npx): `dfw check --url <app url of the route> --lighthouse` for performance, best practices and SEO scores;
+   - `references/web-interface-guidelines-performance.md` (Performance and Hydration) against the implementation;
    - accessibility: keyboard path through the main workflow, focus visibility, contrast, target sizes, labels;
    - token discipline: no hard-coded colors/sizes in changed files;
    - interactions from the handoff section 4.

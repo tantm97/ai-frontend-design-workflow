@@ -1,6 +1,6 @@
 # Layout patterns (no overlap, no voids, no drifting feedback)
 
-Every screen = `app-shell` (one frame for the product) + `page` (one of three layout behaviours) + components. Screens never invent their own frame, paddings or scrolling.
+Every screen = `app-shell` (one frame for the product) + `page` (one of three layout behaviours) + components. Screens never invent their own frame, paddings or scrolling. `app-shell` and `page` are the product's own masters; `dfw system ref page` and `dfw system ref app-shell` show the reference variants (`flow task split`, `sidebar focus`) to design them from.
 
 | Pattern | `page` variant | Use for | Behaviour |
 |---|---|---|---|
@@ -17,5 +17,5 @@ Every screen = `app-shell` (one frame for the product) + `page` (one of three la
 6. **Feedback placement is part of the blueprint.** Decide per screen: anchored panel (task), inline banner (flow), toast (background) — and whether it persists until dismissed (errors at a counter: yes).
 
 ## Self-calibration loop (automatic)
-- The Stop hook re-renders every screen whose file, masters or tokens changed (all breakpoints, states, stress) and blocks once with the findings. Fix them in the masters or the page variant first, then `dfw layout check --changed`.
+- The Stop hook re-renders every screen whose file, masters or tokens changed (all breakpoints, states, stress) and blocks once with the MUST findings and the void, consistency and clipped ones (when a browser is installed and `checks.layoutOnStop` is not `false`). Fix them in the masters or the page variant first, then `dfw layout check --changed`.
 - Run `dfw layout check --states` before presenting any page and before every gate.

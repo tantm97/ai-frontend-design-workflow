@@ -3,7 +3,7 @@
 The user must never see a first draft. Every design-system page and every page of screens goes through **two critique rounds** before it is shown: render → score → fix → render → score → fix.
 
 ## Loop
-1. Render: `dfw shoot --system` or `dfw shoot --page <id> --states` (primary breakpoint + smallest one).
+1. Render (with the Studio running: `dfw studio start`): `dfw shoot --system` or `dfw shoot --page <id> --states --bp <primary>,<smallest>` (without `--bp` every breakpoint is shot).
 2. First, a 5-second look at each screen as a newcomer: what is this screen for, and what would you click first? If either answer is wrong or slow, that is problem number one. Then read every screenshot. Score each criterion (0-10 rows) 0-2 (0 = fails, 1 = acceptable, 2 = strong). Write the scores and the 3 worst problems in one short block (for yourself; not to the user unless asked).
 3. Fix the 3 worst problems, preferring design-system fixes (token or master) over per-screen fixes.
    Report what you could not verify (a check that did not run, a state you did not render) as not verified, never as fine.

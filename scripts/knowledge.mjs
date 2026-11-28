@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Vendored knowledge files (registry/skills.json "knowledge"): one upstream file pinned to a commit,
-// verified by sha256, wrapped with attribution + license, and loaded by dfw only in the phases that need it.
+// verified by sha256, split at its "## " headings into parts (one reference file each, so a phase
+// loads only what it needs), each wrapped with attribution + license.
 //   sync                 re-download every entry at its pinned commit and rewrite its reference file
 //   check                compare each pin with the upstream default branch (no changes)
 //   bump <id> [--to sha] move one entry to a new commit (prints the new sha256; review the diff, then commit)
@@ -43,12 +44,55 @@ export function unwrap(text) {
   return m ? m[1] : null;
 }
 
+/** Markdown split at its "## " headings: the text before the first one, then each section in order. */
+export function sections(body) {
+  const at = [...body.matchAll(/^## (.+)$/gm)];
+  const end = (i) => (i + 1 < at.length ? at[i + 1].index : body.length);
+  return {
+    pre: body.slice(0, at.length ? at[0].index : body.length),
+    list: at.map((m, i) => ({ heading: m[1], text: body.slice(m.index, end(i)) })),
+  };
+}
+
+/** The upstream text of each part: its sections in upstream order, the first part also the preamble. */
+export function splitParts(k, body) {
+  const { pre, list } = sections(body);
+  const headings = list.map((s) => s.heading);
+  if (headings.join('\n') !== k.sections.join('\n'))
+    throw new Error(`${k.id}: upstream sections are now ${headings.join(', ')}; update "sections" and "parts" in registry/skills.json`);
+  const assigned = k.parts.flatMap((p) => p.sections);
+  if (assigned.length !== headings.length || headings.some((h) => !assigned.includes(h)))
+    throw new Error(`${k.id}: every section must be in exactly one part`);
+  return k.parts.map((p, i) => ({
+    part: p,
+    body:
+      (i === 0 ? pre : '') +
+      list
+        .filter((s) => p.sections.includes(s.heading))
+        .map((s) => s.text)
+        .join(''),
+  }));
+}
+
+/** The upstream text put back together from the parts' bodies, or null when a part is out of shape. */
+export function joinParts(k, bodies) {
+  const found = new Map();
+  for (const [i, b] of bodies.entries()) {
+    const { pre, list } = sections(b);
+    if (i > 0 && pre) return null;
+    for (const s of list) found.set(s.heading, s.text);
+  }
+  if (found.size !== k.sections.length || k.sections.some((h) => !found.has(h))) return null;
+  return sections(bodies[0]).pre + k.sections.map((h) => found.get(h)).join('');
+}
+
 async function sync(k) {
   const body = await get(raw(k.repo, k.commit, k.path));
   if (sha256(body) !== k.sha256) throw new Error(`${k.id}: upstream content at ${k.commit} does not match the pinned sha256`);
   const license = await get(raw(k.repo, k.commit, k.licenseFile));
-  fs.writeFileSync(path.join(ROOT, k.dest), wrap(k, body, license));
-  return `${k.id}: ${k.dest} (${body.length} bytes) at ${k.commit.slice(0, 12)}`;
+  for (const { part, body: text } of splitParts(k, body))
+    fs.writeFileSync(path.join(ROOT, part.dest), wrap({ ...k, ...part }, text, license));
+  return `${k.id}: ${k.parts.map((p) => p.dest).join(', ')} (${body.length} bytes) at ${k.commit.slice(0, 12)}`;
 }
 
 async function main() {
