@@ -80,4 +80,6 @@ and the shared helpers `core/lock`, `core/http`, `core/platform` and `core/encod
 | `cli/telemetry.rs` | telemetry (new: status, on, off, endpoint, show, flush; hidden: `__debug telemetry-build`) | native; the Node CLI has no such command |
 
 The `HELP` text is `src/cli/help.txt`; it began as the Node CLI's text, and the lines of what was added since (telemetry,
-`setup --binary`, `approve --accept-unverified`, `screen add`, `init --canvas`) are re-recorded in the golden tests.
+`setup --binary`, `approve --accept-unverified`, `screen add`, `init --canvas`, and every flag a command reads) are
+re-recorded in the golden tests. `cli/help_check.rs` fails when a command reads a flag its help lines do not name (or a
+`dfw comments` subcommand has no line), unless its `HIDDEN` list says why.

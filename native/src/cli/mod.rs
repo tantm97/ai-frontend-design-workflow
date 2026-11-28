@@ -7,6 +7,8 @@ mod comments;
 mod debug;
 mod design;
 mod edit;
+#[cfg(test)]
+mod help_check;
 mod hook;
 mod penpot;
 mod screen;
@@ -326,7 +328,7 @@ mod tests {
                 .unwrap()
                 .matches("  dfw comments")
                 .count(),
-            11
+            12
         );
         assert_eq!(command_help("nope"), None);
         // Every command of the table has help lines, except the hidden ones.

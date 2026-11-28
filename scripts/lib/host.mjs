@@ -18,6 +18,8 @@ export const HOSTS = {
       INVOKE_SKILL: 'Invoke skills with the Skill tool by their full `plugin:skill` name.',
     },
     qualifiedSkillNames: true,
+    /** How a maintainer loads a rebuilt marketplace into this host. */
+    pluginUpdate: (market) => `claude plugin marketplace update ${market} && /reload-plugins`,
   },
   copilot: {
     id: 'copilot',
@@ -34,6 +36,7 @@ export const HOSTS = {
         'Load a skill by its name (for example `impeccable`, `frontend-design`); custom agents by their name (for example `screen-builder`).',
     },
     qualifiedSkillNames: false,
+    pluginUpdate: (market, plugin) => `copilot plugin marketplace update ${market} && copilot plugin update ${plugin}`,
   },
   // The guide served by "dfw mcp" to tools without a dfw plugin.
   mcp: {
@@ -59,6 +62,18 @@ export function getHost(id) {
   const h = Object.hasOwn(HOSTS, key) ? HOSTS[key] : null;
   if (!h) throw new Error(`Unknown host "${id}". Known: ${Object.keys(HOSTS).join(', ')}`);
   return h;
+}
+
+/**
+ * How to load a rebuilt marketplace into every host that installs plugins, one line per host
+ * (`scripts/skills.mjs apply` prints it).
+ * @param {string} market the marketplace name
+ * @param {string} plugin the plugin that changed
+ */
+export function pluginUpdateSteps(market, plugin) {
+  return Object.values(HOSTS)
+    .filter((h) => h.pluginUpdate)
+    .map((h) => `${h.name}: ${h.pluginUpdate(market, plugin)}`);
 }
 
 /** Render host placeholders ({{SKILL_DIR}}, host blocks) in skill/reference/agent text. */

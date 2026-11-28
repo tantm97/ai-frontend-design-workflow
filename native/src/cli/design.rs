@@ -462,8 +462,7 @@ fn system_init_cmd(root: &Path, a: &Args) -> Result<i32, DfwError> {
     let r = system_init(
         root,
         &InitOptions {
-            preset: flag(a, "preset")
-                .unwrap_or_else(|| crate::design::system::DEFAULT_PRESET.to_string()),
+            preset: flag(a, "preset"),
             style: flag(a, "style"),
             fonts: fonts_arg(a).to_string(),
             force: a.truthy("force"),

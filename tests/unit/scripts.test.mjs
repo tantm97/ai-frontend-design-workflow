@@ -12,6 +12,7 @@ import { leftoverCheck, versionMismatch, trackedToolingCheck, workflowPipeCheck,
 import { checkSteps, WINDOWS_TARGET, NO_OP_CC } from '../../scripts/lib/check-steps.mjs';
 import { outputOf } from '../../scripts/lib/no-op-cc.mjs';
 import { blockedTitle, proposeOutcome, issueExists, findReport } from '../../scripts/ci-upstream.mjs';
+import { getHost, pluginUpdateSteps } from '../../scripts/lib/host.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const tmp = (p) => fs.mkdtempSync(path.join(os.tmpdir(), p));
@@ -246,4 +247,41 @@ test('no-op compiler: writes the -o file and the archive empty, and nothing for 
   execFileSync(process.execPath, [NO_OP_CC, '-E', src]);
   assert.equal(fs.readFileSync(path.join(dir, 'probe.o'), 'utf8'), '');
   assert.equal(fs.readFileSync(src, 'utf8'), 'int x;');
+});
+
+test('skills apply: the next steps name every host the registry builds a plugin for, and no host is spelt in the script', () => {
+  const registry = JSON.parse(fs.readFileSync(path.join(REPO, 'registry', 'skills.json'), 'utf8'));
+  const market = registry.marketplace.name;
+  /** A vendored plugin that an apply rebuilds. */
+  const plugin = 'hallmark';
+  const steps = pluginUpdateSteps(market, plugin);
+  const hosts = new Set(registry.local.map((l) => l.host));
+  assert.ok(hosts.size >= 2, [...hosts].join(', '));
+  for (const id of hosts) {
+    const host = getHost(id);
+    assert.ok(
+      steps.some((s) => s.startsWith(`${host.name}: `) && s.includes(market)),
+      `${host.name} missing from: ${steps.join(' | ')}`,
+    );
+  }
+  assert.ok(
+    steps.some((s) => s.includes(plugin)),
+    'the changed plugin is named',
+  );
+  const script = fs.readFileSync(path.join(REPO, 'scripts', 'skills.mjs'), 'utf8');
+  for (const id of hosts) assert.ok(!script.includes(`${id} plugin `), `scripts/skills.mjs spells the ${id} command`);
+});
+
+test('texts: the screen skeleton and the presets name the command that writes them, not "copy"', () => {
+  const skeleton = fs.readFileSync(path.join(REPO, 'core', 'templates', 'screen.html'), 'utf8');
+  const head = skeleton.slice(0, skeleton.indexOf('-->'));
+  assert.match(head, /dfw screen add writes it/);
+  assert.doesNotMatch(head, /\bcopy\b/i);
+  const presets = path.join(REPO, 'core', 'kits', 'base', 'presets');
+  for (const file of fs.readdirSync(presets).filter((f) => f.endsWith('.tokens.json'))) {
+    const name = file.replace(/\.tokens\.json$/, '');
+    const { $description } = JSON.parse(fs.readFileSync(path.join(presets, file), 'utf8'));
+    assert.ok($description.includes(`dfw system init --preset ${name}`), `${file}: ${$description}`);
+    assert.doesNotMatch($description, /\bcopy\b/i, file);
+  }
 });

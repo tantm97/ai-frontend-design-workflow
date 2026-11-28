@@ -46,6 +46,14 @@ pub mod message {
         )
     }
 
+    /// `system init --preset <name>` would replace a design system without `--force`.
+    pub fn preset_tokens_exist(name: &str) -> String {
+        format!(
+            "{} already holds a design system; preset \"{name}\" replaces its tokens. Pass --force to replace them, or leave out --preset to keep them.",
+            rel::TOKENS_JSON
+        )
+    }
+
     /// Two of the names given to `dfw system options` make the same option theme.
     pub fn duplicate_option(theme: &str) -> String {
         format!("Two options are both named {theme}; give each guide its own \"id\".")
@@ -108,7 +116,8 @@ pub const DEFAULT_PRESET: &str = "crisp";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InitOptions {
-    pub preset: String,
+    /// The preset `--preset` names; `None`: [`DEFAULT_PRESET`], and existing tokens are kept.
+    pub preset: Option<String>,
     pub style: Option<String>,
     /// `vi` or `latin`.
     pub fonts: String,
@@ -118,7 +127,7 @@ pub struct InitOptions {
 impl Default for InitOptions {
     fn default() -> Self {
         InitOptions {
-            preset: DEFAULT_PRESET.into(),
+            preset: None,
             style: None,
             fonts: "vi".into(),
             force: false,
@@ -137,19 +146,36 @@ pub struct SystemInit {
 
 /// `systemInit`: start the design system: tokens + fonts (+ the style's motif master) and an
 /// empty component inventory. Components are not copied from the kit. Existing tokens are kept
-/// unless `force` is set.
+/// unless `force` is set; a named style or preset refuses to replace them without `force`.
 pub fn system_init(root: &Path, opts: &InitOptions) -> Result<SystemInit, DfwError> {
     let p = project_paths(root);
+    let tok_file = &p.tokens_json;
+    let keep_tokens = !opts.force && !is_placeholder_tokens(tok_file)?;
+    // Every refusal comes before the first write: a refused init leaves the project as it was.
+    let preset = match (&opts.style, &opts.preset) {
+        (Some(_), _) if keep_tokens => return Err(DfwError::new(message::tokens_exist())),
+        (Some(style), _) => {
+            get_style(style)?;
+            None
+        }
+        (None, Some(name)) if keep_tokens => {
+            // A misspelt name is told as such first.
+            preset_files(name)?;
+            return Err(DfwError::new(message::preset_tokens_exist(name)));
+        }
+        (None, name) => {
+            let name = name.as_deref().unwrap_or(DEFAULT_PRESET);
+            Some((name, preset_files(name)?))
+        }
+    };
+    let mut written = Written::open(root)?;
+    if opts.style.is_some() {
+        written.check(rel::HEAD, opts.force)?;
+    }
     fs::create_dir_all(&p.components)?;
     let inventory_created = ensure_inventory(root)?;
-    let tok_file = &p.tokens_json;
-    if let Some(style) = &opts.style {
-        if !opts.force && !is_placeholder_tokens(tok_file)? {
-            return Err(DfwError::new(message::tokens_exist()));
-        }
-        get_style(style)?;
-        let mut written = Written::open(root)?;
-        written.check(rel::HEAD, opts.force)?;
+    let Some((preset, (tokens, head))) = preset else {
+        let style = opts.style.as_deref().unwrap_or_default();
         write_style(root, style, &opts.fonts, &mut written)?;
         written.save()?;
         build_tokens(root)?;
@@ -159,25 +185,23 @@ pub fn system_init(root: &Path, opts: &InitOptions) -> Result<SystemInit, DfwErr
             tokens_written: true,
             inventory_created,
         });
-    }
+    };
     let mut tokens_written = false;
-    let (tokens, head) = preset_files(&opts.preset)?;
-    let mut written = Written::open(root)?;
-    if opts.force || is_placeholder_tokens(tok_file)? {
+    if !keep_tokens {
         write_atomic_inside(root, tok_file, &tokens)?;
         written.record(rel::TOKENS_JSON)?;
         tokens_written = true;
     }
     let head_file = &p.head;
     if opts.force || !head_file.exists() {
-        write_atomic_inside(root, head_file, head)?;
+        write_atomic_inside(root, head_file, &head)?;
         written.record(rel::HEAD)?;
     }
     written.save()?;
     build_tokens(root)?;
     build_system(root)?;
     Ok(SystemInit {
-        preset: opts.preset.clone(),
+        preset: preset.to_string(),
         tokens_written,
         inventory_created,
     })
@@ -519,7 +543,7 @@ mod tests {
         system_init(
             root,
             &InitOptions {
-                preset: preset.into(),
+                preset: Some(preset.into()),
                 ..InitOptions::default()
             },
         )
@@ -612,8 +636,10 @@ mod tests {
         let r = init(&root, SOFT_PRESET);
         assert!(r.tokens_written);
         assert!(r.inventory_created);
+        /// The accent of the soft preset, as tokens.css writes it.
+        const SOFT_ACCENT: &str = "--color-accent: #0f6e66";
         let css = read(&root, &p.tokens_css);
-        assert!(css.contains("--color-accent: #0f6e66"));
+        assert!(css.contains(SOFT_ACCENT));
         assert!(css.contains("--size-control: 40px"));
         assert_eq!(
             load_components(&root).unwrap().len(),
@@ -621,9 +647,29 @@ mod tests {
             "no kit masters are copied"
         );
         assert_eq!(json_of(&root, &p.inventory)["components"], json!([]));
+        let kept = system_init(&root, &InitOptions::default()).unwrap();
+        assert!(!kept.inventory_created, "an existing inventory is kept");
+        assert!(!kept.tokens_written, "existing tokens are kept");
+        // A named preset over existing tokens is refused, before anything is written.
+        fs::remove_file(&p.inventory).unwrap();
+        let refused = system_init(
+            &root,
+            &InitOptions {
+                preset: Some(INDUSTRIAL_PRESET.into()),
+                ..InitOptions::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(
+            refused.message(),
+            message::preset_tokens_exist(INDUSTRIAL_PRESET)
+        );
+        assert!(!p.inventory.exists(), "a refusal writes nothing");
+        assert!(read(&root, &p.tokens_css).contains(SOFT_ACCENT));
         assert!(
-            !init(&root, SOFT_PRESET).inventory_created,
-            "an existing inventory is kept"
+            system_init(&root, &InitOptions::default())
+                .unwrap()
+                .inventory_created
         );
         let mut presets: Vec<String> = list_presets().unwrap().into_iter().map(|p| p.0).collect();
         presets.sort();

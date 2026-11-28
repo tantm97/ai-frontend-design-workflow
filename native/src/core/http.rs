@@ -374,12 +374,12 @@ mod tests {
 
     #[test]
     fn connect_gives_up_at_its_deadline() {
-        // A port nothing listens on is refused at once; an address that drops packets
-        // (TEST-NET-1, RFC 5737) is given up at the deadline, not after the system's minutes.
-        let free = std::net::TcpListener::bind((LOOPBACK, 0)).unwrap();
-        let port = free.local_addr().unwrap().port();
-        drop(free);
-        assert!(connect(LOOPBACK, port, Duration::from_secs(2)).is_err());
+        // A port nothing can listen on fails (a freed port need not: another test or process
+        // may bind it before the connect); an address that drops packets (TEST-NET-1, RFC 5737)
+        // is given up at the deadline, not after the system's minutes.
+        /// No process can listen on port 0.
+        const NO_LISTENER: u16 = 0;
+        assert!(connect(LOOPBACK, NO_LISTENER, Duration::from_secs(2)).is_err());
         let start = std::time::Instant::now();
         let dropped = connect("192.0.2.1", 9, Duration::from_millis(300));
         assert!(dropped.is_err());

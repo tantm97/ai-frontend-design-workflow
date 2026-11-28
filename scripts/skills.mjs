@@ -14,6 +14,7 @@ import { REPO_ROOT, readJson, writeJson, loadRegistry, loadLock, buildPlugin, bu
 import { resolveRef, commitCount } from './lib/git.mjs';
 import { xrefCheck, hooksCheck, leftoverCheck, conflictLint, executableFiles } from './lib/checks.mjs';
 import { getKey } from './lib/frontmatter.mjs';
+import { pluginUpdateSteps } from './lib/host.mjs';
 
 const LOCK = path.join(REPO_ROOT, 'registry', 'skills.lock.json');
 const HISTORY = path.join(REPO_ROOT, 'registry', 'history.jsonl');
@@ -287,7 +288,11 @@ function cmdApply(id) {
     forced: flag('force') || undefined,
   });
   console.log(
-    `Applied ${id}: ${from?.slice(0, 7)} -> ${to.slice(0, 7)}. Validation passed.\nNext: commit (with the user's approval), then in Claude Code: claude plugin marketplace update dfw-marketplace && /reload-plugins`,
+    [
+      `Applied ${id}: ${from?.slice(0, 7)} -> ${to.slice(0, 7)}. Validation passed.`,
+      "Next: commit (with the user's approval), then load the marketplace in each host:",
+      ...pluginUpdateSteps(loadRegistry().marketplace.name, s.plugin).map((step) => `  ${step}`),
+    ].join('\n'),
   );
 }
 
