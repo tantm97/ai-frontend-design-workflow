@@ -11,7 +11,8 @@ const test = suite('skeleton');
 
 describe('skeleton', { skip: skipReason() }, () => {
   // The recorded help was the Node CLI's plus the telemetry line, then the 0.6.0 lines of
-  // `setup --binary` and `install` (no --no-binary). The Node CLI ran install, uninstall and mcp
+  // `setup --binary` and `install` (no --no-binary), then every flag a command reads
+  // (`cli/help_check.rs`). The Node CLI ran install, uninstall and mcp
   // before it looked at --help, so `dfw install --help` installed; these cases were recorded
   // from the binary.
   test('help: dfw help, dfw and -h print the whole help', () => {
@@ -20,7 +21,7 @@ describe('skeleton', { skip: skipReason() }, () => {
       assertSame(r, { stderr: true });
       assert.equal(r.native.code, 0);
       assert.match(r.native.stdout, /^dfw - design-first workflow CLI\n/);
-      assert.match(r.native.stdout, /^ {2}dfw telemetry status\|on\|off\|endpoint <url>\|show\|flush /m);
+      assert.match(r.native.stdout, /^ {2}dfw telemetry status\|on\|off\|endpoint <url>\|show \[--raw\]\|flush /m);
     }
   });
 

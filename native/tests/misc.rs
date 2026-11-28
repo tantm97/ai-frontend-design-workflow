@@ -1,6 +1,6 @@
 //! Tests of `dfw mcp` that need the built binary: the stdio server and the install command.
 //! Ported from tests/unit/mcp.test.mjs and tests/unit/mcp-robust.test.mjs; each test names its
-//! JavaScript original.
+//! JavaScript original. Also the project a command works on when the environment names one.
 
 #![allow(
     clippy::disallowed_methods,
@@ -253,4 +253,34 @@ fn mcp_install_cli_writes_each_tool_config_and_backs_up() {
     assert!(home.join(".cursor/mcp.json.dfw-backup").exists());
     mcp(&[sub::UNINSTALL, "cursor"]);
     assert_eq!(parsed(CURSOR_CONFIG)[CURSOR_SERVERS].get(SERVER), None);
+}
+
+/// Every command finds the project the environment names, `dfw init` too: `DFW_PROJECT_DIR`
+/// first, then `CLAUDE_PROJECT_DIR`, as the hooks do (`core::paths::project_dir_from_env`).
+#[test]
+fn init_and_status_work_on_the_project_the_environment_names() {
+    use layout::project_env::{CLAUDE_PROJECT_DIR, DFW_PROJECT_DIR};
+    /// The product name `init` records and `status` prints.
+    const PRODUCT: &str = "Named";
+    let dir = tmp_dir("project-dir");
+    let (cwd, ours, claudes) = (dir.join("cwd"), dir.join("ours"), dir.join("claudes"));
+    for d in [&cwd, &ours, &claudes] {
+        fs::create_dir_all(d).unwrap();
+    }
+    let named = |args: &[&str]| {
+        let mut cmd = dfw_command(&cwd, args);
+        cmd.env(DFW_PROJECT_DIR, &ours)
+            .env(CLAUDE_PROJECT_DIR, &claudes);
+        cmd
+    };
+    let init = run(named(&[command::INIT, flag::PRODUCT, PRODUCT]), "");
+    assert!(init.contains(&ours.display().to_string()), "{init}");
+    assert!(ours.join(rel::STATE).is_file());
+    assert!(!cwd.join(rel::STATE).exists() && !claudes.join(rel::STATE).exists());
+    let status = run(named(&[command::STATUS]), "");
+    assert!(
+        status.contains(&format!("product=\"{PRODUCT}\"")),
+        "{status}"
+    );
+    fs::remove_dir_all(&dir).unwrap();
 }

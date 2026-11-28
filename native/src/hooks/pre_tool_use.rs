@@ -11,7 +11,9 @@ use crate::core::config::load_config;
 use crate::core::error::DfwError;
 use crate::core::host::{HookInput, HookResult};
 use crate::core::js;
-use crate::core::paths::{env_nonempty, file, find_project_root, project_paths, rel, resolve};
+use crate::core::paths::{
+    file, find_project_root, project_dir_from_env, project_paths, rel, resolve,
+};
 use crate::core::presence::key as presence;
 use crate::core::util::{now_iso, write_json_inside};
 use crate::design::html::{Attr, Quote, Token, Tokenizer};
@@ -89,12 +91,11 @@ fn session_cwd(input: &HookInput) -> Result<PathBuf, DfwError> {
     }
 }
 
-/// `rootFrom(input)`: the project a hook call is about: `DFW_PROJECT_DIR`, `CLAUDE_PROJECT_DIR`,
-/// the payload's `cwd`, then the working directory.
+/// `rootFrom(input)`: the project a hook call is about: the one the environment names (as for
+/// every command, [`project_dir_from_env`]), the payload's `cwd`, then the working directory.
 pub fn root_from(input: &HookInput) -> Result<PathBuf, DfwError> {
-    let start = match env_nonempty("DFW_PROJECT_DIR").or_else(|| env_nonempty("CLAUDE_PROJECT_DIR"))
-    {
-        Some(dir) => PathBuf::from(dir),
+    let start = match project_dir_from_env() {
+        Some(dir) => dir,
         None => session_cwd(input)?,
     };
     Ok(find_project_root(Some(&start)))

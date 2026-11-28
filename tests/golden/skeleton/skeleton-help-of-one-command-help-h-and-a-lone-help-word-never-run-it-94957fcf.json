@@ -3,43 +3,37 @@
   "results": [
     {
       "code": 0,
-      "stdout": "  dfw install [--host auto|claude|copilot|all] [--scope user|project|local] [--no-runtime]\n                                                Register dfw + its skills with Claude Code and/or GitHub Copilot (auto = every one installed)\n\nRun \"dfw help\" for every command.\n",
+      "stdout": "  dfw install [--host auto|claude|copilot|all] [--scope user|project|local] [--source <path|owner/repo>] [--no-runtime] [--quiet]\n                                                Register dfw + its skills with Claude Code and/or GitHub Copilot (auto = every one installed)\n\nRun \"dfw help\" for every command.\n",
       "stderr": "",
       "files": {}
     },
     {
       "code": 0,
-      "stdout": "  dfw install [--host auto|claude|copilot|all] [--scope user|project|local] [--no-runtime]\n                                                Register dfw + its skills with Claude Code and/or GitHub Copilot (auto = every one installed)\n\nRun \"dfw help\" for every command.\n",
+      "stdout": "  dfw install [--host auto|claude|copilot|all] [--scope user|project|local] [--source <path|owner/repo>] [--no-runtime] [--quiet]\n                                                Register dfw + its skills with Claude Code and/or GitHub Copilot (auto = every one installed)\n\nRun \"dfw help\" for every command.\n",
       "stderr": "",
       "files": {}
     },
     {
       "code": 0,
-      "stdout": "  dfw install [--host auto|claude|copilot|all] [--scope user|project|local] [--no-runtime]\n                                                Register dfw + its skills with Claude Code and/or GitHub Copilot (auto = every one installed)\n\nRun \"dfw help\" for every command.\n",
+      "stdout": "  dfw install [--host auto|claude|copilot|all] [--scope user|project|local] [--source <path|owner/repo>] [--no-runtime] [--quiet]\n                                                Register dfw + its skills with Claude Code and/or GitHub Copilot (auto = every one installed)\n\nRun \"dfw help\" for every command.\n",
       "stderr": "",
       "files": {}
     },
     {
       "code": 0,
-      "stdout": "  dfw install [--host auto|claude|copilot|all] [--scope user|project|local] [--no-runtime]\n                                                Register dfw + its skills with Claude Code and/or GitHub Copilot (auto = every one installed)\n\nRun \"dfw help\" for every command.\n",
+      "stdout": "  dfw install [--host auto|claude|copilot|all] [--scope user|project|local] [--source <path|owner/repo>] [--no-runtime] [--quiet]\n                                                Register dfw + its skills with Claude Code and/or GitHub Copilot (auto = every one installed)\n\nRun \"dfw help\" for every command.\n",
       "stderr": "",
       "files": {}
     },
     {
       "code": 0,
-      "stdout": "  dfw uninstall [--host ...] [--scope ...]      Remove them (project files stay)\n\nRun \"dfw help\" for every command.\n",
+      "stdout": "  dfw uninstall [--host ...] [--scope ...] [--quiet]   Remove them (project files stay)\n\nRun \"dfw help\" for every command.\n",
       "stderr": "",
       "files": {}
     },
     {
       "code": 0,
-      "stdout": "  dfw uninstall [--host ...] [--scope ...]      Remove them (project files stay)\n\nRun \"dfw help\" for every command.\n",
-      "stderr": "",
-      "files": {}
-    },
-    {
-      "code": 0,
-      "stdout": "  dfw mcp                                       MCP server on stdio (for tools without a dfw plugin)\n  dfw mcp install|uninstall <opencode|codex|cursor|all> [--print]   Add/remove dfw in that tool's MCP config\n\nRun \"dfw help\" for every command.\n",
+      "stdout": "  dfw uninstall [--host ...] [--scope ...] [--quiet]   Remove them (project files stay)\n\nRun \"dfw help\" for every command.\n",
       "stderr": "",
       "files": {}
     },
@@ -51,13 +45,19 @@
     },
     {
       "code": 0,
-      "stdout": "  dfw setup --browser                           Download a headless Chrome (only if no Chrome/Edge/Chromium is installed)\n  dfw setup --a11y                              Download axe-core (pinned, integrity-checked) for the rendered accessibility check\n  dfw setup --binary                            Download the dfw binary of this plugin version (GitHub release, checked against SHA256SUMS)\n\nRun \"dfw help\" for every command.\n",
+      "stdout": "  dfw mcp                                       MCP server on stdio (for tools without a dfw plugin)\n  dfw mcp install|uninstall <opencode|codex|cursor|all> [--print]   Add/remove dfw in that tool's MCP config\n\nRun \"dfw help\" for every command.\n",
       "stderr": "",
       "files": {}
     },
     {
       "code": 0,
-      "stdout": "  dfw telemetry status|on|off|endpoint <url>|show|flush   Anonymous usage counts (off unless a collector is set; nothing about your project)\n\nRun \"dfw help\" for every command.\n",
+      "stdout": "  dfw setup --browser                           Download a headless Chrome (only if no Chrome/Edge/Chromium is installed)\n  dfw setup --a11y                              Download axe-core (pinned, integrity-checked) for the rendered accessibility check\n  dfw setup --binary                            Download the dfw binary of this plugin version (GitHub release, checked against SHA256SUMS)\n  dfw setup --marketplace-repo <path>           Where the dfw-marketplace repository is (maintaining the vendored skills)\n\nRun \"dfw help\" for every command.\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "code": 0,
+      "stdout": "  dfw telemetry status|on|off|endpoint <url>|show [--raw]|flush   Anonymous usage counts (off unless a collector is set; nothing about your project)\n\nRun \"dfw help\" for every command.\n",
       "stderr": "",
       "files": {}
     },
@@ -75,7 +75,7 @@
     },
     {
       "code": 0,
-      "stdout": "  dfw approve <G1|DS|G2|G3|G4> --note <text>    Record the user's approval (DS = design system, G2 freezes the design)\n        [--accept-findings]                     G2 only: approve despite MUST findings (recorded)\n        [--accept-unverified]                   G2 only: freeze although a configured check did not run (recorded)\n\nRun \"dfw help\" for every command.\n",
+      "stdout": "  dfw approve <G1|DS|G2|G3|G4> --note <text>    Record the user's approval (DS = design system, G2 freezes the design)\n        [--accept-findings]                     DS and G2: approve despite MUST findings (recorded at G2)\n        [--accept-unverified]                   G2 only: freeze although a configured check did not run (recorded)\n        [--accept-open-comments]                G2 only: freeze with review comments still open (only when the user says so)\n        [--force]                               DS only: approve while preset option themes are still active\n\nRun \"dfw help\" for every command.\n",
       "stderr": "",
       "files": {}
     },
@@ -88,19 +88,19 @@
     {
       "code": 1,
       "stdout": "",
-      "stderr": "Unknown option --hots for \"dfw install\".\n  dfw install [--host auto|claude|copilot|all] [--scope user|project|local] [--no-runtime]\n                                                Register dfw + its skills with Claude Code and/or GitHub Copilot (auto = every one installed)\n\nRun \"dfw help\" for every command.\n",
+      "stderr": "Unknown option --hots for \"dfw install\".\n  dfw install [--host auto|claude|copilot|all] [--scope user|project|local] [--source <path|owner/repo>] [--no-runtime] [--quiet]\n                                                Register dfw + its skills with Claude Code and/or GitHub Copilot (auto = every one installed)\n\nRun \"dfw help\" for every command.\n",
       "files": {}
     },
     {
       "code": 1,
       "stdout": "",
-      "stderr": "Unexpected word \"now\" for \"dfw install\".\n  dfw install [--host auto|claude|copilot|all] [--scope user|project|local] [--no-runtime]\n                                                Register dfw + its skills with Claude Code and/or GitHub Copilot (auto = every one installed)\n\nRun \"dfw help\" for every command.\n",
+      "stderr": "Unexpected word \"now\" for \"dfw install\".\n  dfw install [--host auto|claude|copilot|all] [--scope user|project|local] [--source <path|owner/repo>] [--no-runtime] [--quiet]\n                                                Register dfw + its skills with Claude Code and/or GitHub Copilot (auto = every one installed)\n\nRun \"dfw help\" for every command.\n",
       "files": {}
     },
     {
       "code": 1,
       "stdout": "",
-      "stderr": "Unknown option --force for \"dfw uninstall\".\n  dfw uninstall [--host ...] [--scope ...]      Remove them (project files stay)\n\nRun \"dfw help\" for every command.\n",
+      "stderr": "Unknown option --force for \"dfw uninstall\".\n  dfw uninstall [--host ...] [--scope ...] [--quiet]   Remove them (project files stay)\n\nRun \"dfw help\" for every command.\n",
       "files": {}
     },
     {
@@ -112,13 +112,13 @@
     {
       "code": 1,
       "stdout": "",
-      "stderr": "Unexpected word \"browser\" for \"dfw setup\".\n  dfw setup --browser                           Download a headless Chrome (only if no Chrome/Edge/Chromium is installed)\n  dfw setup --a11y                              Download axe-core (pinned, integrity-checked) for the rendered accessibility check\n  dfw setup --binary                            Download the dfw binary of this plugin version (GitHub release, checked against SHA256SUMS)\n\nRun \"dfw help\" for every command.\n",
+      "stderr": "Unexpected word \"browser\" for \"dfw setup\".\n  dfw setup --browser                           Download a headless Chrome (only if no Chrome/Edge/Chromium is installed)\n  dfw setup --a11y                              Download axe-core (pinned, integrity-checked) for the rendered accessibility check\n  dfw setup --binary                            Download the dfw binary of this plugin version (GitHub release, checked against SHA256SUMS)\n  dfw setup --marketplace-repo <path>           Where the dfw-marketplace repository is (maintaining the vendored skills)\n\nRun \"dfw help\" for every command.\n",
       "files": {}
     },
     {
       "code": 1,
       "stdout": "",
-      "stderr": "Unexpected word \"now\" for \"dfw telemetry\".\n  dfw telemetry status|on|off|endpoint <url>|show|flush   Anonymous usage counts (off unless a collector is set; nothing about your project)\n\nRun \"dfw help\" for every command.\n",
+      "stderr": "Unexpected word \"now\" for \"dfw telemetry\".\n  dfw telemetry status|on|off|endpoint <url>|show [--raw]|flush   Anonymous usage counts (off unless a collector is set; nothing about your project)\n\nRun \"dfw help\" for every command.\n",
       "files": {}
     },
     {

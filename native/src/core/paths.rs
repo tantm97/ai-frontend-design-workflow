@@ -8,7 +8,7 @@ use super::error::DfwError;
 
 mod layout;
 
-pub use self::layout::{file, in_design, rel};
+pub use self::layout::{file, in_design, project_env, rel};
 
 /// Manifest files a dfw plugin may carry: Claude Code format, a root `plugin.json` (Copilot and
 /// others), or `manifest.json` (`core/` in the development repository).
@@ -119,16 +119,23 @@ fn is_plugin_dir(dir: &Path) -> bool {
     dir.join(PLUGIN_BIN).join(LAUNCHER).is_file() && manifest_path(dir).is_some()
 }
 
+/// The project folder the environment names, if any: the first of [`project_env::PROJECT_DIR`]
+/// that is set (dfw's own, then Claude Code's). Every command and every hook reads it here.
+pub fn project_dir_from_env() -> Option<PathBuf> {
+    project_env::PROJECT_DIR
+        .iter()
+        .find_map(|name| env_nonempty(name))
+        .map(PathBuf::from)
+}
+
 /// Find the project root: the nearest ancestor containing `.dfw/state.json`, else the nearest
-/// containing `.git`, else the start directory. `start` defaults to `CLAUDE_PROJECT_DIR`, then
-/// the working directory.
+/// containing `.git`, else the start directory. `start` defaults to [`project_dir_from_env`],
+/// then the working directory.
 pub fn find_project_root(start: Option<&Path>) -> PathBuf {
     let start = match start {
         Some(p) => resolve(p),
         None => resolve(
-            env_nonempty("CLAUDE_PROJECT_DIR")
-                .map(PathBuf::from)
-                .unwrap_or_else(|| env::current_dir().unwrap_or_default()),
+            project_dir_from_env().unwrap_or_else(|| env::current_dir().unwrap_or_default()),
         ),
     };
     let mut git_root: Option<PathBuf> = None;

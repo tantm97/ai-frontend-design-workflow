@@ -100,6 +100,16 @@ pub mod file {
     }
 }
 
+/// The environment variables that name the project folder.
+pub mod project_env {
+    /// dfw's own, for every host.
+    pub const DFW_PROJECT_DIR: &str = "DFW_PROJECT_DIR";
+    /// The one Claude Code sets.
+    pub const CLAUDE_PROJECT_DIR: &str = "CLAUDE_PROJECT_DIR";
+    /// In the order they are read: the first one set wins.
+    pub const PROJECT_DIR: [&str; 2] = [DFW_PROJECT_DIR, CLAUDE_PROJECT_DIR];
+}
+
 /// Design system files relative to `design/`, as pages link them (`{base}tokens/tokens.css`).
 pub mod in_design {
     pub const HEAD: &str = "system/head.html";

@@ -233,6 +233,11 @@ describe('design commands', { skip: skipReason() }, () => {
     assert.match(kept.stdout, /tokens kept \(pass --force to replace\); design\/system\/inventory\.json created/);
     assertSame(run(['system', 'init', '--preset', 'nope']), { stderr: true });
     assertSame(run(['system', 'init', '--style', 'swiss-grid']), { stderr: true });
+    // A named preset over existing tokens is a refusal: exit 1, nothing written.
+    const refused = run(['system', 'init', '--preset', 'soft']);
+    assert.equal(refused.native.code, 1);
+    assert.deepEqual(Object.keys(refused.native.files), []);
+    assertSame(refused, { stderr: true });
     for (const style of ['swiss-grid', 'heritage-signboard', 'dark-console']) {
       const r = same(['system', 'init', '--style', style, '--force']);
       assert.equal(r.code, 0);
